@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { TemplateBrowserModal } from './TemplateBrowserModal';
+import { TemplateBrowserModal } from '../modals/TemplateBrowserModal';
 import type { TemplateDefinition } from './types';
 
 export interface BrowseTemplatesButtonProps

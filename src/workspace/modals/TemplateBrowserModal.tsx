@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { TemplateDefinition, TemplateMetadata } from './types';
+import type { TemplateDefinition, TemplateMetadata } from '../templates/types';
 
 interface TemplateBrowserModalProps {
     templates: TemplateDefinition[];

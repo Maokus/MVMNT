@@ -4,7 +4,7 @@ import { EnhancedConfigSchema, PropertyDefinition } from '@fonts/components';
 import { useMacros } from '@context/MacroContext';
 import type { ElementBindings } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
-import type { FormInputChange } from '@workspace/form/inputs/FormInput';
+import type { FormInputChange } from '@workspace/forms/inputs/FormInput';
 import { FaCopy, FaPaste, FaRotate } from 'react-icons/fa6';
 import { useCurrentTick } from '@automation/hooks';
 import { makeChannelId, findKeyframeAtTick, createKeyframe } from '@automation/types';

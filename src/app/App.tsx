@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 
 // Tailwind styles are loaded via index.tsx
-const MidiVisualizer = lazy(() => import('@workspace/layout/MidiVisualizer'));
+const MidiVisualizer = lazy(() => import('@workspace/overlays/MidiVisualizer'));
 const EasyModePage = lazy(() => import('../easymode/EasyModePage'));
 const AnimationTestPage = lazy(() => import('@pages/AnimationTestPage'));
 const AboutPage = lazy(() => import('@pages/AboutPage'));

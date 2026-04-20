@@ -1,0 +1,473 @@
+Unused files (55)
+postcss.config.js                                                     
+src/core/midi/midi-manager.ts                                         
+src/core/render/scheduler.worker.ts                                   
+src/core/scene/elements/_templates/audio-reactive.ts                  
+src/core/scene/elements/_templates/basic-shape.ts                     
+src/core/scene/elements/_templates/midi-notes.ts                      
+src/core/scene/elements/_templates/text-display.ts                    
+src/core/scene/elements/midi-displays/moving-notes-piano-roll/index.ts
+src/core/scene/elements/midi-displays/note-animations/template.ts     
+src/core/scene/elements/midi-displays/time-unit-piano-roll/index.ts   
+src/export/export-service.ts                                          
+src/export/index.ts                                                   
+src/math/transforms/mouseToTransforms.ts                              
+src/pages/animationTest.css                                           
+src/pages/HomePageBkup.tsx                                            
+src/plugins/midipack1/almamlike-piano-roll.ts                         
+src/plugins/midipack1/circular-piano-roll.ts                          
+src/plugins/midipack1/collision-midi-display.ts                       
+src/plugins/midipack1/piano-roll-effects.ts                           
+src/plugins/midipack1/popcat-midi-display.ts                          
+src/plugins/midipack1/trackerlike-midi-display.ts                     
+src/plugins/patternspack1/checkers-pattern.ts                         
+src/plugins/patternspack1/particles-pattern.ts                        
+src/plugins/testelement6/double-midi-element.ts                       
+src/plugins/testelement6/my-element.ts                                
+src/plugins/testelement6/my-new-elementy.ts                           
+src/plugins/testplugin7/my-epic-new-element.ts                        
+src/plugins/testplugin7/my-second-cool-element.ts                     
+src/plugins/testplugin7/my-unique-element.ts                          
+src/state/selectors/timeDerived.ts                                    
+src/state/timeline/index.ts                                           
+src/utils/featureFlags.ts                                             
+src/utils/throttle.ts                                                 
+src/workspace/forms/inputs/index.ts                                   
+src/workspace/panels/timeline/automation/EasingPicker.tsx             
+src/workspace/panels/timeline/hooks/useTimeScale.ts                   
+vite.config.ts.timestamp-1762752129547-f0d2e364902c3.mjs              
+Unused devDependencies (2)
+@testing-library/user-event  package.json:31:10
+autoprefixer                 package.json:38:10
+Unlisted dependencies (5)
+esbuild             scripts/build-plugin.mjs:16:23
+esbuild             scripts/dev-plugin.mjs:24:23  
+react-scripts       src/app/react-app-env.d.ts:1:1
+@assets/pain.png    src/pages/AboutPage.tsx:5:18  
+@assets/senile.png  src/pages/AboutPage.tsx:6:20  
+Unlisted binaries (1)
+serve  package.json
+Unresolved imports (1)
+./types  src/workspace/modals/TemplateBrowserModal.tsx:3:59
+Unused exports (192)
+App                                                   function  src/app/App.tsx:61:17                                   
+formatAnalysisIntentDescript…  analysisIntents        function  src/audio/features/analysisIntents.ts:259:17            
+AudioFeatureAnalysisScheduler                         class     src/audio/features/audioFeatureScheduler.ts:38:14       
+FeatureSubscriptionController                         class     …/audio/features/featureSubscriptionController.ts:117:14
+getElementSubscriptionDetails                         function  src/audio/features/subscriptionSync.ts:50:17            
+clearClipboard                                        function  src/automation/clipboard.ts:32:17                       
+useIsPropertyAutomated                                function  src/automation/hooks.ts:49:17                           
+DEFAULT_HANDLE_TYPE                                             src/automation/interpolation-defaults.ts:19:14          
+migrateKeyframe                                       function  src/automation/migration.ts:79:17                       
+migrateChannel                                        function  src/automation/migration.ts:115:17                      
+getDefaultSceneSettings                               function  src/core/default-scene-loader.ts:151:23                 
+getDefaultSceneMetadata                               function  src/core/default-scene-loader.ts:157:23                 
+MIDIParser                                                      src/core/index.ts:6:10                                  
+parseMIDI                                                       src/core/index.ts:6:22                                  
+NoteEvent                                                       src/core/index.ts:7:10                                  
+ImageSequenceGenerator                                          src/core/index.ts:8:10                                  
+PropertyBinding                                                 src/core/index.ts:12:10                                 
+ConstantBinding                                                 src/core/index.ts:12:27                                 
+MacroBinding                                                    src/core/index.ts:12:44                                 
+PropertyBindingUtils                                            src/core/index.ts:12:58                                 
+loadDefaultScene                                                src/core/index.ts:14:10                                 
+resetToDefaultScene                                             src/core/index.ts:14:28                                 
+MIDIVisualizer                                                  src/core/index.ts:19:32                                 
+ModularRenderer                                                 src/core/index.ts:20:10                                 
+SceneElementRegistry                                            src/core/index.ts:23:10                                 
+sceneElementRegistry                                            src/core/index.ts:23:32                                 
+parseAndNormalize                                     function  src/core/midi/midi-ingest.ts:95:23                      
+parseMIDIToData                                       function  src/core/midi/midi-library.ts:13:23                     
+estimateChordForWindow                                function  src/core/midi/music-theory/chord-estimator.ts:107:17    
+ClipLayer                      pluginSdkRenderModule  class     src/core/render/render-objects/clip-layer.ts:15:14      
+CompositeLayer                 pluginSdkRenderModule  class     src/core/render/render-objects/composite-layer.ts:23:14 
+BezierPath                     pluginSdkRenderModule            src/core/render/render-objects/index.ts:9:10            
+CompositeLayer                 pluginSdkRenderModule            src/core/render/render-objects/index.ts:12:10           
+ClipLayer                      pluginSdkRenderModule            src/core/render/render-objects/index.ts:13:10           
+buildSchedulerConfig                                  function  src/core/render/scheduler-bridge.ts:19:17               
+ImageLoader                                           class     src/core/resources/image-loader.ts:35:14                
+AudioAdhocProfileElement       elements               class     …scene/elements/audio-debug/audio-adhoc-profile.ts:42:14
+AudioBadReqElement             elements               class     …/core/scene/elements/audio-debug/audio-bad-req.ts:37:14
+AudioMinimalElement            elements               class     …/core/scene/elements/audio-debug/audio-minimal.ts:30:14
+AudioOddProfileElement         elements               class     …e/scene/elements/audio-debug/audio-odd-profile.ts:37:14
+convertSpectrogramBins                                function  …e/scene/elements/audio-displays/audio-spectrum.ts:96:17
+asBoolean                      elements                         src/core/scene/elements/index.ts:4:5                    
+asNumber                       elements                         src/core/scene/elements/index.ts:5:5                    
+asString                       elements                         src/core/scene/elements/index.ts:6:5                    
+asTrimmedString                elements                         src/core/scene/elements/index.ts:7:5                    
+AudioAdhocProfileElement       elements                         src/core/scene/elements/index.ts:30:10                  
+AudioMinimalElement            elements                         src/core/scene/elements/index.ts:31:10                  
+AudioOddProfileElement         elements                         src/core/scene/elements/index.ts:32:10                  
+AudioDebugElement              elements                         src/core/scene/elements/index.ts:33:10                  
+AudioBadReqElement             elements                         src/core/scene/elements/index.ts:34:10                  
+loadDevPlugin                                         function  src/core/scene/plugins/dev-plugin-loader.ts:340:23      
+getRegistry                                           function  src/core/scene/plugins/dev-plugin-loader.ts:353:17      
+withRenderSafety                                                src/core/scene/plugins/index.ts:11:5                    
+limitRenderObjects                                              src/core/scene/plugins/index.ts:12:5                    
+checkCapability                                                 src/core/scene/plugins/index.ts:13:5                    
+DEFAULT_SAFETY_CONFIG                                           src/core/scene/plugins/index.ts:14:5                    
+createPluginHostApi                                             src/core/scene/plugins/index.ts:19:5                    
+PLUGIN_API_VERSION                                              src/core/scene/plugins/index.ts:21:5                    
+PLUGIN_CAPABILITIES                                             src/core/scene/plugins/index.ts:22:5                    
+getPluginHostApi                                                src/core/scene/plugins/index.ts:27:5                    
+PluginApiError                 pluginSdkApiModule     class     src/core/scene/plugins/plugin-errors.ts:23:14           
+PluginDowngradeError                                  class     src/core/scene/plugins/plugin-errors.ts:59:14           
+loadBundledAssetForPlugin                             function  src/core/scene/plugins/plugin-loader.ts:86:17           
+reloadPluginFromStorage                               function  src/core/scene/plugins/plugin-loader.ts:455:23          
+clamp                          pluginSdkAnimationMo…            src/core/scene/plugins/sdk/animation.ts:9:5             
+lerp                           pluginSdkAnimationMo…            src/core/scene/plugins/sdk/animation.ts:10:5            
+invLerp                        pluginSdkAnimationMo…            src/core/scene/plugins/sdk/animation.ts:11:5            
+remap                          pluginSdkAnimationMo…            src/core/scene/plugins/sdk/animation.ts:12:5            
+FloatCurve                     pluginSdkAnimationMo…            src/core/scene/plugins/sdk/animation.ts:13:5            
+AnimMath                       pluginSdkAnimationMo…            src/core/scene/plugins/sdk/animation.ts:14:5            
+easings                        pluginSdkAnimationMo…            src/core/scene/plugins/sdk/animation.ts:21:21           
+PLUGIN_API_VERSION             pluginSdkApiModule               src/core/scene/plugins/sdk/api.ts:8:5                   
+PluginApiError                 pluginSdkApiModule               src/core/scene/plugins/sdk/api.ts:23:5                  
+MissingHostError               pluginSdkApiModule               src/core/scene/plugins/sdk/api.ts:24:5                  
+UnsupportedVersionError        pluginSdkApiModule               src/core/scene/plugins/sdk/api.ts:25:5                  
+MissingCapabilityError         pluginSdkApiModule               src/core/scene/plugins/sdk/api.ts:26:5                  
+registerFeatureRequirements    pluginSdkAudioModule             src/core/scene/plugins/sdk/audio.ts:14:10               
+RenderObject                   pluginSdkRenderModule            src/core/scene/plugins/sdk/render.ts:8:5                
+EmptyRenderObject              pluginSdkRenderModule            src/core/scene/plugins/sdk/render.ts:9:5                
+Rectangle                      pluginSdkRenderModule            src/core/scene/plugins/sdk/render.ts:10:5               
+Text                           pluginSdkRenderModule            src/core/scene/plugins/sdk/render.ts:11:5               
+Line                           pluginSdkRenderModule            src/core/scene/plugins/sdk/render.ts:12:5               
+Image                          pluginSdkRenderModule            src/core/scene/plugins/sdk/render.ts:13:5               
+AnimatedGif                    pluginSdkRenderModule            src/core/scene/plugins/sdk/render.ts:14:5               
+Poly                           pluginSdkRenderModule            src/core/scene/plugins/sdk/render.ts:15:5               
+BezierPath                     pluginSdkRenderModule            src/core/scene/plugins/sdk/render.ts:16:5               
+Arc                            pluginSdkRenderModule            src/core/scene/plugins/sdk/render.ts:17:5               
+GlowLayer                      pluginSdkRenderModule            src/core/scene/plugins/sdk/render.ts:18:5               
+CompositeLayer                 pluginSdkRenderModule            src/core/scene/plugins/sdk/render.ts:19:5               
+ClipLayer                      pluginSdkRenderModule            src/core/scene/plugins/sdk/render.ts:20:5               
+withRenderSafety               pluginSdkSafetyModule            src/core/scene/plugins/sdk/safety.ts:8:5                
+limitRenderObjects             pluginSdkSafetyModule            src/core/scene/plugins/sdk/safety.ts:9:5                
+checkCapability                pluginSdkSafetyModule            src/core/scene/plugins/sdk/safety.ts:10:5               
+DEFAULT_SAFETY_CONFIG          pluginSdkSafetyModule            src/core/scene/plugins/sdk/safety.ts:11:5               
+PluginSafetyError              pluginSdkSafetyModule            src/core/scene/plugins/sdk/safety.ts:13:5               
+SceneElement                   pluginSdkSceneModule             src/core/scene/plugins/sdk/scene.ts:8:5                 
+asNumber                       pluginSdkSceneModule             src/core/scene/plugins/sdk/scene.ts:9:5                 
+asBoolean                      pluginSdkSceneModule             src/core/scene/plugins/sdk/scene.ts:10:5                
+asString                       pluginSdkSceneModule             src/core/scene/plugins/sdk/scene.ts:11:5                
+asTrimmedString                pluginSdkSceneModule             src/core/scene/plugins/sdk/scene.ts:12:5                
+prop                           pluginSdkSceneModule             src/core/scene/plugins/sdk/scene.ts:19:10               
+insertElementGroups            pluginSdkSceneModule             src/core/scene/plugins/sdk/scene.ts:19:16               
+beatsToSeconds                 pluginSdkTimingModule            src/core/scene/plugins/sdk/timing.ts:22:5               
+secondsToBeats                 pluginSdkTimingModule            src/core/scene/plugins/sdk/timing.ts:23:5               
+getSecondsPerBeat              pluginSdkTimingModule            src/core/scene/plugins/sdk/timing.ts:24:5               
+quantizeSettingToBeats         pluginSdkTimingModule            src/core/scene/plugins/sdk/timing.ts:29:5               
+quantizeSettingToTicks         pluginSdkTimingModule            src/core/scene/plugins/sdk/timing.ts:30:5               
+formatQuantizeLabel            pluginSdkTimingModule            src/core/scene/plugins/sdk/timing.ts:31:5               
+formatQuantizeShortLabel       pluginSdkTimingModule            src/core/scene/plugins/sdk/timing.ts:32:5               
+normalizeColorAlphaValue       pluginSdkUtilsModule             src/core/scene/plugins/sdk/utils.ts:13:5                
+ensureEightDigitHex            pluginSdkUtilsModule             src/core/scene/plugins/sdk/utils.ts:14:5                
+loadGoogleFont                 pluginSdkUtilsModule             src/core/scene/plugins/sdk/utils.ts:19:5                
+loadGoogleFontAsync            pluginSdkUtilsModule             src/core/scene/plugins/sdk/utils.ts:20:5                
+ensureFontLoaded               pluginSdkUtilsModule             src/core/scene/plugins/sdk/utils.ts:21:5                
+isFontLoaded                   pluginSdkUtilsModule             src/core/scene/plugins/sdk/utils.ts:22:5                
+parseFontSelection             pluginSdkUtilsModule             src/core/scene/plugins/sdk/utils.ts:23:5                
+loadBundledAsset               pluginSdkUtilsModule   function  src/core/scene/plugins/sdk/utils.ts:38:17               
+debugTools                                                      src/core/timing/debug-tools.ts:73:14                    
+resolveTempoKeyframes                                           src/core/timing/index.ts:9:10                           
+getNotesInWindow                                      function  src/core/timing/note-query.ts:66:17                     
+getNotesNearTimeUnit                                  function  src/core/timing/note-query.ts:140:17                    
+beatsToOffsetTicks                                    function  src/core/timing/offset-utils.ts:11:17                   
+getCanonicalPPQ                                       function  src/core/timing/ppq.ts:8:17                             
+getSecondsPerBeat              pluginSdkTimingModule  function  src/core/timing/tempo-utils.ts:84:17                    
+parseBBT                                              function  src/core/timing/time-domain.ts:28:17                    
+ticksToBBT                                            function  src/core/timing/time-domain.ts:69:17                    
+formatTickAsBBTPadded                                 function  src/core/timing/time-domain.ts:81:17                    
+MIDIVisualizerCore                                    class     src/core/visualizer-core.ts:12:14                       
+registerAacEncoder                                    function  src/export/aac-encoder-optional-fallback.ts:3:17        
+AVExporter                                            class     src/export/av-exporter.ts:88:14                         
+audioBufferToWavBlob                                  function  src/export/av-exporter.ts:419:17                        
+cloneSnapshot                                         function  src/export/export-timing-snapshot.ts:128:17             
+QUALITY_MULTIPLIERS                                             src/export/fileSizeEstimator.ts:66:14                   
+getQuickEstimate                                      function  src/export/fileSizeEstimator.ts:330:17                  
+ImageSequenceGenerator                                class     src/export/image-sequence-generator.ts:37:14            
+registerMp3Encoder                                    function  src/export/mp3-encoder-optional-fallback.ts:3:17        
+loadGoogleFont                 pluginSdkUtilsModule   function  src/fonts/font-loader.ts:159:17                         
+AnimMath                       af                               src/math/animation/anim-math.ts:103:14                  
+default                        af                               src/math/animation/anim-math.ts:105:16                  
+evaluateCubicBezier1D                                 function  src/math/animation/cubic-bezier.ts:17:17                
+solveCubicBezierT                                     function  src/math/animation/cubic-bezier.ts:45:17                
+createBackEasing                                      function  src/math/animation/easing-parametric.ts:28:17           
+createElasticEasing                                   function  src/math/animation/easing-parametric.ts:43:17           
+createBounceEasing                                    function  src/math/animation/easing-parametric.ts:71:17           
+hitTestHandle                                         function  src/math/interaction.ts:7:17                            
+computeChromaFromNotes                                function  src/math/midi/chord-estimator.ts:24:17                  
+estimateChordForWindow                                function  src/math/midi/chord-estimator.ts:117:17                 
+isCanonicalOrder                                      function  src/persistence/ordering.ts:42:17                       
+stableEqual                                           function  src/persistence/stable-stringify.ts:60:17               
+getDiagnosticsPanelState                              function  src/state/audioDiagnosticsStore.ts:1272:17              
+isCustomFontToken                                     function  src/state/scene/fonts.ts:43:17                          
+getSceneFontAssets                                    function  src/state/scene/fonts.ts:80:17                          
+useInteractionState                                   function  src/state/scene/hooks.ts:87:17                          
+stopMacroSync                  macroSyncService       function  src/state/scene/macroSyncService.ts:103:17              
+getMacroValue                  macroSyncService       function  src/state/scene/macroSyncService.ts:124:17              
+selectOrderedElementIds                                         src/state/scene/selectors.ts:67:14                      
+useAudioFeatureCache           audioSelectors         function  src/state/selectors/audioFeatureSelectors.ts:78:17      
+useAudioFeatureStatus          audioSelectors         function  src/state/selectors/audioFeatureSelectors.ts:82:17      
+useAudioFeatureTrack           audioSelectors         function  src/state/selectors/audioFeatureSelectors.ts:86:17      
+getTrackOffsetSeconds                                           src/state/selectors/timelineSelectors.ts:26:14          
+getTrackOffsetBeats                                             src/state/selectors/timelineSelectors.ts:33:14          
+selectTransport                                                 src/state/selectors/timelineSelectors.ts:53:14          
+selectMidiCacheFor                                              src/state/selectors/timelineSelectors.ts:55:14          
+selectNotesInWindowMemo                                         src/state/selectors/timelineSelectors.ts:176:14         
+getTimelineCommandRegistrati…                         function  src/state/timeline/commandRegistry.ts:86:17             
+listTimelineCommandIds                                function  src/state/timeline/commandRegistry.ts:105:17            
+quantizeSettingToTicks         pluginSdkTimingModule  function  src/state/timeline/quantize.ts:51:17                    
+computeContentBoundsTicks                             function  src/state/timeline/timelineShared.ts:105:17             
+convertSecondsToTicks                                 function  src/state/timeline/timelineShared.ts:142:17             
+convertTicksToBeats                                   function  src/state/timeline/timelineShared.ts:150:17             
+TRANSFER_FUNCTION_LABELS                                        src/utils/audioVisualization/transferFunctions.ts:92:14 
+isDebugEnabled                                        function  src/utils/debug-log.ts:2:17                             
+sanitizeBaseFilename                                  function  src/utils/filename.ts:4:17                              
+ensureExtension                                       function  src/utils/filename.ts:8:17                              
+ZIP_SIGNATURE                                                   src/utils/importPayloadStorage.ts:7:14                  
+AudioWaveform                                                   src/workspace/components/AudioWaveform.tsx:19:14        
+getStepDecimals                                       function  src/workspace/forms/inputs/useNumberDrag.ts:42:17       
+default                                               variable  src/workspace/modals/TemplateBrowserModal.tsx:134:16    
+ElementPropertiesPanel                                          src/workspace/panels/properties/index.ts:2:21           
+GlobalPropertiesPanel                                           src/workspace/panels/properties/index.ts:3:21           
+PropertyGroupPanel                                              src/workspace/panels/properties/index.ts:4:21           
+ElementList                                                     src/workspace/panels/scene-element/index.ts:1:21        
+ElementListItem                                                 src/workspace/panels/scene-element/index.ts:2:21        
+TrackList                                                       src/workspace/panels/timeline/index.ts:2:21             
+TrackEditorRow                                                  src/workspace/panels/timeline/index.ts:3:21             
+TrackLanes                                                      src/workspace/panels/timeline/index.ts:4:21             
+TimelineRuler                                                   src/workspace/panels/timeline/index.ts:5:21             
+MIDI_FILE_REGEX                                                 …c/workspace/panels/timeline/utils/fileTypeUtils.ts:1:14
+AUDIO_FILE_REGEX                                                …c/workspace/panels/timeline/utils/fileTypeUtils.ts:2:14
+MIN_RANGE                                                       …orkspace/panels/timeline/utils/timelineNavUtils.ts:4:14
+MAX_RANGE                                                       …orkspace/panels/timeline/utils/timelineNavUtils.ts:5:14
+default                                               variable  src/workspace/templates/BrowseTemplatesButton.tsx:66:16 
+Unused exported types (222)
+AudioEngineConfig                              interface  src/audio/audio-engine.ts:48:18                               
+ChannelSelector             featureUtils       type       src/audio/audioFeatureUtils.ts:22:13                          
+ChannelSampleSelection      featureUtils       interface  src/audio/audioFeatureUtils.ts:24:18                          
+AnyTrack                                       type       src/audio/audioTypes.ts:43:13                                 
+AnalysisIntentEvent         analysisIntents    type       src/audio/features/analysisIntents.ts:21:13                   
+PublishAnalysisIntentOpti…  analysisIntents    interface  src/audio/features/analysisIntents.ts:54:18                   
+AnalyzeAudioFeatureResult                      interface  src/audio/features/audioFeatureAnalysis.ts:626:18             
+AudioFeatureAnalysisJob                        interface  src/audio/features/audioFeatureScheduler.ts:4:18              
+AudioFeatureTrackData                          type       src/audio/features/audioFeatureTypes.ts:6:13                  
+PitchWaveformCalculatorDe…                     interface  …/audio/features/calculators/pitchWaveformCalculator.ts:147:18
+RmsCalculatorDependencies                      interface  src/audio/features/calculators/rmsCalculator.ts:9:18          
+SpectrogramCalculatorDepe…                     interface  src/audio/features/calculators/spectrogramCalculator.ts:14:18 
+WaveformCalculatorDepende…                     interface  src/audio/features/calculators/waveformCalculator.ts:12:18    
+TrackChannelConfig                             interface  src/audio/features/channelResolution.ts:3:18                  
+FeatureDescriptorUpdateOp…                     interface  src/audio/features/descriptorBuilder.ts:24:18                 
+FftPlanStage                                   interface  src/audio/features/fft.ts:1:18                                
+FftPlan                                        interface  src/audio/features/fft.ts:8:18                                
+QuantizeHopOptions                             interface  src/audio/features/hopQuantization.ts:14:18                   
+TempoAlignedFrameRequest                       interface  src/audio/features/tempoAlignedViewAdapter.ts:209:18          
+TempoAlignedRangeRequest                       interface  src/audio/features/tempoAlignedViewAdapter.ts:217:18          
+TempoAlignedFrameResult                        interface  src/audio/features/tempoAlignedViewAdapter.ts:226:18          
+TempoAlignedRangeResult                        interface  src/audio/features/tempoAlignedViewAdapter.ts:231:18          
+OfflineMixParams                               interface  src/audio/offline-audio-mixer.ts:30:18                        
+OfflineMixResult                               interface  src/audio/offline-audio-mixer.ts:43:18                        
+TransportStateInternal                         interface  src/audio/transport-coordinator.ts:19:18                      
+TransportCoordinatorConfig                     interface  src/audio/transport-coordinator.ts:31:18                      
+PeakExtractionOptions                          interface  src/audio/waveform/peak-extractor.ts:10:18                    
+PeakExtractionResult                           interface  src/audio/waveform/peak-extractor.ts:16:18                    
+KeyframeSelectionClipboard                     interface  src/automation/clipboard.ts:40:18                             
+AutomatedElementView                           interface  src/automation/selectors.ts:18:18                             
+UpdateItemPayload                              interface  src/community/communityApi.ts:193:18                          
+TrackInputPopupData                            interface  src/context/SceneSelectionContext.tsx:23:18                   
+PropertyBindingData                            type       src/core/index.ts:13:15                                       
+PropertyBindingContext                         type       src/core/index.ts:13:36                                       
+ChordEstimatorOptions                          interface  src/core/midi/music-theory/chord-estimator.ts:12:18           
+ScheduledEventType                             type       src/core/render/compile.ts:27:13                              
+ScheduledEvent                                 interface  src/core/render/compile.ts:29:18                              
+ScheduleBatch                                  interface  src/core/render/compile.ts:38:18                              
+GIFFrameDataProvider                           interface  src/core/render/render-objects/animated-gif.ts:3:18           
+BezierPathCommand                              type       src/core/render/render-objects/bezier.ts:3:13                 
+SchedulerConfig                                type       src/core/render/scheduler-bridge.ts:7:13                      
+SchedulerConfigDiff                            type       src/core/render/scheduler-bridge.ts:51:13                     
+AudioSpectrumScale                             type       src/core/scene/elements/audio-displays/audio-spectrum.ts:26:13
+AudioSpectrumDisplayMode                       type       src/core/scene/elements/audio-displays/audio-spectrum.ts:27:13
+SpectrogramBinConversionO…                     interface  src/core/scene/elements/audio-displays/audio-spectrum.ts:61:18
+PropertyDescriptor          elements           interface  src/core/scene/elements/base.ts:28:18                         
+PropertyDescriptorMap       elements           type       src/core/scene/elements/base.ts:33:13                         
+PropertySnapshot            elements           type       src/core/scene/elements/base.ts:37:13                         
+PropertyDescriptor          elements           type       src/core/scene/elements/index.ts:8:10                         
+PropertyDescriptorMap       elements           type       src/core/scene/elements/index.ts:9:10                         
+PropertySnapshot            elements           type       src/core/scene/elements/index.ts:10:10                        
+PropertyTransform           elements           type       src/core/scene/elements/index.ts:11:10                        
+BuildConfig                                    interface  …isplays/moving-notes-piano-roll/animation-controller.ts:14:18
+VisualState                                    interface  …isplays/moving-notes-piano-roll/animation-controller.ts:27:18
+AnimationType                                  type       …di-displays/time-unit-piano-roll/animation-controller.ts:9:13
+BuildConfig                                    interface  …i-displays/time-unit-piano-roll/animation-controller.ts:11:18
+VisualState                                    interface  …i-displays/time-unit-piano-roll/animation-controller.ts:19:18
+PluginHostApiStatus         pluginSdkApiModu…  type       src/core/scene/plugins/host-api/get-plugin-host-api.ts:10:13  
+PluginHostApiResolution     pluginSdkApiModu…  interface  src/core/scene/plugins/host-api/get-plugin-host-api.ts:12:18  
+GetPluginHostApiOptions     pluginSdkApiModu…  interface  src/core/scene/plugins/host-api/get-plugin-host-api.ts:28:18  
+CreatePluginHostApiDeps                        interface  src/core/scene/plugins/host-api/plugin-api.ts:118:18          
+CreatePluginHostApiResult                      interface  src/core/scene/plugins/host-api/plugin-api.ts:127:18          
+PluginLoadResult                               type       src/core/scene/plugins/index.ts:8:10                          
+PluginSafetyConfig                             type       src/core/scene/plugins/index.ts:15:10                         
+PluginHostApi                                  type       src/core/scene/plugins/index.ts:23:10                         
+PluginHostCapability                           type       src/core/scene/plugins/index.ts:24:10                         
+PluginHostApiResolution                        type       src/core/scene/plugins/index.ts:28:10                         
+PluginHostApiStatus                            type       src/core/scene/plugins/index.ts:29:10                         
+PluginLoadResult                               interface  src/core/scene/plugins/plugin-loader.ts:21:18                 
+PluginSafetyConfig          pluginSdkSafetyM…  interface  src/core/scene/plugins/plugin-safety.ts:10:18                 
+EasingFn                    pluginSdkAnimati…  type       src/core/scene/plugins/sdk/animation.ts:15:10                 
+FloatCurvePoint             pluginSdkAnimati…  type       src/core/scene/plugins/sdk/animation.ts:16:10                 
+PluginHostCapability        pluginSdkApiModu…  type       src/core/scene/plugins/sdk/api.ts:11:10                       
+PluginCapabilityMap         pluginSdkApiModu…  type       src/core/scene/plugins/sdk/api.ts:12:10                       
+PluginHostApiResolution     pluginSdkApiModu…  type       src/core/scene/plugins/sdk/api.ts:17:10                       
+PluginHostApiStatus         pluginSdkApiModu…  type       src/core/scene/plugins/sdk/api.ts:18:10                       
+GetPluginHostApiOptions     pluginSdkApiModu…  type       src/core/scene/plugins/sdk/api.ts:19:10                       
+AudioFeatureRequirement     pluginSdkAudioMo…  type       src/core/scene/plugins/sdk/audio.ts:15:15                     
+FeatureDataResult           pluginSdkAudioMo…  type       src/core/scene/plugins/sdk/audio.ts:18:15                     
+FeatureInput                pluginSdkAudioMo…  type       src/core/scene/plugins/sdk/audio.ts:18:34                     
+PluginSafetyConfig          pluginSdkSafetyM…  type       src/core/scene/plugins/sdk/safety.ts:12:10                    
+PropertyTransform           pluginSdkSceneMo…  type       src/core/scene/plugins/sdk/scene.ts:13:10                     
+PropertyDescriptor          pluginSdkSceneMo…  type       src/core/scene/plugins/sdk/scene.ts:14:10                     
+PropertyDescriptorMap       pluginSdkSceneMo…  type       src/core/scene/plugins/sdk/scene.ts:15:10                     
+PropertySnapshot            pluginSdkSceneMo…  type       src/core/scene/plugins/sdk/scene.ts:16:10                     
+EnhancedConfigSchema        pluginSdkSceneMo…  type       src/core/scene/plugins/sdk/scene.ts:22:5                      
+SceneElementInterface       pluginSdkSceneMo…  type       src/core/scene/plugins/sdk/scene.ts:23:5                      
+PropertyDefinition          pluginSdkSceneMo…  type       src/core/scene/plugins/sdk/scene.ts:24:5                      
+PropertyRuntimeConfig       pluginSdkSceneMo…  type       src/core/scene/plugins/sdk/scene.ts:25:5                      
+PropertyGroup               pluginSdkSceneMo…  type       src/core/scene/plugins/sdk/scene.ts:26:5                      
+PropertyGroupPreset         pluginSdkSceneMo…  type       src/core/scene/plugins/sdk/scene.ts:27:5                      
+PropertyVisibilityConditi…  pluginSdkSceneMo…  type       src/core/scene/plugins/sdk/scene.ts:28:5                      
+TimelineNoteEvent           pluginSdkTimelin…  type       src/core/scene/plugins/sdk/timeline.ts:25:15                  
+TempoMapEntry               pluginSdkTimelin…  type       src/core/scene/plugins/sdk/timeline.ts:25:51                  
+QuantizeSetting             pluginSdkTimingM…  type       src/core/scene/plugins/sdk/timing.ts:33:10                    
+SnapQuantizeOption          pluginSdkTimingM…  type       src/core/scene/plugins/sdk/timing.ts:34:10                    
+LoadFontOptions             pluginSdkUtilsMo…  type       src/core/scene/plugins/sdk/utils.ts:24:10                     
+ParsedFontSelection         pluginSdkUtilsMo…  type       src/core/scene/plugins/sdk/utils.ts:26:15                     
+SceneElementFactorySchema                      interface  src/core/scene/registry/scene-element-registry.ts:5:18        
+SceneElementFactory                            type       src/core/scene/registry/scene-element-registry.ts:12:13       
+RegisterCustomElementOpti…                     interface  src/core/scene/registry/scene-element-registry.ts:19:18       
+BeatGridLine                                   type       src/core/timing/bbt.ts:46:13                                  
+TimeSignature                                  type       src/core/timing/index.ts:6:15                                 
+TimingConfig                                   type       src/core/timing/index.ts:6:30                                 
+NoteQueryResult                                interface  src/core/timing/note-query.ts:10:18                           
+PlaybackClockConfig                            interface  src/core/timing/playback-clock.ts:11:18                       
+TempoMapperConfig                              interface  src/core/timing/tempo-mapper.ts:5:18                          
+Tick                                           type       src/core/timing/time-domain.ts:5:13                           
+Beats                                          type       src/core/timing/time-domain.ts:6:13                           
+Seconds                                        type       src/core/timing/time-domain.ts:7:13                           
+BBT                                            interface  src/core/timing/time-domain.ts:9:18                           
+TimeSignature                                  interface  src/core/timing/timing-manager.ts:11:18                       
+TimingConfig                                   interface  src/core/timing/timing-manager.ts:32:18                       
+TimingData                                     interface  src/core/types.ts:59:18                                       
+NoteBlock                                      interface  src/core/types.ts:66:18                                       
+ProgressCallback                               interface  src/core/types.ts:75:18                                       
+ExportOptions                                  interface  src/core/types.ts:79:18                                       
+TimingManager                                  interface  src/core/types.ts:86:18                                       
+Manager                                        interface  src/core/types.ts:99:18                                       
+RenderConfig                                   interface  src/core/types.ts:113:18                                      
+Position                                       interface  src/core/types.ts:120:18                                      
+Size                                           interface  src/core/types.ts:125:18                                      
+Color                                          interface  src/core/types.ts:130:18                                      
+SceneElementConfig                             interface  src/core/types.ts:137:18                                      
+RenderObjectConfig                             interface  src/core/types.ts:147:18                                      
+VisualizerConfig                               interface  src/core/types.ts:156:18                                      
+AnimationConfig                                interface  src/core/types.ts:164:18                                      
+TimeUnitConfig                                 interface  src/core/types.ts:170:18                                      
+BaseSceneElementConfig                         interface  src/core/types.ts:180:18                                      
+ConfigSchemaProperty                           interface  src/core/types.ts:198:18                                      
+ConfigSchema                                   interface  src/core/types.ts:222:18                                      
+BackgroundElementConfig                        interface  src/core/types.ts:374:18                                      
+TextOverlayElementConfig                       interface  src/core/types.ts:378:18                                      
+ImageElementConfig                             interface  src/core/types.ts:388:18                                      
+ProgressDisplayConfig                          interface  src/core/types.ts:397:18                                      
+TimeDisplayConfig                              interface  src/core/types.ts:408:18                                      
+AVExportOptions                                interface  src/export/av-exporter.ts:53:18                               
+AVExportResult                                 interface  src/export/av-exporter.ts:79:18                               
+ExportClockOptions                             interface  src/export/export-clock.ts:7:18                               
+ReproHashInput                                 interface  src/export/repro-hash.ts:14:18                                
+VideoExportOptions                             interface  src/export/video-exporter.ts:27:18                            
+LoadFontOptions             pluginSdkUtilsMo…  interface  src/fonts/font-loader.ts:85:18                                
+RegisterCustomFontVariant…                     interface  src/fonts/font-loader.ts:91:18                                
+ParsedFontMetadata                             interface  src/fonts/font-metadata.ts:3:18                               
+FloatCurvePoint             af                 interface  src/math/animation/anim-math.ts:15:18                         
+ChordQuality                                   type       src/math/midi/chord-estimator.ts:3:13                         
+EstimatedChord                                 interface  src/math/midi/chord-estimator.ts:5:18                         
+ChordEstimatorOptions                          interface  src/math/midi/chord-estimator.ts:12:18                        
+CornerRecord                                   interface  src/math/transforms/types.ts:18:18                            
+CollectedAudioAssets                           interface  src/persistence/audio-asset-export.ts:49:18                   
+CollectAssetsOptions                           interface  src/persistence/audio-asset-export.ts:62:18                   
+PersistentDocumentV1                           interface  src/persistence/document-gateway.ts:18:18                     
+BuildOptions                                   interface  src/persistence/document-gateway.ts:32:18                     
+DocumentShapeV1                                type       src/persistence/document-gateway.ts:257:39                    
+SceneMetadata                                  interface  src/persistence/export.ts:29:18                               
+ExportSceneOptions                             interface  src/persistence/export.ts:102:18                              
+ExportSceneResultFailure                       interface  src/persistence/export.ts:132:18                              
+ExportSceneResult                              type       src/persistence/export.ts:137:13                              
+FontAssetRecord                                interface  src/persistence/font-asset-export.ts:6:18                     
+CollectedFontAssets                            interface  src/persistence/font-asset-export.ts:15:18                    
+ImportSceneInput                               type       src/persistence/import.ts:46:13                               
+ExportSceneResult                              type       src/persistence/index.ts:24:15                                
+UndoController                                 type       src/persistence/index.ts:26:15                                
+CreatePatchUndoOptions                         type       src/persistence/index.ts:26:31                                
+DescriptorSmoothingMigrat…                     interface  …/persistence/migrations/removeSmoothingFromDescriptor.ts:5:18
+CanonicalElementLike                           interface  src/persistence/ordering.ts:9:18                              
+PluginBinaryStoreType                          type       src/persistence/plugin-binary-store.ts:187:13                 
+SceneEnvelope                                  type       src/persistence/scene-package.ts:5:13                         
+ScenePackageContents                           interface  src/persistence/scene-package.ts:7:18                         
+ScenePackageErrorCode                          type       src/persistence/scene-package.ts:18:13                        
+ValidationErrorCode                            type       src/persistence/validate.ts:11:13                             
+ValidationError                                interface  src/persistence/validate.ts:36:18                             
+ValidationWarning                              interface  src/persistence/validate.ts:41:18                             
+ValidationResult                               interface  src/persistence/validate.ts:46:18                             
+RegenerationReason                             type       src/state/audioDiagnosticsStore.ts:92:13                      
+RegenerationStatus                             type       src/state/audioDiagnosticsStore.ts:93:13                      
+RegenerationJob                                interface  src/state/audioDiagnosticsStore.ts:95:18                      
+AnalysisHistoryAction                          type       src/state/audioDiagnosticsStore.ts:110:13                     
+AnalysisHistoryStatus                          type       src/state/audioDiagnosticsStore.ts:111:13                     
+AnalysisHistoryEntry                           interface  src/state/audioDiagnosticsStore.ts:113:18                     
+AnalysisHistorySummary                         type       src/state/audioDiagnosticsStore.ts:1276:13                    
+LoadedPlugin                                   interface  src/state/pluginStore.ts:33:18                                
+PluginStoreState                               interface  src/state/pluginStore.ts:40:18                                
+PluginStoreActions                             interface  src/state/pluginStore.ts:45:18                                
+SceneElementListItem                           interface  src/state/scene/hooks.ts:8:18                                 
+SceneSelectionView                             interface  src/state/scene/hooks.ts:17:18                                
+MacroEventListener          macroSyncService   type       src/state/scene/macroSyncService.ts:11:13                     
+SceneRuntimeAdapterDiagno…                     interface  src/state/scene/runtimeAdapter.ts:27:18                       
+SceneRuntimeAdapterOptions                     interface  src/state/scene/runtimeAdapter.ts:33:18                       
+SceneElementView                               interface  src/state/scene/selectors.ts:9:18                             
+MacroAssignmentView                            interface  src/state/scene/selectors.ts:16:18                            
+SceneSelectors                                 interface  src/state/scene/selectors.ts:20:18                            
+CreateSceneElementInputOp…                     interface  src/state/scene/storeElementFactory.ts:12:18                  
+LegacyBindingMigrationRes…                     interface  src/state/sceneStore.ts:94:18                                 
+AudioFeatureFrameOptions    audioSelectors     type       src/state/selectors/audioFeatureSelectors.ts:14:13            
+AudioFeatureRangeOptions    audioSelectors     type       src/state/selectors/audioFeatureSelectors.ts:16:13            
+TimelineNoteEvent                              type       src/state/selectors/timelineSelectors.ts:7:15                 
+TimelineCCEvent                                type       src/state/selectors/timelineSelectors.ts:8:15                 
+TimelineCommandGatewayDep…                     interface  src/state/timeline/commandGateway.ts:13:18                    
+TimelineCommandGateway                         interface  src/state/timeline/commandGateway.ts:19:18                    
+TimelineCommandRegistrati…                     interface  src/state/timeline/commandRegistry.ts:24:18                   
+TimelinePatchContext                           interface  src/state/timeline/patches.ts:76:18                           
+TimelineTimingSlice                            interface  src/state/timelineTime.ts:11:18                               
+UndoController                                 type       src/state/undo/index.ts:2:15                                  
+CreatePatchUndoOptions                         type       src/state/undo/index.ts:2:31                                  
+UndoController                                 interface  src/state/undo/patch-undo.ts:8:18                             
+CreatePatchUndoOptions                         interface  src/state/undo/patch-undo.ts:16:18                            
+FeatureHistoryFrame                            interface  src/utils/audioVisualization/history.ts:11:18                 
+ChannelPaletteEntry                            interface  src/utils/audioVisualization/palette.ts:1:18                  
+TransferFunctionId                             type       src/utils/audioVisualization/transferFunctions.ts:3:13        
+TransferFunctionOptions                        interface  src/utils/audioVisualization/transferFunctions.ts:5:18        
+TransferFunctionPropertyC…                     interface  src/utils/audioVisualization/transferFunctions.ts:99:18       
+HashSource                                     type       src/utils/hash/sha256.ts:1:13                                 
+StoredPayloadFormat                            type       src/utils/importPayloadStorage.ts:4:13                        
+SceneImportPayload                             type       src/utils/importPayloadStorage.ts:5:13                        
+SectionProps                                   type       src/workspace/dev/Section.tsx:3:13                            
+CollapsibleCardProps                           type       src/workspace/dev/Section.tsx:43:13                           
+NumberDragMeta                                 interface  src/workspace/forms/inputs/useNumberDrag.ts:6:18              
+UseNumberDragOptions                           interface  src/workspace/forms/inputs/useNumberDrag.ts:13:18             
+InteractionDeps                                interface  src/workspace/panels/preview/canvasInteractionUtils.ts:27:18  
+HoveredPropertyInfo                            interface  src/workspace/panels/properties/hoveredPropertyRef.ts:1:18    
+BrowseTemplatesButtonProps                     interface  src/workspace/templates/BrowseTemplatesButton.tsx:5:18        
+Duplicate exports (4)
+App|default                    src/app/App.tsx                                  
+AudioWaveform|default          src/workspace/components/AudioWaveform.tsx       
+TemplateBrowserModal|default   src/workspace/modals/TemplateBrowserModal.tsx    
+BrowseTemplatesButton|default  src/workspace/templates/BrowseTemplatesButton.tsx
+Configuration hints (1)

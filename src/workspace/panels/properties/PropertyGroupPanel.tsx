@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { PropertyGroup, PropertyDefinition } from '@core/types';
-import FormInput, { type FormInputChange } from '@workspace/form/inputs/FormInput';
+import FormInput, { type FormInputChange } from '@workspace/forms/inputs/FormInput';
 // @ts-ignore
 import { useMacros } from '@context/MacroContext';
 import { FaLink } from 'react-icons/fa';

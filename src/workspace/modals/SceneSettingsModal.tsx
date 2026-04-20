@@ -4,9 +4,9 @@ import { useVisualizer } from '@context/VisualizerContext';
 import { useTimelineStore } from '@state/timelineStore';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
-import SceneFontManager from './SceneFontManager';
-import SceneAnalysisCachesTab from './SceneAnalysisCachesTab';
-import ScenePluginsTab from './ScenePluginsTab';
+import SceneFontManager from '../scene-settings/SceneFontManager';
+import SceneAnalysisCachesTab from '../scene-settings/SceneAnalysisCachesTab';
+import ScenePluginsTab from '../scene-settings/ScenePluginsTab';
 
 interface SceneSettingsModalProps {
     onClose: () => void;

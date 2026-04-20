@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import PreviewPanel from '@workspace/panels/preview/PreviewPanel';
 import { TimelinePanel } from '@workspace/panels/timeline';
 import MacroConfig from '@workspace/panels/properties/MacroConfig';
-import ExportProgressOverlay from '@workspace/layout/ExportProgressOverlay';
+import ExportProgressOverlay from '@workspace/overlays/ExportProgressOverlay';
 import { useScene } from '@context/SceneContext';
 import { useVisualizer } from '@context/VisualizerContext';
 import { useTimelineStore } from '@state/timelineStore';

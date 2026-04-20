@@ -3,7 +3,7 @@ import { useVisualizer } from './VisualizerContext';
 import { useMenuBar } from '@context/useMenuBar';
 import { useSceneStore } from '@state/sceneStore';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
-import { SaveSceneModal } from '@workspace/layout/SaveSceneModal';
+import { SaveSceneModal } from '@workspace/modals/SaveSceneModal';
 
 interface SceneContextValue {
     sceneName: string;

@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { MIDIData, MIDITrackDetails } from '@core/types';
-import type { TempoImportChoice } from '../modals/MidiTempoImportModal';
+import type { TempoImportChoice } from '@workspace/modals/MidiTempoImportModal';
 
 export type MultiTrackChoice = 'single' | 'split' | 'cancel';
 

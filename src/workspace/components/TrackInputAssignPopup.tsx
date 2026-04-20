@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import TimelineTrackSelect from '@workspace/form/inputs/TimelineTrackSelect';
+import TimelineTrackSelect from '@workspace/forms/inputs/TimelineTrackSelect';
 import type { TrackInputDef } from '@context/SceneSelectionContext';
 
 interface Props {

@@ -7,7 +7,7 @@ import type { MIDIData } from '@core/types';
 import { midiTempoMapToKeyframes } from '@core/timing/midi-tempo-to-keyframes';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import type { MultiTrackChoice, MultiTrackDecisionState } from './useImportModals';
-import type { TempoImportChoice } from '../modals/MidiTempoImportModal';
+import type { TempoImportChoice } from '@workspace/modals/MidiTempoImportModal';
 
 interface UseMidiImportOptions {
     requestImportMode: (info: MultiTrackDecisionState) => Promise<MultiTrackChoice>;
