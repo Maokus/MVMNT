@@ -1,44 +1,16 @@
 Unused files (55)
 postcss.config.js                                                     
-src/core/midi/midi-manager.ts                                         
-src/core/render/scheduler.worker.ts                                   
-src/core/scene/elements/_templates/audio-reactive.ts                  
-src/core/scene/elements/_templates/basic-shape.ts                     
-src/core/scene/elements/_templates/midi-notes.ts                      
-src/core/scene/elements/_templates/text-display.ts                    
-src/core/scene/elements/midi-displays/moving-notes-piano-roll/index.ts
 src/core/scene/elements/midi-displays/note-animations/template.ts     
 src/core/scene/elements/midi-displays/time-unit-piano-roll/index.ts   
-src/export/export-service.ts                                          
 src/export/index.ts                                                   
-src/math/transforms/mouseToTransforms.ts                              
-src/pages/animationTest.css                                           
-src/pages/HomePageBkup.tsx                                            
-src/plugins/midipack1/almamlike-piano-roll.ts                         
-src/plugins/midipack1/circular-piano-roll.ts                          
-src/plugins/midipack1/collision-midi-display.ts                       
-src/plugins/midipack1/piano-roll-effects.ts                           
-src/plugins/midipack1/popcat-midi-display.ts                          
-src/plugins/midipack1/trackerlike-midi-display.ts                     
-src/plugins/patternspack1/checkers-pattern.ts                         
-src/plugins/patternspack1/particles-pattern.ts                        
-src/plugins/testelement6/double-midi-element.ts                       
-src/plugins/testelement6/my-element.ts                                
-src/plugins/testelement6/my-new-elementy.ts                           
-src/plugins/testplugin7/my-epic-new-element.ts                        
-src/plugins/testplugin7/my-second-cool-element.ts                     
-src/plugins/testplugin7/my-unique-element.ts                          
-src/state/selectors/timeDerived.ts                                    
-src/state/timeline/index.ts                                           
 src/utils/featureFlags.ts                                             
 src/utils/throttle.ts                                                 
-src/workspace/forms/inputs/index.ts                                   
-src/workspace/panels/timeline/automation/EasingPicker.tsx             
-src/workspace/panels/timeline/hooks/useTimeScale.ts                   
 vite.config.ts.timestamp-1762752129547-f0d2e364902c3.mjs              
+
 Unused devDependencies (2)
 @testing-library/user-event  package.json:31:10
 autoprefixer                 package.json:38:10
+
 Unlisted dependencies (5)
 esbuild             scripts/build-plugin.mjs:16:23
 esbuild             scripts/dev-plugin.mjs:24:23  

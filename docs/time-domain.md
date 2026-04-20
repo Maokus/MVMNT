@@ -40,18 +40,6 @@ Selectors & helpers centralize conversions; UI/components never perform ad‑hoc
 - Audio feature selectors request tick-to-seconds projections through the mapper so real-time caches
   stay authoritative while UI code continues to operate in ticks.
 
-## Public Selector Surface (Seconds View)
-
-(Implemented in `state/selectors/timeDerived.ts` – examples shown)
-
--   `useCurrentTick()` – canonical playhead.
--   `useCurrentSeconds()` – derived: `ticksToSeconds(currentTick)`.
--   `selectLoopRangeSeconds(state)` – returns `{ startSec, endSec }` or `undefined`.
--   `selectTrackOffsetSeconds(state, trackId)` – converts `offsetTicks`.
--   `selectPlaybackRangeSeconds(state)` – scene bounds in seconds.
-
-These are memoized against `(tick, tempoVersion)` to avoid churn.
-
 ## Tempo Changes
 
 Changing BPM or tempo map:

@@ -9,7 +9,7 @@ import {
     elementHoverId,
     findHandleUnderPoint,
     getCanvasWorldPoint,
-} from '@math/interaction';
+} from '@math/transforms/interaction';
 import { computeAnchorAdjustment, computeRotation, computeScaledTransform } from '@core/interaction/mouse-transforms';
 import {
     DEFAULT_SNAP_TOLERANCE,
