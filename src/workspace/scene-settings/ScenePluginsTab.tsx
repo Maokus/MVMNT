@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { usePluginStore } from '@state/pluginStore';
-import { disablePlugin, enablePlugin, loadPlugin, unloadPlugin } from '@core/scene/plugins';
+import { disablePlugin, enablePlugin, loadPlugin, unloadPlugin, upgradePlugin } from '@core/scene/plugins';
 
 const ScenePluginsTab: React.FC = () => {
     const { plugins, loading } = usePluginStore((state) => ({
@@ -11,6 +11,7 @@ const ScenePluginsTab: React.FC = () => {
     const [importError, setImportError] = useState<string | null>(null);
     const [importing, setImporting] = useState(false);
     const [pendingFile, setPendingFile] = useState<File | null>(null);
+    const [upgradeOffer, setUpgradeOffer] = useState<File | null>(null);
 
     const handleImportClick = () => {
         fileInputRef.current?.click();
@@ -43,10 +44,35 @@ const ScenePluginsTab: React.FC = () => {
             const result = await loadPlugin(arrayBuffer);
 
             if (!result.success) {
-                setImportError(result.error || 'Failed to import plugin');
+                if (result.error?.includes('is already loaded')) {
+                    setUpgradeOffer(file);
+                } else {
+                    setImportError(result.error || 'Failed to import plugin');
+                }
             }
         } catch (error) {
             setImportError(error instanceof Error ? error.message : 'Failed to import plugin');
+        } finally {
+            setImporting(false);
+        }
+    };
+
+    const handleConfirmUpgrade = async () => {
+        if (!upgradeOffer) return;
+        const file = upgradeOffer;
+        setUpgradeOffer(null);
+        setImporting(true);
+        setImportError(null);
+
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await upgradePlugin(arrayBuffer);
+
+            if (!result.success) {
+                setImportError(result.error || 'Failed to upgrade plugin');
+            }
+        } catch (error) {
+            setImportError(error instanceof Error ? error.message : 'Failed to upgrade plugin');
         } finally {
             setImporting(false);
         }
@@ -132,6 +158,32 @@ const ScenePluginsTab: React.FC = () => {
                                 className="rounded bg-indigo-600 px-3 py-1 text-[12px] font-medium text-white transition hover:bg-indigo-500"
                             >
                                 Install
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {upgradeOffer && (
+                    <div className="mt-3 rounded border border-sky-500/40 bg-sky-900/20 p-3 space-y-2">
+                        <p className="text-[12px] font-medium text-sky-200">Plugin already installed</p>
+                        <p className="text-[12px] text-sky-300/80 leading-relaxed">
+                            A plugin with this ID is already installed. Would you like to upgrade it?
+                            The existing plugin will be replaced if the new version is newer.
+                        </p>
+                        <div className="flex gap-2 pt-1">
+                            <button
+                                type="button"
+                                onClick={() => setUpgradeOffer(null)}
+                                className="rounded border border-neutral-600 px-3 py-1 text-[12px] font-medium text-neutral-300 transition hover:bg-white/10"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmUpgrade}
+                                className="rounded bg-sky-600 px-3 py-1 text-[12px] font-medium text-white transition hover:bg-sky-500"
+                            >
+                                Upgrade
                             </button>
                         </div>
                     </div>

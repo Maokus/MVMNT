@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useRef } from 'react';
 import { FaXmark, FaUpload } from 'react-icons/fa6';
 import type { User } from '@supabase/supabase-js';
-import { uploadItem, parsePluginManifest, setItemTags } from './communityApi';
+import { uploadItem, parsePluginManifest, setItemTags, findPluginUidConflict } from './communityApi';
 import CommunityTagInput from './CommunityTagInput';
 
 interface CommunityUploadModalProps {
@@ -21,6 +21,7 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
   const [mainFile, setMainFile] = useState<File | null>(null);
   const [pluginUid, setPluginUid] = useState<string | null>(null);
   const [pluginVersion, setPluginVersion] = useState<string | null>(null);
+  const [pluginUidConflict, setPluginUidConflict] = useState(false);
   const [tags, setTags] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +48,7 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
     setMainFile(file);
     setPluginUid(null);
     setPluginVersion(null);
+    setPluginUidConflict(false);
 
     if (file) {
       if (file.name.endsWith('.mvmnt-plugin')) {
@@ -55,6 +57,8 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
         if (parsed) {
           setPluginUid(parsed.id);
           setPluginVersion(parsed.version);
+          const conflictId = await findPluginUidConflict(parsed.id);
+          setPluginUidConflict(conflictId !== null);
         }
       } else if (file.name.endsWith('.mvt')) {
         setType('template');
@@ -204,6 +208,11 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
                 )}
               </div>
             )}
+            {pluginUidConflict && pluginUid && (
+              <p className="mt-1 text-xs text-red-400">
+                A plugin with ID <span className="font-mono">{pluginUid}</span> already exists in the community. Plugin IDs must be globally unique.
+              </p>
+            )}
             {type === 'plugin' && mainFile && !pluginUid && (
               <p className="mt-1 text-xs text-yellow-500">Could not read manifest — plugin_uid won't be set.</p>
             )}
@@ -224,7 +233,7 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
             </button>
             <button
               type="submit"
-              disabled={uploading || !thumbnailFile || !mainFile || !title.trim()}
+              disabled={uploading || !thumbnailFile || !mainFile || !title.trim() || pluginUidConflict}
               className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"
             >
               <FaUpload className="text-[11px]" /> {uploading ? 'Uploading...' : 'Upload'}

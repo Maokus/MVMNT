@@ -262,7 +262,15 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             setDragTick(null);
             onHoverSnapX(null);
             // Click selection when not moved
-            if (!didMove) selectTracks([trackId]);
+            if (!didMove) {
+                if (e.shiftKey) {
+                    const current = useSelectionStore.getState().selectedTrackIds;
+                    const idx = current.indexOf(trackId);
+                    selectTracks(idx >= 0 ? current.filter((id) => id !== trackId) : [...current, trackId]);
+                } else {
+                    selectTracks([trackId]);
+                }
+            }
         };
 
         // Resizer handlers

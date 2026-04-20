@@ -137,6 +137,28 @@ export async function parsePluginManifest(file: File): Promise<{ id: string; ver
   }
 }
 
+/** Returns the existing item's ID if the plugin_uid is already taken, otherwise null. */
+export async function findPluginUidConflict(pluginUid: string, excludeItemId?: string): Promise<string | null> {
+  let query = supabase
+    .from('community_items')
+    .select('id')
+    .eq('plugin_uid', pluginUid);
+  if (excludeItemId) {
+    query = query.neq('id', excludeItemId);
+  }
+  const { data } = await query.maybeSingle();
+  return data?.id ?? null;
+}
+
+function throwFriendlyPluginUidError(pluginUid: string): never {
+  throw new Error(`A plugin with ID "${pluginUid}" already exists in the community. Plugin IDs must be globally unique.`);
+}
+
+function translateInsertError(err: any, pluginUid?: string): never {
+  if (err?.code === '23505' && pluginUid) throwFriendlyPluginUidError(pluginUid);
+  throw err;
+}
+
 export async function uploadItem(
   userId: string,
   type: 'template' | 'plugin',
@@ -147,16 +169,11 @@ export async function uploadItem(
   pluginUid?: string,
   pluginVersion?: string,
 ) {
-  // Enforce global uniqueness of plugin IDs across all users
+  // Enforce global uniqueness of plugin IDs across all users (pre-check for fast UX feedback).
+  // The DB UNIQUE constraint is the authoritative enforcer for concurrent uploads.
   if (pluginUid) {
-    const { data: existing } = await supabase
-      .from('community_items')
-      .select('id')
-      .eq('plugin_uid', pluginUid)
-      .maybeSingle();
-    if (existing) {
-      throw new Error(`A plugin with ID "${pluginUid}" already exists in the community. Plugin IDs must be globally unique.`);
-    }
+    const conflictId = await findPluginUidConflict(pluginUid);
+    if (conflictId) throwFriendlyPluginUidError(pluginUid);
   }
 
   const itemId = crypto.randomUUID();
@@ -185,7 +202,7 @@ export async function uploadItem(
     plugin_uid: pluginUid ?? null,
     version: pluginVersion ?? null,
   });
-  if (insertErr) throw insertErr;
+  if (insertErr) translateInsertError(insertErr, pluginUid);
 
   return itemId;
 }
@@ -203,11 +220,17 @@ export async function updateItem(itemId: string, userId: string, payload: Update
   // Fetch current paths for potential replacement
   const { data: current, error: fetchErr } = await supabase
     .from('community_items')
-    .select('thumbnail_path, file_path')
+    .select('thumbnail_path, file_path, plugin_uid')
     .eq('id', itemId)
     .eq('user_id', userId)
     .single();
   if (fetchErr) throw fetchErr;
+
+  // Pre-check plugin_uid uniqueness before touching storage, to avoid orphaned uploads.
+  if (payload.pluginUid && payload.pluginUid !== current.plugin_uid) {
+    const conflictId = await findPluginUidConflict(payload.pluginUid, itemId);
+    if (conflictId) throwFriendlyPluginUidError(payload.pluginUid);
+  }
 
   const updates: Record<string, unknown> = {};
 
@@ -246,7 +269,7 @@ export async function updateItem(itemId: string, userId: string, payload: Update
     .update(updates)
     .eq('id', itemId)
     .eq('user_id', userId);
-  if (updateErr) throw updateErr;
+  if (updateErr) translateInsertError(updateErr, payload.pluginUid);
 }
 
 export async function downloadItem(item: CommunityItem, userId: string | null) {

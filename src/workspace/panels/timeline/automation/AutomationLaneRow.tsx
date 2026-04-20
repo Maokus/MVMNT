@@ -263,14 +263,13 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             // Capture on the <g> so pointermove/up are delivered here and bubble to SVG
             (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
 
-            // Select the element that owns this automation channel (sets context for inspector)
-            // while making keyframes the active command target
-            useSelectionStore.getState().selectKeyframes([]);
-            useSelectionStore.getState().setSelectedElementIds([channel.elementId]);
-
             // Update store selection
             let newSelected: Array<{ channelId: string; tick: number }>;
             const existing = useSelectionStore.getState().selectedKeyframes;
+
+            // Set inspector context to the element owning this channel (low-level setter,
+            // does not disturb existing keyframe selection or activeTarget).
+            useSelectionStore.getState().setSelectedElementIds([channel.elementId]);
             const clickedIsSelected = existing.some(
                 (k) => k.channelId === channel.id && Math.abs(k.tick - kf.tick) < 0.5,
             );
