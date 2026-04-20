@@ -15,12 +15,12 @@ Unlisted dependencies (5)
 esbuild             scripts/build-plugin.mjs:16:23
 esbuild             scripts/dev-plugin.mjs:24:23  
 react-scripts       src/app/react-app-env.d.ts:1:1
-@assets/pain.png    src/pages/AboutPage.tsx:5:18  
-@assets/senile.png  src/pages/AboutPage.tsx:6:20  
+
 Unlisted binaries (1)
 serve  package.json
 Unresolved imports (1)
 ./types  src/workspace/modals/TemplateBrowserModal.tsx:3:59
+
 Unused exports (192)
 App                                                   function  src/app/App.tsx:61:17                                   
 formatAnalysisIntentDescript…  analysisIntents        function  src/audio/features/analysisIntents.ts:259:17            
@@ -214,6 +214,7 @@ AUDIO_FILE_REGEX                                                …c/workspace/p
 MIN_RANGE                                                       …orkspace/panels/timeline/utils/timelineNavUtils.ts:4:14
 MAX_RANGE                                                       …orkspace/panels/timeline/utils/timelineNavUtils.ts:5:14
 default                                               variable  src/workspace/templates/BrowseTemplatesButton.tsx:66:16 
+
 Unused exported types (222)
 AudioEngineConfig                              interface  src/audio/audio-engine.ts:48:18                               
 ChannelSelector             featureUtils       type       src/audio/audioFeatureUtils.ts:22:13                          
@@ -437,6 +438,7 @@ UseNumberDragOptions                           interface  src/workspace/forms/in
 InteractionDeps                                interface  src/workspace/panels/preview/canvasInteractionUtils.ts:27:18  
 HoveredPropertyInfo                            interface  src/workspace/panels/properties/hoveredPropertyRef.ts:1:18    
 BrowseTemplatesButtonProps                     interface  src/workspace/templates/BrowseTemplatesButton.tsx:5:18        
+
 Duplicate exports (4)
 App|default                    src/app/App.tsx                                  
 AudioWaveform|default          src/workspace/components/AudioWaveform.tsx       
