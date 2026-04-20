@@ -91,6 +91,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         const track = useTimelineStore((s) => s.tracks[trackId]);
         const setTrackOffsetTicks = useTimelineStore((s) => s.setTrackOffsetTicks);
         const setTrackRegionTicks = useTimelineStore((s) => s.setTrackRegionTicks);
+        const setMultipleTrackOffsetTicks = useTimelineStore((s) => s.setMultipleTrackOffsetTicks);
         const selectTracks = useSelectionStore((s) => s.selectTracks);
         const updateTrack = useTimelineStore((s) => s.updateTrack);
         const [editingName, setEditingName] = useState(false);
@@ -251,10 +252,11 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             const groupIds = Object.keys(groupBaseOffsets);
             if (groupIds.length > 1) {
                 const delta = clampedFinal - (startRef.current?.baseOffsetTick ?? fallback);
-                for (const id of groupIds) {
-                    const newOffset = groupBaseOffsets[id] + delta;
-                    void setTrackOffsetTicks(id, allowNegativeOffset ? newOffset : Math.max(0, newOffset));
-                }
+                const offsets = groupIds.map((id) => ({
+                    trackId: id,
+                    offsetTicks: allowNegativeOffset ? groupBaseOffsets[id] + delta : Math.max(0, groupBaseOffsets[id] + delta),
+                }));
+                void setMultipleTrackOffsetTicks(offsets);
             } else {
                 void setTrackOffsetTicks(trackId, clampedFinal);
             }

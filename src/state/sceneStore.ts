@@ -182,6 +182,8 @@ export interface SceneInteractionState {
     automationExpandedCurves: string[];
     /** Current search query for filtering automation properties. */
     automationSearchQuery: string;
+    /** Collapsed state of property groups in the properties panel, keyed by elementId then groupId. */
+    expandedPropertyGroups: Record<string, Record<string, boolean>>;
 }
 
 export interface SceneClipboard {
@@ -301,6 +303,7 @@ export interface SceneStoreActions {
     exportSceneDraft: () => SceneStoreComputedExport;
     replaceMacros: (payload: SceneSerializedMacros | null | undefined) => void;
     setInteractionState: (patch: Partial<SceneInteractionState>) => void;
+    setPropertyGroupCollapseState: (elementId: string, groupId: string, collapsed: boolean) => void;
     setAutomationChannel: (channel: AutomationChannel) => void;
     removeAutomationChannel: (channelId: string) => void;
     updateAutomationKeyframes: (channelId: string, keyframes: AutomationKeyframe[]) => void;
@@ -345,6 +348,7 @@ function createInitialInteractionState(): SceneInteractionState {
         automationExpandedElements: [],
         automationExpandedCurves: [],
         automationSearchQuery: '',
+        expandedPropertyGroups: {},
     };
 }
 
@@ -1771,8 +1775,23 @@ const createSceneStoreState = (
         });
     },
 
+    setPropertyGroupCollapseState: (elementId, groupId, collapsed) => {
+        set((state) => ({
+            ...state,
+            interaction: {
+                ...state.interaction,
+                expandedPropertyGroups: {
+                    ...state.interaction.expandedPropertyGroups,
+                    [elementId]: {
+                        ...(state.interaction.expandedPropertyGroups[elementId] ?? {}),
+                        [groupId]: collapsed,
+                    },
+                },
+            },
+        }));
+    },
+
     setAutomationChannel: (channel) => {
-        automationEvaluator.invalidateChannel(channel.id);
         set((state) => ({
             ...state,
             automation: {

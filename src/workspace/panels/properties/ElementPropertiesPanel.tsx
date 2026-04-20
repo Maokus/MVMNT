@@ -48,7 +48,6 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     );
     const [propertyValues, setPropertyValues] = useState<PropertyValues>({});
     const [macroAssignments, setMacroAssignments] = useState<MacroAssignments>({});
-    const [groupCollapseState, setGroupCollapseState] = useState<Record<string, boolean>>({});
 
     // Reset property state synchronously when the element changes, so the panel never briefly
     // shows the previous element's values before the useEffect has a chance to load new ones.
@@ -72,6 +71,8 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const automationChannels = useSceneStore(useCallback((s) => s.automation.channels, []));
     const autoKeying = useTimelineStore((s) => s.transport.autoKeying);
     const propertyOverrides = useSceneStore(useCallback((s) => s.propertyOverrides, []));
+    const groupCollapseState = useSceneStore(useCallback((s) => s.interaction.expandedPropertyGroups[elementId] ?? {}, [elementId]));
+    const setPropertyGroupCollapseState = useSceneStore((s) => s.setPropertyGroupCollapseState);
 
     // Fast property-type lookup used by auto-keying logic
     const propertyTypeMap = useMemo(() => {
@@ -172,18 +173,12 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         setPropertyValues(nextValues);
         setMacroAssignments(nextAssignments);
 
-        setGroupCollapseState((prev) => {
-            const next: Record<string, boolean> = {};
-            groupedSchema.groups.forEach((group) => {
-                next[group.id] = Object.prototype.hasOwnProperty.call(prev, group.id) ? prev[group.id] : group.collapsed;
-            });
-            const prevKeys = Object.keys(prev);
-            const nextKeys = Object.keys(next);
-            if (prevKeys.length !== nextKeys.length) return next;
-            for (const key of nextKeys) {
-                if (prev[key] !== next[key]) return next;
+        // Initialize any groups that don't yet have a stored collapse state
+        const currentGroupState = useSceneStore.getState().interaction.expandedPropertyGroups[elementId] ?? {};
+        groupedSchema.groups.forEach((group) => {
+            if (!Object.prototype.hasOwnProperty.call(currentGroupState, group.id) && group.collapsed) {
+                setPropertyGroupCollapseState(elementId, group.id, true);
             }
-            return prev;
         });
     }, [
         schema,
@@ -196,6 +191,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         currentTick,
         automationChannels,
         propertyOverrides,
+        setPropertyGroupCollapseState,
     ]);
 
     const propertyPassesVisibility = useCallback(
@@ -460,8 +456,9 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     );
 
     const handleCollapseToggle = useCallback((groupId: string) => {
-        setGroupCollapseState((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
-    }, []);
+        const current = useSceneStore.getState().interaction.expandedPropertyGroups[elementId] ?? {};
+        setPropertyGroupCollapseState(elementId, groupId, !current[groupId]);
+    }, [elementId, setPropertyGroupCollapseState]);
 
     const canPasteElement = elementClipboard?.elementType === elementType;
 

@@ -13,6 +13,10 @@ import {
     type SetTrackOffsetTicksPayload,
 } from './commands/setTrackOffsetTicksCommand';
 import {
+    createSetMultipleTrackOffsetTicksCommand,
+    type SetMultipleTrackOffsetTicksPayload,
+} from './commands/setMultipleTrackOffsetTicksCommand';
+import {
     createSetTrackPropertiesCommand,
     type SetTrackPropertiesPayload,
 } from './commands/setTrackPropertiesCommand';
@@ -31,6 +35,7 @@ type TimelineRegistryMap = {
     'timeline.addTrack': TimelineCommandRegistration<AddTrackCommandPayload, AddTrackCommandResult>;
     'timeline.removeTracks': TimelineCommandRegistration<RemoveTracksCommandPayload>;
     'timeline.setTrackOffsetTicks': TimelineCommandRegistration<SetTrackOffsetTicksPayload>;
+    'timeline.setMultipleTrackOffsetTicks': TimelineCommandRegistration<SetMultipleTrackOffsetTicksPayload>;
     'timeline.setTrackProperties': TimelineCommandRegistration<SetTrackPropertiesPayload>;
     'timeline.reorderTracks': TimelineCommandRegistration<ReorderTracksPayload>;
 };
@@ -62,6 +67,15 @@ const registry: TimelineRegistryMap = {
             telemetryEvent: 'timeline_set_track_offset',
         }),
         factory: (payload, metadata) => createSetTrackOffsetTicksCommand(payload, metadata),
+    },
+    'timeline.setMultipleTrackOffsetTicks': {
+        id: 'timeline.setMultipleTrackOffsetTicks',
+        buildMetadata: (payload) => ({
+            commandId: 'timeline.setMultipleTrackOffsetTicks',
+            undoLabel: payload.offsets.length > 1 ? 'Move Clips' : 'Move Clip',
+            telemetryEvent: 'timeline_set_multiple_track_offsets',
+        }),
+        factory: (payload, metadata) => createSetMultipleTrackOffsetTicksCommand(payload, metadata),
     },
     'timeline.setTrackProperties': {
         id: 'timeline.setTrackProperties',

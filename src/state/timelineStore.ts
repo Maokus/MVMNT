@@ -138,6 +138,7 @@ export type TimelineState = {
     removeTracks: (ids: string[]) => void; // batch removal (single undo snapshot)
     updateTrack: (id: string, patch: Partial<TimelineTrack>) => Promise<void>;
     setTrackOffsetTicks: (id: string, offsetTicks: number) => Promise<void>;
+    setMultipleTrackOffsetTicks: (offsets: Array<{ trackId: string; offsetTicks: number }>) => Promise<void>;
     setTrackRegionTicks: (id: string, startTick?: number, endTick?: number) => Promise<void>;
     setTrackEnabled: (id: string, enabled: boolean) => Promise<void>;
     setTrackMute: (id: string, mute: boolean) => Promise<void>;
@@ -586,6 +587,19 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             );
         } catch (error) {
             console.error('[timelineStore] setTrackOffsetTicks command failed', error);
+            throw error;
+        }
+    },
+    async setMultipleTrackOffsetTicks(offsets: Array<{ trackId: string; offsetTicks: number }>) {
+        if (!offsets.length) return;
+        try {
+            await timelineCommandGateway.dispatchById(
+                'timeline.setMultipleTrackOffsetTicks',
+                { offsets },
+                { source: 'timeline-store' }
+            );
+        } catch (error) {
+            console.error('[timelineStore] setMultipleTrackOffsetTicks command failed', error);
             throw error;
         }
     },
