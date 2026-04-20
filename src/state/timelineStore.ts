@@ -47,6 +47,7 @@ import { createTimelineCommandGateway } from './timeline/commandGateway';
 import type { AddTrackCommandResult } from './timeline/commands/addTrackCommand';
 import type { TimelineCommandDispatchResult, TimelineSerializedCommandDescriptor } from './timeline/commandTypes';
 import { mergeFeatureCaches } from './timeline/featureCacheUtils';
+import { useSelectionStore } from '@state/selectionStore';
 
 export { getSharedTimingManager, sharedTimingManager } from './timeline/timelineShared';
 
@@ -104,7 +105,6 @@ export type TimelineState = {
         adaptiveSnap: boolean; // when true, snap denominator and grid lines adapt to zoom level
         autoKeying: boolean; // when true, property changes automatically create keyframes
     };
-    selection: { selectedTrackIds: string[] };
     // UI view window in ticks
     timelineView: { startTick: number; endTick: number };
     // Real playback range braces (yellow) in ticks. Optional; when unset, fallback to timelineView.
@@ -161,7 +161,6 @@ export type TimelineState = {
     toggleLoop: () => void;
     reorderTracks: (order: string[]) => Promise<void>;
     setTimelineViewTicks: (startTick: number, endTick: number) => void;
-    selectTracks: (ids: string[]) => void;
     _clipGroupDrag: { delta: number; trackIds: string[] } | null;
     _setClipGroupDrag: (drag: { delta: number; trackIds: string[] } | null) => void;
     setPlaybackRangeTicks: (startTick?: number, endTick?: number) => void;
@@ -424,7 +423,6 @@ function createInitialTimelineSlice(): Pick<
     | 'tracks'
     | 'tracksOrder'
     | 'transport'
-    | 'selection'
     | 'midiCache'
     | 'audioCache'
     | 'audioFeatureCaches'
@@ -467,7 +465,6 @@ function createInitialTimelineSlice(): Pick<
             loopStartTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 2)),
             loopEndTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 5)),
         },
-        selection: { selectedTrackIds: [] },
         _clipGroupDrag: null,
         midiCache: {},
         timelineView: { startTick: 0, endTick: Math.round(beatsToTicks(DEFAULT_TIMING_CONTEXT, 120)) },
@@ -918,10 +915,6 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         set(() => ({ timelineView: { startTick: sT, endTick: eT } }));
     },
 
-    selectTracks(ids: string[]) {
-        set(() => ({ selection: { selectedTrackIds: [...ids] } }));
-    },
-
     _setClipGroupDrag(drag) {
         set(() => ({ _clipGroupDrag: drag }));
     },
@@ -1281,7 +1274,6 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         set((s: TimelineState) => ({
             tracks: {},
             tracksOrder: [],
-            selection: { selectedTrackIds: [] },
             midiCache: {},
             audioCache: {},
             audioFeatureCaches: {},
@@ -1292,6 +1284,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 fallbackLog: [],
             },
         }));
+        useSelectionStore.getState().clearSelection('tracks');
         try {
             autoAdjustSceneRangeIfNeeded(get, set);
         } catch (error) {

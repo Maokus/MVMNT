@@ -4,6 +4,7 @@ import { sceneSelectors } from './selectors';
 import { useSceneStore } from '@state/sceneStore';
 import type { ElementBindings, SceneInteractionState, SceneStoreState } from '@state/sceneStore';
 import type { Macro } from '@state/scene/macros';
+import { useSelectionStore } from '@state/selectionStore';
 
 export interface SceneElementListItem {
     id: string;
@@ -51,8 +52,8 @@ export function useSceneElements(): SceneElementListItem[] {
 }
 
 export function useSceneSelection(): SceneSelectionView {
-    return useSceneStore((state) => {
-        const ids = state.interaction.selectedElementIds;
+    return useSelectionStore((state) => {
+        const ids = state.selectedElementIds;
         return {
             ids,
             primaryId: ids[0] ?? null,

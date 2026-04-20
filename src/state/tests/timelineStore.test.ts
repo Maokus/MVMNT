@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore, type TimelineTrack } from '../timelineStore';
+import { useSelectionStore } from '../selectionStore';
 import { act } from '@testing-library/react';
 
 function getState() {
@@ -37,10 +38,10 @@ describe('timelineStore', () => {
         const id = Object.keys(getState().tracks)[0];
         await act(async () => {
             await getState().updateTrack(id, { mute: true });
-            getState().selectTracks([id]);
+            useSelectionStore.getState().selectTracks([id]);
         });
         const s = getState();
         expect(s.tracks[id].mute).toBe(true);
-        expect(s.selection.selectedTrackIds).toEqual([id]);
+        expect(useSelectionStore.getState().selectedTrackIds).toEqual([id]);
     });
 });

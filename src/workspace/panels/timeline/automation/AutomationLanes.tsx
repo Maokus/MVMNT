@@ -8,6 +8,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
+import { useSelectionStore } from '@state/selectionStore';
 import { useTickScale } from '../hooks/useTickScale';
 import { useAutomatedElementIds, useElementChannels, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
@@ -141,9 +142,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         if (!e.shiftKey) {
-            useSceneStore.setState((state) => ({
-                interaction: { ...state.interaction, automationSelectedKeyframes: [] },
-            }));
+            useSelectionStore.getState().clearSelection('keyframes');
         }
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         setSelBox({ startX: x, startY: y, endX: x, endY: y, moved: false, shiftKey: e.shiftKey });
@@ -190,16 +189,15 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
                     }
                 }
             }
-            useSceneStore.setState((state) => {
-                if (sb.shiftKey) {
-                    const selectedChannelIds = new Set(enclosed.map((k) => k.channelId));
-                    const others = state.interaction.automationSelectedKeyframes.filter(
-                        (k) => !selectedChannelIds.has(k.channelId),
-                    );
-                    return { interaction: { ...state.interaction, automationSelectedKeyframes: [...others, ...enclosed] } };
-                }
-                return { interaction: { ...state.interaction, automationSelectedKeyframes: enclosed } };
-            });
+            if (sb.shiftKey) {
+                const selectedChannelIds = new Set(enclosed.map((k) => k.channelId));
+                const others = useSelectionStore.getState().selectedKeyframes.filter(
+                    (k) => !selectedChannelIds.has(k.channelId),
+                );
+                useSelectionStore.getState().selectKeyframes([...others, ...enclosed]);
+            } else {
+                useSelectionStore.getState().selectKeyframes(enclosed);
+            }
         }
         setSelBox(null);
     }, [toTick, width, setSelBox]);
@@ -243,7 +241,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
 
             // Copy selected keyframes
             if (e.key === 'c' && (e.metaKey || e.ctrlKey)) {
-                const selected = useSceneStore.getState().interaction.automationSelectedKeyframes;
+                const selected = useSelectionStore.getState().selectedKeyframes;
                 if (selected.length === 0) return;
                 e.preventDefault();
                 e.stopPropagation();
@@ -269,7 +267,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
 
             // Duplicate selected keyframes immediately after the selection (tiles on repeat)
             if (e.key === 'd' && (e.metaKey || e.ctrlKey)) {
-                const selected = useSceneStore.getState().interaction.automationSelectedKeyframes;
+                const selected = useSelectionStore.getState().selectedKeyframes;
                 if (selected.length === 0) return;
                 e.preventDefault();
                 e.stopPropagation();
@@ -310,9 +308,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
                 }
 
                 // Shift selection to duplicated block — next Cmd+D tiles another copy
-                useSceneStore.setState((s) => ({
-                    interaction: { ...s.interaction, automationSelectedKeyframes: newSelected },
-                }));
+                useSelectionStore.getState().selectKeyframes(newSelected);
                 return;
             }
 
@@ -341,7 +337,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
             }
 
             if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-            const selected = useSceneStore.getState().interaction.automationSelectedKeyframes;
+            const selected = useSelectionStore.getState().selectedKeyframes;
             if (selected.length === 0) return;
             e.preventDefault();
             e.stopPropagation();
@@ -351,12 +347,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
                     { source: 'automation-lane' },
                 );
             }
-            useSceneStore.setState((state) => ({
-                interaction: {
-                    ...state.interaction,
-                    automationSelectedKeyframes: [],
-                },
-            }));
+            useSelectionStore.getState().clearSelection('keyframes');
         };
         window.addEventListener('keydown', handler, { capture: true });
         return () => window.removeEventListener('keydown', handler, { capture: true } as any);

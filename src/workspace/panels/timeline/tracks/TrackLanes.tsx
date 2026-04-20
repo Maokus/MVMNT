@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
+import { useSelectionStore } from '@state/selectionStore';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import { useTickScale } from '../hooks/useTickScale';
 import AudioWaveform from '@workspace/components/AudioWaveform';
@@ -90,7 +91,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         const track = useTimelineStore((s) => s.tracks[trackId]);
         const setTrackOffsetTicks = useTimelineStore((s) => s.setTrackOffsetTicks);
         const setTrackRegionTicks = useTimelineStore((s) => s.setTrackRegionTicks);
-        const selectTracks = useTimelineStore((s) => s.selectTracks);
+        const selectTracks = useSelectionStore((s) => s.selectTracks);
         const updateTrack = useTimelineStore((s) => s.updateTrack);
         const [editingName, setEditingName] = useState(false);
         const [nameValue, setNameValue] = useState('');
@@ -121,8 +122,8 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         const startRef = useRef<{ startX: number; baseOffsetTick: number; alt: boolean; groupBaseOffsets: Record<string, number> } | null>(null);
         const [resizing, setResizing] = useState<null | { type: 'left' | 'right'; startX: number; baseStart: number; baseEnd: number; alt: boolean }>(null);
         const [didMove, setDidMove] = useState(false);
-        const isSelected = useTimelineStore((s) => s.selection.selectedTrackIds.includes(trackId));
-        const selectedTrackIds = useTimelineStore((s) => s.selection.selectedTrackIds);
+        const isSelected = useSelectionStore((s) => s.selectedTrackIds.includes(trackId));
+        const selectedTrackIds = useSelectionStore((s) => s.selectedTrackIds);
         const groupDrag = useTimelineStore((s) => s._clipGroupDrag);
         const setClipGroupDrag = useTimelineStore((s) => s._setClipGroupDrag);
         const quantize = useTimelineStore((s) => s.transport.quantize);
@@ -522,7 +523,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
     const addMidiTrack = useTimelineStore((s) => s.addMidiTrack);
     const addAudioTrack = useTimelineStore((s) => s.addAudioTrack);
     const currentTick = useTimelineStore((s) => s.timeline.currentTick);
-    const selectTracks = useTimelineStore((s) => s.selectTracks);
+    const selectTracks = useSelectionStore((s) => s.selectTracks);
     const tracksMap = useTimelineStore((s) => s.tracks);
     const midiCache = useTimelineStore((s) => s.midiCache);
     const tempoEnabled = useTimelineStore((s) => !!s.timeline.tempoAutomation?.enabled);

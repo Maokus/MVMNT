@@ -5,6 +5,7 @@ import type { TimelineState, TimelineTrack } from '../timelineStore';
 import type { NoteRaw, CCEventRaw, TempoMapEntry } from '../timelineTypes';
 import { autoAdjustSceneRangeIfNeeded, createTimelineTimingContext } from './timelineShared';
 import { secondsToTicksAt } from '../timelineTime';
+import { useSelectionStore } from '@state/selectionStore';
 
 export type TimelineTrackLike = TimelineTrack | AudioTrack;
 
@@ -90,11 +91,9 @@ function buildReadyFeatureStatus(cache: AudioFeatureCache): AudioFeatureCacheSta
     };
 }
 
-function ensureSelection(selection: string[] | undefined, state: TimelineState): string[] {
-    if (Array.isArray(selection)) {
-        return selection;
-    }
-    return state.selection.selectedTrackIds;
+function resolveSelectionIds(payloadSelection: string[] | undefined): string[] {
+    if (Array.isArray(payloadSelection)) return payloadSelection;
+    return useSelectionStore.getState().selectedTrackIds;
 }
 
 function insertTrackAtIndex(
@@ -137,7 +136,6 @@ function applyAddTrack(context: TimelinePatchContext, payload: TimelinePatchAddT
     setState((state) => ({
         tracks,
         tracksOrder,
-        selection: { selectedTrackIds: ensureSelection(payload.selection, state) },
         midiCache: payload.midiCache
             ? { ...state.midiCache, [payload.midiCache.key]: payload.midiCache.value }
             : state.midiCache,
@@ -154,6 +152,7 @@ function applyAddTrack(context: TimelinePatchContext, payload: TimelinePatchAddT
               }
             : state.audioFeatureCacheStatus,
     }));
+    useSelectionStore.getState().selectTracks(resolveSelectionIds(payload.selection));
 }
 
 function applyRemoveTracks(context: TimelinePatchContext, payload: TimelinePatchRemoveTracksPayload): void {
@@ -175,7 +174,6 @@ function applyRemoveTracks(context: TimelinePatchContext, payload: TimelinePatch
             delete nextAudioFeatureCaches[key];
             delete nextAudioFeatureStatus[key];
         }
-        const selection = ensureSelection(payload.selection, state).filter((id) => !payload.trackIds.includes(id));
         return {
             tracks,
             tracksOrder,
@@ -183,9 +181,14 @@ function applyRemoveTracks(context: TimelinePatchContext, payload: TimelinePatch
             audioCache: nextAudioCache,
             audioFeatureCaches: nextAudioFeatureCaches,
             audioFeatureCacheStatus: nextAudioFeatureStatus,
-            selection: { selectedTrackIds: selection },
         };
     });
+    const removedSet = new Set(payload.trackIds);
+    const nextSelection = resolveSelectionIds(payload.selection).filter((id) => !removedSet.has(id));
+    useSelectionStore.getState().setSelectedTrackIds(nextSelection);
+    if (!nextSelection.length && useSelectionStore.getState().activeTarget === 'tracks') {
+        useSelectionStore.getState().setActiveTarget('none');
+    }
 }
 
 function applyRestoreTracks(context: TimelinePatchContext, payload: TimelinePatchRestoreTracksPayload): void {
@@ -217,15 +220,15 @@ function applyRestoreTracks(context: TimelinePatchContext, payload: TimelinePatc
             nextAudioFeatureStatus[entry.audioFeatureCache.key] = buildReadyFeatureStatus(entry.audioFeatureCache.value);
         }
     }
-    setState((state) => ({
+    setState((_state) => ({
         tracks: nextTracks,
         tracksOrder: nextOrder,
         midiCache: nextMidiCache,
         audioCache: nextAudioCache,
         audioFeatureCaches: nextAudioFeatureCaches,
         audioFeatureCacheStatus: nextAudioFeatureStatus,
-        selection: { selectedTrackIds: ensureSelection(payload.selection, state) },
     }));
+    useSelectionStore.getState().selectTracks(resolveSelectionIds(payload.selection));
 }
 
 function applySetTrackOffset(

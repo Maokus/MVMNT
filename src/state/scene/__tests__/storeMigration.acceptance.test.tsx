@@ -13,6 +13,7 @@ import {
 } from '@state/scene';
 import { DocumentGateway } from '@persistence/document-gateway';
 import { useTimelineStore } from '@state/timelineStore';
+import { useSelectionStore } from '@state/selectionStore';
 
 function resetTimelineStore() {
     useTimelineStore.setState((state: any) => ({
@@ -124,7 +125,7 @@ describe('store migration acceptance criteria', () => {
             expect(result.current.hasSelection).toBe(false);
 
             act(() => {
-                useSceneStore.getState().setInteractionState({ selectedElementIds: ['title'] });
+                useSelectionStore.getState().selectElements(['title']);
             });
 
             expect(result.current.hasSelection).toBe(true);

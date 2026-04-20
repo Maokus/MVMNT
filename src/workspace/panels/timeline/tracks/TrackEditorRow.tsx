@@ -1,13 +1,14 @@
 import React, { useRef, useState } from 'react';
 import { FaTrash } from 'react-icons/fa';
 import { useTimelineStore } from '@state/timelineStore';
+import { useSelectionStore } from '@state/selectionStore';
 
 const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
     const track = useTimelineStore((s) => s.tracks[trackId]);
     const removeTrack = useTimelineStore((s) => s.removeTrack);
     const updateTrack = useTimelineStore((s) => s.updateTrack);
-    const selected = useTimelineStore((s) => s.selection.selectedTrackIds.includes(trackId));
-    const selectTracks = useTimelineStore((s) => s.selectTracks);
+    const selected = useSelectionStore((s) => s.selectedTrackIds.includes(trackId));
+    const selectTracks = useSelectionStore((s) => s.selectTracks);
     const setTrackGain = useTimelineStore((s) => s.setTrackGain);
     const setTrackMute = useTimelineStore((s) => s.setTrackMute);
     const setTrackSolo = useTimelineStore((s) => s.setTrackSolo);

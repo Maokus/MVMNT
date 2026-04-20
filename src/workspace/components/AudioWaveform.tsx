@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
+import { useSelectionStore } from '@state/selectionStore';
 
 interface AudioWaveformProps {
     trackId: string;
@@ -29,7 +30,6 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const {
         peaks,
-        selected,
         offsetTicks,
         durationTicks,
         regionStartTick,
@@ -40,7 +40,6 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         if (!t || t.type !== 'audio')
             return {
                 peaks: undefined,
-                selected: false,
                 offsetTicks: 0,
                 durationTicks: 0,
                 regionStartTick: 0,
@@ -51,7 +50,6 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         const cache = s.audioCache[cacheKey];
         return {
             peaks: cache?.waveform?.channelPeaks,
-            selected: s.selection.selectedTrackIds.includes(trackId),
             offsetTicks: t.offsetTicks,
             durationTicks: (t.regionEndTick ?? cache?.durationTicks ?? 0) - (t.regionStartTick ?? 0),
             regionStartTick: t.regionStartTick ?? 0,
@@ -59,6 +57,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
             sourceDurationTicks: cache?.durationTicks ?? 0,
         };
     });
+    const selected = useSelectionStore((s) => s.selectedTrackIds.includes(trackId));
 
     const fallbackRegionStart = typeof regionStartTick === 'number' ? regionStartTick : 0;
     const fallbackRegionEnd = typeof regionEndTick === 'number' ? regionEndTick : fallbackRegionStart + Math.max(durationTicks, 0);

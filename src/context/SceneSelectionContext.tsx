@@ -12,6 +12,7 @@ import type { SceneCommand, SceneCommandOptions } from '@state/scene';
 import { shallow } from 'zustand/shallow';
 import { makeChannelId, findKeyframeAtTick, createKeyframe, type AutomationValueType } from '@automation/types';
 import { useTimelineStore } from '@state/timelineStore';
+import { useSelectionStore } from '@state/selectionStore';
 
 export interface TrackInputDef {
     key: string;
@@ -160,7 +161,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
 
     const selectElement = useCallback((elementId: string | null) => {
         const normalized = elementId ?? null;
-        useSceneStore.getState().setInteractionState({ selectedElementIds: normalized ? [normalized] : [] });
+        useSelectionStore.getState().selectElements(normalized ? [normalized] : []);
     }, []);
 
     useEffect(() => {

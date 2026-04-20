@@ -22,6 +22,7 @@ import {
 } from '@persistence/migrations/removeSmoothingFromDescriptor';
 import { migrateSceneAudioSystemV5 } from '@persistence/migrations/audioSystemV5';
 import { migrateAutomationState } from '@automation/migration';
+import { useSelectionStore } from '@state/selectionStore';
 
 export type BindingState = ConstantBindingState | MacroBindingState | KeyframesBindingState;
 
@@ -172,7 +173,6 @@ export interface SceneElementRecord {
 }
 
 export interface SceneInteractionState {
-    selectedElementIds: string[];
     hoveredElementId: string | null;
     editingElementId: string | null;
     clipboard: SceneClipboard | null;
@@ -180,8 +180,6 @@ export interface SceneInteractionState {
     automationExpandedElements: string[];
     /** Channel IDs with curve editor pane open. */
     automationExpandedCurves: string[];
-    /** Multi-selected keyframes in the timeline automation lanes. */
-    automationSelectedKeyframes: Array<{ channelId: string; tick: number }>;
     /** Current search query for filtering automation properties. */
     automationSearchQuery: string;
 }
@@ -341,13 +339,11 @@ export const DEFAULT_SCENE_SETTINGS: SceneSettingsState = {
 
 function createInitialInteractionState(): SceneInteractionState {
     return {
-        selectedElementIds: [],
         hoveredElementId: null,
         editingElementId: null,
         clipboard: null,
         automationExpandedElements: [],
         automationExpandedCurves: [],
-        automationSelectedKeyframes: [],
         automationSearchQuery: '',
     };
 }
@@ -516,28 +512,6 @@ function rebuildMacroIndex(byElement: Record<string, ElementBindings>): MacroBin
     return byMacro;
 }
 
-function normalizeSelection(state: SceneStoreState, ids: string[] | null | undefined): string[] {
-    if (!ids || ids.length === 0) return [];
-    const next: string[] = [];
-    const seen = new Set<string>();
-    for (const raw of ids) {
-        if (typeof raw !== 'string') continue;
-        if (!state.elements[raw]) continue;
-        if (seen.has(raw)) continue;
-        next.push(raw);
-        seen.add(raw);
-    }
-    return next;
-}
-
-function selectionEquals(a: string[], b: string[]): boolean {
-    if (a === b) return true;
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-        if (a[i] !== b[i]) return false;
-    }
-    return true;
-}
 
 function bindingEquals(a: BindingState, b: BindingState): boolean {
     if (a.type !== b.type) return false;
@@ -1066,7 +1040,6 @@ const createSceneStoreState = (
                 automation: { channels: nextChannels },
                 interaction: {
                     ...state.interaction,
-                    selectedElementIds: state.interaction.selectedElementIds.filter((id) => id !== elementId),
                     hoveredElementId:
                         state.interaction.hoveredElementId === elementId ? null : state.interaction.hoveredElementId,
                     editingElementId:
@@ -1075,6 +1048,8 @@ const createSceneStoreState = (
                 runtimeMeta: markDirty(state, 'removeElement'),
             };
         });
+        // Sync selection store after state update
+        useSelectionStore.getState().removeElementFromSelection(elementId);
     },
 
     updateElementId: (currentId, nextId) => {
@@ -1131,7 +1106,6 @@ const createSceneStoreState = (
 
             const nextInteraction: SceneInteractionState = {
                 ...state.interaction,
-                selectedElementIds: state.interaction.selectedElementIds.map((id) => (id === currentId ? nextId : id)),
                 hoveredElementId:
                     state.interaction.hoveredElementId === currentId ? nextId : state.interaction.hoveredElementId,
                 editingElementId:
@@ -1148,6 +1122,8 @@ const createSceneStoreState = (
                 runtimeMeta: markDirty(state, 'updateElementId'),
             };
         });
+        // Sync selection store after state update
+        useSelectionStore.getState().renameElementInSelection(currentId, nextId);
     },
 
     updateSettings: (patch) => {
@@ -1754,13 +1730,6 @@ const createSceneStoreState = (
         set((state) => {
             const next: SceneInteractionState = { ...state.interaction };
 
-            if ('selectedElementIds' in patch) {
-                const normalized = normalizeSelection(state, patch.selectedElementIds ?? []);
-                if (!selectionEquals(normalized, next.selectedElementIds)) {
-                    next.selectedElementIds = normalized;
-                }
-            }
-
             if ('hoveredElementId' in patch) {
                 const hovered = patch.hoveredElementId ?? null;
                 const resolved = hovered && state.elements[hovered] ? hovered : null;
@@ -1788,11 +1757,9 @@ const createSceneStoreState = (
             }
 
             if (
-                next === state.interaction ||
-                (selectionEquals(next.selectedElementIds, state.interaction.selectedElementIds) &&
-                    next.hoveredElementId === state.interaction.hoveredElementId &&
-                    next.editingElementId === state.interaction.editingElementId &&
-                    next.clipboard === state.interaction.clipboard)
+                next.hoveredElementId === state.interaction.hoveredElementId &&
+                next.editingElementId === state.interaction.editingElementId &&
+                next.clipboard === state.interaction.clipboard
             ) {
                 return state;
             }

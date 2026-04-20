@@ -30,6 +30,7 @@ import {
 import { useTickScale } from '../hooks/useTickScale';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneStore } from '@state/sceneStore';
+import { useSelectionStore } from '@state/selectionStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { quantizeSettingToBeats, type QuantizeSetting } from '@state/timeline/quantize';
@@ -162,10 +163,10 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     const currentTick = useTimelineStore((s) => s.timeline.currentTick);
     const ppq = CANONICAL_PPQ;
 
-    const selectedKeyframes = useSceneStore(
+    const selectedKeyframes = useSelectionStore(
         useCallback(
             (s) =>
-                s.interaction.automationSelectedKeyframes.filter(
+                s.selectedKeyframes.filter(
                     (k) => k.channelId === channel.id,
                 ),
             [channel.id],
@@ -262,12 +263,14 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             // Capture on the <g> so pointermove/up are delivered here and bubble to SVG
             (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
 
-            // Select the element that owns this automation channel
-            useSceneStore.getState().setInteractionState({ selectedElementIds: [channel.elementId] });
+            // Select the element that owns this automation channel (sets context for inspector)
+            // while making keyframes the active command target
+            useSelectionStore.getState().selectKeyframes([]);
+            useSelectionStore.getState().setSelectedElementIds([channel.elementId]);
 
             // Update store selection
             let newSelected: Array<{ channelId: string; tick: number }>;
-            const existing = useSceneStore.getState().interaction.automationSelectedKeyframes;
+            const existing = useSelectionStore.getState().selectedKeyframes;
             const clickedIsSelected = existing.some(
                 (k) => k.channelId === channel.id && Math.abs(k.tick - kf.tick) < 0.5,
             );
@@ -289,12 +292,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 newSelected = [{ channelId: channel.id, tick: kf.tick }];
             }
 
-            useSceneStore.setState((state) => ({
-                interaction: {
-                    ...state.interaction,
-                    automationSelectedKeyframes: newSelected,
-                },
-            }));
+            useSelectionStore.getState().selectKeyframes(newSelected);
 
             // Build peers list (all selected kfs except this one)
             const peers: PeerKf[] = newSelected
@@ -396,12 +394,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                         { channelId: channel.id, tick: resolvedSnap },
                         ...updatedPeers.map((p) => ({ channelId: p.channelId, tick: p.curTick })),
                     ];
-                    useSceneStore.setState((state) => ({
-                        interaction: {
-                            ...state.interaction,
-                            automationSelectedKeyframes: newSelection,
-                        },
-                    }));
+                    useSelectionStore.getState().selectKeyframes(newSelection);
 
                     setDragging({ ...drag, kfTick: resolvedSnap, peers: updatedPeers });
                 }
@@ -485,7 +478,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             if (target.closest('[data-seg]')) return;
 
             // Select the element that owns this automation channel
-            useSceneStore.getState().setInteractionState({ selectedElementIds: [channel.elementId] });
+            useSelectionStore.getState().selectElements([channel.elementId]);
         },
         [channel.elementId],
     );
@@ -578,31 +571,21 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     const handleSegmentClick = useCallback(
         (e: React.MouseEvent, tick: number) => {
             e.stopPropagation();
-            useSceneStore.getState().setInteractionState({ selectedElementIds: [channel.elementId] });
+            useSelectionStore.getState().selectElements([channel.elementId]);
             const kfs = channel.keyframes;
             const idx = kfs.findIndex((kf) => Math.abs(kf.tick - tick) < 0.5);
             if (idx < 0 || idx >= kfs.length - 1) return;
             const leftTick = kfs[idx].tick;
             if (e.shiftKey) {
                 // Shift+click: add left keyframe to existing selection
-                useSceneStore.setState((state) => {
-                    const existing = state.interaction.automationSelectedKeyframes;
-                    const hasLeft = existing.some((k) => k.channelId === channel.id && Math.abs(k.tick - leftTick) < 0.5);
-                    return {
-                        interaction: {
-                            ...state.interaction,
-                            automationSelectedKeyframes: hasLeft ? existing : [...existing, { channelId: channel.id, tick: leftTick }],
-                        },
-                    };
-                });
+                const existing = useSelectionStore.getState().selectedKeyframes;
+                const hasLeft = existing.some((k) => k.channelId === channel.id && Math.abs(k.tick - leftTick) < 0.5);
+                useSelectionStore.getState().selectKeyframes(
+                    hasLeft ? existing : [...existing, { channelId: channel.id, tick: leftTick }]
+                );
             } else {
                 // Plain click: select only this segment's left (outgoing) keyframe
-                useSceneStore.setState((state) => ({
-                    interaction: {
-                        ...state.interaction,
-                        automationSelectedKeyframes: [{ channelId: channel.id, tick: leftTick }],
-                    },
-                }));
+                useSelectionStore.getState().selectKeyframes([{ channelId: channel.id, tick: leftTick }]);
             }
         },
         [channel.id, channel.elementId, channel.keyframes],
@@ -611,7 +594,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     const handleInterpolationSelect = useCallback(
         (interpolation: SegmentInterpolation) => {
             if (!interpolationPicker) return;
-            const allSelected = useSceneStore.getState().interaction.automationSelectedKeyframes;
+            const allSelected = useSelectionStore.getState().selectedKeyframes;
             const channelTickSet = new Set(
                 allSelected.filter((k) => k.channelId === channel.id).map((k) => k.tick),
             );
@@ -637,7 +620,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
         (type: HandleType) => {
             if (!interpolationPicker) return;
             const patch = { leftHandleType: type, rightHandleType: type };
-            const allSelected = useSceneStore.getState().interaction.automationSelectedKeyframes;
+            const allSelected = useSelectionStore.getState().selectedKeyframes;
             const isPartOfSelection = allSelected.some(
                 (k) => k.channelId === channel.id && Math.abs(k.tick - interpolationPicker.tick) < 0.5,
             );

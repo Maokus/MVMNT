@@ -26,6 +26,7 @@ import { useTickScale } from '../hooks/useTickScale';
 import { useCurveRange, useCurveRangeControls } from '../context/curveRangeContext';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { useSceneStore } from '@state/sceneStore';
+import { useSelectionStore } from '@state/selectionStore';
 import InterpolationPicker from './InterpolationPicker';
 import { resolveParametricEasing } from '@math/animation/easing-parametric';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
@@ -405,10 +406,10 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     }, [channel.keyframes, toX, width, valueToY]);
 
     // Selection state for highlighting keyframes and segments
-    const selectedKeyframeTicks = useSceneStore(
+    const selectedKeyframeTicks = useSelectionStore(
         useCallback(
             (s) => new Set(
-                s.interaction.automationSelectedKeyframes
+                s.selectedKeyframes
                     .filter((k) => k.channelId === channel.id)
                     .map((k) => k.tick),
             ),
@@ -499,10 +500,10 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             if (e.button !== 0) return;
             e.stopPropagation();
             (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
-            useSceneStore.getState().setInteractionState({ selectedElementIds: [channel.elementId] });
+            useSelectionStore.getState().selectElements([channel.elementId]);
 
             // Mirror the selection logic from AutomationLaneRow
-            const existing = useSceneStore.getState().interaction.automationSelectedKeyframes;
+            const existing = useSelectionStore.getState().selectedKeyframes;
             const clickedIsSelected = existing.some(
                 (k) => k.channelId === channel.id && Math.abs(k.tick - tick) < 0.5,
             );
@@ -520,9 +521,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             } else {
                 newSelected = [{ channelId: channel.id, tick }];
             }
-            useSceneStore.setState((state) => ({
-                interaction: { ...state.interaction, automationSelectedKeyframes: newSelected },
-            }));
+            useSelectionStore.getState().selectKeyframes(newSelected);
 
             liveTickRef.current = tick;
             setDragging({ baseTick: tick, startY: e.clientY, baseValue: value, frozenMinVal: minVal, frozenMaxVal: maxVal });
@@ -707,19 +706,12 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             if (idx < 0 || idx >= kfs.length - 1) return;
             const leftTick = kfs[idx].tick;
             if (e.shiftKey) {
-                useSceneStore.setState((state) => {
-                    const existing = state.interaction.automationSelectedKeyframes;
-                    const hasLeft = existing.some((k) => k.channelId === channel.id && Math.abs(k.tick - leftTick) < 0.5);
-                    const toAdd = hasLeft ? [] : [{ channelId: channel.id, tick: leftTick }];
-                    return { interaction: { ...state.interaction, automationSelectedKeyframes: [...existing, ...toAdd] } };
-                });
+                const existing = useSelectionStore.getState().selectedKeyframes;
+                const hasLeft = existing.some((k) => k.channelId === channel.id && Math.abs(k.tick - leftTick) < 0.5);
+                const toAdd = hasLeft ? [] : [{ channelId: channel.id, tick: leftTick }];
+                useSelectionStore.getState().selectKeyframes([...existing, ...toAdd]);
             } else {
-                useSceneStore.setState((state) => ({
-                    interaction: {
-                        ...state.interaction,
-                        automationSelectedKeyframes: [{ channelId: channel.id, tick: leftTick }],
-                    },
-                }));
+                useSelectionStore.getState().selectKeyframes([{ channelId: channel.id, tick: leftTick }]);
             }
         },
         [channel.id],
@@ -728,7 +720,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     const handleInterpolationSelect = useCallback(
         (interpolation: SegmentInterpolation) => {
             if (!interpolationPicker) return;
-            const allSelected = useSceneStore.getState().interaction.automationSelectedKeyframes;
+            const allSelected = useSelectionStore.getState().selectedKeyframes;
             const channelTickSet = new Set(
                 allSelected.filter((k) => k.channelId === channel.id).map((k) => k.tick),
             );
@@ -754,7 +746,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         (type: HandleType) => {
             if (!interpolationPicker) return;
             const patch = { leftHandleType: type, rightHandleType: type };
-            const allSelected = useSceneStore.getState().interaction.automationSelectedKeyframes;
+            const allSelected = useSelectionStore.getState().selectedKeyframes;
             const isPartOfSelection = allSelected.some(
                 (k) => k.channelId === channel.id && Math.abs(k.tick - interpolationPicker.tick) < 0.5,
             );

@@ -1,6 +1,6 @@
 import { useCallback, useRef, useEffect } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
-import { useSceneStore } from '@state/sceneStore';
+import { useSelectionStore } from '@state/selectionStore';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { type QuantizeSetting } from '@state/timeline/quantize';
 import { zoomAround, getContentEndTick, isEditableTarget } from '../utils/timelineNavUtils';
@@ -25,8 +25,8 @@ export function useTimelineNavigation() {
 
     const zoomToSelection = useCallback(() => {
         const state = useTimelineStore.getState();
-        const selectedIds = state.selection.selectedTrackIds;
-        const selectedKeyframes = useSceneStore.getState().interaction.automationSelectedKeyframes;
+        const selectedIds = useSelectionStore.getState().selectedTrackIds;
+        const selectedKeyframes = useSelectionStore.getState().selectedKeyframes;
 
         if (!selectedIds.length && !selectedKeyframes.length) return;
 
@@ -70,8 +70,7 @@ export function useTimelineNavigation() {
     }, [setTimelineViewTicks]);
 
     const frameSelection = useCallback(() => {
-        const state = useTimelineStore.getState();
-        if (state.selection.selectedTrackIds.length) {
+        if (useSelectionStore.getState().selectedTrackIds.length) {
             zoomToSelection();
         } else {
             centerOnPlayhead();
@@ -141,23 +140,31 @@ export function useTimelineNavigation() {
         return () => window.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
     }, [fitAll, zoomToSelection, frameSelection]);
 
-    // Delete/Backspace removes selected tracks (skips if automation or scene elements are selected)
+    // Delete/Backspace dispatches based on activeTarget from selectionStore
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             if (e.key !== 'Delete' && e.key !== 'Backspace') return;
             if (isEditableTarget(document.activeElement)) return;
-            const automationSelected = useSceneStore.getState().interaction.automationSelectedKeyframes;
-            if (automationSelected.length > 0) return;
-            const selectedElementIds = useSceneStore.getState().interaction.selectedElementIds;
-            if (selectedElementIds.length > 0) return;
-            const ids = useTimelineStore.getState().selection.selectedTrackIds;
-            if (!ids.length) return;
-            useTimelineStore.getState().removeTracks(ids);
-            e.preventDefault();
-            e.stopPropagation();
+            const activeTarget = useSelectionStore.getState().getActiveCommandTarget();
+            switch (activeTarget) {
+                case 'tracks': {
+                    const ids = useSelectionStore.getState().selectedTrackIds;
+                    if (!ids.length) return;
+                    useTimelineStore.getState().removeTracks(ids);
+                    e.preventDefault();
+                    e.stopPropagation();
+                    break;
+                }
+                case 'keyframes':
+                case 'elements':
+                    // Handled by scene/canvas delete handlers; do not interfere.
+                    break;
+                default:
+                    break;
+            }
         };
         window.addEventListener('keydown', handler, { capture: true });
-        return () => window.removeEventListener('keydown', handler, { capture: true } as any);
+        return () => window.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
     }, []);
 
     return { fitAll, zoomToSelection, centerOnPlayhead, frameSelection };
