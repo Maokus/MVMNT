@@ -30,6 +30,7 @@ interface VisualizerContextValue {
     stepBackward: () => void;
     seekPercent: (percent: number) => void;
     exportSequence: (override?: Partial<ExportSettings>) => Promise<void>;
+    exportVideo: (override?: Partial<ExportSettings>) => Promise<void>;
     showProgressOverlay: boolean;
     progressData: ProgressData;
     closeProgress: () => void;
@@ -382,8 +383,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         stepBackward,
         seekPercent,
         exportSequence,
-        // Expose video exporter via any cast to keep interface stable (could extend later)
-        // @ts-ignore
         exportVideo,
         showProgressOverlay,
         progressData,
