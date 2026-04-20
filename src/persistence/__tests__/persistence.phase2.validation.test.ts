@@ -94,4 +94,16 @@ describe('Persistence validation extended', () => {
         const stable = serializeStable(env);
         expect(typeof stable).toBe('string');
     });
+
+    it('allows repeated object references that are not circular', () => {
+        const shared = { mode: 'cubic', direction: 'ease_in_out' };
+        const value = {
+            first: shared,
+            second: shared,
+        };
+
+        expect(serializeStable(value)).toBe(
+            '{"first":{"direction":"ease_in_out","mode":"cubic"},"second":{"direction":"ease_in_out","mode":"cubic"}}'
+        );
+    });
 });

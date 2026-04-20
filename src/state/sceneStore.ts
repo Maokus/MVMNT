@@ -1730,7 +1730,14 @@ const createSceneStoreState = (
             fontAssets: Object.keys(fontAssets).length ? fontAssets : undefined,
             fontLicensingAcknowledgedAt: state.fonts.licensingAcknowledgedAt,
             automation: Object.keys(state.automation.channels).length
-                ? { channels: { ...state.automation.channels } }
+                ? {
+                    channels: Object.fromEntries(
+                        Object.entries(state.automation.channels).map(([channelId, channel]) => [
+                            channelId,
+                            cloneChannel(channel),
+                        ])
+                    ),
+                }
                 : undefined,
         };
     },

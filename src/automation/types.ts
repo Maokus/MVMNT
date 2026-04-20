@@ -160,14 +160,18 @@ export const DEFAULT_SEGMENT_INTERPOLATION: SegmentInterpolation = {
 // Utility functions
 // ---------------------------------------------------------------------------
 
+function cloneSegmentInterpolation(interpolation: SegmentInterpolation): SegmentInterpolation {
+    return {
+        ...interpolation,
+        params: interpolation.params ? { ...interpolation.params } : undefined,
+    };
+}
+
 /** Deep-clone a single keyframe, including nested handle and interpolation objects. */
 export function cloneKeyframe(kf: AutomationKeyframe): AutomationKeyframe {
     const clone: AutomationKeyframe = { tick: kf.tick, value: kf.value, easingId: kf.easingId };
     if (kf.segmentInterpolation) {
-        clone.segmentInterpolation = {
-            ...kf.segmentInterpolation,
-            params: kf.segmentInterpolation.params ? { ...kf.segmentInterpolation.params } : undefined,
-        };
+        clone.segmentInterpolation = cloneSegmentInterpolation(kf.segmentInterpolation);
     }
     if (kf.leftHandle) clone.leftHandle = { ...kf.leftHandle };
     if (kf.rightHandle) clone.rightHandle = { ...kf.rightHandle };
@@ -229,7 +233,7 @@ export function createKeyframe(
         tick,
         value,
         easingId: 'linear',
-        segmentInterpolation: interpolation ?? DEFAULT_SEGMENT_INTERPOLATION,
+        segmentInterpolation: cloneSegmentInterpolation(interpolation ?? DEFAULT_SEGMENT_INTERPOLATION),
         leftHandleType: 'auto_clamped',
         rightHandleType: 'auto_clamped',
     };
@@ -295,7 +299,7 @@ export function cloneChannel(channel: AutomationChannel, newElementId?: string):
         interpolation: channel.interpolation,
         valueType: channel.valueType,
         defaultInterpolation: channel.defaultInterpolation
-            ? { ...channel.defaultInterpolation, params: channel.defaultInterpolation.params ? { ...channel.defaultInterpolation.params } : undefined }
+            ? cloneSegmentInterpolation(channel.defaultInterpolation)
             : undefined,
     };
 }
