@@ -160,17 +160,10 @@ export class VisualMedia extends RenderObject {
         }
 
         try {
-            if (drawable instanceof ImageData) {
-                // Fallback for frames whose ImageBitmap isn't ready yet
-                const off = document.createElement('canvas');
-                off.width = imgW;
-                off.height = imgH;
-                const offCtx = off.getContext('2d');
-                if (offCtx) offCtx.putImageData(drawable, 0, 0);
-                ctx.drawImage(off, drawX, drawY, drawWidth, drawHeight);
-            } else {
-                ctx.drawImage(drawable, drawX, drawY, drawWidth, drawHeight);
-            }
+            // All drawables are pre-prepared CanvasImageSources (ImageBitmap or
+            // pre-baked canvas) by the VisualAssetStore — no render-time conversion.
+            // TODO: apply asset.pivot offset once sprite/atlas support is added.
+            ctx.drawImage(drawable, drawX, drawY, drawWidth, drawHeight);
         } catch {
             this.#drawPlaceholder(ctx, 'Error', 'red');
         }

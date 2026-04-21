@@ -3,10 +3,14 @@
  *
  * Wraps the existing ImageLoader so all GIF-decoding and image-loading logic
  * stays in one place. Multiple scene elements that reference the same source
- * share a single VisualAsset (and therefore a single set of ImageBitmap frames).
+ * share a single VisualAsset with pre-prepared frame drawables.
+ *
+ * All frame drawables (ImageBitmap preferred, fallback canvas) are created
+ * eagerly before status is set to 'ready', so VisualMedia can draw directly
+ * with no render-time conversion work.
  */
 import { imageLoader } from './image-loader';
-import { VisualAsset, VisualAssetStatus } from './visual-asset';
+import { VisualAsset, VisualFrame } from './visual-asset';
 
 type ImageSource = string | File;
 
@@ -14,6 +18,22 @@ const makeKey = (src: ImageSource): string => {
     if (typeof src === 'string') return src;
     return `file:${src.name}:${src.size}:${src.lastModified}`;
 };
+
+/** Convert raw ImageData to a CanvasImageSource, once, at load time. */
+async function prepareDrawable(imageData: ImageData): Promise<CanvasImageSource> {
+    if ('createImageBitmap' in window) {
+        try {
+            return await createImageBitmap(imageData);
+        } catch {}
+    }
+    // Fallback: pre-bake into a reusable canvas element
+    const canvas = document.createElement('canvas');
+    canvas.width = imageData.width;
+    canvas.height = imageData.height;
+    const ctx = canvas.getContext('2d');
+    if (ctx) ctx.putImageData(imageData, 0, 0);
+    return canvas;
+}
 
 export class VisualAssetStore {
     private readonly _assets = new Map<string, VisualAsset>();
@@ -35,10 +55,14 @@ export class VisualAssetStore {
             status: 'loading',
             width: 0,
             height: 0,
+            logicalWidth: 0,
+            logicalHeight: 0,
+            pivot: { x: 0, y: 0 },
             imageElement: null,
             isAnimated: imageLoader.isGIF(src),
             frames: [],
             totalDurationMs: 0,
+            clips: {},
         };
         this._assets.set(key, placeholder);
 
@@ -48,18 +72,23 @@ export class VisualAssetStore {
                     const gif = await imageLoader.loadGIF(src);
                     placeholder.width = gif.width;
                     placeholder.height = gif.height;
-                    placeholder.frames = gif.frames.map((f) => ({
-                        imageData: f.image,
-                        bitmap: null,
-                        durationMs: f.delay,
-                    }));
+                    placeholder.logicalWidth = gif.width;
+                    placeholder.logicalHeight = gif.height;
                     placeholder.totalDurationMs = gif.totalDurationMs;
                     placeholder.isAnimated = true;
+                    // Prepare all drawables before marking ready — no render-time conversion
+                    const drawables = await Promise.all(gif.frames.map((f) => prepareDrawable(f.image)));
+                    placeholder.frames = gif.frames.map<VisualFrame>((f, i) => ({
+                        drawable: drawables[i],
+                        durationMs: f.delay,
+                    }));
                 } else {
                     const img = await imageLoader.loadImage(src);
                     placeholder.imageElement = img;
                     placeholder.width = img.naturalWidth || img.width;
                     placeholder.height = img.naturalHeight || img.height;
+                    placeholder.logicalWidth = placeholder.width;
+                    placeholder.logicalHeight = placeholder.height;
                     placeholder.isAnimated = false;
                 }
                 placeholder.status = 'ready';

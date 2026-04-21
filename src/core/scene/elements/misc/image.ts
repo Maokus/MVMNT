@@ -5,6 +5,7 @@ import { RenderObject } from '@core/render/render-objects';
 import { EnhancedConfigSchema } from '@core/types.js';
 import type { SceneElementInterface } from '@core/types.js';
 import { visualAssetStore } from '@core/resources/visual-asset-store';
+import { VisualMediaPlayback } from '@core/resources/visual-media-playback';
 import { insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
 const normalizeFitMode: PropertyTransform<'contain' | 'cover' | 'fill' | 'none', SceneElementInterface> = (
@@ -34,6 +35,7 @@ const normalizeImageSource: PropertyTransform<string | File | null, SceneElement
 export class ImageElement extends SceneElement {
     private _currentImageSource: string | File | null = null;
     private _renderObject: VisualMedia | null = null;
+    private readonly _playback = new VisualMediaPlayback();
 
     constructor(id: string = 'image', config: { [key: string]: any } = {}) {
         super('image', id, config);
@@ -157,20 +159,7 @@ export class ImageElement extends SceneElement {
         const newSrc = props.imageSource ?? null;
         if (newSrc !== this._currentImageSource) {
             this._currentImageSource = newSrc;
-            if (newSrc) {
-                visualAssetStore.load(newSrc).then(() => {
-                    // Dispatch the same invalidation event existing listeners expect
-                    try {
-                        document?.dispatchEvent?.(
-                            new CustomEvent('imageLoaded', {
-                                detail: {
-                                    imageSource: typeof newSrc === 'string' ? newSrc : newSrc.name,
-                                },
-                            })
-                        );
-                    } catch {}
-                });
-            }
+            if (newSrc) visualAssetStore.load(newSrc);
         }
 
         // Lazily create / reuse the single render object
@@ -180,11 +169,9 @@ export class ImageElement extends SceneElement {
 
         const asset = newSrc ? visualAssetStore.get(newSrc) : undefined;
 
-        // localTime drives frame selection for animated assets.
-        // `targetTime * speed` is the minimal model; a `startOffset` prop can be
-        // added later as `(targetTime - startOffset) * speed`.
-        const speed = props.playbackSpeed ?? 1;
-        const localTime = targetTime * speed;
+        // Compute local asset time via the instance playback state
+        this._playback.speed = props.playbackSpeed ?? 1;
+        const localTime = this._playback.computeLocalTime(targetTime);
 
         this._renderObject
             .setAsset(asset ?? null, asset?.status ?? (newSrc ? 'loading' : 'idle'))
