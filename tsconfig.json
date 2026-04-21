@@ -74,6 +74,9 @@
       "@utils/*": [
         "utils/*"
       ],
+      "@hooks/*": [
+        "hooks/*"
+      ],
       "@pages/*": [
         "pages/*"
       ],

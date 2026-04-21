@@ -4,11 +4,20 @@ import { useMenuBar } from '@context/useMenuBar';
 import { useSceneStore } from '@state/sceneStore';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { SaveSceneModal } from '@workspace/modals/SaveSceneModal';
+import { LocalSaveService } from '@persistence/local-save-service';
+import { useDirtyTracking } from '@hooks/useDirtyTracking';
 
 interface SceneContextValue {
     sceneName: string;
     setSceneName: (name: string) => void;
-    saveScene: () => void;
+    /** Save current state to IndexedDB (Cmd+S). */
+    saveToLocal: () => Promise<void>;
+    /** Open the export-to-file modal (.mvt download). */
+    exportAsFile: () => void;
+    /** Whether the in-memory state differs from the last IndexedDB save. */
+    isDirty: boolean;
+    /** Signal that the current state matches the IndexedDB copy (called after save/load). */
+    markSaveClean: () => void;
     loadScene: () => void;
     clearScene: () => void;
     createNewDefaultScene: () => void;
@@ -22,7 +31,9 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     const sceneName = useSceneMetadataStore((state) => state.metadata.name);
     const setSceneName = useSceneMetadataStore((state) => state.setName);
 
-    const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+    const { isDirty, markClean } = useDirtyTracking();
 
     useEffect(() => {
         try {
@@ -56,34 +67,54 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         onSceneRefresh: refreshSceneUI
     });
 
-    const { saveScene: performSceneSave, loadScene } = menuBarActions;
+    const { loadScene } = menuBarActions;
 
-    const openSaveModal = useCallback(() => {
-        setIsSaveModalOpen(true);
+    // -------------------------------------------------------------------------
+    // Local save (IndexedDB)
+    // -------------------------------------------------------------------------
+    const saveToLocal = useCallback(async () => {
+        const result = await LocalSaveService.saveCurrentFile(sceneName);
+        if (result.ok) {
+            markClean();
+        } else {
+            console.error('[SceneContext] Local save failed:', result.error);
+            alert('Save failed: ' + result.error);
+        }
+    }, [sceneName, markClean]);
+
+    // Expose markClean so TemplateInitializer can call it after loading from IDB
+    const markSaveClean = markClean;
+
+    // -------------------------------------------------------------------------
+    // Export to file (download .mvt)
+    // -------------------------------------------------------------------------
+    const openExportModal = useCallback(() => {
+        setIsExportModalOpen(true);
     }, []);
 
-    const closeSaveModal = useCallback(() => {
-        setIsSaveModalOpen(false);
+    const closeExportModal = useCallback(() => {
+        setIsExportModalOpen(false);
     }, []);
 
-    const handleConfirmSave = useCallback(
+    const handleConfirmExport = useCallback(
         async (name: string, options: { embedPlugins: boolean; description: string; author: string }) => {
             const trimmed = name.trim();
-            if (!trimmed) {
-                return;
-            }
+            if (!trimmed) return;
             updateSceneName(trimmed);
             useSceneMetadataStore.getState().setDescription(options.description);
             useSceneMetadataStore.getState().setAuthor(options.author);
             try {
-                await performSceneSave(trimmed, options);
+                await menuBarActions.saveScene(trimmed, options);
             } finally {
-                closeSaveModal();
+                closeExportModal();
             }
         },
-        [closeSaveModal, performSceneSave, updateSceneName]
+        [closeExportModal, menuBarActions, updateSceneName]
     );
 
+    // -------------------------------------------------------------------------
+    // Keyboard shortcuts
+    // -------------------------------------------------------------------------
     useEffect(() => {
         const handler = (event: KeyboardEvent) => {
             if (!(event.ctrlKey || event.metaKey)) return;
@@ -101,32 +132,48 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
             if (isEditable) return;
             event.preventDefault();
             if (key === 's') {
-                openSaveModal();
+                void saveToLocal();
             } else if (key === 'o') {
                 loadScene();
             }
         };
         window.addEventListener('keydown', handler, { capture: true });
-        return () => window.removeEventListener('keydown', handler, { capture: true } as any);
-    }, [loadScene, openSaveModal]);
+        return () => window.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
+    }, [loadScene, saveToLocal]);
+
+    // -------------------------------------------------------------------------
+    // Warn before leaving with unsaved changes
+    // -------------------------------------------------------------------------
+    useEffect(() => {
+        const handler = (event: BeforeUnloadEvent) => {
+            if (!isDirty) return;
+            event.preventDefault();
+        };
+        window.addEventListener('beforeunload', handler);
+        return () => window.removeEventListener('beforeunload', handler);
+    }, [isDirty]);
 
     const value: SceneContextValue = {
         sceneName,
         setSceneName: updateSceneName,
-        saveScene: openSaveModal,
+        saveToLocal,
+        exportAsFile: openExportModal,
+        isDirty,
+        markSaveClean,
         loadScene,
         clearScene: menuBarActions.clearScene,
         createNewDefaultScene: menuBarActions.createNewDefaultScene,
-        refreshSceneUI
+        refreshSceneUI,
     };
+
     return (
         <SceneContext.Provider value={value}>
             {children}
-            {isSaveModalOpen && (
+            {isExportModalOpen && (
                 <SaveSceneModal
                     initialName={sceneName}
-                    onCancel={closeSaveModal}
-                    onConfirm={handleConfirmSave}
+                    onCancel={closeExportModal}
+                    onConfirm={handleConfirmExport}
                 />
             )}
         </SceneContext.Provider>

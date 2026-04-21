@@ -29,6 +29,7 @@ import { useUndo } from '@context/UndoContext';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useSceneStore } from '@state/sceneStore';
 import { clearStoredImportPayload, readStoredImportPayload } from '@utils/importPayloadStorage';
+import { LocalSaveService } from '@persistence/local-save-service';
 import { TemplateLoadingOverlay } from '../../components/TemplateLoadingOverlay';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
 import { CacheDiagnosticsPopup } from '@workspace/components/CacheDiagnosticsPopup';
@@ -435,7 +436,7 @@ const MidiVisualizer: React.FC = () => {
 // Handles applying template/import based on navigation state or session storage
 const TemplateInitializer: React.FC = () => {
     const { visualizer } = useVisualizer() as any;
-    const { refreshSceneUI } = useScene();
+    const { refreshSceneUI, markSaveClean } = useScene();
     const setSceneAuthor = useSceneMetadataStore((state) => state.setAuthor);
     const undo = (() => { try { return useUndo(); } catch { return null; } })();
     const location = useLocation();
@@ -543,10 +544,25 @@ const TemplateInitializer: React.FC = () => {
                     refreshSceneUI();
                     didChange = true;
                 } else if (shouldLoadDefault) {
-                    const loaded = await loadDefaultScene('MidiVisualizer.TemplateInitializer.initialDefault');
-                    if (loaded) {
+                    // Try to restore from the user's last local save first.
+                    const localResult = await LocalSaveService.loadSavedFile();
+                    if (localResult.ok && localResult.loaded) {
+                        // Loaded from IndexedDB – this IS the saved state, so no dirty mark.
                         refreshSceneUI();
+                        markSaveClean();
                         didChange = true;
+                    } else {
+                        if (!localResult.ok) {
+                            console.warn('[TemplateInitializer] Could not load local save, falling back to default scene:', localResult.error);
+                        }
+                        // No local save found (or corrupt) – load the default template.
+                        const loaded = await loadDefaultScene('MidiVisualizer.TemplateInitializer.initialDefault');
+                        if (loaded) {
+                            refreshSceneUI();
+                            // Establish a clean baseline so the asterisk doesn't show immediately.
+                            markSaveClean();
+                            didChange = true;
+                        }
                     }
                 }
                 if (didChange) {
@@ -570,6 +586,7 @@ const TemplateInitializer: React.FC = () => {
         location.state,
         navigate,
         refreshSceneUI,
+        markSaveClean,
         setSceneAuthor,
         undo,
         startTemplateLoading,

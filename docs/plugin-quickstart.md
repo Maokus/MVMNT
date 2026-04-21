@@ -154,7 +154,6 @@ This produces `dist/com.example.my-plugin-1.0.0.mvmnt-plugin` — a single file 
 | Timeline, audio, timing, and MIDI utilities | [Plugin API v1 Reference](plugin-api-v1.md) |
 | Distributable bundle format and loading | [Runtime Plugin Loading](runtime-plugin-loading.md) |
 | `manifest.json` field reference | [Plugin Manifest Schema](plugin-manifest.schema.json) |
-| Migrating internal imports to the public API | [Plugin API Migration Guide](plugin-api-migration-guide.md) |
 
 ## Tips
 

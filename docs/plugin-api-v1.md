@@ -405,6 +405,5 @@ Check:
 
 ## Related
 
-- [Plugin API Migration Guide](plugin-api-migration-guide.md)
 - [Creating Custom Elements](creating-custom-elements.md)
 - [Runtime Plugin Loading API](runtime-plugin-loading.md)

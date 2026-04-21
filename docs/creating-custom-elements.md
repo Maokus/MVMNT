@@ -43,7 +43,6 @@ Use:
 See:
 
 - [Plugin API v1](plugin-api-v1.md)
-- [Plugin API Migration Guide](plugin-api-migration-guide.md)
 
 ## Getting Started
 
@@ -927,7 +926,6 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
 
 - [Plugin Development Quickstart](plugin-quickstart.md)
 - [Plugin API v1](plugin-api-v1.md)
-- [Plugin API Migration Guide](plugin-api-migration-guide.md)
 - [Runtime Plugin Loading](runtime-plugin-loading.md)
 - [Plugin Manifest Schema](plugin-manifest.schema.json)
 - [Architecture Overview](ARCHITECTURE.md)
