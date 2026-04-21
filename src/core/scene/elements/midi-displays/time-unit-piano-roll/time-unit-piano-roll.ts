@@ -131,10 +131,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             description: 'Pick a track from the current timeline session.',
                         }),
                     ],
-                    presets: [
-                        { id: 'leadTrack', label: 'Lead Track', values: {} },
-                        { id: 'accompaniment', label: 'Accompaniment', values: {} },
-                    ],
                 },
                 {
                     id: 'dimensions',
