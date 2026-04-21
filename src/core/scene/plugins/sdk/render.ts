@@ -18,4 +18,5 @@ export {
     GlowLayer,
     CompositeLayer,
     ClipLayer,
+    VisualMedia,
 } from '@core/render/render-objects';

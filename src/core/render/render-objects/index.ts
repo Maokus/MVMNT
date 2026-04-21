@@ -11,3 +11,4 @@ export { Arc } from './arc';
 export { GlowLayer } from './glow-layer';
 export { CompositeLayer } from './composite-layer';
 export { ClipLayer } from './clip-layer';
+export { VisualMedia } from './visual-media';
