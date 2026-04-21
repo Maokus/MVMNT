@@ -56,6 +56,7 @@ export interface DragHandlers {
     handleHandleDown: (e: React.PointerEvent, tick: number, side: 'left' | 'right') => void;
     handlePointerMove: (e: React.PointerEvent) => void;
     handlePointerUp: (e: React.PointerEvent) => void;
+    handlePointerCancel: () => void;
     setHoveredHandle: React.Dispatch<React.SetStateAction<{ tick: number; side: 'left' | 'right' } | null>>;
 }
 
@@ -181,6 +182,13 @@ export function useAutomationCurveDrag({
 
     const handlePointerMove = useCallback(
         (e: React.PointerEvent) => {
+            // Guard: if no button is held, the drag state is stale (e.g. pointerup was
+            // missed before React re-rendered). Clear it and bail out.
+            if (e.buttons === 0) {
+                setDragging(null);
+                setHandleDrag(null);
+                return;
+            }
             if (!svgRef.current) return;
             const rect = svgRef.current.getBoundingClientRect();
 
@@ -311,6 +319,13 @@ export function useAutomationCurveDrag({
         [dragging, handleDrag, channel, width, height, toTick, toX, valueToY, snapTick, propertyMin, propertyMax, svgRef],
     );
 
+    // ── Pointer cancel (browser gesture interrupt, e.g. scroll on touch) ───────
+
+    const handlePointerCancel = useCallback(() => {
+        setDragging(null);
+        setHandleDrag(null);
+    }, []);
+
     return {
         dragging,
         handleDrag,
@@ -320,6 +335,7 @@ export function useAutomationCurveDrag({
         handleHandleDown,
         handlePointerMove,
         handlePointerUp,
+        handlePointerCancel,
         setHoveredHandle,
     };
 }

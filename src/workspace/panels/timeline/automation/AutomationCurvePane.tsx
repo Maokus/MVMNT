@@ -239,6 +239,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         handleHandleDown,
         handlePointerMove,
         handlePointerUp,
+        handlePointerCancel,
         setHoveredHandle,
     } = useAutomationCurveDrag({
         channel,
@@ -364,6 +365,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 onPointerDown={(e) => e.stopPropagation()}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerCancel}
             >
                 {/* Y-axis grid lines at nice round values */}
                 {gridTicks.map((tick) => {

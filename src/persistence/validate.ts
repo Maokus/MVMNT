@@ -12,7 +12,7 @@ export const CURRENT_SCHEMA_VERSION = 6;
 
 /**
  * Maps schema version to the minimum app version required to open files at that version.
- * Used for user-facing error messages ("requires MVMNT 0.14+").
+ * Used for user-facing error messages ("requires MVMNT 0.15+").
  */
 export const SCHEMA_TO_MIN_APP_VERSION: Record<number, string> = {
     1: '0.1.0',
@@ -20,7 +20,7 @@ export const SCHEMA_TO_MIN_APP_VERSION: Record<number, string> = {
     3: '0.12.0',
     4: '0.14.0',
     5: '0.14.0',
-    6: '0.14.0',
+    6: '0.15.0',
 };
 
 export type ValidationErrorCode =

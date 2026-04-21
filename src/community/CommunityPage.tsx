@@ -47,7 +47,7 @@ const CommunityPage: React.FC = () => {
 
   // Load available tags
   useEffect(() => {
-    fetchAllTags().then(setAllTags).catch(() => {});
+    fetchAllTags().then(setAllTags).catch(() => { });
   }, []);
 
   const loadItems = useCallback(async (pageNum: number, append: boolean) => {
@@ -82,7 +82,7 @@ const CommunityPage: React.FC = () => {
   const handleItemChanged = useCallback(() => {
     setPage(0);
     loadItems(0, false);
-    fetchAllTags().then(setAllTags).catch(() => {});
+    fetchAllTags().then(setAllTags).catch(() => { });
   }, [loadItems]);
 
   const selectClass = "rounded border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-200 focus:border-indigo-500 focus:outline-none cursor-pointer";
@@ -114,7 +114,8 @@ const CommunityPage: React.FC = () => {
           <span className="font-semibold">Experimental feature.</span>{' '}
           The community hub runs on very limited server resources, which may cause long loading times and patchy availability.
           If you'd like to see the backend resources upgraded, consider{' '}
-          <Link to="/contribute" className="underline hover:text-yellow-100">contributing</Link>.
+          <Link to="/contribute" className="underline hover:text-yellow-100">contributing</Link>.{' '}
+          <span className="font-semibold text-red-300">Backend updates may cause data loss and file corruption — always keep backups of your projects.</span>
         </div>
 
         {/* Toolbar */}
