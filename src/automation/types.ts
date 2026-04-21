@@ -128,8 +128,6 @@ export interface AutomationChannel {
     interpolation: AutomationInterpolation;
     /** The value type — determines evaluation strategy. */
     valueType: AutomationValueType;
-    /** Default interpolation for newly created keyframes on this channel. */
-    defaultInterpolation?: SegmentInterpolation;
 }
 
 // ---------------------------------------------------------------------------
@@ -214,12 +212,6 @@ export function createChannel(
         keyframes: [],
         interpolation,
         valueType,
-        defaultInterpolation: {
-            mode: interpolation === 'stepped' ? 'constant'
-                : interpolation === 'linear' ? 'linear'
-                : 'bezier',
-            direction: 'auto',
-        },
     };
 }
 
@@ -298,9 +290,6 @@ export function cloneChannel(channel: AutomationChannel, newElementId?: string):
         keyframes: channel.keyframes.map(cloneKeyframe),
         interpolation: channel.interpolation,
         valueType: channel.valueType,
-        defaultInterpolation: channel.defaultInterpolation
-            ? cloneSegmentInterpolation(channel.defaultInterpolation)
-            : undefined,
     };
 }
 

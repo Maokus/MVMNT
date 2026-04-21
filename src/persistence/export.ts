@@ -35,6 +35,8 @@ function toPluginVersionRange(version: string): string {
     return `^${match[1]}.${match[2]}.0`;
 }
 
+import type { PropertyBindingData } from '@bindings/property-bindings';
+
 export interface SceneMetadata {
     id: string;
     name: string;
@@ -51,6 +53,13 @@ export interface ScenePluginDependency {
     hash?: string;
     elementTypesUsed: string[];
     embedded: boolean;
+}
+
+/** A scene element as serialized in schema V6+. Properties are nested under the `properties` key. */
+export interface SceneSerializedElementV6 {
+    id: string;
+    type: string;
+    properties: Record<string, PropertyBindingData>;
 }
 
 interface SceneExportEnvelopeBase {
@@ -100,7 +109,18 @@ export interface SceneExportEnvelopeV5 extends SceneExportEnvelopeBase {
     schemaVersion: 5;
 }
 
-export type SceneExportEnvelope = SceneExportEnvelopeV2 | SceneExportEnvelopeV4 | SceneExportEnvelopeV5;
+export interface SceneExportEnvelopeV6 extends Omit<SceneExportEnvelopeBase, 'scene'> {
+    schemaVersion: 6;
+    scene: {
+        elements: Record<string, SceneSerializedElementV6>;
+        elementsOrder: string[];
+        sceneSettings?: any;
+        macros?: any;
+        automation?: any;
+    };
+}
+
+export type SceneExportEnvelope = SceneExportEnvelopeV2 | SceneExportEnvelopeV4 | SceneExportEnvelopeV5 | SceneExportEnvelopeV6;
 
 interface AudioFeatureCacheAssetReference {
     assetId: string;
@@ -126,7 +146,7 @@ interface ExportResultBase {
 export interface ExportSceneResultInline extends ExportResultBase {
     ok: true;
     mode: 'inline-json';
-    envelope: SceneExportEnvelopeV5;
+    envelope: SceneExportEnvelopeV6;
     json: string;
     blob?: Blob;
 }
@@ -134,7 +154,7 @@ export interface ExportSceneResultInline extends ExportResultBase {
 export interface ExportSceneResultZip extends ExportResultBase {
     ok: true;
     mode: 'zip-package';
-    envelope: SceneExportEnvelopeV5;
+    envelope: SceneExportEnvelopeV6;
     zip: Uint8Array<ArrayBuffer>;
     blob?: Blob;
 }
@@ -210,7 +230,7 @@ function base64ToUint8Array(base64: string): Uint8Array {
 }
 
 async function collectPluginDependencies(
-    elements: Array<{ type?: string }> | undefined,
+    elements: Array<{ type?: string }> | Record<string, { type?: string }> | undefined,
     options: { embedPlugins: boolean; storage: AssetStorageMode }
 ): Promise<{
     dependencies: ScenePluginDependency[];
@@ -222,7 +242,8 @@ async function collectPluginDependencies(
     const pluginAssets = new Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>();
 
     const usedTypes = new Set<string>();
-    for (const el of elements ?? []) {
+    const elementIterable = Array.isArray(elements) ? elements : Object.values(elements ?? {});
+    for (const el of elementIterable) {
         if (el && typeof el.type === 'string') {
             usedTypes.add(el.type);
         }
@@ -714,12 +735,18 @@ export async function exportScene(
     const midiAssets = prepareMidiAssets(doc.midiCache, storage);
     const featureAssets = prepareAudioFeatureCaches(doc.audioFeatureCaches, storage);
 
-    const envelope: SceneExportEnvelopeV5 = {
+    const envelope: SceneExportEnvelopeV6 = {
         schemaVersion: CURRENT_SCHEMA_VERSION,
         format: 'mvmnt.scene',
         metadata,
         plugins: pluginResult.dependencies.length ? pluginResult.dependencies : undefined,
-        scene: { ...doc.scene },
+        scene: {
+            elements: doc.scene?.elements ?? {},
+            elementsOrder: doc.scene?.elementsOrder ?? [],
+            sceneSettings: doc.scene?.sceneSettings,
+            macros: doc.scene?.macros,
+            automation: doc.scene?.automation,
+        },
         timeline: {
             timeline: doc.timeline,
             tracks: doc.tracks,

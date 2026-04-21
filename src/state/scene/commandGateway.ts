@@ -248,7 +248,7 @@ function buildConfigFromBindings(bindings: ElementBindings): Record<string, unkn
 function captureSceneSnapshot(state: SceneStoreState): SceneImportPayload {
     const draft = state.exportSceneDraft();
     return {
-        elements: draft.elements,
+        elements: draft.elementsOrder.map((id) => draft.elements[id]).filter(Boolean),
         sceneSettings: draft.sceneSettings,
         macros: draft.macros ?? null,
     };

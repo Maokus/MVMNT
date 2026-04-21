@@ -10,7 +10,7 @@ import {
 } from '@state/scene';
 import type { SceneCommand, SceneCommandOptions } from '@state/scene';
 import { shallow } from 'zustand/shallow';
-import { makeChannelId, findKeyframeAtTick, createKeyframe, type AutomationValueType } from '@automation/types';
+import { makeChannelId, findKeyframeAtTick, createKeyframe, DEFAULT_SEGMENT_INTERPOLATION, type AutomationValueType } from '@automation/types';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 
@@ -256,8 +256,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                     const existingKf = findKeyframeAtTick(channel.keyframes, currentTick);
                     const easingId = existingKf?.easingId ?? 'linear';
                     const segmentInterpolation = existingKf?.segmentInterpolation
-                        ?? channel.defaultInterpolation
-                        ?? { mode: 'bezier' as const, direction: 'auto' as const };
+                        ?? DEFAULT_SEGMENT_INTERPOLATION;
                     const leftHandleType = existingKf?.leftHandleType ?? ('auto_clamped' as const);
                     const rightHandleType = existingKf?.rightHandleType ?? ('auto_clamped' as const);
                     dispatchSceneCommand(

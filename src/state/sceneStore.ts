@@ -234,7 +234,8 @@ export interface SceneFontsState {
 }
 
 export interface SceneStoreComputedExport {
-    elements: SceneSerializedElement[];
+    elements: Record<string, SceneSerializedElement>;
+    elementsOrder: string[];
     elementErrors?: Array<{ id: string; type: string; message: string }>;
     sceneSettings: SceneSettingsState;
     macros?: SceneSerializedMacros;
@@ -246,8 +247,7 @@ export interface SceneStoreComputedExport {
 export interface SceneSerializedElement {
     id: string;
     type: string;
-    index?: number;
-    [key: string]: unknown;
+    properties: Record<string, PropertyBindingData>;
 }
 
 export interface SceneSerializedMacros {
@@ -263,7 +263,8 @@ export interface SceneMacroDefinition {
 }
 
 export interface SceneImportPayload {
-    elements?: SceneSerializedElement[];
+    elements?: SceneSerializedElement[] | Record<string, SceneSerializedElement>;
+    elementsOrder?: string[];
     sceneSettings?: Partial<SceneSettingsState> | null;
     macros?: SceneSerializedMacros | null;
     fontAssets?: Record<string, FontAsset> | null;
@@ -548,8 +549,7 @@ function normalizeSmoothingValue(value: unknown): number {
 export function deserializeElementBindings(raw: SceneSerializedElement): ElementBindings {
     const bindings: ElementBindings = {};
     let migratedSmoothing: number | null = null;
-    for (const [key, value] of Object.entries(raw)) {
-        if (key === 'id' || key === 'type' || key === 'index') continue;
+    for (const [key, value] of Object.entries(raw.properties ?? {})) {
         if (!value || typeof value !== 'object') continue;
         const payload = value as Partial<PropertyBindingData>;
         const type = (value as { type?: string }).type;
@@ -629,23 +629,22 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
 function serializeElement(
     element: SceneElementRecord,
     bindings: ElementBindings,
-    index: number
 ): SceneSerializedElement {
-    const serialized: SceneSerializedElement = {
-        id: element.id,
-        type: element.type,
-        index,
-    };
+    const properties: Record<string, PropertyBindingData> = {};
     for (const [key, binding] of Object.entries(bindings)) {
         if (binding.type === 'constant') {
-            serialized[key] = { type: 'constant', value: binding.value } satisfies PropertyBindingData;
+            properties[key] = { type: 'constant', value: binding.value } satisfies PropertyBindingData;
         } else if (binding.type === 'macro') {
-            serialized[key] = { type: 'macro', macroId: binding.macroId } satisfies PropertyBindingData;
+            properties[key] = { type: 'macro', macroId: binding.macroId } satisfies PropertyBindingData;
         } else if (binding.type === 'keyframes') {
-            serialized[key] = { type: 'keyframes', channelId: binding.channelId };
+            properties[key] = { type: 'keyframes', channelId: binding.channelId };
         }
     }
-    return serialized;
+    return {
+        id: element.id,
+        type: element.type,
+        properties,
+    };
 }
 
 function createRuntimeMeta(): SceneRuntimeMeta {
@@ -1603,18 +1602,27 @@ const createSceneStoreState = (
     importScene: (payload) => {
         const migratedPayload = migrateSceneAudioSystemV5(payload);
         set((state) => {
-            const elements = migratedPayload.elements ?? [];
-            const sorted = [...elements].sort((a, b) => {
-                const ai = typeof a.index === 'number' ? a.index : elements.indexOf(a);
-                const bi = typeof b.index === 'number' ? b.index : elements.indexOf(b);
-                return ai - bi;
-            });
+            // Normalize elements: accept either V6 Record+order or plain array
+            let elements: SceneSerializedElement[];
+            const rawElements = migratedPayload.elements;
+            if (Array.isArray(rawElements)) {
+                elements = rawElements;
+            } else if (rawElements && typeof rawElements === 'object') {
+                const order = (migratedPayload as any).elementsOrder as string[] | undefined;
+                if (Array.isArray(order)) {
+                    elements = order.map((id) => (rawElements as Record<string, SceneSerializedElement>)[id]).filter(Boolean);
+                } else {
+                    elements = Object.values(rawElements);
+                }
+            } else {
+                elements = [];
+            }
 
             const nextElements: Record<string, SceneElementRecord> = {};
             const nextOrder: string[] = [];
             const nextByElement: Record<string, ElementBindings> = {};
 
-            for (const el of sorted) {
+            for (const el of elements) {
                 if (!el || typeof el !== 'object') continue;
                 if (typeof el.id !== 'string' || typeof el.type !== 'string') continue;
                 nextOrder.push(el.id);
@@ -1683,14 +1691,16 @@ const createSceneStoreState = (
 
     exportSceneDraft: () => {
         const state = get();
-        const elements: SceneSerializedElement[] = [];
+        const elements: Record<string, SceneSerializedElement> = {};
+        const elementsOrder: string[] = [];
         const elementErrors: Array<{ id: string; type: string; message: string }> = [];
-        state.order.forEach((id, idx) => {
+        state.order.forEach((id) => {
             const element = state.elements[id];
             if (!element) return;
             const bindings = state.bindings.byElement[id] ?? {};
             try {
-                elements.push(serializeElement(element, bindings, idx));
+                elements[id] = serializeElement(element, bindings);
+                elementsOrder.push(id);
             } catch (err) {
                 const message = err instanceof Error ? err.message : String(err);
                 elementErrors.push({ id, type: element.type, message });
@@ -1704,6 +1714,7 @@ const createSceneStoreState = (
         }, {} as Record<string, FontAsset>);
         return {
             elements,
+            elementsOrder,
             ...(elementErrors.length > 0 ? { elementErrors } : {}),
             sceneSettings: { ...state.settings },
             macros: buildMacroPayload(state.macros),

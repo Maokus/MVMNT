@@ -239,10 +239,10 @@ describe('sceneStore', () => {
         expect(elementBindings.analysisProfileId).toEqual({ type: 'constant', value: 'default' });
 
         const exported = store.getState().exportSceneDraft();
-        const serialized = exported.elements.find((el) => el.id === 'audio-element');
+        const serialized = exported.elements['audio-element'];
         expect(serialized).toBeDefined();
-        expect((serialized as any).audioTrackId).toEqual({ type: 'constant', value: 'audio-track' });
-        expect((serialized as any).features).toEqual({
+        expect(serialized?.properties.audioTrackId).toEqual({ type: 'constant', value: 'audio-track' });
+        expect(serialized?.properties.features).toEqual({
             type: 'constant',
             value: [
                 {
@@ -252,8 +252,8 @@ describe('sceneStore', () => {
                 },
             ],
         });
-        expect((serialized as any).smoothing).toEqual({ type: 'constant', value: 0.15 });
-        expect((serialized as any).analysisProfileId).toEqual({ type: 'constant', value: 'default' });
+        expect(serialized?.properties.smoothing).toEqual({ type: 'constant', value: 0.15 });
+        expect(serialized?.properties.analysisProfileId).toEqual({ type: 'constant', value: 'default' });
     });
 
     it('imports audio feature macro fixtures with track bindings intact', () => {

@@ -67,12 +67,14 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const handleConfirmSave = useCallback(
-        async (name: string, options: { embedPlugins: boolean }) => {
+        async (name: string, options: { embedPlugins: boolean; description: string; author: string }) => {
             const trimmed = name.trim();
             if (!trimmed) {
                 return;
             }
             updateSceneName(trimmed);
+            useSceneMetadataStore.getState().setDescription(options.description);
+            useSceneMetadataStore.getState().setAuthor(options.author);
             try {
                 await performSceneSave(trimmed, options);
             } finally {
