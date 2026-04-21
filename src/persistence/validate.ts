@@ -8,6 +8,20 @@
  *  - Range checks for rowHeight (if present) & globalBpm > 0
  */
 
+export const CURRENT_SCHEMA_VERSION = 5;
+
+/**
+ * Maps schema version to the minimum app version required to open files at that version.
+ * Used for user-facing error messages ("requires MVMNT 0.14+").
+ */
+export const SCHEMA_TO_MIN_APP_VERSION: Record<number, string> = {
+    1: '0.1.0',
+    2: '0.8.0',
+    3: '0.12.0',
+    4: '0.14.0',
+    5: '0.14.0',
+};
+
 export type ValidationErrorCode =
     | 'ERR_ROOT_TYPE'
     | 'ERR_SCHEMA_VERSION'
@@ -62,7 +76,8 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
     }
     const root: any = data;
     const schemaVersion = root.schemaVersion;
-    if (schemaVersion !== 1 && schemaVersion !== 2 && schemaVersion !== 3 && schemaVersion !== 4 && schemaVersion !== 5) {
+    const supportedVersions = Object.keys(SCHEMA_TO_MIN_APP_VERSION).map(Number);
+    if (!supportedVersions.includes(schemaVersion)) {
         errors.push(err('ERR_SCHEMA_VERSION', 'Unsupported schemaVersion', 'schemaVersion'));
     }
     if (root.format !== 'mvmnt.scene') {

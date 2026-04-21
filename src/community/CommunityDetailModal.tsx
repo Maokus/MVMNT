@@ -4,9 +4,29 @@ import { FaDownload, FaStar, FaTrash, FaXmark, FaArrowRight, FaBolt, FaPen, FaAr
 import type { User } from '@supabase/supabase-js';
 import type { CommunityItem } from './communityApi';
 import { getThumbnailUrl, downloadItem, rateItem, getUserRating, deleteItem, semverGt } from './communityApi';
-import { loadPlugin, upgradePlugin, unloadPlugin } from '@core/scene/plugins';
+import { loadPlugin, upgradePlugin, unloadPlugin, satisfiesVersion, PLUGIN_API_VERSION } from '@core/scene/plugins';
 import { writeStoredImportPayload } from '../utils/importPayloadStorage';
 import { usePluginStore } from '../state/pluginStore';
+import { CURRENT_SCHEMA_VERSION } from '@persistence/validate';
+import pkg from '../../package.json';
+
+interface CompatBadge {
+  level: 'red';
+  message: string;
+}
+
+function getCompatBadge(item: CommunityItem): CompatBadge | null {
+  if (item.template_schema_version != null && item.template_schema_version > CURRENT_SCHEMA_VERSION) {
+    return { level: 'red', message: 'Requires a newer version of MVMNT' };
+  }
+  if (item.plugin_api_version != null && !satisfiesVersion(PLUGIN_API_VERSION, item.plugin_api_version)) {
+    return { level: 'red', message: 'Incompatible with this version of MVMNT' };
+  }
+  if (item.min_app_version != null && semverGt(item.min_app_version, pkg.version ?? '0.0.0')) {
+    return { level: 'red', message: `Requires MVMNT v${item.min_app_version}+` };
+  }
+  return null;
+}
 
 interface CommunityDetailModalProps {
   item: CommunityItem;
@@ -32,6 +52,8 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
   const isInstalled = !!installedPlugin;
   const hasUpdate = isInstalled && item.version != null
     && semverGt(item.version, installedPlugin!.manifest.version);
+
+  const compatBadge = getCompatBadge(item);
 
   const [userRating, setUserRating] = useState<number | null>(null);
   const [hoveredStar, setHoveredStar] = useState<number | null>(null);
@@ -224,6 +246,13 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
               </div>
             )}
           </div>
+
+          {/* Compatibility badge */}
+          {compatBadge && (
+            <div className="rounded border border-red-700/60 bg-red-950/40 px-3 py-2 text-[12px] text-red-400">
+              {compatBadge.message}
+            </div>
+          )}
 
           {/* Stats */}
           <div className="flex items-center gap-4 text-xs text-neutral-400">

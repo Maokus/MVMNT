@@ -131,15 +131,17 @@ async function assessPluginDependencies(
     pluginPayloads: Map<string, Uint8Array>
 ): Promise<{
     missing: ScenePluginDependency[];
+    versionAdvisory: ScenePluginDependency[];
     embeddedMissing: ScenePluginDependency[];
     warnings: string[];
 }> {
     const warnings: string[] = [];
     const missing: ScenePluginDependency[] = [];
+    const versionAdvisory: ScenePluginDependency[] = [];
     const embeddedMissing: ScenePluginDependency[] = [];
 
     if (!dependencies?.length) {
-        return { missing, embeddedMissing, warnings };
+        return { missing, versionAdvisory, embeddedMissing, warnings };
     }
 
     const installedPlugins = usePluginStore.getState().plugins;
@@ -148,12 +150,20 @@ async function assessPluginDependencies(
         if (!dep || !dep.pluginId) continue;
         const installed = installedPlugins[dep.pluginId];
         let versionOk = true;
+        let isAdvisory = false;
         if (installed && dep.version && dep.version !== 'unknown') {
             versionOk = satisfiesVersion(installed.manifest.version, dep.version);
             if (!versionOk) {
-                warnings.push(
-                    `Plugin ${dep.pluginId} version mismatch (requires ${dep.version}, found ${installed.manifest.version}).`
-                );
+                // Determine direction: extract the lower bound of the range and check if installed >= it.
+                const lowerBound = dep.version.replace(/^[\^~>=]+/, '').trim().split(' ')[0];
+                isAdvisory = satisfiesVersion(installed.manifest.version, `>=${lowerBound}`);
+                if (isAdvisory) {
+                    // Installed plugin is newer than what was used to create the scene — likely harmless.
+                } else {
+                    warnings.push(
+                        `Plugin ${dep.pluginId} version mismatch (requires ${dep.version}, found ${installed.manifest.version}).`
+                    );
+                }
             }
         }
 
@@ -173,15 +183,17 @@ async function assessPluginDependencies(
             }
         }
 
-        if (!installed || !versionOk || !hashOk) {
+        if (!installed || (!versionOk && !isAdvisory) || !hashOk) {
             missing.push(dep);
             if (dep.embedded && pluginPayloads.has(dep.pluginId)) {
                 embeddedMissing.push(dep);
             }
+        } else if (isAdvisory) {
+            versionAdvisory.push(dep);
         }
     }
 
-    return { missing, embeddedMissing, warnings };
+    return { missing, versionAdvisory, embeddedMissing, warnings };
 }
 
 async function installEmbeddedPlugins(
@@ -645,6 +657,17 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
             pluginWarnings.push(
                 `Missing plugins: ${missingList.join(', ')}. Some elements are shown as placeholders.`
             );
+        }
+    }
+
+    if (dependencyAssessment.versionAdvisory.length) {
+        for (const dep of dependencyAssessment.versionAdvisory) {
+            const installed = usePluginStore.getState().plugins[dep.pluginId];
+            if (installed) {
+                pluginWarnings.push(
+                    `This scene was made with plugin '${dep.pluginId}' ${dep.version}. You have v${installed.manifest.version} installed — it should work, but some details may differ.`
+                );
+            }
         }
     }
 

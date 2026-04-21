@@ -24,6 +24,9 @@ export interface CommunityItem {
   version: string | null;
   uploader_username: string | null;
   tags: string[];
+  plugin_api_version: string | null;
+  template_schema_version: number | null;
+  min_app_version: string | null;
 }
 
 export type SortBy = 'newest' | 'top_rated' | 'most_downloaded';
@@ -120,8 +123,8 @@ function sanitizeFileName(name: string): string {
   return baseName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-]/g, '') + ext;
 }
 
-/** Parse a .mvmnt-plugin ZIP and extract manifest id + version. Returns null on failure. */
-export async function parsePluginManifest(file: File): Promise<{ id: string; version: string } | null> {
+/** Parse a .mvmnt-plugin ZIP and extract manifest id, version, and apiVersion. Returns null on failure. */
+export async function parsePluginManifest(file: File): Promise<{ id: string; version: string; apiVersion?: string } | null> {
   try {
     const buffer = await file.arrayBuffer();
     const unzipped = unzipSync(new Uint8Array(buffer));
@@ -129,9 +132,30 @@ export async function parsePluginManifest(file: File): Promise<{ id: string; ver
     if (!manifestBytes) return null;
     const manifest = JSON.parse(new TextDecoder().decode(manifestBytes));
     if (typeof manifest.id === 'string' && typeof manifest.version === 'string') {
-      return { id: manifest.id, version: manifest.version };
+      return {
+        id: manifest.id,
+        version: manifest.version,
+        apiVersion: typeof manifest.apiVersion === 'string' ? manifest.apiVersion : undefined,
+      };
     }
     return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Parse a .mvt template ZIP and extract schemaVersion and minAppVersion from the envelope. Returns null on failure. */
+async function parseTemplateMetadata(file: File): Promise<{ schemaVersion?: number; minAppVersion?: string } | null> {
+  try {
+    const buffer = await file.arrayBuffer();
+    const unzipped = unzipSync(new Uint8Array(buffer));
+    const envelopeBytes = unzipped['envelope.json'];
+    if (!envelopeBytes) return null;
+    const envelope = JSON.parse(new TextDecoder().decode(envelopeBytes));
+    return {
+      schemaVersion: typeof envelope.schemaVersion === 'number' ? envelope.schemaVersion : undefined,
+      minAppVersion: typeof envelope.assets?.minAppVersion === 'string' ? envelope.assets.minAppVersion : undefined,
+    };
   } catch {
     return null;
   }
@@ -176,6 +200,20 @@ export async function uploadItem(
     if (conflictId) throwFriendlyPluginUidError(pluginUid);
   }
 
+  // Extract compat metadata from the uploaded file before inserting.
+  let pluginApiVersion: string | null = null;
+  let templateSchemaVersion: number | null = null;
+  let minAppVersion: string | null = null;
+
+  if (type === 'plugin') {
+    const manifest = await parsePluginManifest(mainFile);
+    if (manifest?.apiVersion) pluginApiVersion = manifest.apiVersion;
+  } else if (type === 'template') {
+    const meta = await parseTemplateMetadata(mainFile);
+    if (meta?.schemaVersion != null) templateSchemaVersion = meta.schemaVersion;
+    if (meta?.minAppVersion) minAppVersion = meta.minAppVersion;
+  }
+
   const itemId = crypto.randomUUID();
   const thumbPath = `${userId}/${itemId}/thumb-${sanitizeFileName(thumbnailFile.name)}`;
   const filePath = `${userId}/${itemId}/${sanitizeFileName(mainFile.name)}`;
@@ -201,6 +239,9 @@ export async function uploadItem(
     file_size_bytes: mainFile.size,
     plugin_uid: pluginUid ?? null,
     version: pluginVersion ?? null,
+    plugin_api_version: pluginApiVersion,
+    template_schema_version: templateSchemaVersion,
+    min_app_version: minAppVersion,
   });
   if (insertErr) translateInsertError(insertErr, pluginUid);
 

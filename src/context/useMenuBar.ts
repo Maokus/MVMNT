@@ -3,6 +3,16 @@ import { dispatchSceneCommand } from '@state/scene';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { exportScene, importScene } from '@persistence/index';
 import { extractSceneMetadataFromArtifact } from '@persistence/scene-package';
+import type { ImportError } from '@persistence/import';
+
+function humanReadableImportError(error: ImportError): string {
+    switch (error.code) {
+        case 'ERR_SCHEMA_VERSION':
+            return 'This file was created with a newer version of MVMNT and can\'t be opened here. Update MVMNT to the latest version and try again.';
+        default:
+            return error.message;
+    }
+}
 import { useUndo } from './UndoContext';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
@@ -105,7 +115,7 @@ export const useMenuBar = ({
                 const bytes = new Uint8Array(buffer);
                 const result = await importScene(bytes);
                 if (!result.ok) {
-                    alert('Import failed: ' + (result.errors.map((e) => e.message).join('\n') || 'Unknown error'));
+                    alert('Import failed: ' + (result.errors.map(humanReadableImportError).join('\n') || 'Unknown error'));
                 } else {
                     const metadata = extractSceneMetadataFromArtifact(bytes);
                     if (metadata?.name?.trim()) {

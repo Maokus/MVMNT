@@ -256,24 +256,6 @@ Log: `[PluginLoader] Blocked downgrade attempt for '{id}': embedded v{old} < ins
 
 Blender's .blend format is a useful reference, but MVMNT should adapt rather than copy.
 
-### Lessons from Blender that apply here
-
-**Strong backward compatibility is non-negotiable.** Blender can open files from 20 years ago. MVMNT's migration chain already embodies this — keep it. Every schema bump needs a migration.
-
-**Structural file compatibility and runtime compatibility are separate problems.** A .blend file opening successfully does not guarantee all nodes/modifiers work at runtime. MVMNT's scene schema version handles structural compat; plugin API version handles runtime compat. These should remain separate axes and should produce different error messages.
-
-**Graceful degradation beats binary pass/fail.** Blender shows missing data blocks as empty slots rather than refusing to open the file. MVMNT's placeholder element approach is the right analog. Extend it consistently.
-
-**Forward-incompatible files fail clearly, not silently.** Blender warns when you open a newer file in an older Blender — it doesn't corrupt data or pretend it worked. The current `ERR_SCHEMA_VERSION` path does this correctly; the only gap is the error message.
-
-### Where Blender's approach doesn't apply
-
-Blender ships Python scripting and has versioned add-on APIs, but its core file format is monolithic. MVMNT has a plugin ecosystem where third-party code runs at load time. This is closer to a DAW plugin model (VST/AU) than to Blender add-ons.
-
-For plugin compat, the VST parallel is more instructive: a DAW doesn't try to load an incompatible VST — it shows it as missing and lets you work without it. MVMNT's existing placeholder behavior is already the right model here.
-
-**Don't adopt Blender's approach of storing internal struct DNA in files.** MVMNT's migration chain is simpler and more maintainable for an early-stage codebase.
-
 ---
 
 ## Prioritized Implementation Roadmap

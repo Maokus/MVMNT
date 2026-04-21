@@ -2,6 +2,7 @@ import { serializeStable } from './stable-stringify';
 import { encodeMidiToBinary } from '@core/midi/midi-encoder';
 import { useTimelineStore } from '@state/timelineStore';
 import { DocumentGateway } from './document-gateway';
+import { CURRENT_SCHEMA_VERSION, SCHEMA_TO_MIN_APP_VERSION } from './validate';
 import {
     collectAudioAssets,
     type AssetStorageMode,
@@ -25,6 +26,14 @@ import {
     type SerializedAudioFeatureTrackDataRef,
 } from '@audio/features/audioFeatureAnalysis';
 import type { AudioFeatureCacheStatus } from '@audio/features/audioFeatureTypes';
+
+/** Converts an exact plugin version to a ^major.minor.0 semver range for scene exports.
+ *  e.g. "1.2.3" → "^1.2.0", so any compatible 1.x install >= 1.2.0 opens the scene without warnings. */
+function toPluginVersionRange(version: string): string {
+    const match = /^(\d+)\.(\d+)\./.exec(version);
+    if (!match) return version; // unknown format — leave as-is
+    return `^${match[1]}.${match[2]}.0`;
+}
 
 export interface SceneMetadata {
     id: string;
@@ -68,6 +77,7 @@ interface SceneExportEnvelopeBase {
     assets: {
         storage: AssetStorageMode;
         createdWith: string;
+        minAppVersion?: string;
         audio: { byId: Record<string, AudioAssetRecord> };
         waveforms?: { byAudioId: Record<string, WaveformExportRecord> };
         fonts?: { byId: Record<string, import('./font-asset-export').FontAssetRecord> };
@@ -281,7 +291,7 @@ async function collectPluginDependencies(
 
         dependencies.push({
             pluginId,
-            version: manifest?.version ?? 'unknown',
+            version: manifest?.version ? toPluginVersionRange(manifest.version) : 'unknown',
             hash,
             elementTypesUsed: Array.from(entry.elementTypesUsed).sort(),
             embedded,
@@ -691,6 +701,7 @@ export async function exportScene(
     const assetsSection: SceneExportEnvelopeV5['assets'] = {
         storage,
         createdWith: `mvmnt/${pkg.version ?? 'dev'}`,
+        minAppVersion: SCHEMA_TO_MIN_APP_VERSION[CURRENT_SCHEMA_VERSION],
         audio: { byId: collectResult.audioById },
     };
     if (collectResult.waveforms) {
@@ -704,7 +715,7 @@ export async function exportScene(
     const featureAssets = prepareAudioFeatureCaches(doc.audioFeatureCaches, storage);
 
     const envelope: SceneExportEnvelopeV5 = {
-        schemaVersion: 5,
+        schemaVersion: CURRENT_SCHEMA_VERSION,
         format: 'mvmnt.scene',
         metadata,
         plugins: pluginResult.dependencies.length ? pluginResult.dependencies : undefined,
