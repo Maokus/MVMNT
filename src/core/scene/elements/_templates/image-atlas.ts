@@ -81,7 +81,7 @@ export class AtlasImageElement extends SceneElement {
             frameDurationMs: 1000 / frameRate,
         };
 
-        const asset = this._atlas.update(props.imageSource as ImageSource | null, layout);
+        const { asset, status } = this._atlas.update(props.imageSource as ImageSource | null, layout);
         const w = (props.width as number) ?? 200;
         const h = (props.height as number) ?? 200;
 
@@ -89,7 +89,7 @@ export class AtlasImageElement extends SceneElement {
         this._layoutRect.height = h;
 
         this._media
-            .setAsset(asset ?? null, asset?.status ?? (props.imageSource ? 'loading' : 'idle'))
+            .setAsset(asset, status)
             .setLocalTime(this._playback.computeLocalTime(targetTime, asset?.clips))
             .setDimensions(w, h)
             .setFitMode('contain');

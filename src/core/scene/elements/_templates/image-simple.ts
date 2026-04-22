@@ -57,7 +57,7 @@ export class SimpleImageElement extends SceneElement {
         const props = this.getSchemaProps();
         if (!props.visible) return [];
 
-        const asset = this._image.update(props.imageSource as ImageSource | null);
+        const { asset, status } = this._image.update(props.imageSource as ImageSource | null);
         const w = (props.width as number) ?? 200;
         const h = (props.height as number) ?? 200;
 
@@ -65,7 +65,7 @@ export class SimpleImageElement extends SceneElement {
         this._layoutRect.height = h;
 
         this._media
-            .setAsset(asset ?? null, asset?.status ?? (props.imageSource ? 'loading' : 'idle'))
+            .setAsset(asset, status)
             .setLocalTime(this._playback.computeLocalTime(targetTime, asset?.clips))
             .setDimensions(w, h)
             .setFitMode((props.fitMode as any) ?? 'contain');

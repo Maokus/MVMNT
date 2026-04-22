@@ -2,13 +2,13 @@
 // unified VisualAsset system. For sprite atlas / spritesheet support, use
 // the atlas-image template instead.
 import { SceneElement, type EnhancedConfigSchema, insertElementGroups, prop } from '@mvmnt/plugin-sdk';
-import { visualAssetStore, makeImageKey } from '@core/resources/visual-asset-store';
+import { ImageAssetSlot } from '@core/resources/visual-asset-slot';
 import { VisualMediaPlayback } from '@core/resources/visual-media-playback';
 
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 
 export class ImageElement extends SceneElement {
-    private _currentAssetKey: string | null = null;
+    private readonly _image = new ImageAssetSlot();
     private _renderObject: VisualMedia | null = null;
     private _layoutRect: Rectangle | null = null;
     private readonly _playback = new VisualMediaPlayback();
@@ -59,9 +59,7 @@ export class ImageElement extends SceneElement {
     }
 
     protected override onDestroy(): void {
-        if (this._currentAssetKey) {
-            visualAssetStore.release(this._currentAssetKey);
-        }
+        this._image.destroy();
         super.onDestroy();
     }
 
@@ -70,17 +68,7 @@ export class ImageElement extends SceneElement {
 
         if (!props.visible) return [];
 
-        const newSrc = props.imageSource ?? null;
-        const newKey = newSrc ? makeImageKey(newSrc) : null;
-
-        if (newKey !== this._currentAssetKey) {
-            if (this._currentAssetKey) visualAssetStore.release(this._currentAssetKey);
-            this._currentAssetKey = newKey;
-            if (newSrc && newKey) {
-                visualAssetStore.load(newSrc);
-                visualAssetStore.retain(newKey);
-            }
-        }
+        const { asset, status } = this._image.update(props.imageSource ?? null);
 
         if (!this._renderObject) {
             this._renderObject = new VisualMedia(0, 0, props.width, props.height, { includeInLayoutBounds: false });
@@ -93,13 +81,11 @@ export class ImageElement extends SceneElement {
             this._layoutRect.height = props.height;
         }
 
-        const asset = this._currentAssetKey ? visualAssetStore.get(this._currentAssetKey) : undefined;
-
         this._playback.speed = props.playbackSpeed ?? 1;
         const localTime = this._playback.computeLocalTime(targetTime, asset?.clips);
 
         this._renderObject
-            .setAsset(asset ?? null, asset?.status ?? (newSrc ? 'loading' : 'idle'))
+            .setAsset(asset, status)
             .setLocalTime(localTime)
             .setDimensions(props.width, props.height)
             .setFitMode(props.fitMode ?? 'contain')

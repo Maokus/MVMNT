@@ -24,22 +24,3 @@ export {
     type LoadFontOptions,
 } from '@fonts/font-loader';
 export type { ParsedFontSelection } from '@state/scene/fonts';
-
-/**
- * Load a bundled asset from the plugin's assets/ directory by its relative path.
- *
- * Returns a blob URL that can be used as an `<img src>`, CSS `url()`, or passed
- * to `new window.Image()`. The URL is valid for the lifetime of the plugin.
- *
- * This stub is replaced at runtime by the plugin loader with a version bound to
- * this plugin's asset registry. In dev mode (Vite), import assets directly:
- * `import logoUrl from './assets/logo.png?url'`
- */
-export function loadBundledAsset(_path: string): Promise<string> {
-    return Promise.reject(
-        new Error(
-            '[MVMNT] loadBundledAsset() is only available in production-bundled plugins. ' +
-            'In dev mode, import assets directly: import url from "./assets/logo.png?url"'
-        )
-    );
-}
