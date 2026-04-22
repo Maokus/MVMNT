@@ -152,6 +152,11 @@ export class VisualMedia extends RenderObject {
         this._lastDrawParams = params;
         const { drawX, drawY, drawWidth, drawHeight } = params;
 
+        // Apply asset pivot: (0,0)=top-left (default), (0.5,0.5)=center.
+        // The element's local origin maps to the pivot point in the image.
+        const px = drawX - asset.pivot.x * drawWidth;
+        const py = drawY - asset.pivot.y * drawHeight;
+
         if (this.fitMode === 'cover') {
             ctx.save();
             ctx.beginPath();
@@ -162,8 +167,7 @@ export class VisualMedia extends RenderObject {
         try {
             // All drawables are pre-prepared CanvasImageSources (ImageBitmap or
             // pre-baked canvas) by the VisualAssetStore — no render-time conversion.
-            // TODO: apply asset.pivot offset once sprite/atlas support is added.
-            ctx.drawImage(drawable, drawX, drawY, drawWidth, drawHeight);
+            ctx.drawImage(drawable, px, py, drawWidth, drawHeight);
         } catch {
             this.#drawPlaceholder(ctx, 'Error', 'red');
         }

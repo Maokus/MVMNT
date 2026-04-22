@@ -76,7 +76,7 @@ export class ImageElement extends SceneElement {
 
         // Compute local asset time via the instance playback state
         this._playback.speed = props.playbackSpeed ?? 1;
-        const localTime = this._playback.computeLocalTime(targetTime);
+        const localTime = this._playback.computeLocalTime(targetTime, asset?.clips);
 
         this._renderObject
             .setAsset(asset ?? null, asset?.status ?? (newSrc ? 'loading' : 'idle'))

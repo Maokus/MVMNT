@@ -51,6 +51,7 @@ interface ParsedArtifact {
     audioPayloads: Map<string, Uint8Array>;
     midiPayloads: Map<string, Uint8Array>;
     fontPayloads: Map<string, Uint8Array>;
+    visualPayloads: Map<string, Uint8Array>;
     waveformPayloads: Map<string, Map<string, Uint8Array>>;
     audioFeaturePayloads: Map<string, Map<string, Uint8Array>>;
     pluginPayloads: Map<string, Uint8Array>;
@@ -71,6 +72,7 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
                 audioPayloads: legacy.audioPayloads,
                 midiPayloads: legacy.midiPayloads,
                 fontPayloads: legacy.fontPayloads,
+                visualPayloads: legacy.visualPayloads,
                 waveformPayloads: legacy.waveformPayloads,
                 audioFeaturePayloads: legacy.audioFeaturePayloads,
                 pluginPayloads: legacy.pluginPayloads,
@@ -112,6 +114,7 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
                         audioPayloads: legacy.audioPayloads,
                         midiPayloads: legacy.midiPayloads,
                         fontPayloads: legacy.fontPayloads,
+                        visualPayloads: legacy.visualPayloads,
                         waveformPayloads: legacy.waveformPayloads,
                         audioFeaturePayloads: legacy.audioFeaturePayloads,
                         pluginPayloads: legacy.pluginPayloads,
@@ -419,6 +422,65 @@ async function restoreMidiCache(
     return { cache: restored, warnings };
 }
 
+/**
+ * Restore visual assets from ZIP payloads.
+ *
+ * For each asset ID recorded in `envelope.assets.visual.byId`, reconstruct a
+ * File object from the ZIP bytes. Then scan all element property bindings in
+ * `doc.scene` for constant values that match a known asset ID and replace them
+ * with the reconstructed File. This runs before DocumentGateway.apply() so that
+ * the scene store receives File values it already understands at runtime.
+ */
+function restoreVisualAssets(
+    scene: any,
+    visualAssetsSection: { byId: Record<string, any> } | undefined,
+    visualPayloads: Map<string, Uint8Array>
+): string[] {
+    const warnings: string[] = [];
+    if (!visualAssetsSection?.byId || typeof visualAssetsSection.byId !== 'object') return warnings;
+
+    // Build a map of assetId → reconstructed File
+    const fileById = new Map<string, File>();
+    for (const [assetId, record] of Object.entries(visualAssetsSection.byId)) {
+        if (!record || typeof record !== 'object') continue;
+        const bytes = visualPayloads.get(assetId);
+        if (!bytes) {
+            warnings.push(`Missing visual asset payload for ${assetId}`);
+            continue;
+        }
+        const mimeType = typeof record.mimeType === 'string' ? record.mimeType : 'application/octet-stream';
+        const originalFileName = typeof record.originalFileName === 'string' ? record.originalFileName : `${assetId}.bin`;
+        try {
+            const file = new File([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], originalFileName, { type: mimeType });
+            fileById.set(assetId, file);
+        } catch {
+            warnings.push(`Failed to reconstruct File for visual asset ${assetId}`);
+        }
+    }
+
+    if (fileById.size === 0) return warnings;
+
+    // Patch element property bindings: replace asset ID strings with File objects
+    const elements = scene?.elements;
+    if (!elements || typeof elements !== 'object') return warnings;
+    for (const element of Object.values(elements) as any[]) {
+        if (!element || typeof element !== 'object') continue;
+        const props = element.properties;
+        if (!props || typeof props !== 'object') continue;
+        for (const [propKey, propData] of Object.entries(props) as [string, any][]) {
+            if (propData?.type !== 'constant') continue;
+            const value = propData.value;
+            if (typeof value !== 'string') continue;
+            const file = fileById.get(value);
+            if (file) {
+                props[propKey] = { type: 'constant', value: file };
+            }
+        }
+    }
+
+    return warnings;
+}
+
 async function createAudioBufferFromAsset(record: any, bytes: Uint8Array): Promise<AudioBuffer> {
     const length = Math.max(1, record.durationSamples || Math.round(record.durationSeconds * record.sampleRate));
     const sampleRate = record.sampleRate || 44100;
@@ -623,6 +685,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         audioPayloads,
         midiPayloads,
         fontPayloads,
+        visualPayloads,
         waveformPayloads,
         audioFeaturePayloads,
         pluginPayloads,
@@ -674,6 +737,9 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
     const { doc, featureWarnings } = buildDocumentShape(envelope, audioFeaturePayloads);
     const midiRestoration = await restoreMidiCache(envelope?.timeline?.midiCache, midiPayloads);
     doc.midiCache = midiRestoration.cache;
+
+    const visualWarnings = restoreVisualAssets(doc.scene, envelope.assets?.visual, visualPayloads);
+
     DocumentGateway.apply(doc as any);
 
     let hydrationWarnings: string[] = [];
@@ -705,6 +771,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         ...validation.warnings.map((w) => ({ message: w.message })),
         ...midiRestoration.warnings.map((message) => ({ message })),
         ...featureWarnings.map((message) => ({ message })),
+        ...visualWarnings.map((message) => ({ message })),
         ...hydrationWarnings.map((message) => ({ message })),
         ...fontWarnings.map((message) => ({ message })),
         ...pluginWarnings.map((message) => ({ message })),
