@@ -19,6 +19,7 @@ import { debugLog } from '@utils/debug-log';
 import { isTestEnvironment } from '@utils/env';
 import { withRenderSafety, limitRenderObjects, DEFAULT_SAFETY_CONFIG } from '@core/scene/plugins/plugin-safety';
 import { loadBundledAssetForElement } from '@core/scene/plugins/bundled-asset-registry';
+import { BundledImageAssetSlot } from '@core/resources/visual-asset-slot';
 
 export type PropertyTransform<TValue, TElement = SceneElement> = (
     value: unknown,
@@ -216,6 +217,15 @@ export class SceneElement implements SceneElementInterface {
      */
     protected loadBundledAsset(assetPath: string): Promise<string> {
         return loadBundledAssetForElement(this.type, assetPath);
+    }
+
+    /**
+     * Create a managed slot for a bundled image asset.
+     * Call `slot.get()` each frame to receive `{ asset, status }` ready for
+     * `VisualMedia.setAsset()`. Call `slot.destroy()` in `onDestroy()`.
+     */
+    protected bundledImage(filename: string): BundledImageAssetSlot {
+        return new BundledImageAssetSlot(filename, (f) => this.loadBundledAsset(f));
     }
 
     /**

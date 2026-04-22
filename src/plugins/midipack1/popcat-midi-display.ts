@@ -6,6 +6,7 @@ import {
     ensureFontLoaded,
     prop,
     insertElementGroups,
+    ImageAssetSlot,
 } from '@mvmnt/plugin-sdk';
 
 import {
@@ -15,9 +16,7 @@ import {
     type RenderObject
 } from '@mvmnt/plugin-sdk/render'
 
-import { visualAssetStore, makeImageKey } from '@core/resources/visual-asset-store';
-
-import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
+import type { EnhancedConfigSchema, ImageSource } from '@mvmnt/plugin-sdk';
 
 const normalizeImageSource = (value: unknown): string | File | null => {
     if (value == null) return null;
@@ -31,34 +30,24 @@ const JUMP_OFFSET_PX = 20;
 const BUMP_SCALE_ADD = 0.15;
 
 export class PopcatMidiDisplayElement extends SceneElement {
-    private _popcat1Url: string | null = null;
-    private _popcat2Url: string | null = null;
-    private _bundledLoading = false;
+    // Bundled defaults
+    private readonly _popcat1 = this.bundledImage('popcat1.png');
+    private readonly _popcat2 = this.bundledImage('popcat2.png');
 
-    private _currentIdleSource: string | File | null = null;
-    private _currentActiveSource: string | File | null = null;
+    // User-override slots (idle = popcat2 / closed mouth, active = popcat1 / open mouth)
+    private readonly _idleSlot   = new ImageAssetSlot();
+    private readonly _activeSlot = new ImageAssetSlot();
 
     constructor(id: string = 'popcat-midi-display', config: Record<string, unknown> = {}) {
         super('popcat-midi-display', id, config);
     }
 
-    private _loadBundledAssets(): void {
-        if (this._bundledLoading || (this._popcat1Url && this._popcat2Url)) return;
-        this._bundledLoading = true;
-
-        Promise.all([
-            this.loadBundledAsset('popcat1.png'),
-            this.loadBundledAsset('popcat2.png'),
-        ]).then(([url1, url2]) => {
-            this._popcat1Url = url1;
-            this._popcat2Url = url2;
-            visualAssetStore.load(url1);
-            visualAssetStore.load(url2);
-            this._bundledLoading = false;
-        }).catch((err) => {
-            console.error('[PopcatMidiDisplay] Failed to load assets:', err);
-            this._bundledLoading = false;
-        });
+    protected override onDestroy(): void {
+        this._popcat1.destroy();
+        this._popcat2.destroy();
+        this._idleSlot.destroy();
+        this._activeSlot.destroy();
+        super.onDestroy();
     }
 
     private _applyAnimation(
@@ -201,21 +190,6 @@ export class PopcatMidiDisplayElement extends SceneElement {
 
         if (!props.visible) return [];
 
-        this._loadBundledAssets();
-
-        // Handle user sprite changes — load into asset store when source changes
-        const newIdleSrc = (props.idleSprite as string | File | null) ?? null;
-        const newActiveSrc = (props.activeSprite as string | File | null) ?? null;
-
-        if (newIdleSrc !== this._currentIdleSource) {
-            this._currentIdleSource = newIdleSrc;
-            if (newIdleSrc) visualAssetStore.load(newIdleSrc);
-        }
-        if (newActiveSrc !== this._currentActiveSource) {
-            this._currentActiveSource = newActiveSrc;
-            if (newActiveSrc) visualAssetStore.load(newActiveSrc);
-        }
-
         if (!props.midiTrackId) {
             return [new Text(0, 0, 'Select a MIDI track', '14px Inter, sans-serif', '#94a3b8', 'left', 'top')];
         }
@@ -237,17 +211,23 @@ export class PopcatMidiDisplayElement extends SceneElement {
         const baseWidth = props.imageWidth as number;
         const baseHeight = props.imageHeight as number;
 
-        // Resolve idle/active asset sources (user override or bundled defaults)
-        const idleSrc = this._currentIdleSource ?? this._popcat2Url;
-        const activeSrc = this._currentActiveSource ?? this._popcat1Url;
-        const idleAsset = idleSrc ? visualAssetStore.get(makeImageKey(idleSrc)) : undefined;
-        const activeAsset = activeSrc ? visualAssetStore.get(makeImageKey(activeSrc)) : undefined;
+        // Resolve idle/active sources: user override takes precedence over bundled defaults
+        const userIdleSrc  = (props.idleSprite  as ImageSource | null) ?? null;
+        const userActiveSrc = (props.activeSprite as ImageSource | null) ?? null;
+
+        const { asset: userIdle,   status: userIdleStatus   } = this._idleSlot.update(userIdleSrc);
+        const { asset: userActive, status: userActiveStatus } = this._activeSlot.update(userActiveSrc);
+        const { asset: bundledIdle,   status: bundledIdleStatus   } = this._popcat2.get();
+        const { asset: bundledActive, status: bundledActiveStatus } = this._popcat1.get();
+
+        const idleAsset   = userIdleSrc  ? userIdle   : bundledIdle;
+        const idleStatus  = userIdleSrc  ? userIdleStatus  : bundledIdleStatus;
+        const activeAsset  = userActiveSrc ? userActive  : bundledActive;
+        const activeStatus = userActiveSrc ? userActiveStatus : bundledActiveStatus;
 
         const makeVisualMedia = (x: number, y: number, w: number, h: number, isActive: boolean): VisualMedia => {
-            const src = isActive ? activeSrc : idleSrc;
-            const asset = isActive ? activeAsset : idleAsset;
             const vm = new VisualMedia(x, y, w, h);
-            vm.setAsset(asset ?? null, asset?.status ?? (src ? 'loading' : 'idle'))
+            vm.setAsset(isActive ? activeAsset : idleAsset, isActive ? activeStatus : idleStatus)
               .setFitMode('contain')
               .setPreserveAspectRatio(true)
               .setIncludeInLayoutBounds(false);

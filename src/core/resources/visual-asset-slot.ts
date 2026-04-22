@@ -1,9 +1,9 @@
 /**
- * ImageAssetSlot / AtlasAssetSlot — managed lifecycle wrappers for visual assets.
+ * ImageAssetSlot / AtlasAssetSlot / BundledImageAssetSlot — managed lifecycle wrappers for visual assets.
  *
  * Each slot owns a single asset reference (load + retain on change, release on
  * change or destroy). Plugin authors create one slot per image they want to
- * display, call update() each frame, and call destroy() in onDestroy().
+ * display, call update()/get() each frame, and call destroy() in onDestroy().
  *
  * Before slots:
  *   const key = src ? makeImageKey(src) : null;
@@ -21,7 +21,7 @@
 import { visualAssetStore, makeImageKey, makeAtlasKey, type ImageSource } from './visual-asset-store';
 import type { VisualAsset, VisualAssetStatus, AtlasLayout } from './visual-asset';
 
-/** Returned by {@link ImageAssetSlot.update} and {@link AtlasAssetSlot.update}. */
+/** Returned by {@link ImageAssetSlot.update}, {@link AtlasAssetSlot.update}, and {@link BundledImageAssetSlot.get}. */
 export interface AssetSlotResult {
     asset: VisualAsset | null;
     /** Derived status: 'idle' when no source, otherwise the asset's own status. */
@@ -122,5 +122,55 @@ export class AtlasAssetSlot {
             visualAssetStore.release(this._key);
             this._key = null;
         }
+    }
+}
+
+/**
+ * Manages a single bundled plugin image asset — one that ships inside the
+ * plugin's `assets/` directory and is loaded via `SceneElement.loadBundledAsset`.
+ *
+ * Hides the full chain: filename → URL resolution → store load/retain/release.
+ * Create via `SceneElement.bundledImage(filename)` so the loader is wired
+ * automatically.
+ *
+ * @example
+ * class MyElement extends SceneElement {
+ *   private readonly _head = this.bundledImage('Head.png');
+ *
+ *   protected override onDestroy() { this._head.destroy(); super.onDestroy(); }
+ *
+ *   protected override _buildRenderObjects(_cfg: unknown, t: number) {
+ *     const { asset, status } = this._head.get();
+ *     media.setAsset(asset, status);
+ *   }
+ * }
+ */
+export class BundledImageAssetSlot {
+    private readonly _inner = new ImageAssetSlot();
+    private _url: string | null = null;
+    private _loading = false;
+
+    constructor(
+        private readonly _filename: string,
+        private readonly _loader: (filename: string) => Promise<string>
+    ) {}
+
+    /**
+     * Returns `{ asset, status }` ready to pass directly to `VisualMedia.setAsset()`.
+     * Triggers the bundled asset load on the first call; safe to call every frame.
+     */
+    get(): AssetSlotResult {
+        if (!this._url && !this._loading) {
+            this._loading = true;
+            this._loader(this._filename)
+                .then(url => { this._url = url; this._loading = false; })
+                .catch(() => { this._loading = false; });
+        }
+        return this._inner.update(this._url);
+    }
+
+    /** Release the held reference. Call from onDestroy(). */
+    destroy(): void {
+        this._inner.destroy();
     }
 }
