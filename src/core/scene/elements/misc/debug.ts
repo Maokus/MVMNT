@@ -1,7 +1,5 @@
-import { SceneElement } from '../base';
-import { EnhancedConfigSchema } from '@core/types';
-import { EmptyRenderObject, Rectangle, RenderObject, Text } from '@core/render/render-objects';
-import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { SceneElement, type EnhancedConfigSchema, prop, insertElementGroups } from '@mvmnt/plugin-sdk';
+import { EmptyRenderObject, Rectangle, type RenderObject, Text } from '@mvmnt/plugin-sdk/render';
 
 // Minimal DebugElement for testing/inheritance demonstration
 export class DebugElement extends SceneElement {

@@ -1,36 +1,9 @@
 // Image scene element — displays still images and animated GIFs via the unified VisualAsset system.
-import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from '../base';
-import { VisualMedia } from '@core/render/render-objects/visual-media';
-import { RenderObject } from '@core/render/render-objects';
-import { EnhancedConfigSchema } from '@core/types.js';
-import type { SceneElementInterface } from '@core/types.js';
+import { SceneElement, type EnhancedConfigSchema, insertElementGroups, prop } from '@mvmnt/plugin-sdk';
 import { visualAssetStore } from '@core/resources/visual-asset-store';
 import { VisualMediaPlayback } from '@core/resources/visual-media-playback';
-import { insertElementGroups, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
-const normalizeFitMode: PropertyTransform<'contain' | 'cover' | 'fill' | 'none', SceneElementInterface> = (
-    value,
-    element
-) => {
-    const normalized = asTrimmedString(value, element)?.toLowerCase();
-    const allowed = ['contain', 'cover', 'fill', 'none'] as const;
-    return allowed.includes(normalized as (typeof allowed)[number])
-        ? (normalized as (typeof allowed)[number])
-        : undefined;
-};
-
-const ensurePositivePlaybackSpeed: PropertyTransform<number, SceneElementInterface> = (value, element) => {
-    const numeric = asNumber(value, element);
-    if (numeric === undefined || numeric <= 0) return undefined;
-    return numeric;
-};
-
-const normalizeImageSource: PropertyTransform<string | File | null, SceneElementInterface> = (value) => {
-    if (value == null) return null;
-    if (typeof value === 'string') return value;
-    if (value instanceof File) return value;
-    return null;
-};
+import { VisualMedia, type RenderObject } from '@mvmnt/plugin-sdk/render';
 
 export class ImageElement extends SceneElement {
     private _currentImageSource: string | File | null = null;

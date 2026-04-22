@@ -177,7 +177,7 @@ Priority order:
 
 1. **Visual asset export/import pipeline** — scenes with images cannot be saved. Implement `collectVisualAssets()` and ZIP embedding following the audio/font pattern. Replace raw `File` references in bindings with stable string IDs.
 
-2. **Delete `Image` and `AnimatedGif` render objects** — confirm no scene elements reference them (grep confirms only `image.ts` was the consumer, now migrated). Remove both files plus their `index.ts` exports.
+2. **Delete `Image` and `AnimatedGif` render objects** — confirm no scene elements reference them (popcat still uses Image renderobject). Remove both files plus their `index.ts` exports.
 
 3. **Wire `VisualMediaPlayback.clipName`** — connect to `getFrameAtTime()` so named clips actually function. Required before `ImageElement` can expose a clip selector property.
 

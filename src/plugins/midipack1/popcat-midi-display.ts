@@ -1,16 +1,22 @@
 import {
     SceneElement,
-    Image,
-    Text,
-    Rectangle,
     getPluginHostApi,
     PLUGIN_CAPABILITIES,
     parseFontSelection,
     ensureFontLoaded,
     prop,
     insertElementGroups,
-    type RenderObject,
 } from '@mvmnt/plugin-sdk';
+
+import {
+    VisualMedia,
+    Text,
+    Rectangle,
+    type RenderObject
+} from '@mvmnt/plugin-sdk/render'
+
+import { visualAssetStore } from '@core/resources/visual-asset-store';
+
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 const normalizeImageSource = (value: unknown): string | File | null => {
@@ -25,13 +31,10 @@ const JUMP_OFFSET_PX = 20;
 const BUMP_SCALE_ADD = 0.15;
 
 export class PopcatMidiDisplayElement extends SceneElement {
-    private _popcat1: HTMLImageElement | null = null;
-    private _popcat2: HTMLImageElement | null = null;
-    private _assetsLoaded = false;
-    private _assetsLoading = false;
+    private _popcat1Url: string | null = null;
+    private _popcat2Url: string | null = null;
+    private _bundledLoading = false;
 
-    private _idleImg: HTMLImageElement | null = null;
-    private _activeImg: HTMLImageElement | null = null;
     private _currentIdleSource: string | File | null = null;
     private _currentActiveSource: string | File | null = null;
 
@@ -39,40 +42,22 @@ export class PopcatMidiDisplayElement extends SceneElement {
         super('popcat-midi-display', id, config);
     }
 
-    private _loadAssets(): void {
-        if (this._assetsLoaded || this._assetsLoading) return;
-        this._assetsLoading = true;
+    private _loadBundledAssets(): void {
+        if (this._bundledLoading || (this._popcat1Url && this._popcat2Url)) return;
+        this._bundledLoading = true;
 
-        const loadImg = (path: string): Promise<HTMLImageElement> =>
-            this.loadBundledAsset(path).then(
-                (url) =>
-                    new Promise((resolve, reject) => {
-                        const img = new window.Image();
-                        img.onload = () => resolve(img);
-                        img.onerror = reject;
-                        img.src = url;
-                    })
-            );
-
-        Promise.all([loadImg('popcat1.png'), loadImg('popcat2.png')])
-            .then(([img1, img2]) => {
-                this._popcat1 = img1;
-                this._popcat2 = img2;
-                this._assetsLoaded = true;
-                this._assetsLoading = false;
-            })
-            .catch((err) => {
-                console.error('[PopcatMidiDisplay] Failed to load assets:', err);
-                this._assetsLoading = false;
-            });
-    }
-
-    private _loadUserImage(src: string | File): Promise<HTMLImageElement> {
-        return new Promise((resolve, reject) => {
-            const img = new window.Image();
-            img.onload = () => resolve(img);
-            img.onerror = reject;
-            img.src = src instanceof File ? URL.createObjectURL(src) : src;
+        Promise.all([
+            this.loadBundledAsset('popcat1.png'),
+            this.loadBundledAsset('popcat2.png'),
+        ]).then(([url1, url2]) => {
+            this._popcat1Url = url1;
+            this._popcat2Url = url2;
+            visualAssetStore.load(url1);
+            visualAssetStore.load(url2);
+            this._bundledLoading = false;
+        }).catch((err) => {
+            console.error('[PopcatMidiDisplay] Failed to load assets:', err);
+            this._bundledLoading = false;
         });
     }
 
@@ -216,29 +201,19 @@ export class PopcatMidiDisplayElement extends SceneElement {
 
         if (!props.visible) return [];
 
-        this._loadAssets();
+        this._loadBundledAssets();
 
-        // Handle user sprite changes
+        // Handle user sprite changes — load into asset store when source changes
         const newIdleSrc = (props.idleSprite as string | File | null) ?? null;
         const newActiveSrc = (props.activeSprite as string | File | null) ?? null;
 
         if (newIdleSrc !== this._currentIdleSource) {
             this._currentIdleSource = newIdleSrc;
-            this._idleImg = null;
-            if (newIdleSrc) {
-                this._loadUserImage(newIdleSrc)
-                    .then((img) => { this._idleImg = img; })
-                    .catch(() => {});
-            }
+            if (newIdleSrc) visualAssetStore.load(newIdleSrc);
         }
         if (newActiveSrc !== this._currentActiveSource) {
             this._currentActiveSource = newActiveSrc;
-            this._activeImg = null;
-            if (newActiveSrc) {
-                this._loadUserImage(newActiveSrc)
-                    .then((img) => { this._activeImg = img; })
-                    .catch(() => {});
-            }
+            if (newActiveSrc) visualAssetStore.load(newActiveSrc);
         }
 
         if (!props.midiTrackId) {
@@ -257,13 +232,27 @@ export class PopcatMidiDisplayElement extends SceneElement {
             return [new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top')];
         }
 
-        const EPS = 1e-3;
         const manyCats = props.manyCats as boolean;
         const playAnimation = props.playAnimation as 'jump' | 'bump' | 'none';
         const baseWidth = props.imageWidth as number;
         const baseHeight = props.imageHeight as number;
-        const idleImg = this._currentIdleSource ? this._idleImg : (this._assetsLoaded ? this._popcat2 : null);
-        const activeImg = this._currentActiveSource ? this._activeImg : (this._assetsLoaded ? this._popcat1 : null);
+
+        // Resolve idle/active asset sources (user override or bundled defaults)
+        const idleSrc = this._currentIdleSource ?? this._popcat2Url;
+        const activeSrc = this._currentActiveSource ?? this._popcat1Url;
+        const idleAsset = idleSrc ? visualAssetStore.get(idleSrc) : undefined;
+        const activeAsset = activeSrc ? visualAssetStore.get(activeSrc) : undefined;
+
+        const makeVisualMedia = (x: number, y: number, w: number, h: number, isActive: boolean): VisualMedia => {
+            const src = isActive ? activeSrc : idleSrc;
+            const asset = isActive ? activeAsset : idleAsset;
+            const vm = new VisualMedia(x, y, w, h);
+            vm.setAsset(asset ?? null, asset?.status ?? (src ? 'loading' : 'idle'))
+              .setFitMode('contain')
+              .setPreserveAspectRatio(true)
+              .setIncludeInLayoutBounds(false);
+            return vm;
+        };
 
         // ── Many cats: grid layout, one cat per distinct pitch ──────────────────
         if (manyCats) {
@@ -360,28 +349,8 @@ export class PopcatMidiDisplayElement extends SceneElement {
                     const slotCenterX = rowOriginX + col * slotWidth + baseWidth / 2;
                     const imgX = slotCenterX - baseWidth / 2 + ax;
                     const imgY = rowCenterY - baseHeight / 2 + ay;
-                    const img = isActive ? activeImg : idleImg;
 
-                    objects.push(
-                        new Image(imgX, imgY, aw, ah, img, 1, {
-                            fitMode: 'contain',
-                            preserveAspectRatio: true,
-                            includeInLayoutBounds: false,
-                        })
-                    );
-
-                    /* debug "output"
-                    objects.push(
-                        new Text(
-                        imgX, 
-                        imgY, 
-                        `T:${targetTime.toFixed(2)} S:${(noteStart ?? 0).toFixed(2)} E:${elapsedMs.toFixed(0)}`, 
-                        '10px Inter, sans-serif', 
-                        '#ff00ff', 
-                        'center', 
-                        'top')
-                    );
-                    */
+                    objects.push(makeVisualMedia(imgX, imgY, aw, ah, isActive));
 
                     if (noteLabels && labelFontString) {
                         const noteName = api.utilities.midiNoteToName(pitch);
@@ -416,15 +385,9 @@ export class PopcatMidiDisplayElement extends SceneElement {
                 ? this._applyAnimation(playAnimation, elapsedMs, baseWidth, baseHeight)
                 : { x: 0, y: 0, w: baseWidth, h: baseHeight };
 
-            const img = isPlaying ? activeImg : idleImg;
-
             return [
                 new Rectangle(0, 0, baseWidth, baseHeight, null, 'transparent', 1),
-                new Image(imgX, imgY, imgW, imgH, img, 1, {
-                    fitMode: 'contain',
-                    preserveAspectRatio: true,
-                    includeInLayoutBounds: false,
-                }),
+                makeVisualMedia(imgX, imgY, imgW, imgH, isPlaying),
             ];
         }
     }
