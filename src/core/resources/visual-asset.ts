@@ -18,6 +18,24 @@ export interface VisualFrame {
     /** Pre-created CanvasImageSource (ImageBitmap preferred, fallback canvas). */
     drawable: CanvasImageSource | null;
     durationMs: number;
+    /**
+     * Source crop rectangle within the drawable texture.
+     * Set for atlas frames; absent for GIF frames (each is a full-size bitmap).
+     */
+    sourceRect?: { sx: number; sy: number; sw: number; sh: number };
+}
+
+/**
+ * Layout descriptor for a sprite atlas: a single image divided into a uniform
+ * grid of animation frames. Pass to VisualAssetStore.loadAtlas().
+ */
+export interface AtlasLayout {
+    columns: number;
+    rows: number;
+    /** Total number of frames; defaults to columns × rows. */
+    frameCount?: number;
+    /** Duration of each frame in ms; defaults to 1000/12 (~83 ms, 12 fps). */
+    frameDurationMs?: number;
 }
 
 /**
@@ -71,28 +89,36 @@ export interface VisualAsset {
     clips: Record<string, VisualClip>;
 }
 
+/** Result of getFrameAtTime: the drawable and optional source crop for atlas frames. */
+export interface FrameAtTime {
+    drawable: CanvasImageSource | null;
+    /** Present when the drawable is an atlas texture; use 9-argument drawImage. */
+    sourceRect?: { sx: number; sy: number; sw: number; sh: number };
+}
+
 /**
- * Return the pre-prepared drawable for a given local playback time.
+ * Return the pre-prepared drawable (and optional source rect) for a given local
+ * playback time.
  *
- * For static assets: returns imageElement.
+ * For static assets: returns { drawable: imageElement }.
  * For animated assets: wraps localTimeSec into [0, totalDuration) and returns
- * the drawable for the correct frame. No lazy work is done here — all drawables
- * are created by the VisualAssetStore before status reaches 'ready'.
+ * the drawable for the correct frame. No lazy work is done — all drawables are
+ * created by the VisualAssetStore before status reaches 'ready'.
  */
 export function getFrameAtTime(
     asset: VisualAsset,
     localTimeSec: number
-): CanvasImageSource | null {
+): FrameAtTime {
     if (!asset.isAnimated) {
-        return asset.imageElement;
+        return { drawable: asset.imageElement };
     }
 
     const { frames, totalDurationMs } = asset;
-    if (!frames.length) return null;
+    if (!frames.length) return { drawable: null };
 
     const tMs = ((localTimeSec * 1000) % totalDurationMs + totalDurationMs) % totalDurationMs;
     let acc = 0;
-    let idx = frames.length - 1; // fallback to last frame
+    let idx = frames.length - 1;
     for (let i = 0; i < frames.length; i++) {
         acc += frames[i].durationMs;
         if (tMs < acc) {
@@ -101,5 +127,6 @@ export function getFrameAtTime(
         }
     }
 
-    return frames[idx].drawable;
+    const frame = frames[idx];
+    return { drawable: frame.drawable, sourceRect: frame.sourceRect };
 }

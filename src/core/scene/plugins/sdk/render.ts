@@ -10,8 +10,6 @@ export {
     Rectangle,
     Text,
     Line,
-    Image,
-    AnimatedGif,
     Poly,
     BezierPath,
     Arc,

@@ -3,8 +3,6 @@ export { EmptyRenderObject } from './empty';
 export { Rectangle } from './rectangle';
 export { Text } from './text';
 export { Line } from './line';
-export { Image } from './image';
-export { AnimatedGif } from './animated-gif';
 export { Poly } from './poly';
 export { BezierPath } from './bezier';
 export { Arc } from './arc';

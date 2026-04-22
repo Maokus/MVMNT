@@ -1,5 +1,5 @@
 import { RenderObject, RenderConfig, Bounds } from './base';
-import { VisualAsset, VisualAssetStatus, getFrameAtTime } from '@core/resources/visual-asset';
+import { VisualAsset, VisualAssetStatus, getFrameAtTime, FrameAtTime } from '@core/resources/visual-asset';
 
 /**
  * VisualMedia — a single render object that draws any VisualAsset.
@@ -23,6 +23,7 @@ export class VisualMedia extends RenderObject {
     private _asset: VisualAsset | null = null;
     private _status: VisualAssetStatus = 'idle';
     private _localTime: number = 0;
+    private _lastFrame: FrameAtTime | null = null;
     private _lastDrawParams: { drawX: number; drawY: number; drawWidth: number; drawHeight: number } | null = null;
 
     constructor(
@@ -140,20 +141,21 @@ export class VisualMedia extends RenderObject {
             return;
         }
 
-        const drawable = getFrameAtTime(asset, this._localTime);
-        if (!drawable) {
+        const frame = getFrameAtTime(asset, this._localTime);
+        this._lastFrame = frame;
+        if (!frame.drawable) {
             this.#drawPlaceholder(ctx, 'Empty', 'rgba(150,150,150,0.8)');
             return;
         }
 
-        const imgW = asset.width;
-        const imgH = asset.height;
+        // Use logicalWidth/logicalHeight so atlas frames lay out by frame size,
+        // not by the full texture dimensions.
+        const imgW = asset.logicalWidth || asset.width;
+        const imgH = asset.logicalHeight || asset.height;
         const params = this.#calculateDrawParams(imgW, imgH);
         this._lastDrawParams = params;
         const { drawX, drawY, drawWidth, drawHeight } = params;
 
-        // Apply asset pivot: (0,0)=top-left (default), (0.5,0.5)=center.
-        // The element's local origin maps to the pivot point in the image.
         const px = drawX - asset.pivot.x * drawWidth;
         const py = drawY - asset.pivot.y * drawHeight;
 
@@ -165,9 +167,13 @@ export class VisualMedia extends RenderObject {
         }
 
         try {
-            // All drawables are pre-prepared CanvasImageSources (ImageBitmap or
-            // pre-baked canvas) by the VisualAssetStore — no render-time conversion.
-            ctx.drawImage(drawable, px, py, drawWidth, drawHeight);
+            if (frame.sourceRect) {
+                // Atlas frame: draw a crop of the texture using 9-argument drawImage.
+                const { sx, sy, sw, sh } = frame.sourceRect;
+                ctx.drawImage(frame.drawable, sx, sy, sw, sh, px, py, drawWidth, drawHeight);
+            } else {
+                ctx.drawImage(frame.drawable, px, py, drawWidth, drawHeight);
+            }
         } catch {
             this.#drawPlaceholder(ctx, 'Error', 'red');
         }
@@ -196,12 +202,13 @@ export class VisualMedia extends RenderObject {
             return this._computeTransformedRectBounds(drawX, drawY, drawWidth, drawHeight);
         }
         // Compute bounds from asset intrinsics if available, before first draw
-        if (this._asset?.status === 'ready' && this._asset.width && this._asset.height) {
-            const { drawX, drawY, drawWidth, drawHeight } = this.#calculateDrawParams(
-                this._asset.width,
-                this._asset.height
-            );
-            return this._computeTransformedRectBounds(drawX, drawY, drawWidth, drawHeight);
+        if (this._asset?.status === 'ready') {
+            const imgW = this._asset.logicalWidth || this._asset.width;
+            const imgH = this._asset.logicalHeight || this._asset.height;
+            if (imgW && imgH) {
+                const { drawX, drawY, drawWidth, drawHeight } = this.#calculateDrawParams(imgW, imgH);
+                return this._computeTransformedRectBounds(drawX, drawY, drawWidth, drawHeight);
+            }
         }
         return this._computeTransformedRectBounds(0, 0, this.width, this.height);
     }
