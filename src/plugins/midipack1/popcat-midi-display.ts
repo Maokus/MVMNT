@@ -15,7 +15,7 @@ import {
     type RenderObject
 } from '@mvmnt/plugin-sdk/render'
 
-import { visualAssetStore } from '@core/resources/visual-asset-store';
+import { visualAssetStore, makeImageKey } from '@core/resources/visual-asset-store';
 
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
@@ -240,8 +240,8 @@ export class PopcatMidiDisplayElement extends SceneElement {
         // Resolve idle/active asset sources (user override or bundled defaults)
         const idleSrc = this._currentIdleSource ?? this._popcat2Url;
         const activeSrc = this._currentActiveSource ?? this._popcat1Url;
-        const idleAsset = idleSrc ? visualAssetStore.get(idleSrc) : undefined;
-        const activeAsset = activeSrc ? visualAssetStore.get(activeSrc) : undefined;
+        const idleAsset = idleSrc ? visualAssetStore.get(makeImageKey(idleSrc)) : undefined;
+        const activeAsset = activeSrc ? visualAssetStore.get(makeImageKey(activeSrc)) : undefined;
 
         const makeVisualMedia = (x: number, y: number, w: number, h: number, isActive: boolean): VisualMedia => {
             const src = isActive ? activeSrc : idleSrc;

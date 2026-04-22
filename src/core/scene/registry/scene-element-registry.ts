@@ -230,6 +230,7 @@ export class SceneElementRegistry {
         // this.registerElementFromClass('audioBadReq', elements.AudioBadReqElement);
         // this.registerElementFromClass('audioDebug', elements.AudioDebugElement);
         this.registerElementFromClass('debug', elements.DebugElement);
+        this.registerElementFromClass('imageDebug', elements.ImageDebugElement);
     }
 }
 

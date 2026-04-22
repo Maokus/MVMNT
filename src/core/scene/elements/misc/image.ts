@@ -1,16 +1,16 @@
-// Image scene element — displays still images, animated GIFs, and sprite atlases
-// via the unified VisualAsset system.
+// Image scene element — displays still images and animated GIFs via the
+// unified VisualAsset system. For sprite atlas / spritesheet support, use
+// the atlas-image template instead.
 import { SceneElement, type EnhancedConfigSchema, insertElementGroups, prop } from '@mvmnt/plugin-sdk';
-import { visualAssetStore } from '@core/resources/visual-asset-store';
+import { visualAssetStore, makeImageKey } from '@core/resources/visual-asset-store';
 import { VisualMediaPlayback } from '@core/resources/visual-media-playback';
-import type { AtlasLayout } from '@core/resources/visual-asset';
 
-import { VisualMedia, type RenderObject } from '@mvmnt/plugin-sdk/render';
+import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 
 export class ImageElement extends SceneElement {
-    private _currentImageSource: string | File | null = null;
-    private _currentAtlasKey: string = '';
+    private _currentAssetKey: string | null = null;
     private _renderObject: VisualMedia | null = null;
+    private _layoutRect: Rectangle | null = null;
     private readonly _playback = new VisualMediaPlayback();
 
     constructor(id: string = 'image', config: { [key: string]: any } = {}) {
@@ -55,25 +55,12 @@ export class ImageElement extends SceneElement {
                     }),
                 ],
             },
-            {
-                id: 'atlasLayout',
-                label: 'Sprite Atlas',
-                variant: 'basic',
-                collapsed: true,
-                description: 'Treat the image as a sprite sheet with a uniform grid of animation frames.',
-                properties: [
-                    prop.number('atlasColumns', 'Columns', 1, { min: 1, step: 1, description: 'Number of frame columns in the sprite sheet.' }),
-                    prop.number('atlasRows', 'Rows', 1, { min: 1, step: 1, description: 'Number of frame rows in the sprite sheet.' }),
-                    prop.number('atlasFrameRate', 'Frame Rate (fps)', 12, { min: 1, step: 1, description: 'Playback speed for atlas frames.', visibleWhen: [{ key: 'atlasColumns', notEquals: 1 }, { key: 'atlasRows', notEquals: 1 }] }),
-                    prop.number('atlasFrameCount', 'Frame Count', 0, { min: 0, step: 1, description: 'Total frames to use (0 = columns × rows).', visibleWhen: [{ key: 'atlasColumns', notEquals: 1 }, { key: 'atlasRows', notEquals: 1 }] }),
-                ],
-            },
         ]);
     }
 
     protected override onDestroy(): void {
-        if (this._currentImageSource) {
-            visualAssetStore.release(this._currentImageSource);
+        if (this._currentAssetKey) {
+            visualAssetStore.release(this._currentAssetKey);
         }
         super.onDestroy();
     }
@@ -83,41 +70,30 @@ export class ImageElement extends SceneElement {
 
         if (!props.visible) return [];
 
-        const atlasColumns = Math.max(1, Math.round((props.atlasColumns as number) ?? 1));
-        const atlasRows = Math.max(1, Math.round((props.atlasRows as number) ?? 1));
-        const atlasFrameRate = Math.max(1, (props.atlasFrameRate as number) ?? 12);
-        const atlasFrameCountRaw = Math.max(0, Math.round((props.atlasFrameCount as number) ?? 0));
-        const atlasFrameCount = atlasFrameCountRaw > 0 ? atlasFrameCountRaw : undefined;
-        const atlasKey = `${atlasColumns}:${atlasRows}:${atlasFrameRate}:${atlasFrameCount ?? ''}`;
-
         const newSrc = props.imageSource ?? null;
-        if (newSrc !== this._currentImageSource || atlasKey !== this._currentAtlasKey) {
-            if (this._currentImageSource) {
-                visualAssetStore.release(this._currentImageSource);
-            }
-            this._currentImageSource = newSrc;
-            this._currentAtlasKey = atlasKey;
-            if (newSrc) {
-                if (atlasColumns > 1 || atlasRows > 1) {
-                    const layout: AtlasLayout = {
-                        columns: atlasColumns,
-                        rows: atlasRows,
-                        frameCount: atlasFrameCount,
-                        frameDurationMs: 1000 / atlasFrameRate,
-                    };
-                    visualAssetStore.loadAtlas(newSrc, layout);
-                } else {
-                    visualAssetStore.load(newSrc);
-                }
-                visualAssetStore.retain(newSrc);
+        const newKey = newSrc ? makeImageKey(newSrc) : null;
+
+        if (newKey !== this._currentAssetKey) {
+            if (this._currentAssetKey) visualAssetStore.release(this._currentAssetKey);
+            this._currentAssetKey = newKey;
+            if (newSrc && newKey) {
+                visualAssetStore.load(newSrc);
+                visualAssetStore.retain(newKey);
             }
         }
 
         if (!this._renderObject) {
-            this._renderObject = new VisualMedia(0, 0, props.width, props.height);
+            this._renderObject = new VisualMedia(0, 0, props.width, props.height, { includeInLayoutBounds: false });
         }
 
-        const asset = newSrc ? visualAssetStore.get(newSrc) : undefined;
+        if (!this._layoutRect) {
+            this._layoutRect = new Rectangle(0, 0, props.width, props.height, null, null);
+        } else {
+            this._layoutRect.width = props.width;
+            this._layoutRect.height = props.height;
+        }
+
+        const asset = this._currentAssetKey ? visualAssetStore.get(this._currentAssetKey) : undefined;
 
         this._playback.speed = props.playbackSpeed ?? 1;
         const localTime = this._playback.computeLocalTime(targetTime, asset?.clips);
@@ -129,6 +105,6 @@ export class ImageElement extends SceneElement {
             .setFitMode(props.fitMode ?? 'contain')
             .setPreserveAspectRatio(props.preserveAspectRatio ?? true);
 
-        return [this._renderObject];
+        return [this._layoutRect, this._renderObject];
     }
 }

@@ -15,12 +15,28 @@
 import { decompressFrames, parseGIF } from 'gifuct-js';
 import { VisualAsset, VisualFrame, AtlasLayout } from './visual-asset';
 
-type ImageSource = string | File;
+export type ImageSource = string | File;
 
-const makeKey = (src: ImageSource): string => {
+/** Base source key (interpretation-agnostic). Used internally only. */
+const makeSrcKey = (src: ImageSource): string => {
     if (typeof src === 'string') return src;
     return `file:${src.name}:${src.size}:${src.lastModified}`;
 };
+
+/** Cache key for a plain image or GIF asset. */
+export function makeImageKey(src: ImageSource): string {
+    return `image:${makeSrcKey(src)}`;
+}
+
+/** Cache key for a sprite atlas asset. Encodes the full layout so that
+ *  different atlas configurations of the same source are cached separately. */
+export function makeAtlasKey(src: ImageSource, layout: AtlasLayout): string {
+    const c = layout.columns;
+    const r = layout.rows;
+    const n = layout.frameCount ?? c * r;
+    const d = (layout.frameDurationMs ?? 1000 / 12).toFixed(2);
+    return `atlas:${makeSrcKey(src)}:cols=${c}:rows=${r}:count=${n}:dur=${d}`;
+}
 
 function isGIF(src: ImageSource): boolean {
     if (typeof src === 'string') {
@@ -152,7 +168,7 @@ export class VisualAssetStore {
 
     /** Load (or retrieve from cache) a VisualAsset for the given source. */
     load(src: ImageSource): Promise<VisualAsset> {
-        const key = makeKey(src);
+        const key = makeImageKey(src);
 
         const existing = this._assets.get(key);
         if (existing && existing.status === 'ready') return Promise.resolve(existing);
@@ -222,7 +238,7 @@ export class VisualAssetStore {
      */
     loadAtlas(src: ImageSource, layout: AtlasLayout): Promise<VisualAsset> {
         const { columns, rows, frameCount: maxFrames, frameDurationMs = 1000 / 12 } = layout;
-        const key = makeKey(src);
+        const key = makeAtlasKey(src, layout);
 
         const existing = this._assets.get(key);
         if (existing && existing.status === 'ready') return Promise.resolve(existing);
@@ -293,14 +309,13 @@ export class VisualAssetStore {
         return p;
     }
 
-    /** Synchronously retrieve an asset (may be in any status including 'loading'). */
-    get(src: ImageSource): VisualAsset | undefined {
-        return this._assets.get(makeKey(src));
+    /** Synchronously retrieve an asset by its full cache key (may be in any status including 'loading'). */
+    get(key: string): VisualAsset | undefined {
+        return this._assets.get(key);
     }
 
     /** Increment the reference count for an asset key. */
-    retain(src: ImageSource): void {
-        const key = makeKey(src);
+    retain(key: string): void {
         this._refCounts.set(key, (this._refCounts.get(key) ?? 0) + 1);
     }
 
@@ -308,8 +323,7 @@ export class VisualAssetStore {
      * Decrement the reference count for an asset.
      * Evicts the asset from the cache when the count reaches zero.
      */
-    release(src: ImageSource): void {
-        const key = makeKey(src);
+    release(key: string): void {
         const count = (this._refCounts.get(key) ?? 0) - 1;
         if (count <= 0) {
             this._refCounts.delete(key);

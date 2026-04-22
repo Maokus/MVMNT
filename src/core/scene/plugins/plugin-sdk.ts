@@ -12,6 +12,7 @@ export * from './sdk/timing';
 export * from './sdk/safety';
 export * from './sdk/utils';
 export * from './sdk/animation';
+export * from './sdk/visual-assets';
 
 // ============================================================================
 // COMPILE-TIME ASSERTION: Prevent API Drift
