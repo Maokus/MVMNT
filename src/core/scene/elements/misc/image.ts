@@ -6,7 +6,7 @@ import { EnhancedConfigSchema } from '@core/types.js';
 import type { SceneElementInterface } from '@core/types.js';
 import { visualAssetStore } from '@core/resources/visual-asset-store';
 import { VisualMediaPlayback } from '@core/resources/visual-media-playback';
-import { insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { insertElementGroups, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
 const normalizeFitMode: PropertyTransform<'contain' | 'cover' | 'fill' | 'none', SceneElementInterface> = (
     value,
@@ -54,31 +54,9 @@ export class ImageElement extends SceneElement {
                 collapsed: false,
                 description: 'Pick the artwork and playback speed for animated assets.',
                 properties: [
-                    {
-                        key: 'imageSource',
-                        type: 'file',
-                        label: 'Image File',
-                        default: '',
-                        accept: 'image/*',
-                        description: 'Image or animated GIF to display.',
-                        runtime: { transform: normalizeImageSource, defaultValue: null },
-                    },
-                    {
-                        key: 'playbackSpeed',
-                        type: 'number',
-                        label: 'Playback Speed (×)',
-                        default: 1,
-                        min: 0.1,
-                        max: 10,
-                        step: 0.1,
-                        description: 'Speed multiplier for animated GIFs (1 = normal).',
-                        runtime: { transform: ensurePositivePlaybackSpeed, defaultValue: 1 },
-                    },
-                ],
-                presets: [
-                    { id: 'stillImage', label: 'Still Image', values: { playbackSpeed: 1 } },
-                    { id: 'slowLoop', label: 'Slow GIF Loop', values: { playbackSpeed: 0.5 } },
-                    { id: 'hyperLoop', label: 'Hyper GIF Loop', values: { playbackSpeed: 2 } },
+                    prop.file('imageSource', 'Image File', {accept:"image/*", description: 'Image or animated GIF to display.'}),
+                    prop.number('playbackSpeed', 'Playback Speed (×)', 1, {step: 0.1})
+                    
                 ],
             },
             {
@@ -88,63 +66,17 @@ export class ImageElement extends SceneElement {
                 collapsed: false,
                 description: 'Size and crop behaviour for the image frame.',
                 properties: [
-                    {
-                        key: 'width',
-                        type: 'number',
-                        label: 'Width (px)',
-                        default: 200,
-                        min: 10,
-                        max: 2000,
-                        step: 10,
-                        description: 'Width of the image container in pixels.',
-                        runtime: { transform: asNumber, defaultValue: 200 },
-                    },
-                    {
-                        key: 'height',
-                        type: 'number',
-                        label: 'Height (px)',
-                        default: 200,
-                        min: 10,
-                        max: 2000,
-                        step: 10,
-                        description: 'Height of the image container in pixels.',
-                        runtime: { transform: asNumber, defaultValue: 200 },
-                    },
-                    {
-                        key: 'fitMode',
-                        type: 'select',
-                        label: 'Fit Mode',
-                        default: 'contain',
-                        options: [
-                            { value: 'contain', label: 'Contain (fit within bounds)' },
-                            { value: 'cover', label: 'Cover (fill bounds, may crop)' },
-                            { value: 'fill', label: 'Fill (stretch to fit)' },
-                            { value: 'none', label: 'None (original size)' },
-                        ],
-                        description: 'How the image should fit within its bounds.',
-                        runtime: { transform: normalizeFitMode, defaultValue: 'contain' as const },
-                    },
-                    {
-                        key: 'preserveAspectRatio',
-                        type: 'boolean',
-                        label: 'Preserve Aspect Ratio',
-                        default: true,
-                        description: 'Maintain the original proportions when resizing.',
+                    prop.number('width', 'Width (px)', 200, { step: 10 }),
+                    prop.number('height', 'Height (px)', 200, { step: 10 }),
+                    prop.select('fitMode', 'Fit Mode', 'contain', [
+                        { value: 'contain', label: 'Contain (fit within bounds)' },
+                        { value: 'cover', label: 'Cover (fill bounds, may crop)' },
+                        { value: 'fill', label: 'Fill (stretch to fit)' },
+                        { value: 'none', label: 'None (original size)' }
+                    ]),
+                    prop.boolean('preserveAspectRatio', 'Preserve Aspect Ratio', true, {
                         visibleWhen: [{ key: 'fitMode', notEquals: 'fill' }],
-                        runtime: { transform: asBoolean, defaultValue: true },
-                    },
-                ],
-                presets: [
-                    {
-                        id: 'fullWidth',
-                        label: 'Full Width Banner',
-                        values: { width: 1280, height: 720, fitMode: 'cover' },
-                    },
-                    {
-                        id: 'squareThumb',
-                        label: 'Square Thumbnail',
-                        values: { width: 512, height: 512, fitMode: 'contain' },
-                    },
+                    }),
                 ],
             },
         ]);
