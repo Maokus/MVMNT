@@ -17,7 +17,6 @@ export { ProgressDisplayElement } from './misc/progress-display';
 export { TextOverlayElement } from './misc/text-overlay';
 export { TimeDisplayElement } from './misc/time-display';
 export { DebugElement } from './misc/debug';
-export { ImageDebugElement } from './misc/image-debug';
 export { TimeUnitPianoRollElement } from './midi-displays/time-unit-piano-roll/time-unit-piano-roll';
 export { MovingNotesPianoRollElement } from './midi-displays/moving-notes-piano-roll/moving-notes-piano-roll';
 export { NotesPlayedTrackerElement } from './midi-displays/notes-played-tracker';
