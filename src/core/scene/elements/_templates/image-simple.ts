@@ -1,12 +1,11 @@
 // Template: Simple Image Element
-// Minimal starting point for displaying an image or animated GIF.
+// Displays a static image or animated GIF from a file upload.
 // Copy this file into your plugin and adapt as needed.
 import {
     SceneElement,
     prop,
     insertElementGroups,
-    visualAssetStore,
-    makeImageKey,
+    ImageAssetSlot,
     VisualMediaPlayback,
     type ImageSource,
 } from '@mvmnt/plugin-sdk';
@@ -14,10 +13,10 @@ import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/ren
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class SimpleImageElement extends SceneElement {
-    private _currentAssetKey: string | null = null;
+    private readonly _image = new ImageAssetSlot();
     private readonly _playback = new VisualMediaPlayback();
-    private _renderObject: VisualMedia | null = null;
-    private _layoutRect: Rectangle | null = null;
+    private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
+    private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
 
     constructor(id: string = 'simpleImage', config: Record<string, unknown> = {}) {
         super('simple-image', id, config);
@@ -50,7 +49,7 @@ export class SimpleImageElement extends SceneElement {
     }
 
     protected override onDestroy(): void {
-        if (this._currentAssetKey) visualAssetStore.release(this._currentAssetKey);
+        this._image.destroy();
         super.onDestroy();
     }
 
@@ -58,42 +57,19 @@ export class SimpleImageElement extends SceneElement {
         const props = this.getSchemaProps();
         if (!props.visible) return [];
 
-        // Compute the asset key; load and retain when it changes.
-        const src = (props.imageSource as ImageSource | null) ?? null;
-        const key = src ? makeImageKey(src) : null;
-        if (key !== this._currentAssetKey) {
-            if (this._currentAssetKey) visualAssetStore.release(this._currentAssetKey);
-            this._currentAssetKey = key;
-            if (src && key) {
-                visualAssetStore.load(src);
-                visualAssetStore.retain(key);
-            }
-        }
+        const asset = this._image.update(props.imageSource as ImageSource | null);
+        const w = (props.width as number) ?? 200;
+        const h = (props.height as number) ?? 200;
 
-        const w = props.width as number ?? 200;
-        const h = props.height as number ?? 200;
+        this._layoutRect.width = w;
+        this._layoutRect.height = h;
 
-        if (!this._layoutRect) {
-            this._layoutRect = new Rectangle(0, 0, w, h, null, null);
-        } else {
-            this._layoutRect.width = w;
-            this._layoutRect.height = h;
-        }
-
-        if (!this._renderObject) {
-            this._renderObject = new VisualMedia(0, 0, w, h, { includeInLayoutBounds: false });
-        }
-
-        const asset = key ? visualAssetStore.get(key) : undefined;
-        const localTime = this._playback.computeLocalTime(targetTime, asset?.clips);
-
-        this._renderObject
-            .setAsset(asset ?? null, asset?.status ?? (src ? 'loading' : 'idle'))
-            .setLocalTime(localTime)
+        this._media
+            .setAsset(asset ?? null, asset?.status ?? (props.imageSource ? 'loading' : 'idle'))
+            .setLocalTime(this._playback.computeLocalTime(targetTime, asset?.clips))
             .setDimensions(w, h)
-            .setFitMode((props.fitMode as any) ?? 'contain')
-            .setPreserveAspectRatio(true);
+            .setFitMode((props.fitMode as any) ?? 'contain');
 
-        return [this._layoutRect, this._renderObject];
+        return [this._layoutRect, this._media];
     }
 }

@@ -194,12 +194,32 @@ export class VisualMedia extends RenderObject {
     }
 
     protected _getSelfBounds(): Bounds {
-        if (this.fitMode === 'cover' || this.fitMode === 'fill' || !this.preserveAspectRatio) {
+        const pivot = this._asset?.pivot ?? { x: 0, y: 0 };
+
+        if (this.fitMode === 'cover') {
+            // Image is clipped to the container rect regardless of pivot.
             return this._computeTransformedRectBounds(0, 0, this.width, this.height);
         }
+
+        if (this.fitMode === 'fill' || !this.preserveAspectRatio) {
+            // No aspect correction; draw fills container but pivot shifts the origin.
+            const px = -pivot.x * this.width;
+            const py = -pivot.y * this.height;
+            return this._computeTransformedRectBounds(px, py, this.width, this.height);
+        }
+
+        // contain / none with preserveAspectRatio — apply pivot offset to draw params.
+        const withPivot = (drawX: number, drawY: number, drawWidth: number, drawHeight: number) =>
+            this._computeTransformedRectBounds(
+                drawX - pivot.x * drawWidth,
+                drawY - pivot.y * drawHeight,
+                drawWidth,
+                drawHeight
+            );
+
         if (this._lastDrawParams) {
             const { drawX, drawY, drawWidth, drawHeight } = this._lastDrawParams;
-            return this._computeTransformedRectBounds(drawX, drawY, drawWidth, drawHeight);
+            return withPivot(drawX, drawY, drawWidth, drawHeight);
         }
         // Compute bounds from asset intrinsics if available, before first draw
         if (this._asset?.status === 'ready') {
@@ -207,7 +227,7 @@ export class VisualMedia extends RenderObject {
             const imgH = this._asset.logicalHeight || this._asset.height;
             if (imgW && imgH) {
                 const { drawX, drawY, drawWidth, drawHeight } = this.#calculateDrawParams(imgW, imgH);
-                return this._computeTransformedRectBounds(drawX, drawY, drawWidth, drawHeight);
+                return withPivot(drawX, drawY, drawWidth, drawHeight);
             }
         }
         return this._computeTransformedRectBounds(0, 0, this.width, this.height);

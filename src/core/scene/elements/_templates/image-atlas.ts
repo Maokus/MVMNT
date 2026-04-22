@@ -1,12 +1,11 @@
 // Template: Atlas Image Element
-// Minimal starting point for displaying a sprite atlas (spritesheet) animation.
-// Copy this file into your plugin and adapt the layout to your spritesheet grid.
+// Animates a sprite atlas (spritesheet) divided into a uniform grid of frames.
+// Copy this file into your plugin and adapt the layout to your spritesheet.
 import {
     SceneElement,
     prop,
     insertElementGroups,
-    visualAssetStore,
-    makeAtlasKey,
+    AtlasAssetSlot,
     VisualMediaPlayback,
     type AtlasLayout,
     type ImageSource,
@@ -15,10 +14,10 @@ import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/ren
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class AtlasImageElement extends SceneElement {
-    private _currentAssetKey: string | null = null;
+    private readonly _atlas = new AtlasAssetSlot();
     private readonly _playback = new VisualMediaPlayback();
-    private _renderObject: VisualMedia | null = null;
-    private _layoutRect: Rectangle | null = null;
+    private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
+    private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
 
     constructor(id: string = 'atlasImage', config: Record<string, unknown> = {}) {
         super('atlas-image', id, config);
@@ -62,7 +61,7 @@ export class AtlasImageElement extends SceneElement {
     }
 
     protected override onDestroy(): void {
-        if (this._currentAssetKey) visualAssetStore.release(this._currentAssetKey);
+        this._atlas.destroy();
         super.onDestroy();
     }
 
@@ -70,7 +69,6 @@ export class AtlasImageElement extends SceneElement {
         const props = this.getSchemaProps();
         if (!props.visible) return [];
 
-        const src = (props.imageSource as ImageSource | null) ?? null;
         const columns = Math.max(1, Math.round((props.columns as number) ?? 4));
         const rows = Math.max(1, Math.round((props.rows as number) ?? 4));
         const frameRate = Math.max(1, (props.frameRate as number) ?? 12);
@@ -83,43 +81,19 @@ export class AtlasImageElement extends SceneElement {
             frameDurationMs: 1000 / frameRate,
         };
 
-        // The asset key encodes the full layout — different grid configs of the
-        // same source are cached as separate assets.
-        const key = src ? makeAtlasKey(src, layout) : null;
-
-        if (key !== this._currentAssetKey) {
-            if (this._currentAssetKey) visualAssetStore.release(this._currentAssetKey);
-            this._currentAssetKey = key;
-            if (src && key) {
-                visualAssetStore.loadAtlas(src, layout);
-                visualAssetStore.retain(key);
-            }
-        }
-
+        const asset = this._atlas.update(props.imageSource as ImageSource | null, layout);
         const w = (props.width as number) ?? 200;
         const h = (props.height as number) ?? 200;
 
-        if (!this._layoutRect) {
-            this._layoutRect = new Rectangle(0, 0, w, h, null, null);
-        } else {
-            this._layoutRect.width = w;
-            this._layoutRect.height = h;
-        }
+        this._layoutRect.width = w;
+        this._layoutRect.height = h;
 
-        if (!this._renderObject) {
-            this._renderObject = new VisualMedia(0, 0, w, h, { includeInLayoutBounds: false });
-        }
-
-        const asset = key ? visualAssetStore.get(key) : undefined;
-        const localTime = this._playback.computeLocalTime(targetTime, asset?.clips);
-
-        this._renderObject
-            .setAsset(asset ?? null, asset?.status ?? (src ? 'loading' : 'idle'))
-            .setLocalTime(localTime)
+        this._media
+            .setAsset(asset ?? null, asset?.status ?? (props.imageSource ? 'loading' : 'idle'))
+            .setLocalTime(this._playback.computeLocalTime(targetTime, asset?.clips))
             .setDimensions(w, h)
-            .setFitMode('contain')
-            .setPreserveAspectRatio(true);
+            .setFitMode('contain');
 
-        return [this._layoutRect, this._renderObject];
+        return [this._layoutRect, this._media];
     }
 }

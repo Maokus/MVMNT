@@ -40,6 +40,16 @@ const TEMPLATES = {
         className: 'TextDisplayElement',
         description: 'Displays customizable text (e.g., song title, artist, or custom messages)'
     },
+    'image-simple': {
+        file: 'image-simple.ts',
+        className: 'SimpleImageElement',
+        description: 'Displays a static image or animated GIF from a file upload'
+    },
+    'image-atlas': {
+        file: 'image-atlas.ts',
+        className: 'AtlasImageElement',
+        description: 'Animates a spritesheet divided into a uniform grid of frames'
+    },
 };
 
 // Helper to prompt user input
@@ -255,14 +265,14 @@ async function main() {
 
     // Step 4: Choose template
     console.log('\nAvailable templates:');
-    Object.keys(TEMPLATES).forEach((key, index) => {
+    const templateKeys = Object.keys(TEMPLATES);
+    templateKeys.forEach((key, index) => {
         console.log(`  ${index + 1}. ${key} - ${TEMPLATES[key].description}`);
     });
-    
-    const templateChoice = await prompt('Choose template (1-4): ');
+
+    const templateChoice = await prompt(`Choose template (1-${templateKeys.length}): `);
     const templateIndex = parseInt(templateChoice) - 1;
-    const templateKeys = Object.keys(TEMPLATES);
-    
+
     if (templateIndex < 0 || templateIndex >= templateKeys.length) {
         console.error('Error: Invalid template choice');
         process.exit(1);
