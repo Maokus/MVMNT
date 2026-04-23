@@ -625,9 +625,10 @@ export class SceneElement implements SceneElementInterface {
 
         // Set anchor offset for proper rotation/scaling center
         containerObject.setAnchorOffset(anchorPixelX, anchorPixelY);
-        containerObject.setRotation(this.elementRotation);
-        containerObject.setSkew(this.elementSkewX, this.elementSkewY);
-        containerObject.setVisible(this.visible);
+        containerObject.rotation = this.elementRotation;
+        containerObject.skewX = this.elementSkewX;
+        containerObject.skewY = this.elementSkewY;
+        containerObject.visible = this.visible;
 
         // Add all child render objects to the container
         for (const childObj of childRenderObjects) {

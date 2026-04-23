@@ -1,45 +1,48 @@
 {
-  "elements": [
-    {
+  "elements": {
+    "title": {
       "id": "title",
       "type": "textOverlay",
-      "visible": { "type": "constant", "value": true },
-      "zIndex": { "type": "constant", "value": 0 },
-      "elementOpacity": { "type": "constant", "value": 1 },
-      "offsetX": { "type": "constant", "value": 0 },
-      "offsetY": { "type": "constant", "value": 0 },
-      "anchorX": { "type": "constant", "value": 0.5 },
-      "anchorY": { "type": "constant", "value": 0.5 },
-      "elementScaleX": { "type": "constant", "value": 1 },
-      "elementScaleY": { "type": "constant", "value": 1 },
-      "elementRotation": { "type": "constant", "value": 0 },
-      "elementSkewX": { "type": "constant", "value": 0 },
-      "elementSkewY": { "type": "constant", "value": 0 },
-      "text": { "type": "constant", "value": "Baseline Scene" },
-      "fontFamily": { "type": "constant", "value": "Inter" },
-      "fontSize": { "type": "macro", "macroId": "macro.fontSize" },
-      "color": { "type": "macro", "macroId": "macro.color.primary" },
-      "index": 0
+      "properties": {
+        "visible": { "type": "constant", "value": true },
+        "zIndex": { "type": "constant", "value": 0 },
+        "elementOpacity": { "type": "constant", "value": 1 },
+        "offsetX": { "type": "constant", "value": 0 },
+        "offsetY": { "type": "constant", "value": 0 },
+        "anchorX": { "type": "constant", "value": 0.5 },
+        "anchorY": { "type": "constant", "value": 0.5 },
+        "elementScaleX": { "type": "constant", "value": 1 },
+        "elementScaleY": { "type": "constant", "value": 1 },
+        "elementRotation": { "type": "constant", "value": 0 },
+        "elementSkewX": { "type": "constant", "value": 0 },
+        "elementSkewY": { "type": "constant", "value": 0 },
+        "text": { "type": "constant", "value": "Baseline Scene" },
+        "fontFamily": { "type": "constant", "value": "Inter" },
+        "fontSize": { "type": "macro", "macroId": "macro.fontSize" },
+        "color": { "type": "macro", "macroId": "macro.color.primary" }
+      }
     },
-    {
+    "background": {
       "id": "background",
       "type": "background",
-      "visible": { "type": "constant", "value": true },
-      "zIndex": { "type": "constant", "value": -1000 },
-      "elementOpacity": { "type": "constant", "value": 1 },
-      "offsetX": { "type": "constant", "value": 0 },
-      "offsetY": { "type": "constant", "value": 0 },
-      "anchorX": { "type": "constant", "value": 0 },
-      "anchorY": { "type": "constant", "value": 0 },
-      "elementScaleX": { "type": "constant", "value": 1 },
-      "elementScaleY": { "type": "constant", "value": 1 },
-      "elementRotation": { "type": "constant", "value": 0 },
-      "elementSkewX": { "type": "constant", "value": 0 },
-      "elementSkewY": { "type": "constant", "value": 0 },
-      "backgroundColor": { "type": "macro", "macroId": "macro.color.background" },
-      "index": 1
+      "properties": {
+        "visible": { "type": "constant", "value": true },
+        "zIndex": { "type": "constant", "value": -1000 },
+        "elementOpacity": { "type": "constant", "value": 1 },
+        "offsetX": { "type": "constant", "value": 0 },
+        "offsetY": { "type": "constant", "value": 0 },
+        "anchorX": { "type": "constant", "value": 0 },
+        "anchorY": { "type": "constant", "value": 0 },
+        "elementScaleX": { "type": "constant", "value": 1 },
+        "elementScaleY": { "type": "constant", "value": 1 },
+        "elementRotation": { "type": "constant", "value": 0 },
+        "elementSkewX": { "type": "constant", "value": 0 },
+        "elementSkewY": { "type": "constant", "value": 0 },
+        "backgroundColor": { "type": "macro", "macroId": "macro.color.background" }
+      }
     }
-  ],
+  },
+  "elementsOrder": ["title", "background"],
   "sceneSettings": {
     "fps": 60,
     "width": 1500,

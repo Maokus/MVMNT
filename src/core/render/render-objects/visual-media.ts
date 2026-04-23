@@ -24,7 +24,7 @@ export class VisualMedia extends RenderObject {
     private _status: VisualAssetStatus = 'idle';
     private _localTime: number = 0;
     private _lastFrame: FrameAtTime | null = null;
-    private _lastDrawParams: { drawX: number; drawY: number; drawWidth: number; drawHeight: number } | null = null;
+    private _lastDrawParams: { drawX: number; drawY: number; drawWidth: number; drawHeight: number; srcRect?: { sx: number; sy: number; sw: number; sh: number } } | null = null;
 
     constructor(
         x: number,
@@ -84,13 +84,14 @@ export class VisualMedia extends RenderObject {
     #calculateDrawParams(
         imgWidth: number,
         imgHeight: number
-    ): { drawX: number; drawY: number; drawWidth: number; drawHeight: number } {
+    ): { drawX: number; drawY: number; drawWidth: number; drawHeight: number; srcRect?: { sx: number; sy: number; sw: number; sh: number } } {
         if (!this.preserveAspectRatio || this.fitMode === 'fill' || !imgWidth || !imgHeight) {
             return { drawX: 0, drawY: 0, drawWidth: this.width, drawHeight: this.height };
         }
         const containerAspect = this.width / this.height;
         const imageAspect = imgWidth / imgHeight;
         let drawWidth: number, drawHeight: number, drawX: number, drawY: number;
+        let srcRect: { sx: number; sy: number; sw: number; sh: number } | undefined;
         if (this.fitMode === 'contain') {
             if (imageAspect > containerAspect) {
                 drawWidth = this.width;
@@ -116,13 +117,21 @@ export class VisualMedia extends RenderObject {
                 drawY = (this.height - drawHeight) / 2;
             }
         } else {
-            // none
-            drawWidth = Math.min(imgWidth, this.width);
-            drawHeight = Math.min(imgHeight, this.height);
-            drawX = (this.width - drawWidth) / 2;
-            drawY = (this.height - drawHeight) / 2;
+            // none: draw at intrinsic pixel size, centered, crop to container bounds
+            const visW = Math.min(imgWidth, this.width);
+            const visH = Math.min(imgHeight, this.height);
+            drawWidth = visW;
+            drawHeight = visH;
+            drawX = (this.width - visW) / 2;
+            drawY = (this.height - visH) / 2;
+            srcRect = {
+                sx: (imgWidth - visW) / 2,
+                sy: (imgHeight - visH) / 2,
+                sw: visW,
+                sh: visH,
+            };
         }
-        return { drawX, drawY, drawWidth, drawHeight };
+        return { drawX, drawY, drawWidth, drawHeight, srcRect };
     }
 
     protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _currentTime: number): void {
@@ -170,6 +179,10 @@ export class VisualMedia extends RenderObject {
             if (frame.sourceRect) {
                 // Atlas frame: draw a crop of the texture using 9-argument drawImage.
                 const { sx, sy, sw, sh } = frame.sourceRect;
+                ctx.drawImage(frame.drawable, sx, sy, sw, sh, px, py, drawWidth, drawHeight);
+            } else if (params.srcRect) {
+                // "none" fit mode: draw at intrinsic size with center crop to container bounds.
+                const { sx, sy, sw, sh } = params.srcRect;
                 ctx.drawImage(frame.drawable, sx, sy, sw, sh, px, py, drawWidth, drawHeight);
             } else {
                 ctx.drawImage(frame.drawable, px, py, drawWidth, drawHeight);

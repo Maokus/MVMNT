@@ -97,33 +97,6 @@ export abstract class RenderObject {
     /** Abstract method for subclasses to implement their specific drawing logic */
     protected abstract _renderSelf(ctx: CanvasRenderingContext2D, config: RenderConfig, currentTime: number): void;
 
-    setPosition(x: number, y: number): this {
-        this.x = x;
-        this.y = y;
-        return this;
-    }
-    setScale(scaleX: number, scaleY = scaleX): this {
-        this.scaleX = scaleX;
-        this.scaleY = scaleY;
-        return this;
-    }
-    setSkew(skewX: number, skewY: number): this {
-        this.skewX = skewX;
-        this.skewY = skewY;
-        return this;
-    }
-    setOpacity(opacity: number): this {
-        this.opacity = Math.max(0, Math.min(1, opacity));
-        return this;
-    }
-    setVisible(visible: boolean): this {
-        this.visible = visible;
-        return this;
-    }
-    setRotation(rotation: number): this {
-        this.rotation = rotation;
-        return this;
-    }
     /** Control if this object contributes to layout bounds (visual bounds always include all). */
     setIncludeInLayoutBounds(include: boolean | undefined): this {
         this.includeInLayoutBounds = include;

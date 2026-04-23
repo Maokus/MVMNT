@@ -38,7 +38,7 @@ describe('Persistence validation extended', () => {
 
     it('detects duplicate element ids', async () => {
         const env = await makeValidEnvelope();
-        env.scene.elements = [{ id: 'x' }, { id: 'x' }];
+        env.scene.elementsOrder = ['x', 'x'];
         const r = validateSceneEnvelope(env);
         expect(r.ok).toBe(false);
         expect(r.errors.some((e) => e.code === 'ERR_DUP_ELEMENT_ID')).toBe(true);
