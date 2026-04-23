@@ -31,8 +31,8 @@ const BUMP_SCALE_ADD = 0.15;
 
 export class PopcatMidiDisplayElement extends SceneElement {
     // Bundled defaults
-    private readonly _popcat1 = this.bundledImage('popcat1.png');
-    private readonly _popcat2 = this.bundledImage('popcat2.png');
+    private readonly _popcat1 = this.bundledSprite('popcat1.png');
+    private readonly _popcat2 = this.bundledSprite('popcat2.png');
 
     // User-override slots (idle = popcat2 / closed mouth, active = popcat1 / open mouth)
     private readonly _idleSlot   = new ImageAssetSlot();
@@ -226,11 +226,8 @@ export class PopcatMidiDisplayElement extends SceneElement {
         const activeStatus = userActiveSrc ? userActiveStatus : bundledActiveStatus;
 
         const makeVisualMedia = (x: number, y: number, w: number, h: number, isActive: boolean): VisualMedia => {
-            const vm = new VisualMedia(x, y, w, h);
-            vm.setAsset(isActive ? activeAsset : idleAsset, isActive ? activeStatus : idleStatus)
-              .setFitMode('contain')
-              .setPreserveAspectRatio(true)
-              .setIncludeInLayoutBounds(false);
+            const vm = new VisualMedia(x, y, w, h, { fitMode: 'contain', includeInLayoutBounds: false });
+            vm.setAsset(isActive ? activeAsset : idleAsset, isActive ? activeStatus : idleStatus);
             return vm;
         };
 

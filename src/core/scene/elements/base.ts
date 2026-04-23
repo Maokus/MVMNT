@@ -19,7 +19,7 @@ import { debugLog } from '@utils/debug-log';
 import { isTestEnvironment } from '@utils/env';
 import { withRenderSafety, limitRenderObjects, DEFAULT_SAFETY_CONFIG } from '@core/scene/plugins/plugin-safety';
 import { loadBundledAssetForElement } from '@core/scene/plugins/bundled-asset-registry';
-import { BundledImageAssetSlot } from '@core/resources/visual-asset-slot';
+import { BundledImageAssetSlot, BundledSprite } from '@core/resources/visual-asset-slot';
 
 export type PropertyTransform<TValue, TElement = SceneElement> = (
     value: unknown,
@@ -226,6 +226,15 @@ export class SceneElement implements SceneElementInterface {
      */
     protected bundledImage(filename: string): BundledImageAssetSlot {
         return new BundledImageAssetSlot(filename, (f) => this.loadBundledAsset(f));
+    }
+
+    /**
+     * Create a managed bundled-sprite helper for a plugin image asset.
+     * Call `sprite.build(x, y, w, h)` each frame to get a ready `VisualMedia`
+     * render object. Call `sprite.destroy()` in `onDestroy()`.
+     */
+    protected bundledSprite(filename: string): BundledSprite {
+        return new BundledSprite(filename, (f) => this.loadBundledAsset(f));
     }
 
     /**

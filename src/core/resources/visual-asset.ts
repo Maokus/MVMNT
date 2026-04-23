@@ -67,10 +67,17 @@ export interface VisualAsset {
     logicalHeight: number;
 
     /**
-     * Draw-origin pivot as a fraction of logicalWidth/logicalHeight.
+     * Immutable registration metadata: the natural registration point for this asset,
+     * as a fraction of logicalWidth/logicalHeight.
      * (0, 0) = top-left (default). (0.5, 0.5) = center.
-     * Applied by VisualMedia so the element's local origin maps to this point,
-     * enabling per-asset alignment for sprites (e.g. anchor at character feet).
+     *
+     * This is asset-level metadata — set once by the store, never mutated at runtime.
+     * It is preserved for future use as per-frame registration data (e.g., individual
+     * sprite-sheet frame origins for character sprites anchored at the feet).
+     *
+     * For per-instance draw origin control use `VisualMedia.originX/originY` instead.
+     * Setting this field on a shared cached asset to achieve per-instance effects
+     * would corrupt shared state and break render determinism.
      */
     pivot: { x: number; y: number };
 

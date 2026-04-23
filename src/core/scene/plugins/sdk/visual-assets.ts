@@ -25,4 +25,4 @@ export {
 
 export { VisualMediaPlayback } from '@core/resources/visual-media-playback';
 
-export { ImageAssetSlot, AtlasAssetSlot, BundledImageAssetSlot, type AssetSlotResult } from '@core/resources/visual-asset-slot';
+export { ImageAssetSlot, AtlasAssetSlot, BundledImageAssetSlot, BundledSprite, type AssetSlotResult } from '@core/resources/visual-asset-slot';
