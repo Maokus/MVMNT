@@ -2,13 +2,13 @@
 // unified VisualAsset system. For sprite atlas / spritesheet support, use
 // the atlas-image template instead.
 import { SceneElement, type EnhancedConfigSchema, insertElementGroups, prop } from '@mvmnt/plugin-sdk';
-import { ImageAssetSlot } from '@core/resources/visual-asset-slot';
+import { AssetRefSlot } from '@core/resources/visual-asset-slot';
 import { VisualMediaPlayback } from '@core/resources/visual-media-playback';
 
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 
 export class ImageElement extends SceneElement {
-    private readonly _image = new ImageAssetSlot();
+    private readonly _image = new AssetRefSlot();
     private _renderObject: VisualMedia | null = null;
     private _layoutRect: Rectangle | null = null;
     private readonly _playback = new VisualMediaPlayback();
@@ -30,7 +30,7 @@ export class ImageElement extends SceneElement {
                 collapsed: false,
                 description: 'Pick the artwork and playback speed for animated assets.',
                 properties: [
-                    prop.file('imageSource', 'Image File', {accept:"image/*", description: 'Image or animated GIF to display.'}),
+                    prop.imageAsset('imageSource', 'Image', { description: 'Image or animated GIF from the asset manager.' }),
                     prop.number('playbackSpeed', 'Playback Speed (×)', 1, {step: 0.1})
 
                 ],

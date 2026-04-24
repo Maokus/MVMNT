@@ -194,6 +194,24 @@ export const prop = {
             runtime: { transform: asTrimmedString, defaultValue: null },
         };
     },
+
+    /**
+     * An image asset selector. Picks from the project's visual asset registry.
+     * Default value is `null` (no asset selected).
+     */
+    imageAsset(
+        key: string,
+        label: string,
+        opts?: CommonOpts
+    ): PropertyDefinition {
+        return {
+            key, type: 'assetRef', label, default: null,
+            allowedAssetTypes: ['image', 'gif'],
+            ...(opts?.description && { description: opts.description }),
+            ...(opts?.visibleWhen && { visibleWhen: opts.visibleWhen }),
+            runtime: { transform: asTrimmedString, defaultValue: null },
+        };
+    },
 } as const;
 
 // ─── insertElementGroups ─────────────────────────────────────────────────────

@@ -20,6 +20,7 @@ import { ensureFontVariantsRegistered } from '@fonts/font-loader';
 import type { FontAsset } from '@state/scene/fonts';
 import { decodeSceneText, parseLegacyInlineScene, parseScenePackage, ScenePackageError } from './scene-package';
 import { isTestEnvironment } from '@utils/env';
+import { useVisualAssetRegistryStore, type VisualAssetRegistryEntry } from '@state/visualAssetRegistryStore';
 
 const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
@@ -435,12 +436,12 @@ function restoreVisualAssets(
     scene: any,
     visualAssetsSection: { byId: Record<string, any> } | undefined,
     visualPayloads: Map<string, Uint8Array>
-): string[] {
+): { warnings: string[]; fileById: Map<string, File> } {
     const warnings: string[] = [];
-    if (!visualAssetsSection?.byId || typeof visualAssetsSection.byId !== 'object') return warnings;
+    const fileById = new Map<string, File>();
+    if (!visualAssetsSection?.byId || typeof visualAssetsSection.byId !== 'object') return { warnings, fileById };
 
     // Build a map of assetId → reconstructed File
-    const fileById = new Map<string, File>();
     for (const [assetId, record] of Object.entries(visualAssetsSection.byId)) {
         if (!record || typeof record !== 'object') continue;
         const bytes = visualPayloads.get(assetId);
@@ -458,11 +459,12 @@ function restoreVisualAssets(
         }
     }
 
-    if (fileById.size === 0) return warnings;
+    if (fileById.size === 0) return { warnings, fileById };
 
     // Patch element property bindings: replace asset ID strings with File objects
+    // (for prop.file()-type elements; assetRef elements will be migrated back to IDs later)
     const elements = scene?.elements;
-    if (!elements || typeof elements !== 'object') return warnings;
+    if (!elements || typeof elements !== 'object') return { warnings, fileById };
     for (const element of Object.values(elements) as any[]) {
         if (!element || typeof element !== 'object') continue;
         const props = element.properties;
@@ -478,7 +480,94 @@ function restoreVisualAssets(
         }
     }
 
-    return warnings;
+    return { warnings, fileById };
+}
+
+/** Populate the visual asset registry from imported files and optional metadata. */
+function hydrateVisualAssetRegistry(
+    fileById: Map<string, File>,
+    visualAssetsSection: { byId: Record<string, any> } | undefined,
+    registrySection: { assets: Record<string, { id: string; name: string; filename: string }>; assetsOrder: string[] } | undefined
+): void {
+    if (fileById.size === 0) return;
+
+    const entries: VisualAssetRegistryEntry[] = [];
+    const orderedIds = registrySection?.assetsOrder?.length
+        ? registrySection.assetsOrder
+        : Array.from(fileById.keys());
+
+    for (const assetId of orderedIds) {
+        const file = fileById.get(assetId);
+        if (!file) continue;
+        const registryMeta = registrySection?.assets?.[assetId];
+        const visualMeta = visualAssetsSection?.byId?.[assetId];
+        const filename = registryMeta?.name
+            ?? (visualMeta?.originalFileName ? (visualMeta.originalFileName as string).replace(/\.[^.]+$/, '') : null)
+            ?? assetId;
+        const type = (file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')) ? 'gif' as const : 'image' as const;
+        entries.push({ id: assetId, name: filename, file, type });
+    }
+
+    // Include any IDs not in the ordered list
+    for (const [assetId, file] of fileById) {
+        if (orderedIds.includes(assetId)) continue;
+        const registryMeta = registrySection?.assets?.[assetId];
+        const visualMeta = visualAssetsSection?.byId?.[assetId];
+        const filename = registryMeta?.name
+            ?? (visualMeta?.originalFileName ? (visualMeta.originalFileName as string).replace(/\.[^.]+$/, '') : null)
+            ?? assetId;
+        const type = (file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')) ? 'gif' as const : 'image' as const;
+        entries.push({ id: assetId, name: filename, file, type });
+    }
+
+    useVisualAssetRegistryStore.getState()._hydrateFromImport(entries);
+}
+
+/**
+ * After DocumentGateway.apply(), convert any File objects in scene store bindings
+ * back to asset ID strings for assetRef-type properties. Uses the fileById reverse map
+ * so we can identify which File corresponds to which registry entry.
+ */
+function migrateStoreAssetRefBindings(fileById: Map<string, File>): void {
+    if (fileById.size === 0) return;
+
+    // Build File → assetId reverse lookup (same File instances as in the store bindings)
+    const fileToId = new Map<File, string>();
+    for (const [id, file] of fileById) {
+        fileToId.set(file, id);
+    }
+
+    const { useSceneStore } = require('@state/sceneStore') as typeof import('@state/sceneStore');
+    const state = useSceneStore.getState();
+    const updates: Array<{ elementId: string; propKey: string; assetId: string }> = [];
+
+    for (const [elementId, elementBindings] of Object.entries(state.bindings.byElement)) {
+        if (!elementBindings) continue;
+        for (const [propKey, binding] of Object.entries(elementBindings)) {
+            if (!binding || (binding as any).type !== 'constant') continue;
+            const value = (binding as any).value;
+            if (!(value instanceof File)) continue;
+            const assetId = fileToId.get(value);
+            if (assetId) {
+                updates.push({ elementId, propKey, assetId });
+            }
+        }
+    }
+
+    if (updates.length === 0) return;
+
+    useSceneStore.setState((prev) => {
+        const nextByElement = { ...prev.bindings.byElement };
+        for (const { elementId, propKey, assetId } of updates) {
+            const elementBindings = nextByElement[elementId];
+            if (!elementBindings) continue;
+            nextByElement[elementId] = {
+                ...elementBindings,
+                [propKey]: { type: 'constant', value: assetId },
+            };
+        }
+        return { bindings: { ...prev.bindings, byElement: nextByElement } };
+    });
 }
 
 async function createAudioBufferFromAsset(record: any, bytes: Uint8Array): Promise<AudioBuffer> {
@@ -738,9 +827,16 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
     const midiRestoration = await restoreMidiCache(envelope?.timeline?.midiCache, midiPayloads);
     doc.midiCache = midiRestoration.cache;
 
-    const visualWarnings = restoreVisualAssets(doc.scene, envelope.assets?.visual, visualPayloads);
+    const { warnings: visualWarnings, fileById } = restoreVisualAssets(doc.scene, envelope.assets?.visual, visualPayloads);
+
+    // Clear registry before applying (previous project's assets should not persist)
+    useVisualAssetRegistryStore.getState()._clear();
 
     DocumentGateway.apply(doc as any);
+
+    // Populate visual asset registry and migrate assetRef bindings from File → asset ID
+    hydrateVisualAssetRegistry(fileById, envelope.assets?.visual, (envelope as any).visualAssetRegistry);
+    migrateStoreAssetRefBindings(fileById);
 
     let hydrationWarnings: string[] = [];
     const fontWarnings: string[] = [];
