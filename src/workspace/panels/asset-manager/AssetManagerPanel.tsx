@@ -14,6 +14,10 @@ const AssetCard: React.FC<{
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
+        if (typeof entry.file === 'string') {
+            setThumbnailUrl(entry.file);
+            return;
+        }
         const url = URL.createObjectURL(entry.file);
         setThumbnailUrl(url);
         return () => URL.revokeObjectURL(url);
@@ -31,7 +35,7 @@ const AssetCard: React.FC<{
 
     return (
         <div className="flex flex-col rounded border border-neutral-700 bg-neutral-800 overflow-hidden hover:border-neutral-500 transition-colors">
-            <div className="flex items-center justify-center bg-neutral-900" style={{ height: 72 }}>
+            <div className="flex items-center justify-center bg-neutral-900 relative" style={{ height: 72 }}>
                 {thumbnailUrl && (
                     <img
                         src={thumbnailUrl}
@@ -40,6 +44,14 @@ const AssetCard: React.FC<{
                         className="max-w-full max-h-full object-contain"
                         style={{ maxHeight: 68 }}
                     />
+                )}
+                {entry.source === 'bundled' && (
+                    <span
+                        className="absolute top-1 right-1 text-[9px] px-1 py-0.5 rounded bg-neutral-700 text-neutral-400 leading-none select-none"
+                        title="Bundled plugin asset — cannot be deleted"
+                    >
+                        plugin
+                    </span>
                 )}
             </div>
             <div className="flex items-center gap-1 px-1.5 py-1 min-w-0">
@@ -64,14 +76,16 @@ const AssetCard: React.FC<{
                         {entry.name}
                     </span>
                 )}
-                <button
-                    className="shrink-0 text-neutral-500 hover:text-red-400 text-sm leading-none transition-colors"
-                    title="Remove asset"
-                    onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                    type="button"
-                >
-                    ×
-                </button>
+                {entry.deletable && (
+                    <button
+                        className="shrink-0 text-neutral-500 hover:text-red-400 text-sm leading-none transition-colors"
+                        title="Remove asset"
+                        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                        type="button"
+                    >
+                        ×
+                    </button>
+                )}
             </div>
         </div>
     );

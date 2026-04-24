@@ -5,8 +5,11 @@ export type VisualAssetType = 'image' | 'gif';
 export interface VisualAssetRegistryEntry {
     id: string;
     name: string;
-    file: File;
+    /** File object for user-uploaded assets; blob URL string for bundled plugin assets. */
+    file: File | string;
     type: VisualAssetType;
+    source: 'user' | 'bundled';
+    deletable: boolean;
 }
 
 interface VisualAssetRegistryStore {
@@ -14,9 +17,10 @@ interface VisualAssetRegistryStore {
     assetsOrder: string[];
 
     addAsset(file: File): string;
+    addBundledEntry(id: string, name: string, blobUrl: string, type: VisualAssetType): void;
     removeAsset(id: string): void;
     renameAsset(id: string, name: string): void;
-    _hydrateFromImport(entries: VisualAssetRegistryEntry[]): void;
+    _hydrateFromImport(entries: Omit<VisualAssetRegistryEntry, 'source' | 'deletable'>[]): void;
     _clear(): void;
 }
 
@@ -37,6 +41,8 @@ export const useVisualAssetRegistryStore = create<VisualAssetRegistryStore>((set
             name: baseName || file.name,
             file,
             type: deriveType(file),
+            source: 'user',
+            deletable: true,
         };
         set((state) => ({
             assets: { ...state.assets, [id]: entry },
@@ -45,8 +51,28 @@ export const useVisualAssetRegistryStore = create<VisualAssetRegistryStore>((set
         return id;
     },
 
+    addBundledEntry(id: string, name: string, blobUrl: string, type: VisualAssetType): void {
+        set((state) => {
+            if (state.assets[id]) return state;
+            const entry: VisualAssetRegistryEntry = {
+                id,
+                name,
+                file: blobUrl,
+                type,
+                source: 'bundled',
+                deletable: false,
+            };
+            return {
+                assets: { ...state.assets, [id]: entry },
+                assetsOrder: [...state.assetsOrder, id],
+            };
+        });
+    },
+
     removeAsset(id: string): void {
         set((state) => {
+            const entry = state.assets[id];
+            if (!entry?.deletable) return state;
             const next = { ...state.assets };
             delete next[id];
             return {
@@ -64,11 +90,11 @@ export const useVisualAssetRegistryStore = create<VisualAssetRegistryStore>((set
         });
     },
 
-    _hydrateFromImport(entries: VisualAssetRegistryEntry[]): void {
+    _hydrateFromImport(entries: Omit<VisualAssetRegistryEntry, 'source' | 'deletable'>[]): void {
         const assets: Record<string, VisualAssetRegistryEntry> = {};
         const assetsOrder: string[] = [];
         for (const entry of entries) {
-            assets[entry.id] = entry;
+            assets[entry.id] = { source: 'user', deletable: true, ...entry };
             assetsOrder.push(entry.id);
         }
         set({ assets, assetsOrder });

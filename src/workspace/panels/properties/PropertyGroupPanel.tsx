@@ -18,7 +18,8 @@ type SupportedFormInputType =
     | 'file'
     | 'font'
     | 'timelineTrackRef'
-    | 'audioAnalysisProfile';
+    | 'audioAnalysisProfile'
+    | 'assetRef';
 
 function resolveFormInputType(property: PropertyDefinition): SupportedFormInputType | null {
     const rawType = typeof property.type === 'string' ? property.type : undefined;
@@ -34,7 +35,8 @@ function resolveFormInputType(property: PropertyDefinition): SupportedFormInputT
         rawType === 'range' ||
         rawType === 'font' ||
         rawType === 'timelineTrackRef' ||
-        rawType === 'audioAnalysisProfile'
+        rawType === 'audioAnalysisProfile' ||
+        rawType === 'assetRef'
     ) {
         return rawType as SupportedFormInputType;
     }

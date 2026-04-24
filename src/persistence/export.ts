@@ -189,7 +189,9 @@ function buildVisualAssetRegistry(): SceneExportEnvelopeBase['visualAssetRegistr
     for (const id of registry.assetsOrder) {
         const entry = registry.assets[id];
         if (!entry) continue;
-        assets[id] = { id, name: entry.name, filename: entry.file.name };
+        if (entry.source === 'bundled') continue;
+        const filename = typeof entry.file === 'string' ? entry.name : entry.file.name;
+        assets[id] = { id, name: entry.name, filename };
     }
     return { assets, assetsOrder: registry.assetsOrder };
 }

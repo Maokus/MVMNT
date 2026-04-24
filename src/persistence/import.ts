@@ -505,7 +505,7 @@ function hydrateVisualAssetRegistry(
             ?? (visualMeta?.originalFileName ? (visualMeta.originalFileName as string).replace(/\.[^.]+$/, '') : null)
             ?? assetId;
         const type = (file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')) ? 'gif' as const : 'image' as const;
-        entries.push({ id: assetId, name: filename, file, type });
+        entries.push({ id: assetId, name: filename, file, type, source: 'user', deletable: true });
     }
 
     // Include any IDs not in the ordered list
@@ -517,7 +517,7 @@ function hydrateVisualAssetRegistry(
             ?? (visualMeta?.originalFileName ? (visualMeta.originalFileName as string).replace(/\.[^.]+$/, '') : null)
             ?? assetId;
         const type = (file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')) ? 'gif' as const : 'image' as const;
-        entries.push({ id: assetId, name: filename, file, type });
+        entries.push({ id: assetId, name: filename, file, type, source: 'user', deletable: true });
     }
 
     useVisualAssetRegistryStore.getState()._hydrateFromImport(entries);

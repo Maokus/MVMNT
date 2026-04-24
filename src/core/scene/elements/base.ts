@@ -20,6 +20,7 @@ import { isTestEnvironment } from '@utils/env';
 import { withRenderSafety, limitRenderObjects, DEFAULT_SAFETY_CONFIG } from '@core/scene/plugins/plugin-safety';
 import { loadBundledAssetForElement } from '@core/scene/plugins/bundled-asset-registry';
 import { BundledImageAssetSlot, BundledSprite } from '@core/resources/visual-asset-slot';
+import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 
 export type PropertyTransform<TValue, TElement = SceneElement> = (
     value: unknown,
@@ -225,7 +226,7 @@ export class SceneElement implements SceneElementInterface {
      * `VisualMedia.setAsset()`. Call `slot.destroy()` in `onDestroy()`.
      */
     protected bundledImage(filename: string): BundledImageAssetSlot {
-        return new BundledImageAssetSlot(filename, (f) => this.loadBundledAsset(f));
+        return new BundledImageAssetSlot(filename, (f) => this._makeBundledLoader(f));
     }
 
     /**
@@ -234,7 +235,16 @@ export class SceneElement implements SceneElementInterface {
      * render object. Call `sprite.destroy()` in `onDestroy()`.
      */
     protected bundledSprite(filename: string): BundledSprite {
-        return new BundledSprite(filename, (f) => this.loadBundledAsset(f));
+        return new BundledSprite(filename, (f) => this._makeBundledLoader(f));
+    }
+
+    private async _makeBundledLoader(filename: string): Promise<string> {
+        const url = await this.loadBundledAsset(filename);
+        const registryId = `${this.type}:${filename}`;
+        const displayName = filename.replace(/\.[^.]+$/, '');
+        const type = /\.gif$/i.test(filename) ? 'gif' as const : 'image' as const;
+        useVisualAssetRegistryStore.getState().addBundledEntry(registryId, displayName, url, type);
+        return url;
     }
 
     /**
