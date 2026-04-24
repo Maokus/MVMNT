@@ -1,19 +1,18 @@
 // Template: Simple Image Element
-// Displays a static image or animated GIF from a file upload.
+// Displays a static image or animated GIF from the visual asset registry.
 // Copy this file into your plugin and adapt as needed.
 import {
     SceneElement,
     prop,
     insertElementGroups,
-    ImageAssetSlot,
+    AssetRefSlot,
     VisualMediaPlayback,
-    type ImageSource,
 } from '@mvmnt/plugin-sdk';
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class SimpleImageElement extends SceneElement {
-    private readonly _image = new ImageAssetSlot();
+    private readonly _image = new AssetRefSlot();
     private readonly _playback = new VisualMediaPlayback();
     private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
     private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
@@ -34,7 +33,7 @@ export class SimpleImageElement extends SceneElement {
                 variant: 'basic',
                 collapsed: false,
                 properties: [
-                    prop.file('imageSource', 'Image File', { accept: 'image/*' }),
+                    prop.imageAsset('imageSource', 'Image'),
                     prop.number('width', 'Width', 200, { step: 10 }),
                     prop.number('height', 'Height', 200, { step: 10 }),
                     prop.select('fitMode', 'Fit Mode', 'contain', [
@@ -57,7 +56,7 @@ export class SimpleImageElement extends SceneElement {
         const props = this.getSchemaProps();
         if (!props.visible) return [];
 
-        const { asset, status } = this._image.update(props.imageSource as ImageSource | null);
+        const { asset, status } = this._image.update(props.imageSource as string | null);
         const w = (props.width as number) ?? 200;
         const h = (props.height as number) ?? 200;
 

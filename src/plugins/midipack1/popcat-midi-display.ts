@@ -6,7 +6,7 @@ import {
     ensureFontLoaded,
     prop,
     insertElementGroups,
-    ImageAssetSlot,
+    AssetRefSlot,
 } from '@mvmnt/plugin-sdk';
 
 import {
@@ -16,14 +16,7 @@ import {
     type RenderObject
 } from '@mvmnt/plugin-sdk/render'
 
-import type { EnhancedConfigSchema, ImageSource } from '@mvmnt/plugin-sdk';
-
-const normalizeImageSource = (value: unknown): string | File | null => {
-    if (value == null) return null;
-    if (typeof value === 'string') return value;
-    if (value instanceof File) return value;
-    return null;
-};
+import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 const ANIM_DURATION_MS = 100;
 const JUMP_OFFSET_PX = 20;
@@ -35,8 +28,8 @@ export class PopcatMidiDisplayElement extends SceneElement {
     private readonly _popcat2 = this.bundledSprite('popcat2.png');
 
     // User-override slots (idle = popcat2 / closed mouth, active = popcat1 / open mouth)
-    private readonly _idleSlot   = new ImageAssetSlot();
-    private readonly _activeSlot = new ImageAssetSlot();
+    private readonly _idleSlot   = new AssetRefSlot();
+    private readonly _activeSlot = new AssetRefSlot();
 
     constructor(id: string = 'popcat-midi-display', config: Record<string, unknown> = {}) {
         super('popcat-midi-display', id, config);
@@ -139,24 +132,12 @@ export class PopcatMidiDisplayElement extends SceneElement {
                 variant: 'basic',
                 collapsed: false,
                 properties: [
-                    {
-                        key: 'idleSprite',
-                        type: 'file',
-                        label: 'Idle Sprite',
-                        default: null,
-                        accept: 'image/*',
+                    prop.imageAsset('idleSprite', 'Idle Sprite', {
                         description: 'Image shown when no note is playing. Defaults to popcat2.',
-                        runtime: { transform: normalizeImageSource, defaultValue: null },
-                    },
-                    {
-                        key: 'activeSprite',
-                        type: 'file',
-                        label: 'Active Sprite',
-                        default: null,
-                        accept: 'image/*',
+                    }),
+                    prop.imageAsset('activeSprite', 'Active Sprite', {
                         description: 'Image shown when a note is playing. Defaults to popcat1.',
-                        runtime: { transform: normalizeImageSource, defaultValue: null },
-                    },
+                    }),
                 ],
             },
             {
@@ -212,8 +193,8 @@ export class PopcatMidiDisplayElement extends SceneElement {
         const baseHeight = props.imageHeight as number;
 
         // Resolve idle/active sources: user override takes precedence over bundled defaults
-        const userIdleSrc  = (props.idleSprite  as ImageSource | null) ?? null;
-        const userActiveSrc = (props.activeSprite as ImageSource | null) ?? null;
+        const userIdleSrc   = (props.idleSprite  as string | null) ?? null;
+        const userActiveSrc = (props.activeSprite as string | null) ?? null;
 
         const { asset: userIdle,   status: userIdleStatus   } = this._idleSlot.update(userIdleSrc);
         const { asset: userActive, status: userActiveStatus } = this._activeSlot.update(userActiveSrc);

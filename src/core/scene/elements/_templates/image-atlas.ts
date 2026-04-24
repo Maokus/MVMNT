@@ -1,20 +1,20 @@
 // Template: Atlas Image Element
 // Animates a sprite atlas (spritesheet) divided into a uniform grid of frames.
+// The spritesheet is selected from the visual asset registry via prop.imageAsset().
 // Copy this file into your plugin and adapt the layout to your spritesheet.
 import {
     SceneElement,
     prop,
     insertElementGroups,
-    AtlasAssetSlot,
+    AssetRefAtlasSlot,
     VisualMediaPlayback,
     type AtlasLayout,
-    type ImageSource,
 } from '@mvmnt/plugin-sdk';
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class AtlasImageElement extends SceneElement {
-    private readonly _atlas = new AtlasAssetSlot();
+    private readonly _atlas = new AssetRefAtlasSlot();
     private readonly _playback = new VisualMediaPlayback();
     private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
     private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
@@ -35,7 +35,7 @@ export class AtlasImageElement extends SceneElement {
                 variant: 'basic',
                 collapsed: false,
                 properties: [
-                    prop.file('imageSource', 'Sprite Sheet', { accept: 'image/*' }),
+                    prop.imageAsset('imageSource', 'Sprite Sheet'),
                     prop.number('width', 'Display Width', 200, { step: 10 }),
                     prop.number('height', 'Display Height', 200, { step: 10 }),
                 ],
@@ -81,7 +81,7 @@ export class AtlasImageElement extends SceneElement {
             frameDurationMs: 1000 / frameRate,
         };
 
-        const { asset, status } = this._atlas.update(props.imageSource as ImageSource | null, layout);
+        const { asset, status } = this._atlas.update(props.imageSource as string | null, layout);
         const w = (props.width as number) ?? 200;
         const h = (props.height as number) ?? 200;
 

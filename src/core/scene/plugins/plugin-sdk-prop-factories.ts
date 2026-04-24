@@ -179,6 +179,10 @@ export const prop = {
     /**
      * A file upload field. Default value is `null` (no file selected).
      *
+     * For image or GIF inputs, prefer {@link prop.imageAsset} — it integrates with the
+     * visual asset registry, giving assets stable IDs that survive save/load and appear
+     * in the Asset Manager panel.
+     *
      * @param opts.accept  MIME type filter, e.g. `'image/*'` or `'.mp3,audio/*'`
      */
     file(

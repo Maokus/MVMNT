@@ -33,6 +33,10 @@ export interface AssetSlotResult {
 /**
  * Manages a single image or GIF asset reference.
  *
+ * @deprecated For user-facing image properties backed by the visual asset registry,
+ * use {@link AssetRefSlot} with `prop.imageAsset()` instead. `ImageAssetSlot` is
+ * retained for internal use inside the slot wrappers and for loading raw URLs.
+ *
  * @example
  * class MyElement extends SceneElement {
  *   private readonly _image = new ImageAssetSlot();
@@ -241,6 +245,46 @@ export class BundledSprite {
     /** Release the held reference. Call from onDestroy(). */
     destroy(): void {
         this._slot.destroy();
+    }
+}
+
+/**
+ * Resolves a visual asset registry ID to a File and delegates to {@link AtlasAssetSlot}.
+ *
+ * Use this with `prop.imageAsset()` properties on sprite-atlas elements. Works identically
+ * to {@link AssetRefSlot} but feeds into atlas loading rather than plain image loading.
+ *
+ * @example
+ * class MyElement extends SceneElement {
+ *   private readonly _atlas = new AssetRefAtlasSlot();
+ *
+ *   protected override onDestroy() { this._atlas.destroy(); super.onDestroy(); }
+ *
+ *   protected override _buildRenderObjects(_cfg: unknown, t: number) {
+ *     const layout: AtlasLayout = { columns: 4, rows: 4, frameDurationMs: 83 };
+ *     const { asset, status } = this._atlas.update(this.getSchemaProps().imageSource as string | File | null, layout);
+ *     media.setAsset(asset, status);
+ *   }
+ * }
+ */
+export class AssetRefAtlasSlot {
+    private readonly _inner = new AtlasAssetSlot();
+
+    /**
+     * Resolve an asset registry ID (or legacy File/URL) to a loaded atlas asset.
+     * Safe to call every frame.
+     */
+    update(assetIdOrSource: string | File | null, layout: AtlasLayout): AssetSlotResult {
+        if (assetIdOrSource instanceof File || assetIdOrSource === null) {
+            return this._inner.update(assetIdOrSource, layout);
+        }
+        const entry = useVisualAssetRegistryStore.getState().assets[assetIdOrSource] ?? null;
+        return this._inner.update(entry?.file ?? null, layout);
+    }
+
+    /** Release the held reference. Call from onDestroy(). */
+    destroy(): void {
+        this._inner.destroy();
     }
 }
 

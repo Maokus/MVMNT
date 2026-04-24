@@ -30,9 +30,8 @@ export class ImageElement extends SceneElement {
                 collapsed: false,
                 description: 'Pick the artwork and playback speed for animated assets.',
                 properties: [
-                    prop.imageAsset('imageSource', 'Image', { description: 'Image or animated GIF from the asset manager.' }),
-                    prop.number('playbackSpeed', 'Playback Speed (×)', 1, {step: 0.1})
-
+                    prop.imageAsset('imageSource', 'Image'),
+                    prop.number('playbackSpeed', 'Playback Speed (×)', 1, {step: 0.1}),
                 ],
             },
             {
