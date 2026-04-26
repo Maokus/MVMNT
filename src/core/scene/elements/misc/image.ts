@@ -2,16 +2,12 @@
 // unified VisualAsset system. For sprite atlas / spritesheet support, use
 // the atlas-image template instead.
 import { SceneElement, type EnhancedConfigSchema, insertElementGroups, prop } from '@mvmnt/plugin-sdk';
-import { AssetRefSlot } from '@core/resources/visual-asset-slot';
-import { VisualMediaPlayback } from '@core/resources/visual-media-playback';
 
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 
 export class ImageElement extends SceneElement {
-    private readonly _image = new AssetRefSlot();
     private _renderObject: VisualMedia | null = null;
     private _layoutRect: Rectangle | null = null;
-    private readonly _playback = new VisualMediaPlayback();
 
     constructor(id: string = 'image', config: { [key: string]: any } = {}) {
         super('image', id, config);
@@ -58,7 +54,7 @@ export class ImageElement extends SceneElement {
     }
 
     protected override onDestroy(): void {
-        this._image.destroy();
+        this._renderObject?.destroy();
         super.onDestroy();
     }
 
@@ -66,8 +62,6 @@ export class ImageElement extends SceneElement {
         const props = this.getSchemaProps();
 
         if (!props.visible) return [];
-
-        const { asset, status } = this._image.update(props.imageSource ?? null);
 
         if (!this._renderObject) {
             this._renderObject = new VisualMedia(0, 0, props.width, props.height, { includeInLayoutBounds: false });
@@ -80,12 +74,9 @@ export class ImageElement extends SceneElement {
             this._layoutRect.height = props.height;
         }
 
-        this._playback.speed = props.playbackSpeed ?? 1;
-        const localTime = this._playback.computeLocalTime(targetTime, asset?.clips);
-
         this._renderObject
-            .setAsset(asset, status)
-            .setLocalTime(localTime)
+            .setAssetId(props.imageSource ?? null)
+            .setPlayback(props.playbackSpeed ?? 1, targetTime)
             .setDimensions(props.width, props.height)
             .setFitMode(props.fitMode ?? 'contain')
             .setPreserveAspectRatio(props.preserveAspectRatio ?? true);

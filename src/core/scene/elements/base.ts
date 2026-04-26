@@ -19,7 +19,8 @@ import { debugLog } from '@utils/debug-log';
 import { isTestEnvironment } from '@utils/env';
 import { withRenderSafety, limitRenderObjects, DEFAULT_SAFETY_CONFIG } from '@core/scene/plugins/plugin-safety';
 import { loadBundledAssetForElement } from '@core/scene/plugins/bundled-asset-registry';
-import { BundledImageAssetSlot, BundledSprite } from '@core/resources/visual-asset-slot';
+import { BundledImageAssetSlot } from '@core/resources/visual-asset-slot';
+import { BundledSprite } from '@core/resources/bundled-sprite';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 
 export type PropertyTransform<TValue, TElement = SceneElement> = (

@@ -1,5 +1,7 @@
 import { RenderObject, RenderConfig, Bounds } from './base';
 import { VisualAsset, VisualAssetStatus, getFrameAtTime, FrameAtTime } from '@core/resources/visual-asset';
+import { AssetRefSlot } from '@core/resources/visual-asset-slot';
+import { VisualMediaPlayback } from '@core/resources/visual-media-playback';
 
 /**
  * VisualMedia — a single render object that draws any VisualAsset.
@@ -35,6 +37,9 @@ export class VisualMedia extends RenderObject {
     private _localTime: number = 0;
     private _lastFrame: FrameAtTime | null = null;
     private _lastDrawParams: { drawX: number; drawY: number; drawWidth: number; drawHeight: number; srcRect?: { sx: number; sy: number; sw: number; sh: number } } | null = null;
+
+    private readonly _slot = new AssetRefSlot();
+    private readonly _playback = new VisualMediaPlayback();
 
     constructor(
         x: number,
@@ -97,6 +102,34 @@ export class VisualMedia extends RenderObject {
         this.originX = x;
         this.originY = y;
         return this;
+    }
+
+    /**
+     * Resolve a visual asset registry ID (or File) and load it.
+     * Manages asset lifecycle (retain/release) internally — no external slot needed.
+     * Safe to call every frame with the same or a new ID.
+     */
+    setAssetId(idOrSource: string | File | null): this {
+        const { asset, status } = this._slot.update(idOrSource);
+        this._asset = asset;
+        this._status = status;
+        return this;
+    }
+
+    /**
+     * Set playback speed and compute local time from scene time.
+     * Call after `setAssetId()` so asset clips are available.
+     * Replaces the manual `VisualMediaPlayback` + `setLocalTime()` pattern.
+     */
+    setPlayback(speed: number, sceneTimeSec: number): this {
+        this._playback.speed = speed;
+        this._localTime = this._playback.computeLocalTime(sceneTimeSec, this._asset?.clips);
+        return this;
+    }
+
+    /** Release held asset reference. Call from the owning element's onDestroy(). */
+    destroy(): void {
+        this._slot.destroy();
     }
 
     isReady(): boolean {

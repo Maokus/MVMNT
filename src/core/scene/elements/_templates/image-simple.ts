@@ -5,15 +5,11 @@ import {
     SceneElement,
     prop,
     insertElementGroups,
-    AssetRefSlot,
-    VisualMediaPlayback,
 } from '@mvmnt/plugin-sdk';
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class SimpleImageElement extends SceneElement {
-    private readonly _image = new AssetRefSlot();
-    private readonly _playback = new VisualMediaPlayback();
     private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
     private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
 
@@ -48,7 +44,7 @@ export class SimpleImageElement extends SceneElement {
     }
 
     protected override onDestroy(): void {
-        this._image.destroy();
+        this._media.destroy();
         super.onDestroy();
     }
 
@@ -56,7 +52,6 @@ export class SimpleImageElement extends SceneElement {
         const props = this.getSchemaProps();
         if (!props.visible) return [];
 
-        const { asset, status } = this._image.update(props.imageSource as string | null);
         const w = (props.width as number) ?? 200;
         const h = (props.height as number) ?? 200;
 
@@ -64,8 +59,8 @@ export class SimpleImageElement extends SceneElement {
         this._layoutRect.height = h;
 
         this._media
-            .setAsset(asset, status)
-            .setLocalTime(this._playback.computeLocalTime(targetTime, asset?.clips))
+            .setAssetId(props.imageSource as string | null)
+            .setPlayback(1, targetTime)
             .setDimensions(w, h)
             .setFitMode((props.fitMode as any) ?? 'contain');
 
