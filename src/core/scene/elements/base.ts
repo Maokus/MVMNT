@@ -242,7 +242,8 @@ export class SceneElement implements SceneElementInterface {
     private async _makeBundledLoader(filename: string): Promise<string> {
         const url = await this.loadBundledAsset(filename);
         const registryId = `${this.type}:${filename}`;
-        const displayName = filename.replace(/\.[^.]+$/, '');
+        const basename = filename.split('/').pop() ?? filename;
+        const displayName = basename.replace(/\.[^.]+$/, '');
         const type = /\.gif$/i.test(filename) ? 'gif' as const : 'image' as const;
         useVisualAssetRegistryStore.getState().addBundledEntry(registryId, displayName, url, type);
         return url;

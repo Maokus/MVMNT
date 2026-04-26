@@ -44,18 +44,17 @@ This renders a dropdown in the properties panel showing all assets currently in 
 
 ### 2. Load and draw the asset
 
-Create an `AssetRefSlot` instance field, call `update()` every frame, and pass the result to `VisualMedia.setAsset()`:
+Call `setAssetId()` and `setPlayback()` on a long-lived `VisualMedia` instance each frame. Call `destroy()` in `onDestroy()` to release the asset reference:
 
 ```typescript
-import { SceneElement, prop, insertElementGroups, AssetRefSlot, VisualMediaPlayback } from '@mvmnt/plugin-sdk';
+import { SceneElement, prop, insertElementGroups } from '@mvmnt/plugin-sdk';
 import { VisualMedia, type RenderObject } from '@mvmnt/plugin-sdk/render';
 
 export class MyImageElement extends SceneElement {
-    private readonly _image = new AssetRefSlot();
-    private readonly _playback = new VisualMediaPlayback();
+    private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
 
     protected override onDestroy(): void {
-        this._image.destroy();
+        this._media.destroy();
         super.onDestroy();
     }
 
@@ -63,34 +62,49 @@ export class MyImageElement extends SceneElement {
         const props = this.getSchemaProps();
         if (!props.visible) return [];
 
-        const { asset, status } = this._image.update(props.imageSource as string | null);
-
-        const media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
-        media
-            .setAsset(asset, status)
-            .setLocalTime(this._playback.computeLocalTime(targetTime, asset?.clips))
+        this._media
+            .setAssetId(props.imageSource as string | null)
+            .setPlayback(1, targetTime)
             .setDimensions(200, 200)
             .setFitMode('contain');
 
-        return [media];
+        return [this._media];
     }
 }
 ```
 
-`AssetRefSlot.update()` resolves the asset ID to the registered `File`, triggers loading on the first call, and returns `{ asset, status }` safe to pass directly to `VisualMedia.setAsset()`.
+**Keep `VisualMedia` as a long-lived field** — `setAssetId()` manages retain/release internally and only re-loads the asset when the ID changes. Creating a new `VisualMedia` every frame would bypass that caching.
 
-**Always call `this._image.destroy()` in `onDestroy()`** — it releases the asset's reference count so memory can be reclaimed when the element is removed from the scene.
+**Always call `this._media.destroy()` in `onDestroy()`** — it releases the asset's reference count so memory can be reclaimed when the element is removed from the scene.
+
+### Animated assets and playback speed
+
+`setPlayback(speed, sceneTimeSec)` computes the correct frame for the current scene time, including looping. For user-controllable playback speed:
+
+```typescript
+this._media
+    .setAssetId(props.imageSource as string | null)
+    .setPlayback(props.playbackSpeed as number ?? 1, targetTime)
+    .setDimensions(props.width, props.height)
+    .setFitMode('contain');
+```
 
 ---
 
 ## Sprite atlas elements
 
-For spritesheet animation, use `AssetRefAtlasSlot` instead of `AssetRefSlot`. It takes the same asset ID but feeds it through the atlas loading path:
+For spritesheet animation, use `AssetRefAtlasSlot` explicitly — the atlas path requires a layout configuration that `VisualMedia` doesn't manage internally:
 
 ```typescript
 import { AssetRefAtlasSlot, type AtlasLayout } from '@mvmnt/plugin-sdk';
 
 private readonly _atlas = new AssetRefAtlasSlot();
+private readonly _media = new VisualMedia(0, 0, 200, 200);
+
+protected override onDestroy(): void {
+    this._atlas.destroy();
+    super.onDestroy();
+}
 
 protected override _buildRenderObjects(_cfg: unknown, targetTime: number): RenderObject[] {
     const layout: AtlasLayout = {
@@ -100,7 +114,12 @@ protected override _buildRenderObjects(_cfg: unknown, targetTime: number): Rende
     };
 
     const { asset, status } = this._atlas.update(props.imageSource as string | null, layout);
-    // ... pass to VisualMedia as usual
+    this._media
+        .setAsset(asset, status)
+        .setLocalTime(targetTime)
+        .setDimensions(200, 200);
+
+    return [this._media];
 }
 ```
 
@@ -110,7 +129,7 @@ The property declaration is identical — use `prop.imageAsset('imageSource', 'S
 
 ## Bundled plugin assets
 
-Assets that ship *inside* a plugin (e.g. a default sprite that always loads) use a different mechanism — they bypass the registry entirely:
+Assets that ship *inside* a plugin (e.g. a default sprite that always loads) use a different mechanism — they bypass the user registry entirely:
 
 ```typescript
 // In your element class:
@@ -128,17 +147,41 @@ protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[]
 
 `bundledSprite()` loads the file from the plugin's `assets/` directory via the plugin loader. There is no user-visible property and no registry entry. See [creating-custom-elements.md](creating-custom-elements.md) for how to include bundled assets in your plugin.
 
+### Subdirectories in bundled assets
+
+Subdirectories inside `assets/` are fully supported. Pass the path relative to `assets/`:
+
+```typescript
+private readonly _head = this.bundledSprite('characters/head.png');
+private readonly _body = this.bundledSprite('characters/body.png');
+private readonly _bg   = this.bundledSprite('backgrounds/stage.png');
+```
+
+The asset will appear in the Asset Manager as just the filename (`head`, `body`, `stage`) — the directory path is stripped from the display name.
+
+In a packaged `.mvmnt-plugin` ZIP, include the files at `assets/characters/head.png`, etc. The loader strips the `assets/` prefix and uses the remainder (`characters/head.png`) as the lookup key, matching the path you pass to `bundledSprite()`.
+
+### Overrideable bundled assets
+
 If you want a *default* bundled image that users can **optionally override** from the registry, use both:
 
 ```typescript
 private readonly _bundled = this.bundledSprite('default.png');
-private readonly _override = new AssetRefSlot();
+private readonly _media   = new VisualMedia(0, 0, 200, 200);
+
+protected override onDestroy(): void {
+    this._bundled.destroy();
+    super.onDestroy();
+}
 
 // In _buildRenderObjects:
 const overrideId = props.imageSource as string | null;
-const { asset, status } = overrideId
-    ? this._override.update(overrideId)
-    : this._bundled.get();
+if (overrideId) {
+    this._media.setAssetId(overrideId).setPlayback(1, targetTime);
+} else {
+    const { asset, status } = this._bundled.get();
+    this._media.setAsset(asset, status).setLocalTime(targetTime);
+}
 ```
 
 ---
@@ -158,16 +201,59 @@ const { asset, status } = overrideId
 
 ## What to use when
 
-| Situation | Property | Slot |
-|-----------|----------|------|
-| User-selected image from registry | `prop.imageAsset()` | `AssetRefSlot` |
-| User-selected spritesheet from registry | `prop.imageAsset()` | `AssetRefAtlasSlot` |
+| Situation | Property | API |
+|-----------|----------|-----|
+| User-selected image from registry | `prop.imageAsset()` | `VisualMedia.setAssetId()` |
+| User-selected spritesheet from registry | `prop.imageAsset()` | `AssetRefAtlasSlot` + `setAsset()` |
 | Plugin-bundled default image | — (no property) | `this.bundledSprite()` / `this.bundledImage()` |
 | Non-image file (audio, etc.) | `prop.file()` | n/a |
 
 ---
 
-## Migration from `prop.file()` / `ImageAssetSlot`
+## Migration from `AssetRefSlot` / `prop.file()` / `ImageAssetSlot`
+
+### From `AssetRefSlot` + `VisualMediaPlayback` (previous pattern)
+
+```typescript
+// Old — requires separate slot and playback fields
+import { AssetRefSlot, VisualMediaPlayback } from '@mvmnt/plugin-sdk';
+
+private readonly _image = new AssetRefSlot();
+private readonly _playback = new VisualMediaPlayback();
+private readonly _media = new VisualMedia(0, 0, 200, 200);
+
+protected override onDestroy(): void {
+    this._image.destroy();  // separate destroy
+    super.onDestroy();
+}
+
+// In _buildRenderObjects:
+const { asset, status } = this._image.update(props.imageSource as string | null);
+this._media
+    .setAsset(asset, status)
+    .setLocalTime(this._playback.computeLocalTime(targetTime, asset?.clips))
+    .setDimensions(200, 200);
+```
+
+```typescript
+// New — lifecycle managed by VisualMedia
+private readonly _media = new VisualMedia(0, 0, 200, 200);
+
+protected override onDestroy(): void {
+    this._media.destroy();
+    super.onDestroy();
+}
+
+// In _buildRenderObjects:
+this._media
+    .setAssetId(props.imageSource as string | null)
+    .setPlayback(1, targetTime)
+    .setDimensions(200, 200);
+```
+
+`AssetRefSlot`, `VisualMediaPlayback`, and `ImageAssetSlot` remain exported from `@mvmnt/plugin-sdk` for cases that need them (e.g. atlas elements, mixing bundled and user assets), but they are no longer needed for the common image element pattern.
+
+### From `prop.file()` / `ImageAssetSlot` (legacy)
 
 The old pattern used a file upload dialog and raw `File` objects:
 
@@ -178,16 +264,16 @@ private readonly _image = new ImageAssetSlot();
 const { asset, status } = this._image.update(props.imageSource as File | null);
 ```
 
-The new pattern:
+Migrate to:
 
 ```typescript
 // New
 prop.imageAsset('imageSource', 'Image')
-private readonly _image = new AssetRefSlot();
-const { asset, status } = this._image.update(props.imageSource as string | null);
+// ...in _buildRenderObjects:
+this._media.setAssetId(props.imageSource as string | null)
 ```
 
 Key differences:
 - `prop.file()` stored a transient `File` object; `prop.imageAsset()` stores a stable UUID string.
-- `AssetRefSlot` accepts `string | File | null` — it handles both new UUID strings and any legacy `File` values during import.
+- `setAssetId()` accepts `string | File | null` — it handles both new UUID strings and any legacy `File` values during import.
 - Assets uploaded via the registry survive save/load and can be shared between elements. File-upload assets were session-only and could not be serialised.
