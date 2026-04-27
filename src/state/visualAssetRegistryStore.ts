@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type VisualAssetType = 'image' | 'gif';
+export type VisualAssetType = 'image' | 'gif' | 'sparrow';
 
 export interface VisualAssetRegistryEntry {
     id: string;
@@ -10,6 +10,8 @@ export interface VisualAssetRegistryEntry {
     type: VisualAssetType;
     source: 'user' | 'bundled';
     deletable: boolean;
+    /** XML file for Sparrow atlas assets ('sparrow' type only). */
+    xmlFile?: File;
 }
 
 interface VisualAssetRegistryStore {
@@ -17,6 +19,7 @@ interface VisualAssetRegistryStore {
     assetsOrder: string[];
 
     addAsset(file: File): string;
+    addSparrowAsset(pngFile: File, xmlFile: File): string;
     addBundledEntry(id: string, name: string, blobUrl: string, type: VisualAssetType): void;
     removeAsset(id: string): void;
     renameAsset(id: string, name: string): void;
@@ -43,6 +46,25 @@ export const useVisualAssetRegistryStore = create<VisualAssetRegistryStore>((set
             type: deriveType(file),
             source: 'user',
             deletable: true,
+        };
+        set((state) => ({
+            assets: { ...state.assets, [id]: entry },
+            assetsOrder: [...state.assetsOrder, id],
+        }));
+        return id;
+    },
+
+    addSparrowAsset(pngFile: File, xmlFile: File): string {
+        const id = crypto.randomUUID();
+        const baseName = pngFile.name.replace(/\.[^.]+$/, '');
+        const entry: VisualAssetRegistryEntry = {
+            id,
+            name: baseName || pngFile.name,
+            file: pngFile,
+            type: 'sparrow',
+            source: 'user',
+            deletable: true,
+            xmlFile,
         };
         set((state) => ({
             assets: { ...state.assets, [id]: entry },

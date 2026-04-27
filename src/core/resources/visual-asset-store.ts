@@ -38,6 +38,11 @@ export function makeAtlasKey(src: ImageSource, layout: AtlasLayout): string {
     return `atlas:${makeSrcKey(src)}:cols=${c}:rows=${r}:count=${n}:dur=${d}`;
 }
 
+/** Cache key for a Sparrow atlas asset (paired PNG + XML). */
+export function makeSparrowKey(imageSrc: ImageSource, xmlSrc: ImageSource): string {
+    return `sparrow:${makeSrcKey(imageSrc)}:xml=${makeSrcKey(xmlSrc)}`;
+}
+
 function isGIF(src: ImageSource): boolean {
     if (typeof src === 'string') {
         if (src.startsWith('data:image/gif')) return true;
@@ -53,6 +58,19 @@ async function resolveToURL(src: ImageSource): Promise<string> {
         reader.onload = () => resolve(String(reader.result));
         reader.onerror = reject;
         reader.readAsDataURL(src);
+    });
+}
+
+async function resolveToText(src: ImageSource): Promise<string> {
+    if (typeof src === 'string') {
+        if (src.startsWith('data:')) return decodeURIComponent(src.split(',')[1] ?? '');
+        return (await fetch(src)).text();
+    }
+    return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = reject;
+        reader.readAsText(src);
     });
 }
 
@@ -296,6 +314,134 @@ export class VisualAssetStore {
                         sourceRect: { sx: col * frameW, sy: row * frameH, sw: frameW, sh: frameH },
                     });
                 }
+                placeholder.status = 'ready';
+            } catch {
+                placeholder.status = 'error';
+            } finally {
+                this._pending.delete(key);
+            }
+            return placeholder;
+        })();
+
+        this._pending.set(key, p);
+        return p;
+    }
+
+    /**
+     * Load a Sparrow v2 texture atlas (PNG + XML file pair) as an animated asset.
+     * Frames are parsed from the XML, grouped into named clips by animation prefix,
+     * and stored with per-frame trim offset and logical-size metadata for correct rendering.
+     *
+     * @param defaultFps  Playback speed applied to all frames (default 24 fps).
+     *                    Per-animation FPS can later be applied by setting per-frame durationMs.
+     */
+    loadSparrow(imageSrc: ImageSource, xmlSrc: ImageSource, defaultFps: number = 24): Promise<VisualAsset> {
+        const key = makeSparrowKey(imageSrc, xmlSrc);
+
+        const existing = this._assets.get(key);
+        if (existing && existing.status === 'ready') return Promise.resolve(existing);
+
+        const inflight = this._pending.get(key);
+        if (inflight) return inflight;
+
+        const placeholder: VisualAsset = {
+            key,
+            status: 'loading',
+            width: 0,
+            height: 0,
+            logicalWidth: 0,
+            logicalHeight: 0,
+            pivot: { x: 0, y: 0 },
+            imageElement: null,
+            isAnimated: true,
+            frames: [],
+            totalDurationMs: 0,
+            clips: {},
+        };
+        this._assets.set(key, placeholder);
+
+        const p = (async () => {
+            try {
+                const [img, xmlText] = await Promise.all([
+                    loadRawImage(imageSrc),
+                    resolveToText(xmlSrc),
+                ]);
+
+                const textureW = img.naturalWidth || img.width;
+                const textureH = img.naturalHeight || img.height;
+                const frameDurationMs = 1000 / defaultFps;
+
+                let atlasBitmap: CanvasImageSource = img;
+                if ('createImageBitmap' in window) {
+                    try { atlasBitmap = await createImageBitmap(img); } catch {}
+                }
+
+                const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+                const subTextures = Array.from(doc.querySelectorAll('SubTexture'));
+
+                const frames: VisualFrame[] = [];
+                type AnimGroup = { prefix: string; startFrameIndex: number };
+                const animGroups: AnimGroup[] = [];
+                const seenPrefixes = new Map<string, number>();
+                const frameLogicalWidths: number[] = [];
+                const frameLogicalHeights: number[] = [];
+
+                for (const st of subTextures) {
+                    const name = st.getAttribute('name') ?? '';
+                    const x = parseInt(st.getAttribute('x') ?? '0', 10);
+                    const y = parseInt(st.getAttribute('y') ?? '0', 10);
+                    const w = parseInt(st.getAttribute('width') ?? '0', 10);
+                    const h = parseInt(st.getAttribute('height') ?? '0', 10);
+                    const frameX = parseInt(st.getAttribute('frameX') ?? '0', 10);
+                    const frameY = parseInt(st.getAttribute('frameY') ?? '0', 10);
+                    const frameW = parseInt(st.getAttribute('frameWidth') ?? st.getAttribute('width') ?? '0', 10);
+                    const frameH = parseInt(st.getAttribute('frameHeight') ?? st.getAttribute('height') ?? '0', 10);
+                    const rotated = st.getAttribute('rotated') === 'true';
+
+                    // Group frames by animation prefix (name with trailing digits stripped).
+                    const prefix = name.replace(/\d+$/, '');
+                    if (!seenPrefixes.has(prefix)) {
+                        seenPrefixes.set(prefix, animGroups.length);
+                        animGroups.push({ prefix, startFrameIndex: frames.length });
+                    }
+
+                    frames.push({
+                        drawable: atlasBitmap,
+                        durationMs: frameDurationMs,
+                        sourceRect: { sx: x, sy: y, sw: w, sh: h },
+                        trimOffset: { x: -frameX, y: -frameY },
+                        logicalSize: { w: frameW, h: frameH },
+                        rotated,
+                    });
+                    frameLogicalWidths.push(frameW);
+                    frameLogicalHeights.push(frameH);
+                }
+
+                // Build clips: each animation prefix → {startMs, endMs}.
+                const clips: Record<string, import('./visual-asset').VisualClip> = {};
+                let accMs = 0;
+                for (let gi = 0; gi < animGroups.length; gi++) {
+                    const group = animGroups[gi];
+                    const endIdx = gi + 1 < animGroups.length
+                        ? animGroups[gi + 1].startFrameIndex
+                        : frames.length;
+                    const groupDurationMs = (endIdx - group.startFrameIndex) * frameDurationMs;
+                    clips[group.prefix] = { name: group.prefix, startMs: accMs, endMs: accMs + groupDurationMs };
+                    accMs += groupDurationMs;
+                }
+
+                // Use median logical frame size for asset-level layout calculations.
+                const sortedW = [...frameLogicalWidths].sort((a, b) => a - b);
+                const sortedH = [...frameLogicalHeights].sort((a, b) => a - b);
+                const mid = Math.floor(sortedW.length / 2);
+
+                placeholder.width = textureW;
+                placeholder.height = textureH;
+                placeholder.logicalWidth = sortedW[mid] ?? 0;
+                placeholder.logicalHeight = sortedH[mid] ?? 0;
+                placeholder.frames = frames;
+                placeholder.totalDurationMs = frames.length * frameDurationMs;
+                placeholder.clips = clips;
                 placeholder.status = 'ready';
             } catch {
                 placeholder.status = 'error';

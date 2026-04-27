@@ -5,7 +5,7 @@ interface Props {
     id: string;
     value: string | null;
     schema: {
-        allowedAssetTypes?: Array<'image' | 'gif'>;
+        allowedAssetTypes?: Array<'image' | 'gif' | 'sparrow'>;
     };
     disabled?: boolean;
     title?: string;
@@ -42,7 +42,7 @@ const AssetSelect: React.FC<Props> = ({ id, value, schema, disabled, title, onCh
             <option value="">Select Image…</option>
             {filtered.map((entry) => (
                 <option key={entry.id} value={entry.id}>
-                    {entry.type === 'gif' ? `GIF · ${entry.name}` : entry.name}
+                    {entry.type === 'gif' ? `GIF · ${entry.name}` : entry.type === 'sparrow' ? `Sparrow · ${entry.name}` : entry.name}
                 </option>
             ))}
         </select>

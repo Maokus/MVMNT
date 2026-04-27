@@ -218,7 +218,7 @@ export interface ConfigSchemaProperty {
     options?: Array<{ value: any; label: string }>;
     accept?: string; // For file inputs
     description?: string;
-    allowedAssetTypes?: Array<'image' | 'gif'>; // For assetRef inputs
+    allowedAssetTypes?: Array<'image' | 'gif' | 'sparrow'>; // For assetRef inputs
 }
 
 export interface ConfigSchema {
@@ -293,7 +293,7 @@ export interface PropertyDefinition {
     options?: Array<{ value: any; label: string }>;
     accept?: string; // For file inputs
     description?: string;
-    allowedAssetTypes?: Array<'image' | 'gif'>; // For assetRef inputs
+    allowedAssetTypes?: Array<'image' | 'gif' | 'sparrow'>; // For assetRef inputs
     // UI hint: when type === 'timelineTrackRef', allow selecting multiple tracks
     // Optional filter for track kinds supported by this binding (defaults to MIDI only)
     allowedTrackTypes?: Array<'midi' | 'audio'>;

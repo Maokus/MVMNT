@@ -18,7 +18,7 @@
  *   const { asset, status } = this._image.update(src);
  */
 
-import { visualAssetStore, makeImageKey, makeAtlasKey, type ImageSource } from './visual-asset-store';
+import { visualAssetStore, makeImageKey, makeAtlasKey, makeSparrowKey, type ImageSource } from './visual-asset-store';
 import type { VisualAsset, VisualAssetStatus, AtlasLayout } from './visual-asset';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 
@@ -254,6 +254,92 @@ export class AssetRefSlot {
         }
         const entry = useVisualAssetRegistryStore.getState().assets[assetIdOrSource] ?? null;
         return this._inner.update(entry?.file ?? null);
+    }
+
+    /** Release the held reference. Call from onDestroy(). */
+    destroy(): void {
+        this._inner.destroy();
+    }
+}
+
+/**
+ * Manages a single Sparrow atlas asset reference (paired PNG + XML).
+ *
+ * @example
+ * class MyElement extends SceneElement {
+ *   private readonly _sparrow = new SparrowAssetSlot();
+ *
+ *   protected override onDestroy() { this._sparrow.destroy(); super.onDestroy(); }
+ *
+ *   protected override _buildRenderObjects(_cfg: unknown, t: number) {
+ *     const { asset, status } = this._sparrow.update(pngFile, xmlFile);
+ *     media.setAsset(asset, status);
+ *   }
+ * }
+ */
+export class SparrowAssetSlot {
+    private _key: string | null = null;
+
+    /**
+     * Set the active image and XML sources. Returns `{ asset, status }` ready to
+     * pass directly to `VisualMedia.setAsset()`. Safe to call every frame.
+     */
+    update(imageSrc: ImageSource | null, xmlSrc: ImageSource | null): AssetSlotResult {
+        const key = (imageSrc && xmlSrc) ? makeSparrowKey(imageSrc, xmlSrc) : null;
+        if (key !== this._key) {
+            if (this._key) visualAssetStore.release(this._key);
+            this._key = key;
+            if (imageSrc && xmlSrc && key) {
+                visualAssetStore.loadSparrow(imageSrc, xmlSrc);
+                visualAssetStore.retain(key);
+            }
+        }
+        if (!key) return { asset: null, status: 'idle' };
+        const asset = visualAssetStore.get(key) ?? null;
+        return { asset, status: asset?.status ?? 'loading' };
+    }
+
+    /** Release the held reference. Call from onDestroy(). */
+    destroy(): void {
+        if (this._key) {
+            visualAssetStore.release(this._key);
+            this._key = null;
+        }
+    }
+}
+
+/**
+ * Resolves a visual asset registry ID for a Sparrow atlas entry to loaded asset data.
+ *
+ * Use this with `prop.sparrowAsset()` properties. The property value is a stable
+ * asset ID string pointing to a 'sparrow'-type registry entry (PNG + XML pair).
+ *
+ * @example
+ * class MyElement extends SceneElement {
+ *   private readonly _sparrow = new AssetRefSparrowSlot();
+ *
+ *   protected override onDestroy() { this._sparrow.destroy(); super.onDestroy(); }
+ *
+ *   protected override _buildRenderObjects(_cfg: unknown, t: number) {
+ *     const { asset, status } = this._sparrow.update(this.getSchemaProps().atlas as string | null);
+ *     media.setAsset(asset, status);
+ *   }
+ * }
+ */
+export class AssetRefSparrowSlot {
+    private readonly _inner = new SparrowAssetSlot();
+
+    /**
+     * Resolve a Sparrow asset registry ID to a loaded atlas asset.
+     * Safe to call every frame.
+     */
+    update(assetId: string | null): AssetSlotResult {
+        if (!assetId) return this._inner.update(null, null);
+        const entry = useVisualAssetRegistryStore.getState().assets[assetId] ?? null;
+        if (!entry || entry.type !== 'sparrow' || !(entry.file instanceof File) || !entry.xmlFile) {
+            return { asset: null, status: 'idle' };
+        }
+        return this._inner.update(entry.file, entry.xmlFile);
     }
 
     /** Release the held reference. Call from onDestroy(). */

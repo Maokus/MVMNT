@@ -23,6 +23,20 @@ export interface VisualFrame {
      * Set for atlas frames; absent for GIF frames (each is a full-size bitmap).
      */
     sourceRect?: { sx: number; sy: number; sw: number; sh: number };
+    /**
+     * Trim offset: how far the visible content is inset from the logical frame origin.
+     * Set for Sparrow atlas frames with transparent padding trimmed away.
+     * Derived from Sparrow's (-frameX, -frameY) fields.
+     */
+    trimOffset?: { x: number; y: number };
+    /**
+     * Full logical frame size including any trimmed transparent padding.
+     * Set for Sparrow atlas frames; drives fit-mode calculations.
+     * Derived from Sparrow's (frameWidth, frameHeight) fields.
+     */
+    logicalSize?: { w: number; h: number };
+    /** True when the frame is stored 90° clockwise in the atlas. Renderer rotates it back. */
+    rotated?: boolean;
 }
 
 /**
@@ -96,11 +110,17 @@ export interface VisualAsset {
     clips: Record<string, VisualClip>;
 }
 
-/** Result of getFrameAtTime: the drawable and optional source crop for atlas frames. */
+/** Result of getFrameAtTime: the drawable and per-frame metadata for rendering. */
 export interface FrameAtTime {
     drawable: CanvasImageSource | null;
     /** Present when the drawable is an atlas texture; use 9-argument drawImage. */
     sourceRect?: { sx: number; sy: number; sw: number; sh: number };
+    /** Forwarded from VisualFrame.trimOffset; see that field for semantics. */
+    trimOffset?: { x: number; y: number };
+    /** Forwarded from VisualFrame.logicalSize; see that field for semantics. */
+    logicalSize?: { w: number; h: number };
+    /** Forwarded from VisualFrame.rotated; see that field for semantics. */
+    rotated?: boolean;
 }
 
 /**
@@ -135,5 +155,11 @@ export function getFrameAtTime(
     }
 
     const frame = frames[idx];
-    return { drawable: frame.drawable, sourceRect: frame.sourceRect };
+    return {
+        drawable: frame.drawable,
+        sourceRect: frame.sourceRect,
+        trimOffset: frame.trimOffset,
+        logicalSize: frame.logicalSize,
+        rotated: frame.rotated,
+    };
 }

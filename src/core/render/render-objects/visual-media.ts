@@ -212,16 +212,30 @@ export class VisualMedia extends RenderObject {
             return;
         }
 
-        // Use logicalWidth/logicalHeight so atlas frames lay out by frame size,
-        // not by the full texture dimensions.
-        const imgW = asset.logicalWidth || asset.width;
-        const imgH = asset.logicalHeight || asset.height;
+        // Use per-frame logicalSize if present (Sparrow frames), otherwise fall back
+        // to asset-level logical dimensions so atlas frames lay out by frame size.
+        const imgW = frame.logicalSize?.w ?? (asset.logicalWidth || asset.width);
+        const imgH = frame.logicalSize?.h ?? (asset.logicalHeight || asset.height);
         const params = this.#calculateDrawParams(imgW, imgH);
         this._lastDrawParams = params;
         const { drawX, drawY, drawWidth, drawHeight } = params;
 
+        // Scale factors: screen pixels per logical pixel
+        const scaleX = imgW > 0 ? drawWidth / imgW : 1;
+        const scaleY = imgH > 0 ? drawHeight / imgH : 1;
+
+        // Trim offset: where within the logical frame the visible content begins.
+        // Scaled to match the drawn frame size.
+        const trimX = (frame.trimOffset?.x ?? 0) * scaleX;
+        const trimY = (frame.trimOffset?.y ?? 0) * scaleY;
+
+        // Origin offset shifts the anchor point of the entire logical frame.
         const px = drawX - this.originX * drawWidth;
         const py = drawY - this.originY * drawHeight;
+
+        // Top-left of the actual content pixels in container space.
+        const destX = px + trimX;
+        const destY = py + trimY;
 
         if (this.fitMode === 'cover') {
             ctx.save();
@@ -231,16 +245,28 @@ export class VisualMedia extends RenderObject {
         }
 
         try {
-            if (frame.sourceRect) {
-                // Atlas frame: draw a crop of the texture using 9-argument drawImage.
+            if (frame.rotated && frame.sourceRect) {
+                // Frame stored 90° CW in atlas — rotate back 90° CCW.
+                // After un-rotation: logical content is (sh × sw) pixels.
                 const { sx, sy, sw, sh } = frame.sourceRect;
-                ctx.drawImage(frame.drawable, sx, sy, sw, sh, px, py, drawWidth, drawHeight);
+                const contentW = sh * scaleX;
+                const contentH = sw * scaleY;
+                ctx.save();
+                ctx.translate(destX + contentW / 2, destY + contentH / 2);
+                ctx.rotate(-Math.PI / 2);
+                ctx.drawImage(frame.drawable, sx, sy, sw, sh, -contentH / 2, -contentW / 2, contentH, contentW);
+                ctx.restore();
+            } else if (frame.sourceRect) {
+                // Atlas frame (uniform grid or Sparrow without rotation).
+                // Scale content proportionally within the logical frame.
+                const { sx, sy, sw, sh } = frame.sourceRect;
+                ctx.drawImage(frame.drawable, sx, sy, sw, sh, destX, destY, sw * scaleX, sh * scaleY);
             } else if (params.srcRect) {
                 // "none" fit mode: draw at intrinsic size with center crop to container bounds.
                 const { sx, sy, sw, sh } = params.srcRect;
-                ctx.drawImage(frame.drawable, sx, sy, sw, sh, px, py, drawWidth, drawHeight);
+                ctx.drawImage(frame.drawable, sx, sy, sw, sh, destX, destY, drawWidth, drawHeight);
             } else {
-                ctx.drawImage(frame.drawable, px, py, drawWidth, drawHeight);
+                ctx.drawImage(frame.drawable, destX, destY, drawWidth, drawHeight);
             }
         } catch {
             this.#drawPlaceholder(ctx, 'Error', 'red');

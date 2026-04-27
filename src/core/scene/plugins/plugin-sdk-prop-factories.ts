@@ -216,6 +216,25 @@ export const prop = {
             runtime: { transform: asTrimmedString, defaultValue: null },
         };
     },
+
+    /**
+     * A Sparrow atlas selector. Picks from the project's visual asset registry.
+     * Only shows assets imported as Sparrow atlases (paired PNG + XML).
+     * Default value is `null` (no asset selected).
+     */
+    sparrowAsset(
+        key: string,
+        label: string,
+        opts?: CommonOpts
+    ): PropertyDefinition {
+        return {
+            key, type: 'assetRef', label, default: null,
+            allowedAssetTypes: ['sparrow'],
+            ...(opts?.description && { description: opts.description }),
+            ...(opts?.visibleWhen && { visibleWhen: opts.visibleWhen }),
+            runtime: { transform: asTrimmedString, defaultValue: null },
+        };
+    },
 } as const;
 
 // ─── insertElementGroups ─────────────────────────────────────────────────────
