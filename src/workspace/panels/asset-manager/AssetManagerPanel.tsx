@@ -92,8 +92,11 @@ const AssetCard: React.FC<{
 };
 
 const AssetManagerPanel: React.FC = () => {
-    const { assets, assetsOrder, addAsset, removeAsset, renameAsset } = useVisualAssetRegistryStore(state => state);
+    const { assets, assetsOrder, addAsset, addSparrowAsset, removeAsset, renameAsset } = useVisualAssetRegistryStore(state => state);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const sparrowPngRef = useRef<HTMLInputElement>(null);
+    const sparrowXmlRef = useRef<HTMLInputElement>(null);
+    const [pendingSparrowPng, setPendingSparrowPng] = useState<File | null>(null);
     const [dragOver, setDragOver] = useState(false);
 
     const handleFiles = (files: FileList | null) => {
@@ -111,6 +114,29 @@ const AssetManagerPanel: React.FC = () => {
         handleFiles(e.dataTransfer.files);
     };
 
+    const handleSparrowPngSelected = (files: FileList | null) => {
+        const png = files?.[0];
+        if (!png) return;
+        if (sparrowPngRef.current) sparrowPngRef.current.value = '';
+        setPendingSparrowPng(png);
+        sparrowXmlRef.current?.click();
+    };
+
+    const handleSparrowXmlSelected = (files: FileList | null) => {
+        const xml = files?.[0];
+        if (sparrowXmlRef.current) sparrowXmlRef.current.value = '';
+        if (!xml || !pendingSparrowPng) { setPendingSparrowPng(null); return; }
+        addSparrowAsset(pendingSparrowPng, xml);
+        setPendingSparrowPng(null);
+    };
+
+    // Clean up pending state if user cancels the XML picker
+    useEffect(() => {
+        if (!pendingSparrowPng) return;
+        const timer = setTimeout(() => setPendingSparrowPng(null), 60_000);
+        return () => clearTimeout(timer);
+    }, [pendingSparrowPng]);
+
     const orderedEntries = assetsOrder
         .map((id) => assets[id])
         .filter((e): e is VisualAssetRegistryEntry => Boolean(e));
@@ -123,8 +149,16 @@ const AssetManagerPanel: React.FC = () => {
             onDrop={handleDrop}
         >
             {/* Header */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800 shrink-0">
-                <span className="text-xs font-semibold text-neutral-300 uppercase tracking-wide">Assets</span>
+            <div className="flex items-center gap-1.5 px-3 py-2 border-b border-neutral-800 shrink-0">
+                <span className="text-xs font-semibold text-neutral-300 uppercase tracking-wide mr-auto">Assets</span>
+                <button
+                    className="text-xs px-2 py-0.5 rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-200 transition-colors"
+                    title="Import Sparrow atlas (PNG + XML)"
+                    type="button"
+                    onClick={() => sparrowPngRef.current?.click()}
+                >
+                    + Sparrow
+                </button>
                 <button
                     className="text-xs px-2 py-0.5 rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-200 transition-colors"
                     title="Upload images"
@@ -141,6 +175,20 @@ const AssetManagerPanel: React.FC = () => {
                     style={{ display: 'none' }}
                     onChange={(e) => handleFiles(e.target.files)}
                 />
+                <input
+                    ref={sparrowPngRef}
+                    type="file"
+                    accept="image/png"
+                    style={{ display: 'none' }}
+                    onChange={(e) => handleSparrowPngSelected(e.target.files)}
+                />
+                <input
+                    ref={sparrowXmlRef}
+                    type="file"
+                    accept=".xml"
+                    style={{ display: 'none' }}
+                    onChange={(e) => handleSparrowXmlSelected(e.target.files)}
+                />
             </div>
 
             {/* Body */}
@@ -148,7 +196,7 @@ const AssetManagerPanel: React.FC = () => {
                 {orderedEntries.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-neutral-500 text-xs text-center gap-1 select-none">
                         <span>No assets yet.</span>
-                        <span>Upload images or drop files here.</span>
+                        <span>Upload images, drop files, or import a Sparrow atlas.</span>
                     </div>
                 ) : (
                     <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))' }}>
