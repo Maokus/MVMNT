@@ -258,20 +258,33 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
 
     // ── Wheel scroll — pan value range ───────────────────────────────────────
 
-    const handleWheel = useCallback(
-        (e: React.WheelEvent) => {
+    // Use a ref for autoRange so the native listener below can always see the latest value
+    // without needing to be recreated on every autoRange change.
+    const autoRangeRef = useRef(autoRange);
+    autoRangeRef.current = autoRange;
+
+    const containerRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const onWheel = (e: WheelEvent) => {
+            // Stop propagation natively so the timeline's native wheel listener (attached to
+            // a parent DOM element) never sees this event.
             e.stopPropagation();
+            e.preventDefault();
             const currentMin = animMinRef.current;
             const currentMax = animMaxRef.current;
             const rangeSpan = currentMax - currentMin;
             const shift = (e.deltaY / 100) * rangeSpan * 0.15;
-            if (autoRange) {
+            if (autoRangeRef.current) {
                 setAutoRange(channel.id, false);
             }
             setManualRange(channel.id, currentMin + shift, currentMax + shift);
-        },
-        [autoRange, channel.id, setAutoRange, setManualRange],
-    );
+        };
+        el.addEventListener('wheel', onWheel, { passive: false });
+        return () => el.removeEventListener('wheel', onWheel);
+    }, [channel.id, setAutoRange, setManualRange]);
 
     // ── Resize handle ─────────────────────────────────────────────────────────
 
@@ -373,7 +386,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     // ── Render ────────────────────────────────────────────────────────────────
 
     return (
-        <div className="ae-curve-pane relative" style={{ height, width }} onWheel={handleWheel}>
+        <div ref={containerRef} className="ae-curve-pane relative" style={{ height, width }}>
             <svg
                 ref={svgRef}
                 width={width}

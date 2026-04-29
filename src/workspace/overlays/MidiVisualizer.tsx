@@ -331,6 +331,7 @@ const MidiVisualizerInner: React.FC = () => {
     };
 
     const handleTimelineResizeDown = (e: React.PointerEvent<HTMLDivElement>) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
         timelineResizeRef.current = { startY: e.clientY, startHeight: timelineCollapsed ? 0 : timelineHeight };
     };
 
