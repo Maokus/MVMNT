@@ -1,6 +1,6 @@
 # Asset Management — Current State & Design Notes
 
-_Written 2026-04-29. Supersedes the earlier notes from 2026-04-28._
+_Written 2026-04-29. Updated 2026-04-29 (VisualResource rename, loopMode, robust Sparrow grouping, ImageBitmap cleanup)._
 
 ---
 
@@ -12,7 +12,7 @@ The visual asset system separates four concerns:
 |-------|------|-------------|
 | **Project asset** | `ProjectAsset` | Registry entry: name, type, stable UUID, source files. The user-facing list. |
 | **Source descriptor** | `VisualSourceDescriptor` | Typed loading request (`image`, `atlas`, `sparrow`). Fully resolved before it reaches the cache. |
-| **Decoded resource** | `DecodedResource` | Decoded, frame-ready data. Pre-baked `ImageBitmap`s. Lives in `VisualResourceCache`. |
+| **Decoded resource** | `VisualResource` | Decoded, frame-ready data. Pre-baked `ImageBitmap`s. Lives in `VisualResourceCache`. |
 | **Render object** | `VisualMedia` | Canvas renderer. Asset-agnostic. Receives resources via `setResource()`, animations via `setAnimation()`. |
 
 Registry lookup (UUID → file) and bundled URL resolution happen in the resolver/wrapper layer. `VisualResourceCache` and `VisualResourceHandle` never read the registry.
@@ -54,7 +54,7 @@ All resources are frame-based:
 - **Uniform atlas**: N grid-cropped frames, each with a `sourceRect` into the shared atlas bitmap.
 - **Sparrow atlas**: all frames across all animations, in XML order. Named animations own sub-lists.
 
-**No `imageElement`, `isAnimated`, or `pivot` on `DecodedResource`.** The renderer operates uniformly on `frames` and `animations`.
+**No `imageElement`, `isAnimated`, or `pivot` on `VisualResource`.** The renderer operates uniformly on `frames` and `animations`.
 
 **Named animations** replace flat clips:
 
@@ -113,7 +113,7 @@ Deterministic renderer with no internal asset slot:
 
 ## 8. Error Messages
 
-`DecodedResource.errorMessage` is set when `status === 'error'`, with the original exception message. `ResourceHandleResult.errorMessage` forwards this to callers. Renderers can display it (currently the placeholder shows 'Error'; the message is available for richer diagnostics).
+`VisualResource.errorMessage` is set when `status === 'error'`, with the original exception message. `ResourceHandleResult.errorMessage` forwards this to callers. Renderers can display it (currently the placeholder shows 'Error'; the message is available for richer diagnostics).
 
 ---
 
@@ -123,7 +123,7 @@ Deterministic renderer with no internal asset slot:
 |------|------|
 | `src/state/visualAssetRegistryStore.ts` | Registry store + `resolveProjectAssetDescriptor()` |
 | `src/core/resources/visual-source-descriptor.ts` | Descriptor types, `AtlasLayout`, `makeDescriptorKey` |
-| `src/core/resources/visual-resource.ts` | `DecodedResource`, `VisualAnimation`, `getFrameAtTime` |
+| `src/core/resources/visual-resource.ts` | `VisualResource`, `VisualAnimation`, `getFrameAtTime` |
 | `src/core/resources/visual-resource-cache.ts` | `VisualResourceCache` singleton — decode, cache, refcount |
 | `src/core/resources/visual-resource-handle.ts` | `VisualResourceHandle` — managed resource lifecycle |
 | `src/core/resources/bundled-sprite.ts` | `BundledSprite`, `BundledSparrowHandle` |
@@ -136,7 +136,6 @@ Deterministic renderer with no internal asset slot:
 
 ## 10. Known Limitations / Future Work
 
-- **`loopMode` on animations**: the field exists but `VisualMedia` always loops. `'once'` and `'pingpong'` are not yet implemented.
 - **Thumbnail for Sparrow atlases**: cards show the raw packed texture. First-frame preview requires a background decode pass.
 - **Drag-and-drop Sparrow pairs**: dropping both files simultaneously is not yet handled.
 - **CI enforcement**: no lint rule prevents `@core/` imports in `src/plugins/`.

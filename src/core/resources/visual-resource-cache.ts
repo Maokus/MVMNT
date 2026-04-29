@@ -1,14 +1,14 @@
 /**
- * VisualResourceCache — loads, decodes, and caches DecodedResource objects.
+ * VisualResourceCache — loads, decodes, and caches VisualResource objects.
  *
  * Takes a VisualSourceDescriptor and dispatches to the appropriate decoder:
  *   'image'   → plain image or animated GIF
  *   'atlas'   → uniform-grid spritesheet
  *   'sparrow' → Sparrow v2 XML atlas
  *
- * Multiple handles referencing the same descriptor share a single DecodedResource
+ * Multiple handles referencing the same descriptor share a single VisualResource
  * via reference counting (retain/release). Assets are evicted when their count
- * drops to zero.
+ * drops to zero; ImageBitmaps are closed on eviction to free GPU memory.
  *
  * All frame drawables are prepared eagerly before status reaches 'ready', so
  * VisualMedia can draw with ctx.drawImage() directly at render time.
@@ -16,7 +16,7 @@
 
 // @ts-ignore — gifuct-js lacks bundled types
 import { decompressFrames, parseGIF } from 'gifuct-js';
-import { type DecodedResource, type VisualFrame, type VisualAnimation } from './visual-resource';
+import { type VisualResource, type VisualFrame, type VisualAnimation } from './visual-resource';
 import { type VisualSourceDescriptor, type ImageSource, makeDescriptorKey } from './visual-source-descriptor';
 
 // ─── Source helpers ──────────────────────────────────────────────────────────
@@ -166,12 +166,12 @@ async function makeImageBitmapFrom(img: HTMLImageElement): Promise<CanvasImageSo
 // ─── Cache ───────────────────────────────────────────────────────────────────
 
 export class VisualResourceCache {
-    private readonly _resources = new Map<string, DecodedResource>();
-    private readonly _pending = new Map<string, Promise<DecodedResource>>();
+    private readonly _resources = new Map<string, VisualResource>();
+    private readonly _pending = new Map<string, Promise<VisualResource>>();
     private readonly _refCounts = new Map<string, number>();
 
-    /** Load (or retrieve from cache) a DecodedResource for the given descriptor. */
-    load(descriptor: VisualSourceDescriptor): Promise<DecodedResource> {
+    /** Load (or retrieve from cache) a VisualResource for the given descriptor. */
+    load(descriptor: VisualSourceDescriptor): Promise<VisualResource> {
         const key = makeDescriptorKey(descriptor);
 
         const existing = this._resources.get(key);
@@ -180,7 +180,7 @@ export class VisualResourceCache {
         const inflight = this._pending.get(key);
         if (inflight) return inflight;
 
-        const placeholder: DecodedResource = {
+        const placeholder: VisualResource = {
             key,
             status: 'loading',
             width: 0,
@@ -225,7 +225,7 @@ export class VisualResourceCache {
         return p;
     }
 
-    private async _loadImage(out: DecodedResource, src: ImageSource): Promise<void> {
+    private async _loadImage(out: VisualResource, src: ImageSource): Promise<void> {
         if (isGIF(src)) {
             const gif = await loadRawGIF(src);
             out.width = gif.width;
@@ -254,7 +254,7 @@ export class VisualResourceCache {
     }
 
     private async _loadAtlas(
-        out: DecodedResource,
+        out: VisualResource,
         src: ImageSource,
         layout: import('./visual-source-descriptor').AtlasLayout
     ): Promise<void> {
@@ -292,7 +292,7 @@ export class VisualResourceCache {
     }
 
     private async _loadSparrow(
-        out: DecodedResource,
+        out: VisualResource,
         imageSrc: ImageSource,
         xmlSrc: ImageSource,
         defaultFps: number
@@ -314,11 +314,16 @@ export class VisualResourceCache {
         const subTextures = Array.from(doc.querySelectorAll('SubTexture'));
 
         const allFrames: VisualFrame[] = [];
-        type AnimGroup = { prefix: string; startFrameIndex: number };
-        const animGroups: AnimGroup[] = [];
-        const seenPrefixes = new Map<string, number>();
+        const animGroups: { prefix: string; startFrameIndex: number }[] = [];
         const frameLogicalWidths: number[] = [];
         const frameLogicalHeights: number[] = [];
+
+        // Group consecutive frames into animations by their name prefix (the part
+        // before any trailing digits). A new group starts whenever the prefix changes,
+        // matching the order frames appear in the XML. The regex requires at least one
+        // non-digit character before the trailing run of digits so that purely-numeric
+        // names (unusual but valid) are treated as their own single-frame animation.
+        let currentPrefix: string | null = null;
 
         for (const st of subTextures) {
             const name = st.getAttribute('name') ?? '';
@@ -332,9 +337,13 @@ export class VisualResourceCache {
             const frameH = parseInt(st.getAttribute('frameHeight') ?? st.getAttribute('height') ?? '0', 10);
             const rotated = st.getAttribute('rotated') === 'true';
 
-            const prefix = name.replace(/\d+$/, '');
-            if (!seenPrefixes.has(prefix)) {
-                seenPrefixes.set(prefix, animGroups.length);
+            // Strip trailing digits only when preceded by at least one non-digit.
+            // "idle dance0001" → "idle dance", "0001" → "0001" (no match, full name).
+            const m = name.match(/^(.*\D)(\d+)$/);
+            const prefix = m ? m[1] : name;
+
+            if (prefix !== currentPrefix) {
+                currentPrefix = prefix;
                 animGroups.push({ prefix, startFrameIndex: allFrames.length });
             }
 
@@ -380,7 +389,7 @@ export class VisualResourceCache {
     }
 
     /** Synchronously retrieve a resource by its cache key. */
-    get(key: string): DecodedResource | undefined {
+    get(key: string): VisualResource | undefined {
         return this._resources.get(key);
     }
 
@@ -390,12 +399,15 @@ export class VisualResourceCache {
     }
 
     /**
-     * Decrement the reference count. Evicts the resource when count reaches zero.
+     * Decrement the reference count. Evicts the resource when count reaches zero,
+     * closing any ImageBitmaps to release GPU memory.
      */
     release(key: string): void {
         const count = (this._refCounts.get(key) ?? 0) - 1;
         if (count <= 0) {
             this._refCounts.delete(key);
+            const resource = this._resources.get(key);
+            if (resource) this._closeDrawables(resource);
             this._resources.delete(key);
             this._pending.delete(key);
         } else {
@@ -404,9 +416,25 @@ export class VisualResourceCache {
     }
 
     clearAll(): void {
+        for (const resource of this._resources.values()) {
+            this._closeDrawables(resource);
+        }
         this._resources.clear();
         this._pending.clear();
         this._refCounts.clear();
+    }
+
+    /** Close all ImageBitmaps held by a resource to free GPU/decoder memory. */
+    private _closeDrawables(resource: VisualResource): void {
+        const closed = new Set<CanvasImageSource>();
+        for (const frame of resource.frames) {
+            if (frame.drawable && !closed.has(frame.drawable)) {
+                closed.add(frame.drawable);
+                if (frame.drawable instanceof ImageBitmap) {
+                    frame.drawable.close();
+                }
+            }
+        }
     }
 }
 

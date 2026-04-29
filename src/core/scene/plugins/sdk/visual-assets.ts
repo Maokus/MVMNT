@@ -23,7 +23,7 @@ export {
 } from '@core/resources/visual-source-descriptor';
 
 export {
-    type DecodedResource,
+    type VisualResource,
     type ResourceStatus,
     type VisualFrame,
     type VisualAnimation,

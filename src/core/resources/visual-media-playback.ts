@@ -3,7 +3,7 @@
  *
  * Owned by the scene element; the element computes localTime each frame and
  * passes it to VisualMedia.setLocalTime(). This keeps timing/playback concerns
- * separate from both resource data (DecodedResource) and rendering (VisualMedia).
+ * separate from both resource data (VisualResource) and rendering (VisualMedia).
  */
 import type { VisualAnimation } from './visual-resource';
 
@@ -19,8 +19,9 @@ export class VisualMediaPlayback {
 
     /**
      * Active named animation; null = play the full resource frame sequence.
-     * When set and the named animation is found in the resource, computeLocalTime()
-     * confines playback to that animation's duration and loops within it.
+     * When set, VisualMedia uses that animation's own frame list and loopMode,
+     * which means `computeLocalTime` only needs to return raw elapsed time —
+     * no caller-side wrapping is required.
      */
     animationName: string | null = null;
 
@@ -28,25 +29,15 @@ export class VisualMediaPlayback {
      * Compute local playback time (seconds) for a given scene time.
      * Pass the result to VisualMedia.setLocalTime() each frame.
      *
-     * When animationName is set and found in `animations`, the returned time
-     * loops within [0, animation.totalDurationMs / 1000). VisualMedia then uses
-     * that animation's own frame list via setAnimation(), so no absolute offset
-     * into a shared timeline is needed.
+     * Returns the raw elapsed time after applying startOffset and speed.
+     * VisualMedia's getFrameAtTime() handles all loop/once/pingpong behaviour
+     * based on the active animation's loopMode — no pre-wrapping is done here.
      *
      * @param sceneTimeSec  Current scene playback time in seconds.
-     * @param animations    Optional animations map from the loaded DecodedResource.
+     * @param animations    Accepted for backwards compatibility; no longer used.
      */
     computeLocalTime(sceneTimeSec: number, animations?: Record<string, VisualAnimation>): number {
-        const rawTime = Math.max(0, sceneTimeSec - this.startOffset) * this.speed;
-
-        if (this.animationName && animations) {
-            const anim = animations[this.animationName];
-            if (anim && anim.totalDurationMs > 0) {
-                const animDurationSec = anim.totalDurationMs / 1000;
-                return rawTime % animDurationSec;
-            }
-        }
-
-        return rawTime;
+        void animations; // loopMode is now handled by getFrameAtTime / VisualMedia
+        return Math.max(0, sceneTimeSec - this.startOffset) * this.speed;
     }
 }

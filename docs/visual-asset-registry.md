@@ -10,9 +10,9 @@ The visual asset registry is the canonical way to add images and GIFs to your sc
 |------|------|-------------|
 | **Project asset** | `ProjectAsset` | Registry entry: name, type, source files, stable UUID. Lives in `VisualAssetRegistryStore`. |
 | **Source descriptor** | `VisualSourceDescriptor` | Typed description of where to load data from (`image`, `atlas`, or `sparrow`). Passed to a handle. |
-| **Decoded resource** | `DecodedResource` | Decoded, frame-ready representation. Frames are pre-baked `ImageBitmap`s. Lives in `VisualResourceCache`. |
+| **Decoded resource** | `VisualResource` | Decoded, frame-ready representation. Frames are pre-baked `ImageBitmap`s. Lives in `VisualResourceCache`. |
 | **Resource handle** | `VisualResourceHandle` | Manages one resource reference (retain/release). Single class for all source types. |
-| **Render object** | `VisualMedia` | Draws a `DecodedResource` to canvas. Asset-agnostic — receives resources via `setResource()`. |
+| **Render object** | `VisualMedia` | Draws a `VisualResource` to canvas. Asset-agnostic — receives resources via `setResource()`. |
 
 ---
 
@@ -100,7 +100,8 @@ this._media
     .setLocalTime(this._playback.computeLocalTime(targetTime, resource?.animations));
 ```
 
-`VisualMediaPlayback.animationName` can also be set to confine `computeLocalTime()` to the animation's duration:
+`VisualMediaPlayback.animationName` can also be set to select the active animation
+(its `loopMode` is then used by `getFrameAtTime` to handle `'loop'`, `'once'`, or `'pingpong'`):
 
 ```typescript
 this._playback.animationName = 'idle';
@@ -317,7 +318,7 @@ this._media.setResource(resource, status);
 
 ### `clips` → `animations`
 
-`VisualAsset.clips` (flat `startMs/endMs`) is replaced by `DecodedResource.animations`, where each animation owns its frame list and FPS:
+`VisualAsset.clips` (flat `startMs/endMs`) is replaced by `VisualResource.animations`, where each animation owns its frame list and FPS:
 
 ```typescript
 // Old

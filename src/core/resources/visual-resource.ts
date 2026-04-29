@@ -1,5 +1,5 @@
 /**
- * DecodedResource — the decoded, frame-ready representation of any visual source.
+ * VisualResource — the decoded, frame-ready representation of any visual source.
  *
  * Every resource is frame-based, including still images (one frame, durationMs=0).
  * There is no imageElement, isAnimated, or pivot field — the renderer operates
@@ -58,7 +58,7 @@ export interface VisualAnimation {
     loopMode: 'loop' | 'once' | 'pingpong';
 }
 
-export interface DecodedResource {
+export interface VisualResource {
     readonly key: string;
     status: ResourceStatus;
     /** Human-readable error string; set when status === 'error'. */
@@ -116,10 +116,20 @@ export interface FrameAtTime {
  *
  * Pass either the resource's full frames array or a specific animation's frame list.
  * For still images (one frame or totalDurationMs === 0): returns frames[0] directly.
- * For animated content: wraps localTimeSec into [0, totalDuration) and returns the
- * correct frame. No lazy work is done — all drawables are pre-baked by the cache.
+ *
+ * `loopMode` controls what happens when `localTimeSec` exceeds the animation duration:
+ *   - `'loop'`     — wraps back to the start (default).
+ *   - `'once'`     — holds the last frame after the animation ends.
+ *   - `'pingpong'` — plays forward then backward, alternating.
+ *
+ * No lazy work is done — all drawables are pre-baked by the cache.
  */
-export function getFrameAtTime(frames: VisualFrame[], totalDurationMs: number, localTimeSec: number): FrameAtTime {
+export function getFrameAtTime(
+    frames: VisualFrame[],
+    totalDurationMs: number,
+    localTimeSec: number,
+    loopMode: 'loop' | 'once' | 'pingpong' = 'loop'
+): FrameAtTime {
     if (!frames.length) return { drawable: null };
 
     // Static image or single-frame: return the only frame unconditionally.
@@ -134,7 +144,32 @@ export function getFrameAtTime(frames: VisualFrame[], totalDurationMs: number, l
         };
     }
 
-    const tMs = (((localTimeSec * 1000) % totalDurationMs) + totalDurationMs) % totalDurationMs;
+    const rawMs = localTimeSec * 1000;
+    let tMs: number;
+
+    if (loopMode === 'once') {
+        // Hold the last frame once the animation ends.
+        if (rawMs >= totalDurationMs) {
+            const f = frames[frames.length - 1];
+            return {
+                drawable: f.drawable,
+                sourceRect: f.sourceRect,
+                trimOffset: f.trimOffset,
+                logicalSize: f.logicalSize,
+                rotated: f.rotated,
+            };
+        }
+        tMs = rawMs;
+    } else if (loopMode === 'pingpong') {
+        // Fold time into a [0, 2×duration) cycle, then mirror the back half.
+        const cycle = 2 * totalDurationMs;
+        const t = ((rawMs % cycle) + cycle) % cycle;
+        tMs = t < totalDurationMs ? t : cycle - t;
+    } else {
+        // loop (default)
+        tMs = ((rawMs % totalDurationMs) + totalDurationMs) % totalDurationMs;
+    }
+
     let acc = 0;
     let idx = frames.length - 1;
     for (let i = 0; i < frames.length; i++) {

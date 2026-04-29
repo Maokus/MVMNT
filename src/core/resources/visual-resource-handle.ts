@@ -24,10 +24,10 @@
 
 import { visualResourceCache } from './visual-resource-cache';
 import { type VisualSourceDescriptor, makeDescriptorKey } from './visual-source-descriptor';
-import type { DecodedResource, ResourceStatus } from './visual-resource';
+import type { VisualResource, ResourceStatus } from './visual-resource';
 
 export interface ResourceHandleResult {
-    resource: DecodedResource | null;
+    resource: VisualResource | null;
     /** Derived status: 'idle' when no descriptor, otherwise the resource's own status. */
     status: ResourceStatus;
     /** Present when status === 'error'; contains the decode error message. */

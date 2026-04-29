@@ -1,18 +1,13 @@
 import { RenderObject, RenderConfig, Bounds } from './base';
-import { type DecodedResource, type ResourceStatus, getFrameAtTime, type FrameAtTime } from '@core/resources/visual-resource';
+import { type VisualResource, type ResourceStatus, getFrameAtTime, type FrameAtTime } from '@core/resources/visual-resource';
 
 /**
- * VisualMedia — a render object that draws any DecodedResource.
+ * VisualMedia — a render object that draws any VisualResource.
  *
  * Asset-agnostic and deterministic: the owning element resolves descriptors,
  * manages the VisualResourceHandle lifecycle, and feeds the decoded resource in
  * via setResource() each frame. VisualMedia has no internal asset slot and no
  * destroy() method.
- *
- * Frame selection for animated resources is driven by `localTime` (set via
- * setLocalTime()) and `animationName` (set via setAnimation()). When an animation
- * name is set and the resource has a matching named animation, that animation's
- * frame list is used; otherwise the resource's full frame list is used.
  */
 export class VisualMedia extends RenderObject {
     width: number;
@@ -20,7 +15,7 @@ export class VisualMedia extends RenderObject {
     fitMode: 'contain' | 'cover' | 'fill' | 'none';
     preserveAspectRatio: boolean;
 
-    private _resource: DecodedResource | null = null;
+    private _resource: VisualResource | null = null;
     private _status: ResourceStatus = 'idle';
     private _localTime: number = 0;
     private _animationName: string | null = null;
@@ -70,7 +65,7 @@ export class VisualMedia extends RenderObject {
      * Set the decoded resource and optional status override.
      * Safe to call every frame — just updates internal state references.
      */
-    setResource(resource: DecodedResource | null, status?: ResourceStatus): this {
+    setResource(resource: VisualResource | null, status?: ResourceStatus): this {
         this._resource = resource;
         this._status = status ?? resource?.status ?? 'idle';
         return this;
@@ -213,7 +208,7 @@ export class VisualMedia extends RenderObject {
         const frames = activeAnim ? activeAnim.frames : resource.frames;
         const totalDurationMs = activeAnim ? activeAnim.totalDurationMs : resource.totalDurationMs;
 
-        const frame = getFrameAtTime(frames, totalDurationMs, this._localTime);
+        const frame = getFrameAtTime(frames, totalDurationMs, this._localTime, activeAnim?.loopMode ?? 'loop');
         this._lastFrame = frame;
         if (!frame.drawable) {
             this.#drawPlaceholder(ctx, 'Empty', 'rgba(150,150,150,0.8)');
