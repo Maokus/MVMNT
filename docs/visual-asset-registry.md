@@ -21,11 +21,12 @@ The visual asset registry is the canonical way to add images and GIFs to your sc
 The **Asset Manager** panel (left of the preview in MidiVisualizer) is the registry UI:
 
 - **Upload** — drag a file onto the panel or click the upload button. Accepted types: JPEG, PNG, WebP, GIF.
-- **+ Sparrow** — two-step picker for PNG + XML atlas pairs.
 - **Rename** — double-click an asset name to edit it.
 - **Delete** — click the delete icon on an asset card. Only user assets are deletable.
 
 Each asset is assigned a stable UUID at upload time. That ID is what gets stored in scene documents and referenced by element properties.
+
+> Sparrow atlases are not user-importable. They can only enter the registry through plugin-bundled assets (via `bundledSparrow()`), which register automatically when the element first loads.
 
 ---
 
@@ -54,18 +55,14 @@ static override getConfigSchema() {
 ### 2. Load and draw the asset
 
 ```typescript
-import { SceneElement, prop, insertElementGroups, VisualMediaPlayback, VisualResourceHandle, resolveProjectAssetDescriptor } from '@mvmnt/plugin-sdk';
+import { SceneElement, prop, insertElementGroups, VisualMediaPlayback, resolveProjectAssetDescriptor } from '@mvmnt/plugin-sdk';
 import { VisualMedia, type RenderObject } from '@mvmnt/plugin-sdk/render';
 
 export class MyImageElement extends SceneElement {
     private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
     private readonly _playback = new VisualMediaPlayback();
-    private readonly _handle = new VisualResourceHandle();
-
-    protected override onDestroy(): void {
-        this._handle.destroy();
-        super.onDestroy();
-    }
+    // visualHandle() creates a VisualResourceHandle and auto-destroys it on dispose().
+    private readonly _handle = this.visualHandle();
 
     protected override _buildRenderObjects(_cfg: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
@@ -85,9 +82,9 @@ export class MyImageElement extends SceneElement {
 }
 ```
 
-**Keep `VisualResourceHandle` as a long-lived field** — `update()` manages retain/release internally and only reloads when the descriptor key changes.
+Use `this.visualHandle()` instead of `new VisualResourceHandle()` — the handle is then automatically destroyed when the element is disposed, so no `onDestroy()` override is needed just for the handle.
 
-**Always call `this._handle.destroy()` in `onDestroy()`** — releases the reference count so memory can be reclaimed.
+If you do need `onDestroy()` for other cleanup, you can still call `this._handle.destroy()` explicitly — double-destroy is safe.
 
 ### Animated assets and named animations
 
@@ -118,11 +115,9 @@ this._media
 For uniform-grid spritesheets, construct an `AtlasSourceDescriptor` directly:
 
 ```typescript
-import { type AtlasSourceDescriptor, VisualResourceHandle } from '@mvmnt/plugin-sdk';
+import { type AtlasSourceDescriptor } from '@mvmnt/plugin-sdk';
 
-private readonly _handle = new VisualResourceHandle();
-
-protected override onDestroy(): void { this._handle.destroy(); }
+private readonly _handle = this.visualHandle();
 
 protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[] {
     const src = props.imageSource as string | File | null;
@@ -140,62 +135,13 @@ protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[]
 ## Sparrow atlas elements
 
 Sparrow is a format that stores frame regions in an XML file alongside the spritesheet PNG.
-
-### User-uploaded Sparrow atlas
-
-```typescript
-import { prop, VisualResourceHandle, resolveProjectAssetDescriptor } from '@mvmnt/plugin-sdk';
-
-static override getConfigSchema() {
-    return insertElementGroups(super.getConfigSchema(), { name: 'My Element' }, [{
-        id: 'atlasSource',
-        label: 'Atlas',
-        variant: 'basic',
-        collapsed: false,
-        properties: [prop.sparrowAsset('atlas', 'Sparrow Atlas')],
-    }]);
-}
-
-private readonly _handle = new VisualResourceHandle();
-
-protected override onDestroy(): void { this._handle.destroy(); }
-
-protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[] {
-    const descriptor = resolveProjectAssetDescriptor(props.atlas as string | null);
-    const { resource, status } = this._handle.update(descriptor);
-    this._media.setResource(resource, status).setLocalTime(t).setDimensions(200, 200);
-    return [this._media];
-}
-```
-
-### Bundled Sparrow atlas
-
-Plugins can ship a Sparrow atlas inside their `assets/` directory:
-
-```typescript
-private readonly _sparrow = this.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml');
-
-protected override onDestroy(): void {
-    this._sparrow.destroy();
-}
-
-protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[] {
-    const { resource, status } = this._sparrow.get();
-    this._media.setResource(resource, status).setLocalTime(t).setDimensions(200, 200);
-    return [this._media];
-}
-```
+Sparrow atlases can only enter the registry through plugin-bundled assets — see [Bundled plugin assets](#bundled-plugin-assets).
 
 ### Overrideable bundled Sparrow atlas
 
 ```typescript
 private readonly _bundledAtlas = this.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml');
-private readonly _overrideHandle = new VisualResourceHandle();
-
-protected override onDestroy(): void {
-    this._bundledAtlas.destroy();
-    this._overrideHandle.destroy();
-}
+private readonly _overrideHandle = this.visualHandle();
 
 protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[] {
     const overrideId = props.atlas as string | null;
@@ -208,16 +154,35 @@ protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[]
 }
 ```
 
+### Per-animation loop mode overrides
+
+By default every Sparrow animation loops. Override `loopMode` (and optionally `fps`) per animation via the descriptor:
+
+```typescript
+const descriptor = {
+    kind: 'sparrow' as const,
+    imageSrc: pngUrl,
+    xmlSrc: xmlUrl,
+    animations: {
+        idle:  { loopMode: 'loop'     as const },
+        death: { loopMode: 'once'     as const },
+        intro: { loopMode: 'pingpong' as const, fps: 12 },
+    },
+};
+```
+
+Overrides are applied after the XML is parsed and animations are grouped from their name prefixes. The override key must match the animation name exactly (the prefix extracted from frame names).
+
 ---
 
 ## Bundled plugin assets
 
-Assets that ship inside a plugin use `bundledSprite()` or `bundledImage()`:
+Assets that ship inside a plugin use `bundledSprite()`, `bundledImage()`, or `bundledSparrow()`. All three are factory methods on `SceneElement`; the returned handles are auto-tracked and destroyed when the element is disposed.
+
+### Bundled image
 
 ```typescript
 private readonly _icon = this.bundledSprite('icon.png');
-
-protected override onDestroy(): void { this._icon.destroy(); }
 
 protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[] {
     return [this._icon.build(0, 0, 64, 64)];
@@ -230,6 +195,24 @@ protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[]
 const { resource, status } = this._icon.get();
 this._media.setResource(resource, status);
 ```
+
+### Bundled Sparrow atlas
+
+```typescript
+private readonly _sparrow = this.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml');
+
+protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[] {
+    return [this._sparrow.build(0, 0, 200, 200, { animation: 'idle' })];
+}
+```
+
+`bundledSparrow()` accepts an optional third argument `defaultFps` (default 24).
+
+`BundledSparrowHandle.build()` has the same signature as `BundledSprite.build()` — both accept a `BundledBuildOptions` object with `fitMode`, `originX/Y`, and `animation`.
+
+### Load errors
+
+If a bundled asset fails to load (file not found, bad URL, etc.), `.get()` and `.build()` return `status:'error'` with an `errorMessage` — a visible "Error" placeholder is drawn instead of silently showing nothing. Check `errorMessage` for the cause.
 
 ### Subdirectories in bundled assets
 
@@ -248,10 +231,10 @@ private readonly _body = this.bundledSprite('characters/body.png');
 
 | Value | Behaviour |
 |-------|-----------|
-| `'contain'` | Scale to fit within the bounds, preserving aspect ratio. Letterbox visible. |
-| `'cover'` | Scale to fill the bounds, preserving aspect ratio. Image may be cropped. |
+| `'contain'` | Scale to fit within the bounds, preserving aspect ratio. Empty bars (letterbox/pillarbox) appear when aspect ratios differ. Bounds reflect the scaled image rect, not the full container. |
+| `'cover'` | Scale to fill the bounds, preserving aspect ratio. Image overflows and is clipped. Bounds equal the full container. |
 | `'fill'` | Stretch to exactly fill the bounds. Distorts non-square images. |
-| `'none'` | Draw at the image's original pixel size (no scaling). |
+| `'none'` | Draw at the image's native pixel size (1:1 scale, no scaling). Centered inside the container. If the image overflows it is clipped to the container edges; if smaller, empty space is visible around it. Bounds reflect the actual drawn (clipped) region. |
 
 ---
 
@@ -259,9 +242,8 @@ private readonly _body = this.bundledSprite('characters/body.png');
 
 | Situation | Property | API |
 |-----------|----------|-----|
-| User-selected image from registry | `prop.imageAsset()` | `VisualResourceHandle` + `resolveProjectAssetDescriptor` |
-| User-selected spritesheet (grid) | `prop.imageAsset()` | `VisualResourceHandle` with `AtlasSourceDescriptor` |
-| User-selected Sparrow atlas | `prop.sparrowAsset()` | `VisualResourceHandle` + `resolveProjectAssetDescriptor` |
+| User-selected image from registry | `prop.imageAsset()` | `this.visualHandle()` + `resolveProjectAssetDescriptor` |
+| User-selected spritesheet (grid) | `prop.imageAsset()` | `this.visualHandle()` with `AtlasSourceDescriptor` |
 | Plugin-bundled default image | — (no property) | `this.bundledSprite()` / `this.bundledImage()` |
 | Plugin-bundled default Sparrow atlas | — (no property) | `this.bundledSparrow()` |
 | Non-image file (audio, etc.) | `prop.file()` | n/a |
@@ -285,19 +267,19 @@ this._media.setAssetId(props.imageSource as string | null).setLocalTime(t);
 ```
 
 ```typescript
-// New — element owns the handle, VisualMedia is purely a renderer
+// New — element owns the handle via factory method (auto-destroyed on dispose)
 private readonly _media = new VisualMedia(0, 0, 200, 200);
-private readonly _handle = new VisualResourceHandle();
-
-protected override onDestroy(): void {
-    this._handle.destroy();  // element manages lifecycle
-}
+private readonly _handle = this.visualHandle();
 
 // In _buildRenderObjects:
 const descriptor = resolveProjectAssetDescriptor(props.imageSource as string | null);
 const { resource, status } = this._handle.update(descriptor);
 this._media.setResource(resource, status).setLocalTime(t);
 ```
+
+### From `new VisualResourceHandle()` (manual)
+
+Replace `new VisualResourceHandle()` with `this.visualHandle()` and remove the `handle.destroy()` call from `onDestroy()`. The handle is now auto-tracked.
 
 ### From `AssetRefSparrowSlot`
 
@@ -310,7 +292,7 @@ this._media.setAsset(asset, status);
 
 ```typescript
 // New
-private readonly _handle = new VisualResourceHandle();
+private readonly _handle = this.visualHandle();
 const descriptor = resolveProjectAssetDescriptor(props.atlas as string | null);
 const { resource, status } = this._handle.update(descriptor);
 this._media.setResource(resource, status);

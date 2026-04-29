@@ -38,6 +38,19 @@ export interface AtlasSourceDescriptor {
     layout: AtlasLayout;
 }
 
+/**
+ * Per-animation metadata override for a Sparrow atlas.
+ *
+ * Applied after the cache builds animations from prefix grouping. Use this to
+ * set loopMode or fps per animation without modifying the XML.
+ */
+export interface SparrowAnimationOverride {
+    /** Loop behaviour for this animation. Defaults to 'loop'. */
+    loopMode?: 'loop' | 'once' | 'pingpong';
+    /** Playback speed in frames per second. Overrides the descriptor's defaultFps for this animation. */
+    fps?: number;
+}
+
 /** Load a Sparrow v2 texture atlas (paired PNG + XML). */
 export interface SparrowSourceDescriptor {
     kind: 'sparrow';
@@ -45,6 +58,16 @@ export interface SparrowSourceDescriptor {
     xmlSrc: ImageSource;
     /** Default playback speed in frames per second; defaults to 24. */
     defaultFps?: number;
+    /**
+     * Optional per-animation metadata overrides, keyed by animation name.
+     *
+     * Applied after the XML is parsed and animations are built from prefix grouping.
+     * Use to override loopMode or fps without modifying the XML.
+     *
+     * @example
+     * { kind: 'sparrow', imageSrc, xmlSrc, animations: { death: { loopMode: 'once' } } }
+     */
+    animations?: Record<string, SparrowAnimationOverride>;
 }
 
 export type VisualSourceDescriptor = ImageSourceDescriptor | AtlasSourceDescriptor | SparrowSourceDescriptor;
@@ -67,7 +90,17 @@ export function makeDescriptorKey(descriptor: VisualSourceDescriptor): string {
             const d = (frameDurationMs ?? 1000 / 12).toFixed(2);
             return `atlas:${makeSrcKey(descriptor.src)}:cols=${c}:rows=${r}:count=${n}:dur=${d}`;
         }
-        case 'sparrow':
-            return `sparrow:${makeSrcKey(descriptor.imageSrc)}:xml=${makeSrcKey(descriptor.xmlSrc)}`;
+        case 'sparrow': {
+            let key = `sparrow:${makeSrcKey(descriptor.imageSrc)}:xml=${makeSrcKey(descriptor.xmlSrc)}`;
+            if (descriptor.animations) {
+                // Sort entries for a deterministic key regardless of property insertion order.
+                const overridePart = Object.entries(descriptor.animations)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([name, o]) => `${name}:${o.loopMode ?? ''}:${o.fps != null ? o.fps.toFixed(2) : ''}`)
+                    .join(',');
+                if (overridePart) key += `:anims=${overridePart}`;
+            }
+            return key;
+        }
     }
 }

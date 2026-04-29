@@ -17,7 +17,7 @@
 // @ts-ignore — gifuct-js lacks bundled types
 import { decompressFrames, parseGIF } from 'gifuct-js';
 import { type VisualResource, type VisualFrame, type VisualAnimation } from './visual-resource';
-import { type VisualSourceDescriptor, type ImageSource, makeDescriptorKey } from './visual-source-descriptor';
+import { type VisualSourceDescriptor, type ImageSource, type SparrowAnimationOverride, makeDescriptorKey } from './visual-source-descriptor';
 
 // ─── Source helpers ──────────────────────────────────────────────────────────
 
@@ -169,6 +169,13 @@ export class VisualResourceCache {
     private readonly _resources = new Map<string, VisualResource>();
     private readonly _pending = new Map<string, Promise<VisualResource>>();
     private readonly _refCounts = new Map<string, number>();
+    /**
+     * Per-key load generation. Incremented whenever a new decode is started or
+     * a key is evicted while loading. The in-flight async task captures the
+     * generation at start time and discards its result if the generation no longer
+     * matches when it finishes — preventing stale writes from superseded loads.
+     */
+    private readonly _loadGeneration = new Map<string, number>();
 
     /** Load (or retrieve from cache) a VisualResource for the given descriptor. */
     load(descriptor: VisualSourceDescriptor): Promise<VisualResource> {
@@ -179,6 +186,11 @@ export class VisualResourceCache {
 
         const inflight = this._pending.get(key);
         if (inflight) return inflight;
+
+        // Bump the generation for this key so any previously orphaned in-flight
+        // decode (left over from a release-while-loading scenario) will discard.
+        const gen = (this._loadGeneration.get(key) ?? 0) + 1;
+        this._loadGeneration.set(key, gen);
 
         const placeholder: VisualResource = {
             key,
@@ -207,7 +219,8 @@ export class VisualResourceCache {
                             placeholder,
                             descriptor.imageSrc,
                             descriptor.xmlSrc,
-                            descriptor.defaultFps ?? 24
+                            descriptor.defaultFps ?? 24,
+                            descriptor.animations
                         );
                         break;
                 }
@@ -217,6 +230,14 @@ export class VisualResourceCache {
                 placeholder.errorMessage = err instanceof Error ? err.message : String(err);
             } finally {
                 this._pending.delete(key);
+                // If the generation changed while we were loading, this decode was
+                // superseded (the key was evicted and/or reloaded). Discard and clean up.
+                if (this._loadGeneration.get(key) !== gen) {
+                    this._closeDrawables(placeholder);
+                    if (this._resources.get(key) === placeholder) {
+                        this._resources.delete(key);
+                    }
+                }
             }
             return placeholder;
         })();
@@ -295,7 +316,8 @@ export class VisualResourceCache {
         out: VisualResource,
         imageSrc: ImageSource,
         xmlSrc: ImageSource,
-        defaultFps: number
+        defaultFps: number,
+        animationOverrides?: Record<string, SparrowAnimationOverride>
     ): Promise<void> {
         const [img, xmlText] = await Promise.all([loadRawImage(imageSrc), resolveToText(xmlSrc)]);
 
@@ -375,6 +397,25 @@ export class VisualResourceCache {
             };
         }
 
+        // Apply per-animation overrides from the descriptor.
+        // fps overrides create new VisualFrame objects (rather than mutating shared
+        // frames in out.frames) to keep the resource's flat frame list consistent.
+        if (animationOverrides) {
+            for (const [name, override] of Object.entries(animationOverrides)) {
+                const anim = animations[name];
+                if (!anim) continue;
+                if (override.loopMode !== undefined) {
+                    anim.loopMode = override.loopMode;
+                }
+                if (override.fps !== undefined && override.fps !== anim.fps) {
+                    const newFrameDur = 1000 / override.fps;
+                    anim.frames = anim.frames.map((f) => ({ ...f, durationMs: newFrameDur }));
+                    anim.fps = override.fps;
+                    anim.totalDurationMs = anim.frames.length * newFrameDur;
+                }
+            }
+        }
+
         const sortedW = [...frameLogicalWidths].sort((a, b) => a - b);
         const sortedH = [...frameLogicalHeights].sort((a, b) => a - b);
         const mid = Math.floor(sortedW.length / 2);
@@ -401,13 +442,24 @@ export class VisualResourceCache {
     /**
      * Decrement the reference count. Evicts the resource when count reaches zero,
      * closing any ImageBitmaps to release GPU memory.
+     *
+     * If the resource is still loading when evicted, the in-flight decode is
+     * invalidated via the generation counter — its result will be discarded when
+     * it eventually completes.
      */
     release(key: string): void {
         const count = (this._refCounts.get(key) ?? 0) - 1;
         if (count <= 0) {
             this._refCounts.delete(key);
             const resource = this._resources.get(key);
-            if (resource) this._closeDrawables(resource);
+            if (resource) {
+                if (resource.status === 'loading') {
+                    // Invalidate the in-flight decode — it will discard its result.
+                    this._loadGeneration.set(key, (this._loadGeneration.get(key) ?? 0) + 1);
+                } else {
+                    this._closeDrawables(resource);
+                }
+            }
             this._resources.delete(key);
             this._pending.delete(key);
         } else {
@@ -422,6 +474,7 @@ export class VisualResourceCache {
         this._resources.clear();
         this._pending.clear();
         this._refCounts.clear();
+        this._loadGeneration.clear();
     }
 
     /** Close all ImageBitmaps held by a resource to free GPU/decoder memory. */

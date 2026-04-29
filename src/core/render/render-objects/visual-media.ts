@@ -1,5 +1,5 @@
 import { RenderObject, RenderConfig, Bounds } from './base';
-import { type VisualResource, type ResourceStatus, getFrameAtTime, type FrameAtTime } from '@core/resources/visual-resource';
+import { type VisualResource, type ResourceStatus, getFrameAtTime } from '@core/resources/visual-resource';
 
 /**
  * VisualMedia — a render object that draws any VisualResource.
@@ -8,6 +8,22 @@ import { type VisualResource, type ResourceStatus, getFrameAtTime, type FrameAtT
  * manages the VisualResourceHandle lifecycle, and feeds the decoded resource in
  * via setResource() each frame. VisualMedia has no internal asset slot and no
  * destroy() method.
+ *
+ * ## Fit modes
+ *
+ * | Mode      | Behaviour                                                                  |
+ * |-----------|----------------------------------------------------------------------------|
+ * | 'contain' | Scale to fit within the container box, preserving aspect ratio. Bars      |
+ * |           | (letterbox/pillarbox) are visible when the image and container aspects     |
+ * |           | differ. Bounds reflect the scaled image rect, not the full container.      |
+ * | 'cover'   | Scale to fill the entire container, preserving aspect ratio. The image     |
+ * |           | overflows and is clipped. Bounds equal the full container.                 |
+ * | 'fill'    | Stretch to exactly fill the container. Distorts non-square images.         |
+ * |           | Bounds equal the full container.                                           |
+ * | 'none'    | Draw at the image's native pixel size (1:1 scale, no scaling). The image   |
+ * |           | is centered inside the container and clipped to the container edges if     |
+ * |           | it overflows. If the image is smaller than the container, empty space is   |
+ * |           | visible around it. Bounds reflect the actual drawn (clipped) region.       |
  */
 export class VisualMedia extends RenderObject {
     width: number;
@@ -19,14 +35,6 @@ export class VisualMedia extends RenderObject {
     private _status: ResourceStatus = 'idle';
     private _localTime: number = 0;
     private _animationName: string | null = null;
-    private _lastFrame: FrameAtTime | null = null;
-    private _lastDrawParams: {
-        drawX: number;
-        drawY: number;
-        drawWidth: number;
-        drawHeight: number;
-        srcRect?: { sx: number; sy: number; sw: number; sh: number };
-    } | null = null;
 
     /** Stored origin fractions so pivot stays in sync when dimensions change. */
     private _originX: number = 0;
@@ -127,6 +135,13 @@ export class VisualMedia extends RenderObject {
         return this._resource?.status === 'ready';
     }
 
+    /**
+     * Compute the draw position and size for the given image dimensions and
+     * the current container size + fit mode.
+     *
+     * Returns `drawX/Y/Width/Height` in container-local coordinates and an
+     * optional `srcRect` for source-cropping (used by 'none' mode).
+     */
     #calculateDrawParams(
         imgWidth: number,
         imgHeight: number
@@ -145,6 +160,8 @@ export class VisualMedia extends RenderObject {
         let drawWidth: number, drawHeight: number, drawX: number, drawY: number;
         let srcRect: { sx: number; sy: number; sw: number; sh: number } | undefined;
         if (this.fitMode === 'contain') {
+            // Scale to fit entirely within the container, preserving aspect ratio.
+            // Any remaining space appears as empty bars (letterbox / pillarbox).
             if (imageAspect > containerAspect) {
                 drawWidth = this.width;
                 drawHeight = this.width / imageAspect;
@@ -157,6 +174,8 @@ export class VisualMedia extends RenderObject {
                 drawY = 0;
             }
         } else if (this.fitMode === 'cover') {
+            // Scale to fill the entire container, preserving aspect ratio.
+            // The image overflows the container; caller clips with ctx.clip().
             if (imageAspect > containerAspect) {
                 drawHeight = this.height;
                 drawWidth = this.height * imageAspect;
@@ -169,7 +188,10 @@ export class VisualMedia extends RenderObject {
                 drawY = (this.height - drawHeight) / 2;
             }
         } else {
-            // none: draw at intrinsic pixel size, centered, crop to container bounds
+            // 'none': draw at native pixel size (1:1 scale, no scaling).
+            // Center the image inside the container. If the image is larger than
+            // the container it is clipped to the container edges; if smaller,
+            // empty space is visible around it.
             const visW = Math.min(imgWidth, this.width);
             const visH = Math.min(imgHeight, this.height);
             drawWidth = visW;
@@ -184,6 +206,24 @@ export class VisualMedia extends RenderObject {
             };
         }
         return { drawX, drawY, drawWidth, drawHeight, srcRect };
+    }
+
+    /**
+     * Compute the current image dimensions from live state (resource + animation + time).
+     * Returns {0,0} when the resource is not ready. Used by both _renderSelf and
+     * _getSelfBounds so bounds are always derived from current state, never from
+     * stale render-pass data.
+     */
+    #currentImageDimensions(): { imgW: number; imgH: number } {
+        const resource = this._resource;
+        if (!resource || resource.status !== 'ready') return { imgW: 0, imgH: 0 };
+        const activeAnim = this._animationName != null ? resource.animations[this._animationName] : null;
+        const frames = activeAnim ? activeAnim.frames : resource.frames;
+        const totalDurationMs = activeAnim ? activeAnim.totalDurationMs : resource.totalDurationMs;
+        const frame = getFrameAtTime(frames, totalDurationMs, this._localTime, activeAnim?.loopMode ?? 'loop');
+        const imgW = frame.logicalSize?.w ?? (resource.logicalWidth || resource.width);
+        const imgH = frame.logicalSize?.h ?? (resource.logicalHeight || resource.height);
+        return { imgW, imgH };
     }
 
     protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _currentTime: number): void {
@@ -209,7 +249,6 @@ export class VisualMedia extends RenderObject {
         const totalDurationMs = activeAnim ? activeAnim.totalDurationMs : resource.totalDurationMs;
 
         const frame = getFrameAtTime(frames, totalDurationMs, this._localTime, activeAnim?.loopMode ?? 'loop');
-        this._lastFrame = frame;
         if (!frame.drawable) {
             this.#drawPlaceholder(ctx, 'Empty', 'rgba(150,150,150,0.8)');
             return;
@@ -220,7 +259,6 @@ export class VisualMedia extends RenderObject {
         const imgW = frame.logicalSize?.w ?? (resource.logicalWidth || resource.width);
         const imgH = frame.logicalSize?.h ?? (resource.logicalHeight || resource.height);
         const params = this.#calculateDrawParams(imgW, imgH);
-        this._lastDrawParams = params;
         const { drawX, drawY, drawWidth, drawHeight } = params;
 
         const scaleX = imgW > 0 ? drawWidth / imgW : 1;
@@ -278,26 +316,20 @@ export class VisualMedia extends RenderObject {
     }
 
     protected _getSelfBounds(): Bounds {
-        if (this.fitMode === 'cover') {
+        // Modes that always fill the full container.
+        if (this.fitMode === 'cover' || this.fitMode === 'fill' || !this.preserveAspectRatio) {
             return this._computeTransformedRectBounds(0, 0, this.width, this.height);
         }
 
-        if (this.fitMode === 'fill' || !this.preserveAspectRatio) {
-            return this._computeTransformedRectBounds(0, 0, this.width, this.height);
-        }
-
-        if (this._lastDrawParams) {
-            const { drawX, drawY, drawWidth, drawHeight } = this._lastDrawParams;
+        // For 'contain' and 'none', bounds track the actual drawn region, which
+        // depends on the image dimensions. Compute on demand from current state.
+        const { imgW, imgH } = this.#currentImageDimensions();
+        if (imgW && imgH) {
+            const { drawX, drawY, drawWidth, drawHeight } = this.#calculateDrawParams(imgW, imgH);
             return this._computeTransformedRectBounds(drawX, drawY, drawWidth, drawHeight);
         }
-        if (this._resource?.status === 'ready') {
-            const imgW = this._resource.logicalWidth || this._resource.width;
-            const imgH = this._resource.logicalHeight || this._resource.height;
-            if (imgW && imgH) {
-                const { drawX, drawY, drawWidth, drawHeight } = this.#calculateDrawParams(imgW, imgH);
-                return this._computeTransformedRectBounds(drawX, drawY, drawWidth, drawHeight);
-            }
-        }
+
+        // Fallback: resource not ready yet — use full container as a safe estimate.
         return this._computeTransformedRectBounds(0, 0, this.width, this.height);
     }
 }

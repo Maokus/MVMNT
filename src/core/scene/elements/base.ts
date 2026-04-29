@@ -20,6 +20,7 @@ import { isTestEnvironment } from '@utils/env';
 import { withRenderSafety, limitRenderObjects, DEFAULT_SAFETY_CONFIG } from '@core/scene/plugins/plugin-safety';
 import { loadBundledAssetForElement } from '@core/scene/plugins/bundled-asset-registry';
 import { BundledSprite, BundledSparrowHandle } from '@core/resources/bundled-sprite';
+import { VisualResourceHandle } from '@core/resources/visual-resource-handle';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 
 export type PropertyTransform<TValue, TElement = SceneElement> = (
@@ -123,6 +124,8 @@ export class SceneElement implements SceneElementInterface {
     private _macroUnsubscribe?: () => void;
     private _renderContext: PropertyBindingContext | null = null;
     private _keyframeBoundKeys: Set<string> = new Set();
+    /** Handles/sprites registered via factory methods; destroyed automatically in dispose(). */
+    private readonly _trackedVisualHandles: Array<{ destroy(): void }> = [];
 
     constructor(type: string, id: string | null = null, config: { [key: string]: any } = {}) {
         this.type = type;
@@ -226,7 +229,9 @@ export class SceneElement implements SceneElementInterface {
      * `VisualMedia.setResource()`. Call `handle.destroy()` in `onDestroy()`.
      */
     protected bundledImage(filename: string): BundledSprite {
-        return new BundledSprite(filename, (f) => this._makeBundledLoader(f));
+        const sprite = new BundledSprite(filename, (f) => this._makeBundledLoader(f));
+        this._trackedVisualHandles.push(sprite);
+        return sprite;
     }
 
     /**
@@ -235,7 +240,9 @@ export class SceneElement implements SceneElementInterface {
      * render object. Call `sprite.destroy()` in `onDestroy()`.
      */
     protected bundledSprite(filename: string): BundledSprite {
-        return new BundledSprite(filename, (f) => this._makeBundledLoader(f));
+        const sprite = new BundledSprite(filename, (f) => this._makeBundledLoader(f));
+        this._trackedVisualHandles.push(sprite);
+        return sprite;
     }
 
     /**
@@ -245,8 +252,8 @@ export class SceneElement implements SceneElementInterface {
      * visual asset registry so it appears in the Asset Manager.
      * Call `handle.destroy()` in `onDestroy()`.
      */
-    protected bundledSparrow(pngFilename: string, xmlFilename: string): BundledSparrowHandle {
-        return new BundledSparrowHandle(
+    protected bundledSparrow(pngFilename: string, xmlFilename: string, defaultFps?: number): BundledSparrowHandle {
+        const handle = new BundledSparrowHandle(
             pngFilename,
             xmlFilename,
             (f) => this.loadBundledAsset(f),
@@ -255,8 +262,25 @@ export class SceneElement implements SceneElementInterface {
                 const basename = pngFilename.split('/').pop() ?? pngFilename;
                 const displayName = basename.replace(/\.[^.]+$/, '');
                 useVisualAssetRegistryStore.getState().addBundledSparrowEntry(registryId, displayName, pngUrl, xmlUrl);
-            }
+            },
+            defaultFps
         );
+        this._trackedVisualHandles.push(handle);
+        return handle;
+    }
+
+    /**
+     * Create a `VisualResourceHandle` that is automatically destroyed when this
+     * element is disposed. Use instead of `new VisualResourceHandle()` so you
+     * don't need a manual `handle.destroy()` call in `onDestroy()`.
+     *
+     * @example
+     * private readonly _handle = this.visualHandle();
+     */
+    protected visualHandle(): VisualResourceHandle {
+        const handle = new VisualResourceHandle();
+        this._trackedVisualHandles.push(handle);
+        return handle;
     }
 
     private async _makeBundledLoader(filename: string): Promise<string> {
@@ -274,6 +298,7 @@ export class SceneElement implements SceneElementInterface {
      */
     dispose(): void {
         this.onDestroy();
+        for (const h of this._trackedVisualHandles) h.destroy();
         if (this._macroUnsubscribe) {
             this._macroUnsubscribe();
             this._macroUnsubscribe = undefined;

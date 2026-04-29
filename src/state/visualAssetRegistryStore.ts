@@ -20,7 +20,6 @@ interface VisualAssetRegistryStore {
     assetsOrder: string[];
 
     addAsset(file: File): string;
-    addSparrowAsset(pngFile: File, xmlFile: File): string;
     addBundledEntry(id: string, name: string, blobUrl: string, type: ProjectAssetType): void;
     addBundledSparrowEntry(id: string, name: string, pngBlobUrl: string, xmlBlobUrl: string): void;
     removeAsset(id: string): void;
@@ -48,25 +47,6 @@ export const useVisualAssetRegistryStore = create<VisualAssetRegistryStore>((set
             type: deriveType(file),
             source: 'user',
             deletable: true,
-        };
-        set((state) => ({
-            assets: { ...state.assets, [id]: entry },
-            assetsOrder: [...state.assetsOrder, id],
-        }));
-        return id;
-    },
-
-    addSparrowAsset(pngFile: File, xmlFile: File): string {
-        const id = crypto.randomUUID();
-        const baseName = pngFile.name.replace(/\.[^.]+$/, '');
-        const entry: ProjectAsset = {
-            id,
-            name: baseName || pngFile.name,
-            file: pngFile,
-            type: 'sparrow',
-            source: 'user',
-            deletable: true,
-            xmlFile,
         };
         set((state) => ({
             assets: { ...state.assets, [id]: entry },
