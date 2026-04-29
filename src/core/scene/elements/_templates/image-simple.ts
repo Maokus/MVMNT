@@ -1,17 +1,23 @@
-// Template: Simple Image Element
+// Template: Image / GIF Element
 // Displays a static image or animated GIF from the visual asset registry.
 // Copy this file into your plugin and adapt as needed.
-import { SceneElement, prop, insertElementGroups, VisualMediaPlayback } from '@mvmnt/plugin-sdk';
+import {
+    SceneElement,
+    prop,
+    insertElementGroups,
+    VisualMediaPlayback,
+    resolveProjectAssetDescriptor,
+} from '@mvmnt/plugin-sdk';
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
-import { VisualResourceHandle } from '@mvmnt/plugin-sdk';
-import { resolveProjectAssetDescriptor } from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class SimpleImageElement extends SceneElement {
+    // visualHandle() creates a VisualResourceHandle and auto-destroys it on dispose().
+    // No onDestroy() override needed.
+    private readonly _handle = this.visualHandle();
+    private readonly _playback = new VisualMediaPlayback();
     private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
     private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
-    private readonly _playback = new VisualMediaPlayback();
-    private readonly _handle = new VisualResourceHandle();
 
     constructor(id: string = 'simpleImage', config: Record<string, unknown> = {}) {
         super('simple-image', id, config);
@@ -45,11 +51,6 @@ export class SimpleImageElement extends SceneElement {
                 },
             ]
         );
-    }
-
-    protected override onDestroy(): void {
-        this._handle.destroy();
-        super.onDestroy();
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {

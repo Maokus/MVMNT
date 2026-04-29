@@ -30,6 +30,21 @@ Each asset is assigned a stable UUID at upload time. That ID is what gets stored
 
 ---
 
+## Factory methods on SceneElement
+
+`SceneElement` provides these auto-tracked factory methods — all returned handles are automatically destroyed when the element is disposed, so **no `onDestroy()` override is needed** just for cleanup:
+
+| Method | Returns | Use for |
+|--------|---------|---------|
+| `this.visualHandle()` | `VisualResourceHandle` | User-selected image / atlas from the registry |
+| `this.bundledSprite(filename)` | `BundledSprite` | Image or GIF that ships with the plugin |
+| `this.bundledImage(filename)` | `BundledSprite` | Alias for `bundledSprite()` |
+| `this.bundledSparrow(png, xml, defaultFps?)` | `BundledSparrowHandle` | Sparrow atlas that ships with the plugin |
+
+Always use these factory methods instead of `new VisualResourceHandle()`, `new BundledSprite()`, etc. Manual handles require a matching `handle.destroy()` in `onDestroy()` — factory handles do not.
+
+---
+
 ## Using images in a scene element
 
 ### 1. Declare the property
@@ -73,7 +88,7 @@ export class MyImageElement extends SceneElement {
 
         this._media
             .setResource(resource, status)
-            .setLocalTime(this._playback.computeLocalTime(targetTime, resource?.animations))
+            .setLocalTime(this._playback.computeLocalTime(targetTime))
             .setDimensions(200, 200)
             .setFitMode('contain');
 
@@ -94,7 +109,7 @@ For Sparrow atlases, `resource.animations` is a map of named animations (e.g. `'
 this._media
     .setResource(resource, status)
     .setAnimation('idle')   // play only the 'idle' animation frames
-    .setLocalTime(this._playback.computeLocalTime(targetTime, resource?.animations));
+    .setLocalTime(this._playback.computeLocalTime(targetTime));
 ```
 
 `VisualMediaPlayback.animationName` can also be set to select the active animation
@@ -105,7 +120,7 @@ this._playback.animationName = 'idle';
 this._media
     .setResource(resource, status)
     .setAnimation(this._playback.animationName)
-    .setLocalTime(this._playback.computeLocalTime(targetTime, resource?.animations));
+    .setLocalTime(this._playback.computeLocalTime(targetTime));
 ```
 
 ---
@@ -309,7 +324,7 @@ this._media.setLocalTime(this._playback.computeLocalTime(targetTime, asset?.clip
 // New
 this._media
     .setAnimation(this._playback.animationName)
-    .setLocalTime(this._playback.computeLocalTime(targetTime, resource?.animations));
+    .setLocalTime(this._playback.computeLocalTime(targetTime));
 ```
 
 `VisualMediaPlayback.clipName` is now `animationName`.

@@ -20,6 +20,11 @@ const projectRoot = path.resolve(__dirname, '..');
 
 // Template mapping
 const TEMPLATES = {
+    'minimal': {
+        file: 'minimal.ts',
+        className: 'MinimalElement',
+        description: 'The simplest possible element — blank slate with a color and size property',
+    },
     'basic-shape': {
         file: 'basic-shape.ts',
         className: 'BasicShapeElement',

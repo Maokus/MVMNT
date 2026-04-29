@@ -1,16 +1,23 @@
-// Template: Sparrow Atlas Element
+// Template: Animated Sprite / Sparrow Atlas Element
 // Animates a Sparrow-format sprite atlas (PNG + XML) loaded from the plugin's
 // bundled assets. The default atlas (BOYFRIEND.png + BOYFRIEND.xml) is always
 // available without any user configuration. Users can optionally override it
 // with any Sparrow atlas from their Asset Manager.
 //
-// This template also demonstrates bundledSprite() by rendering the raw
-// spritesheet PNG as a static background layer beneath the animation.
-//
 // Assets required in your plugin's assets/ directory:
 //   assets/BOYFRIEND.png   — the spritesheet image
 //   assets/BOYFRIEND.xml   — the Sparrow XML frame definitions
-import { SceneElement, prop, insertElementGroups, VisualMediaPlayback, VisualResourceHandle, resolveProjectAssetDescriptor } from '@mvmnt/plugin-sdk';
+//
+// All handles created via this.bundledSparrow(), this.bundledSprite(), and
+// this.visualHandle() are auto-tracked and destroyed on dispose —
+// no onDestroy() override needed.
+import {
+    SceneElement,
+    prop,
+    insertElementGroups,
+    VisualMediaPlayback,
+    resolveProjectAssetDescriptor,
+} from '@mvmnt/plugin-sdk';
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
@@ -21,7 +28,7 @@ export class AtlasImageElement extends SceneElement {
     // Bundled plain image — the same PNG rendered as a static background.
     private readonly _bundledBg = this.bundledSprite('BOYFRIEND.png');
     // Handle for an optional user-selected sparrow atlas override.
-    private readonly _atlasOverrideHandle = new VisualResourceHandle();
+    private readonly _atlasOverrideHandle = this.visualHandle();
     private readonly _playback = new VisualMediaPlayback();
     private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
     private readonly _bg = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
@@ -57,13 +64,6 @@ export class AtlasImageElement extends SceneElement {
         );
     }
 
-    protected override onDestroy(): void {
-        this._bundledAtlas.destroy();
-        this._bundledBg.destroy();
-        this._atlasOverrideHandle.destroy();
-        super.onDestroy();
-    }
-
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
         if (!props.visible) return [];
@@ -76,7 +76,11 @@ export class AtlasImageElement extends SceneElement {
 
         // Background: the raw spritesheet PNG, rendered as a static image.
         const bgResult = this._bundledBg.get();
-        this._bg.setResource(bgResult.resource, bgResult.status).setLocalTime(0).setDimensions(w, h).setFitMode('contain');
+        this._bg
+            .setResource(bgResult.resource, bgResult.status)
+            .setLocalTime(0)
+            .setDimensions(w, h)
+            .setFitMode('contain');
 
         // Foreground: animated Sparrow atlas (bundled default or user override).
         const overrideId = props.atlas as string | null;

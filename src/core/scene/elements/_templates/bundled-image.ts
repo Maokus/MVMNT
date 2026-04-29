@@ -1,11 +1,20 @@
-// Template: Bundled Image Element
+// Template: Bundled Image / GIF Element
 // Displays a bundled image or animated GIF that ships with the plugin's assets/
 // directory. The default asset is loaded automatically — no user configuration
 // required. Users can optionally override it with any image from their Asset Manager.
 //
 // Assets required in your plugin's assets/ directory:
 //   assets/cooltext491233707844001.gif   — the default bundled image/GIF
-import { SceneElement, prop, insertElementGroups, VisualMediaPlayback, VisualResourceHandle, resolveProjectAssetDescriptor } from '@mvmnt/plugin-sdk';
+//
+// All handles created via this.bundledSprite() and this.visualHandle() are
+// auto-tracked and destroyed on dispose — no onDestroy() override needed.
+import {
+    SceneElement,
+    prop,
+    insertElementGroups,
+    VisualMediaPlayback,
+    resolveProjectAssetDescriptor,
+} from '@mvmnt/plugin-sdk';
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
@@ -13,7 +22,8 @@ export class BundledImageElement extends SceneElement {
     // Bundled asset — loaded from assets/cooltext491233707844001.gif.
     // Automatically registered in the Asset Manager on first render.
     private readonly _bundled = this.bundledSprite('cooltext491233707844001.gif');
-    private readonly _overrideHandle = new VisualResourceHandle();
+    // Handle for an optional user-selected image override.
+    private readonly _overrideHandle = this.visualHandle();
     private readonly _playback = new VisualMediaPlayback();
     private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
     private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
@@ -52,12 +62,6 @@ export class BundledImageElement extends SceneElement {
                 },
             ]
         );
-    }
-
-    protected override onDestroy(): void {
-        this._bundled.destroy();
-        this._overrideHandle.destroy();
-        super.onDestroy();
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
