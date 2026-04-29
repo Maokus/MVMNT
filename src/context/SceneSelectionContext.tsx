@@ -44,7 +44,7 @@ interface SceneSelectionActions {
         changes: { [key: string]: any },
         options?: Omit<SceneCommandOptions, 'source'>,
     ) => void;
-    addElement: (elementType: string) => void;
+    addElement: (elementType: string, initialConfig?: Record<string, unknown>) => void;
     incrementPropertyPanelRefresh: () => void;
     toggleElementVisibility: (elementId: string) => void;
     moveElement: (elementId: string, newIndex: number) => void;
@@ -336,10 +336,10 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     }, []);
 
     const addElement = useCallback(
-        (elementType: string) => {
+        (elementType: string, initialConfig?: Record<string, unknown>) => {
             const uniqueId = generateUniqueElementId(elementType);
             const created = runSceneCommand(
-                { type: 'addElement', elementType, elementId: uniqueId },
+                { type: 'addElement', elementType, elementId: uniqueId, config: initialConfig },
                 'SceneSelectionContext.addElement'
             );
             if (!created) return;

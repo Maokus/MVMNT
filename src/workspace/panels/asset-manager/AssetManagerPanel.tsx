@@ -13,6 +13,8 @@ import { useVisualAssetRegistryStore, type ProjectAsset } from '@state/visualAss
 
 const ACCEPTED_TYPES = 'image/*,.gif';
 
+export const DRAG_ASSET_TYPE = 'application/mvmnt-asset-id';
+
 const AssetCard: React.FC<{
     entry: ProjectAsset;
     onDelete: () => void;
@@ -43,8 +45,17 @@ const AssetCard: React.FC<{
         setEditing(false);
     };
 
+    const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+        e.dataTransfer.setData(DRAG_ASSET_TYPE, entry.id);
+        e.dataTransfer.effectAllowed = 'copy';
+    };
+
     return (
-        <div className="flex flex-col rounded border border-neutral-700 bg-neutral-800 overflow-hidden hover:border-neutral-500 transition-colors">
+        <div
+            className="flex flex-col rounded border border-neutral-700 bg-neutral-800 overflow-hidden hover:border-neutral-500 transition-colors cursor-grab active:cursor-grabbing"
+            draggable
+            onDragStart={handleDragStart}
+        >
             <div className="flex items-center justify-center bg-neutral-900 relative" style={{ height: 72 }}>
                 {thumbnailUrl && (
                     <img

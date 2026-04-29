@@ -189,6 +189,14 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         return () => window.removeEventListener('font-loaded', handler as EventListener);
     }, [visualizer]);
 
+    // Re-render canvas after undo/redo so restored elements appear immediately
+    useEffect(() => {
+        if (!visualizer) return;
+        const handler = () => visualizer.invalidateRender?.();
+        window.addEventListener('mvmnt-undo-applied', handler);
+        return () => window.removeEventListener('mvmnt-undo-applied', handler);
+    }, [visualizer]);
+
     const tView = useTimelineStore((s) => s.timelineView);
     const playbackRange = useTimelineStore((s) => s.playbackRange);
     const globalBpm = useTimelineStore((s) => s.timeline.globalBpm);
