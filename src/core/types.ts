@@ -208,7 +208,8 @@ export interface ConfigSchemaProperty {
         | 'file-midi'
         | 'file-image'
         | 'timelineTrackRef'
-        | 'audioAnalysisProfile';
+        | 'audioAnalysisProfile'
+        | 'assetRef';
     label: string;
     default: any;
     min?: number;
@@ -217,6 +218,7 @@ export interface ConfigSchemaProperty {
     options?: Array<{ value: any; label: string }>;
     accept?: string; // For file inputs
     description?: string;
+    allowedAssetTypes?: Array<'image' | 'gif' | 'sparrow'>; // For assetRef inputs
 }
 
 export interface ConfigSchema {
@@ -281,7 +283,8 @@ export interface PropertyDefinition {
         | 'file-image'
         | 'font'
         | 'timelineTrackRef'
-        | 'audioAnalysisProfile';
+        | 'audioAnalysisProfile'
+        | 'assetRef';
     label: string;
     default?: any;
     min?: number;
@@ -290,6 +293,7 @@ export interface PropertyDefinition {
     options?: Array<{ value: any; label: string }>;
     accept?: string; // For file inputs
     description?: string;
+    allowedAssetTypes?: Array<'image' | 'gif' | 'sparrow'>; // For assetRef inputs
     // UI hint: when type === 'timelineTrackRef', allow selecting multiple tracks
     // Optional filter for track kinds supported by this binding (defaults to MIDI only)
     allowedTrackTypes?: Array<'midi' | 'audio'>;

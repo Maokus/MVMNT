@@ -28,7 +28,7 @@ describe('Scene element + macro persistence', () => {
         expect(res.ok).toBe(true);
         if (res.ok) {
             expect(res.mode).toBe('zip-package');
-            expect(res.envelope.scene.elements.length).toBe(1);
+            expect(Object.keys(res.envelope.scene.elements).length).toBe(1);
             expect(res.envelope.scene.macros?.macros?.m1?.value).toBe(5);
         }
     });
@@ -51,7 +51,7 @@ describe('Scene element + macro persistence', () => {
         const imp = await importScene(exp.zip);
         expect(imp.ok).toBe(true);
         const exported = useSceneStore.getState().exportSceneDraft();
-        expect(exported.elements.length).toBe(1);
+        expect(Object.keys(exported.elements).length).toBe(1);
         expect(useSceneStore.getState().macros.byId['m1']?.value).toBe(5);
     });
 

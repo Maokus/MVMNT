@@ -1,11 +1,7 @@
 // Time display element for showing current time with property bindings
-import { SceneElement } from '../base';
-import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
-import { Text, Rectangle, RenderObject } from '@core/render/render-objects';
+import { SceneElement, type EnhancedConfigSchema, prop, insertElementGroups, ensureFontLoaded, parseFontSelection, getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { Text, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import { TimingManager } from '@core/timing';
-import { EnhancedConfigSchema } from '@core/types.js';
-import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
 interface BarBeatTick {
     bar: number;

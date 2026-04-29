@@ -1,6 +1,5 @@
-import { SceneElement, asNumber, asTrimmedString } from '../base';
-import { Rectangle, Text, RenderObject } from '@core/render/render-objects';
-import { EnhancedConfigSchema } from '@core/types.js';
+import { SceneElement, asNumber, asTrimmedString, type EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
+import { Rectangle, Text, type RenderObject } from '@mvmnt/plugin-sdk/render';
 
 export class MissingPluginElement extends SceneElement {
     constructor(id: string = 'missingPlugin', config: { [key: string]: any } = {}) {

@@ -10,12 +10,11 @@ export {
     Rectangle,
     Text,
     Line,
-    Image,
-    AnimatedGif,
     Poly,
     BezierPath,
     Arc,
     GlowLayer,
     CompositeLayer,
     ClipLayer,
+    VisualMedia,
 } from '@core/render/render-objects';

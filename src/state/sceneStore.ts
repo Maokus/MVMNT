@@ -549,7 +549,16 @@ function normalizeSmoothingValue(value: unknown): number {
 export function deserializeElementBindings(raw: SceneSerializedElement): ElementBindings {
     const bindings: ElementBindings = {};
     let migratedSmoothing: number | null = null;
-    for (const [key, value] of Object.entries(raw.properties ?? {})) {
+    // Support both V6 (nested `properties`) and V5 (flat top-level) formats.
+    const propertiesSource =
+        raw.properties != null && typeof raw.properties === 'object' && !Array.isArray(raw.properties)
+            ? raw.properties
+            : Object.fromEntries(
+                  Object.entries(raw as unknown as Record<string, unknown>).filter(
+                      ([k]) => k !== 'id' && k !== 'type'
+                  )
+              );
+    for (const [key, value] of Object.entries(propertiesSource)) {
         if (!value || typeof value !== 'object') continue;
         const payload = value as Partial<PropertyBindingData>;
         const type = (value as { type?: string }).type;

@@ -1,9 +1,6 @@
 // Progress display element for showing playback progress with property bindings
-import { SceneElement, asNumber, type PropertyTransform } from '../base';
-import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
-import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
-import { parseFontSelection, ensureFontLoaded } from '@fonts/font-loader';
-import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { SceneElement, asNumber, type PropertyTransform, type EnhancedConfigSchema, type SceneElementInterface, prop, insertElementGroups, parseFontSelection, ensureFontLoaded } from '@mvmnt/plugin-sdk';
+import { Rectangle, type RenderObject, Text } from '@mvmnt/plugin-sdk/render';
 
 const clampUnit: PropertyTransform<number, SceneElementInterface> = (value, element) => {
     const numeric = asNumber(value, element);

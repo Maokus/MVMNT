@@ -25,7 +25,8 @@ const ChangelogPage: React.FC = () => {
                             'Full visual curve editing and interpolation',
                             'Added tempo automation',
                             'i to add keyframe',
-                            'blender-style auto keying'
+                            'blender-style auto keying',
+                            'the timeline panel alone now has 7k lines of code'
                         ],
                         'Added community tab',
                         [
@@ -39,7 +40,8 @@ const ChangelogPage: React.FC = () => {
                             'More note animations for TUPR/MNPR',
                             'Internally store MIDI as binary to reduce file sizes',
                             'Improve timeline navigation',
-                            'Change color picker'
+                            'Change color picker',
+                            'Modify persistence system (now uses indexeddb so you don\'t keep losing your progress on reload)'
                         ],
                         'Implemented custom element system and api',
                         [
@@ -50,15 +52,24 @@ const ChangelogPage: React.FC = () => {
                             'Element property factories',
                             'Improve version conflict management'
                         ],
+                        'Added asset manager',
+                        [
+                            'Good™️ file management',
+                            'Bundle assets with plugins',
+                            'Drag and drop image creation',
+                            'Support for sparrow atlases (like FNF!)',
+                            'Generalised image render object to VisualMedia'
+                        ],
                         'Extended renderobject system',
                         [
                             'Support blend modes, filters and layers',
                             'Improve glow logic',
+                            'Implemented origin calculations',
                         ],
                         'Bugfixes',
                         [
                             'Allowed pre-time unit attack animations in TUPR',
-                            'Changed all angle measurement units to radians (this might break some files)'
+                            'Changed some angle measurement units to radians (this might break some files)'
                         ],
                     ]} />
 

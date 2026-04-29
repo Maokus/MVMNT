@@ -1,7 +1,5 @@
-import { SceneElement } from '../base';
-import { Arc, Line, Poly, Rectangle, RenderObject } from '@core/render/render-objects';
-import { EnhancedConfigSchema } from '@core/types.js';
-import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { SceneElement, type EnhancedConfigSchema, prop, insertElementGroups } from '@mvmnt/plugin-sdk';
+import { Arc, Line, Poly, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 
 type ShapeType = 'rectangle' | 'circle' | 'triangle' | 'line';
 

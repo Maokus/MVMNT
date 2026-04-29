@@ -1,66 +1,37 @@
-// Image scene element for displaying images with transformations and property bindings
-import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from '../base';
-import { Image, AnimatedGif, RenderObject } from '@core/render/render-objects';
-import { EnhancedConfigSchema } from '@core/types.js';
-import type { SceneElementInterface } from '@core/types.js';
-import { imageLoader, LoadedGIF } from '@core/resources/image-loader';
-import { insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+// Image scene element — displays still images and animated GIFs via the
+// unified visual resource system. For sprite atlas / spritesheet support, use
+// the atlas-image template instead.
+import {
+    SceneElement,
+    type EnhancedConfigSchema,
+    insertElementGroups,
+    prop,
+    VisualMediaPlayback,
+} from '@mvmnt/plugin-sdk';
 
-const normalizeFitMode: PropertyTransform<'contain' | 'cover' | 'fill' | 'none', SceneElementInterface> = (
-    value,
-    element
-) => {
-    const normalized = asTrimmedString(value, element)?.toLowerCase();
-    const allowed = ['contain', 'cover', 'fill', 'none'] as const;
-    return allowed.includes(normalized as (typeof allowed)[number])
-        ? (normalized as (typeof allowed)[number])
-        : undefined;
-};
-
-const ensurePositivePlaybackSpeed: PropertyTransform<number, SceneElementInterface> = (value, element) => {
-    const numeric = asNumber(value, element);
-    if (numeric === undefined || numeric <= 0) {
-        return undefined;
-    }
-    return numeric;
-};
-
-const normalizeImageSource: PropertyTransform<string | File | null, SceneElementInterface> = (value) => {
-    if (value == null) return null;
-    if (typeof value === 'string') return value;
-    if (value instanceof File) return value;
-    return null;
-};
-
-interface GIFFrameDataProviderImpl {
-    getFrame(currentTime: number): {
-        image: ImageBitmap | HTMLCanvasElement | ImageData | null;
-        width: number;
-        height: number;
-    };
-    isReady(): boolean;
-    getStatus(): 'idle' | 'loading' | 'ready' | 'error';
-}
+import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
+import { VisualResourceHandle } from '@core/resources/visual-resource-handle';
+import { resolveProjectAssetDescriptor } from '@state/visualAssetRegistryStore';
 
 export class ImageElement extends SceneElement {
-    private _currentImageSource: string | File | null = null;
-    private _cachedRenderObject: RenderObject | null = null;
-    private _imgElement: HTMLImageElement | null = null;
-    private _gifData: LoadedGIF | null = null;
-    private _gifBitmaps: (ImageBitmap | null)[] = [];
-    private _gifDecoding = false;
-    private _status: 'idle' | 'loading' | 'ready' | 'error' | 'empty' = 'idle';
+    private _renderObject: VisualMedia | null = null;
+    private _layoutRect: Rectangle | null = null;
+    private readonly _playback = new VisualMediaPlayback();
+    private readonly _assetHandle = new VisualResourceHandle();
 
     constructor(id: string = 'image', config: { [key: string]: any } = {}) {
         super('image', id, config);
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Image',
-            description: 'Display an image with transformations',
-            category: 'Misc',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
+            {
+                name: 'Image',
+                description: 'Display an image with transformations',
+                category: 'Misc',
+            },
+            [
                 {
                     id: 'imageSource',
                     label: 'Image Source',
@@ -68,31 +39,8 @@ export class ImageElement extends SceneElement {
                     collapsed: false,
                     description: 'Pick the artwork and playback speed for animated assets.',
                     properties: [
-                        {
-                            key: 'imageSource',
-                            type: 'file',
-                            label: 'Image File',
-                            default: '',
-                            accept: 'image/*',
-                            description: 'Image or animated GIF to display.',
-                            runtime: { transform: normalizeImageSource, defaultValue: null },
-                        },
-                        {
-                            key: 'playbackSpeed',
-                            type: 'number',
-                            label: 'Playback Speed (×)',
-                            default: 1,
-                            min: 0.1,
-                            max: 10,
-                            step: 0.1,
-                            description: 'Speed multiplier for animated GIFs (1 = normal).',
-                            runtime: { transform: ensurePositivePlaybackSpeed, defaultValue: 1 },
-                        },
-                    ],
-                    presets: [
-                        { id: 'stillImage', label: 'Still Image', values: { playbackSpeed: 1 } },
-                        { id: 'slowLoop', label: 'Slow GIF Loop', values: { playbackSpeed: 0.5 } },
-                        { id: 'hyperLoop', label: 'Hyper GIF Loop', values: { playbackSpeed: 2 } },
+                        prop.imageAsset('imageSource', 'Image'),
+                        prop.number('playbackSpeed', 'Playback Speed (×)', 1, { step: 0.1 }),
                     ],
                 },
                 {
@@ -102,168 +50,26 @@ export class ImageElement extends SceneElement {
                     collapsed: false,
                     description: 'Size and crop behaviour for the image frame.',
                     properties: [
-                        {
-                            key: 'width',
-                            type: 'number',
-                            label: 'Width (px)',
-                            default: 200,
-                            min: 10,
-                            max: 2000,
-                            step: 10,
-                            description: 'Width of the image container in pixels.',
-                            runtime: { transform: asNumber, defaultValue: 200 },
-                        },
-                        {
-                            key: 'height',
-                            type: 'number',
-                            label: 'Height (px)',
-                            default: 200,
-                            min: 10,
-                            max: 2000,
-                            step: 10,
-                            description: 'Height of the image container in pixels.',
-                            runtime: { transform: asNumber, defaultValue: 200 },
-                        },
-                        {
-                            key: 'fitMode',
-                            type: 'select',
-                            label: 'Fit Mode',
-                            default: 'contain',
-                            options: [
-                                { value: 'contain', label: 'Contain (fit within bounds)' },
-                                { value: 'cover', label: 'Cover (fill bounds, may crop)' },
-                                { value: 'fill', label: 'Fill (stretch to fit)' },
-                                { value: 'none', label: 'None (original size)' },
-                            ],
-                            description: 'How the image should fit within its bounds.',
-                            runtime: { transform: normalizeFitMode, defaultValue: 'contain' as const },
-                        },
-                        {
-                            key: 'preserveAspectRatio',
-                            type: 'boolean',
-                            label: 'Preserve Aspect Ratio',
-                            default: true,
-                            description: 'Maintain the original proportions when resizing.',
+                        prop.number('width', 'Width (px)', 200, { step: 10 }),
+                        prop.number('height', 'Height (px)', 200, { step: 10 }),
+                        prop.select('fitMode', 'Fit Mode', 'contain', [
+                            { value: 'contain', label: 'Contain (fit within bounds)' },
+                            { value: 'cover', label: 'Cover (fill bounds, may crop)' },
+                            { value: 'fill', label: 'Fill (stretch to fit)' },
+                            { value: 'none', label: 'None (original size)' },
+                        ]),
+                        prop.boolean('preserveAspectRatio', 'Preserve Aspect Ratio', true, {
                             visibleWhen: [{ key: 'fitMode', notEquals: 'fill' }],
-                            runtime: { transform: asBoolean, defaultValue: true },
-                        },
-                    ],
-                    presets: [
-                        {
-                            id: 'fullWidth',
-                            label: 'Full Width Banner',
-                            values: { width: 1280, height: 720, fitMode: 'cover' },
-                        },
-                        {
-                            id: 'squareThumb',
-                            label: 'Square Thumbnail',
-                            values: { width: 512, height: 512, fitMode: 'contain' },
-                        },
+                        }),
                     ],
                 },
-        ]);
+            ]
+        );
     }
 
-    private _isGifSource(src: string | File | null): boolean {
-        if (!src) return false;
-        if (typeof src === 'string') return /\.gif($|\?)/i.test(src) || src.startsWith('data:image/gif');
-        return /\.gif$/i.test(src.name);
-    }
-
-    private async _loadStaticImage(src: string | File) {
-        this._status = 'loading';
-        try {
-            const img = await imageLoader.loadImage(src);
-            this._imgElement = img;
-            this._gifData = null;
-            this._gifBitmaps = [];
-            this._status = 'ready';
-            document?.dispatchEvent?.(
-                new CustomEvent('imageLoaded', { detail: { imageSource: typeof src === 'string' ? src : img.src } })
-            );
-        } catch (e) {
-            console.warn('Image load failed', e);
-            this._imgElement = null;
-            this._status = 'error';
-        }
-    }
-
-    private async _loadGif(src: string | File) {
-        if (this._gifDecoding) return;
-        this._gifDecoding = true;
-        this._status = 'loading';
-        try {
-            const data = await imageLoader.loadGIF(src);
-            this._gifData = data;
-            this._imgElement = null;
-            this._gifBitmaps = new Array(data.frames.length).fill(null);
-            this._status = 'ready';
-            document?.dispatchEvent?.(
-                new CustomEvent('imageLoaded', {
-                    detail: { imageSource: typeof src === 'string' ? src : 'gif', type: 'gif' },
-                })
-            );
-        } catch (e) {
-            console.warn('GIF load failed', e);
-            this._gifData = null;
-            this._status = 'error';
-        } finally {
-            this._gifDecoding = false;
-        }
-    }
-
-    private _ensureBitmap(frameIndex: number) {
-        if (!this._gifData) return null;
-        if (!('createImageBitmap' in window)) return null;
-        if (this._gifBitmaps[frameIndex]) return this._gifBitmaps[frameIndex];
-        const frame = this._gifData.frames[frameIndex];
-        createImageBitmap(frame.image)
-            .then((bmp) => {
-                this._gifBitmaps[frameIndex] = bmp;
-            })
-            .catch(() => {});
-        return null;
-    }
-
-    private _getGifFrameProvider(): GIFFrameDataProviderImpl | null {
-        if (!this._gifData) return null;
-        const data = this._gifData;
-        return {
-            getStatus: () => (this._status === 'ready' ? 'ready' : this._status === 'error' ? 'error' : 'loading'),
-            isReady: () => !!data && data.frames.length > 0,
-            getFrame: (timeSeconds: number) => {
-                if (!data || data.frames.length === 0) return { image: null, width: 0, height: 0 };
-                const total = data.totalDurationMs;
-                const tMs = (timeSeconds * 1000) % total;
-                let acc = 0;
-                let idx = 0;
-                for (let i = 0; i < data.frames.length; i++) {
-                    acc += data.frames[i].delay;
-                    if (tMs < acc) {
-                        idx = i;
-                        break;
-                    }
-                }
-                const frame = data.frames[idx];
-                let img: ImageBitmap | HTMLCanvasElement | ImageData = frame.image;
-                const bmp = this._gifBitmaps[idx];
-                if (bmp) img = bmp;
-                else this._ensureBitmap(idx);
-                return { image: img, width: frame.image.width, height: frame.image.height };
-            },
-        };
-    }
-
-    private _maybeStartLoad(newSrc: any) {
-        this._imgElement = null;
-        this._gifData = null;
-        this._gifBitmaps = [];
-        if (!newSrc) {
-            this._status = 'empty';
-            return;
-        }
-        if (this._isGifSource(newSrc)) this._loadGif(newSrc);
-        else this._loadStaticImage(newSrc);
+    protected override onDestroy(): void {
+        this._assetHandle.destroy();
+        super.onDestroy();
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
@@ -271,55 +77,29 @@ export class ImageElement extends SceneElement {
 
         if (!props.visible) return [];
 
-        if (props.imageSource !== this._currentImageSource) {
-            this._currentImageSource = props.imageSource ?? null;
-            this._maybeStartLoad(this._currentImageSource);
+        if (!this._renderObject) {
+            this._renderObject = new VisualMedia(0, 0, props.width, props.height, { includeInLayoutBounds: false });
         }
 
-        const isGif = this._isGifSource(this._currentImageSource);
-
-        if (!this._cachedRenderObject || isGif !== this._cachedRenderObject instanceof AnimatedGif) {
-            if (isGif) {
-                const provider = this._getGifFrameProvider();
-                this._cachedRenderObject = new AnimatedGif(
-                    0,
-                    0,
-                    props.width,
-                    props.height,
-                    provider,
-                    props.playbackSpeed ?? 1,
-                    1,
-                    {
-                        fitMode: props.fitMode ?? 'contain',
-                        preserveAspectRatio: props.preserveAspectRatio ?? true,
-                        status: this._status,
-                    }
-                );
-            } else {
-                this._cachedRenderObject = new Image(0, 0, props.width, props.height, this._imgElement, 1, {
-                    fitMode: props.fitMode ?? 'contain',
-                    preserveAspectRatio: props.preserveAspectRatio ?? true,
-                    status: this._status,
-                });
-            }
+        if (!this._layoutRect) {
+            this._layoutRect = new Rectangle(0, 0, props.width, props.height, null, null);
+        } else {
+            this._layoutRect.width = props.width;
+            this._layoutRect.height = props.height;
         }
 
-        if (isGif && this._cachedRenderObject instanceof AnimatedGif) {
-            const provider = this._getGifFrameProvider();
-            this._cachedRenderObject
-                .setDimensions(props.width, props.height)
-                .setPlaybackSpeed(props.playbackSpeed ?? 1)
-                .setFitMode(props.fitMode ?? 'contain')
-                .setPreserveAspectRatio(props.preserveAspectRatio ?? true)
-                .setProvider(provider, this._status === 'empty' ? 'idle' : this._status);
-        } else if (this._cachedRenderObject instanceof Image) {
-            this._cachedRenderObject
-                .setDimensions(props.width, props.height)
-                .setFitMode(props.fitMode ?? 'contain')
-                .setPreserveAspectRatio(props.preserveAspectRatio ?? true)
-                .setImageElement(this._imgElement, this._status === 'ready' ? 'ready' : this._status);
-        }
+        this._playback.speed = props.playbackSpeed ?? 1;
 
-        return [this._cachedRenderObject];
+        const descriptor = resolveProjectAssetDescriptor(props.imageSource as string | null);
+        const { resource, status } = this._assetHandle.update(descriptor);
+
+        this._renderObject
+            .setResource(resource, status)
+            .setLocalTime(this._playback.computeLocalTime(targetTime))
+            .setDimensions(props.width, props.height)
+            .setFitMode(props.fitMode ?? 'contain')
+            .setPreserveAspectRatio(props.preserveAspectRatio ?? true);
+
+        return [this._layoutRect, this._renderObject];
     }
 }

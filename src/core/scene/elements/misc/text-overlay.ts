@@ -1,9 +1,6 @@
 // Text overlay element for displaying a single line of text with property bindings
-import { SceneElement } from '../base';
-import { RenderObject, Text } from '@core/render/render-objects';
-import { EnhancedConfigSchema } from '@core/types.js';
-import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
-import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { SceneElement, type EnhancedConfigSchema, prop, insertElementGroups, ensureFontLoaded, parseFontSelection } from '@mvmnt/plugin-sdk';
+import { type RenderObject, Text } from '@mvmnt/plugin-sdk/render';
 
 export class TextOverlayElement extends SceneElement {
     constructor(id: string = 'textOverlay', config: { [key: string]: any } = {}) {

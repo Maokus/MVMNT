@@ -23,6 +23,14 @@ export abstract class RenderObject {
     opacity: number;
     visible: boolean;
     rotation: number;
+    /**
+     * Local-space transform origin in pixels.
+     * The object's world (x, y) position maps to this point in local space.
+     * Rotation and scale happen around this point.
+     * (0, 0) = top-left (default). For a 200×200 object, (100, 100) = center.
+     */
+    pivotX: number;
+    pivotY: number;
     children: RenderObject[]; // public to satisfy RenderObjectInterface
     /**
      * Controls contribution to layout bounds.
@@ -42,7 +50,7 @@ export abstract class RenderObject {
         scaleX = 1,
         scaleY = 1,
         opacity = 1,
-        options?: { includeInLayoutBounds?: boolean | undefined }
+        options?: { includeInLayoutBounds?: boolean | undefined; pivotX?: number; pivotY?: number }
     ) {
         this.x = x;
         this.y = y;
@@ -53,11 +61,20 @@ export abstract class RenderObject {
         this.opacity = opacity;
         this.visible = true;
         this.rotation = 0; // Rotation in radians
+        this.pivotX = options?.pivotX ?? 0;
+        this.pivotY = options?.pivotY ?? 0;
         this.children = []; // Array of child render objects
         // Default undefined => include self, respect children
         this.includeInLayoutBounds = options?.includeInLayoutBounds;
         this.blendMode = null;
         this.filter = null;
+    }
+
+    /** Set the local-space transform origin in pixels. */
+    setPivot(x: number, y: number): this {
+        this.pivotX = x;
+        this.pivotY = y;
+        return this;
     }
 
     /** Main render method that handles transformations and delegates to _renderSelf */
@@ -82,6 +99,9 @@ export abstract class RenderObject {
             ctx.transform(...transform);
         }
 
+        // Apply pivot: shift content so pivotX/pivotY in local space aligns with (x, y) in world.
+        if (this.pivotX !== 0 || this.pivotY !== 0) ctx.translate(-this.pivotX, -this.pivotY);
+
         if (this.opacity !== 1) ctx.globalAlpha *= this.opacity;
 
         if (this.blendMode) ctx.globalCompositeOperation = this.blendMode;
@@ -97,33 +117,6 @@ export abstract class RenderObject {
     /** Abstract method for subclasses to implement their specific drawing logic */
     protected abstract _renderSelf(ctx: CanvasRenderingContext2D, config: RenderConfig, currentTime: number): void;
 
-    setPosition(x: number, y: number): this {
-        this.x = x;
-        this.y = y;
-        return this;
-    }
-    setScale(scaleX: number, scaleY = scaleX): this {
-        this.scaleX = scaleX;
-        this.scaleY = scaleY;
-        return this;
-    }
-    setSkew(skewX: number, skewY: number): this {
-        this.skewX = skewX;
-        this.skewY = skewY;
-        return this;
-    }
-    setOpacity(opacity: number): this {
-        this.opacity = Math.max(0, Math.min(1, opacity));
-        return this;
-    }
-    setVisible(visible: boolean): this {
-        this.visible = visible;
-        return this;
-    }
-    setRotation(rotation: number): this {
-        this.rotation = rotation;
-        return this;
-    }
     /** Control if this object contributes to layout bounds (visual bounds always include all). */
     setIncludeInLayoutBounds(include: boolean | undefined): this {
         this.includeInLayoutBounds = include;
@@ -185,8 +178,8 @@ export abstract class RenderObject {
             this.includeInLayoutBounds === true
                 ? 'force-include'
                 : this.includeInLayoutBounds === false
-                ? 'force-exclude'
-                : 'respect';
+                  ? 'force-exclude'
+                  : 'respect';
         return this._getLayoutBoundsRecursive(policy);
     }
 
@@ -212,10 +205,10 @@ export abstract class RenderObject {
             parentPolicy === 'force-include'
                 ? 'force-include'
                 : this.includeInLayoutBounds === true
-                ? 'force-include'
-                : this.includeInLayoutBounds === false
-                ? 'force-exclude'
-                : 'respect';
+                  ? 'force-include'
+                  : this.includeInLayoutBounds === false
+                    ? 'force-exclude'
+                    : 'respect';
 
         // Determine whether to include self at this level
         const includeSelf = parentPolicy === 'force-include' || this.includeInLayoutBounds !== false;
@@ -232,7 +225,7 @@ export abstract class RenderObject {
 
     /**
      * Compute the world transform matrix matching the render() order:
-     * M = T(x,y) * R(rotation) * S(scaleX,scaleY) * K(skewX,skewY)
+     * M = T(x,y) * R(rotation) * S(scaleX,scaleY) * K(skewX,skewY) * T(-pivotX,-pivotY)
      */
     protected _getWorldTransformMatrix(): { a: number; b: number; c: number; d: number; e: number; f: number } {
         const sin = Math.sin(this.rotation || 0);
@@ -241,6 +234,8 @@ export abstract class RenderObject {
         const ky = Math.tan(this.skewY || 0);
         const sx = this.scaleX || 1;
         const sy = this.scaleY || 1;
+        const px = this.pivotX || 0;
+        const py = this.pivotY || 0;
         // helpers
         const multiply = (m1: any, m2: any) => ({
             a: m1.a * m2.a + m1.c * m2.b,
@@ -258,6 +253,7 @@ export abstract class RenderObject {
         M = multiply(M, R(cos, sin));
         M = multiply(M, S(sx, sy));
         M = multiply(M, K(kx, ky));
+        if (px !== 0 || py !== 0) M = multiply(M, T(-px, -py));
         return M;
     }
 

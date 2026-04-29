@@ -700,7 +700,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 const isBlack = pc === 1 || pc === 3 || pc === 6 || pc === 8 || pc === 10;
                 const col = isBlack ? blackKeyColor : whiteKeyColor;
                 const key = new Rectangle(0, y, pianoWidth, noteHeight, col, null, 0);
-                key.setOpacity?.(pianoOpacity);
+                key.opacity = pianoOpacity;
                 renderObjects.push(key);
             }
             if ((pianoRightBorderWidth || 0) > 0) {

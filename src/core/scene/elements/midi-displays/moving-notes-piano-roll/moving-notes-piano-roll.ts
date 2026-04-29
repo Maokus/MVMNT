@@ -462,7 +462,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     pitchClass === 1 || pitchClass === 3 || pitchClass === 6 || pitchClass === 8 || pitchClass === 10;
                 const col = isBlack ? blackKeyColor : whiteKeyColor;
                 const key = new Rectangle(0, y, pianoWidth, noteHeight, col, null, 0);
-                key.setOpacity?.(pianoOpacity);
+                key.opacity = pianoOpacity;
                 renderObjects.push(key);
             }
             // Right border to separate piano from roll area
