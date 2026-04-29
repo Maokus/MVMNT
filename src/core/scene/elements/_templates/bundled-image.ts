@@ -5,7 +5,7 @@
 //
 // Assets required in your plugin's assets/ directory:
 //   assets/cooltext491233707844001.gif   — the default bundled image/GIF
-import { SceneElement, prop, insertElementGroups, VisualMediaPlayback } from '@mvmnt/plugin-sdk';
+import { SceneElement, prop, insertElementGroups, VisualMediaPlayback, VisualResourceHandle, resolveProjectAssetDescriptor } from '@mvmnt/plugin-sdk';
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
@@ -13,6 +13,7 @@ export class BundledImageElement extends SceneElement {
     // Bundled asset — loaded from assets/cooltext491233707844001.gif.
     // Automatically registered in the Asset Manager on first render.
     private readonly _bundled = this.bundledSprite('cooltext491233707844001.gif');
+    private readonly _overrideHandle = new VisualResourceHandle();
     private readonly _playback = new VisualMediaPlayback();
     private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
     private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
@@ -55,6 +56,7 @@ export class BundledImageElement extends SceneElement {
 
     protected override onDestroy(): void {
         this._bundled.destroy();
+        this._overrideHandle.destroy();
         super.onDestroy();
     }
 
@@ -70,20 +72,15 @@ export class BundledImageElement extends SceneElement {
         this._layoutRect.height = h;
 
         const overrideId = props.imageSource as string | null;
-        if (overrideId) {
-            this._media
-                .setAssetId(overrideId)
-                .setLocalTime(this._playback.computeLocalTime(targetTime))
-                .setDimensions(w, h)
-                .setFitMode(fitMode);
-        } else {
-            const { asset, status } = this._bundled.get();
-            this._media
-                .setAsset(asset, status)
-                .setLocalTime(this._playback.computeLocalTime(targetTime, asset?.clips))
-                .setDimensions(w, h)
-                .setFitMode(fitMode);
-        }
+        const { resource, status } = overrideId
+            ? this._overrideHandle.update(resolveProjectAssetDescriptor(overrideId))
+            : this._bundled.get();
+
+        this._media
+            .setResource(resource, status)
+            .setLocalTime(this._playback.computeLocalTime(targetTime, resource?.animations))
+            .setDimensions(w, h)
+            .setFitMode(fitMode);
 
         return [this._layoutRect, this._media];
     }

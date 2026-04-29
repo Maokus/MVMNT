@@ -20,7 +20,7 @@ import { ensureFontVariantsRegistered } from '@fonts/font-loader';
 import type { FontAsset } from '@state/scene/fonts';
 import { decodeSceneText, parseLegacyInlineScene, parseScenePackage, ScenePackageError } from './scene-package';
 import { isTestEnvironment } from '@utils/env';
-import { useVisualAssetRegistryStore, type VisualAssetRegistryEntry } from '@state/visualAssetRegistryStore';
+import { useVisualAssetRegistryStore, type ProjectAsset } from '@state/visualAssetRegistryStore';
 
 const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
@@ -159,7 +159,10 @@ async function assessPluginDependencies(
             versionOk = satisfiesVersion(installed.manifest.version, dep.version);
             if (!versionOk) {
                 // Determine direction: extract the lower bound of the range and check if installed >= it.
-                const lowerBound = dep.version.replace(/^[\^~>=]+/, '').trim().split(' ')[0];
+                const lowerBound = dep.version
+                    .replace(/^[\^~>=]+/, '')
+                    .trim()
+                    .split(' ')[0];
                 isAdvisory = satisfiesVersion(installed.manifest.version, `>=${lowerBound}`);
                 if (isAdvisory) {
                     // Installed plugin is newer than what was used to create the scene — likely harmless.
@@ -405,7 +408,10 @@ async function restoreMidiCache(
         }
         if (isMidiBinary(payload)) {
             try {
-                const buffer = payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength) as ArrayBuffer;
+                const buffer = payload.buffer.slice(
+                    payload.byteOffset,
+                    payload.byteOffset + payload.byteLength
+                ) as ArrayBuffer;
                 const midiData = await parseMIDIArrayBuffer(buffer);
                 restored[cacheId] = buildNotesFromMIDI(midiData);
             } catch (error) {
@@ -450,9 +456,14 @@ function restoreVisualAssets(
             continue;
         }
         const mimeType = typeof record.mimeType === 'string' ? record.mimeType : 'application/octet-stream';
-        const originalFileName = typeof record.originalFileName === 'string' ? record.originalFileName : `${assetId}.bin`;
+        const originalFileName =
+            typeof record.originalFileName === 'string' ? record.originalFileName : `${assetId}.bin`;
         try {
-            const file = new File([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], originalFileName, { type: mimeType });
+            const file = new File(
+                [bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer],
+                originalFileName,
+                { type: mimeType }
+            );
             fileById.set(assetId, file);
         } catch {
             warnings.push(`Failed to reconstruct File for visual asset ${assetId}`);
@@ -487,24 +498,28 @@ function restoreVisualAssets(
 function hydrateVisualAssetRegistry(
     fileById: Map<string, File>,
     visualAssetsSection: { byId: Record<string, any> } | undefined,
-    registrySection: { assets: Record<string, { id: string; name: string; filename: string }>; assetsOrder: string[] } | undefined
+    registrySection:
+        | { assets: Record<string, { id: string; name: string; filename: string }>; assetsOrder: string[] }
+        | undefined
 ): void {
     if (fileById.size === 0) return;
 
-    const entries: VisualAssetRegistryEntry[] = [];
-    const orderedIds = registrySection?.assetsOrder?.length
-        ? registrySection.assetsOrder
-        : Array.from(fileById.keys());
+    const entries: ProjectAsset[] = [];
+    const orderedIds = registrySection?.assetsOrder?.length ? registrySection.assetsOrder : Array.from(fileById.keys());
 
     for (const assetId of orderedIds) {
         const file = fileById.get(assetId);
         if (!file) continue;
         const registryMeta = registrySection?.assets?.[assetId];
         const visualMeta = visualAssetsSection?.byId?.[assetId];
-        const filename = registryMeta?.name
-            ?? (visualMeta?.originalFileName ? (visualMeta.originalFileName as string).replace(/\.[^.]+$/, '') : null)
-            ?? assetId;
-        const type = (file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')) ? 'gif' as const : 'image' as const;
+        const filename =
+            registryMeta?.name ??
+            (visualMeta?.originalFileName ? (visualMeta.originalFileName as string).replace(/\.[^.]+$/, '') : null) ??
+            assetId;
+        const type =
+            file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')
+                ? ('gif' as const)
+                : ('image' as const);
         entries.push({ id: assetId, name: filename, file, type, source: 'user', deletable: true });
     }
 
@@ -513,10 +528,14 @@ function hydrateVisualAssetRegistry(
         if (orderedIds.includes(assetId)) continue;
         const registryMeta = registrySection?.assets?.[assetId];
         const visualMeta = visualAssetsSection?.byId?.[assetId];
-        const filename = registryMeta?.name
-            ?? (visualMeta?.originalFileName ? (visualMeta.originalFileName as string).replace(/\.[^.]+$/, '') : null)
-            ?? assetId;
-        const type = (file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')) ? 'gif' as const : 'image' as const;
+        const filename =
+            registryMeta?.name ??
+            (visualMeta?.originalFileName ? (visualMeta.originalFileName as string).replace(/\.[^.]+$/, '') : null) ??
+            assetId;
+        const type =
+            file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')
+                ? ('gif' as const)
+                : ('image' as const);
         entries.push({ id: assetId, name: filename, file, type, source: 'user', deletable: true });
     }
 
@@ -799,16 +818,16 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
             ? window.confirm('This scene includes embedded plugins needed for some elements. Install them now?')
             : false;
         if (shouldInstall) {
-            pluginWarnings.push(...(await installEmbeddedPlugins(dependencyAssessment.embeddedMissing, pluginPayloads)));
+            pluginWarnings.push(
+                ...(await installEmbeddedPlugins(dependencyAssessment.embeddedMissing, pluginPayloads))
+            );
         }
     }
 
     if (dependencyAssessment.missing.length) {
         const missingList = dependencyAssessment.missing.map((dep) => dep.pluginId).filter(Boolean);
         if (missingList.length) {
-            pluginWarnings.push(
-                `Missing plugins: ${missingList.join(', ')}. Some elements are shown as placeholders.`
-            );
+            pluginWarnings.push(`Missing plugins: ${missingList.join(', ')}. Some elements are shown as placeholders.`);
         }
     }
 
@@ -827,7 +846,11 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
     const midiRestoration = await restoreMidiCache(envelope?.timeline?.midiCache, midiPayloads);
     doc.midiCache = midiRestoration.cache;
 
-    const { warnings: visualWarnings, fileById } = restoreVisualAssets(doc.scene, envelope.assets?.visual, visualPayloads);
+    const { warnings: visualWarnings, fileById } = restoreVisualAssets(
+        doc.scene,
+        envelope.assets?.visual,
+        visualPayloads
+    );
 
     // Clear registry before applying (previous project's assets should not persist)
     useVisualAssetRegistryStore.getState()._clear();
@@ -840,7 +863,13 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
 
     let hydrationWarnings: string[] = [];
     const fontWarnings: string[] = [];
-    if ((envelope.schemaVersion === 2 || envelope.schemaVersion === 4 || envelope.schemaVersion === 5 || envelope.schemaVersion === 6) && envelope.assets) {
+    if (
+        (envelope.schemaVersion === 2 ||
+            envelope.schemaVersion === 4 ||
+            envelope.schemaVersion === 5 ||
+            envelope.schemaVersion === 6) &&
+        envelope.assets
+    ) {
         hydrationWarnings = await hydrateAudioAssets(envelope, audioPayloads, waveformPayloads);
     }
 

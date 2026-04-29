@@ -1,5 +1,5 @@
 /**
- * Visual asset utilities: store access, key construction, types, and playback.
+ * Visual resource utilities: cache access, descriptor types, handle, and playback.
  *
  * Plugin authors use these to load and display images, animated GIFs, and
  * sprite atlases via VisualMedia render objects.
@@ -8,35 +8,36 @@
  */
 
 export {
-    visualAssetStore,
-    makeImageKey,
-    makeAtlasKey,
-    makeSparrowKey,
-    type ImageSource,
-} from '@core/resources/visual-asset-store';
+    visualResourceCache,
+    type VisualResourceCache,
+} from '@core/resources/visual-resource-cache';
 
 export {
-    type VisualAsset,
-    type VisualAssetStatus,
-    type VisualFrame,
+    type VisualSourceDescriptor,
+    type ImageSourceDescriptor,
+    type AtlasSourceDescriptor,
+    type SparrowSourceDescriptor,
     type AtlasLayout,
-    type VisualClip,
+    type ImageSource,
+    makeDescriptorKey,
+} from '@core/resources/visual-source-descriptor';
+
+export {
+    type DecodedResource,
+    type ResourceStatus,
+    type VisualFrame,
+    type VisualAnimation,
     type FrameAtTime,
     getFrameAtTime,
-} from '@core/resources/visual-asset';
+} from '@core/resources/visual-resource';
 
 export { VisualMediaPlayback } from '@core/resources/visual-media-playback';
 
 export {
-    ImageAssetSlot,
-    AtlasAssetSlot,
-    BundledImageAssetSlot,
-    BundledSparrowAssetSlot,
-    AssetRefSlot,
-    AssetRefAtlasSlot,
-    SparrowAssetSlot,
-    AssetRefSparrowSlot,
-    type AssetSlotResult,
-} from '@core/resources/visual-asset-slot';
+    VisualResourceHandle,
+    type ResourceHandleResult,
+} from '@core/resources/visual-resource-handle';
 
-export { BundledSprite } from '@core/resources/bundled-sprite';
+export { BundledSprite, BundledSparrowHandle } from '@core/resources/bundled-sprite';
+
+export { resolveProjectAssetDescriptor } from '@state/visualAssetRegistryStore';

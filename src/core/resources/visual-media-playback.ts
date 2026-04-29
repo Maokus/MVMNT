@@ -3,14 +3,9 @@
  *
  * Owned by the scene element; the element computes localTime each frame and
  * passes it to VisualMedia.setLocalTime(). This keeps timing/playback concerns
- * separate from both asset data (VisualAsset) and rendering (VisualMedia).
- *
- * Designed to grow toward named clip / state-machine animation:
- *   - clipName selects a named VisualClip from the asset (null = full animation)
- *   - loop mode, ping-pong, one-shot, etc. can be added here without touching
- *     the asset layer or the render object.
+ * separate from both resource data (DecodedResource) and rendering (VisualMedia).
  */
-import type { VisualClip } from './visual-asset';
+import type { VisualAnimation } from './visual-resource';
 
 export class VisualMediaPlayback {
     /** Playback rate multiplier (1 = normal speed). */
@@ -23,33 +18,32 @@ export class VisualMediaPlayback {
     startOffset: number = 0;
 
     /**
-     * Active named clip; null = play the full animation.
-     * When set, computeLocalTime() will confine playback to the clip's
-     * [startMs, endMs) window and loop within that range.
+     * Active named animation; null = play the full resource frame sequence.
+     * When set and the named animation is found in the resource, computeLocalTime()
+     * confines playback to that animation's duration and loops within it.
      */
-    clipName: string | null = null;
+    animationName: string | null = null;
 
     /**
-     * Compute local asset time (seconds) for a given scene time.
+     * Compute local playback time (seconds) for a given scene time.
      * Pass the result to VisualMedia.setLocalTime() each frame.
      *
-     * When clipName is set and the named clip is found in `clips`, the returned
-     * time is absolute within the full animation timeline but confined to the
-     * clip's [startMs, endMs) window (looping). This allows getFrameAtTime() to
-     * select the correct frame without any special clip-awareness.
+     * When animationName is set and found in `animations`, the returned time
+     * loops within [0, animation.totalDurationMs / 1000). VisualMedia then uses
+     * that animation's own frame list via setAnimation(), so no absolute offset
+     * into a shared timeline is needed.
      *
      * @param sceneTimeSec  Current scene playback time in seconds.
-     * @param clips         Optional clips map from the loaded VisualAsset.
+     * @param animations    Optional animations map from the loaded DecodedResource.
      */
-    computeLocalTime(sceneTimeSec: number, clips?: Record<string, VisualClip>): number {
+    computeLocalTime(sceneTimeSec: number, animations?: Record<string, VisualAnimation>): number {
         const rawTime = Math.max(0, sceneTimeSec - this.startOffset) * this.speed;
 
-        if (this.clipName && clips) {
-            const clip = clips[this.clipName];
-            if (clip && clip.endMs > clip.startMs) {
-                const clipDurationSec = (clip.endMs - clip.startMs) / 1000;
-                const clipLocalTime = rawTime % clipDurationSec;
-                return clip.startMs / 1000 + clipLocalTime;
+        if (this.animationName && animations) {
+            const anim = animations[this.animationName];
+            if (anim && anim.totalDurationMs > 0) {
+                const animDurationSec = anim.totalDurationMs / 1000;
+                return rawTime % animDurationSec;
             }
         }
 

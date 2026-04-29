@@ -19,8 +19,7 @@ import { debugLog } from '@utils/debug-log';
 import { isTestEnvironment } from '@utils/env';
 import { withRenderSafety, limitRenderObjects, DEFAULT_SAFETY_CONFIG } from '@core/scene/plugins/plugin-safety';
 import { loadBundledAssetForElement } from '@core/scene/plugins/bundled-asset-registry';
-import { BundledImageAssetSlot, BundledSparrowAssetSlot } from '@core/resources/visual-asset-slot';
-import { BundledSprite } from '@core/resources/bundled-sprite';
+import { BundledSprite, BundledSparrowHandle } from '@core/resources/bundled-sprite';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 
 export type PropertyTransform<TValue, TElement = SceneElement> = (
@@ -222,12 +221,12 @@ export class SceneElement implements SceneElementInterface {
     }
 
     /**
-     * Create a managed slot for a bundled image asset.
-     * Call `slot.get()` each frame to receive `{ asset, status }` ready for
-     * `VisualMedia.setAsset()`. Call `slot.destroy()` in `onDestroy()`.
+     * Create a managed handle for a bundled image asset.
+     * Call `handle.get()` each frame to receive `{ resource, status }` ready for
+     * `VisualMedia.setResource()`. Call `handle.destroy()` in `onDestroy()`.
      */
-    protected bundledImage(filename: string): BundledImageAssetSlot {
-        return new BundledImageAssetSlot(filename, (f) => this._makeBundledLoader(f));
+    protected bundledImage(filename: string): BundledSprite {
+        return new BundledSprite(filename, (f) => this._makeBundledLoader(f));
     }
 
     /**
@@ -240,14 +239,14 @@ export class SceneElement implements SceneElementInterface {
     }
 
     /**
-     * Create a managed slot for a bundled Sparrow atlas (paired PNG + XML).
-     * Call `slot.get()` each frame to receive `{ asset, status }` ready for
-     * `VisualMedia.setAsset()`. The atlas is automatically registered in the
+     * Create a managed handle for a bundled Sparrow atlas (paired PNG + XML).
+     * Call `handle.get()` each frame to receive `{ resource, status }` ready for
+     * `VisualMedia.setResource()`. The atlas is automatically registered in the
      * visual asset registry so it appears in the Asset Manager.
-     * Call `slot.destroy()` in `onDestroy()`.
+     * Call `handle.destroy()` in `onDestroy()`.
      */
-    protected bundledSparrow(pngFilename: string, xmlFilename: string): BundledSparrowAssetSlot {
-        return new BundledSparrowAssetSlot(
+    protected bundledSparrow(pngFilename: string, xmlFilename: string): BundledSparrowHandle {
+        return new BundledSparrowHandle(
             pngFilename,
             xmlFilename,
             (f) => this.loadBundledAsset(f),

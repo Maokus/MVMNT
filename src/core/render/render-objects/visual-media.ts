@@ -1,19 +1,18 @@
 import { RenderObject, RenderConfig, Bounds } from './base';
-import { VisualAsset, VisualAssetStatus, getFrameAtTime, FrameAtTime } from '@core/resources/visual-asset';
-import { AssetRefSlot } from '@core/resources/visual-asset-slot';
+import { type DecodedResource, type ResourceStatus, getFrameAtTime, type FrameAtTime } from '@core/resources/visual-resource';
 
 /**
- * VisualMedia — a single render object that draws any VisualAsset.
+ * VisualMedia — a render object that draws any DecodedResource.
  *
- * Static images and animated GIFs are both VisualAssets; the render object
- * does not need to know which kind it holds. Frame selection for animated
- * assets is driven by `localTime`, which the owning SceneElement sets each
- * frame via `setLocalTime()`.
+ * Asset-agnostic and deterministic: the owning element resolves descriptors,
+ * manages the VisualResourceHandle lifecycle, and feeds the decoded resource in
+ * via setResource() each frame. VisualMedia has no internal asset slot and no
+ * destroy() method.
  *
- * `localTime = (sceneTime - elementStartTime + offset) * speed`
- *
- * This keeps timing/playback concerns in the scene element and drawing
- * concerns here.
+ * Frame selection for animated resources is driven by `localTime` (set via
+ * setLocalTime()) and `animationName` (set via setAnimation()). When an animation
+ * name is set and the resource has a matching named animation, that animation's
+ * frame list is used; otherwise the resource's full frame list is used.
  */
 export class VisualMedia extends RenderObject {
     width: number;
@@ -21,9 +20,10 @@ export class VisualMedia extends RenderObject {
     fitMode: 'contain' | 'cover' | 'fill' | 'none';
     preserveAspectRatio: boolean;
 
-    private _asset: VisualAsset | null = null;
-    private _status: VisualAssetStatus = 'idle';
+    private _resource: DecodedResource | null = null;
+    private _status: ResourceStatus = 'idle';
     private _localTime: number = 0;
+    private _animationName: string | null = null;
     private _lastFrame: FrameAtTime | null = null;
     private _lastDrawParams: {
         drawX: number;
@@ -36,8 +36,6 @@ export class VisualMedia extends RenderObject {
     /** Stored origin fractions so pivot stays in sync when dimensions change. */
     private _originX: number = 0;
     private _originY: number = 0;
-
-    private readonly _slot = new AssetRefSlot();
 
     constructor(
         x: number,
@@ -52,7 +50,6 @@ export class VisualMedia extends RenderObject {
              * Instance draw origin X as a fraction of the container width (0–1).
              * The render object's (x, y) position maps to this point on the container.
              * (0) = left edge (default). (0.5) = center. (1) = right edge.
-             * Use setOrigin() to change after construction; setDimensions() keeps it in sync.
              */
             originX?: number;
             /** Instance draw origin Y as a fraction of the container height (0–1). */
@@ -69,13 +66,17 @@ export class VisualMedia extends RenderObject {
         }
     }
 
-    setAsset(asset: VisualAsset | null, status?: VisualAssetStatus): this {
-        this._asset = asset;
-        this._status = status ?? asset?.status ?? 'idle';
+    /**
+     * Set the decoded resource and optional status override.
+     * Safe to call every frame — just updates internal state references.
+     */
+    setResource(resource: DecodedResource | null, status?: ResourceStatus): this {
+        this._resource = resource;
+        this._status = status ?? resource?.status ?? 'idle';
         return this;
     }
 
-    setStatus(status: VisualAssetStatus): this {
+    setStatus(status: ResourceStatus): this {
         this._status = status;
         return this;
     }
@@ -83,6 +84,16 @@ export class VisualMedia extends RenderObject {
     /** Set the pre-computed local playback time (seconds) for this frame. */
     setLocalTime(localTimeSec: number): this {
         this._localTime = localTimeSec;
+        return this;
+    }
+
+    /**
+     * Set the active named animation. When set and the resource has a matching
+     * animation, that animation's frame list is used for rendering. Pass null to
+     * play the resource's full frame sequence.
+     */
+    setAnimation(name: string | null): this {
+        this._animationName = name;
         return this;
     }
 
@@ -108,8 +119,6 @@ export class VisualMedia extends RenderObject {
     /**
      * Set the draw origin as a fraction of the container size (0–1).
      * Stores the fractions and recomputes pivotX/pivotY from the current dimensions.
-     * The pivot (inherited from RenderObject) is the local-space point that aligns with
-     * the world (x, y) position and is the center of rotation/scale.
      */
     setOrigin(x: number, y: number): this {
         this._originX = x;
@@ -119,25 +128,8 @@ export class VisualMedia extends RenderObject {
         return this;
     }
 
-    /**
-     * Resolve a visual asset registry ID (or File) and load it.
-     * Manages asset lifecycle (retain/release) internally — no external slot needed.
-     * Safe to call every frame with the same or a new ID.
-     */
-    setAssetId(idOrSource: string | File | null): this {
-        const { asset, status } = this._slot.update(idOrSource);
-        this._asset = asset;
-        this._status = status;
-        return this;
-    }
-
-    /** Release held asset reference. Call from the owning element's onDestroy(). */
-    destroy(): void {
-        this._slot.destroy();
-    }
-
     isReady(): boolean {
-        return this._asset?.status === 'ready';
+        return this._resource?.status === 'ready';
     }
 
     #calculateDrawParams(
@@ -200,22 +192,28 @@ export class VisualMedia extends RenderObject {
     }
 
     protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _currentTime: number): void {
-        const asset = this._asset;
+        const resource = this._resource;
 
-        if (!asset || this._status !== 'ready') {
+        if (!resource || this._status !== 'ready') {
             const msg =
                 this._status === 'loading'
                     ? 'Loading…'
                     : this._status === 'error'
                       ? 'Error'
-                      : asset === null
+                      : resource === null
                         ? 'No image'
                         : 'Image';
             this.#drawPlaceholder(ctx, msg, this._status === 'error' ? 'red' : 'rgba(150,150,150,0.8)');
             return;
         }
 
-        const frame = getFrameAtTime(asset, this._localTime);
+        // Determine which frame list and duration to use.
+        const activeAnim =
+            this._animationName != null ? resource.animations[this._animationName] : null;
+        const frames = activeAnim ? activeAnim.frames : resource.frames;
+        const totalDurationMs = activeAnim ? activeAnim.totalDurationMs : resource.totalDurationMs;
+
+        const frame = getFrameAtTime(frames, totalDurationMs, this._localTime);
         this._lastFrame = frame;
         if (!frame.drawable) {
             this.#drawPlaceholder(ctx, 'Empty', 'rgba(150,150,150,0.8)');
@@ -223,25 +221,19 @@ export class VisualMedia extends RenderObject {
         }
 
         // Use per-frame logicalSize if present (Sparrow frames), otherwise fall back
-        // to asset-level logical dimensions so atlas frames lay out by frame size.
-        const imgW = frame.logicalSize?.w ?? (asset.logicalWidth || asset.width);
-        const imgH = frame.logicalSize?.h ?? (asset.logicalHeight || asset.height);
+        // to resource-level logical dimensions.
+        const imgW = frame.logicalSize?.w ?? (resource.logicalWidth || resource.width);
+        const imgH = frame.logicalSize?.h ?? (resource.logicalHeight || resource.height);
         const params = this.#calculateDrawParams(imgW, imgH);
         this._lastDrawParams = params;
         const { drawX, drawY, drawWidth, drawHeight } = params;
 
-        // Scale factors: screen pixels per logical pixel
         const scaleX = imgW > 0 ? drawWidth / imgW : 1;
         const scaleY = imgH > 0 ? drawHeight / imgH : 1;
 
-        // Trim offset: where within the logical frame the visible content begins.
-        // Scaled to match the drawn frame size.
         const trimX = (frame.trimOffset?.x ?? 0) * scaleX;
         const trimY = (frame.trimOffset?.y ?? 0) * scaleY;
 
-        // Top-left of the actual content pixels in container space.
-        // The base class pivot (set via setOrigin) has already shifted the coordinate
-        // system so that (drawX, drawY) aligns correctly with the world position.
         const destX = drawX + trimX;
         const destY = drawY + trimY;
 
@@ -254,8 +246,6 @@ export class VisualMedia extends RenderObject {
 
         try {
             if (frame.rotated && frame.sourceRect) {
-                // Frame stored 90° CW in atlas — rotate back 90° CCW.
-                // After un-rotation: logical content is (sh × sw) pixels.
                 const { sx, sy, sw, sh } = frame.sourceRect;
                 const contentW = sh * scaleX;
                 const contentH = sw * scaleY;
@@ -265,12 +255,9 @@ export class VisualMedia extends RenderObject {
                 ctx.drawImage(frame.drawable, sx, sy, sw, sh, -contentH / 2, -contentW / 2, contentH, contentW);
                 ctx.restore();
             } else if (frame.sourceRect) {
-                // Atlas frame (uniform grid or Sparrow without rotation).
-                // Scale content proportionally within the logical frame.
                 const { sx, sy, sw, sh } = frame.sourceRect;
                 ctx.drawImage(frame.drawable, sx, sy, sw, sh, destX, destY, sw * scaleX, sh * scaleY);
             } else if (params.srcRect) {
-                // "none" fit mode: draw at intrinsic size with center crop to container bounds.
                 const { sx, sy, sw, sh } = params.srcRect;
                 ctx.drawImage(frame.drawable, sx, sy, sw, sh, destX, destY, drawWidth, drawHeight);
             } else {
@@ -297,26 +284,20 @@ export class VisualMedia extends RenderObject {
 
     protected _getSelfBounds(): Bounds {
         if (this.fitMode === 'cover') {
-            // Image is clipped to the container rect; pivot is not relevant for bounds.
             return this._computeTransformedRectBounds(0, 0, this.width, this.height);
         }
 
         if (this.fitMode === 'fill' || !this.preserveAspectRatio) {
-            // Fill: draw occupies full container starting at (0, 0).
-            // The pivot (set on base class) shifts the bounds via the world matrix.
             return this._computeTransformedRectBounds(0, 0, this.width, this.height);
         }
 
-        // contain / none with preserveAspectRatio: pass draw params as-is.
-        // The pivot is encoded in the world matrix via _getWorldTransformMatrix.
         if (this._lastDrawParams) {
             const { drawX, drawY, drawWidth, drawHeight } = this._lastDrawParams;
             return this._computeTransformedRectBounds(drawX, drawY, drawWidth, drawHeight);
         }
-        // Compute bounds from asset intrinsics if available, before first draw
-        if (this._asset?.status === 'ready') {
-            const imgW = this._asset.logicalWidth || this._asset.width;
-            const imgH = this._asset.logicalHeight || this._asset.height;
+        if (this._resource?.status === 'ready') {
+            const imgW = this._resource.logicalWidth || this._resource.width;
+            const imgH = this._resource.logicalHeight || this._resource.height;
             if (imgW && imgH) {
                 const { drawX, drawY, drawWidth, drawHeight } = this.#calculateDrawParams(imgW, imgH);
                 return this._computeTransformedRectBounds(drawX, drawY, drawWidth, drawHeight);

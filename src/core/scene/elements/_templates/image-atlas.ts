@@ -10,14 +10,7 @@
 // Assets required in your plugin's assets/ directory:
 //   assets/BOYFRIEND.png   — the spritesheet image
 //   assets/BOYFRIEND.xml   — the Sparrow XML frame definitions
-import {
-    SceneElement,
-    prop,
-    insertElementGroups,
-    BundledSparrowAssetSlot,
-    AssetRefSparrowSlot,
-    VisualMediaPlayback,
-} from '@mvmnt/plugin-sdk';
+import { SceneElement, prop, insertElementGroups, VisualMediaPlayback, VisualResourceHandle, resolveProjectAssetDescriptor } from '@mvmnt/plugin-sdk';
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
@@ -27,8 +20,8 @@ export class AtlasImageElement extends SceneElement {
     private readonly _bundledAtlas = this.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml');
     // Bundled plain image — the same PNG rendered as a static background.
     private readonly _bundledBg = this.bundledSprite('BOYFRIEND.png');
-    // Slot for an optional user-selected sparrow atlas override.
-    private readonly _atlasOverride = new AssetRefSparrowSlot();
+    // Handle for an optional user-selected sparrow atlas override.
+    private readonly _atlasOverrideHandle = new VisualResourceHandle();
     private readonly _playback = new VisualMediaPlayback();
     private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
     private readonly _bg = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
@@ -67,7 +60,7 @@ export class AtlasImageElement extends SceneElement {
     protected override onDestroy(): void {
         this._bundledAtlas.destroy();
         this._bundledBg.destroy();
-        this._atlasOverride.destroy();
+        this._atlasOverrideHandle.destroy();
         super.onDestroy();
     }
 
@@ -83,15 +76,17 @@ export class AtlasImageElement extends SceneElement {
 
         // Background: the raw spritesheet PNG, rendered as a static image.
         const bgResult = this._bundledBg.get();
-        this._bg.setAsset(bgResult.asset, bgResult.status).setLocalTime(0).setDimensions(w, h).setFitMode('contain');
+        this._bg.setResource(bgResult.resource, bgResult.status).setLocalTime(0).setDimensions(w, h).setFitMode('contain');
 
         // Foreground: animated Sparrow atlas (bundled default or user override).
         const overrideId = props.atlas as string | null;
-        const { asset, status } = overrideId ? this._atlasOverride.update(overrideId) : this._bundledAtlas.get();
+        const { resource, status } = overrideId
+            ? this._atlasOverrideHandle.update(resolveProjectAssetDescriptor(overrideId))
+            : this._bundledAtlas.get();
 
         this._media
-            .setAsset(asset, status)
-            .setLocalTime(this._playback.computeLocalTime(targetTime, asset?.clips))
+            .setResource(resource, status)
+            .setLocalTime(this._playback.computeLocalTime(targetTime, resource?.animations))
             .setDimensions(w, h)
             .setFitMode('contain');
 

@@ -1,5 +1,5 @@
 // Image scene element — displays still images and animated GIFs via the
-// unified VisualAsset system. For sprite atlas / spritesheet support, use
+// unified visual resource system. For sprite atlas / spritesheet support, use
 // the atlas-image template instead.
 import {
     SceneElement,
@@ -10,11 +10,14 @@ import {
 } from '@mvmnt/plugin-sdk';
 
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
+import { VisualResourceHandle } from '@core/resources/visual-resource-handle';
+import { resolveProjectAssetDescriptor } from '@state/visualAssetRegistryStore';
 
 export class ImageElement extends SceneElement {
     private _renderObject: VisualMedia | null = null;
     private _layoutRect: Rectangle | null = null;
     private readonly _playback = new VisualMediaPlayback();
+    private readonly _assetHandle = new VisualResourceHandle();
 
     constructor(id: string = 'image', config: { [key: string]: any } = {}) {
         super('image', id, config);
@@ -65,7 +68,7 @@ export class ImageElement extends SceneElement {
     }
 
     protected override onDestroy(): void {
-        this._renderObject?.destroy();
+        this._assetHandle.destroy();
         super.onDestroy();
     }
 
@@ -87,9 +90,12 @@ export class ImageElement extends SceneElement {
 
         this._playback.speed = props.playbackSpeed ?? 1;
 
+        const descriptor = resolveProjectAssetDescriptor(props.imageSource as string | null);
+        const { resource, status } = this._assetHandle.update(descriptor);
+
         this._renderObject
-            .setAssetId(props.imageSource ?? null)
-            .setLocalTime(this._playback.computeLocalTime(targetTime))
+            .setResource(resource, status)
+            .setLocalTime(this._playback.computeLocalTime(targetTime, resource?.animations))
             .setDimensions(props.width, props.height)
             .setFitMode(props.fitMode ?? 'contain')
             .setPreserveAspectRatio(props.preserveAspectRatio ?? true);

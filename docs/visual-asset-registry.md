@@ -4,13 +4,26 @@ The visual asset registry is the canonical way to add images and GIFs to your sc
 
 ---
 
+## Concepts
+
+| Term | Type | Description |
+|------|------|-------------|
+| **Project asset** | `ProjectAsset` | Registry entry: name, type, source files, stable UUID. Lives in `VisualAssetRegistryStore`. |
+| **Source descriptor** | `VisualSourceDescriptor` | Typed description of where to load data from (`image`, `atlas`, or `sparrow`). Passed to a handle. |
+| **Decoded resource** | `DecodedResource` | Decoded, frame-ready representation. Frames are pre-baked `ImageBitmap`s. Lives in `VisualResourceCache`. |
+| **Resource handle** | `VisualResourceHandle` | Manages one resource reference (retain/release). Single class for all source types. |
+| **Render object** | `VisualMedia` | Draws a `DecodedResource` to canvas. Asset-agnostic — receives resources via `setResource()`. |
+
+---
+
 ## The Asset Manager panel
 
 The **Asset Manager** panel (left of the preview in MidiVisualizer) is the registry UI:
 
 - **Upload** — drag a file onto the panel or click the upload button. Accepted types: JPEG, PNG, WebP, GIF.
+- **+ Sparrow** — two-step picker for PNG + XML atlas pairs.
 - **Rename** — double-click an asset name to edit it.
-- **Delete** — click the delete icon on an asset card. Only deletes the registry entry; it does not affect elements already referencing the asset until they are re-rendered.
+- **Delete** — click the delete icon on an asset card. Only user assets are deletable.
 
 Each asset is assigned a stable UUID at upload time. That ID is what gets stored in scene documents and referenced by element properties.
 
@@ -19,8 +32,6 @@ Each asset is assigned a stable UUID at upload time. That ID is what gets stored
 ## Using images in a scene element
 
 ### 1. Declare the property
-
-Use `prop.imageAsset()` in your `getConfigSchema()`:
 
 ```typescript
 import { prop, insertElementGroups } from '@mvmnt/plugin-sdk';
@@ -40,21 +51,19 @@ static override getConfigSchema() {
 }
 ```
 
-This renders a dropdown in the properties panel showing all assets currently in the registry.
-
 ### 2. Load and draw the asset
 
-Call `setAssetId()` and `setLocalTime()` on a long-lived `VisualMedia` instance each frame. Call `destroy()` in `onDestroy()` to release the asset reference:
-
 ```typescript
-import { SceneElement, prop, insertElementGroups } from '@mvmnt/plugin-sdk';
+import { SceneElement, prop, insertElementGroups, VisualMediaPlayback, VisualResourceHandle, resolveProjectAssetDescriptor } from '@mvmnt/plugin-sdk';
 import { VisualMedia, type RenderObject } from '@mvmnt/plugin-sdk/render';
 
 export class MyImageElement extends SceneElement {
     private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
+    private readonly _playback = new VisualMediaPlayback();
+    private readonly _handle = new VisualResourceHandle();
 
     protected override onDestroy(): void {
-        this._media.destroy();
+        this._handle.destroy();
         super.onDestroy();
     }
 
@@ -62,9 +71,12 @@ export class MyImageElement extends SceneElement {
         const props = this.getSchemaProps();
         if (!props.visible) return [];
 
+        const descriptor = resolveProjectAssetDescriptor(props.imageSource as string | null);
+        const { resource, status } = this._handle.update(descriptor);
+
         this._media
-            .setAssetId(props.imageSource as string | null)
-            .setLocalTime(playback.computeLocalTime(targetTime))
+            .setResource(resource, status)
+            .setLocalTime(this._playback.computeLocalTime(targetTime, resource?.animations))
             .setDimensions(200, 200)
             .setFitMode('contain');
 
@@ -73,199 +85,158 @@ export class MyImageElement extends SceneElement {
 }
 ```
 
-**Keep `VisualMedia` as a long-lived field** — `setAssetId()` manages retain/release internally and only re-loads the asset when the ID changes. Creating a new `VisualMedia` every frame would bypass that caching.
+**Keep `VisualResourceHandle` as a long-lived field** — `update()` manages retain/release internally and only reloads when the descriptor key changes.
 
-**Always call `this._media.destroy()` in `onDestroy()`** — it releases the asset's reference count so memory can be reclaimed when the element is removed from the scene.
+**Always call `this._handle.destroy()` in `onDestroy()`** — releases the reference count so memory can be reclaimed.
 
-### Animated assets and playback speed
+### Animated assets and named animations
 
-`setLocalTime()` sets the pre-computed playback position. Use `VisualMediaPlayback.computeLocalTime()` to advance the frame over time. For user-controllable playback speed:
+For Sparrow atlases, `resource.animations` is a map of named animations (e.g. `'idle'`, `'run'`). To play a specific animation:
 
 ```typescript
 this._media
-    .setAssetId(props.imageSource as string | null)
-    .setLocalTime(playback.computeLocalTime(targetTime))
-    .setDimensions(props.width, props.height)
-    .setFitMode('contain');
+    .setResource(resource, status)
+    .setAnimation('idle')   // play only the 'idle' animation frames
+    .setLocalTime(this._playback.computeLocalTime(targetTime, resource?.animations));
+```
+
+`VisualMediaPlayback.animationName` can also be set to confine `computeLocalTime()` to the animation's duration:
+
+```typescript
+this._playback.animationName = 'idle';
+this._media
+    .setResource(resource, status)
+    .setAnimation(this._playback.animationName)
+    .setLocalTime(this._playback.computeLocalTime(targetTime, resource?.animations));
 ```
 
 ---
 
 ## Sprite atlas elements
 
-For uniform-grid spritesheet animation, use `AssetRefAtlasSlot` explicitly — the atlas path requires a layout configuration that `VisualMedia` doesn't manage internally:
+For uniform-grid spritesheets, construct an `AtlasSourceDescriptor` directly:
 
 ```typescript
-import { AssetRefAtlasSlot, type AtlasLayout } from '@mvmnt/plugin-sdk';
+import { type AtlasSourceDescriptor, VisualResourceHandle } from '@mvmnt/plugin-sdk';
 
-private readonly _atlas = new AssetRefAtlasSlot();
-private readonly _media = new VisualMedia(0, 0, 200, 200);
+private readonly _handle = new VisualResourceHandle();
 
-protected override onDestroy(): void {
-    this._atlas.destroy();
-}
+protected override onDestroy(): void { this._handle.destroy(); }
 
-protected override _buildRenderObjects(_cfg: unknown, targetTime: number): RenderObject[] {
-    const layout: AtlasLayout = {
-        columns: 4,
-        rows: 4,
-        frameDurationMs: 1000 / 12,  // 12 fps
-    };
-
-    const { asset, status } = this._atlas.update(props.imageSource as string | null, layout);
-    this._media
-        .setAsset(asset, status)
-        .setLocalTime(targetTime)
-        .setDimensions(200, 200);
-
+protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[] {
+    const src = props.imageSource as string | File | null;
+    const descriptor: AtlasSourceDescriptor | null = src
+        ? { kind: 'atlas', src: src as string, layout: { columns: 4, rows: 4, frameDurationMs: 1000 / 12 } }
+        : null;
+    const { resource, status } = this._handle.update(descriptor);
+    this._media.setResource(resource, status).setLocalTime(t).setDimensions(200, 200);
     return [this._media];
 }
 ```
-
-The property declaration is identical — use `prop.imageAsset('imageSource', 'Sprite Sheet')`. The atlas-vs-plain distinction is purely in which slot class you use.
 
 ---
 
 ## Sparrow atlas elements
 
-Sparrow is a format that stores frame regions in an XML file alongside the spritesheet PNG. Each frame has a name, position, and dimensions, rather than a uniform grid.
+Sparrow is a format that stores frame regions in an XML file alongside the spritesheet PNG.
 
 ### User-uploaded Sparrow atlas
 
-Use `prop.sparrowAsset()` to show a dropdown of user-uploaded Sparrow atlases, and `AssetRefSparrowSlot` to load the selected entry:
-
 ```typescript
-import { prop, AssetRefSparrowSlot } from '@mvmnt/plugin-sdk';
+import { prop, VisualResourceHandle, resolveProjectAssetDescriptor } from '@mvmnt/plugin-sdk';
 
 static override getConfigSchema() {
-    return insertElementGroups(super.getConfigSchema(), { name: 'My Element' }, [
-        {
-            id: 'atlasSource',
-            label: 'Atlas',
-            variant: 'basic',
-            collapsed: false,
-            properties: [
-                prop.sparrowAsset('atlas', 'Sparrow Atlas'),
-            ],
-        },
-    ]);
+    return insertElementGroups(super.getConfigSchema(), { name: 'My Element' }, [{
+        id: 'atlasSource',
+        label: 'Atlas',
+        variant: 'basic',
+        collapsed: false,
+        properties: [prop.sparrowAsset('atlas', 'Sparrow Atlas')],
+    }]);
 }
 
-private readonly _sparrow = new AssetRefSparrowSlot();
+private readonly _handle = new VisualResourceHandle();
 
-protected override onDestroy(): void {
-    this._sparrow.destroy();
-}
+protected override onDestroy(): void { this._handle.destroy(); }
 
-protected override _buildRenderObjects(_cfg: unknown, targetTime: number): RenderObject[] {
-    const { asset, status } = this._sparrow.update(props.atlas as string | null);
-    this._media.setAsset(asset, status).setLocalTime(targetTime).setDimensions(200, 200);
+protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[] {
+    const descriptor = resolveProjectAssetDescriptor(props.atlas as string | null);
+    const { resource, status } = this._handle.update(descriptor);
+    this._media.setResource(resource, status).setLocalTime(t).setDimensions(200, 200);
     return [this._media];
 }
 ```
 
-Users add Sparrow atlases in the Asset Manager via the **+ Sparrow** button, which prompts for the PNG followed by the XML file.
-
 ### Bundled Sparrow atlas
 
-Plugins can ship a Sparrow atlas inside their `assets/` directory and load it without any user configuration. Use `this.bundledSparrow(pngFilename, xmlFilename)` — the atlas is loaded automatically and registered in the Asset Manager as a bundled entry (non-deletable, marked "plugin"):
+Plugins can ship a Sparrow atlas inside their `assets/` directory:
 
 ```typescript
-// The PNG + XML live at assets/BOYFRIEND.png and assets/BOYFRIEND.xml
 private readonly _sparrow = this.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml');
 
 protected override onDestroy(): void {
     this._sparrow.destroy();
 }
 
-protected override _buildRenderObjects(_cfg: unknown, targetTime: number): RenderObject[] {
-    const { asset, status } = this._sparrow.get();
-    this._media.setAsset(asset, status).setLocalTime(targetTime).setDimensions(200, 200);
+protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[] {
+    const { resource, status } = this._sparrow.get();
+    this._media.setResource(resource, status).setLocalTime(t).setDimensions(200, 200);
     return [this._media];
 }
 ```
 
 ### Overrideable bundled Sparrow atlas
 
-The most flexible pattern: ship a default Sparrow atlas, but let users replace it with their own:
-
 ```typescript
 private readonly _bundledAtlas = this.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml');
-private readonly _atlasOverride = new AssetRefSparrowSlot();
+private readonly _overrideHandle = new VisualResourceHandle();
 
 protected override onDestroy(): void {
     this._bundledAtlas.destroy();
-    this._atlasOverride.destroy();
+    this._overrideHandle.destroy();
 }
 
-protected override _buildRenderObjects(_cfg: unknown, targetTime: number): RenderObject[] {
+protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[] {
     const overrideId = props.atlas as string | null;
-    const { asset, status } = overrideId
-        ? this._atlasOverride.update(overrideId)
+    const { resource, status } = overrideId
+        ? this._overrideHandle.update(resolveProjectAssetDescriptor(overrideId))
         : this._bundledAtlas.get();
 
-    this._media.setAsset(asset, status).setLocalTime(targetTime).setDimensions(200, 200);
+    this._media.setResource(resource, status).setLocalTime(t).setDimensions(200, 200);
     return [this._media];
 }
 ```
-
-The schema uses `prop.sparrowAsset('atlas', 'Override Atlas')` — when `null`, the bundled default is used.
 
 ---
 
 ## Bundled plugin assets
 
-Assets that ship _inside_ a plugin (e.g. a default sprite that always loads) use a different mechanism — they bypass the user registry entirely:
+Assets that ship inside a plugin use `bundledSprite()` or `bundledImage()`:
 
 ```typescript
-// In your element class:
 private readonly _icon = this.bundledSprite('icon.png');
 
-protected override onDestroy(): void {
-    this._icon.destroy();
-}
+protected override onDestroy(): void { this._icon.destroy(); }
 
 protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[] {
     return [this._icon.build(0, 0, 64, 64)];
 }
 ```
 
-`bundledSprite()` loads the file from the plugin's `assets/` directory via the plugin loader. There is no user-visible property and no registry entry. See [creating-custom-elements.md](creating-custom-elements.md) for how to include bundled assets in your plugin.
+`build()` creates a new `VisualMedia` each call — use only for simple cases where the render object isn't reused frame to frame. For long-lived instances, use `.get()` and `setResource()` manually:
+
+```typescript
+const { resource, status } = this._icon.get();
+this._media.setResource(resource, status);
+```
 
 ### Subdirectories in bundled assets
 
-Subdirectories inside `assets/` are fully supported. Pass the path relative to `assets/`:
+Subdirectories inside `assets/` are fully supported:
 
 ```typescript
 private readonly _head = this.bundledSprite('characters/head.png');
 private readonly _body = this.bundledSprite('characters/body.png');
-private readonly _bg   = this.bundledSprite('backgrounds/stage.png');
-```
-
-The asset will appear in the Asset Manager as just the filename (`head`, `body`, `stage`) — the directory path is stripped from the display name.
-
-In a packaged `.mvmnt-plugin` ZIP, include the files at `assets/characters/head.png`, etc. The loader strips the `assets/` prefix and uses the remainder (`characters/head.png`) as the lookup key, matching the path you pass to `bundledSprite()`.
-
-### Overrideable bundled assets
-
-If you want a _default_ bundled image that users can **optionally override** from the registry, use both:
-
-```typescript
-private readonly _bundled = this.bundledSprite('default.png');
-private readonly _media   = new VisualMedia(0, 0, 200, 200);
-
-protected override onDestroy(): void {
-    this._bundled.destroy();
-}
-
-// In _buildRenderObjects:
-const overrideId = props.imageSource as string | null;
-if (overrideId) {
-    this._media.setAssetId(overrideId).setLocalTime(playback.computeLocalTime(targetTime));
-} else {
-    const { asset, status } = this._bundled.get();
-    this._media.setAsset(asset, status).setLocalTime(targetTime);
-}
 ```
 
 ---
@@ -274,93 +245,88 @@ if (overrideId) {
 
 `VisualMedia.setFitMode()` accepts:
 
-| Value       | Behaviour                                                                   |
-| ----------- | --------------------------------------------------------------------------- |
+| Value | Behaviour |
+|-------|-----------|
 | `'contain'` | Scale to fit within the bounds, preserving aspect ratio. Letterbox visible. |
-| `'cover'`   | Scale to fill the bounds, preserving aspect ratio. Image may be cropped.    |
-| `'fill'`    | Stretch to exactly fill the bounds. Distorts non-square images.             |
-| `'none'`    | Draw at the image's original pixel size (no scaling).                       |
+| `'cover'` | Scale to fill the bounds, preserving aspect ratio. Image may be cropped. |
+| `'fill'` | Stretch to exactly fill the bounds. Distorts non-square images. |
+| `'none'` | Draw at the image's original pixel size (no scaling). |
 
 ---
 
 ## What to use when
 
-| Situation                                      | Property              | API                                            |
-| ---------------------------------------------- | --------------------- | ---------------------------------------------- |
-| User-selected image from registry              | `prop.imageAsset()`   | `VisualMedia.setAssetId()`                     |
-| User-selected spritesheet (grid) from registry | `prop.imageAsset()`   | `AssetRefAtlasSlot` + `setAsset()`             |
-| User-selected Sparrow atlas from registry      | `prop.sparrowAsset()` | `AssetRefSparrowSlot` + `setAsset()`           |
-| Plugin-bundled default image                   | — (no property)       | `this.bundledSprite()` / `this.bundledImage()` |
-| Plugin-bundled default Sparrow atlas           | — (no property)       | `this.bundledSparrow()`                        |
-| Non-image file (audio, etc.)                   | `prop.file()`         | n/a                                            |
+| Situation | Property | API |
+|-----------|----------|-----|
+| User-selected image from registry | `prop.imageAsset()` | `VisualResourceHandle` + `resolveProjectAssetDescriptor` |
+| User-selected spritesheet (grid) | `prop.imageAsset()` | `VisualResourceHandle` with `AtlasSourceDescriptor` |
+| User-selected Sparrow atlas | `prop.sparrowAsset()` | `VisualResourceHandle` + `resolveProjectAssetDescriptor` |
+| Plugin-bundled default image | — (no property) | `this.bundledSprite()` / `this.bundledImage()` |
+| Plugin-bundled default Sparrow atlas | — (no property) | `this.bundledSparrow()` |
+| Non-image file (audio, etc.) | `prop.file()` | n/a |
 
 ---
 
-## Migration from `AssetRefSlot` / `prop.file()` / `ImageAssetSlot`
+## Migration from the old API
 
-### From `AssetRefSlot` + `VisualMediaPlayback` (previous pattern)
+### From `setAssetId()` / `AssetRefSlot`
 
 ```typescript
-// Old — requires separate slot and playback fields
-import { AssetRefSlot, VisualMediaPlayback } from '@mvmnt/plugin-sdk';
-
-private readonly _image = new AssetRefSlot();
-private readonly _playback = new VisualMediaPlayback();
+// Old — VisualMedia managed lifecycle internally via setAssetId()
 private readonly _media = new VisualMedia(0, 0, 200, 200);
 
 protected override onDestroy(): void {
-    this._image.destroy();  // separate destroy
-    super.onDestroy();
+    this._media.destroy();  // OLD: released internal AssetRefSlot
 }
 
 // In _buildRenderObjects:
-const { asset, status } = this._image.update(props.imageSource as string | null);
-this._media
-    .setAsset(asset, status)
-    .setLocalTime(this._playback.computeLocalTime(targetTime, asset?.clips))
-    .setDimensions(200, 200);
+this._media.setAssetId(props.imageSource as string | null).setLocalTime(t);
 ```
 
 ```typescript
-// New — lifecycle managed by VisualMedia
+// New — element owns the handle, VisualMedia is purely a renderer
 private readonly _media = new VisualMedia(0, 0, 200, 200);
+private readonly _handle = new VisualResourceHandle();
 
 protected override onDestroy(): void {
-    this._media.destroy();
-    super.onDestroy();
+    this._handle.destroy();  // element manages lifecycle
 }
 
 // In _buildRenderObjects:
-this._media
-    .setAssetId(props.imageSource as string | null)
-    .setLocalTime(playback.computeLocalTime(targetTime))
-    .setDimensions(200, 200);
+const descriptor = resolveProjectAssetDescriptor(props.imageSource as string | null);
+const { resource, status } = this._handle.update(descriptor);
+this._media.setResource(resource, status).setLocalTime(t);
 ```
 
-`AssetRefSlot`, `VisualMediaPlayback`, and `ImageAssetSlot` remain exported from `@mvmnt/plugin-sdk` for cases that need them (e.g. atlas elements, mixing bundled and user assets), but they are no longer needed for the common image element pattern.
-
-### From `prop.file()` / `ImageAssetSlot` (legacy)
-
-The old pattern used a file upload dialog and raw `File` objects:
+### From `AssetRefSparrowSlot`
 
 ```typescript
-// Old — do not use for images
-prop.file('imageSource', 'Image File', { accept: 'image/*' })
-private readonly _image = new ImageAssetSlot();
-const { asset, status } = this._image.update(props.imageSource as File | null);
+// Old
+private readonly _sparrow = new AssetRefSparrowSlot();
+const { asset, status } = this._sparrow.update(props.atlas as string | null);
+this._media.setAsset(asset, status);
 ```
-
-Migrate to:
 
 ```typescript
 // New
-prop.imageAsset('imageSource', 'Image');
-// ...in _buildRenderObjects:
-this._media.setAssetId(props.imageSource as string | null);
+private readonly _handle = new VisualResourceHandle();
+const descriptor = resolveProjectAssetDescriptor(props.atlas as string | null);
+const { resource, status } = this._handle.update(descriptor);
+this._media.setResource(resource, status);
 ```
 
-Key differences:
+### `clips` → `animations`
 
-- `prop.file()` stored a transient `File` object; `prop.imageAsset()` stores a stable UUID string.
-- `setAssetId()` accepts `string | File | null` — it handles both new UUID strings and any legacy `File` values during import.
-- Assets uploaded via the registry survive save/load and can be shared between elements. File-upload assets were session-only and could not be serialised.
+`VisualAsset.clips` (flat `startMs/endMs`) is replaced by `DecodedResource.animations`, where each animation owns its frame list and FPS:
+
+```typescript
+// Old
+this._media.setLocalTime(this._playback.computeLocalTime(targetTime, asset?.clips));
+
+// New
+this._media
+    .setAnimation(this._playback.animationName)
+    .setLocalTime(this._playback.computeLocalTime(targetTime, resource?.animations));
+```
+
+`VisualMediaPlayback.clipName` is now `animationName`.

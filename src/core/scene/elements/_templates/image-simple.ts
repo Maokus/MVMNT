@@ -3,12 +3,15 @@
 // Copy this file into your plugin and adapt as needed.
 import { SceneElement, prop, insertElementGroups, VisualMediaPlayback } from '@mvmnt/plugin-sdk';
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
+import { VisualResourceHandle } from '@mvmnt/plugin-sdk';
+import { resolveProjectAssetDescriptor } from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class SimpleImageElement extends SceneElement {
     private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
     private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
     private readonly _playback = new VisualMediaPlayback();
+    private readonly _handle = new VisualResourceHandle();
 
     constructor(id: string = 'simpleImage', config: Record<string, unknown> = {}) {
         super('simple-image', id, config);
@@ -45,7 +48,7 @@ export class SimpleImageElement extends SceneElement {
     }
 
     protected override onDestroy(): void {
-        this._media.destroy();
+        this._handle.destroy();
         super.onDestroy();
     }
 
@@ -59,9 +62,12 @@ export class SimpleImageElement extends SceneElement {
         this._layoutRect.width = w;
         this._layoutRect.height = h;
 
+        const descriptor = resolveProjectAssetDescriptor(props.imageSource as string | null);
+        const { resource, status } = this._handle.update(descriptor);
+
         this._media
-            .setAssetId(props.imageSource as string | null)
-            .setLocalTime(this._playback.computeLocalTime(targetTime))
+            .setResource(resource, status)
+            .setLocalTime(this._playback.computeLocalTime(targetTime, resource?.animations))
             .setDimensions(w, h)
             .setFitMode((props.fitMode as any) ?? 'contain');
 

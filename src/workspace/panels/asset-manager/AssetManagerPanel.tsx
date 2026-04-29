@@ -9,12 +9,12 @@ import {
     useFloating,
     useInteractions,
 } from '@floating-ui/react';
-import { useVisualAssetRegistryStore, type VisualAssetRegistryEntry } from '@state/visualAssetRegistryStore';
+import { useVisualAssetRegistryStore, type ProjectAsset } from '@state/visualAssetRegistryStore';
 
 const ACCEPTED_TYPES = 'image/*,.gif';
 
 const AssetCard: React.FC<{
-    entry: VisualAssetRegistryEntry;
+    entry: ProjectAsset;
     onDelete: () => void;
     onRename: (name: string) => void;
 }> = ({ entry, onDelete, onRename }) => {
@@ -161,7 +161,7 @@ const AssetManagerPanel: React.FC = () => {
 
     const orderedEntries = assetsOrder
         .map((id) => assets[id])
-        .filter((e): e is VisualAssetRegistryEntry => Boolean(e))
+        .filter((e): e is ProjectAsset => Boolean(e))
         .filter((e) => showPluginAssets || e.source !== 'bundled');
 
     return (
