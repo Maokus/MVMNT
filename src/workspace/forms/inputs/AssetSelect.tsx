@@ -25,7 +25,7 @@ const AssetSelect: React.FC<Props> = ({ id, value, schema, disabled, title, onCh
 
     const filtered = assetsOrder
         .map((id) => assets[id])
-        .filter((entry) => entry && (!allowedSet || allowedSet.has(entry.type)));
+        .filter((entry) => entry && entry.source !== 'bundled' && (!allowedSet || allowedSet.has(entry.type)));
 
     const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         onChange(e.target.value || null);

@@ -89,7 +89,7 @@ export interface VisualAsset {
      * It is preserved for future use as per-frame registration data (e.g., individual
      * sprite-sheet frame origins for character sprites anchored at the feet).
      *
-     * For per-instance draw origin control use `VisualMedia.originX/originY` instead.
+     * For per-instance draw origin control use `VisualMedia.setOrigin()` or `RenderObject.pivotX/pivotY` instead.
      * Setting this field on a shared cached asset to achieve per-instance effects
      * would corrupt shared state and break render determinism.
      */
@@ -132,10 +132,7 @@ export interface FrameAtTime {
  * the drawable for the correct frame. No lazy work is done — all drawables are
  * created by the VisualAssetStore before status reaches 'ready'.
  */
-export function getFrameAtTime(
-    asset: VisualAsset,
-    localTimeSec: number
-): FrameAtTime {
+export function getFrameAtTime(asset: VisualAsset, localTimeSec: number): FrameAtTime {
     if (!asset.isAnimated) {
         return { drawable: asset.imageElement };
     }
@@ -143,7 +140,7 @@ export function getFrameAtTime(
     const { frames, totalDurationMs } = asset;
     if (!frames.length) return { drawable: null };
 
-    const tMs = ((localTimeSec * 1000) % totalDurationMs + totalDurationMs) % totalDurationMs;
+    const tMs = (((localTimeSec * 1000) % totalDurationMs) + totalDurationMs) % totalDurationMs;
     let acc = 0;
     let idx = frames.length - 1;
     for (let i = 0; i < frames.length; i++) {

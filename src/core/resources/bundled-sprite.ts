@@ -53,9 +53,9 @@ export class BundledSprite {
             fitMode?: 'contain' | 'cover' | 'fill' | 'none';
             preserveAspectRatio?: boolean;
             includeInLayoutBounds?: boolean;
-            /** Instance draw origin X (fraction of drawn width). Default 0. */
+            /** Instance draw origin X as a fraction of the container width (0–1). Default 0. */
             originX?: number;
-            /** Instance draw origin Y (fraction of drawn height). Default 0. */
+            /** Instance draw origin Y as a fraction of the container height (0–1). Default 0. */
             originY?: number;
         }
     ): VisualMedia {

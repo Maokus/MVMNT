@@ -1,7 +1,6 @@
 import { RenderObject, RenderConfig, Bounds } from './base';
 import { VisualAsset, VisualAssetStatus, getFrameAtTime, FrameAtTime } from '@core/resources/visual-asset';
 import { AssetRefSlot } from '@core/resources/visual-asset-slot';
-import { VisualMediaPlayback } from '@core/resources/visual-media-playback';
 
 /**
  * VisualMedia — a single render object that draws any VisualAsset.
@@ -21,25 +20,24 @@ export class VisualMedia extends RenderObject {
     height: number;
     fitMode: 'contain' | 'cover' | 'fill' | 'none';
     preserveAspectRatio: boolean;
-    /**
-     * Instance-level draw origin as a fraction of the drawn image size.
-     * The render object's (x, y) position maps to this point on the image.
-     * (0, 0) = top-left (default). (0.5, 0.5) = center. (0.5, 1) = bottom-center.
-     *
-     * This is the per-instance counterpart to the asset-level `VisualAsset.pivot`
-     * registration metadata. Prefer this for any runtime positioning intent.
-     */
-    originX: number;
-    originY: number;
 
     private _asset: VisualAsset | null = null;
     private _status: VisualAssetStatus = 'idle';
     private _localTime: number = 0;
     private _lastFrame: FrameAtTime | null = null;
-    private _lastDrawParams: { drawX: number; drawY: number; drawWidth: number; drawHeight: number; srcRect?: { sx: number; sy: number; sw: number; sh: number } } | null = null;
+    private _lastDrawParams: {
+        drawX: number;
+        drawY: number;
+        drawWidth: number;
+        drawHeight: number;
+        srcRect?: { sx: number; sy: number; sw: number; sh: number };
+    } | null = null;
+
+    /** Stored origin fractions so pivot stays in sync when dimensions change. */
+    private _originX: number = 0;
+    private _originY: number = 0;
 
     private readonly _slot = new AssetRefSlot();
-    private readonly _playback = new VisualMediaPlayback();
 
     constructor(
         x: number,
@@ -50,9 +48,14 @@ export class VisualMedia extends RenderObject {
             fitMode?: 'contain' | 'cover' | 'fill' | 'none';
             preserveAspectRatio?: boolean;
             includeInLayoutBounds?: boolean;
-            /** Instance draw origin X (fraction of drawn width). Default 0. */
+            /**
+             * Instance draw origin X as a fraction of the container width (0–1).
+             * The render object's (x, y) position maps to this point on the container.
+             * (0) = left edge (default). (0.5) = center. (1) = right edge.
+             * Use setOrigin() to change after construction; setDimensions() keeps it in sync.
+             */
             originX?: number;
-            /** Instance draw origin Y (fraction of drawn height). Default 0. */
+            /** Instance draw origin Y as a fraction of the container height (0–1). */
             originY?: number;
         } = {}
     ) {
@@ -61,13 +64,14 @@ export class VisualMedia extends RenderObject {
         this.height = height;
         this.fitMode = options.fitMode ?? 'contain';
         this.preserveAspectRatio = options.preserveAspectRatio ?? true;
-        this.originX = options.originX ?? 0;
-        this.originY = options.originY ?? 0;
+        if (options.originX !== undefined || options.originY !== undefined) {
+            this.setOrigin(options.originX ?? 0, options.originY ?? 0);
+        }
     }
 
     setAsset(asset: VisualAsset | null, status?: VisualAssetStatus): this {
         this._asset = asset;
-        this._status = status ?? (asset?.status ?? 'idle');
+        this._status = status ?? asset?.status ?? 'idle';
         return this;
     }
 
@@ -82,14 +86,17 @@ export class VisualMedia extends RenderObject {
         return this;
     }
 
-    setDimensions(width: number, height: number): this {
-        this.width = width;
-        this.height = height;
+    setFitMode(mode: 'contain' | 'cover' | 'fill' | 'none'): this {
+        this.fitMode = mode;
         return this;
     }
 
-    setFitMode(mode: 'contain' | 'cover' | 'fill' | 'none'): this {
-        this.fitMode = mode;
+    setDimensions(width: number, height: number): this {
+        this.width = width;
+        this.height = height;
+        // Keep pivot in sync with stored origin fractions.
+        this.pivotX = this._originX * width;
+        this.pivotY = this._originY * height;
         return this;
     }
 
@@ -98,9 +105,17 @@ export class VisualMedia extends RenderObject {
         return this;
     }
 
+    /**
+     * Set the draw origin as a fraction of the container size (0–1).
+     * Stores the fractions and recomputes pivotX/pivotY from the current dimensions.
+     * The pivot (inherited from RenderObject) is the local-space point that aligns with
+     * the world (x, y) position and is the center of rotation/scale.
+     */
     setOrigin(x: number, y: number): this {
-        this.originX = x;
-        this.originY = y;
+        this._originX = x;
+        this._originY = y;
+        this.pivotX = x * this.width;
+        this.pivotY = y * this.height;
         return this;
     }
 
@@ -116,17 +131,6 @@ export class VisualMedia extends RenderObject {
         return this;
     }
 
-    /**
-     * Set playback speed and compute local time from scene time.
-     * Call after `setAssetId()` so asset clips are available.
-     * Replaces the manual `VisualMediaPlayback` + `setLocalTime()` pattern.
-     */
-    setPlayback(speed: number, sceneTimeSec: number): this {
-        this._playback.speed = speed;
-        this._localTime = this._playback.computeLocalTime(sceneTimeSec, this._asset?.clips);
-        return this;
-    }
-
     /** Release held asset reference. Call from the owning element's onDestroy(). */
     destroy(): void {
         this._slot.destroy();
@@ -139,7 +143,13 @@ export class VisualMedia extends RenderObject {
     #calculateDrawParams(
         imgWidth: number,
         imgHeight: number
-    ): { drawX: number; drawY: number; drawWidth: number; drawHeight: number; srcRect?: { sx: number; sy: number; sw: number; sh: number } } {
+    ): {
+        drawX: number;
+        drawY: number;
+        drawWidth: number;
+        drawHeight: number;
+        srcRect?: { sx: number; sy: number; sw: number; sh: number };
+    } {
         if (!this.preserveAspectRatio || this.fitMode === 'fill' || !imgWidth || !imgHeight) {
             return { drawX: 0, drawY: 0, drawWidth: this.width, drawHeight: this.height };
         }
@@ -197,10 +207,10 @@ export class VisualMedia extends RenderObject {
                 this._status === 'loading'
                     ? 'Loading…'
                     : this._status === 'error'
-                    ? 'Error'
-                    : asset === null
-                    ? 'No image'
-                    : 'Image';
+                      ? 'Error'
+                      : asset === null
+                        ? 'No image'
+                        : 'Image';
             this.#drawPlaceholder(ctx, msg, this._status === 'error' ? 'red' : 'rgba(150,150,150,0.8)');
             return;
         }
@@ -229,13 +239,11 @@ export class VisualMedia extends RenderObject {
         const trimX = (frame.trimOffset?.x ?? 0) * scaleX;
         const trimY = (frame.trimOffset?.y ?? 0) * scaleY;
 
-        // Origin offset shifts the anchor point of the entire logical frame.
-        const px = drawX - this.originX * drawWidth;
-        const py = drawY - this.originY * drawHeight;
-
         // Top-left of the actual content pixels in container space.
-        const destX = px + trimX;
-        const destY = py + trimY;
+        // The base class pivot (set via setOrigin) has already shifted the coordinate
+        // system so that (drawX, drawY) aligns correctly with the world position.
+        const destX = drawX + trimX;
+        const destY = drawY + trimY;
 
         if (this.fitMode === 'cover') {
             ctx.save();
@@ -289,29 +297,21 @@ export class VisualMedia extends RenderObject {
 
     protected _getSelfBounds(): Bounds {
         if (this.fitMode === 'cover') {
-            // Image is clipped to the container rect regardless of origin.
+            // Image is clipped to the container rect; pivot is not relevant for bounds.
             return this._computeTransformedRectBounds(0, 0, this.width, this.height);
         }
 
         if (this.fitMode === 'fill' || !this.preserveAspectRatio) {
-            // No aspect correction; draw fills container but origin shifts the draw position.
-            const px = -this.originX * this.width;
-            const py = -this.originY * this.height;
-            return this._computeTransformedRectBounds(px, py, this.width, this.height);
+            // Fill: draw occupies full container starting at (0, 0).
+            // The pivot (set on base class) shifts the bounds via the world matrix.
+            return this._computeTransformedRectBounds(0, 0, this.width, this.height);
         }
 
-        // contain / none with preserveAspectRatio — apply origin offset to draw params.
-        const withOrigin = (drawX: number, drawY: number, drawWidth: number, drawHeight: number) =>
-            this._computeTransformedRectBounds(
-                drawX - this.originX * drawWidth,
-                drawY - this.originY * drawHeight,
-                drawWidth,
-                drawHeight
-            );
-
+        // contain / none with preserveAspectRatio: pass draw params as-is.
+        // The pivot is encoded in the world matrix via _getWorldTransformMatrix.
         if (this._lastDrawParams) {
             const { drawX, drawY, drawWidth, drawHeight } = this._lastDrawParams;
-            return withOrigin(drawX, drawY, drawWidth, drawHeight);
+            return this._computeTransformedRectBounds(drawX, drawY, drawWidth, drawHeight);
         }
         // Compute bounds from asset intrinsics if available, before first draw
         if (this._asset?.status === 'ready') {
@@ -319,7 +319,7 @@ export class VisualMedia extends RenderObject {
             const imgH = this._asset.logicalHeight || this._asset.height;
             if (imgW && imgH) {
                 const { drawX, drawY, drawWidth, drawHeight } = this.#calculateDrawParams(imgW, imgH);
-                return withOrigin(drawX, drawY, drawWidth, drawHeight);
+                return this._computeTransformedRectBounds(drawX, drawY, drawWidth, drawHeight);
             }
         }
         return this._computeTransformedRectBounds(0, 0, this.width, this.height);

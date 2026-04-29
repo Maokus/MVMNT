@@ -1,56 +1,67 @@
 // Image scene element — displays still images and animated GIFs via the
 // unified VisualAsset system. For sprite atlas / spritesheet support, use
 // the atlas-image template instead.
-import { SceneElement, type EnhancedConfigSchema, insertElementGroups, prop } from '@mvmnt/plugin-sdk';
+import {
+    SceneElement,
+    type EnhancedConfigSchema,
+    insertElementGroups,
+    prop,
+    VisualMediaPlayback,
+} from '@mvmnt/plugin-sdk';
 
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 
 export class ImageElement extends SceneElement {
     private _renderObject: VisualMedia | null = null;
     private _layoutRect: Rectangle | null = null;
+    private readonly _playback = new VisualMediaPlayback();
 
     constructor(id: string = 'image', config: { [key: string]: any } = {}) {
         super('image', id, config);
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Image',
-            description: 'Display an image with transformations',
-            category: 'Misc',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'imageSource',
-                label: 'Image Source',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Pick the artwork and playback speed for animated assets.',
-                properties: [
-                    prop.imageAsset('imageSource', 'Image'),
-                    prop.number('playbackSpeed', 'Playback Speed (×)', 1, {step: 0.1}),
-                ],
+                name: 'Image',
+                description: 'Display an image with transformations',
+                category: 'Misc',
             },
-            {
-                id: 'imageLayout',
-                label: 'Layout',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Size and crop behaviour for the image frame.',
-                properties: [
-                    prop.number('width', 'Width (px)', 200, { step: 10 }),
-                    prop.number('height', 'Height (px)', 200, { step: 10 }),
-                    prop.select('fitMode', 'Fit Mode', 'contain', [
-                        { value: 'contain', label: 'Contain (fit within bounds)' },
-                        { value: 'cover', label: 'Cover (fill bounds, may crop)' },
-                        { value: 'fill', label: 'Fill (stretch to fit)' },
-                        { value: 'none', label: 'None (original size)' }
-                    ]),
-                    prop.boolean('preserveAspectRatio', 'Preserve Aspect Ratio', true, {
-                        visibleWhen: [{ key: 'fitMode', notEquals: 'fill' }],
-                    }),
-                ],
-            },
-        ]);
+            [
+                {
+                    id: 'imageSource',
+                    label: 'Image Source',
+                    variant: 'basic',
+                    collapsed: false,
+                    description: 'Pick the artwork and playback speed for animated assets.',
+                    properties: [
+                        prop.imageAsset('imageSource', 'Image'),
+                        prop.number('playbackSpeed', 'Playback Speed (×)', 1, { step: 0.1 }),
+                    ],
+                },
+                {
+                    id: 'imageLayout',
+                    label: 'Layout',
+                    variant: 'basic',
+                    collapsed: false,
+                    description: 'Size and crop behaviour for the image frame.',
+                    properties: [
+                        prop.number('width', 'Width (px)', 200, { step: 10 }),
+                        prop.number('height', 'Height (px)', 200, { step: 10 }),
+                        prop.select('fitMode', 'Fit Mode', 'contain', [
+                            { value: 'contain', label: 'Contain (fit within bounds)' },
+                            { value: 'cover', label: 'Cover (fill bounds, may crop)' },
+                            { value: 'fill', label: 'Fill (stretch to fit)' },
+                            { value: 'none', label: 'None (original size)' },
+                        ]),
+                        prop.boolean('preserveAspectRatio', 'Preserve Aspect Ratio', true, {
+                            visibleWhen: [{ key: 'fitMode', notEquals: 'fill' }],
+                        }),
+                    ],
+                },
+            ]
+        );
     }
 
     protected override onDestroy(): void {
@@ -74,9 +85,11 @@ export class ImageElement extends SceneElement {
             this._layoutRect.height = props.height;
         }
 
+        this._playback.speed = props.playbackSpeed ?? 1;
+
         this._renderObject
             .setAssetId(props.imageSource ?? null)
-            .setPlayback(props.playbackSpeed ?? 1, targetTime)
+            .setLocalTime(this._playback.computeLocalTime(targetTime))
             .setDimensions(props.width, props.height)
             .setFitMode(props.fitMode ?? 'contain')
             .setPreserveAspectRatio(props.preserveAspectRatio ?? true);

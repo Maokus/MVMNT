@@ -1,4 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
+import {
+    FloatingPortal,
+    autoUpdate,
+    flip,
+    offset,
+    shift,
+    useDismiss,
+    useFloating,
+    useInteractions,
+} from '@floating-ui/react';
 import { useVisualAssetRegistryStore, type VisualAssetRegistryEntry } from '@state/visualAssetRegistryStore';
 
 const ACCEPTED_TYPES = 'image/*,.gif';
@@ -98,6 +108,18 @@ const AssetManagerPanel: React.FC = () => {
     const sparrowXmlRef = useRef<HTMLInputElement>(null);
     const [pendingSparrowPng, setPendingSparrowPng] = useState<File | null>(null);
     const [dragOver, setDragOver] = useState(false);
+    const [filterOpen, setFilterOpen] = useState(false);
+    const [showPluginAssets, setShowPluginAssets] = useState(false);
+
+    const { refs, floatingStyles, context } = useFloating({
+        open: filterOpen,
+        onOpenChange: setFilterOpen,
+        placement: 'bottom-end',
+        middleware: [offset(4), flip(), shift({ padding: 4 })],
+        whileElementsMounted: autoUpdate,
+    });
+    const dismiss = useDismiss(context);
+    const { getReferenceProps, getFloatingProps } = useInteractions([dismiss]);
 
     const handleFiles = (files: FileList | null) => {
         if (!files) return;
@@ -139,7 +161,8 @@ const AssetManagerPanel: React.FC = () => {
 
     const orderedEntries = assetsOrder
         .map((id) => assets[id])
-        .filter((e): e is VisualAssetRegistryEntry => Boolean(e));
+        .filter((e): e is VisualAssetRegistryEntry => Boolean(e))
+        .filter((e) => showPluginAssets || e.source !== 'bundled');
 
     return (
         <div
@@ -151,6 +174,16 @@ const AssetManagerPanel: React.FC = () => {
             {/* Header */}
             <div className="flex items-center gap-1.5 px-3 py-2 border-b border-neutral-800 shrink-0">
                 <span className="text-xs font-semibold text-neutral-300 uppercase tracking-wide mr-auto">Assets</span>
+                <button
+                    ref={refs.setReference}
+                    {...getReferenceProps()}
+                    className={`text-xs px-2 py-0.5 rounded transition-colors ${filterOpen || showPluginAssets ? 'bg-accent/20 text-accent border border-accent/40' : 'bg-neutral-700 hover:bg-neutral-600 text-neutral-200'}`}
+                    title="Filter assets"
+                    type="button"
+                    onClick={() => setFilterOpen((v) => !v)}
+                >
+                    Filter{showPluginAssets ? ' ●' : ''}
+                </button>
                 <button
                     className="text-xs px-2 py-0.5 rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-200 transition-colors"
                     title="Import Sparrow atlas (PNG + XML)"
@@ -190,6 +223,29 @@ const AssetManagerPanel: React.FC = () => {
                     onChange={(e) => handleSparrowXmlSelected(e.target.files)}
                 />
             </div>
+
+            {/* Filter popup */}
+            {filterOpen && (
+                <FloatingPortal>
+                    <div
+                        ref={refs.setFloating}
+                        style={floatingStyles}
+                        {...getFloatingProps()}
+                        className="z-50 min-w-[180px] rounded border border-neutral-700 bg-neutral-900 shadow-lg py-2 px-3"
+                    >
+                        <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">Filters</p>
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={showPluginAssets}
+                                onChange={(e) => setShowPluginAssets(e.target.checked)}
+                                className="accent-accent"
+                            />
+                            <span className="text-xs text-neutral-300">Show plugin assets</span>
+                        </label>
+                    </div>
+                </FloatingPortal>
+            )}
 
             {/* Body */}
             <div className="flex-1 overflow-y-auto min-h-0 p-2">
