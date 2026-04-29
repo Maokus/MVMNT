@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FaChevronDown, FaChevronRight, FaTimes, FaChartLine, FaAngleLeft, FaAngleRight, FaSearch } from 'react-icons/fa';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
@@ -25,6 +25,18 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
 
     const [minText, setMinText] = useState(() => manualMin.toFixed(2));
     const [maxText, setMaxText] = useState(() => manualMax.toFixed(2));
+
+    // Track input focus so we don't overwrite text the user is actively editing.
+    const minFocusedRef = useRef(false);
+    const maxFocusedRef = useRef(false);
+
+    // Sync display text when manualMin/manualMax change from external sources (e.g. scroll panning).
+    useEffect(() => {
+        if (!minFocusedRef.current) setMinText(manualMin.toFixed(2));
+    }, [manualMin]);
+    useEffect(() => {
+        if (!maxFocusedRef.current) setMaxText(manualMax.toFixed(2));
+    }, [manualMax]);
 
     const commitMin = useCallback((text: string) => {
         const v = parseFloat(text);
@@ -100,8 +112,8 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
                         : minText}
                     readOnly={autoRange}
                     onChange={(e) => { if (!autoRange) setMinText(e.target.value); }}
-                    onFocus={(e) => { if (!autoRange) e.currentTarget.select(); }}
-                    onBlur={(e) => { if (!autoRange) commitMin(e.currentTarget.value); }}
+                    onFocus={(e) => { minFocusedRef.current = true; if (!autoRange) e.currentTarget.select(); }}
+                    onBlur={(e) => { minFocusedRef.current = false; if (!autoRange) commitMin(e.currentTarget.value); }}
                     onKeyDown={(e) => {
                         if (!autoRange && e.key === 'Enter') {
                             commitMin((e.target as HTMLInputElement).value);
@@ -119,8 +131,8 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
                         : maxText}
                     readOnly={autoRange}
                     onChange={(e) => { if (!autoRange) setMaxText(e.target.value); }}
-                    onFocus={(e) => { if (!autoRange) e.currentTarget.select(); }}
-                    onBlur={(e) => { if (!autoRange) commitMax(e.currentTarget.value); }}
+                    onFocus={(e) => { maxFocusedRef.current = true; if (!autoRange) e.currentTarget.select(); }}
+                    onBlur={(e) => { maxFocusedRef.current = false; if (!autoRange) commitMax(e.currentTarget.value); }}
                     onKeyDown={(e) => {
                         if (!autoRange && e.key === 'Enter') {
                             commitMax((e.target as HTMLInputElement).value);

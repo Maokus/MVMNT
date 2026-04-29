@@ -140,7 +140,8 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     const smoothAnimRef = useRef<number | null>(null);
 
     useEffect(() => {
-        const LERP = 0.12;
+        // Snap immediately in manual mode for responsive scroll panning; smooth lerp for auto-range transitions.
+        const LERP = autoRange ? 0.12 : 1;
         const SNAP_THRESHOLD = 1e-4;
 
         const animate = () => {
@@ -171,7 +172,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         return () => {
             if (smoothAnimRef.current !== null) cancelAnimationFrame(smoothAnimRef.current);
         };
-    }, [targetMin, targetMax, channel.id, displayedRefs]);
+    }, [targetMin, targetMax, autoRange, channel.id, displayedRefs]);
 
     const minVal = displayedMin;
     const maxVal = displayedMax;
@@ -276,7 +277,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             const currentMin = animMinRef.current;
             const currentMax = animMaxRef.current;
             const rangeSpan = currentMax - currentMin;
-            const shift = (e.deltaY / 100) * rangeSpan * 0.15;
+            const shift = (e.deltaY / 100) * rangeSpan * 0.3;
             if (autoRangeRef.current) {
                 setAutoRange(channel.id, false);
             }
