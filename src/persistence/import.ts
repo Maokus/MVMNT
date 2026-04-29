@@ -520,7 +520,7 @@ function hydrateVisualAssetRegistry(
             file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')
                 ? ('gif' as const)
                 : ('image' as const);
-        entries.push({ id: assetId, name: filename, file, type, source: 'user', deletable: true });
+        entries.push({ id: assetId, name: filename, file, type, origin: 'user', deletable: true, visibleInAssetManager: true });
     }
 
     // Include any IDs not in the ordered list
@@ -536,7 +536,7 @@ function hydrateVisualAssetRegistry(
             file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')
                 ? ('gif' as const)
                 : ('image' as const);
-        entries.push({ id: assetId, name: filename, file, type, source: 'user', deletable: true });
+        entries.push({ id: assetId, name: filename, file, type, origin: 'user', deletable: true, visibleInAssetManager: true });
     }
 
     useVisualAssetRegistryStore.getState()._hydrateFromImport(entries);

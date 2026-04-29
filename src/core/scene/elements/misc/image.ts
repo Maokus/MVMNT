@@ -95,7 +95,7 @@ export class ImageElement extends SceneElement {
 
         this._renderObject
             .setResource(resource, status)
-            .setLocalTime(this._playback.computeLocalTime(targetTime, resource?.animations))
+            .setLocalTime(this._playback.computeLocalTime(targetTime))
             .setDimensions(props.width, props.height)
             .setFitMode(props.fitMode ?? 'contain')
             .setPreserveAspectRatio(props.preserveAspectRatio ?? true);

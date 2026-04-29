@@ -15,7 +15,7 @@ export {
 export {
     type VisualSourceDescriptor,
     type ImageSourceDescriptor,
-    type AtlasSourceDescriptor,
+    type GridAtlasSourceDescriptor,
     type SparrowSourceDescriptor,
     type AtlasLayout,
     type ImageSource,

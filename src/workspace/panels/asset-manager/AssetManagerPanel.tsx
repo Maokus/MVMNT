@@ -55,7 +55,7 @@ const AssetCard: React.FC<{
                         style={{ maxHeight: 68 }}
                     />
                 )}
-                {entry.source === 'bundled' && (
+                {entry.origin === 'plugin' && (
                     <span
                         className="absolute top-1 right-1 text-[9px] px-1 py-0.5 rounded bg-neutral-700 text-neutral-400 leading-none select-none"
                         title="Bundled plugin asset — cannot be deleted"
@@ -136,7 +136,7 @@ const AssetManagerPanel: React.FC = () => {
     const orderedEntries = assetsOrder
         .map((id) => assets[id])
         .filter((e): e is ProjectAsset => Boolean(e))
-        .filter((e) => showPluginAssets || e.source !== 'bundled');
+        .filter((e) => showPluginAssets || e.visibleInAssetManager);
 
     return (
         <div

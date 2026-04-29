@@ -80,7 +80,7 @@ export async function collectVisualAssets(): Promise<CollectedVisualAssets> {
     for (const assetId of registry.assetsOrder) {
         const entry = registry.assets[assetId];
         if (!entry) continue;
-        if (entry.source === 'bundled') continue; // provided by plugin, not user data
+        if (entry.origin === 'plugin') continue; // provided by plugin, not user data
         const file = entry.file;
         if (typeof file !== 'object') continue; // should not occur for user assets
         const key = fileKey(file);

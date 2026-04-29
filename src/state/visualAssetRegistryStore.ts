@@ -6,12 +6,25 @@ export type ProjectAssetType = 'image' | 'gif' | 'sparrow';
 export interface ProjectAsset {
     id: string;
     name: string;
-    /** File object for user-uploaded assets; blob URL string for bundled plugin assets. */
+    /** File object for user-uploaded assets; blob URL string for plugin-bundled assets. */
     file: File | string;
     type: ProjectAssetType;
-    source: 'user' | 'bundled';
+    /**
+     * Where the asset came from.
+     * - `'user'`   — uploaded by the user; persisted in the project file.
+     * - `'plugin'` — registered by a scene element plugin; re-registered on load,
+     *                never written to the project file.
+     */
+    origin: 'user' | 'plugin';
+    /** Whether the user can delete this asset. Always false for plugin assets. */
     deletable: boolean;
-    /** XML file for Sparrow atlas assets ('sparrow' type only). File for user-uploaded; blob URL string for bundled. */
+    /**
+     * Whether this asset appears in the Asset Manager panel and prop dropdowns.
+     * User assets default to true. Plugin assets default to false (hidden unless
+     * the user enables "Show plugin assets" in the panel filter).
+     */
+    visibleInAssetManager: boolean;
+    /** XML file for Sparrow atlas assets ('sparrow' type only). File for user-uploaded; blob URL string for plugin-bundled. */
     xmlFile?: File | string;
 }
 
@@ -20,11 +33,11 @@ interface VisualAssetRegistryStore {
     assetsOrder: string[];
 
     addAsset(file: File): string;
-    addBundledEntry(id: string, name: string, blobUrl: string, type: ProjectAssetType): void;
-    addBundledSparrowEntry(id: string, name: string, pngBlobUrl: string, xmlBlobUrl: string): void;
+    addPluginEntry(id: string, name: string, blobUrl: string, type: ProjectAssetType): void;
+    addPluginSparrowEntry(id: string, name: string, pngBlobUrl: string, xmlBlobUrl: string): void;
     removeAsset(id: string): void;
     renameAsset(id: string, name: string): void;
-    _hydrateFromImport(entries: Omit<ProjectAsset, 'source' | 'deletable'>[]): void;
+    _hydrateFromImport(entries: Omit<ProjectAsset, 'origin' | 'deletable' | 'visibleInAssetManager'>[]): void;
     _clear(): void;
 }
 
@@ -45,8 +58,9 @@ export const useVisualAssetRegistryStore = create<VisualAssetRegistryStore>((set
             name: baseName || file.name,
             file,
             type: deriveType(file),
-            source: 'user',
+            origin: 'user',
             deletable: true,
+            visibleInAssetManager: true,
         };
         set((state) => ({
             assets: { ...state.assets, [id]: entry },
@@ -55,7 +69,7 @@ export const useVisualAssetRegistryStore = create<VisualAssetRegistryStore>((set
         return id;
     },
 
-    addBundledEntry(id: string, name: string, blobUrl: string, type: ProjectAssetType): void {
+    addPluginEntry(id: string, name: string, blobUrl: string, type: ProjectAssetType): void {
         set((state) => {
             if (state.assets[id]) return state;
             const entry: ProjectAsset = {
@@ -63,8 +77,9 @@ export const useVisualAssetRegistryStore = create<VisualAssetRegistryStore>((set
                 name,
                 file: blobUrl,
                 type,
-                source: 'bundled',
+                origin: 'plugin',
                 deletable: false,
+                visibleInAssetManager: false,
             };
             return {
                 assets: { ...state.assets, [id]: entry },
@@ -73,7 +88,7 @@ export const useVisualAssetRegistryStore = create<VisualAssetRegistryStore>((set
         });
     },
 
-    addBundledSparrowEntry(id: string, name: string, pngBlobUrl: string, xmlBlobUrl: string): void {
+    addPluginSparrowEntry(id: string, name: string, pngBlobUrl: string, xmlBlobUrl: string): void {
         set((state) => {
             if (state.assets[id]) return state;
             const entry: ProjectAsset = {
@@ -81,8 +96,9 @@ export const useVisualAssetRegistryStore = create<VisualAssetRegistryStore>((set
                 name,
                 file: pngBlobUrl,
                 type: 'sparrow',
-                source: 'bundled',
+                origin: 'plugin',
                 deletable: false,
+                visibleInAssetManager: false,
                 xmlFile: xmlBlobUrl,
             };
             return {
@@ -113,11 +129,11 @@ export const useVisualAssetRegistryStore = create<VisualAssetRegistryStore>((set
         });
     },
 
-    _hydrateFromImport(entries: Omit<ProjectAsset, 'source' | 'deletable'>[]): void {
+    _hydrateFromImport(entries: Omit<ProjectAsset, 'origin' | 'deletable' | 'visibleInAssetManager'>[]): void {
         const assets: Record<string, ProjectAsset> = {};
         const assetsOrder: string[] = [];
         for (const entry of entries) {
-            assets[entry.id] = { source: 'user', deletable: true, ...entry };
+            assets[entry.id] = { origin: 'user', deletable: true, visibleInAssetManager: true, ...entry };
             assetsOrder.push(entry.id);
         }
         set({ assets, assetsOrder });

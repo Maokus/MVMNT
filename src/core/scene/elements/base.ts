@@ -261,7 +261,7 @@ export class SceneElement implements SceneElementInterface {
                 const registryId = `${this.type}:${pngFilename}`;
                 const basename = pngFilename.split('/').pop() ?? pngFilename;
                 const displayName = basename.replace(/\.[^.]+$/, '');
-                useVisualAssetRegistryStore.getState().addBundledSparrowEntry(registryId, displayName, pngUrl, xmlUrl);
+                useVisualAssetRegistryStore.getState().addPluginSparrowEntry(registryId, displayName, pngUrl, xmlUrl);
             },
             defaultFps
         );
@@ -289,7 +289,7 @@ export class SceneElement implements SceneElementInterface {
         const basename = filename.split('/').pop() ?? filename;
         const displayName = basename.replace(/\.[^.]+$/, '');
         const type = /\.gif$/i.test(filename) ? ('gif' as const) : ('image' as const);
-        useVisualAssetRegistryStore.getState().addBundledEntry(registryId, displayName, url, type);
+        useVisualAssetRegistryStore.getState().addPluginEntry(registryId, displayName, url, type);
         return url;
     }
 

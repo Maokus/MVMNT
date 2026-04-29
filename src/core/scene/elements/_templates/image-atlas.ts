@@ -86,7 +86,7 @@ export class AtlasImageElement extends SceneElement {
 
         this._media
             .setResource(resource, status)
-            .setLocalTime(this._playback.computeLocalTime(targetTime, resource?.animations))
+            .setLocalTime(this._playback.computeLocalTime(targetTime))
             .setDimensions(w, h)
             .setFitMode('contain');
 

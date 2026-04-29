@@ -5,6 +5,13 @@
  * same descriptor every frame is safe and idempotent: VisualResourceHandle compares
  * the derived cache key and only reloads when the source genuinely changes.
  *
+ * ## Format vs. origin
+ *
+ * Descriptor `kind` describes the *format* of the source data (how to decode it),
+ * not where it came from or who can create it. Origin constraints — e.g. whether
+ * an asset is user-uploadable or plugin-bundled only — are enforced at the
+ * ProjectAsset registry layer, not here.
+ *
  * Registry ID resolution (UUID → File) and bundled asset URL resolution happen
  * outside the descriptor layer. Callers convert project-level IDs to descriptors
  * before calling VisualResourceHandle.update().
@@ -32,8 +39,8 @@ export interface ImageSourceDescriptor {
 }
 
 /** Load a spritesheet as a uniform grid of animation frames. */
-export interface AtlasSourceDescriptor {
-    kind: 'atlas';
+export interface GridAtlasSourceDescriptor {
+    kind: 'grid-atlas';
     src: ImageSource;
     layout: AtlasLayout;
 }
@@ -70,7 +77,7 @@ export interface SparrowSourceDescriptor {
     animations?: Record<string, SparrowAnimationOverride>;
 }
 
-export type VisualSourceDescriptor = ImageSourceDescriptor | AtlasSourceDescriptor | SparrowSourceDescriptor;
+export type VisualSourceDescriptor = ImageSourceDescriptor | GridAtlasSourceDescriptor | SparrowSourceDescriptor;
 
 // ─── Cache key helpers ───────────────────────────────────────────────────────
 
@@ -84,11 +91,11 @@ export function makeDescriptorKey(descriptor: VisualSourceDescriptor): string {
     switch (descriptor.kind) {
         case 'image':
             return `image:${makeSrcKey(descriptor.src)}`;
-        case 'atlas': {
+        case 'grid-atlas': {
             const { columns: c, rows: r, frameCount, frameDurationMs } = descriptor.layout;
             const n = frameCount ?? c * r;
             const d = (frameDurationMs ?? 1000 / 12).toFixed(2);
-            return `atlas:${makeSrcKey(descriptor.src)}:cols=${c}:rows=${r}:count=${n}:dur=${d}`;
+            return `grid-atlas:${makeSrcKey(descriptor.src)}:cols=${c}:rows=${r}:count=${n}:dur=${d}`;
         }
         case 'sparrow': {
             let key = `sparrow:${makeSrcKey(descriptor.imageSrc)}:xml=${makeSrcKey(descriptor.xmlSrc)}`;

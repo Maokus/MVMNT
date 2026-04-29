@@ -2,9 +2,9 @@
  * VisualResourceCache — loads, decodes, and caches VisualResource objects.
  *
  * Takes a VisualSourceDescriptor and dispatches to the appropriate decoder:
- *   'image'   → plain image or animated GIF
- *   'atlas'   → uniform-grid spritesheet
- *   'sparrow' → Sparrow v2 XML atlas
+ *   'image'      → plain image or animated GIF
+ *   'grid-atlas' → uniform-grid spritesheet
+ *   'sparrow'    → Sparrow v2 XML atlas
  *
  * Multiple handles referencing the same descriptor share a single VisualResource
  * via reference counting (retain/release). Assets are evicted when their count
@@ -211,7 +211,7 @@ export class VisualResourceCache {
                     case 'image':
                         await this._loadImage(placeholder, descriptor.src);
                         break;
-                    case 'atlas':
+                    case 'grid-atlas':
                         await this._loadAtlas(placeholder, descriptor.src, descriptor.layout);
                         break;
                     case 'sparrow':

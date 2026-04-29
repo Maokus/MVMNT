@@ -46,14 +46,34 @@ export interface VisualFrame {
  * Animations own their frame list directly — no startMs/endMs offsets into a
  * shared timeline. The renderer selects which animation to play at call time and
  * passes its frames + totalDurationMs to getFrameAtTime().
+ *
+ * ## fps vs. frame durationMs
+ *
+ * `fps` is the authoritative playback speed used when building or overriding an
+ * animation. Each frame's `durationMs` is derived from it (1000 / fps) and is
+ * what the renderer actually uses at draw time. `totalDurationMs` is the pre-summed
+ * total kept for performance — it equals `frames.length × durationMs` when all
+ * frames are uniform (which Sparrow and grid-atlas animations always are).
+ *
+ * All three values are kept in sync by the cache: an fps override rewrites every
+ * frame's durationMs and recomputes totalDurationMs atomically, so callers can
+ * rely on `fps × durationMs === 1000` and `totalDurationMs === sum(frame.durationMs)`
+ * being true at all times.
  */
 export interface VisualAnimation {
     name: string;
     /** Direct frame references for this animation (subset of the resource's full frames). */
     frames: VisualFrame[];
-    /** Native playback speed in frames per second. */
+    /**
+     * Authoritative playback speed in frames per second.
+     * Each frame's durationMs equals 1000 / fps. Kept in sync with frame data
+     * by the cache whenever this animation is built or overridden.
+     */
     fps: number;
-    /** Sum of all frame durations in ms. Zero if frames is empty. */
+    /**
+     * Pre-summed total duration in ms. Equals sum of all frame.durationMs values.
+     * Zero if frames is empty.
+     */
     totalDurationMs: number;
     loopMode: 'loop' | 'once' | 'pingpong';
 }

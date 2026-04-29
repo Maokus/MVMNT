@@ -67,7 +67,7 @@ export class SimpleImageElement extends SceneElement {
 
         this._media
             .setResource(resource, status)
-            .setLocalTime(this._playback.computeLocalTime(targetTime, resource?.animations))
+            .setLocalTime(this._playback.computeLocalTime(targetTime))
             .setDimensions(w, h)
             .setFitMode((props.fitMode as any) ?? 'contain');
 

@@ -127,7 +127,11 @@ export interface SceneExportEnvelopeV6 extends Omit<SceneExportEnvelopeBase, 'sc
     };
 }
 
-export type SceneExportEnvelope = SceneExportEnvelopeV2 | SceneExportEnvelopeV4 | SceneExportEnvelopeV5 | SceneExportEnvelopeV6;
+export type SceneExportEnvelope =
+    | SceneExportEnvelopeV2
+    | SceneExportEnvelopeV4
+    | SceneExportEnvelopeV5
+    | SceneExportEnvelopeV6;
 
 interface AudioFeatureCacheAssetReference {
     assetId: string;
@@ -189,7 +193,7 @@ function buildVisualAssetRegistry(): SceneExportEnvelopeBase['visualAssetRegistr
     for (const id of registry.assetsOrder) {
         const entry = registry.assets[id];
         if (!entry) continue;
-        if (entry.source === 'bundled') continue;
+        if (entry.origin === 'plugin') continue;
         const filename = typeof entry.file === 'string' ? entry.name : entry.file.name;
         assets[id] = { id, name: entry.name, filename };
     }
@@ -397,7 +401,15 @@ function prepareMidiAssets(
         const assetRef = `assets/midi/${assetId}/${MIDI_ASSET_FILENAME}`;
         let midiBytes: Uint8Array;
         try {
-            const midiData = entry.midiData ?? { events: [], ccEvents: [], ticksPerQuarter: 480, tempo: 500000, duration: 0, timeSignature: { numerator: 4, denominator: 4, clocksPerClick: 24, thirtysecondNotesPerBeat: 8 }, trimmedTicks: 0 };
+            const midiData = entry.midiData ?? {
+                events: [],
+                ccEvents: [],
+                ticksPerQuarter: 480,
+                tempo: 500000,
+                duration: 0,
+                timeSignature: { numerator: 4, denominator: 4, clocksPerClick: 24, thirtysecondNotesPerBeat: 8 },
+                trimmedTicks: 0,
+            };
             midiBytes = encodeMidiToBinary(midiData);
         } catch (err) {
             console.warn('[exportScene] failed to encode MIDI to binary for', cacheId, err);
@@ -412,8 +424,8 @@ function prepareMidiAssets(
             typeof entry.ticksPerQuarter === 'number'
                 ? entry.ticksPerQuarter
                 : typeof entry.midiData?.ticksPerQuarter === 'number'
-                ? entry.midiData.ticksPerQuarter
-                : undefined;
+                  ? entry.midiData.ticksPerQuarter
+                  : undefined;
         const notesCount = Array.isArray(entry.notesRaw) ? entry.notesRaw.length : undefined;
         timelineMidiCache[cacheId] = {
             assetId,
