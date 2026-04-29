@@ -10,8 +10,8 @@ export interface VisualAssetRegistryEntry {
     type: VisualAssetType;
     source: 'user' | 'bundled';
     deletable: boolean;
-    /** XML file for Sparrow atlas assets ('sparrow' type only). */
-    xmlFile?: File;
+    /** XML file for Sparrow atlas assets ('sparrow' type only). File for user-uploaded; blob URL string for bundled. */
+    xmlFile?: File | string;
 }
 
 interface VisualAssetRegistryStore {
@@ -21,6 +21,7 @@ interface VisualAssetRegistryStore {
     addAsset(file: File): string;
     addSparrowAsset(pngFile: File, xmlFile: File): string;
     addBundledEntry(id: string, name: string, blobUrl: string, type: VisualAssetType): void;
+    addBundledSparrowEntry(id: string, name: string, pngBlobUrl: string, xmlBlobUrl: string): void;
     removeAsset(id: string): void;
     renameAsset(id: string, name: string): void;
     _hydrateFromImport(entries: Omit<VisualAssetRegistryEntry, 'source' | 'deletable'>[]): void;
@@ -83,6 +84,25 @@ export const useVisualAssetRegistryStore = create<VisualAssetRegistryStore>((set
                 type,
                 source: 'bundled',
                 deletable: false,
+            };
+            return {
+                assets: { ...state.assets, [id]: entry },
+                assetsOrder: [...state.assetsOrder, id],
+            };
+        });
+    },
+
+    addBundledSparrowEntry(id: string, name: string, pngBlobUrl: string, xmlBlobUrl: string): void {
+        set((state) => {
+            if (state.assets[id]) return state;
+            const entry: VisualAssetRegistryEntry = {
+                id,
+                name,
+                file: pngBlobUrl,
+                type: 'sparrow',
+                source: 'bundled',
+                deletable: false,
+                xmlFile: xmlBlobUrl,
             };
             return {
                 assets: { ...state.assets, [id]: entry },

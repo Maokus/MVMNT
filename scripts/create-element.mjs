@@ -48,7 +48,14 @@ const TEMPLATES = {
     'image-atlas': {
         file: 'image-atlas.ts',
         className: 'AtlasImageElement',
-        description: 'Animates a spritesheet divided into a uniform grid of frames',
+        description: 'Animates a Sparrow atlas with a bundled default (BOYFRIEND.png + BOYFRIEND.xml)',
+        assets: 'image-atlas',
+    },
+    'bundled-image': {
+        file: 'bundled-image.ts',
+        className: 'BundledImageElement',
+        description: 'Displays a bundled image or GIF with optional user override',
+        assets: 'bundled-image',
     },
 };
 
@@ -357,6 +364,26 @@ async function main() {
 
     fs.writeFileSync(elementFile, customizedContent);
     console.log(`✓ Created element file: ${path.relative(projectRoot, elementFile)}`);
+
+    // Copy bundled template assets into the plugin's assets/ directory, if any.
+    if (template.assets) {
+        const templateAssetsDir = path.join(projectRoot, 'src/core/scene/elements/_templates/assets', template.assets);
+        if (fs.existsSync(templateAssetsDir)) {
+            const pluginAssetsDir = path.join(pluginDir, 'assets');
+            if (!fs.existsSync(pluginAssetsDir)) {
+                fs.mkdirSync(pluginAssetsDir, { recursive: true });
+            }
+            const assetFiles = fs.readdirSync(templateAssetsDir);
+            for (const assetFile of assetFiles) {
+                const src = path.join(templateAssetsDir, assetFile);
+                const dest = path.join(pluginAssetsDir, assetFile);
+                if (fs.statSync(src).isFile()) {
+                    fs.copyFileSync(src, dest);
+                    console.log(`✓ Copied bundled asset: assets/${assetFile}`);
+                }
+            }
+        }
+    }
 
     console.log('\n' + '='.repeat(60));
     console.log('Success!');

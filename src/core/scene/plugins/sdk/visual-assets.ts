@@ -31,6 +31,7 @@ export {
     ImageAssetSlot,
     AtlasAssetSlot,
     BundledImageAssetSlot,
+    BundledSparrowAssetSlot,
     AssetRefSlot,
     AssetRefAtlasSlot,
     SparrowAssetSlot,

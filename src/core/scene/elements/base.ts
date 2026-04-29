@@ -19,7 +19,7 @@ import { debugLog } from '@utils/debug-log';
 import { isTestEnvironment } from '@utils/env';
 import { withRenderSafety, limitRenderObjects, DEFAULT_SAFETY_CONFIG } from '@core/scene/plugins/plugin-safety';
 import { loadBundledAssetForElement } from '@core/scene/plugins/bundled-asset-registry';
-import { BundledImageAssetSlot } from '@core/resources/visual-asset-slot';
+import { BundledImageAssetSlot, BundledSparrowAssetSlot } from '@core/resources/visual-asset-slot';
 import { BundledSprite } from '@core/resources/bundled-sprite';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 
@@ -239,12 +239,33 @@ export class SceneElement implements SceneElementInterface {
         return new BundledSprite(filename, (f) => this._makeBundledLoader(f));
     }
 
+    /**
+     * Create a managed slot for a bundled Sparrow atlas (paired PNG + XML).
+     * Call `slot.get()` each frame to receive `{ asset, status }` ready for
+     * `VisualMedia.setAsset()`. The atlas is automatically registered in the
+     * visual asset registry so it appears in the Asset Manager.
+     * Call `slot.destroy()` in `onDestroy()`.
+     */
+    protected bundledSparrow(pngFilename: string, xmlFilename: string): BundledSparrowAssetSlot {
+        return new BundledSparrowAssetSlot(
+            pngFilename,
+            xmlFilename,
+            (f) => this.loadBundledAsset(f),
+            (pngUrl, xmlUrl) => {
+                const registryId = `${this.type}:${pngFilename}`;
+                const basename = pngFilename.split('/').pop() ?? pngFilename;
+                const displayName = basename.replace(/\.[^.]+$/, '');
+                useVisualAssetRegistryStore.getState().addBundledSparrowEntry(registryId, displayName, pngUrl, xmlUrl);
+            }
+        );
+    }
+
     private async _makeBundledLoader(filename: string): Promise<string> {
         const url = await this.loadBundledAsset(filename);
         const registryId = `${this.type}:${filename}`;
         const basename = filename.split('/').pop() ?? filename;
         const displayName = basename.replace(/\.[^.]+$/, '');
-        const type = /\.gif$/i.test(filename) ? 'gif' as const : 'image' as const;
+        const type = /\.gif$/i.test(filename) ? ('gif' as const) : ('image' as const);
         useVisualAssetRegistryStore.getState().addBundledEntry(registryId, displayName, url, type);
         return url;
     }
@@ -586,7 +607,7 @@ export class SceneElement implements SceneElementInterface {
             this._renderContext = null;
             return [];
         }
-        
+
         // Apply safety controls for plugin elements (lazy import to avoid circular dependency)
         let pluginId: string | undefined;
         try {
@@ -596,29 +617,27 @@ export class SceneElement implements SceneElementInterface {
             // If registry not available (e.g., during initialization), skip safety checks
             pluginId = undefined;
         }
-        
+
         let childRenderObjects: RenderObject[];
-        
+
         if (pluginId) {
             // This is a plugin element - apply safety controls
-            const result = withRenderSafety(
-                () => this._buildRenderObjects(config, targetTime),
-                DEFAULT_SAFETY_CONFIG,
-                { pluginId, elementType: this.type }
-            );
-            
+            const result = withRenderSafety(() => this._buildRenderObjects(config, targetTime), DEFAULT_SAFETY_CONFIG, {
+                pluginId,
+                elementType: this.type,
+            });
+
             if (result === null) {
                 // Render failed or timed out
                 this._renderContext = null;
                 return [];
             }
-            
+
             // Limit render object count
-            childRenderObjects = limitRenderObjects(
-                result,
-                DEFAULT_SAFETY_CONFIG,
-                { pluginId, elementType: this.type }
-            );
+            childRenderObjects = limitRenderObjects(result, DEFAULT_SAFETY_CONFIG, {
+                pluginId,
+                elementType: this.type,
+            });
         } else {
             // Built-in element - no safety wrapper needed
             childRenderObjects = this._buildRenderObjects(config, targetTime);
@@ -822,11 +841,15 @@ export class SceneElement implements SceneElementInterface {
                     properties: [
                         prop.boolean('visible', 'Visible', true),
                         prop.number('elementOpacity', 'Opacity (0–1)', 1, {
-                            min: 0, max: 1, step: 0.01,
+                            min: 0,
+                            max: 1,
+                            step: 0.01,
                             description: 'Element transparency (0 = transparent, 1 = opaque).',
                         }),
                         prop.number('zIndex', 'Layer Order', 0, {
-                            min: 0, max: 100, step: 1,
+                            min: 0,
+                            max: 100,
+                            step: 1,
                             description: 'Stacking order for overlapping layers (higher values appear on top).',
                         }),
                     ],
@@ -868,11 +891,15 @@ export class SceneElement implements SceneElementInterface {
                     description: 'Advanced pivot, rotation, and skew controls.',
                     properties: [
                         prop.number('anchorX', 'Anchor X (0–1)', 0.5, {
-                            min: 0, max: 1, step: 0.01,
+                            min: 0,
+                            max: 1,
+                            step: 0.01,
                             description: 'Horizontal anchor point (0 = left, 1 = right).',
                         }),
                         prop.number('anchorY', 'Anchor Y (0–1)', 0.5, {
-                            min: 0, max: 1, step: 0.01,
+                            min: 0,
+                            max: 1,
+                            step: 0.01,
                             description: 'Vertical anchor point (0 = top, 1 = bottom).',
                         }),
                         prop.number('elementSkewX', 'Skew X', 0, {

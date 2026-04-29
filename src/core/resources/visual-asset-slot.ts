@@ -168,10 +168,75 @@ export class BundledImageAssetSlot {
         if (!this._url && !this._loading) {
             this._loading = true;
             this._loader(this._filename)
-                .then(url => { this._url = url; this._loading = false; })
-                .catch(() => { this._loading = false; });
+                .then((url) => {
+                    this._url = url;
+                    this._loading = false;
+                })
+                .catch(() => {
+                    this._loading = false;
+                });
         }
         return this._inner.update(this._url);
+    }
+
+    /** Release the held reference. Call from onDestroy(). */
+    destroy(): void {
+        this._inner.destroy();
+    }
+}
+
+/**
+ * Manages a pair of bundled Sparrow atlas assets (PNG + XML) that ship inside the
+ * plugin's `assets/` directory.
+ *
+ * Hides the full chain: filenames → URL resolution → store load/retain/release.
+ * Create via `SceneElement.bundledSparrow(pngFilename, xmlFilename)` so the loader
+ * and registry registration are wired automatically.
+ *
+ * @example
+ * class MyElement extends SceneElement {
+ *   private readonly _sparrow = this.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml');
+ *
+ *   protected override onDestroy() { this._sparrow.destroy(); super.onDestroy(); }
+ *
+ *   protected override _buildRenderObjects(_cfg: unknown, t: number) {
+ *     const { asset, status } = this._sparrow.get();
+ *     media.setAsset(asset, status);
+ *   }
+ * }
+ */
+export class BundledSparrowAssetSlot {
+    private readonly _inner = new SparrowAssetSlot();
+    private _pngUrl: string | null = null;
+    private _xmlUrl: string | null = null;
+    private _loading = false;
+
+    constructor(
+        private readonly _pngFilename: string,
+        private readonly _xmlFilename: string,
+        private readonly _loader: (filename: string) => Promise<string>,
+        private readonly _onBothLoaded: (pngUrl: string, xmlUrl: string) => void
+    ) {}
+
+    /**
+     * Returns `{ asset, status }` ready to pass directly to `VisualMedia.setAsset()`.
+     * Triggers the bundled asset load on the first call; safe to call every frame.
+     */
+    get(): AssetSlotResult {
+        if (!this._pngUrl && !this._loading) {
+            this._loading = true;
+            Promise.all([this._loader(this._pngFilename), this._loader(this._xmlFilename)])
+                .then(([pngUrl, xmlUrl]) => {
+                    this._pngUrl = pngUrl;
+                    this._xmlUrl = xmlUrl;
+                    this._onBothLoaded(pngUrl, xmlUrl);
+                    this._loading = false;
+                })
+                .catch(() => {
+                    this._loading = false;
+                });
+        }
+        return this._inner.update(this._pngUrl, this._xmlUrl);
     }
 
     /** Release the held reference. Call from onDestroy(). */
@@ -285,7 +350,7 @@ export class SparrowAssetSlot {
      * pass directly to `VisualMedia.setAsset()`. Safe to call every frame.
      */
     update(imageSrc: ImageSource | null, xmlSrc: ImageSource | null): AssetSlotResult {
-        const key = (imageSrc && xmlSrc) ? makeSparrowKey(imageSrc, xmlSrc) : null;
+        const key = imageSrc && xmlSrc ? makeSparrowKey(imageSrc, xmlSrc) : null;
         if (key !== this._key) {
             if (this._key) visualAssetStore.release(this._key);
             this._key = key;
@@ -314,6 +379,9 @@ export class SparrowAssetSlot {
  * Use this with `prop.sparrowAsset()` properties. The property value is a stable
  * asset ID string pointing to a 'sparrow'-type registry entry (PNG + XML pair).
  *
+ * Also handles bundled sparrow entries registered via `SceneElement.bundledSparrow()`,
+ * where the file and xmlFile fields are blob URL strings rather than File objects.
+ *
  * @example
  * class MyElement extends SceneElement {
  *   private readonly _sparrow = new AssetRefSparrowSlot();
@@ -331,15 +399,17 @@ export class AssetRefSparrowSlot {
 
     /**
      * Resolve a Sparrow asset registry ID to a loaded atlas asset.
+     * Accepts both user-uploaded (File) and bundled (blob URL string) sparrow entries.
      * Safe to call every frame.
      */
     update(assetId: string | null): AssetSlotResult {
         if (!assetId) return this._inner.update(null, null);
         const entry = useVisualAssetRegistryStore.getState().assets[assetId] ?? null;
-        if (!entry || entry.type !== 'sparrow' || !(entry.file instanceof File) || !entry.xmlFile) {
+        if (!entry || entry.type !== 'sparrow' || !entry.file || !entry.xmlFile) {
             return { asset: null, status: 'idle' };
         }
-        return this._inner.update(entry.file, entry.xmlFile);
+        // entry.file and entry.xmlFile are File for user-uploaded assets, or blob URL strings for bundled ones.
+        return this._inner.update(entry.file as ImageSource, entry.xmlFile as ImageSource);
     }
 
     /** Release the held reference. Call from onDestroy(). */
