@@ -8,7 +8,7 @@ import { useVisualizer } from '@context/VisualizerContext';
 import type { LoadedTemplateArtifact, TemplateDefinition } from './types';
 
 export function useTemplateApply() {
-    const { refreshSceneUI } = useScene();
+    const { refreshSceneUI, isDirty, saveToLocal } = useScene();
     const undo = useUndo();
     const visualizerCtx = useVisualizer() as { visualizer?: { invalidateRender?: () => void } } | undefined;
     const visualizer = visualizerCtx?.visualizer ?? (visualizerCtx as any);
@@ -17,6 +17,13 @@ export function useTemplateApply() {
 
     return useCallback(
         async (template: TemplateDefinition): Promise<boolean> => {
+            if (isDirty) {
+                const ok = window.confirm(
+                    `Loading "${template.name}" will replace your current project.\n\nAny unsaved changes will be lost. Continue?`
+                );
+                if (!ok) return false;
+            }
+
             const templateLabel = template.name.trim() || 'template';
             startTemplateLoading(`Loading ${templateLabel}…`);
             let artifact: LoadedTemplateArtifact;
@@ -52,11 +59,12 @@ export function useTemplateApply() {
                 }
                 refreshSceneUI();
                 visualizer?.invalidateRender?.();
+                await saveToLocal();
                 return true;
             } finally {
                 finishTemplateLoading();
             }
         },
-        [finishTemplateLoading, refreshSceneUI, startTemplateLoading, undo, visualizer]
+        [finishTemplateLoading, isDirty, refreshSceneUI, saveToLocal, startTemplateLoading, undo, visualizer]
     );
 }

@@ -73,7 +73,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
 
     // ── Range controls ────────────────────────────────────────────────────────
     const { autoRange, manualMin, manualMax } = useCurveRange(channel.id);
-    const { displayedRefs } = useCurveRangeControls();
+    const { setAutoRange, setManualRange, displayedRefs } = useCurveRangeControls();
 
     // ── Interpolation picker floating UI ──────────────────────────────────────
     const { refs: pickerRefs, floatingStyles: pickerFloatingStyles } = useFloating({
@@ -256,6 +256,23 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         propertyMax,
     });
 
+    // ── Wheel scroll — pan value range ───────────────────────────────────────
+
+    const handleWheel = useCallback(
+        (e: React.WheelEvent) => {
+            e.stopPropagation();
+            const currentMin = animMinRef.current;
+            const currentMax = animMaxRef.current;
+            const rangeSpan = currentMax - currentMin;
+            const shift = (e.deltaY / 100) * rangeSpan * 0.15;
+            if (autoRange) {
+                setAutoRange(channel.id, false);
+            }
+            setManualRange(channel.id, currentMin + shift, currentMax + shift);
+        },
+        [autoRange, channel.id, setAutoRange, setManualRange],
+    );
+
     // ── Resize handle ─────────────────────────────────────────────────────────
 
     const { handleResizeDown, handleResizeMove, handleResizeUp } = useResizeHandle({
@@ -356,7 +373,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     // ── Render ────────────────────────────────────────────────────────────────
 
     return (
-        <div className="ae-curve-pane relative" style={{ height, width }}>
+        <div className="ae-curve-pane relative" style={{ height, width }} onWheel={handleWheel}>
             <svg
                 ref={svgRef}
                 width={width}

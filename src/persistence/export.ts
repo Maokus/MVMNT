@@ -190,14 +190,17 @@ function buildVisualAssetRegistry(): SceneExportEnvelopeBase['visualAssetRegistr
     const registry = useVisualAssetRegistryStore.getState();
     if (registry.assetsOrder.length === 0) return undefined;
     const assets: Record<string, { id: string; name: string; filename: string }> = {};
+    const filteredOrder: string[] = [];
     for (const id of registry.assetsOrder) {
         const entry = registry.assets[id];
         if (!entry) continue;
         if (entry.origin === 'plugin') continue;
         const filename = typeof entry.file === 'string' ? entry.name : entry.file.name;
         assets[id] = { id, name: entry.name, filename };
+        filteredOrder.push(id);
     }
-    return { assets, assetsOrder: registry.assetsOrder };
+    if (filteredOrder.length === 0) return undefined;
+    return { assets, assetsOrder: filteredOrder };
 }
 
 function normalizeBlobPart(part: BlobPart): BlobPart {

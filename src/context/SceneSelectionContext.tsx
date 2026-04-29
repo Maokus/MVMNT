@@ -325,14 +325,14 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     );
 
     const generateUniqueElementId = useCallback((elementType: string): string => {
-        const base = `${elementType}_${Math.random().toString(36).slice(2, 8)}`;
+        const schema = sceneElementRegistry.getSchema(elementType);
+        const baseName = (schema as any)?.name?.trim() || elementType;
         const store = useSceneStore.getState();
-        let candidate = base;
-        let attempt = 1;
-        while (store.elements[candidate]) {
-            candidate = `${base}_${attempt++}`;
+        let n = 1;
+        while (store.elements[`${baseName} ${n}`]) {
+            n++;
         }
-        return candidate;
+        return `${baseName} ${n}`;
     }, []);
 
     const addElement = useCallback(
