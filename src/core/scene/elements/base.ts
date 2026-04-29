@@ -19,7 +19,9 @@ import { debugLog } from '@utils/debug-log';
 import { isTestEnvironment } from '@utils/env';
 import { withRenderSafety, limitRenderObjects, DEFAULT_SAFETY_CONFIG } from '@core/scene/plugins/plugin-safety';
 import { loadBundledAssetForElement } from '@core/scene/plugins/bundled-asset-registry';
-import { BundledImageAssetSlot, BundledSprite } from '@core/resources/visual-asset-slot';
+import { BundledSprite, BundledSparrowHandle } from '@core/resources/bundled-sprite';
+import { VisualResourceHandle } from '@core/resources/visual-resource-handle';
+import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 
 export type PropertyTransform<TValue, TElement = SceneElement> = (
     value: unknown,
@@ -122,6 +124,8 @@ export class SceneElement implements SceneElementInterface {
     private _macroUnsubscribe?: () => void;
     private _renderContext: PropertyBindingContext | null = null;
     private _keyframeBoundKeys: Set<string> = new Set();
+    /** Handles/sprites registered via factory methods; destroyed automatically in dispose(). */
+    private readonly _trackedVisualHandles: Array<{ destroy(): void }> = [];
 
     constructor(type: string, id: string | null = null, config: { [key: string]: any } = {}) {
         this.type = type;
@@ -220,12 +224,14 @@ export class SceneElement implements SceneElementInterface {
     }
 
     /**
-     * Create a managed slot for a bundled image asset.
-     * Call `slot.get()` each frame to receive `{ asset, status }` ready for
-     * `VisualMedia.setAsset()`. Call `slot.destroy()` in `onDestroy()`.
+     * Create a managed handle for a bundled image asset.
+     * Call `handle.get()` each frame to receive `{ resource, status }` ready for
+     * `VisualMedia.setResource()`. Call `handle.destroy()` in `onDestroy()`.
      */
-    protected bundledImage(filename: string): BundledImageAssetSlot {
-        return new BundledImageAssetSlot(filename, (f) => this.loadBundledAsset(f));
+    protected bundledImage(filename: string): BundledSprite {
+        const sprite = new BundledSprite(filename, (f) => this._makeBundledLoader(f));
+        this._trackedVisualHandles.push(sprite);
+        return sprite;
     }
 
     /**
@@ -234,7 +240,57 @@ export class SceneElement implements SceneElementInterface {
      * render object. Call `sprite.destroy()` in `onDestroy()`.
      */
     protected bundledSprite(filename: string): BundledSprite {
-        return new BundledSprite(filename, (f) => this.loadBundledAsset(f));
+        const sprite = new BundledSprite(filename, (f) => this._makeBundledLoader(f));
+        this._trackedVisualHandles.push(sprite);
+        return sprite;
+    }
+
+    /**
+     * Create a managed handle for a bundled Sparrow atlas (paired PNG + XML).
+     * Call `handle.get()` each frame to receive `{ resource, status }` ready for
+     * `VisualMedia.setResource()`. The atlas is automatically registered in the
+     * visual asset registry so it appears in the Asset Manager.
+     * Call `handle.destroy()` in `onDestroy()`.
+     */
+    protected bundledSparrow(pngFilename: string, xmlFilename: string, defaultFps?: number): BundledSparrowHandle {
+        const handle = new BundledSparrowHandle(
+            pngFilename,
+            xmlFilename,
+            (f) => this.loadBundledAsset(f),
+            (pngUrl, xmlUrl) => {
+                const registryId = `${this.type}:${pngFilename}`;
+                const basename = pngFilename.split('/').pop() ?? pngFilename;
+                const displayName = basename.replace(/\.[^.]+$/, '');
+                useVisualAssetRegistryStore.getState().addPluginSparrowEntry(registryId, displayName, pngUrl, xmlUrl);
+            },
+            defaultFps
+        );
+        this._trackedVisualHandles.push(handle);
+        return handle;
+    }
+
+    /**
+     * Create a `VisualResourceHandle` that is automatically destroyed when this
+     * element is disposed. Use instead of `new VisualResourceHandle()` so you
+     * don't need a manual `handle.destroy()` call in `onDestroy()`.
+     *
+     * @example
+     * private readonly _handle = this.visualHandle();
+     */
+    protected visualHandle(): VisualResourceHandle {
+        const handle = new VisualResourceHandle();
+        this._trackedVisualHandles.push(handle);
+        return handle;
+    }
+
+    private async _makeBundledLoader(filename: string): Promise<string> {
+        const url = await this.loadBundledAsset(filename);
+        const registryId = `${this.type}:${filename}`;
+        const basename = filename.split('/').pop() ?? filename;
+        const displayName = basename.replace(/\.[^.]+$/, '');
+        const type = /\.gif$/i.test(filename) ? ('gif' as const) : ('image' as const);
+        useVisualAssetRegistryStore.getState().addPluginEntry(registryId, displayName, url, type);
+        return url;
     }
 
     /**
@@ -242,6 +298,7 @@ export class SceneElement implements SceneElementInterface {
      */
     dispose(): void {
         this.onDestroy();
+        for (const h of this._trackedVisualHandles) h.destroy();
         if (this._macroUnsubscribe) {
             this._macroUnsubscribe();
             this._macroUnsubscribe = undefined;
@@ -574,7 +631,7 @@ export class SceneElement implements SceneElementInterface {
             this._renderContext = null;
             return [];
         }
-        
+
         // Apply safety controls for plugin elements (lazy import to avoid circular dependency)
         let pluginId: string | undefined;
         try {
@@ -584,29 +641,27 @@ export class SceneElement implements SceneElementInterface {
             // If registry not available (e.g., during initialization), skip safety checks
             pluginId = undefined;
         }
-        
+
         let childRenderObjects: RenderObject[];
-        
+
         if (pluginId) {
             // This is a plugin element - apply safety controls
-            const result = withRenderSafety(
-                () => this._buildRenderObjects(config, targetTime),
-                DEFAULT_SAFETY_CONFIG,
-                { pluginId, elementType: this.type }
-            );
-            
+            const result = withRenderSafety(() => this._buildRenderObjects(config, targetTime), DEFAULT_SAFETY_CONFIG, {
+                pluginId,
+                elementType: this.type,
+            });
+
             if (result === null) {
                 // Render failed or timed out
                 this._renderContext = null;
                 return [];
             }
-            
+
             // Limit render object count
-            childRenderObjects = limitRenderObjects(
-                result,
-                DEFAULT_SAFETY_CONFIG,
-                { pluginId, elementType: this.type }
-            );
+            childRenderObjects = limitRenderObjects(result, DEFAULT_SAFETY_CONFIG, {
+                pluginId,
+                elementType: this.type,
+            });
         } else {
             // Built-in element - no safety wrapper needed
             childRenderObjects = this._buildRenderObjects(config, targetTime);
@@ -810,11 +865,15 @@ export class SceneElement implements SceneElementInterface {
                     properties: [
                         prop.boolean('visible', 'Visible', true),
                         prop.number('elementOpacity', 'Opacity (0–1)', 1, {
-                            min: 0, max: 1, step: 0.01,
+                            min: 0,
+                            max: 1,
+                            step: 0.01,
                             description: 'Element transparency (0 = transparent, 1 = opaque).',
                         }),
                         prop.number('zIndex', 'Layer Order', 0, {
-                            min: 0, max: 100, step: 1,
+                            min: 0,
+                            max: 100,
+                            step: 1,
                             description: 'Stacking order for overlapping layers (higher values appear on top).',
                         }),
                     ],
@@ -856,11 +915,15 @@ export class SceneElement implements SceneElementInterface {
                     description: 'Advanced pivot, rotation, and skew controls.',
                     properties: [
                         prop.number('anchorX', 'Anchor X (0–1)', 0.5, {
-                            min: 0, max: 1, step: 0.01,
+                            min: 0,
+                            max: 1,
+                            step: 0.01,
                             description: 'Horizontal anchor point (0 = left, 1 = right).',
                         }),
                         prop.number('anchorY', 'Anchor Y (0–1)', 0.5, {
-                            min: 0, max: 1, step: 0.01,
+                            min: 0,
+                            max: 1,
+                            step: 0.01,
                             description: 'Vertical anchor point (0 = top, 1 = bottom).',
                         }),
                         prop.number('elementSkewX', 'Skew X', 0, {

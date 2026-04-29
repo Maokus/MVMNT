@@ -29,10 +29,7 @@ export class DebugElement extends SceneElement {
                 description: 'Toggle helper visuals for layout debugging.',
                 properties: [
                     prop.boolean('showDots', 'Show Alignment Dots', true),
-                ],
-                presets: [
-                    { id: 'dotsOn', label: 'Dots Visible', values: { showDots: true } },
-                    { id: 'dotsOff', label: 'Dots Hidden', values: { showDots: false } },
+                    prop.imageAsset('imageSource', 'Image input')
                 ],
             },
         ]);
@@ -43,6 +40,7 @@ export class DebugElement extends SceneElement {
      * config.points: Array<{ x: number, y: number }>
      */
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
+        const props = this.getSchemaProps();
         const objects: RenderObject[] = [];
         const empty1 = new EmptyRenderObject();
         const rect1 = new Rectangle(0, 0, 50, 50, '#ff0000');
@@ -68,6 +66,8 @@ export class DebugElement extends SceneElement {
         empty1.addChild(rect5);
         empty1.setIncludeInLayoutBounds(true);
         objects.push(rect1, rect2, rect3, rect4, rect5);
+
+        objects.push(new Text(0,0,`${props.imageSource}`))
         return objects;
     }
 

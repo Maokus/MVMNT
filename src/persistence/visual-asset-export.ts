@@ -15,6 +15,7 @@
 
 import { useSceneStore } from '@state/sceneStore';
 import { sha256Hex } from '@utils/hash/sha256';
+import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 
 export interface VisualAssetRecord {
     id: string;
@@ -62,6 +63,8 @@ function inferMimeType(filename: string): string {
  * Scan all scene element bindings for File values and collect them as
  * serialisable visual asset payloads.
  *
+ * Also collects assets from the visual asset registry (for assetRef-type elements).
+ *
  * Safe to call when there are no image elements — returns empty collections.
  */
 export async function collectVisualAssets(): Promise<CollectedVisualAssets> {
@@ -72,6 +75,39 @@ export async function collectVisualAssets(): Promise<CollectedVisualAssets> {
     const missing: string[] = [];
     let totalBytes = 0;
 
+    // Include assets from the visual asset registry (stable IDs preserved)
+    const registry = useVisualAssetRegistryStore.getState();
+    for (const assetId of registry.assetsOrder) {
+        const entry = registry.assets[assetId];
+        if (!entry) continue;
+        if (entry.origin === 'plugin') continue; // provided by plugin, not user data
+        const file = entry.file;
+        if (typeof file !== 'object') continue; // should not occur for user assets
+        const key = fileKey(file);
+        if (fileKeyToId.has(key)) continue;
+        fileKeyToId.set(key, assetId);
+        try {
+            const buffer = await file.arrayBuffer();
+            const bytes = new Uint8Array(buffer);
+            const hash = await sha256Hex(bytes);
+            const mimeType = file.type || inferMimeType(file.name);
+            const record: VisualAssetRecord = {
+                id: assetId,
+                originalFileName: file.name,
+                mimeType,
+                byteLength: bytes.byteLength,
+                hash,
+            };
+            byId[assetId] = record;
+            payloads.set(assetId, { bytes, filename: file.name, mimeType });
+            totalBytes += bytes.byteLength;
+        } catch {
+            missing.push(assetId);
+            fileKeyToId.delete(key);
+        }
+    }
+
+    // Also scan element bindings for any remaining File values (for prop.file()-type elements)
     for (const elementBindings of Object.values(state.bindings.byElement)) {
         for (const binding of Object.values(elementBindings)) {
             if (binding?.type !== 'constant') continue;

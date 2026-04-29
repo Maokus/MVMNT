@@ -179,6 +179,10 @@ export const prop = {
     /**
      * A file upload field. Default value is `null` (no file selected).
      *
+     * For image or GIF inputs, prefer {@link prop.imageAsset} — it integrates with the
+     * visual asset registry, giving assets stable IDs that survive save/load and appear
+     * in the Asset Manager panel.
+     *
      * @param opts.accept  MIME type filter, e.g. `'image/*'` or `'.mp3,audio/*'`
      */
     file(
@@ -189,6 +193,43 @@ export const prop = {
         return {
             key, type: 'file', label, default: null,
             ...(opts?.accept && { accept: opts.accept }),
+            ...(opts?.description && { description: opts.description }),
+            ...(opts?.visibleWhen && { visibleWhen: opts.visibleWhen }),
+            runtime: { transform: asTrimmedString, defaultValue: null },
+        };
+    },
+
+    /**
+     * An image asset selector. Picks from the project's visual asset registry.
+     * Default value is `null` (no asset selected).
+     */
+    imageAsset(
+        key: string,
+        label: string,
+        opts?: CommonOpts
+    ): PropertyDefinition {
+        return {
+            key, type: 'assetRef', label, default: null,
+            allowedAssetTypes: ['image', 'gif'],
+            ...(opts?.description && { description: opts.description }),
+            ...(opts?.visibleWhen && { visibleWhen: opts.visibleWhen }),
+            runtime: { transform: asTrimmedString, defaultValue: null },
+        };
+    },
+
+    /**
+     * A Sparrow atlas selector. Picks from the project's visual asset registry.
+     * Only shows assets imported as Sparrow atlases (paired PNG + XML).
+     * Default value is `null` (no asset selected).
+     */
+    sparrowAsset(
+        key: string,
+        label: string,
+        opts?: CommonOpts
+    ): PropertyDefinition {
+        return {
+            key, type: 'assetRef', label, default: null,
+            allowedAssetTypes: ['sparrow'],
             ...(opts?.description && { description: opts.description }),
             ...(opts?.visibleWhen && { visibleWhen: opts.visibleWhen }),
             runtime: { transform: asTrimmedString, defaultValue: null },

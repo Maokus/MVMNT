@@ -41,12 +41,14 @@ export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         e.preventDefault();
                         controllerRef.current.redo();
                         forceTick(t => t + 1);
+                        window.dispatchEvent(new CustomEvent('mvmnt-undo-applied'));
                     }
                 } else {
                     if (controllerRef.current?.canUndo()) {
                         e.preventDefault();
                         controllerRef.current.undo();
                         forceTick(t => t + 1);
+                        window.dispatchEvent(new CustomEvent('mvmnt-undo-applied'));
                     }
                 }
             } else if (e.key.toLowerCase() === 'y') {
@@ -54,6 +56,7 @@ export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     e.preventDefault();
                     controllerRef.current.redo();
                     forceTick(t => t + 1);
+                    window.dispatchEvent(new CustomEvent('mvmnt-undo-applied'));
                 }
             }
         };
@@ -64,8 +67,8 @@ export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const value: UndoContextValue = useMemo(() => ({
         canUndo: !!controllerRef.current?.canUndo(),
         canRedo: !!controllerRef.current?.canRedo(),
-        undo: () => { controllerRef.current?.undo(); forceTick(t => t + 1); },
-        redo: () => { controllerRef.current?.redo(); forceTick(t => t + 1); },
+        undo: () => { controllerRef.current?.undo(); forceTick(t => t + 1); window.dispatchEvent(new CustomEvent('mvmnt-undo-applied')); },
+        redo: () => { controllerRef.current?.redo(); forceTick(t => t + 1); window.dispatchEvent(new CustomEvent('mvmnt-undo-applied')); },
         reset: () => { controllerRef.current?.reset(); forceTick(t => t + 1); },
         enabled,
     }), [enabled, forceTick]);

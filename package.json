@@ -60,6 +60,7 @@
         "test:watch": "vitest --watch",
         "compile": "npx tsc --noEmit",
         "create-element": "node scripts/create-element.mjs",
+        "create-example": "node scripts/create-example.mjs",
         "build-plugin": "node scripts/build-plugin.mjs",
         "dev-plugin": "node scripts/dev-plugin.mjs",
         "orphan": "bash -c 'set -a && source .env && npx tsx \"$@\"' --",

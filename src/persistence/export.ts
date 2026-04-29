@@ -27,6 +27,7 @@ import {
     type SerializedAudioFeatureTrackDataRef,
 } from '@audio/features/audioFeatureAnalysis';
 import type { AudioFeatureCacheStatus } from '@audio/features/audioFeatureTypes';
+import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 
 /** Converts an exact plugin version to a ^major.minor.0 semver range for scene exports.
  *  e.g. "1.2.3" → "^1.2.0", so any compatible 1.x install >= 1.2.0 opens the scene without warnings. */
@@ -96,6 +97,10 @@ interface SceneExportEnvelopeBase {
     references?: {
         audioIdMap: Record<string, string>;
     };
+    visualAssetRegistry?: {
+        assets: Record<string, { id: string; name: string; filename: string }>;
+        assetsOrder: string[];
+    };
     compatibility?: { warnings: { message: string }[] };
 }
 
@@ -122,7 +127,11 @@ export interface SceneExportEnvelopeV6 extends Omit<SceneExportEnvelopeBase, 'sc
     };
 }
 
-export type SceneExportEnvelope = SceneExportEnvelopeV2 | SceneExportEnvelopeV4 | SceneExportEnvelopeV5 | SceneExportEnvelopeV6;
+export type SceneExportEnvelope =
+    | SceneExportEnvelopeV2
+    | SceneExportEnvelopeV4
+    | SceneExportEnvelopeV5
+    | SceneExportEnvelopeV6;
 
 interface AudioFeatureCacheAssetReference {
     assetId: string;
@@ -175,6 +184,20 @@ const DEFAULT_MAX_INLINE_ASSET_BYTES = 10 * 1024 * 1024; // 10 MB
 function buildCompatibilityWarnings(messages: string[]): { warnings: { message: string }[] } | undefined {
     if (!messages.length) return undefined;
     return { warnings: messages.map((message) => ({ message })) };
+}
+
+function buildVisualAssetRegistry(): SceneExportEnvelopeBase['visualAssetRegistry'] {
+    const registry = useVisualAssetRegistryStore.getState();
+    if (registry.assetsOrder.length === 0) return undefined;
+    const assets: Record<string, { id: string; name: string; filename: string }> = {};
+    for (const id of registry.assetsOrder) {
+        const entry = registry.assets[id];
+        if (!entry) continue;
+        if (entry.origin === 'plugin') continue;
+        const filename = typeof entry.file === 'string' ? entry.name : entry.file.name;
+        assets[id] = { id, name: entry.name, filename };
+    }
+    return { assets, assetsOrder: registry.assetsOrder };
 }
 
 function normalizeBlobPart(part: BlobPart): BlobPart {
@@ -378,7 +401,15 @@ function prepareMidiAssets(
         const assetRef = `assets/midi/${assetId}/${MIDI_ASSET_FILENAME}`;
         let midiBytes: Uint8Array;
         try {
-            const midiData = entry.midiData ?? { events: [], ccEvents: [], ticksPerQuarter: 480, tempo: 500000, duration: 0, timeSignature: { numerator: 4, denominator: 4, clocksPerClick: 24, thirtysecondNotesPerBeat: 8 }, trimmedTicks: 0 };
+            const midiData = entry.midiData ?? {
+                events: [],
+                ccEvents: [],
+                ticksPerQuarter: 480,
+                tempo: 500000,
+                duration: 0,
+                timeSignature: { numerator: 4, denominator: 4, clocksPerClick: 24, thirtysecondNotesPerBeat: 8 },
+                trimmedTicks: 0,
+            };
             midiBytes = encodeMidiToBinary(midiData);
         } catch (err) {
             console.warn('[exportScene] failed to encode MIDI to binary for', cacheId, err);
@@ -393,8 +424,8 @@ function prepareMidiAssets(
             typeof entry.ticksPerQuarter === 'number'
                 ? entry.ticksPerQuarter
                 : typeof entry.midiData?.ticksPerQuarter === 'number'
-                ? entry.midiData.ticksPerQuarter
-                : undefined;
+                  ? entry.midiData.ticksPerQuarter
+                  : undefined;
         const notesCount = Array.isArray(entry.notesRaw) ? entry.notesRaw.length : undefined;
         timelineMidiCache[cacheId] = {
             assetId,
@@ -803,6 +834,7 @@ export async function exportScene(
         },
         assets: assetsSection,
         references: Object.keys(collectResult.audioIdMap).length ? { audioIdMap: collectResult.audioIdMap } : undefined,
+        visualAssetRegistry: buildVisualAssetRegistry(),
         compatibility: buildCompatibilityWarnings(warnings),
     };
 

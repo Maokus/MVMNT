@@ -4,6 +4,7 @@ import { useSceneSelection } from '@context/SceneSelectionContext';
 // (Former inline math-related logic moved to canvasInteractionUtils)
 import { onCanvasMouseDown, onCanvasMouseMove, onCanvasMouseUp, onCanvasMouseLeave } from './canvasInteractionUtils';
 import { useTimelineStore } from '@state/timelineStore';
+import { DRAG_ASSET_TYPE } from '../asset-manager/AssetManagerPanel';
 
 interface PreviewPanelProps {
     interactive?: boolean;
@@ -13,7 +14,7 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
     const ctx = useVisualizer();
     const { canvasRef, exportSettings } = ctx;
     const view = useTimelineStore((s) => s.timelineView);
-    const { selectElement, updateElementConfig, incrementPropertyPanelRefresh } = useSceneSelection();
+    const { selectElement, updateElementConfig, incrementPropertyPanelRefresh, addElement } = useSceneSelection();
     const width = exportSettings.width;
     const height = exportSettings.height;
     // Sizing state for display (CSS) size of canvas maintaining aspect ratio
@@ -104,6 +105,29 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
     };
     const handleCanvasMouseLeave = (e: React.MouseEvent) => onCanvasMouseLeave(e, handlerDeps);
 
+    const handleDragOver = (e: React.DragEvent<HTMLCanvasElement>) => {
+        if (e.dataTransfer.types.includes(DRAG_ASSET_TYPE)) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+        }
+    };
+
+    const handleDrop = (e: React.DragEvent<HTMLCanvasElement>) => {
+        const assetId = e.dataTransfer.getData(DRAG_ASSET_TYPE);
+        if (!assetId) return;
+        e.preventDefault();
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const relX = e.clientX - rect.left;
+        const relY = e.clientY - rect.top;
+        const scaleX = width / rect.width;
+        const scaleY = height / rect.height;
+        const offsetX = Math.round(relX * scaleX);
+        const offsetY = Math.round(relY * scaleY);
+        addElement('image', { imageSource: assetId, offsetX, offsetY });
+    };
+
     return (
         <div className="preview-panel">
             <div className="canvas-container" ref={containerRef}>
@@ -124,6 +148,8 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
                     onMouseMove={interactive ? handleCanvasMouseMove : undefined}
                     onMouseUp={interactive ? handleCanvasMouseUp : undefined}
                     onMouseLeave={interactive ? handleCanvasMouseLeave : undefined}
+                    onDragOver={interactive ? handleDragOver : undefined}
+                    onDrop={interactive ? handleDrop : undefined}
                 ></canvas>
             </div>
 

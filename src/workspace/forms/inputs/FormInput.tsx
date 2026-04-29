@@ -3,6 +3,7 @@ import FileInput from './FileInput';
 import FontInput from './FontInput';
 import TimelineTrackSelect from './TimelineTrackSelect';
 import { AudioAnalysisProfileSelect } from './AudioAnalysisProfileSelect';
+import AssetSelect from './AssetSelect';
 import { useNumberDrag } from './useNumberDrag';
 import ColorInput from './ColorInput';
 import ColorAlphaInput from './ColorAlphaInput';
@@ -291,6 +292,19 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
     if (type === 'audioAnalysisProfile') {
         return (
             <AudioAnalysisProfileSelect
+                id={id}
+                value={typeof value === 'string' ? value : null}
+                schema={schema}
+                disabled={disabled}
+                title={title}
+                onChange={onChange}
+            />
+        );
+    }
+
+    if (type === 'assetRef') {
+        return (
+            <AssetSelect
                 id={id}
                 value={typeof value === 'string' ? value : null}
                 schema={schema}

@@ -34,6 +34,7 @@ import { TemplateLoadingOverlay } from '../../components/TemplateLoadingOverlay'
 import { useTemplateStatusStore } from '@state/templateStatusStore';
 import { CacheDiagnosticsPopup } from '@workspace/components/CacheDiagnosticsPopup';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
+import AssetManagerPanel from '@workspace/panels/asset-manager/AssetManagerPanel';
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const SIDE_MIN_WIDTH = 320;
@@ -44,6 +45,10 @@ const SIDE_COLLAPSE_THRESHOLD = 120;
 const TIMELINE_MIN_HEIGHT = 160;
 const TIMELINE_HANDLE_HEIGHT = 8;
 const TIMELINE_COLLAPSE_THRESHOLD = 120;
+const ASSET_PANEL_MIN_WIDTH = 160;
+const ASSET_PANEL_MAX_WIDTH = 380;
+const ASSET_PANEL_DEFAULT_WIDTH = 220;
+const ASSET_COLLAPSE_THRESHOLD = 80;
 
 // Controller for the track input assignment popup shown after adding an element with track inputs.
 const TrackInputPopupController: React.FC = () => {
@@ -179,9 +184,12 @@ const MidiVisualizerInner: React.FC = () => {
     const [isCompact, setIsCompact] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1200);
     const [showSmallScreenWarning, setShowSmallScreenWarning] = useState(false);
     const [showRenderModal, setShowRenderModal] = useState(false);
+    const [assetPanelCollapsed, setAssetPanelCollapsed] = useState(false);
+    const [assetPanelWidth, setAssetPanelWidth] = useState(ASSET_PANEL_DEFAULT_WIDTH);
     const workspaceRef = useRef<HTMLDivElement | null>(null);
     const sideResizeRef = useRef<null | { startX: number; startWidth: number; containerWidth: number }>(null);
     const timelineResizeRef = useRef<null | { startY: number; startHeight: number }>(null);
+    const assetResizeRef = useRef<null | { startX: number; startWidth: number }>(null);
     const [sidePanelWidth, setSidePanelWidth] = useState(() => {
         if (typeof window === 'undefined') return 360;
         const approx = Math.round(window.innerWidth * 0.28);
@@ -297,10 +305,33 @@ const MidiVisualizerInner: React.FC = () => {
         try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { }
     };
 
-    const handleTimelineResizeDown = (e: React.PointerEvent<HTMLDivElement>) => {
-        timelineResizeRef.current = { startY: e.clientY, startHeight: timelineCollapsed ? 0 : timelineHeight };
+    const handleAssetResizeDown = (e: React.PointerEvent<HTMLDivElement>) => {
+        assetResizeRef.current = { startX: e.clientX, startWidth: assetPanelCollapsed ? 0 : assetPanelWidth };
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         e.preventDefault();
+    };
+
+    const handleAssetResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
+        const state = assetResizeRef.current;
+        if (!state) return;
+        const delta = e.clientX - state.startX;
+        const rawNext = clampNumber(state.startWidth + delta, 0, ASSET_PANEL_MAX_WIDTH);
+        if (rawNext <= ASSET_COLLAPSE_THRESHOLD) {
+            setAssetPanelCollapsed(true);
+        } else {
+            setAssetPanelCollapsed(false);
+            setAssetPanelWidth(clampNumber(rawNext, ASSET_PANEL_MIN_WIDTH, ASSET_PANEL_MAX_WIDTH));
+        }
+    };
+
+    const handleAssetResizeUp = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (!assetResizeRef.current) return;
+        assetResizeRef.current = null;
+        try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { }
+    };
+
+    const handleTimelineResizeDown = (e: React.PointerEvent<HTMLDivElement>) => {
+        timelineResizeRef.current = { startY: e.clientY, startHeight: timelineCollapsed ? 0 : timelineHeight };
     };
 
     const handleTimelineResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -341,6 +372,28 @@ const MidiVisualizerInner: React.FC = () => {
                     <InsertKeyframeController />
                     <TrackInputPopupController />
                     <div className="main-workspace" ref={workspaceRef}>
+                        {/* Asset manager panel — left of preview, hidden in compact mode */}
+                        {!isCompact && !assetPanelCollapsed && (
+                            <div className="h-full flex-none overflow-hidden" style={{ width: `${Math.round(assetPanelWidth)}px` }}>
+                                <AssetManagerPanel />
+                            </div>
+                        )}
+                        {!isCompact && (
+                            <div
+                                className={`relative h-full cursor-col-resize bg-neutral-900/70 border-l border-r border-neutral-800 transition-colors ${assetPanelCollapsed ? 'opacity-70 hover:bg-sky-500/20' : 'hover:bg-sky-500/30'}`}
+                                style={{ width: SIDE_HANDLE_WIDTH }}
+                                onPointerDown={handleAssetResizeDown}
+                                onPointerMove={handleAssetResizeMove}
+                                onPointerUp={handleAssetResizeUp}
+                                onPointerCancel={handleAssetResizeUp}
+                                role="separator"
+                                aria-orientation="vertical"
+                                aria-label="Resize asset panel"
+                                aria-expanded={!assetPanelCollapsed}
+                            >
+                                <div className="absolute top-1/2 left-1/2 w-[2px] h-12 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
+                            </div>
+                        )}
                         <div className={`flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col overflow-hidden min-h-0${isCompact ? ' min-h-[200px]' : ''}`}>
                             <PreviewPanel />
                         </div>
