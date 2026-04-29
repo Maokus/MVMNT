@@ -6,13 +6,13 @@ The visual asset registry is the canonical way to add images and GIFs to your sc
 
 ## Concepts
 
-| Term | Type | Description |
-|------|------|-------------|
-| **Project asset** | `ProjectAsset` | Registry entry: name, type, source files, stable UUID. Lives in `VisualAssetRegistryStore`. |
-| **Source descriptor** | `VisualSourceDescriptor` | Typed description of where to load data from (`image`, `atlas`, or `sparrow`). Passed to a handle. |
-| **Decoded resource** | `VisualResource` | Decoded, frame-ready representation. Frames are pre-baked `ImageBitmap`s. Lives in `VisualResourceCache`. |
-| **Resource handle** | `VisualResourceHandle` | Manages one resource reference (retain/release). Single class for all source types. |
-| **Render object** | `VisualMedia` | Draws a `VisualResource` to canvas. Asset-agnostic — receives resources via `setResource()`. |
+| Term                  | Type                     | Description                                                                                               |
+| --------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| **Project asset**     | `ProjectAsset`           | Registry entry: name, type, source files, stable UUID. Lives in `VisualAssetRegistryStore`.               |
+| **Source descriptor** | `VisualSourceDescriptor` | Typed description of where to load data from (`image`, `atlas`, or `sparrow`). Passed to a handle.        |
+| **Decoded resource**  | `VisualResource`         | Decoded, frame-ready representation. Frames are pre-baked `ImageBitmap`s. Lives in `VisualResourceCache`. |
+| **Resource handle**   | `VisualResourceHandle`   | Manages one resource reference (retain/release). Single class for all source types.                       |
+| **Render object**     | `VisualMedia`            | Draws a `VisualResource` to canvas. Asset-agnostic — receives resources via `setResource()`.              |
 
 ---
 
@@ -34,12 +34,12 @@ Each asset is assigned a stable UUID at upload time. That ID is what gets stored
 
 `SceneElement` provides these auto-tracked factory methods — all returned handles are automatically destroyed when the element is disposed, so **no `onDestroy()` override is needed** just for cleanup:
 
-| Method | Returns | Use for |
-|--------|---------|---------|
-| `this.visualHandle()` | `VisualResourceHandle` | User-selected image / atlas from the registry |
-| `this.bundledSprite(filename)` | `BundledSprite` | Image or GIF that ships with the plugin |
-| `this.bundledImage(filename)` | `BundledSprite` | Alias for `bundledSprite()` |
-| `this.bundledSparrow(png, xml, defaultFps?)` | `BundledSparrowHandle` | Sparrow atlas that ships with the plugin |
+| Method                                       | Returns                | Use for                                       |
+| -------------------------------------------- | ---------------------- | --------------------------------------------- |
+| `this.visualHandle()`                        | `VisualResourceHandle` | User-selected image / atlas from the registry |
+| `this.bundledSprite(filename)`               | `BundledSprite`        | Image or GIF that ships with the plugin       |
+| `this.bundledImage(filename)`                | `BundledSprite`        | Alias for `bundledSprite()`                   |
+| `this.bundledSparrow(png, xml, defaultFps?)` | `BundledSparrowHandle` | Sparrow atlas that ships with the plugin      |
 
 Always use these factory methods instead of `new VisualResourceHandle()`, `new BundledSprite()`, etc. Manual handles require a matching `handle.destroy()` in `onDestroy()` — factory handles do not.
 
@@ -70,7 +70,13 @@ static override getConfigSchema() {
 ### 2. Load and draw the asset
 
 ```typescript
-import { SceneElement, prop, insertElementGroups, VisualMediaPlayback, resolveProjectAssetDescriptor } from '@mvmnt/plugin-sdk';
+import {
+    SceneElement,
+    prop,
+    insertElementGroups,
+    VisualMediaPlayback,
+    resolveProjectAssetDescriptor,
+} from '@mvmnt/plugin-sdk';
 import { VisualMedia, type RenderObject } from '@mvmnt/plugin-sdk/render';
 
 export class MyImageElement extends SceneElement {
@@ -108,7 +114,7 @@ For Sparrow atlases, `resource.animations` is a map of named animations (e.g. `'
 ```typescript
 this._media
     .setResource(resource, status)
-    .setAnimation('idle')   // play only the 'idle' animation frames
+    .setAnimation('idle') // play only the 'idle' animation frames
     .setLocalTime(this._playback.computeLocalTime(targetTime));
 ```
 
@@ -179,8 +185,8 @@ const descriptor = {
     imageSrc: pngUrl,
     xmlSrc: xmlUrl,
     animations: {
-        idle:  { loopMode: 'loop'     as const },
-        death: { loopMode: 'once'     as const },
+        idle: { loopMode: 'loop' as const },
+        death: { loopMode: 'once' as const },
         intro: { loopMode: 'pingpong' as const, fps: 12 },
     },
 };
@@ -204,7 +210,7 @@ protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[]
 }
 ```
 
-`build()` creates a new `VisualMedia` each call — use only for simple cases where the render object isn't reused frame to frame. For long-lived instances, use `.get()` and `setResource()` manually:
+`build()` creates a new `VisualMedia` each call, which can cause performance issues. For long-lived instances, use `.get()` and `setResource()` manually:
 
 ```typescript
 const { resource, status } = this._icon.get();
@@ -244,24 +250,24 @@ private readonly _body = this.bundledSprite('characters/body.png');
 
 `VisualMedia.setFitMode()` accepts:
 
-| Value | Behaviour |
-|-------|-----------|
-| `'contain'` | Scale to fit within the bounds, preserving aspect ratio. Empty bars (letterbox/pillarbox) appear when aspect ratios differ. Bounds reflect the scaled image rect, not the full container. |
-| `'cover'` | Scale to fill the bounds, preserving aspect ratio. Image overflows and is clipped. Bounds equal the full container. |
-| `'fill'` | Stretch to exactly fill the bounds. Distorts non-square images. |
-| `'none'` | Draw at the image's native pixel size (1:1 scale, no scaling). Centered inside the container. If the image overflows it is clipped to the container edges; if smaller, empty space is visible around it. Bounds reflect the actual drawn (clipped) region. |
+| Value       | Behaviour                                                                                                                                                                                                                                                  |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `'contain'` | Scale to fit within the bounds, preserving aspect ratio. Empty bars (letterbox/pillarbox) appear when aspect ratios differ. Bounds reflect the scaled image rect, not the full container.                                                                  |
+| `'cover'`   | Scale to fill the bounds, preserving aspect ratio. Image overflows and is clipped. Bounds equal the full container.                                                                                                                                        |
+| `'fill'`    | Stretch to exactly fill the bounds. Distorts non-square images.                                                                                                                                                                                            |
+| `'none'`    | Draw at the image's native pixel size (1:1 scale, no scaling). Centered inside the container. If the image overflows it is clipped to the container edges; if smaller, empty space is visible around it. Bounds reflect the actual drawn (clipped) region. |
 
 ---
 
 ## What to use when
 
-| Situation | Property | API |
-|-----------|----------|-----|
-| User-selected image from registry | `prop.imageAsset()` | `this.visualHandle()` + `resolveProjectAssetDescriptor` |
-| User-selected spritesheet (grid) | `prop.imageAsset()` | `this.visualHandle()` with `AtlasSourceDescriptor` |
-| Plugin-bundled default image | — (no property) | `this.bundledSprite()` / `this.bundledImage()` |
-| Plugin-bundled default Sparrow atlas | — (no property) | `this.bundledSparrow()` |
-| Non-image file (audio, etc.) | `prop.file()` | n/a |
+| Situation                            | Property            | API                                                     |
+| ------------------------------------ | ------------------- | ------------------------------------------------------- |
+| User-selected image from registry    | `prop.imageAsset()` | `this.visualHandle()` + `resolveProjectAssetDescriptor` |
+| User-selected spritesheet (grid)     | `prop.imageAsset()` | `this.visualHandle()` with `AtlasSourceDescriptor`      |
+| Plugin-bundled default image         | — (no property)     | `this.bundledSprite()` / `this.bundledImage()`          |
+| Plugin-bundled default Sparrow atlas | — (no property)     | `this.bundledSparrow()`                                 |
+| Non-image file (audio, etc.)         | `prop.file()`       | n/a                                                     |
 
 ---
 
@@ -322,9 +328,7 @@ this._media.setResource(resource, status);
 this._media.setLocalTime(this._playback.computeLocalTime(targetTime, asset?.clips));
 
 // New
-this._media
-    .setAnimation(this._playback.animationName)
-    .setLocalTime(this._playback.computeLocalTime(targetTime));
+this._media.setAnimation(this._playback.animationName).setLocalTime(this._playback.computeLocalTime(targetTime));
 ```
 
 `VisualMediaPlayback.clipName` is now `animationName`.

@@ -52,15 +52,24 @@ const ChangelogPage: React.FC = () => {
                             'Element property factories',
                             'Improve version conflict management'
                         ],
+                        'Added asset manager',
+                        [
+                            'Good™️ file management',
+                            'Bundle assets with plugins',
+                            'Drag and drop image creation',
+                            'Support for sparrow atlases (like FNF!)',
+                            'Generalised image render object to VisualMedia'
+                        ],
                         'Extended renderobject system',
                         [
                             'Support blend modes, filters and layers',
                             'Improve glow logic',
+                            'Implemented origin calculations',
                         ],
                         'Bugfixes',
                         [
                             'Allowed pre-time unit attack animations in TUPR',
-                            'Changed all angle measurement units to radians (this might break some files)'
+                            'Changed some angle measurement units to radians (this might break some files)'
                         ],
                     ]} />
 
