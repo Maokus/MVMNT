@@ -1,6 +1,6 @@
 # Community System Analysis
 
-_Last updated: April 2026 — security fixes applied_
+_Last updated: April 2026 — aggregate trigger fixes + security hardening applied_
 
 ## Overview
 
@@ -116,22 +116,29 @@ Storage buckets are path-scoped: policies enforce that authenticated users can o
 
 **Resolved.** Both the INSERT (`Item owner can add tags`) and DELETE (`Item owner can remove tags`) policies on `community_item_tags` now use `TO authenticated` instead of `TO public`. See migration `20260430130000_security_fixes.sql`.
 
-**4. Downloads SELECT policy returns FALSE**
-The policy `downloads readable by owner only if needed` has `USING (false)`. This means nobody — not even admins or item owners — can query the downloads log via the client. The aggregate counter is accessible via `community_items`, but raw download data is permanently inaccessible. This is likely intentional for privacy, but it means the data is being written and never read, which is wasteful.
+**4. Downloads SELECT policy returns FALSE** ~~The policy `downloads readable by owner only if needed` has `USING (false)`. This means nobody — not even admins or item owners — can query the downloads log via the client. The aggregate counter is accessible via `community_items`, but raw download data is permanently inaccessible. This is likely intentional for privacy, but it means the data is being written and never read, which is wasteful.~~
 
-**5. No rate limiting on download count inflation**
-Anonymous download records can be inserted freely. A script could call `downloadItem()` in a loop to inflate `downloads_count` for any item. There is no deduplication, cooldown, or IP-based throttling.
+**Resolved.** The dead `USING (false)` policy has been replaced with `Item owner can read their download records`, which exposes download rows only to the authenticated user who owns the item. This enables future per-item analytics without leaking download history to third parties. See migration `20260430140000_aggregate_triggers_and_security.sql`.
 
-**6. Race condition on plugin UID pre-check**
-`findPluginUidConflict()` is called before uploading, but it's not atomic with the insert. Two concurrent uploads of the same plugin UID will both pass the pre-check and then race to insert; the DB UNIQUE constraint will correctly reject the second, but the first uploader's file will already be in Storage. The orphaned Storage file is never cleaned up.
+**5. No rate limiting on download count inflation** ~~Anonymous download records can be inserted freely. A script could call `downloadItem()` in a loop to inflate `downloads_count` for any item. There is no deduplication, cooldown, or IP-based throttling.~~
+
+**Resolved (partially).** The root cause was that `increment_download_count` was granted `EXECUTE` to `anon` and `authenticated`, letting any client call it directly to inflate counts without inserting a download record. Both grants have been revoked. `downloads_count` is now maintained exclusively by the `increment_download_on_insert` DB trigger, which fires only on a successful `community_downloads` INSERT — anonymous users cannot insert (no anon INSERT policy exists) and authenticated users are constrained by RLS. See migration `20260430140000_aggregate_triggers_and_security.sql`.
+
+Per-user download deduplication (one record per user per item) remains a future hardening option.
+
+**6. Race condition on plugin UID pre-check** ~~`findPluginUidConflict()` is called before uploading, but it's not atomic with the insert. Two concurrent uploads of the same plugin UID will both pass the pre-check and then race to insert; the DB UNIQUE constraint will correctly reject the second, but the first uploader's file will already be in Storage. The orphaned Storage file is never cleaned up.~~
+
+**Resolved.** `uploadItem()` now removes both the thumbnail and the main file from Storage when the DB insert fails (including on `23505` UNIQUE constraint violations). File upload errors also clean up any file already uploaded in the same call. The DB UNIQUE constraint remains the authoritative race guard; the cleanup ensures no orphaned files accumulate in those (rare) concurrent-upload collisions.
 
 ### Data Integrity
 
-**7. Rating aggregate computed via RPC, not a trigger**
-`refresh_item_rating` is called manually from the client after every upsert. If the client call fails (network error, crash), `average_rating` and `ratings_count` in `community_items` become stale and never self-correct. A `AFTER INSERT OR UPDATE OR DELETE ON community_ratings` trigger would be more reliable.
+**7. Rating aggregate computed via RPC, not a trigger** ~~`refresh_item_rating` is called manually from the client after every upsert. If the client call fails (network error, crash), `average_rating` and `ratings_count` in `community_items` become stale and never self-correct. A `AFTER INSERT OR UPDATE OR DELETE ON community_ratings` trigger would be more reliable.~~
 
-**8. Download counter not self-healing**
-`downloads_count` is incremented via RPC. If `increment_download_count` fails after the download row is inserted, the counter drifts from the actual row count in `community_downloads`. Again, a trigger or a view would be more reliable.
+**Resolved.** The `refresh_rating_on_change` trigger on `community_ratings` now maintains `average_rating` and `ratings_count` automatically. `EXECUTE` on `refresh_item_rating` has been revoked from `anon` and `authenticated`; the manual RPC call has been removed from `rateItem()`. See migration `20260430140000_aggregate_triggers_and_security.sql`.
+
+**8. Download counter not self-healing** ~~`downloads_count` is incremented via RPC. If `increment_download_count` fails after the download row is inserted, the counter drifts from the actual row count in `community_downloads`. Again, a trigger or a view would be more reliable.~~
+
+**Resolved.** The `increment_download_on_insert` trigger on `community_downloads` now increments `downloads_count` atomically with every INSERT. `EXECUTE` on `increment_download_count` has been revoked from `anon` and `authenticated`; the manual RPC call has been removed from `downloadItem()`. See migration `20260430140000_aggregate_triggers_and_security.sql`.
 
 **9. Hard delete removes all history**
 Deleting an item deletes its download log and ratings via CASCADE. There is no tombstone or soft-delete, so there's no way to recover analytics or undo a deletion.
@@ -182,24 +189,12 @@ Filter all public queries with `WHERE deleted_at IS NULL`. This preserves downlo
 
 **Use trigger-based aggregates instead of RPC-based:**
 
-```sql
+~~```sql
 CREATE OR REPLACE FUNCTION trg_refresh_item_rating()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-  UPDATE community_items SET
-    average_rating = (SELECT COALESCE(AVG(rating), 0) FROM community_ratings WHERE item_id = COALESCE(NEW.item_id, OLD.item_id)),
-    ratings_count  = (SELECT COUNT(*) FROM community_ratings WHERE item_id = COALESCE(NEW.item_id, OLD.item_id))
-  WHERE id = COALESCE(NEW.item_id, OLD.item_id);
-  RETURN NULL;
-END;
-$$;
+...
+```~~
 
-CREATE TRIGGER refresh_rating_on_change
-AFTER INSERT OR UPDATE OR DELETE ON community_ratings
-FOR EACH ROW EXECUTE FUNCTION trg_refresh_item_rating();
-```
-
-Do the same for `downloads_count`. This removes the client's responsibility to call the RPC and eliminates drift.
+**Implemented.** `refresh_rating_on_change` and `increment_download_on_insert` triggers are now live. See migration `20260430140000_aggregate_triggers_and_security.sql`.
 
 **Add a `schema_version` column to migrations themselves:**
 As the community feature evolves, a `community_schema_version` table (one row, one integer) makes it easy to gate features on DB readiness without relying on migration file names.
@@ -244,12 +239,9 @@ Downloads are a lagging signal of discovery. Tracking views separately gives a b
 **Implemented.** `supabase/functions/sign-in-with-username/index.ts` handles this. `get_email_by_username` execute rights revoked from anon/authenticated.
 
 **Add download deduplication:**
-Add a partial unique index or a cooldown check to prevent a single anonymous session from inflating counts:
+~~Add a partial unique index or a cooldown check to prevent a single anonymous session from inflating counts:~~
 
-```sql
--- One anonymous download per item per day (rough dedup by created_at truncation)
--- Or: track client fingerprint / session ID in a separate column
-```
+Partially addressed: direct RPC inflation is now blocked (see issue #5). Per-user deduplication (unique index on `user_id, item_id`) remains a future option.
 
 **Fix the labelling issue on `community_item_tags` INSERT policy:**
 ~~Change the role from PUBLIC to AUTHENTICATED to match intent.~~

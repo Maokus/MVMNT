@@ -233,7 +233,10 @@ export async function uploadItem(
     const { error: fileErr } = await supabase.storage
         .from('community-files')
         .upload(filePath, mainFile, { upsert: false });
-    if (fileErr) throw fileErr;
+    if (fileErr) {
+        await supabase.storage.from('community-thumbnails').remove([thumbPath]);
+        throw fileErr;
+    }
 
     const { error: insertErr } = await supabase.from('community_items').insert({
         id: itemId,
@@ -250,7 +253,11 @@ export async function uploadItem(
         template_schema_version: templateSchemaVersion,
         min_app_version: minAppVersion,
     });
-    if (insertErr) translateInsertError(insertErr, pluginUid);
+    if (insertErr) {
+        await supabase.storage.from('community-thumbnails').remove([thumbPath]);
+        await supabase.storage.from('community-files').remove([filePath]);
+        translateInsertError(insertErr, pluginUid);
+    }
 
     return itemId;
 }
@@ -328,8 +335,7 @@ export async function downloadItem(item: CommunityItem, userId: string | null) {
         item_id: item.id,
         user_id: userId,
     });
-
-    await supabase.rpc('increment_download_count', { item_id_input: item.id });
+    // downloads_count is incremented automatically by the increment_download_on_insert trigger.
 
     const { data } = supabase.storage.from('community-files').getPublicUrl(item.file_path);
     return data.publicUrl;
@@ -340,9 +346,7 @@ export async function rateItem(itemId: string, userId: string, rating: number) {
         .from('community_ratings')
         .upsert({ item_id: itemId, user_id: userId, rating }, { onConflict: 'item_id,user_id' });
     if (upsertErr) throw upsertErr;
-
-    const { error: rpcErr } = await supabase.rpc('refresh_item_rating', { item_id_input: itemId });
-    if (rpcErr) throw rpcErr;
+    // average_rating and ratings_count are updated automatically by the refresh_rating_on_change trigger.
 }
 
 export async function getUserRating(itemId: string, userId: string): Promise<number | null> {
