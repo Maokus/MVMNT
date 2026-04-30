@@ -78,7 +78,7 @@ export class ImageElement extends SceneElement {
         if (!props.visible) return [];
 
         if (!this._renderObject) {
-            this._renderObject = new VisualMedia(0, 0, props.width, props.height, { includeInLayoutBounds: false });
+            this._renderObject = new VisualMedia(0, 0, props.width, props.height, { layoutBoundsMode: 'none' });
         }
 
         if (!this._layoutRect) {

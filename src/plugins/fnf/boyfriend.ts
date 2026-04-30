@@ -66,10 +66,6 @@ export class BoyfriendElement extends SceneElement {
                         prop.number('scale', 'Scale', 1, { min: 0, step: 0.1 }),
                         prop.number('debugOriginX', 'Debug Origin X', 0, { min: 0, max: 1, step: 0.1 }),
                         prop.number('debugOriginY', 'Debug Origin Y', 0, { min: 0, max: 1, step: 0.1 }),
-                        prop.number('debugFrameContainerX', 'Debug Frame Container X', 0.5, { min: 0, max: 1, step: 0.1 }),
-                        prop.number('debugFrameContainerY', 'Debug Frame Container Y', 0.5, { min: 0, max: 1, step: 0.1 }),
-                        prop.number('debugFramePointX', 'Debug Frame Point X', 0.5, { min: 0, max: 1, step: 0.1 }),
-                        prop.number('debugFramePointY', 'Debug Frame Point Y', 0.5, { min: 0, max: 1, step: 0.1 }),
                     ],
                 },
             ]
@@ -140,12 +136,9 @@ export class BoyfriendElement extends SceneElement {
             .setLayoutBoundsMode('none')
             .setDimensions(WIDTH, HEIGHT)
             .setOriginFraction(props.debugOriginX, props.debugOriginY)
-            .setFramePlacement({
-                container: [props.debugFrameContainerX, props.debugFrameContainerY],
-                frame: [props.debugFramePointX, props.debugFramePointY],
-            });
+            .setFramePlacement('center-left');
 
-        //this._media.showDebug = true;
+        this._media.showDebug = true;
 
         this._media.scaleX = props.scale;
         this._media.scaleY = props.scale;

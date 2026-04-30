@@ -16,7 +16,7 @@ export class SimpleImageElement extends SceneElement {
     // No onDestroy() override needed.
     private readonly _handle = this.visualHandle();
     private readonly _playback = new VisualMediaPlayback();
-    private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
+    private readonly _media = new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' });
     private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
 
     constructor(id: string = 'simpleImage', config: Record<string, unknown> = {}) {

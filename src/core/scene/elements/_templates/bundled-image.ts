@@ -25,7 +25,7 @@ export class BundledImageElement extends SceneElement {
     // Handle for an optional user-selected image override.
     private readonly _overrideHandle = this.visualHandle();
     private readonly _playback = new VisualMediaPlayback();
-    private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
+    private readonly _media = new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' });
     private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
 
     constructor(id: string = 'bundledImage', config: Record<string, unknown> = {}) {
