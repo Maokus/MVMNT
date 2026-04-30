@@ -56,7 +56,7 @@ export class BundledImageElement extends SceneElement {
                             { value: 'contain', label: 'Contain' },
                             { value: 'cover', label: 'Cover' },
                             { value: 'fill', label: 'Fill' },
-                            { value: 'none', label: 'Original size' },
+                            { value: 'clip', label: 'Clip (native size)' },
                         ]),
                     ],
                 },
@@ -70,7 +70,7 @@ export class BundledImageElement extends SceneElement {
 
         const w = (props.width as number) ?? 200;
         const h = (props.height as number) ?? 200;
-        const fitMode = (props.fitMode as 'contain' | 'cover' | 'fill' | 'none') ?? 'contain';
+        const fitMode = (props.fitMode as 'contain' | 'cover' | 'fill' | 'clip') ?? 'contain';
 
         this._layoutRect.width = w;
         this._layoutRect.height = h;

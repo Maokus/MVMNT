@@ -1,23 +1,77 @@
 import { RenderObject, type RenderConfig, type Bounds } from './base';
 import { type VisualResource, type ResourceStatus, getFrameAtTime } from '@core/resources/visual-resource';
 
+// ─── Frame placement ─────────────────────────────────────────────────────────
+
+/**
+ * Named presets for `framePlacement`. Each preset anchors the same logical
+ * point on both the container and the frame (e.g. 'bottom-center' aligns the
+ * frame's bottom-center with the container's bottom-center).
+ *
+ * Only meaningful when `fitMode` is `'clip'`.
+ */
+export type FramePlacementPreset =
+    | 'center'
+    | 'top-left'
+    | 'top-center'
+    | 'top-right'
+    | 'center-left'
+    | 'center-right'
+    | 'bottom-left'
+    | 'bottom-center'
+    | 'bottom-right';
+
+/**
+ * Custom frame placement: independently specify which point on the container
+ * (`container`) is aligned with which point on the frame (`frame`), both as
+ * (x, y) fractions in [0, 1].
+ *
+ *   frameBaseX = container[0] * containerWidth  − frame[0] * frameWidth
+ *   frameBaseY = container[1] * containerHeight − frame[1] * frameHeight
+ *
+ * Example: `{ container: [0.5, 1], frame: [0.5, 1] }` pins the frame's
+ * bottom-center to the container's bottom-center (same as 'bottom-center').
+ */
+export type FramePlacementCustom = {
+    container: [number, number];
+    frame: [number, number];
+};
+
+/**
+ * How the image frame is positioned inside the container box.
+ * Only applies to `fitMode: 'clip'`.
+ *
+ * Use a named preset for common layouts, or a `FramePlacementCustom` object
+ * when the container and frame anchor points differ.
+ */
+export type FramePlacement = FramePlacementPreset | FramePlacementCustom;
+
+const PRESET_VALUES: Record<FramePlacementPreset, [number, number, number, number]> = {
+    //                          contX  contY  frameX frameY
+    'center':        [0.5, 0.5, 0.5, 0.5],
+    'top-left':      [0,   0,   0,   0  ],
+    'top-center':    [0.5, 0,   0.5, 0  ],
+    'top-right':     [1,   0,   1,   0  ],
+    'center-left':   [0,   0.5, 0,   0.5],
+    'center-right':  [1,   0.5, 1,   0.5],
+    'bottom-left':   [0,   1,   0,   1  ],
+    'bottom-center': [0.5, 1,   0.5, 1  ],
+    'bottom-right':  [1,   1,   1,   1  ],
+};
+
+// ─── VisualMediaOptions ───────────────────────────────────────────────────────
+
 /**
  * Constructor / build options for VisualMedia.
  *
- * ## Transform pivot vs content anchors — two separate concerns
+ * ## origin vs frame placement — two separate concerns
  *
- * **`pivotFractionX/Y`** — transform origin of the media *box*, stored as
- * fractions of (width, height). Equivalent to `setPivotFraction(x, y)`.
- * (0.5, 1) = the box's bottom-center is its world position and rotation origin.
+ * **`originX/Y`** — transform origin of the media *box*, stored as fractions of
+ * (width, height). The box's world position and rotation/scale axis.
+ * Default (0, 0) = top-left corner. (0.5, 1) = bottom-center.
  *
- * **`contentAnchorX/Y` + `frameAnchorX/Y`** — where the image or sprite frame
- * sits *inside* the box. Only applies to `fitMode: 'none'`.
- *
- *   baseX = contentAnchorX * containerWidth  − frameAnchorX * frameWidth
- *   baseY = contentAnchorY * containerHeight − frameAnchorY * frameHeight
- *
- * Default (0.5 / 0.5 for both) centers the frame in the box.
- * (0.5, 1) / (0.5, 1) pins the frame's bottom-center to the box's bottom-center.
+ * **`framePlacement`** — where the image sits *inside* the box.
+ * Only applies to `fitMode: 'clip'`. Default `'center'`.
  *
  * ## Layout bounds
  *
@@ -27,29 +81,48 @@ import { type VisualResource, type ResourceStatus, getFrameAtTime } from '@core/
  *   - `'none'`      Excluded from layout bounds entirely.
  */
 export type VisualMediaOptions = {
-    fitMode?: 'contain' | 'cover' | 'fill' | 'none';
+    /**
+     * How the image fits in the container.
+     * - `'contain'` Scale to fit within the box, preserving aspect ratio. Bars visible.
+     * - `'cover'`   Scale to fill the box, preserving aspect. Overflowing pixels clipped.
+     * - `'fill'`    Stretch to fill (distorts non-square images).
+     * - `'clip'`    Native pixel size (1:1, no scaling). Use `framePlacement` to position.
+     * - `'none'`    @deprecated Alias for `'clip'`.
+     */
+    fitMode?: 'contain' | 'cover' | 'fill' | 'clip' | 'none';
     preserveAspectRatio?: boolean;
     /** @deprecated Use `layoutBoundsMode: 'none'` instead. */
     includeInLayoutBounds?: boolean;
     layoutBoundsMode?: 'container' | 'drawn' | 'none';
-    /** Transform pivot X as fraction of container width (0–1). Default 0. */
+    /** Transform origin X as fraction of container width (0–1). Default 0 (left). */
+    originX?: number;
+    /** Transform origin Y as fraction of container height (0–1). Default 0 (top). */
+    originY?: number;
+    /** @deprecated Use `originX` instead. */
     pivotFractionX?: number;
-    /** Transform pivot Y as fraction of container height (0–1). Default 0. */
+    /** @deprecated Use `originY` instead. */
     pivotFractionY?: number;
-    /** Content anchor X (0–1): which point in the container the frame is placed at. Default 0.5. */
+    /**
+     * Where the image frame is positioned inside the container box.
+     * Only applies to `fitMode: 'clip'`. Default `'center'`.
+     */
+    framePlacement?: FramePlacement;
+    /** @deprecated Use `framePlacement` instead. */
     contentAnchorX?: number;
-    /** Content anchor Y (0–1). Default 0.5. */
+    /** @deprecated Use `framePlacement` instead. */
     contentAnchorY?: number;
-    /** Frame anchor X (0–1): which point on the frame maps to the content anchor. Default 0.5. */
+    /** @deprecated Use `framePlacement` instead. */
     frameAnchorX?: number;
-    /** Frame anchor Y (0–1). Default 0.5. */
+    /** @deprecated Use `framePlacement` instead. */
     frameAnchorY?: number;
     /**
      * Draw a debug overlay each frame showing the container outline, drawn-region
-     * border, pivot point, and content-anchor point.
+     * border, origin point, and frame placement anchor.
      */
     showDebug?: boolean;
 };
+
+// ─── VisualMedia ─────────────────────────────────────────────────────────────
 
 /**
  * VisualMedia — a render object that draws any VisualResource.
@@ -59,42 +132,49 @@ export type VisualMediaOptions = {
  * via setResource() each frame. VisualMedia has no internal asset slot and no
  * destroy() method.
  *
+ * ## origin vs frame placement
+ *
+ * **origin** (`setOriginFraction`) is the transform origin of the container *box*:
+ * the world position of the element and the axis for rotation / scale.
+ * Default (0, 0) = top-left corner. Example: (0.5, 1) = bottom-center.
+ *
+ * **frame placement** (`setFramePlacement`) controls where the image sits *inside*
+ * the box. Only meaningful for `fitMode: 'clip'`. Default: `'center'`.
+ *
  * ## Fit modes
  *
  * | Mode      | Behaviour                                                                  |
  * |-----------|----------------------------------------------------------------------------|
  * | 'contain' | Scale to fit within the container box, preserving aspect ratio. Bars      |
- * |           | (letterbox/pillarbox) are visible when the image and container aspects     |
- * |           | differ. Bounds reflect the scaled image rect, not the full container.      |
- * | 'cover'   | Scale to fill the entire container, preserving aspect ratio. The image     |
- * |           | overflows and is clipped. Bounds equal the full container.                 |
+ * |           | (letterbox/pillarbox) visible when aspects differ. Bounds = scaled rect.   |
+ * | 'cover'   | Scale to fill the container, preserving aspect ratio. Overflows clipped.   |
+ * |           | Bounds = full container.                                                   |
  * | 'fill'    | Stretch to exactly fill the container. Distorts non-square images.         |
- * |           | Bounds equal the full container.                                           |
- * | 'none'    | Draw at the image's native pixel size (1:1 scale, no scaling). Frame       |
- * |           | placement is controlled by setContentAnchor / setFrameAnchor               |
- * |           | (default: center). The image is clipped to the container edges if it       |
- * |           | overflows. Bounds reflect the actual drawn (clipped) region.               |
+ * |           | Bounds = full container.                                                   |
+ * | 'clip'    | Draw at native pixel size (1:1, no scaling). Frame position inside the     |
+ * |           | box is controlled by setFramePlacement (default: 'center'). The image      |
+ * |           | is clipped to container edges if it overflows. Bounds = drawn region.      |
+ * | 'none'    | @deprecated Alias for 'clip'.                                              |
  *
  * ## Key APIs
  *
- * - `setPivotFraction(x, y)`   — transform origin of the box as fractions of its size.
- * - `setContentAnchor(x, y)`   — where in the container the frame is placed ('none' mode).
- * - `setFrameAnchor(x, y)`     — which point on the frame maps to the content anchor.
+ * - `setOriginFraction(x, y)`  — transform origin of the box as fractions of its size.
+ * - `setFramePlacement(p)`     — positions the frame inside the box ('clip' mode only).
  * - `setLayoutBoundsMode(mode)` — 'drawn' | 'container' | 'none'.
- * - `showDebug = true`          — overlays container, drawn region, pivot, and anchor.
+ * - `showDebug = true`          — overlays container, drawn region, origin, and frame anchor.
  */
 export class VisualMedia extends RenderObject {
     width: number;
     height: number;
-    fitMode: 'contain' | 'cover' | 'fill' | 'none';
+    fitMode: 'contain' | 'cover' | 'fill' | 'clip' | 'none';
     preserveAspectRatio: boolean;
     /**
      * When true (or when `config.showDebug` is set), draws a debug overlay showing:
      * - Cyan dashed outline: the container rect.
      * - Green solid rect: the actual drawn / clipped region.
-     * - Purple dashed rect: the full unclipped frame rect ('none' mode only).
-     * - Orange crosshair: the content anchor point inside the container.
-     * - Yellow diamond: the pivot / transform origin inside the container.
+     * - Purple dashed rect: the full unclipped frame rect ('clip' mode only).
+     * - Orange crosshair: the frame placement anchor point inside the container.
+     * - Yellow diamond: the origin / transform origin inside the container.
      */
     showDebug: boolean;
 
@@ -105,13 +185,13 @@ export class VisualMedia extends RenderObject {
 
     /**
      * Content anchor (0–1): the point inside the container where the frame is placed.
-     * Only used by fitMode 'none'. Default 0.5 (center).
+     * Only used by fitMode 'clip'. Default 0.5 (center).
      */
     private _contentAnchorX: number = 0.5;
     private _contentAnchorY: number = 0.5;
     /**
      * Frame anchor (0–1): the point on the frame that maps to the content anchor.
-     * Only used by fitMode 'none'. Default 0.5 (center).
+     * Only used by fitMode 'clip'. Default 0.5 (center).
      */
     private _frameAnchorX: number = 0.5;
     private _frameAnchorY: number = 0.5;
@@ -133,25 +213,38 @@ export class VisualMedia extends RenderObject {
             this.setLayoutBoundsMode('none');
         }
 
-        if (options.contentAnchorX !== undefined) this._contentAnchorX = options.contentAnchorX;
-        if (options.contentAnchorY !== undefined) this._contentAnchorY = options.contentAnchorY;
-        if (options.frameAnchorX !== undefined) this._frameAnchorX = options.frameAnchorX;
-        if (options.frameAnchorY !== undefined) this._frameAnchorY = options.frameAnchorY;
+        // framePlacement wins over individual contentAnchor/frameAnchor options.
+        if (options.framePlacement) {
+            this.setFramePlacement(options.framePlacement);
+        } else {
+            if (options.contentAnchorX !== undefined) this._contentAnchorX = options.contentAnchorX;
+            if (options.contentAnchorY !== undefined) this._contentAnchorY = options.contentAnchorY;
+            if (options.frameAnchorX !== undefined) this._frameAnchorX = options.frameAnchorX;
+            if (options.frameAnchorY !== undefined) this._frameAnchorY = options.frameAnchorY;
+        }
 
-        if (options.pivotFractionX !== undefined || options.pivotFractionY !== undefined) {
-            super.setPivotFraction(options.pivotFractionX ?? 0, options.pivotFractionY ?? 0);
+        // originX/Y wins over deprecated pivotFractionX/Y.
+        const ox = options.originX ?? options.pivotFractionX;
+        const oy = options.originY ?? options.pivotFractionY;
+        if (ox !== undefined || oy !== undefined) {
+            super.setOriginFraction(ox ?? 0, oy ?? 0);
             this._reapplyPivotFraction(width, height);
         }
     }
 
     /**
-     * Override so that setPivotFraction() immediately recomputes pivotX/Y from
+     * Override so that setOriginFraction() immediately recomputes pivotX/Y from
      * the current dimensions, in addition to storing the fractions.
      */
-    override setPivotFraction(x: number, y: number): this {
-        super.setPivotFraction(x, y);
+    override setOriginFraction(x: number, y: number): this {
+        super.setOriginFraction(x, y);
         this._reapplyPivotFraction(this.width, this.height);
         return this;
+    }
+
+    /** @deprecated Use setOriginFraction instead. */
+    override setPivotFraction(x: number, y: number): this {
+        return this.setOriginFraction(x, y);
     }
 
     /**
@@ -185,7 +278,7 @@ export class VisualMedia extends RenderObject {
         return this;
     }
 
-    setFitMode(mode: 'contain' | 'cover' | 'fill' | 'none'): this {
+    setFitMode(mode: 'contain' | 'cover' | 'fill' | 'clip' | 'none'): this {
         this.fitMode = mode;
         return this;
     }
@@ -203,12 +296,37 @@ export class VisualMedia extends RenderObject {
     }
 
     /**
-     * Set where in the container box the image frame is placed (0–1 fractions).
-     * Only applies to `fitMode: 'none'`. Default (0.5, 0.5) = center.
+     * Position the image frame inside the container box. Only applies to
+     * `fitMode: 'clip'`. Default `'center'`.
      *
-     * Used together with setFrameAnchor:
-     *   baseX = contentAnchorX * containerWidth  − frameAnchorX * frameWidth
-     *   baseY = contentAnchorY * containerHeight − frameAnchorY * frameHeight
+     * Use a named preset for common layouts:
+     *   'center' | 'top-left' | 'top-center' | 'top-right'
+     *   'center-left' | 'center-right'
+     *   'bottom-left' | 'bottom-center' | 'bottom-right'
+     *
+     * Or pass `{ container: [cx, cy], frame: [fx, fy] }` for custom placement:
+     *   frameBaseX = cx * containerWidth  − fx * frameWidth
+     *   frameBaseY = cy * containerHeight − fy * frameHeight
+     */
+    setFramePlacement(placement: FramePlacement): this {
+        if (typeof placement === 'string') {
+            const [cx, cy, fx, fy] = PRESET_VALUES[placement];
+            this._contentAnchorX = cx;
+            this._contentAnchorY = cy;
+            this._frameAnchorX = fx;
+            this._frameAnchorY = fy;
+        } else {
+            this._contentAnchorX = placement.container[0];
+            this._contentAnchorY = placement.container[1];
+            this._frameAnchorX = placement.frame[0];
+            this._frameAnchorY = placement.frame[1];
+        }
+        return this;
+    }
+
+    /**
+     * @deprecated Use setFramePlacement instead.
+     * Set where in the container box the image frame is placed (0–1 fractions).
      */
     setContentAnchor(x: number, y: number): this {
         this._contentAnchorX = x;
@@ -217,11 +335,8 @@ export class VisualMedia extends RenderObject {
     }
 
     /**
+     * @deprecated Use setFramePlacement instead.
      * Set which point on the image frame maps to the content anchor (0–1 fractions).
-     * Only applies to `fitMode: 'none'`. Default (0.5, 0.5) = center of frame.
-     *
-     * Example: setContentAnchor(0.5, 1) + setFrameAnchor(0.5, 1) places the
-     * frame's bottom-center at the container's bottom-center.
      */
     setFrameAnchor(x: number, y: number): this {
         this._frameAnchorX = x;
@@ -260,7 +375,7 @@ export class VisualMedia extends RenderObject {
      *   drawX/Y/Width/Height — the visible region in container-local space (used
      *     for bounds and debug rendering).
      *   baseX/Y — the full frame origin in container-local space (used as the
-     *     draw origin in _renderSelf; may be outside [0,container] for 'none' mode).
+     *     draw origin in _renderSelf; may be outside [0,container] for 'clip' mode).
      *   scaleX/Y — the scaling factors to apply to source dimensions.
      */
     #calculateDrawParams(
@@ -338,12 +453,12 @@ export class VisualMedia extends RenderObject {
                 scaleY: imgHeight > 0 ? drawHeight / imgHeight : 1,
             };
         } else {
-            // 'none': draw at native pixel size (1:1 scale).
-            // Place the frame using content/frame anchors:
+            // 'clip' (and deprecated 'none'): draw at native pixel size (1:1 scale).
+            // Place the frame using framePlacement (stored as content/frame anchor pairs):
             //   baseX = contentAnchorX * containerW − frameAnchorX * frameW
             // Canvas clipping (applied in _renderSelf) handles overflow.
             // trimOffset is applied on top of baseX/Y and is treated as frame
-            // reconstruction only — it does not interact with the anchor system.
+            // reconstruction only — it does not interact with the origin or framePlacement.
             const baseX = this._contentAnchorX * this.width - this._frameAnchorX * imgWidth;
             const baseY = this._contentAnchorY * this.height - this._frameAnchorY * imgHeight;
             const drawEndX = Math.min(this.width, baseX + imgWidth);
@@ -420,15 +535,16 @@ export class VisualMedia extends RenderObject {
 
         // Sparrow trimOffset adjusts for where the visible pixels sit within the
         // logical frame. It is frame-reconstruction data only and does not interact
-        // with the pivot or content-anchor system.
+        // with the origin or framePlacement systems.
         const trimX = (frame.trimOffset?.x ?? 0) * scaleX;
         const trimY = (frame.trimOffset?.y ?? 0) * scaleY;
         const destX = baseX + trimX;
         const destY = baseY + trimY;
 
-        // 'cover' clips the overflowing image; 'none' clips because the frame
-        // origin can be negative when baseX/Y places the frame partially outside.
-        if (this.fitMode === 'cover' || this.fitMode === 'none') {
+        // 'cover' clips overflow; 'clip'/'none' clips because the frame origin can
+        // be negative when framePlacement places the frame partially outside the box.
+        const needsClip = this.fitMode === 'cover' || this.fitMode === 'clip' || this.fitMode === 'none';
+        if (needsClip) {
             ctx.save();
             ctx.beginPath();
             ctx.rect(0, 0, this.width, this.height);
@@ -455,7 +571,7 @@ export class VisualMedia extends RenderObject {
             this.#drawPlaceholder(ctx, 'Error', 'red');
         }
 
-        if (this.fitMode === 'cover' || this.fitMode === 'none') ctx.restore();
+        if (needsClip) ctx.restore();
 
         if (debug) this.#drawDebugOverlay(ctx, params, imgW, imgH);
     }
@@ -465,9 +581,9 @@ export class VisualMedia extends RenderObject {
      *
      * Cyan dashed   — container rect
      * Green solid   — drawn / clipped region (when resource is loaded)
-     * Purple dashed — full unclipped frame rect ('none' mode only, may overflow)
-     * Orange ⊕      — content anchor point inside the container
-     * Yellow ◆      — pivot / transform origin inside the container
+     * Purple dashed — full unclipped frame rect ('clip' mode only, may overflow)
+     * Orange ⊕      — frame placement anchor point inside the container
+     * Yellow ◆      — origin / transform origin inside the container
      */
     #drawDebugOverlay(
         ctx: CanvasRenderingContext2D,
@@ -485,8 +601,9 @@ export class VisualMedia extends RenderObject {
         ctx.strokeRect(0.5, 0.5, this.width - 1, this.height - 1);
 
         if (params) {
-            // Full unclipped frame rect ('none' mode, may extend outside container)
-            if (this.fitMode === 'none' && imgW !== undefined && imgH !== undefined) {
+            // Full unclipped frame rect ('clip'/'none' mode, may extend outside container)
+            const isClipMode = this.fitMode === 'clip' || this.fitMode === 'none';
+            if (isClipMode && imgW !== undefined && imgH !== undefined) {
                 ctx.strokeStyle = 'rgba(180,100,255,0.6)';
                 ctx.lineWidth = 1;
                 ctx.setLineDash([3, 5]);
@@ -504,12 +621,12 @@ export class VisualMedia extends RenderObject {
 
         ctx.setLineDash([]);
 
-        // Content anchor — orange crosshair with circle
+        // Frame placement anchor (content anchor point) — orange crosshair with circle
         const cax = this._contentAnchorX * this.width;
         const cay = this._contentAnchorY * this.height;
         this.#drawCrosshair(ctx, cax, cay, 8, 'rgba(255,160,0,0.9)');
 
-        // Pivot (transform origin) — yellow diamond
+        // Origin (transform origin) — yellow diamond
         this.#drawDiamond(ctx, this.pivotX, this.pivotY, 6, 'rgba(255,230,0,0.95)');
 
         ctx.restore();
@@ -567,7 +684,7 @@ export class VisualMedia extends RenderObject {
             return this._computeTransformedRectBounds(0, 0, this.width, this.height);
         }
 
-        // For 'contain' and 'none', bounds track the actual drawn region, which
+        // For 'contain' and 'clip'/'none', bounds track the actual drawn region, which
         // depends on the image dimensions. Compute on demand from current state.
         const { imgW, imgH } = this.#currentImageDimensions();
         if (imgW && imgH) {

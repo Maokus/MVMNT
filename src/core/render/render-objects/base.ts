@@ -75,26 +75,41 @@ export abstract class RenderObject {
         this.filter = null;
     }
 
-    /** Set the local-space transform origin in pixels. */
-    setPivot(x: number, y: number): this {
+    /**
+     * Set the local-space transform origin in pixels.
+     * The object's world position maps to this point; rotation and scale happen around it.
+     */
+    setOrigin(x: number, y: number): this {
         this.pivotX = x;
         this.pivotY = y;
         return this;
     }
 
     /**
-     * Set the transform pivot as fractions of the object's dimensions (0–1).
+     * Set the transform origin as fractions of the object's dimensions (0–1).
      * Stores the fractions so subclasses can reapply them when dimensions change
      * by calling `_reapplyPivotFraction(width, height)` inside `setDimensions`.
+     *
+     * Example: (0.5, 1) = bottom-center of the box is its world position and rotation axis.
      *
      * Note: this base implementation only stores the fractions; it does NOT update
      * pivotX/Y because the base class has no width/height. Subclasses with known
      * dimensions should override this to also call _reapplyPivotFraction immediately.
      */
-    setPivotFraction(x: number, y: number): this {
+    setOriginFraction(x: number, y: number): this {
         this._pivotFractionX = x;
         this._pivotFractionY = y;
         return this;
+    }
+
+    /** @deprecated Use setOrigin instead. */
+    setPivot(x: number, y: number): this {
+        return this.setOrigin(x, y);
+    }
+
+    /** @deprecated Use setOriginFraction instead. */
+    setPivotFraction(x: number, y: number): this {
+        return this.setOriginFraction(x, y);
     }
 
     /** Recompute pivotX/Y from stored fractions for the given dimensions. */

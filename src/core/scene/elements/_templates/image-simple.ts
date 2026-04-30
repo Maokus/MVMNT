@@ -45,7 +45,7 @@ export class SimpleImageElement extends SceneElement {
                             { value: 'contain', label: 'Contain' },
                             { value: 'cover', label: 'Cover' },
                             { value: 'fill', label: 'Fill' },
-                            { value: 'none', label: 'Original size' },
+                            { value: 'clip', label: 'Clip (native size)' },
                         ]),
                     ],
                 },

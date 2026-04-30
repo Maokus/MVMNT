@@ -64,6 +64,12 @@ export class BoyfriendElement extends SceneElement {
                             description: 'Leave empty to use the bundled BOYFRIEND atlas.',
                         }),
                         prop.number('scale', 'Scale', 1, { min: 0, step: 0.1 }),
+                        prop.number('debugOriginX', 'Debug Origin X', 0, { min: 0, max: 1, step: 0.1 }),
+                        prop.number('debugOriginY', 'Debug Origin Y', 0, { min: 0, max: 1, step: 0.1 }),
+                        prop.number('debugFrameContainerX', 'Debug Frame Container X', 0.5, { min: 0, max: 1, step: 0.1 }),
+                        prop.number('debugFrameContainerY', 'Debug Frame Container Y', 0.5, { min: 0, max: 1, step: 0.1 }),
+                        prop.number('debugFramePointX', 'Debug Frame Point X', 0.5, { min: 0, max: 1, step: 0.1 }),
+                        prop.number('debugFramePointY', 'Debug Frame Point Y', 0.5, { min: 0, max: 1, step: 0.1 }),
                     ],
                 },
             ]
@@ -79,8 +85,8 @@ export class BoyfriendElement extends SceneElement {
 
         this._layoutRect.width = WIDTH;
         this._layoutRect.height = HEIGHT;
-        this._layoutRect.pivotX = WIDTH / 2;
-        this._layoutRect.pivotY = HEIGHT;
+        this._layoutRect.pivotX = 0;
+        this._layoutRect.pivotY = 0;
 
         // Resolve timeline API for note queries and BPM.
         const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
@@ -130,20 +136,20 @@ export class BoyfriendElement extends SceneElement {
             .setResource(resource, resStatus)
             .setAnimation(animationName)
             .setLocalTime(localTime)
-            .setFitMode('none')
+            .setFitMode('clip')
             .setLayoutBoundsMode('none')
             .setDimensions(WIDTH, HEIGHT)
-            .setPivotFraction(0.5, 1)
-            .setContentAnchor(0.5, 1.0)
-            .setFrameAnchor(0.5, 1.0);
+            .setOriginFraction(props.debugOriginX, props.debugOriginY)
+            .setFramePlacement({
+                container: [props.debugFrameContainerX, props.debugFrameContainerY],
+                frame: [props.debugFramePointX, props.debugFramePointY],
+            });
+
+        //this._media.showDebug = true;
 
         this._media.scaleX = props.scale;
         this._media.scaleY = props.scale;
 
-        let boundsRect = new Rectangle(0, 0, WIDTH, HEIGHT, null, '#FF0000', 2, { includeInLayoutBounds: false });
-        boundsRect.pivotX = WIDTH / 2;
-        boundsRect.pivotY = HEIGHT;
-
-        return [this._layoutRect, this._media, boundsRect];
+        return [this._layoutRect, this._media];
     }
 }

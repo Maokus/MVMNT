@@ -56,7 +56,7 @@ export class ImageElement extends SceneElement {
                             { value: 'contain', label: 'Contain (fit within bounds)' },
                             { value: 'cover', label: 'Cover (fill bounds, may crop)' },
                             { value: 'fill', label: 'Fill (stretch to fit)' },
-                            { value: 'none', label: 'None (original size)' },
+                            { value: 'clip', label: 'Clip (native pixel size)' },
                         ]),
                         prop.boolean('preserveAspectRatio', 'Preserve Aspect Ratio', true, {
                             visibleWhen: [{ key: 'fitMode', notEquals: 'fill' }],
