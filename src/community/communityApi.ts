@@ -1,4 +1,5 @@
 import { unzipSync } from 'fflate';
+import { compareVersions } from 'compare-versions';
 import { supabase } from '../lib/supabase';
 
 export type UserRole = 'regular' | 'trusted' | 'admin';
@@ -53,7 +54,7 @@ const SORT_MAP: Record<SortBy, { column: string; ascending: boolean }[]> = {
     most_downloaded: [{ column: 'downloads_count', ascending: false }],
 };
 
-export async function fetchItems(sortBy: SortBy, filterType: FilterType, page: number, filterTags?: string[]) {
+export async function fetchItems(sortBy: SortBy, filterType: FilterType, page: number, filterTags?: string[], searchQuery?: string) {
     // If filtering by tags, first get matching item IDs
     let tagFilterIds: string[] | null = null;
     if (filterTags && filterTags.length > 0) {
@@ -83,6 +84,10 @@ export async function fetchItems(sortBy: SortBy, filterType: FilterType, page: n
 
     if (tagFilterIds) {
         query = query.in('id', tagFilterIds);
+    }
+
+    if (searchQuery && searchQuery.trim().length > 0) {
+        query = query.textSearch('title_desc_tsv', searchQuery.trim(), { type: 'websearch', config: 'english' });
     }
 
     for (const { column, ascending } of SORT_MAP[sortBy]) {
@@ -360,20 +365,22 @@ export async function getUserRating(itemId: string, userId: string): Promise<num
     return data?.rating ?? null;
 }
 
-export async function deleteItem(itemId: string, userId: string) {
-    const { data: item } = await supabase
+export async function deleteItem(itemId: string, userId: string, asAdmin = false) {
+    let pathQuery = supabase
         .from('community_items')
         .select('thumbnail_path, file_path')
-        .eq('id', itemId)
-        .eq('user_id', userId)
-        .single();
+        .eq('id', itemId);
+    if (!asAdmin) pathQuery = pathQuery.eq('user_id', userId);
+    const { data: item } = await pathQuery.single();
 
     if (item) {
         await supabase.storage.from('community-thumbnails').remove([item.thumbnail_path]);
         await supabase.storage.from('community-files').remove([item.file_path]);
     }
 
-    const { error } = await supabase.from('community_items').delete().eq('id', itemId).eq('user_id', userId);
+    let deleteQuery = supabase.from('community_items').delete().eq('id', itemId);
+    if (!asAdmin) deleteQuery = deleteQuery.eq('user_id', userId);
+    const { error } = await deleteQuery;
     if (error) throw error;
 }
 
@@ -384,16 +391,11 @@ export function getThumbnailUrl(path: string): string {
 
 /** Compare two semver strings. Returns true if a > b. */
 export function semverGt(a: string, b: string): boolean {
-    const parse = (v: string) =>
-        v
-            .replace(/^[^0-9]*/, '')
-            .split('.')
-            .map(Number);
-    const [aMaj, aMin, aPatch] = parse(a);
-    const [bMaj, bMin, bPatch] = parse(b);
-    if (aMaj !== bMaj) return aMaj > bMaj;
-    if (aMin !== bMin) return aMin > bMin;
-    return (aPatch ?? 0) > (bPatch ?? 0);
+    try {
+        return compareVersions(a, b) > 0;
+    } catch {
+        return false;
+    }
 }
 
 // ─── Tags ──────────────────────────────────────────────

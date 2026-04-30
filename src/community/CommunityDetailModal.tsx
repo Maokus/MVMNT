@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaDownload, FaStar, FaTrash, FaXmark, FaArrowRight, FaBolt, FaPen, FaArrowsRotate } from 'react-icons/fa6';
 import type { User } from '@supabase/supabase-js';
-import type { CommunityItem } from './communityApi';
+import type { CommunityItem, UserRole } from './communityApi';
 import { getThumbnailUrl, downloadItem, rateItem, getUserRating, deleteItem, semverGt } from './communityApi';
 import { loadPlugin, upgradePlugin, unloadPlugin, satisfiesVersion, PLUGIN_API_VERSION } from '@core/scene/plugins';
 import { writeStoredImportPayload } from '../utils/importPayloadStorage';
@@ -31,6 +31,7 @@ function getCompatBadge(item: CommunityItem): CompatBadge | null {
 interface CommunityDetailModalProps {
   item: CommunityItem;
   user: User | null;
+  userRole?: UserRole;
   onClose: () => void;
   onItemChanged: () => void;
   onEdit?: () => void;
@@ -43,7 +44,7 @@ function formatBytes(bytes: number): string {
 }
 
 const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
-  item, user, onClose, onItemChanged, onEdit,
+  item, user, userRole, onClose, onItemChanged, onEdit,
 }) => {
   const navigate = useNavigate();
   const plugins = usePluginStore((s) => s.plugins);
@@ -176,18 +177,20 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
 
   const handleDelete = useCallback(async () => {
     if (!user || !confirm('Delete this item? This cannot be undone.')) return;
+    const isAdmin = userRole === 'admin';
     setDeleting(true);
     try {
-      await deleteItem(item.id, user.id);
+      await deleteItem(item.id, user.id, isAdmin);
       onItemChanged();
       onClose();
     } catch (err: any) {
       setError(err.message ?? 'Delete failed');
       setDeleting(false);
     }
-  }, [item.id, user, onItemChanged, onClose]);
+  }, [item.id, user, userRole, onItemChanged, onClose]);
 
   const isOwner = user?.id === item.user_id;
+  const canDelete = isOwner || userRole === 'admin';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
@@ -298,7 +301,7 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
 
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-2">
-            {isOwner && (
+            {canDelete && (
               <>
                 <button
                   onClick={handleDelete}
@@ -307,7 +310,7 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
                 >
                   <FaTrash className="text-[10px]" /> {deleting ? 'Deleting...' : 'Delete'}
                 </button>
-                {onEdit && (
+                {isOwner && onEdit && (
                   <button
                     onClick={onEdit}
                     className="inline-flex items-center gap-1.5 rounded border border-neutral-600 px-3 py-1.5 text-[13px] font-medium text-neutral-300 transition-colors hover:bg-white/10"

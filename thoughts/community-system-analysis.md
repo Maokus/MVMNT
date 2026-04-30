@@ -1,6 +1,6 @@
 # Community System Analysis
 
-_Last updated: April 2026 — aggregate trigger fixes + security hardening applied_
+_Last updated: April 2026 — full-text search, admin moderation delete, semver library, file cleanup confirmed_
 
 ## Overview
 
@@ -82,7 +82,7 @@ The detail modal compares three fields against constants compiled into the app:
 
 | Table                 | Public read | Auth write             | Owner-scoped write    |
 | --------------------- | ----------- | ---------------------- | --------------------- |
-| community_items       | ✓           | ✓                      | ✓                     |
+| community_items       | ✓           | ✓                      | ✓ (delete: owner or admin) |
 | community_ratings     | ✓           | ✓                      | ✓                     |
 | community_downloads   | —           | insert only            | —                     |
 | community_tags        | ✓ (visible) | trusted/admin (create) | admin (update/delete) |
@@ -144,12 +144,14 @@ Per-user download deduplication (one record per user per item) remains a future 
 Deleting an item deletes its download log and ratings via CASCADE. There is no tombstone or soft-delete, so there's no way to recover analytics or undo a deletion.
 
 **10. Files not cleaned up on failed upload**
-If `uploadItem()` succeeds on the Storage side but fails on the DB insert, the thumbnail and file remain in Storage indefinitely with no reference. The reverse is also true (though less likely with Supabase's transactional model).
+
+**Resolved (covered by issue #6).** `uploadItem()` already cleans up both storage files whenever the DB insert fails (lines 256–259 of `communityApi.ts`). Issue #6's fix addressed this simultaneously: thumbnail is removed if the main file upload fails; both are removed if the DB insert fails. No additional work needed.
 
 ### User Experience / Product
 
 **11. No full-text search**
-Items can only be filtered by type and tags. There is no title or description search, making discovery harder as the catalogue grows.
+
+**Resolved.** A `title_desc_tsv` generated stored column (`tsvector`) was added to `community_items`, combining title (weight A) and description (weight B) via `setweight(to_tsvector(...))`. A GIN index keeps search fast. `fetchItems()` now accepts an optional `searchQuery` argument that calls `.textSearch('title_desc_tsv', query, { type: 'websearch' })` — supporting multi-word queries and quoted phrases. A search input in the toolbar on `CommunityPage` lets users filter by keyword. See migration `20260430150000_full_text_search_and_admin_delete.sql`.
 
 **12. Tag creation is fully open** ~~Any authenticated user can create any tag. There is no moderation or curation, which will lead to tag pollution, duplicates, and inconsistencies (e.g. `jazz`, `jazz-music`, `Jazz`).~~
 
@@ -162,13 +164,15 @@ Items can only be filtered by type and tags. There is no title or description se
 Tag aliases (`community_tag_aliases`) let admins define alternate spellings (`Jazz → jazz`) without requiring item owners to change their data.
 
 **13. No content moderation**
-There is no flagging, reporting, or admin review mechanism. Any authenticated user can upload any file.
+
+**Resolved (early-stage).** Admin users can now delete any community item. A new RLS DELETE policy (`Admins can delete any item`) allows authenticated users whose `profiles.role = 'admin'` to delete any row. Two matching storage policies (`Admins can delete any thumbnail` / `Admins can delete any file`) allow admins to remove storage objects outside their own path prefix. `deleteItem()` accepts an `asAdmin` flag that omits the `user_id` filter on both the path-fetch and the DELETE. `CommunityDetailModal` shows the Delete button to any admin (not just the item owner). See migration `20260430150000_full_text_search_and_admin_delete.sql`.
 
 **14. No notification of plugin updates**
 When a plugin author pushes a new version (new item or updated file), installed users receive no notification and discover the update only by chance when re-opening the community page.
 
 **15. Custom `semverGt` implementation**
-The version comparison function is hand-rolled. It may not handle pre-release suffixes (`1.0.0-beta`), build metadata, or non-integer patch versions correctly.
+
+**Resolved.** The hand-rolled `semverGt` in `communityApi.ts` has been replaced with `compareVersions` from the [`compare-versions`](https://www.npmjs.com/package/compare-versions) package (tiny, zero dependencies). It correctly handles pre-release suffixes (`1.0.0-beta`), build metadata, and non-integer patch segments. The function now returns `false` on unparseable input instead of producing NaN-based comparisons.
 
 **16. File path stored as a raw string**
 The `thumbnail_path` and `file_path` columns contain full Storage paths. If the bucket name or path structure ever changes, all existing rows require a data migration.
@@ -192,7 +196,8 @@ Filter all public queries with `WHERE deleted_at IS NULL`. This preserves downlo
 ~~```sql
 CREATE OR REPLACE FUNCTION trg_refresh_item_rating()
 ...
-```~~
+
+````~~
 
 **Implemented.** `refresh_rating_on_change` and `increment_download_on_insert` triggers are now live. See migration `20260430140000_aggregate_triggers_and_security.sql`.
 
@@ -215,7 +220,7 @@ CREATE TABLE community_template_meta (
   template_schema_version INT,
   min_app_version TEXT
 );
-```
+````
 
 **Add a `featured` flag and `moderation_status`:**
 
@@ -275,7 +280,7 @@ A scheduled Edge Function that lists files in Storage, compares against `communi
 
 | Area          | Idea                                                                                          | Complexity |
 | ------------- | --------------------------------------------------------------------------------------------- | ---------- |
-| Discovery     | Full-text search on title + description (use Postgres `tsvector`)                             | Medium     |
+| Discovery     | ~~Full-text search on title + description (use Postgres `tsvector`)~~ **Implemented**         | Medium     |
 | Discovery     | Curated "featured" section on the community page                                              | Low        |
 | Social        | Comments / reviews per item                                                                   | Medium     |
 | Social        | Follow authors, see their uploads in a feed                                                   | High       |

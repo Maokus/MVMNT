@@ -42,6 +42,8 @@ const CommunityPage: React.FC = () => {
   const [allTags, setAllTags] = useState<CommunityTag[]>([]);
   const [tagSearch, setTagSearch] = useState('');
   const [showTagDropdown, setShowTagDropdown] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
 
   // Get initial session
   useEffect(() => {
@@ -67,7 +69,7 @@ const CommunityPage: React.FC = () => {
   const loadItems = useCallback(async (pageNum: number, append: boolean) => {
     setLoading(true);
     try {
-      const data = await fetchItems(sortBy, filterType, pageNum, selectedTags.length > 0 ? selectedTags : undefined);
+      const data = await fetchItems(sortBy, filterType, pageNum, selectedTags.length > 0 ? selectedTags : undefined, searchQuery || undefined);
       if (append) {
         setItems((prev) => [...prev, ...data]);
       } else {
@@ -79,7 +81,7 @@ const CommunityPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [sortBy, filterType, selectedTags]);
+  }, [sortBy, filterType, selectedTags, searchQuery]);
 
   // Reload when sort/filter changes
   useEffect(() => {
@@ -162,6 +164,31 @@ const CommunityPage: React.FC = () => {
           </div>
 
           <div className="flex-1" />
+
+          {/* Search */}
+          <form
+            onSubmit={(e) => { e.preventDefault(); setSearchQuery(searchInput); setPage(0); }}
+            className="flex gap-1"
+          >
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onBlur={() => { if (searchInput !== searchQuery) { setSearchQuery(searchInput); setPage(0); } }}
+              placeholder="Search..."
+              className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none w-40"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => { setSearchInput(''); setSearchQuery(''); setPage(0); }}
+                className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-400 hover:text-neutral-200"
+                aria-label="Clear search"
+              >
+                <FaXmark />
+              </button>
+            )}
+          </form>
 
           {user && (
             <button
@@ -264,6 +291,7 @@ const CommunityPage: React.FC = () => {
           <CommunityDetailModal
             item={selectedItem}
             user={user}
+            userRole={userRole}
             onClose={() => setSelectedItem(null)}
             onItemChanged={handleItemChanged}
             onEdit={user?.id === selectedItem.user_id ? () => setEditItem(selectedItem) : undefined}
