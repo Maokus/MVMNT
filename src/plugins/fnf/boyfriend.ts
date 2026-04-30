@@ -1,0 +1,137 @@
+import {
+    SceneElement,
+    prop,
+    insertElementGroups,
+    resolveProjectAssetDescriptor,
+    getPluginHostApi,
+    PLUGIN_CAPABILITIES,
+} from '@mvmnt/plugin-sdk';
+import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
+import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
+
+// FNF note lane: MIDI note % 4 → animation name
+// 0 = LEFT (purple), 1 = DOWN (blue), 2 = UP (green), 3 = RIGHT (red)
+const NOTE_ANIMATIONS: Record<number, string> = {
+    0: 'BF NOTE LEFT',
+    1: 'BF NOTE DOWN',
+    2: 'BF NOTE UP',
+    3: 'BF NOTE RIGHT',
+};
+
+// BF idle dance has 14 frames. Beat-sync by resetting localTime each beat.
+// Tune this fps to match your atlas's idle animation speed.
+const IDLE_FPS = 24;
+const IDLE_FRAMES = 14;
+const IDLE_DURATION_SEC = IDLE_FRAMES / IDLE_FPS; // ~0.583s
+
+export class BoyfriendElement extends SceneElement {
+    private readonly _bundledAtlas = this.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml');
+    private readonly _atlasOverrideHandle = this.visualHandle();
+    private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
+    private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
+
+    constructor(id: string = 'boyfriend', config: Record<string, unknown> = {}) {
+        super('boyfriend', id, config);
+    }
+
+    static override getConfigSchema(): EnhancedConfigSchema {
+        return insertElementGroups(
+            super.getConfigSchema(),
+            {
+                name: 'Boyfriend',
+                description: 'MIDI reactive boyfriend from FNF',
+                category: 'us.maok.fnf',
+            },
+            [
+                {
+                    id: 'midiSource',
+                    label: 'MIDI',
+                    variant: 'basic',
+                    collapsed: false,
+                    properties: [
+                        prop.midiTrack('midiTrackId', 'MIDI Track', {
+                            description: 'Track to read notes from. note % 4: 0=LEFT, 1=DOWN, 2=UP, 3=RIGHT.',
+                        }),
+                    ],
+                },
+                {
+                    id: 'atlasSource',
+                    label: 'Sprite',
+                    variant: 'basic',
+                    collapsed: false,
+                    properties: [
+                        prop.sparrowAsset('atlas', 'Override Atlas', {
+                            description: 'Leave empty to use the bundled BOYFRIEND atlas.',
+                        }),
+                        prop.number('width', 'Display Width', 200, { step: 10 }),
+                        prop.number('height', 'Display Height', 200, { step: 10 }),
+                    ],
+                },
+            ]
+        );
+    }
+
+    protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
+        const props = this.getSchemaProps();
+        if (!props.visible) return [];
+
+        const w = (props.width as number) ?? 200;
+        const h = (props.height as number) ?? 200;
+
+        this._layoutRect.width = w;
+        this._layoutRect.height = h;
+
+        // Resolve timeline API for note queries and BPM.
+        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+
+        const timelineState = status === 'ok' ? api?.timeline.getStateSnapshot() : null;
+        const bpm = timelineState?.timeline.globalBpm ?? 120;
+        const beatSec = 60 / bpm;
+        const minNoteLength = 0.5;
+
+        let animationName = 'BF idle dance';
+        let localTime: number;
+
+        const trackId = props.midiTrackId as string | null;
+        if (trackId && api && status === 'ok') {
+            // Look back up to 8s to catch long held notes that started before this window.
+            const notes = api.timeline.selectNotesInWindow({
+                trackIds: [trackId],
+                startSec: targetTime - 8,
+                endSec: targetTime + 0.05,
+            });
+
+            let activeNote = notes.find((n) => n.startTime <= targetTime && targetTime < n.endTime);
+            if (!activeNote) {
+                notes.find((n) => n.startTime > targetTime - minNoteLength && n.endTime < targetTime);
+            }
+
+            if (activeNote) {
+                animationName = NOTE_ANIMATIONS[activeNote.note % 4] ?? 'BF NOTE LEFT';
+                // Play note animation from the moment it started.
+                localTime = targetTime - activeNote.startTime;
+            } else {
+                // Idle: sync animation phase to current beat.
+                localTime = ((targetTime % beatSec) / beatSec) * IDLE_DURATION_SEC;
+            }
+        } else {
+            // No track selected — idle synced to beat.
+            localTime = ((targetTime % beatSec) / beatSec) * IDLE_DURATION_SEC;
+        }
+
+        // Resolve atlas source (bundled default or user override).
+        const overrideId = props.atlas as string | null;
+        const { resource, status: resStatus } = overrideId
+            ? this._atlasOverrideHandle.update(resolveProjectAssetDescriptor(overrideId))
+            : this._bundledAtlas.get();
+
+        this._media
+            .setResource(resource, resStatus)
+            .setAnimation(animationName)
+            .setLocalTime(localTime)
+            .setDimensions(w, h)
+            .setFitMode('contain');
+
+        return [this._layoutRect, this._media];
+    }
+}
