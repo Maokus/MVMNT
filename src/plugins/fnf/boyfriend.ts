@@ -63,8 +63,7 @@ export class BoyfriendElement extends SceneElement {
                         prop.sparrowAsset('atlas', 'Override Atlas', {
                             description: 'Leave empty to use the bundled BOYFRIEND atlas.',
                         }),
-                        prop.number('width', 'Display Width', 200, { step: 10 }),
-                        prop.number('height', 'Display Height', 200, { step: 10 }),
+                        prop.number('scale', 'Scale', 1, { min: 0, step: 0.1 }),
                     ],
                 },
             ]
@@ -73,13 +72,15 @@ export class BoyfriendElement extends SceneElement {
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
+        const WIDTH = 450;
+        const HEIGHT = 450;
+
         if (!props.visible) return [];
 
-        const w = (props.width as number) ?? 200;
-        const h = (props.height as number) ?? 200;
-
-        this._layoutRect.width = w;
-        this._layoutRect.height = h;
+        this._layoutRect.width = WIDTH;
+        this._layoutRect.height = HEIGHT;
+        this._layoutRect.pivotX = WIDTH / 2;
+        this._layoutRect.pivotY = HEIGHT;
 
         // Resolve timeline API for note queries and BPM.
         const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
@@ -129,9 +130,18 @@ export class BoyfriendElement extends SceneElement {
             .setResource(resource, resStatus)
             .setAnimation(animationName)
             .setLocalTime(localTime)
-            .setDimensions(w, h)
-            .setFitMode('contain');
+            .setFitMode('none')
+            .setIncludeInLayoutBounds(false)
+            .setDimensions(WIDTH, HEIGHT)
+            .setOrigin(0.5, 1);
 
-        return [this._layoutRect, this._media];
+        this._media.scaleX = props.scale;
+        this._media.scaleY = props.scale;
+
+        let boundsRect = new Rectangle(0, 0, WIDTH, HEIGHT, null, '#FF0000', 2, { includeInLayoutBounds: false });
+        boundsRect.pivotX = WIDTH / 2;
+        boundsRect.pivotY = HEIGHT;
+
+        return [this._layoutRect, this._media, boundsRect];
     }
 }

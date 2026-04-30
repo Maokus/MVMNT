@@ -23,6 +23,18 @@ import { BundledSprite, BundledSparrowHandle } from '@core/resources/bundled-spr
 import { VisualResourceHandle } from '@core/resources/visual-resource-handle';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 
+// Lazy reference to avoid circular dependency with scene-element-registry
+let _sceneElementRegistry: { getPluginId(type: string): string | undefined } | null = null;
+function getSceneElementRegistry() {
+    if (!_sceneElementRegistry) {
+        // Dynamically resolve at first use (after all modules have initialized)
+        import('@core/scene/registry/scene-element-registry').then(m => {
+            _sceneElementRegistry = m.sceneElementRegistry;
+        });
+    }
+    return _sceneElementRegistry;
+}
+
 export type PropertyTransform<TValue, TElement = SceneElement> = (
     value: unknown,
     element: TElement
@@ -633,14 +645,7 @@ export class SceneElement implements SceneElementInterface {
         }
 
         // Apply safety controls for plugin elements (lazy import to avoid circular dependency)
-        let pluginId: string | undefined;
-        try {
-            const { sceneElementRegistry } = require('@core/scene/registry/scene-element-registry');
-            pluginId = sceneElementRegistry.getPluginId(this.type);
-        } catch {
-            // If registry not available (e.g., during initialization), skip safety checks
-            pluginId = undefined;
-        }
+        const pluginId = getSceneElementRegistry()?.getPluginId(this.type);
 
         let childRenderObjects: RenderObject[];
 

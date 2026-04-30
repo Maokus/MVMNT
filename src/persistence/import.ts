@@ -21,6 +21,7 @@ import type { FontAsset } from '@state/scene/fonts';
 import { decodeSceneText, parseLegacyInlineScene, parseScenePackage, ScenePackageError } from './scene-package';
 import { isTestEnvironment } from '@utils/env';
 import { useVisualAssetRegistryStore, type ProjectAsset } from '@state/visualAssetRegistryStore';
+import { useSceneStore } from '@state/sceneStore';
 
 const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
@@ -556,7 +557,6 @@ function migrateStoreAssetRefBindings(fileById: Map<string, File>): void {
         fileToId.set(file, id);
     }
 
-    const { useSceneStore } = require('@state/sceneStore') as typeof import('@state/sceneStore');
     const state = useSceneStore.getState();
     const updates: Array<{ elementId: string; propKey: string; assetId: string }> = [];
 

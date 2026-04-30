@@ -243,8 +243,7 @@ export class VisualMedia extends RenderObject {
         }
 
         // Determine which frame list and duration to use.
-        const activeAnim =
-            this._animationName != null ? resource.animations[this._animationName] : null;
+        const activeAnim = this._animationName != null ? resource.animations[this._animationName] : null;
         const frames = activeAnim ? activeAnim.frames : resource.frames;
         const totalDurationMs = activeAnim ? activeAnim.totalDurationMs : resource.totalDurationMs;
 
@@ -261,16 +260,24 @@ export class VisualMedia extends RenderObject {
         const params = this.#calculateDrawParams(imgW, imgH);
         const { drawX, drawY, drawWidth, drawHeight } = params;
 
-        const scaleX = imgW > 0 ? drawWidth / imgW : 1;
-        const scaleY = imgH > 0 ? drawHeight / imgH : 1;
+        // For 'none' mode, scale is always 1:1. The centering origin is computed
+        // from the full logical size and may be negative when the image is larger
+        // than the container; canvas clipping (added below) handles the boundary.
+        const isNoneMode = this.fitMode === 'none';
+        const scaleX = isNoneMode ? 1 : imgW > 0 ? drawWidth / imgW : 1;
+        const scaleY = isNoneMode ? 1 : imgH > 0 ? drawHeight / imgH : 1;
+        const baseX = isNoneMode ? (this.width - imgW) / 2 : drawX;
+        const baseY = isNoneMode ? (this.height - imgH) / 2 : drawY;
 
         const trimX = (frame.trimOffset?.x ?? 0) * scaleX;
         const trimY = (frame.trimOffset?.y ?? 0) * scaleY;
 
-        const destX = drawX + trimX;
-        const destY = drawY + trimY;
+        const destX = baseX + trimX;
+        const destY = baseY + trimY;
 
-        if (this.fitMode === 'cover') {
+        // 'cover' clips overflowing content; 'none' also clips because the
+        // centering origin can be negative when the image exceeds the container.
+        if (this.fitMode === 'cover' || isNoneMode) {
             ctx.save();
             ctx.beginPath();
             ctx.rect(0, 0, this.width, this.height);
@@ -290,6 +297,10 @@ export class VisualMedia extends RenderObject {
             } else if (frame.sourceRect) {
                 const { sx, sy, sw, sh } = frame.sourceRect;
                 ctx.drawImage(frame.drawable, sx, sy, sw, sh, destX, destY, sw * scaleX, sh * scaleY);
+            } else if (isNoneMode) {
+                // Plain image in 'none' mode: draw at native size from centred origin.
+                // trimOffset is zero for plain images so destX === baseX here.
+                ctx.drawImage(frame.drawable, baseX, baseY, imgW, imgH);
             } else if (params.srcRect) {
                 const { sx, sy, sw, sh } = params.srcRect;
                 ctx.drawImage(frame.drawable, sx, sy, sw, sh, destX, destY, drawWidth, drawHeight);
@@ -300,7 +311,7 @@ export class VisualMedia extends RenderObject {
             this.#drawPlaceholder(ctx, 'Error', 'red');
         }
 
-        if (this.fitMode === 'cover') ctx.restore();
+        if (this.fitMode === 'cover' || isNoneMode) ctx.restore();
     }
 
     #drawPlaceholder(ctx: CanvasRenderingContext2D, message: string, textColor: string): void {
