@@ -5,6 +5,7 @@ import {
   type CommunityTagAlias,
   fetchAllTags,
   fetchTagAliases,
+  createTag,
   renameTag,
   hideTag,
   mergeTag,
@@ -30,6 +31,7 @@ const AdminTagPanel: React.FC<AdminTagPanelProps> = ({ onTagsChanged }) => {
   const [mergeSourceId, setMergeSourceId] = useState<string | null>(null);
   const [aliasInput, setAliasInput] = useState('');
   const [aliasTargetId, setAliasTargetId] = useState('');
+  const [newTagName, setNewTagName] = useState('');
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -106,6 +108,17 @@ const AdminTagPanel: React.FC<AdminTagPanelProps> = ({ onTagsChanged }) => {
     }
   };
 
+  const handleCreateTag = async () => {
+    try {
+      await createTag(newTagName);
+      setNewTagName('');
+      await reload();
+      onTagsChanged();
+    } catch (e: any) {
+      setError(e?.message ?? 'Create tag failed');
+    }
+  };
+
   const visibleTags = tags.filter((t) => search === '' || t.name.includes(search));
 
   return (
@@ -130,7 +143,7 @@ const AdminTagPanel: React.FC<AdminTagPanelProps> = ({ onTagsChanged }) => {
 
           {/* Tags list */}
           <div>
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
               <input
                 type="text"
                 value={search}
@@ -139,6 +152,28 @@ const AdminTagPanel: React.FC<AdminTagPanelProps> = ({ onTagsChanged }) => {
                 className="rounded border border-neutral-700 bg-neutral-800 px-2 py-1 text-xs text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none w-48"
               />
               {loading && <span className="text-xs text-neutral-500">Loading…</span>}
+              <span className="ml-auto flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={newTagName}
+                  onChange={(e) =>
+                    setNewTagName(e.target.value.toLowerCase().replace(/[^a-z0-9\-]/g, ''))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && TAG_REGEX.test(newTagName)) handleCreateTag();
+                  }}
+                  placeholder="new-tag"
+                  className="rounded border border-neutral-700 bg-neutral-800 px-2 py-1 text-xs text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none w-28"
+                />
+                <button
+                  type="button"
+                  onClick={handleCreateTag}
+                  disabled={!TAG_REGEX.test(newTagName)}
+                  className="rounded bg-indigo-600 px-2 py-1 text-xs text-white hover:bg-indigo-500 disabled:opacity-40"
+                >
+                  Create Tag
+                </button>
+              </span>
             </div>
 
             <div className="space-y-0.5 max-h-72 overflow-y-auto">

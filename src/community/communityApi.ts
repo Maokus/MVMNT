@@ -58,19 +58,31 @@ export async function fetchItems(sortBy: SortBy, filterType: FilterType, page: n
     // If filtering by tags, first get matching item IDs
     let tagFilterIds: string[] | null = null;
     if (filterTags && filterTags.length > 0) {
+        // Resolve any alias names to their canonical tag names
+        const { data: aliasRows } = await supabase
+            .from('community_tag_aliases')
+            .select('alias_name, community_tags(name)')
+            .in('alias_name', filterTags);
+        const aliasMap: Record<string, string> = {};
+        for (const row of aliasRows ?? []) {
+            const canonical = row.community_tags as unknown as { name: string } | null;
+            if (canonical) aliasMap[row.alias_name] = canonical.name;
+        }
+        const resolvedTags = [...new Set(filterTags.map((t) => aliasMap[t] ?? t))];
+
         const { data: tagRows, error: tagErr } = await supabase
             .from('community_item_tags')
             .select('item_id, community_tags!inner(name)')
-            .in('community_tags.name', filterTags);
+            .in('community_tags.name', resolvedTags);
         if (tagErr) throw tagErr;
 
-        // Items must match ALL selected tags
+        // Items must match ALL selected (resolved) tags
         const itemTagCounts: Record<string, number> = {};
         for (const row of tagRows ?? []) {
             itemTagCounts[row.item_id] = (itemTagCounts[row.item_id] ?? 0) + 1;
         }
         tagFilterIds = Object.entries(itemTagCounts)
-            .filter(([, count]) => count >= filterTags.length)
+            .filter(([, count]) => count >= resolvedTags.length)
             .map(([id]) => id);
 
         if (tagFilterIds.length === 0) return [];
@@ -470,6 +482,13 @@ export async function getUserRole(userId: string): Promise<UserRole> {
 }
 
 // ─── Admin tag management ─────────────────────────────
+
+/** Create a new tag (admin only; enforced by DB RLS). */
+export async function createTag(name: string): Promise<void> {
+    const normalized = name.toLowerCase().trim();
+    const { error } = await supabase.from('community_tags').insert({ name: normalized });
+    if (error) throw error;
+}
 
 /** Rename a tag (admin only; enforced by DB RLS). */
 export async function renameTag(tagId: string, newName: string): Promise<void> {

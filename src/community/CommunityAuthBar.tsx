@@ -40,7 +40,15 @@ const CommunityAuthBar: React.FC<CommunityAuthBarProps> = ({ user, onAuthChange 
           const { data: fnData, error: fnErr } = await supabase.functions.invoke('sign-in-with-username', {
             body: { username: input, password },
           });
-          if (fnErr) throw fnErr;
+          if (fnErr) {
+            // FunctionsHttpError carries the response body in .context — extract the real message
+            let message = 'Incorrect username or password.';
+            try {
+              const body = await (fnErr as any).context?.json?.();
+              if (body?.error) message = body.error;
+            } catch { /* ignore parse failure */ }
+            throw new Error(message);
+          }
           if (fnData?.error) throw new Error(fnData.error);
           const { error: sessionErr } = await supabase.auth.setSession({
             access_token: fnData.session.access_token,
