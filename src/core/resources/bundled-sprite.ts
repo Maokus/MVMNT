@@ -16,28 +16,22 @@
  */
 
 import { VisualResourceHandle, type ResourceHandleResult } from './visual-resource-handle';
-import { VisualMedia } from '@core/render/render-objects/visual-media';
+import { VisualMedia, type VisualMediaOptions } from '@core/render/render-objects/visual-media';
 import type { VisualSourceDescriptor } from './visual-source-descriptor';
 
 // ─── Shared option types ─────────────────────────────────────────────────────
 
-export interface BundledBuildOptions {
-    fitMode?: 'contain' | 'cover' | 'fill' | 'none';
-    preserveAspectRatio?: boolean;
-    includeInLayoutBounds?: boolean;
-    /**
-     * Draw origin X as a fraction of the container width (0–1).
-     * 0 = left edge (default), 0.5 = center, 1 = right edge.
-     */
-    originX?: number;
-    /** Draw origin Y as a fraction of the container height (0–1). */
-    originY?: number;
+/**
+ * Options for BundledSprite.build() / BundledSparrowHandle.build().
+ * All VisualMediaOptions are forwarded to the constructed VisualMedia instance.
+ */
+export type BundledBuildOptions = VisualMediaOptions & {
     /**
      * Named animation to play. Ignored for plain images.
      * Pass null (or omit) to play the full frame sequence.
      */
     animation?: string | null;
-}
+};
 
 // ─── BundledSprite ────────────────────────────────────────────────────────────
 
@@ -93,9 +87,7 @@ export class BundledSprite {
                     this._loading = false;
                 });
         }
-        const descriptor: VisualSourceDescriptor | null = this._url
-            ? { kind: 'image', src: this._url }
-            : null;
+        const descriptor: VisualSourceDescriptor | null = this._url ? { kind: 'image', src: this._url } : null;
         return this._handle.update(descriptor);
     }
 

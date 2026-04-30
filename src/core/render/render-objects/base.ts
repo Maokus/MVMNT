@@ -2,6 +2,8 @@
 export interface RenderConfig {
     canvas?: HTMLCanvasElement; // Many callers provide canvas for sizing logic
     showAnchorPoints?: boolean;
+    /** When true, VisualMedia objects draw a debug border around their drawn region. */
+    showBounds?: boolean;
     // Allow arbitrary additional configuration keys
     [key: string]: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
@@ -31,6 +33,9 @@ export abstract class RenderObject {
      */
     pivotX: number;
     pivotY: number;
+    /** Stored pivot fractions (0–1) for dimension-aware subclasses. null = not set. */
+    protected _pivotFractionX: number | null = null;
+    protected _pivotFractionY: number | null = null;
     children: RenderObject[]; // public to satisfy RenderObjectInterface
     /**
      * Controls contribution to layout bounds.
@@ -75,6 +80,27 @@ export abstract class RenderObject {
         this.pivotX = x;
         this.pivotY = y;
         return this;
+    }
+
+    /**
+     * Set the transform pivot as fractions of the object's dimensions (0–1).
+     * Stores the fractions so subclasses can reapply them when dimensions change
+     * by calling `_reapplyPivotFraction(width, height)` inside `setDimensions`.
+     *
+     * Note: this base implementation only stores the fractions; it does NOT update
+     * pivotX/Y because the base class has no width/height. Subclasses with known
+     * dimensions should override this to also call _reapplyPivotFraction immediately.
+     */
+    setPivotFraction(x: number, y: number): this {
+        this._pivotFractionX = x;
+        this._pivotFractionY = y;
+        return this;
+    }
+
+    /** Recompute pivotX/Y from stored fractions for the given dimensions. */
+    protected _reapplyPivotFraction(width: number, height: number): void {
+        if (this._pivotFractionX !== null) this.pivotX = this._pivotFractionX * width;
+        if (this._pivotFractionY !== null) this.pivotY = this._pivotFractionY * height;
     }
 
     /** Main render method that handles transformations and delegates to _renderSelf */

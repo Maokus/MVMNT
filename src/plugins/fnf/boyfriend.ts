@@ -27,7 +27,7 @@ const IDLE_DURATION_SEC = IDLE_FRAMES / IDLE_FPS; // ~0.583s
 export class BoyfriendElement extends SceneElement {
     private readonly _bundledAtlas = this.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml');
     private readonly _atlasOverrideHandle = this.visualHandle();
-    private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
+    private readonly _media = new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' });
     private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
 
     constructor(id: string = 'boyfriend', config: Record<string, unknown> = {}) {
@@ -131,9 +131,11 @@ export class BoyfriendElement extends SceneElement {
             .setAnimation(animationName)
             .setLocalTime(localTime)
             .setFitMode('none')
-            .setIncludeInLayoutBounds(false)
+            .setLayoutBoundsMode('none')
             .setDimensions(WIDTH, HEIGHT)
-            .setOrigin(0.5, 1);
+            .setPivotFraction(0.5, 1)
+            .setContentAnchor(0.5, 1.0)
+            .setFrameAnchor(0.5, 1.0);
 
         this._media.scaleX = props.scale;
         this._media.scaleY = props.scale;

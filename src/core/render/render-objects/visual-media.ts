@@ -1,5 +1,48 @@
-import { RenderObject, RenderConfig, Bounds } from './base';
+import { RenderObject, type RenderConfig, type Bounds } from './base';
 import { type VisualResource, type ResourceStatus, getFrameAtTime } from '@core/resources/visual-resource';
+
+/**
+ * Constructor / build options for VisualMedia.
+ *
+ * ## Pivot vs content anchors
+ *
+ * `pivotFractionX/Y` controls the **transform origin** of the media box — the
+ * point at which the box is positioned and around which it rotates/scales.
+ * (0.5, 1) = bottom-center of the box is the transform origin.
+ *
+ * `contentAnchorX/Y` + `frameAnchorX/Y` control **where the image or sprite
+ * frame sits inside the box** (applies to `fitMode: 'none'` only):
+ *   baseX = contentAnchorX * containerWidth  - frameAnchorX * frameWidth
+ *   baseY = contentAnchorY * containerHeight - frameAnchorY * frameHeight
+ * Default (0.5 / 0.5 for both) centers the frame in the box.
+ */
+export type VisualMediaOptions = {
+    fitMode?: 'contain' | 'cover' | 'fill' | 'none';
+    preserveAspectRatio?: boolean;
+    /** @deprecated Use `layoutBoundsMode: 'none'` instead. */
+    includeInLayoutBounds?: boolean;
+    /**
+     * Controls what rect is reported as layout bounds:
+     * - `'drawn'`     Layout bounds = actual drawn / scaled image region (default).
+     * - `'container'` Layout bounds = the full container rect (width × height).
+     * - `'none'`      Excluded from layout bounds entirely.
+     */
+    layoutBoundsMode?: 'container' | 'drawn' | 'none';
+    /** Transform pivot X as fraction of container width (0–1). Default 0. */
+    pivotFractionX?: number;
+    /** Transform pivot Y as fraction of container height (0–1). Default 0. */
+    pivotFractionY?: number;
+    /** Content anchor X (0–1): which point in the container box the frame is placed at. Default 0.5. */
+    contentAnchorX?: number;
+    /** Content anchor Y (0–1). Default 0.5. */
+    contentAnchorY?: number;
+    /** Frame anchor X (0–1): which point on the frame maps to the content anchor. Default 0.5. */
+    frameAnchorX?: number;
+    /** Frame anchor Y (0–1). Default 0.5. */
+    frameAnchorY?: number;
+    /** Draw a debug border around the drawn region and container each frame. */
+    showBounds?: boolean;
+};
 
 /**
  * VisualMedia — a render object that draws any VisualResource.
@@ -20,53 +63,73 @@ import { type VisualResource, type ResourceStatus, getFrameAtTime } from '@core/
  * |           | overflows and is clipped. Bounds equal the full container.                 |
  * | 'fill'    | Stretch to exactly fill the container. Distorts non-square images.         |
  * |           | Bounds equal the full container.                                           |
- * | 'none'    | Draw at the image's native pixel size (1:1 scale, no scaling). The image   |
- * |           | is centered inside the container and clipped to the container edges if     |
- * |           | it overflows. If the image is smaller than the container, empty space is   |
- * |           | visible around it. Bounds reflect the actual drawn (clipped) region.       |
+ * | 'none'    | Draw at the image's native pixel size (1:1 scale, no scaling). Frame       |
+ * |           | placement is controlled by contentAnchor / frameAnchor (default: center).  |
+ * |           | The image is clipped to the container edges if it overflows.               |
+ * |           | Bounds reflect the actual drawn (clipped) region.                          |
  */
 export class VisualMedia extends RenderObject {
     width: number;
     height: number;
     fitMode: 'contain' | 'cover' | 'fill' | 'none';
     preserveAspectRatio: boolean;
+    /** Draw a debug border around the drawn region and container outline. */
+    showBounds: boolean;
 
     private _resource: VisualResource | null = null;
     private _status: ResourceStatus = 'idle';
     private _localTime: number = 0;
     private _animationName: string | null = null;
 
-    /** Stored origin fractions so pivot stays in sync when dimensions change. */
-    private _originX: number = 0;
-    private _originY: number = 0;
+    /**
+     * Content anchor (0–1): the point inside the container where the frame is placed.
+     * Only used by fitMode 'none'. Default 0.5 (center).
+     */
+    private _contentAnchorX: number = 0.5;
+    private _contentAnchorY: number = 0.5;
+    /**
+     * Frame anchor (0–1): the point on the frame that maps to the content anchor.
+     * Only used by fitMode 'none'. Default 0.5 (center).
+     */
+    private _frameAnchorX: number = 0.5;
+    private _frameAnchorY: number = 0.5;
 
-    constructor(
-        x: number,
-        y: number,
-        width: number,
-        height: number,
-        options: {
-            fitMode?: 'contain' | 'cover' | 'fill' | 'none';
-            preserveAspectRatio?: boolean;
-            includeInLayoutBounds?: boolean;
-            /**
-             * Instance draw origin X as a fraction of the container width (0–1).
-             * The render object's (x, y) position maps to this point on the container.
-             * (0) = left edge (default). (0.5) = center. (1) = right edge.
-             */
-            originX?: number;
-            /** Instance draw origin Y as a fraction of the container height (0–1). */
-            originY?: number;
-        } = {}
-    ) {
-        super(x, y, 1, 1, 1, { includeInLayoutBounds: options.includeInLayoutBounds });
+    private _layoutBoundsMode: 'container' | 'drawn' | 'none' = 'drawn';
+
+    constructor(x: number, y: number, width: number, height: number, options: VisualMediaOptions = {}) {
+        super(x, y, 1, 1, 1);
         this.width = width;
         this.height = height;
         this.fitMode = options.fitMode ?? 'contain';
         this.preserveAspectRatio = options.preserveAspectRatio ?? true;
-        if (options.originX !== undefined || options.originY !== undefined) {
-            this.setOrigin(options.originX ?? 0, options.originY ?? 0);
+        this.showBounds = options.showBounds ?? false;
+
+        // layoutBoundsMode wins; fall back to includeInLayoutBounds for compat.
+        if (options.layoutBoundsMode) {
+            this.setLayoutBoundsMode(options.layoutBoundsMode);
+        } else if (options.includeInLayoutBounds === false) {
+            this.setLayoutBoundsMode('none');
         }
+
+        if (options.contentAnchorX !== undefined) this._contentAnchorX = options.contentAnchorX;
+        if (options.contentAnchorY !== undefined) this._contentAnchorY = options.contentAnchorY;
+        if (options.frameAnchorX !== undefined) this._frameAnchorX = options.frameAnchorX;
+        if (options.frameAnchorY !== undefined) this._frameAnchorY = options.frameAnchorY;
+
+        if (options.pivotFractionX !== undefined || options.pivotFractionY !== undefined) {
+            super.setPivotFraction(options.pivotFractionX ?? 0, options.pivotFractionY ?? 0);
+            this._reapplyPivotFraction(width, height);
+        }
+    }
+
+    /**
+     * Override so that setPivotFraction() immediately recomputes pivotX/Y from
+     * the current dimensions, in addition to storing the fractions.
+     */
+    override setPivotFraction(x: number, y: number): this {
+        super.setPivotFraction(x, y);
+        this._reapplyPivotFraction(this.width, this.height);
+        return this;
     }
 
     /**
@@ -108,9 +171,7 @@ export class VisualMedia extends RenderObject {
     setDimensions(width: number, height: number): this {
         this.width = width;
         this.height = height;
-        // Keep pivot in sync with stored origin fractions.
-        this.pivotX = this._originX * width;
-        this.pivotY = this._originY * height;
+        this._reapplyPivotFraction(width, height);
         return this;
     }
 
@@ -120,14 +181,48 @@ export class VisualMedia extends RenderObject {
     }
 
     /**
-     * Set the draw origin as a fraction of the container size (0–1).
-     * Stores the fractions and recomputes pivotX/pivotY from the current dimensions.
+     * Set where in the container box the image frame is placed (0–1 fractions).
+     * Only applies to `fitMode: 'none'`. Default (0.5, 0.5) = center.
+     *
+     * Used together with setFrameAnchor:
+     *   baseX = contentAnchorX * containerWidth  - frameAnchorX * frameWidth
+     *   baseY = contentAnchorY * containerHeight - frameAnchorY * frameHeight
      */
-    setOrigin(x: number, y: number): this {
-        this._originX = x;
-        this._originY = y;
-        this.pivotX = x * this.width;
-        this.pivotY = y * this.height;
+    setContentAnchor(x: number, y: number): this {
+        this._contentAnchorX = x;
+        this._contentAnchorY = y;
+        return this;
+    }
+
+    /**
+     * Set which point on the image frame maps to the content anchor (0–1 fractions).
+     * Only applies to `fitMode: 'none'`. Default (0.5, 0.5) = center of frame.
+     *
+     * Example: setContentAnchor(0.5, 1) + setFrameAnchor(0.5, 1) places the
+     * frame's bottom-center at the container's bottom-center.
+     */
+    setFrameAnchor(x: number, y: number): this {
+        this._frameAnchorX = x;
+        this._frameAnchorY = y;
+        return this;
+    }
+
+    /**
+     * Set the layout bounds policy:
+     * - `'drawn'`     Layout bounds track the actual drawn/scaled image region (default).
+     * - `'container'` Layout bounds equal the full container rect.
+     * - `'none'`      Excluded from layout bounds entirely.
+     */
+    setLayoutBoundsMode(mode: 'container' | 'drawn' | 'none'): this {
+        this._layoutBoundsMode = mode;
+        this.includeInLayoutBounds = mode === 'none' ? false : undefined;
+        return this;
+    }
+
+    override setIncludeInLayoutBounds(include: boolean | undefined): this {
+        if (include === false) return this.setLayoutBoundsMode('none');
+        if (this._layoutBoundsMode === 'none') this._layoutBoundsMode = 'drawn';
+        super.setIncludeInLayoutBounds(include);
         return this;
     }
 
@@ -136,11 +231,15 @@ export class VisualMedia extends RenderObject {
     }
 
     /**
-     * Compute the draw position and size for the given image dimensions and
-     * the current container size + fit mode.
+     * Compute draw parameters for the given image dimensions and the current
+     * container size + fit mode.
      *
-     * Returns `drawX/Y/Width/Height` in container-local coordinates and an
-     * optional `srcRect` for source-cropping (used by 'none' mode).
+     * Returns:
+     *   drawX/Y/Width/Height — the visible region in container-local space (used
+     *     for bounds and debug rendering).
+     *   baseX/Y — the full frame origin in container-local space (used as the
+     *     draw origin in _renderSelf; may be outside [0,container] for 'none' mode).
+     *   scaleX/Y — the scaling factors to apply to source dimensions.
      */
     #calculateDrawParams(
         imgWidth: number,
@@ -150,18 +249,29 @@ export class VisualMedia extends RenderObject {
         drawY: number;
         drawWidth: number;
         drawHeight: number;
-        srcRect?: { sx: number; sy: number; sw: number; sh: number };
+        baseX: number;
+        baseY: number;
+        scaleX: number;
+        scaleY: number;
     } {
         if (!this.preserveAspectRatio || this.fitMode === 'fill' || !imgWidth || !imgHeight) {
-            return { drawX: 0, drawY: 0, drawWidth: this.width, drawHeight: this.height };
+            return {
+                drawX: 0,
+                drawY: 0,
+                drawWidth: this.width,
+                drawHeight: this.height,
+                baseX: 0,
+                baseY: 0,
+                scaleX: this.width / imgWidth,
+                scaleY: this.height / imgHeight,
+            };
         }
+
         const containerAspect = this.width / this.height;
         const imageAspect = imgWidth / imgHeight;
         let drawWidth: number, drawHeight: number, drawX: number, drawY: number;
-        let srcRect: { sx: number; sy: number; sw: number; sh: number } | undefined;
+
         if (this.fitMode === 'contain') {
-            // Scale to fit entirely within the container, preserving aspect ratio.
-            // Any remaining space appears as empty bars (letterbox / pillarbox).
             if (imageAspect > containerAspect) {
                 drawWidth = this.width;
                 drawHeight = this.width / imageAspect;
@@ -173,9 +283,17 @@ export class VisualMedia extends RenderObject {
                 drawX = (this.width - drawWidth) / 2;
                 drawY = 0;
             }
+            return {
+                drawX,
+                drawY,
+                drawWidth,
+                drawHeight,
+                baseX: drawX,
+                baseY: drawY,
+                scaleX: imgWidth > 0 ? drawWidth / imgWidth : 1,
+                scaleY: imgHeight > 0 ? drawHeight / imgHeight : 1,
+            };
         } else if (this.fitMode === 'cover') {
-            // Scale to fill the entire container, preserving aspect ratio.
-            // The image overflows the container; caller clips with ctx.clip().
             if (imageAspect > containerAspect) {
                 drawHeight = this.height;
                 drawWidth = this.height * imageAspect;
@@ -187,25 +305,40 @@ export class VisualMedia extends RenderObject {
                 drawX = 0;
                 drawY = (this.height - drawHeight) / 2;
             }
+            return {
+                drawX,
+                drawY,
+                drawWidth,
+                drawHeight,
+                baseX: drawX,
+                baseY: drawY,
+                scaleX: imgWidth > 0 ? drawWidth / imgWidth : 1,
+                scaleY: imgHeight > 0 ? drawHeight / imgHeight : 1,
+            };
         } else {
-            // 'none': draw at native pixel size (1:1 scale, no scaling).
-            // Center the image inside the container. If the image is larger than
-            // the container it is clipped to the container edges; if smaller,
-            // empty space is visible around it.
-            const visW = Math.min(imgWidth, this.width);
-            const visH = Math.min(imgHeight, this.height);
-            drawWidth = visW;
-            drawHeight = visH;
-            drawX = (this.width - visW) / 2;
-            drawY = (this.height - visH) / 2;
-            srcRect = {
-                sx: (imgWidth - visW) / 2,
-                sy: (imgHeight - visH) / 2,
-                sw: visW,
-                sh: visH,
+            // 'none': draw at native pixel size (1:1 scale).
+            // Place the frame using content/frame anchors:
+            //   baseX = contentAnchorX * containerW - frameAnchorX * frameW
+            // Canvas clipping (applied in _renderSelf) handles overflow.
+            // trimOffset is applied on top of baseX/Y and is treated as frame
+            // reconstruction only — it does not interact with the anchor system.
+            const baseX = this._contentAnchorX * this.width - this._frameAnchorX * imgWidth;
+            const baseY = this._contentAnchorY * this.height - this._frameAnchorY * imgHeight;
+            const drawEndX = Math.min(this.width, baseX + imgWidth);
+            const drawEndY = Math.min(this.height, baseY + imgHeight);
+            drawX = Math.max(0, baseX);
+            drawY = Math.max(0, baseY);
+            return {
+                drawX,
+                drawY,
+                drawWidth: Math.max(0, drawEndX - drawX),
+                drawHeight: Math.max(0, drawEndY - drawY),
+                baseX,
+                baseY,
+                scaleX: 1,
+                scaleY: 1,
             };
         }
-        return { drawX, drawY, drawWidth, drawHeight, srcRect };
     }
 
     /**
@@ -226,7 +359,7 @@ export class VisualMedia extends RenderObject {
         return { imgW, imgH };
     }
 
-    protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _currentTime: number): void {
+    protected _renderSelf(ctx: CanvasRenderingContext2D, config: RenderConfig, _currentTime: number): void {
         const resource = this._resource;
 
         if (!resource || this._status !== 'ready') {
@@ -239,6 +372,7 @@ export class VisualMedia extends RenderObject {
                         ? 'No image'
                         : 'Image';
             this.#drawPlaceholder(ctx, msg, this._status === 'error' ? 'red' : 'rgba(150,150,150,0.8)');
+            if (this.showBounds || config.showBounds) this.#drawBoundsDebug(ctx);
             return;
         }
 
@@ -250,6 +384,7 @@ export class VisualMedia extends RenderObject {
         const frame = getFrameAtTime(frames, totalDurationMs, this._localTime, activeAnim?.loopMode ?? 'loop');
         if (!frame.drawable) {
             this.#drawPlaceholder(ctx, 'Empty', 'rgba(150,150,150,0.8)');
+            if (this.showBounds || config.showBounds) this.#drawBoundsDebug(ctx);
             return;
         }
 
@@ -258,26 +393,19 @@ export class VisualMedia extends RenderObject {
         const imgW = frame.logicalSize?.w ?? (resource.logicalWidth || resource.width);
         const imgH = frame.logicalSize?.h ?? (resource.logicalHeight || resource.height);
         const params = this.#calculateDrawParams(imgW, imgH);
-        const { drawX, drawY, drawWidth, drawHeight } = params;
+        const { baseX, baseY, scaleX, scaleY } = params;
 
-        // For 'none' mode, scale is always 1:1. The centering origin is computed
-        // from the full logical size and may be negative when the image is larger
-        // than the container; canvas clipping (added below) handles the boundary.
-        const isNoneMode = this.fitMode === 'none';
-        const scaleX = isNoneMode ? 1 : imgW > 0 ? drawWidth / imgW : 1;
-        const scaleY = isNoneMode ? 1 : imgH > 0 ? drawHeight / imgH : 1;
-        const baseX = isNoneMode ? (this.width - imgW) / 2 : drawX;
-        const baseY = isNoneMode ? (this.height - imgH) / 2 : drawY;
-
+        // Sparrow trimOffset adjusts for where the visible pixels sit within the
+        // logical frame. It is frame-reconstruction data only and does not interact
+        // with the pivot or content-anchor system.
         const trimX = (frame.trimOffset?.x ?? 0) * scaleX;
         const trimY = (frame.trimOffset?.y ?? 0) * scaleY;
-
         const destX = baseX + trimX;
         const destY = baseY + trimY;
 
-        // 'cover' clips overflowing content; 'none' also clips because the
-        // centering origin can be negative when the image exceeds the container.
-        if (this.fitMode === 'cover' || isNoneMode) {
+        // 'cover' clips the overflowing image; 'none' clips because the frame
+        // origin can be negative when baseX/Y places the frame partially outside.
+        if (this.fitMode === 'cover' || this.fitMode === 'none') {
             ctx.save();
             ctx.beginPath();
             ctx.rect(0, 0, this.width, this.height);
@@ -297,21 +425,36 @@ export class VisualMedia extends RenderObject {
             } else if (frame.sourceRect) {
                 const { sx, sy, sw, sh } = frame.sourceRect;
                 ctx.drawImage(frame.drawable, sx, sy, sw, sh, destX, destY, sw * scaleX, sh * scaleY);
-            } else if (isNoneMode) {
-                // Plain image in 'none' mode: draw at native size from centred origin.
-                // trimOffset is zero for plain images so destX === baseX here.
-                ctx.drawImage(frame.drawable, baseX, baseY, imgW, imgH);
-            } else if (params.srcRect) {
-                const { sx, sy, sw, sh } = params.srcRect;
-                ctx.drawImage(frame.drawable, sx, sy, sw, sh, destX, destY, drawWidth, drawHeight);
             } else {
-                ctx.drawImage(frame.drawable, destX, destY, drawWidth, drawHeight);
+                ctx.drawImage(frame.drawable, destX, destY, imgW * scaleX, imgH * scaleY);
             }
         } catch {
             this.#drawPlaceholder(ctx, 'Error', 'red');
         }
 
-        if (this.fitMode === 'cover' || isNoneMode) ctx.restore();
+        if (this.fitMode === 'cover' || this.fitMode === 'none') ctx.restore();
+
+        if (this.showBounds || config.showBounds) this.#drawBoundsDebug(ctx, params);
+    }
+
+    #drawBoundsDebug(
+        ctx: CanvasRenderingContext2D,
+        params?: { drawX: number; drawY: number; drawWidth: number; drawHeight: number }
+    ): void {
+        ctx.save();
+        // Container outline (cyan dashed)
+        ctx.strokeStyle = 'rgba(0,200,255,0.7)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(0.5, 0.5, this.width - 1, this.height - 1);
+        // Drawn region border (green solid)
+        if (params && params.drawWidth > 0 && params.drawHeight > 0) {
+            ctx.strokeStyle = '#00ff88';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([]);
+            ctx.strokeRect(params.drawX, params.drawY, params.drawWidth, params.drawHeight);
+        }
+        ctx.restore();
     }
 
     #drawPlaceholder(ctx: CanvasRenderingContext2D, message: string, textColor: string): void {
@@ -327,7 +470,12 @@ export class VisualMedia extends RenderObject {
     }
 
     protected _getSelfBounds(): Bounds {
-        // Modes that always fill the full container.
+        if (this._layoutBoundsMode === 'container') {
+            return this._computeTransformedRectBounds(0, 0, this.width, this.height);
+        }
+
+        // 'drawn' (default) and 'none' — visual bounds still track the drawn region
+        // even when excluded from layout bounds.
         if (this.fitMode === 'cover' || this.fitMode === 'fill' || !this.preserveAspectRatio) {
             return this._computeTransformedRectBounds(0, 0, this.width, this.height);
         }
