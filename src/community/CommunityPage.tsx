@@ -8,7 +8,11 @@ import CommunityGrid from './CommunityGrid';
 import CommunityDetailModal from './CommunityDetailModal';
 import CommunityUploadModal from './CommunityUploadModal';
 import CommunityEditModal from './CommunityEditModal';
-import { fetchItems, fetchAllTags, type CommunityItem, type CommunityTag, type SortBy, type FilterType } from './communityApi';
+import AdminTagPanel from './AdminTagPanel';
+import {
+  fetchItems, fetchAllTags, getUserRole,
+  type CommunityItem, type CommunityTag, type SortBy, type FilterType, type UserRole,
+} from './communityApi';
 
 const SORT_OPTIONS: { value: SortBy; label: string }[] = [
   { value: 'newest', label: 'Newest' },
@@ -24,6 +28,7 @@ const FILTER_OPTIONS: { value: FilterType; label: string }[] = [
 
 const CommunityPage: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<UserRole>('regular');
   const [items, setItems] = useState<CommunityItem[]>([]);
   const [sortBy, setSortBy] = useState<SortBy>('newest');
   const [filterType, setFilterType] = useState<FilterType>('all');
@@ -44,6 +49,15 @@ const CommunityPage: React.FC = () => {
       setUser(session?.user ?? null);
     });
   }, []);
+
+  // Fetch user role whenever the user changes
+  useEffect(() => {
+    if (user) {
+      getUserRole(user.id).then(setUserRole).catch(() => setUserRole('regular'));
+    } else {
+      setUserRole('regular');
+    }
+  }, [user]);
 
   // Load available tags
   useEffect(() => {
@@ -84,6 +98,8 @@ const CommunityPage: React.FC = () => {
     loadItems(0, false);
     fetchAllTags().then(setAllTags).catch(() => { });
   }, [loadItems]);
+
+  const canCreateTags = userRole === 'trusted' || userRole === 'admin';
 
   const selectClass = "rounded border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-200 focus:border-indigo-500 focus:outline-none cursor-pointer";
 
@@ -223,6 +239,11 @@ const CommunityPage: React.FC = () => {
           )}
         </div>
 
+        {/* Admin tag management panel */}
+        {userRole === 'admin' && (
+          <AdminTagPanel onTagsChanged={handleItemChanged} />
+        )}
+
         {/* Grid */}
         <CommunityGrid items={items} loading={loading} onItemClick={setSelectedItem} />
 
@@ -254,6 +275,7 @@ const CommunityPage: React.FC = () => {
           <CommunityEditModal
             item={editItem}
             user={user}
+            canCreateTags={canCreateTags}
             onClose={() => setEditItem(null)}
             onSaved={() => {
               setEditItem(null);
@@ -267,6 +289,7 @@ const CommunityPage: React.FC = () => {
         {isUploadOpen && user && (
           <CommunityUploadModal
             user={user}
+            canCreateTags={canCreateTags}
             onClose={() => setIsUploadOpen(false)}
             onUploaded={handleItemChanged}
           />

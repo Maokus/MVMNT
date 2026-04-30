@@ -8,11 +8,12 @@ import CommunityTagInput from './CommunityTagInput';
 interface CommunityEditModalProps {
   item: CommunityItem;
   user: User;
+  canCreateTags?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }
 
-const CommunityEditModal: React.FC<CommunityEditModalProps> = ({ item, user, onClose, onSaved }) => {
+const CommunityEditModal: React.FC<CommunityEditModalProps> = ({ item, user, canCreateTags = false, onClose, onSaved }) => {
   const [title, setTitle] = useState(item.title);
   const [description, setDescription] = useState(item.description ?? '');
   const [version, setVersion] = useState(item.version ?? '');
@@ -205,7 +206,7 @@ const CommunityEditModal: React.FC<CommunityEditModalProps> = ({ item, user, onC
           </div>
 
           {/* Tags */}
-          <CommunityTagInput tags={tags} onChange={setTags} />
+          <CommunityTagInput tags={tags} onChange={setTags} canCreateTags={canCreateTags} />
 
           {error && <p className="text-xs text-red-400">{error}</p>}
 
