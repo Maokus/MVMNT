@@ -123,6 +123,8 @@ export interface SceneExportEnvelopeV6 extends Omit<SceneExportEnvelopeBase, 'sc
         elementsOrder: string[];
         sceneSettings?: any;
         macros?: any;
+        fontAssets?: Record<string, any>;
+        fontLicensingAcknowledgedAt?: number;
         automation?: any;
     };
 }
@@ -817,6 +819,8 @@ export async function exportScene(
             elementsOrder: doc.scene?.elementsOrder ?? [],
             sceneSettings: doc.scene?.sceneSettings,
             macros: doc.scene?.macros,
+            fontAssets: doc.scene?.fontAssets,
+            fontLicensingAcknowledgedAt: doc.scene?.fontLicensingAcknowledgedAt,
             automation: doc.scene?.automation,
         },
         timeline: {
