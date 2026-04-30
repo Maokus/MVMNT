@@ -1,6 +1,6 @@
 # Community System Analysis
 
-_Last updated: April 2026_
+_Last updated: April 2026 — security fixes applied_
 
 ## Overview
 
@@ -104,14 +104,17 @@ Storage buckets are path-scoped: policies enforce that authenticated users can o
 
 ### Security / Correctness
 
-**1. `get_email_by_username` leaks email addresses**
-Any client can call this RPC with any username and receive the email address tied to it. This is a privacy problem — it enables enumeration of all user emails. The only legitimate use is resolving a username for the Supabase sign-in call, which could be done server-side instead.
+**1. `get_email_by_username` leaks email addresses** ~~Any client can call this RPC with any username and receive the email address tied to it.~~
 
-**2. Duplicate INSERT policies on `community-files`**
-Two Storage INSERT policies exist: `Users can upload to community files` and `community_files_auth_insert`. Both grant authenticated users write access with user-scoped paths. Duplicate policies don't cause incorrect access but create confusion and maintenance burden.
+**Resolved.** The `sign-in-with-username` Supabase Edge Function (`supabase/functions/sign-in-with-username/index.ts`) now handles username-based sign-in entirely server-side. It uses the service-role key to resolve the username → email internally, calls `signInWithPassword`, and returns only the session token — the email is never returned to the browser. `EXECUTE` on `get_email_by_username` has been revoked from `anon` and `authenticated` roles via migration `20260430130000_security_fixes.sql`.
 
-**3. `community_item_tags` INSERT policy is labelled PUBLIC**
-The RLS policy for tag assignment uses a PUBLIC role with an ownership subquery. This is not wrong in practice, but it's semantically misleading. An AUTHENTICATED + subquery pattern would be clearer and slightly safer.
+**2. Duplicate INSERT policies on `community-files`** ~~Two Storage INSERT policies exist: `Users can upload to community files` and `community_files_auth_insert`. Both grant authenticated users write access with user-scoped paths.~~
+
+**Resolved.** `community_files_auth_insert` (exact duplicate) has been dropped. Additionally, `Authenticated users can upload files` — a broader policy with no path scoping that could allow cross-user file writes — has also been removed. The single remaining policy, `Users can upload to community files`, correctly enforces `storage.foldername(name)[1] = auth.uid()`. The same fix was applied to `community-thumbnails`: the broad `Authenticated users can upload thumbnails` policy was replaced with a new path-scoped `Users can upload to community thumbnails` policy. See migration `20260430130000_security_fixes.sql`.
+
+**3. `community_item_tags` INSERT policy is labelled PUBLIC** ~~The RLS policy for tag assignment uses a PUBLIC role with an ownership subquery.~~
+
+**Resolved.** Both the INSERT (`Item owner can add tags`) and DELETE (`Item owner can remove tags`) policies on `community_item_tags` now use `TO authenticated` instead of `TO public`. See migration `20260430130000_security_fixes.sql`.
 
 **4. Downloads SELECT policy returns FALSE**
 The policy `downloads readable by owner only if needed` has `USING (false)`. This means nobody — not even admins or item owners — can query the downloads log via the client. The aggregate counter is accessible via `community_items`, but raw download data is permanently inaccessible. This is likely intentional for privacy, but it means the data is being written and never read, which is wasteful.
@@ -236,7 +239,9 @@ Downloads are a lagging signal of discovery. Tracking views separately gives a b
 ### Security Hardening
 
 **Move `get_email_by_username` server-side:**
-Replace it with a Supabase Edge Function that accepts a username, looks up the email internally, and directly calls `supabase.auth.signInWithPassword()` — the email is never returned to the browser.
+~~Replace it with a Supabase Edge Function…~~
+
+**Implemented.** `supabase/functions/sign-in-with-username/index.ts` handles this. `get_email_by_username` execute rights revoked from anon/authenticated.
 
 **Add download deduplication:**
 Add a partial unique index or a cooldown check to prevent a single anonymous session from inflating counts:
@@ -247,10 +252,14 @@ Add a partial unique index or a cooldown check to prevent a single anonymous ses
 ```
 
 **Fix the labelling issue on `community_item_tags` INSERT policy:**
-Change the role from PUBLIC to AUTHENTICATED to match intent.
+~~Change the role from PUBLIC to AUTHENTICATED to match intent.~~
+
+**Implemented.** See migration `20260430130000_security_fixes.sql`.
 
 **Consolidate duplicate Storage policies:**
-Remove the redundant `community_files_auth_insert` policy; `Users can upload to community files` already covers the same grant.
+~~Remove the redundant `community_files_auth_insert` policy…~~
+
+**Implemented.** `community_files_auth_insert` dropped; overly broad `Authenticated users can upload files` (no path scope) also dropped; thumbnail policy replaced with path-scoped equivalent. See migration `20260430130000_security_fixes.sql`.
 
 ### Application Layer
 
