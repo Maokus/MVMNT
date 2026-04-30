@@ -4,35 +4,39 @@ import { type VisualResource, type ResourceStatus, getFrameAtTime } from '@core/
 /**
  * Constructor / build options for VisualMedia.
  *
- * ## Pivot vs content anchors
+ * ## Transform pivot vs content anchors — two separate concerns
  *
- * `pivotFractionX/Y` controls the **transform origin** of the media box — the
- * point at which the box is positioned and around which it rotates/scales.
- * (0.5, 1) = bottom-center of the box is the transform origin.
+ * **`pivotFractionX/Y`** — transform origin of the media *box*, stored as
+ * fractions of (width, height). Equivalent to `setPivotFraction(x, y)`.
+ * (0.5, 1) = the box's bottom-center is its world position and rotation origin.
  *
- * `contentAnchorX/Y` + `frameAnchorX/Y` control **where the image or sprite
- * frame sits inside the box** (applies to `fitMode: 'none'` only):
- *   baseX = contentAnchorX * containerWidth  - frameAnchorX * frameWidth
- *   baseY = contentAnchorY * containerHeight - frameAnchorY * frameHeight
+ * **`contentAnchorX/Y` + `frameAnchorX/Y`** — where the image or sprite frame
+ * sits *inside* the box. Only applies to `fitMode: 'none'`.
+ *
+ *   baseX = contentAnchorX * containerWidth  − frameAnchorX * frameWidth
+ *   baseY = contentAnchorY * containerHeight − frameAnchorY * frameHeight
+ *
  * Default (0.5 / 0.5 for both) centers the frame in the box.
+ * (0.5, 1) / (0.5, 1) pins the frame's bottom-center to the box's bottom-center.
+ *
+ * ## Layout bounds
+ *
+ * `layoutBoundsMode` replaces the old `includeInLayoutBounds` boolean:
+ *   - `'drawn'`     Bounds = actual drawn / scaled image region (default).
+ *   - `'container'` Bounds = full container rect (width × height).
+ *   - `'none'`      Excluded from layout bounds entirely.
  */
 export type VisualMediaOptions = {
     fitMode?: 'contain' | 'cover' | 'fill' | 'none';
     preserveAspectRatio?: boolean;
     /** @deprecated Use `layoutBoundsMode: 'none'` instead. */
     includeInLayoutBounds?: boolean;
-    /**
-     * Controls what rect is reported as layout bounds:
-     * - `'drawn'`     Layout bounds = actual drawn / scaled image region (default).
-     * - `'container'` Layout bounds = the full container rect (width × height).
-     * - `'none'`      Excluded from layout bounds entirely.
-     */
     layoutBoundsMode?: 'container' | 'drawn' | 'none';
     /** Transform pivot X as fraction of container width (0–1). Default 0. */
     pivotFractionX?: number;
     /** Transform pivot Y as fraction of container height (0–1). Default 0. */
     pivotFractionY?: number;
-    /** Content anchor X (0–1): which point in the container box the frame is placed at. Default 0.5. */
+    /** Content anchor X (0–1): which point in the container the frame is placed at. Default 0.5. */
     contentAnchorX?: number;
     /** Content anchor Y (0–1). Default 0.5. */
     contentAnchorY?: number;
@@ -40,8 +44,11 @@ export type VisualMediaOptions = {
     frameAnchorX?: number;
     /** Frame anchor Y (0–1). Default 0.5. */
     frameAnchorY?: number;
-    /** Draw a debug border around the drawn region and container each frame. */
-    showBounds?: boolean;
+    /**
+     * Draw a debug overlay each frame showing the container outline, drawn-region
+     * border, pivot point, and content-anchor point.
+     */
+    showDebug?: boolean;
 };
 
 /**
@@ -64,17 +71,32 @@ export type VisualMediaOptions = {
  * | 'fill'    | Stretch to exactly fill the container. Distorts non-square images.         |
  * |           | Bounds equal the full container.                                           |
  * | 'none'    | Draw at the image's native pixel size (1:1 scale, no scaling). Frame       |
- * |           | placement is controlled by contentAnchor / frameAnchor (default: center).  |
- * |           | The image is clipped to the container edges if it overflows.               |
- * |           | Bounds reflect the actual drawn (clipped) region.                          |
+ * |           | placement is controlled by setContentAnchor / setFrameAnchor               |
+ * |           | (default: center). The image is clipped to the container edges if it       |
+ * |           | overflows. Bounds reflect the actual drawn (clipped) region.               |
+ *
+ * ## Key APIs
+ *
+ * - `setPivotFraction(x, y)`   — transform origin of the box as fractions of its size.
+ * - `setContentAnchor(x, y)`   — where in the container the frame is placed ('none' mode).
+ * - `setFrameAnchor(x, y)`     — which point on the frame maps to the content anchor.
+ * - `setLayoutBoundsMode(mode)` — 'drawn' | 'container' | 'none'.
+ * - `showDebug = true`          — overlays container, drawn region, pivot, and anchor.
  */
 export class VisualMedia extends RenderObject {
     width: number;
     height: number;
     fitMode: 'contain' | 'cover' | 'fill' | 'none';
     preserveAspectRatio: boolean;
-    /** Draw a debug border around the drawn region and container outline. */
-    showBounds: boolean;
+    /**
+     * When true (or when `config.showDebug` is set), draws a debug overlay showing:
+     * - Cyan dashed outline: the container rect.
+     * - Green solid rect: the actual drawn / clipped region.
+     * - Purple dashed rect: the full unclipped frame rect ('none' mode only).
+     * - Orange crosshair: the content anchor point inside the container.
+     * - Yellow diamond: the pivot / transform origin inside the container.
+     */
+    showDebug: boolean;
 
     private _resource: VisualResource | null = null;
     private _status: ResourceStatus = 'idle';
@@ -102,7 +124,7 @@ export class VisualMedia extends RenderObject {
         this.height = height;
         this.fitMode = options.fitMode ?? 'contain';
         this.preserveAspectRatio = options.preserveAspectRatio ?? true;
-        this.showBounds = options.showBounds ?? false;
+        this.showDebug = options.showDebug ?? false;
 
         // layoutBoundsMode wins; fall back to includeInLayoutBounds for compat.
         if (options.layoutBoundsMode) {
@@ -185,8 +207,8 @@ export class VisualMedia extends RenderObject {
      * Only applies to `fitMode: 'none'`. Default (0.5, 0.5) = center.
      *
      * Used together with setFrameAnchor:
-     *   baseX = contentAnchorX * containerWidth  - frameAnchorX * frameWidth
-     *   baseY = contentAnchorY * containerHeight - frameAnchorY * frameHeight
+     *   baseX = contentAnchorX * containerWidth  − frameAnchorX * frameWidth
+     *   baseY = contentAnchorY * containerHeight − frameAnchorY * frameHeight
      */
     setContentAnchor(x: number, y: number): this {
         this._contentAnchorX = x;
@@ -318,7 +340,7 @@ export class VisualMedia extends RenderObject {
         } else {
             // 'none': draw at native pixel size (1:1 scale).
             // Place the frame using content/frame anchors:
-            //   baseX = contentAnchorX * containerW - frameAnchorX * frameW
+            //   baseX = contentAnchorX * containerW − frameAnchorX * frameW
             // Canvas clipping (applied in _renderSelf) handles overflow.
             // trimOffset is applied on top of baseX/Y and is treated as frame
             // reconstruction only — it does not interact with the anchor system.
@@ -361,6 +383,7 @@ export class VisualMedia extends RenderObject {
 
     protected _renderSelf(ctx: CanvasRenderingContext2D, config: RenderConfig, _currentTime: number): void {
         const resource = this._resource;
+        const debug = this.showDebug || config.showDebug;
 
         if (!resource || this._status !== 'ready') {
             const msg =
@@ -372,7 +395,7 @@ export class VisualMedia extends RenderObject {
                         ? 'No image'
                         : 'Image';
             this.#drawPlaceholder(ctx, msg, this._status === 'error' ? 'red' : 'rgba(150,150,150,0.8)');
-            if (this.showBounds || config.showBounds) this.#drawBoundsDebug(ctx);
+            if (debug) this.#drawDebugOverlay(ctx);
             return;
         }
 
@@ -384,7 +407,7 @@ export class VisualMedia extends RenderObject {
         const frame = getFrameAtTime(frames, totalDurationMs, this._localTime, activeAnim?.loopMode ?? 'loop');
         if (!frame.drawable) {
             this.#drawPlaceholder(ctx, 'Empty', 'rgba(150,150,150,0.8)');
-            if (this.showBounds || config.showBounds) this.#drawBoundsDebug(ctx);
+            if (debug) this.#drawDebugOverlay(ctx);
             return;
         }
 
@@ -434,27 +457,91 @@ export class VisualMedia extends RenderObject {
 
         if (this.fitMode === 'cover' || this.fitMode === 'none') ctx.restore();
 
-        if (this.showBounds || config.showBounds) this.#drawBoundsDebug(ctx, params);
+        if (debug) this.#drawDebugOverlay(ctx, params, imgW, imgH);
     }
 
-    #drawBoundsDebug(
+    /**
+     * Debug overlay drawn in container-local space (after the parent transform).
+     *
+     * Cyan dashed   — container rect
+     * Green solid   — drawn / clipped region (when resource is loaded)
+     * Purple dashed — full unclipped frame rect ('none' mode only, may overflow)
+     * Orange ⊕      — content anchor point inside the container
+     * Yellow ◆      — pivot / transform origin inside the container
+     */
+    #drawDebugOverlay(
         ctx: CanvasRenderingContext2D,
-        params?: { drawX: number; drawY: number; drawWidth: number; drawHeight: number }
+        params?: { drawX: number; drawY: number; drawWidth: number; drawHeight: number; baseX: number; baseY: number },
+        imgW?: number,
+        imgH?: number
     ): void {
         ctx.save();
-        // Container outline (cyan dashed)
-        ctx.strokeStyle = 'rgba(0,200,255,0.7)';
+        ctx.setLineDash([]);
+
+        // Container outline — cyan dashed
+        ctx.strokeStyle = 'rgba(0,200,255,0.8)';
         ctx.lineWidth = 1;
         ctx.setLineDash([4, 4]);
         ctx.strokeRect(0.5, 0.5, this.width - 1, this.height - 1);
-        // Drawn region border (green solid)
-        if (params && params.drawWidth > 0 && params.drawHeight > 0) {
-            ctx.strokeStyle = '#00ff88';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([]);
-            ctx.strokeRect(params.drawX, params.drawY, params.drawWidth, params.drawHeight);
+
+        if (params) {
+            // Full unclipped frame rect ('none' mode, may extend outside container)
+            if (this.fitMode === 'none' && imgW !== undefined && imgH !== undefined) {
+                ctx.strokeStyle = 'rgba(180,100,255,0.6)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([3, 5]);
+                ctx.strokeRect(params.baseX, params.baseY, imgW, imgH);
+            }
+
+            // Drawn / clipped region — green solid
+            if (params.drawWidth > 0 && params.drawHeight > 0) {
+                ctx.strokeStyle = '#00ff88';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([]);
+                ctx.strokeRect(params.drawX, params.drawY, params.drawWidth, params.drawHeight);
+            }
         }
+
+        ctx.setLineDash([]);
+
+        // Content anchor — orange crosshair with circle
+        const cax = this._contentAnchorX * this.width;
+        const cay = this._contentAnchorY * this.height;
+        this.#drawCrosshair(ctx, cax, cay, 8, 'rgba(255,160,0,0.9)');
+
+        // Pivot (transform origin) — yellow diamond
+        this.#drawDiamond(ctx, this.pivotX, this.pivotY, 6, 'rgba(255,230,0,0.95)');
+
         ctx.restore();
+    }
+
+    #drawCrosshair(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string): void {
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x - r, y);
+        ctx.lineTo(x + r, y);
+        ctx.moveTo(x, y - r);
+        ctx.lineTo(x, y + r);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    #drawDiamond(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string): void {
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color + '55'; // translucent fill
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, y - r);
+        ctx.lineTo(x + r, y);
+        ctx.lineTo(x, y + r);
+        ctx.lineTo(x - r, y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
     }
 
     #drawPlaceholder(ctx: CanvasRenderingContext2D, message: string, textColor: string): void {

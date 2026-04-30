@@ -2,8 +2,8 @@
 export interface RenderConfig {
     canvas?: HTMLCanvasElement; // Many callers provide canvas for sizing logic
     showAnchorPoints?: boolean;
-    /** When true, VisualMedia objects draw a debug border around their drawn region. */
-    showBounds?: boolean;
+    /** When true, VisualMedia objects draw a debug overlay (bounds, anchors, pivot). */
+    showDebug?: boolean;
     // Allow arbitrary additional configuration keys
     [key: string]: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
