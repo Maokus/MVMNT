@@ -4,14 +4,14 @@ import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { normalizeChannelSelectorInput, sampleFeatureFrame, selectChannelSample } from '@audio/audioFeatureUtils';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
-import { normalizeColorAlphaValue } from '@utils/color';
+import { applyOpacity } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
 const { descriptor: PITCH_WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchWaveform' });
 
-const DEFAULT_LINE_COLOR = '#F472B6FF';
-const DEFAULT_BACKGROUND_COLOR = '#0F172A00';
+const DEFAULT_LINE_COLOR = '#F472B6';
+const DEFAULT_BACKGROUND_COLOR = '#0F172A';
 
 registerFeatureRequirements('audioLockedOscilloscope', [{ feature: 'pitchWaveform' }]);
 
@@ -43,70 +43,66 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Audio Locked Oscilloscope',
-            description: 'Displays a single pitch-locked waveform cycle.',
-            category: 'Audio Displays',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'lockedOscilloscopeBasics',
-                label: 'Pitch Waveform',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.audioTrack('audioTrackId', 'Audio Track'),
-                    {
-                        key: 'channelSelector',
-                        type: 'string',
-                        label: 'Channel',
-                        default: null,
-                        runtime: { transform: normalizeChannelSelector, defaultValue: null },
-                    },
-                    prop.number('width', 'Width (px)', 420, { step: 1 }),
-                    prop.number('height', 'Height (px)', 140, { step: 1 }),
-                    {
-                        key: 'lineColor',
-                        type: 'colorAlpha',
-                        label: 'Line Color',
-                        default: DEFAULT_LINE_COLOR,
-                        runtime: {
-                            transform: (value) => normalizeColorAlphaValue(value, DEFAULT_LINE_COLOR),
-                            defaultValue: DEFAULT_LINE_COLOR,
-                        },
-                    },
-                    {
-                        key: 'lineWidth',
-                        type: 'number',
-                        label: 'Line Width (px)',
-                        default: 2,
-                        step: 0.5,
-                        runtime: {
-                            transform: (value, element) => {
-                                const numeric = asNumber(value, element);
-                                return numeric === undefined ? undefined : clamp(numeric, 0.5, 10);
-                            },
-                            defaultValue: 2,
-                        },
-                    },
-                    {
-                        key: 'backgroundColor',
-                        type: 'colorAlpha',
-                        label: 'Background',
-                        default: DEFAULT_BACKGROUND_COLOR,
-                        runtime: {
-                            transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
-                            defaultValue: DEFAULT_BACKGROUND_COLOR,
-                        },
-                    },
-                ],
+                name: 'Audio Locked Oscilloscope',
+                description: 'Displays a single pitch-locked waveform cycle.',
+                category: 'Audio Displays',
             },
-        ]);
+            [
+                {
+                    id: 'lockedOscilloscopeBasics',
+                    label: 'Pitch Waveform',
+                    variant: 'basic',
+                    collapsed: false,
+                    properties: [
+                        prop.audioTrack('audioTrackId', 'Audio Track'),
+                        {
+                            key: 'channelSelector',
+                            type: 'string',
+                            label: 'Channel',
+                            default: null,
+                            runtime: { transform: normalizeChannelSelector, defaultValue: null },
+                        },
+                        prop.number('width', 'Width (px)', 420, { step: 1 }),
+                        prop.number('height', 'Height (px)', 140, { step: 1 }),
+                        prop.color('color', 'Color', DEFAULT_LINE_COLOR),
+                        prop.range('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                        {
+                            key: 'lineWidth',
+                            type: 'number',
+                            label: 'Line Width (px)',
+                            default: 2,
+                            step: 0.5,
+                            runtime: {
+                                transform: (value, element) => {
+                                    const numeric = asNumber(value, element);
+                                    return numeric === undefined ? undefined : clamp(numeric, 0.5, 10);
+                                },
+                                defaultValue: 2,
+                            },
+                        },
+                        prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
+                        prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
+                    ],
+                },
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
         const objects: RenderObject[] = [];
-        objects.push(new Rectangle(0, 0, props.width, props.height, props.backgroundColor));
+        objects.push(
+            new Rectangle(
+                0,
+                0,
+                props.width,
+                props.height,
+                applyOpacity(props.backgroundColor ?? DEFAULT_BACKGROUND_COLOR, props.backgroundOpacity ?? 0)
+            )
+        );
 
         if (!props.audioTrackId) {
             objects.push(
@@ -134,7 +130,8 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                   })
                 : null;
 
-        const frame = sample?.metadata.frame ?? sampleFeatureFrame(props.audioTrackId, PITCH_WAVEFORM_DESCRIPTOR, targetTime);
+        const frame =
+            sample?.metadata.frame ?? sampleFeatureFrame(props.audioTrackId, PITCH_WAVEFORM_DESCRIPTOR, targetTime);
         const selection = selectChannelSample(frame, props.channelSelector);
         const channelValues = selection?.values ?? sample?.values ?? frame?.values ?? [];
 
@@ -179,7 +176,8 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
 
         const values = channelValues.slice(0, sampleLength).map((value) => clamp(value ?? 0, -1, 1));
         const points = buildPolylinePoints(values, props.width, props.height);
-        const line = new Poly(points, null, props.lineColor, props.lineWidth, { includeInLayoutBounds: false });
+        const lineColor = applyOpacity(props.color ?? DEFAULT_LINE_COLOR, props.opacity ?? 1);
+        const line = new Poly(points, null, lineColor, props.lineWidth, { includeInLayoutBounds: false });
         line.setClosed(false);
         objects.push(line);
 

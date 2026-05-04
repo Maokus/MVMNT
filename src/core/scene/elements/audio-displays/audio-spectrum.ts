@@ -3,7 +3,7 @@ import { Arc, Poly, Rectangle, Text, type RenderObject } from '@core/render/rend
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import type { FeatureDataResult } from '@audio/features/sceneApi';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
-import { normalizeColorAlphaValue } from '@utils/color';
+import { applyOpacity } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
@@ -14,8 +14,8 @@ function clamp(value: number, min: number, max: number): number {
     return value;
 }
 
-const DEFAULT_BAR_COLOR = '#60A5FAFF';
-const DEFAULT_BACKGROUND_COLOR = '#0F172A00';
+const DEFAULT_BAR_COLOR = '#60A5FA';
+const DEFAULT_BACKGROUND_COLOR = '#0F172A';
 const DEFAULT_MIN_FREQUENCY = 20;
 const DEFAULT_MAX_FREQUENCY = 20000;
 const MAX_FREQUENCY_LIMIT = 48000;
@@ -199,130 +199,126 @@ export class AudioSpectrumElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Audio Spectrum',
-            description: 'Compact magnitude bars for inspecting spectral data.',
-            category: 'Audio Displays',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'spectrumBasics',
-                label: 'Spectrum',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.audioTrack('audioTrackId', 'Audio Track'),
-                    {
-                        key: 'barCount',
-                        type: 'number',
-                        label: 'Bars',
-                        default: 48,
-                        min: 4,
-                        max: 256,
-                        step: 1,
-                        runtime: {
-                            transform: (value, element) => {
-                                const numeric = asNumber(value, element);
-                                if (numeric === undefined) return undefined;
-                                return clamp(Math.floor(numeric), 4, 512);
-                            },
-                            defaultValue: 48,
-                        },
-                    },
-                    prop.number('minDecibels', 'Minimum Value', -80, { min: -80, max: 0, step: 1 }),
-                    prop.number('maxDecibels', 'Maximum Value', 0, { min: -80, max: 24, step: 1 }),
-                    prop.number('width', 'Width (px)', 420, { step: 1 }),
-                    prop.number('height', 'Height (px)', 180, { step: 1 }),
-                    {
-                        key: 'primaryColor',
-                        type: 'colorAlpha',
-                        label: 'Color',
-                        default: DEFAULT_BAR_COLOR,
-                        runtime: {
-                            transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BAR_COLOR),
-                            defaultValue: DEFAULT_BAR_COLOR,
-                        },
-                    },
-                    {
-                        key: 'backgroundColor',
-                        type: 'colorAlpha',
-                        label: 'Background',
-                        default: DEFAULT_BACKGROUND_COLOR,
-                        runtime: {
-                            transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
-                            defaultValue: DEFAULT_BACKGROUND_COLOR,
-                        },
-                    },
-                    {
-                        key: 'display',
-                        type: 'select',
-                        label: 'Display Mode',
-                        default: 'bar',
-                        options: [
-                            { label: 'Bars', value: 'bar' },
-                            { label: 'Line', value: 'line' },
-                            { label: 'Dots', value: 'dot' },
-                        ],
-                        runtime: { transform: normalizeSpectrumDisplay, defaultValue: 'bar' },
-                    },
-                    prop.number('thickness', 'Thickness', 4, { step: 0.5 }),
-                    {
-                        key: 'scale',
-                        type: 'select',
-                        label: 'Frequency Scale',
-                        default: 'mel',
-                        options: [
-                            { label: 'Linear', value: 'linear' },
-                            { label: 'Logarithmic', value: 'log' },
-                            { label: 'Mel', value: 'mel' },
-                        ],
-                        runtime: { transform: normalizeSpectrumScale, defaultValue: 'linear' },
-                    },
-                    prop.number('tilt', 'Tilt Factor', 0, { step: 0.01 }),
-                    prop.number('gain', 'Gain', 1, { step: 0.01 }),
-                    {
-                        key: 'minFrequency',
-                        type: 'number',
-                        label: 'Min Frequency (Hz)',
-                        default: DEFAULT_MIN_FREQUENCY,
-                        min: 0,
-                        max: MAX_FREQUENCY_LIMIT,
-                        step: 1,
-                        runtime: { transform: normalizeFrequency, defaultValue: DEFAULT_MIN_FREQUENCY },
-                    },
-                    {
-                        key: 'maxFrequency',
-                        type: 'number',
-                        label: 'Max Frequency (Hz)',
-                        default: DEFAULT_MAX_FREQUENCY,
-                        min: 1,
-                        max: MAX_FREQUENCY_LIMIT,
-                        step: 1,
-                        runtime: { transform: normalizeFrequency, defaultValue: DEFAULT_MAX_FREQUENCY },
-                    },
-                    {
-                        key: 'smoothing',
-                        type: 'number',
-                        label: 'Smoothing',
-                        default: 0,
-                        step: 1,
-                        runtime: {
-                            transform: (value, element) => {
-                                const numeric = asNumber(value, element);
-                                return numeric === undefined ? undefined : clamp(numeric, 0, 64);
-                            },
-                            defaultValue: 0,
-                        },
-                    },
-                ],
+                name: 'Audio Spectrum',
+                description: 'Compact magnitude bars for inspecting spectral data.',
+                category: 'Audio Displays',
             },
-        ]);
+            [
+                {
+                    id: 'spectrumBasics',
+                    label: 'Spectrum',
+                    variant: 'basic',
+                    collapsed: false,
+                    properties: [
+                        prop.audioTrack('audioTrackId', 'Audio Track'),
+                        {
+                            key: 'barCount',
+                            type: 'number',
+                            label: 'Bars',
+                            default: 48,
+                            min: 4,
+                            max: 256,
+                            step: 1,
+                            runtime: {
+                                transform: (value, element) => {
+                                    const numeric = asNumber(value, element);
+                                    if (numeric === undefined) return undefined;
+                                    return clamp(Math.floor(numeric), 4, 512);
+                                },
+                                defaultValue: 48,
+                            },
+                        },
+                        prop.number('minDecibels', 'Minimum Value', -80, { min: -80, max: 0, step: 1 }),
+                        prop.number('maxDecibels', 'Maximum Value', 0, { min: -80, max: 24, step: 1 }),
+                        prop.number('width', 'Width (px)', 420, { step: 1 }),
+                        prop.number('height', 'Height (px)', 180, { step: 1 }),
+                        prop.color('color', 'Color', DEFAULT_BAR_COLOR),
+                        prop.range('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                        prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
+                        prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
+                        {
+                            key: 'display',
+                            type: 'select',
+                            label: 'Display Mode',
+                            default: 'bar',
+                            options: [
+                                { label: 'Bars', value: 'bar' },
+                                { label: 'Line', value: 'line' },
+                                { label: 'Dots', value: 'dot' },
+                            ],
+                            runtime: { transform: normalizeSpectrumDisplay, defaultValue: 'bar' },
+                        },
+                        prop.number('thickness', 'Thickness', 4, { step: 0.5 }),
+                        {
+                            key: 'scale',
+                            type: 'select',
+                            label: 'Frequency Scale',
+                            default: 'mel',
+                            options: [
+                                { label: 'Linear', value: 'linear' },
+                                { label: 'Logarithmic', value: 'log' },
+                                { label: 'Mel', value: 'mel' },
+                            ],
+                            runtime: { transform: normalizeSpectrumScale, defaultValue: 'linear' },
+                        },
+                        prop.number('tilt', 'Tilt Factor', 0, { step: 0.01 }),
+                        prop.number('gain', 'Gain', 1, { step: 0.01 }),
+                        {
+                            key: 'minFrequency',
+                            type: 'number',
+                            label: 'Min Frequency (Hz)',
+                            default: DEFAULT_MIN_FREQUENCY,
+                            min: 0,
+                            max: MAX_FREQUENCY_LIMIT,
+                            step: 1,
+                            runtime: { transform: normalizeFrequency, defaultValue: DEFAULT_MIN_FREQUENCY },
+                        },
+                        {
+                            key: 'maxFrequency',
+                            type: 'number',
+                            label: 'Max Frequency (Hz)',
+                            default: DEFAULT_MAX_FREQUENCY,
+                            min: 1,
+                            max: MAX_FREQUENCY_LIMIT,
+                            step: 1,
+                            runtime: { transform: normalizeFrequency, defaultValue: DEFAULT_MAX_FREQUENCY },
+                        },
+                        {
+                            key: 'smoothing',
+                            type: 'number',
+                            label: 'Smoothing',
+                            default: 0,
+                            step: 1,
+                            runtime: {
+                                transform: (value, element) => {
+                                    const numeric = asNumber(value, element);
+                                    return numeric === undefined ? undefined : clamp(numeric, 0, 64);
+                                },
+                                defaultValue: 0,
+                            },
+                        },
+                    ],
+                },
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
 
         const objects: RenderObject[] = [];
-        objects.push(new Rectangle(0, 0, props.width, props.height, props.backgroundColor));
+        objects.push(
+            new Rectangle(
+                0,
+                0,
+                props.width,
+                props.height,
+                applyOpacity(props.backgroundColor ?? DEFAULT_BACKGROUND_COLOR, props.backgroundOpacity ?? 0)
+            )
+        );
 
         const pushMessage = (message: string) => {
             objects.push(new Text(8, props.height / 2, message, '12px Inter, sans-serif', '#94a3b8', 'left', 'middle'));
@@ -374,6 +370,7 @@ export class AudioSpectrumElement extends SceneElement {
         const binLeft = (index: number) => index * actualBarWidth;
         const binCenter = (index: number) => binLeft(index) + actualBarWidth / 2;
         const shapeThickness = Math.max(0.5, props.thickness ?? 1);
+        const drawColor = applyOpacity(props.color ?? DEFAULT_BAR_COLOR, props.opacity ?? 1);
 
         const renderBars = () => {
             const barWidth = Math.max(1, Math.min(actualBarWidth - gap, shapeThickness));
@@ -381,7 +378,7 @@ export class AudioSpectrumElement extends SceneElement {
                 const x = binLeft(index) + gap * 0.5;
                 const barHeight = ratio * props.height;
                 const y = peakY(ratio);
-                objects.push(new Rectangle(x, y, barWidth, barHeight, props.primaryColor));
+                objects.push(new Rectangle(x, y, barWidth, barHeight, drawColor));
             });
         };
 
@@ -391,7 +388,7 @@ export class AudioSpectrumElement extends SceneElement {
             if (points.length === 1) {
                 points.push({ ...points[0] });
             }
-            const poly = new Poly(points, null, props.primaryColor, shapeThickness);
+            const poly = new Poly(points, null, drawColor, shapeThickness);
             poly.setClosed(false).setLineJoin('round').setLineCap('round');
             objects.push(poly);
         };
@@ -403,7 +400,7 @@ export class AudioSpectrumElement extends SceneElement {
                 const y = peakY(ratio);
                 objects.push(
                     new Arc(x, y, radius, 0, Math.PI * 2, false, {
-                        fillColor: props.primaryColor,
+                        fillColor: drawColor,
                         strokeColor: '#FFFFFF00',
                     })
                 );

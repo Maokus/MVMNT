@@ -2,6 +2,8 @@
 
 _Phase 0 audit — May 2026. Prerequisite for all subsequent phases of the suite cohesion plan._
 
+**Phase 1 complete** — all `colorAlpha` props split to `color` + `opacity`. TypeScript: zero errors.
+
 ---
 
 ## Phase 0 — Infrastructure
@@ -31,8 +33,8 @@ Elements confirmed to use `colorAlpha`. Each must split the field into a `prop.c
 | ----------------- | ---------------------- | ---------------------------------------------------------------------------- |
 | `backgroundColor` | colorAlpha `#1a1a1aff` | → `backgroundColor` (hex `#1a1a1a`) + `backgroundOpacity` (range, default 1) |
 
-- [ ] Split `backgroundColor` colorAlpha
-- [ ] Config migration: missing `backgroundOpacity` → default 1
+- [x] Split `backgroundColor` colorAlpha
+- [x] Config migration: missing `backgroundOpacity` → default 1
 
 ### misc/basic-shapes.ts
 
@@ -42,10 +44,10 @@ Elements confirmed to use `colorAlpha`. Each must split the field into a `prop.c
 | `strokeColor` | colorAlpha `#ffffffff` | → `strokeColor` (hex) + `strokeOpacity` (range, default 1)                                                                                                                                                                                                                         |
 | `shadowColor` | colorAlpha `#00000000` | → `shadowColor` (hex `#000000`) + used within `propGroup.shadow()` (shadowEnabled toggle); shadow sub-props already hidden when disabled, so no separate opacity field needed — but alpha default 0 means it was effectively "off by default". New default: `shadowEnabled: false` |
 
-- [ ] Split `fillColor` colorAlpha
-- [ ] Split `strokeColor` colorAlpha
-- [ ] Migrate `shadowColor` colorAlpha to `shadowEnabled` bool + `shadowColor` opaque + rest of shadow group props
-- [ ] Config migration for each split prop
+- [x] Split `fillColor` colorAlpha
+- [x] Split `strokeColor` colorAlpha
+- [x] Migrate `shadowColor` colorAlpha to `shadowEnabled` bool + `shadowColor` opaque + rest of shadow group props
+- [x] Config migration for each split prop
 
 ### audio-displays/audio-locked-oscilloscope.ts
 
@@ -54,9 +56,9 @@ Elements confirmed to use `colorAlpha`. Each must split the field into a `prop.c
 | `lineColor`       | colorAlpha `#F472B6FF` | → `color` (hex `#F472B6`) + `opacity` (range, default 1)                     |
 | `backgroundColor` | colorAlpha `#0F172A00` | → `backgroundColor` (hex `#0F172A`) + `backgroundOpacity` (range, default 0) |
 
-- [ ] Rename `lineColor` → `color` + `opacity`
-- [ ] Split `backgroundColor` colorAlpha
-- [ ] Config migration
+- [x] Rename `lineColor` → `color` + `opacity`
+- [x] Split `backgroundColor` colorAlpha
+- [x] Config migration
 
 ### audio-displays/audio-spectrum.ts
 
@@ -65,9 +67,9 @@ Elements confirmed to use `colorAlpha`. Each must split the field into a `prop.c
 | `primaryColor`    | colorAlpha `#60A5FAFF` | → `color` (hex `#60A5FA`) + `opacity` (range, default 1)                     |
 | `backgroundColor` | colorAlpha `#0F172A00` | → `backgroundColor` (hex `#0F172A`) + `backgroundOpacity` (range, default 0) |
 
-- [ ] Rename `primaryColor` → `color` + `opacity`
-- [ ] Split `backgroundColor` colorAlpha
-- [ ] Config migration
+- [x] Rename `primaryColor` → `color` + `opacity`
+- [x] Split `backgroundColor` colorAlpha
+- [x] Config migration
 
 ### audio-displays/audio-volume-meter.ts
 
@@ -76,9 +78,9 @@ Elements confirmed to use `colorAlpha`. Each must split the field into a `prop.c
 | `meterColor`      | colorAlpha `#F472B6FF` | → `color` (hex `#F472B6`) + `opacity` (range, default 1)                     |
 | `backgroundColor` | colorAlpha `#0F172A00` | → `backgroundColor` (hex `#0F172A`) + `backgroundOpacity` (range, default 0) |
 
-- [ ] Rename `meterColor` → `color` + `opacity`
-- [ ] Split `backgroundColor` colorAlpha
-- [ ] Config migration
+- [x] Rename `meterColor` → `color` + `opacity`
+- [x] Split `backgroundColor` colorAlpha
+- [x] Config migration
 
 ### audio-displays/audio-waveform.ts
 
@@ -88,10 +90,10 @@ Elements confirmed to use `colorAlpha`. Each must split the field into a `prop.c
 | `secondaryColor`  | colorAlpha `#F472B6FF` | keep `secondaryColor` (hex `#F472B6`) + `secondaryOpacity` (range, default 1) |
 | `backgroundColor` | colorAlpha `#0F172A00` | → `backgroundColor` (hex `#0F172A`) + `backgroundOpacity` (range, default 0)  |
 
-- [ ] Rename `primaryColor` → `color` + `opacity`
-- [ ] Split `secondaryColor` colorAlpha
-- [ ] Split `backgroundColor` colorAlpha
-- [ ] Config migration
+- [x] Rename `primaryColor` → `color` + `opacity`
+- [x] Split `secondaryColor` colorAlpha
+- [x] Split `backgroundColor` colorAlpha
+- [x] Config migration
 
 ### midi-displays/moving-notes-piano-roll.ts
 
@@ -100,9 +102,9 @@ Elements confirmed to use `colorAlpha`. Each must split the field into a `prop.c
 | `noteColor`     | colorAlpha `#FF6B6BCC` | → `noteColor` (hex `#FF6B6B`) + `noteOpacity` (range, default ~0.8 from `CC` = 204/255 ≈ 0.80) |
 | `playheadColor` | colorAlpha `#ff6b6bff` | → `playheadColor` (hex `#ff6b6b`) + `playheadOpacity` (range, default 1)                       |
 
-- [ ] Split `noteColor` colorAlpha (note: default alpha is `CC` = 0.80, not 1.0)
-- [ ] Split `playheadColor` colorAlpha
-- [ ] Config migration
+- [x] Split `noteColor` colorAlpha (note: default alpha is `CC` = 0.80, not 1.0)
+- [x] Split `playheadColor` colorAlpha
+- [x] Config migration
 
 ### midi-displays/time-unit-piano-roll.ts
 
@@ -111,9 +113,9 @@ Elements confirmed to use `colorAlpha`. Each must split the field into a `prop.c
 | `noteColor`     | colorAlpha `#FF6B6BCC` | → `noteColor` (hex `#FF6B6B`) + `noteOpacity` (range, default ~0.80)     |
 | `playheadColor` | colorAlpha `#ff6b6bff` | → `playheadColor` (hex `#ff6b6b`) + `playheadOpacity` (range, default 1) |
 
-- [ ] Split `noteColor` colorAlpha
-- [ ] Split `playheadColor` colorAlpha
-- [ ] Config migration
+- [x] Split `noteColor` colorAlpha
+- [x] Split `playheadColor` colorAlpha
+- [x] Config migration
 
 ### audio-debug/audio-debug.ts _(debug element — lower priority)_
 

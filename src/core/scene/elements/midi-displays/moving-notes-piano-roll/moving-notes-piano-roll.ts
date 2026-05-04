@@ -3,26 +3,21 @@ import { SceneElement } from '@core/scene/elements/base';
 import { EnhancedConfigSchema, type PropertyDefinition } from '@core/types.js';
 import { Line, EmptyRenderObject, RenderObject, Rectangle, GlowLayer } from '@core/render/render-objects';
 import { getAnimationSelectOptions } from '@core/scene/elements/midi-displays/note-animations';
-import { normalizeColorAlphaValue, ensureEightDigitHex } from '@utils/color';
+import { normalizeColorAlphaValue, ensureEightDigitHex, applyOpacity } from '@utils/color';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { MovingNotesAnimationController } from './animation-controller';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { TimingManager } from '@core/timing';
 import { insertElementGroups, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
-const DEFAULT_NOTE_COLOR = '#FF6B6BCC';
+const DEFAULT_NOTE_COLOR = '#FF6B6B';
 
 const applyLegacyOpacity = (color: string, opacity?: number): string => {
     const sanitized = ensureEightDigitHex(color, DEFAULT_NOTE_COLOR);
     if (opacity === undefined || opacity === null) {
         return sanitized;
     }
-    const clamped = Math.max(0, Math.min(1, opacity));
-    const alphaHex = Math.round(clamped * 255)
-        .toString(16)
-        .padStart(2, '0')
-        .toUpperCase();
-    return `${sanitized.slice(0, 7)}${alphaHex}`;
+    return applyOpacity(sanitized, opacity);
 };
 
 export class MovingNotesPianoRollElement extends SceneElement {
@@ -105,11 +100,14 @@ export class MovingNotesPianoRollElement extends SceneElement {
             })
         );
 
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Moving Notes Piano Roll',
-            description: 'Notes move past a static playhead',
-            category: 'MIDI Displays',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
+            {
+                name: 'Moving Notes Piano Roll',
+                description: 'Notes move past a static playhead',
+                category: 'MIDI Displays',
+            },
+            [
                 {
                     id: 'midiSource',
                     label: 'MIDI Source',
@@ -130,7 +128,9 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     description: 'Configure viewport width, time window, and pitch range.',
                     properties: [
                         prop.number('rollWidth', 'Roll Width (px)', 800, {
-                            min: 100, max: 4000, step: 10,
+                            min: 100,
+                            max: 4000,
+                            step: 10,
                             description: 'Total width for the moving-notes viewport.',
                         }),
                         prop.number('timeUnitBars', 'Time Unit (bars)', 1, { min: 1, max: 8, step: 1 }),
@@ -166,33 +166,55 @@ export class MovingNotesPianoRollElement extends SceneElement {
                         prop.boolean('useChannelColors', 'Use Per-Channel Colors', false, {
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
                         }),
-                        prop.colorAlpha('noteColor', 'Note Color', DEFAULT_NOTE_COLOR, {
+                        prop.color('noteColor', 'Note Color', DEFAULT_NOTE_COLOR, {
+                            visibleWhen: [
+                                { key: 'showNotes', truthy: true },
+                                { key: 'useChannelColors', falsy: true },
+                            ],
+                        }),
+                        prop.range('noteOpacity', 'Note Opacity', 0.8, {
+                            min: 0,
+                            max: 1,
+                            step: 0.01,
                             visibleWhen: [
                                 { key: 'showNotes', truthy: true },
                                 { key: 'useChannelColors', falsy: true },
                             ],
                         }),
                         prop.number('noteHeight', 'Note Height (px)', 20, {
-                            min: 4, max: 40, step: 1,
+                            min: 4,
+                            max: 40,
+                            step: 1,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
                         }),
                         prop.number('noteCornerRadius', 'Note Corner Radius (px)', 2, {
-                            min: 0, max: 20, step: 1,
+                            min: 0,
+                            max: 20,
+                            step: 1,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
                         }),
                         prop.color('noteStrokeColor', 'Note Stroke Color', '#ffffff', {
-                            visibleWhen: [{ key: 'showNotes', truthy: true }, { key: 'noteStrokeWidth', truthy: true }],
+                            visibleWhen: [
+                                { key: 'showNotes', truthy: true },
+                                { key: 'noteStrokeWidth', truthy: true },
+                            ],
                         }),
                         prop.number('noteStrokeWidth', 'Note Stroke Width (px)', 0, {
-                            min: 0, max: 10, step: 1,
+                            min: 0,
+                            max: 10,
+                            step: 1,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
                         }),
                         prop.number('noteGlowBlur', 'Note Glow Blur (px)', 0, {
-                            min: 0, max: 50, step: 1,
+                            min: 0,
+                            max: 50,
+                            step: 1,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
                         }),
                         prop.number('noteGlowOpacity', 'Note Glow Opacity', 0.5, {
-                            min: 0, max: 1, step: 0.05,
+                            min: 0,
+                            max: 1,
+                            step: 0.05,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
                         }),
                         ...channelColorProperties,
@@ -204,7 +226,8 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             values: {
                                 showNotes: true,
                                 noteHeight: 20,
-                                noteColor: '#FF6B6BD9',
+                                noteColor: '#FF6B6B',
+                                noteOpacity: 0.85,
                                 noteGlowOpacity: 0.4,
                             },
                         },
@@ -213,7 +236,8 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             label: 'Ghosted',
                             values: {
                                 showNotes: true,
-                                noteColor: '#FF6B6B80',
+                                noteColor: '#FF6B6B',
+                                noteOpacity: 0.5,
                                 noteGlowOpacity: 0.2,
                                 noteStrokeWidth: 1,
                             },
@@ -223,7 +247,8 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             label: 'Neon',
                             values: {
                                 showNotes: true,
-                                noteColor: '#FF6B6BE6',
+                                noteColor: '#FF6B6B',
+                                noteOpacity: 0.9,
                                 noteGlowOpacity: 0.7,
                                 noteGlowBlur: 12,
                             },
@@ -275,7 +300,9 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     properties: [
                         prop.boolean('showPiano', 'Show Piano', false),
                         prop.number('pianoWidth', 'Piano Width (px)', 0, {
-                            min: 80, max: 300, step: 10,
+                            min: 80,
+                            max: 300,
+                            step: 10,
                             visibleWhen: [{ key: 'showPiano', truthy: true }],
                         }),
                         prop.color('whiteKeyColor', 'White Key Color', '#f0f0f0', {
@@ -285,14 +312,18 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             visibleWhen: [{ key: 'showPiano', truthy: true }],
                         }),
                         prop.number('pianoOpacity', 'Piano Opacity', 1, {
-                            min: 0, max: 1, step: 0.05,
+                            min: 0,
+                            max: 1,
+                            step: 0.05,
                             visibleWhen: [{ key: 'showPiano', truthy: true }],
                         }),
                         prop.color('pianoRightBorderColor', 'Piano Right Border', '#333333', {
                             visibleWhen: [{ key: 'showPiano', truthy: true }],
                         }),
                         prop.number('pianoRightBorderWidth', 'Piano Right Border Width (px)', 2, {
-                            min: 0, max: 10, step: 1,
+                            min: 0,
+                            max: 10,
+                            step: 1,
                             visibleWhen: [{ key: 'showPiano', truthy: true }],
                         }),
                     ],
@@ -328,14 +359,17 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     description: 'Choose how notes animate when triggered.',
                     properties: [
                         prop.select('animationType', 'Animation Type', 'expand', [
-                            ...getAnimationSelectOptions(), { value: 'none', label: 'No Animation' },
+                            ...getAnimationSelectOptions(),
+                            { value: 'none', label: 'No Animation' },
                         ]),
                         prop.number('attackDuration', 'Attack Duration (s)', 0.3, { min: 0, max: 10, step: 0.05 }),
                         prop.number('decayDuration', 'Decay Duration (s)', 0.3, { min: 0, max: 10, step: 0.05 }),
                         prop.number('releaseDuration', 'Release Duration (s)', 0.3, { min: 0, max: 10, step: 0.05 }),
                         prop.number('playheadPosition', 'Playhead Position (0–1)', 0.5, { min: 0, max: 1, step: 0.01 }),
                         prop.number('playheadOffset', 'Playhead Offset (px)', 0, {
-                            min: -4000, max: 4000, step: 1,
+                            min: -4000,
+                            max: 4000,
+                            step: 1,
                             description: 'Pixel offset added to playhead position within the element width.',
                         }),
                     ],
@@ -375,11 +409,19 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     description: 'Style the static playhead indicator.',
                     properties: [
                         prop.boolean('showPlayhead', 'Show Playhead', true),
-                        prop.colorAlpha('playheadColor', 'Playhead Color', '#ff6b6bff', {
+                        prop.color('playheadColor', 'Playhead Color', '#ff6b6b', {
+                            visibleWhen: [{ key: 'showPlayhead', truthy: true }],
+                        }),
+                        prop.range('playheadOpacity', 'Playhead Opacity', 1, {
+                            min: 0,
+                            max: 1,
+                            step: 0.01,
                             visibleWhen: [{ key: 'showPlayhead', truthy: true }],
                         }),
                         prop.number('playheadLineWidth', 'Playhead Line Width (px)', 2, {
-                            min: 1, max: 10, step: 1,
+                            min: 1,
+                            max: 10,
+                            step: 1,
                             visibleWhen: [{ key: 'showPlayhead', truthy: true }],
                         }),
                     ],
@@ -405,7 +447,8 @@ export class MovingNotesPianoRollElement extends SceneElement {
                         { id: 'hidden', label: 'Hidden', values: { showPlayhead: false } },
                     ],
                 },
-        ]);
+            ]
+        );
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
@@ -424,7 +467,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const noteHeight = Math.max(4, Math.min(40, props.noteHeight ?? 20));
         const showPlayhead = props.showPlayhead ?? true;
         const playheadLineWidth = Math.max(0, props.playheadLineWidth ?? 2);
-        const playheadColor = props.playheadColor ?? '#ff6b6b';
+        const playheadColor = applyOpacity((props.playheadColor ?? '#ff6b6b') as string, props.playheadOpacity ?? 1);
         const playheadPosition = Math.max(0, Math.min(1, props.playheadPosition ?? 0.25));
         const playheadOffset = props.playheadOffset ?? 0;
         const showPiano = props.showPiano ?? false;
@@ -487,17 +530,19 @@ export class MovingNotesPianoRollElement extends SceneElement {
         // Fetch notes for this window from public plugin host API
         const rawNotes =
             props.midiTrackId && status === 'ok' && api
-                ? api.timeline.selectNotesInWindow({
-                      trackIds: [props.midiTrackId as string],
-                      startSec: windowStart,
-                      endSec: windowEnd,
-                  }).map((n) => ({
-                      note: n.note,
-                      channel: n.channel,
-                      velocity: n.velocity || 0,
-                      startTime: n.startTime,
-                      endTime: n.endTime,
-                  }))
+                ? api.timeline
+                      .selectNotesInWindow({
+                          trackIds: [props.midiTrackId as string],
+                          startSec: windowStart,
+                          endSec: windowEnd,
+                      })
+                      .map((n) => ({
+                          note: n.note,
+                          channel: n.channel,
+                          velocity: n.velocity || 0,
+                          startTime: n.startTime,
+                          endTime: n.endTime,
+                      }))
                 : [];
 
         // Notes moving past static playhead
@@ -622,15 +667,17 @@ export class MovingNotesPianoRollElement extends SceneElement {
     // Macro bindings for bpm/beat removed
     getChannelColors(): string[] {
         const props = this.getSchemaProps();
-        const rawBaseColor = (props.noteColor ?? props.channel0Color ?? DEFAULT_NOTE_COLOR) as string;
-        const baseColor = normalizeColorAlphaValue(rawBaseColor, DEFAULT_NOTE_COLOR);
+        const baseColor = applyOpacity(
+            (props.noteColor ?? props.channel0Color ?? DEFAULT_NOTE_COLOR) as string,
+            props.noteOpacity ?? 0.8
+        );
         if (!props.useChannelColors) {
             return Array.from({ length: 16 }, () => baseColor);
         }
 
         return Array.from({ length: 16 }, (_, index) => {
-            const rawChannelColor = (props[`channel${index}Color`] as string | undefined) ?? baseColor;
-            return normalizeColorAlphaValue(rawChannelColor, baseColor);
+            const rawChannelColor = props[`channel${index}Color`] as string | undefined;
+            return rawChannelColor ? normalizeColorAlphaValue(rawChannelColor, baseColor) : baseColor;
         });
     }
 }
