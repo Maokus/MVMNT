@@ -40,7 +40,6 @@ Text-using elements are inconsistent and under-featured. Several expose `fontFam
 
 **Add to all text-using elements:**
 
-- `fontWeight` (100–900 or bold/normal — many families already support this via the font picker, but make it explicit)
 - `textAlign` (left/center/right) — currently some hardcode this
 - `letterSpacing` (px)
 - Text stroke: `textStrokeColor` + `textStrokeWidth`
@@ -140,13 +139,6 @@ Among the better-designed elements. Gaps:
 - `cornerRadius` for the bar
 - `showPercentage` toggle alongside or instead of time
 
-### Debug
-
-This appears to be an incomplete placeholder. Either:
-
-- Remove it from the default suite until it's real, or
-- Implement proper debugging: `showBounds`, `showAnchorPoint`, `showTransformGizmo`, `showGrid`
-
 ### Audio Spectrum
 
 Very solid. Improvements:
@@ -237,7 +229,6 @@ The most feature-complete element. Specific gaps:
 2. Add `textAlign` + `textBaseline` to all text elements
 3. Add `fontWeight` to all text elements
 4. Add `blendMode` to Image and Text Overlay
-5. Fix the `Debug` element (remove or complete)
 
 ### Short-term (highest user value)
 
