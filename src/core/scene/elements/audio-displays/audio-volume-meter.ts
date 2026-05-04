@@ -6,6 +6,7 @@ import { normalizeChannelSelectorInput, selectChannelSample } from '@audio/audio
 import { applyOpacity } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { propGroup } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -49,13 +50,14 @@ export class AudioVolumeMeterElement extends SceneElement {
                 category: 'Audio Displays',
             },
             [
+                propGroup.audioSource(),
+                propGroup.appearance(),
                 {
-                    id: 'volumeMeterBasics',
+                    id: 'volumeMeter',
                     label: 'Volume Meter',
                     variant: 'basic',
                     collapsed: false,
                     properties: [
-                        prop.audioTrack('audioTrackId', 'Audio Track'),
                         {
                             key: 'channelSelector',
                             type: 'string',
@@ -71,8 +73,6 @@ export class AudioVolumeMeterElement extends SceneElement {
                         prop.number('height', 'Height (px)', 240, { step: 1 }),
                         prop.number('minValue', 'Minimum Value', 0, { step: 0.01 }),
                         prop.number('maxValue', 'Maximum Value', 1, { step: 0.01 }),
-                        prop.color('color', 'Color', DEFAULT_METER_COLOR),
-                        prop.range('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                         prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
                         prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
                         prop.boolean('showValue', 'Show Value Label', true),

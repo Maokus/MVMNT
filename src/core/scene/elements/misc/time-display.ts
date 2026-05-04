@@ -1,7 +1,18 @@
 // Time display element for showing current time with property bindings
-import { SceneElement, type EnhancedConfigSchema, prop, insertElementGroups, ensureFontLoaded, parseFontSelection, getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import {
+    SceneElement,
+    type EnhancedConfigSchema,
+    prop,
+    insertElementGroups,
+    ensureFontLoaded,
+    parseFontSelection,
+    getPluginHostApi,
+    PLUGIN_CAPABILITIES,
+    propGroup,
+} from '@mvmnt/plugin-sdk';
 import { Text, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import { TimingManager } from '@core/timing';
+import { applyOpacity } from '@utils/color';
 
 interface BarBeatTick {
     bar: number;
@@ -27,52 +38,57 @@ export class TimeDisplayElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Time Display',
-            description: 'Current time and beat position display',
-            category: 'Misc',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'timeDisplay',
-                label: 'Time Display',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Adjust offsets and typography for the timer.',
-                properties: [
-                    prop.number('offsetBars', 'Offset Bars', 0, {
-                        min: -512, max: 512, step: 1,
-                        description: 'Shift the displayed musical + real time by this many bars (can be negative).',
-                    }),
-                    prop.boolean('showProgress', 'Show Progress Bars', true),
-                    prop.font('fontFamily', 'Font Family', 'Inter', {
-                        description: 'Font family (Google Fonts supported).',
-                    }),
-                    prop.color('textColor', 'Primary Text Color', '#FFFFFF', {
-                        description: 'Color for the main time and beat numbers.',
-                    }),
-                    prop.color('textSecondaryColor', 'Secondary Text Color', 'rgba(255, 255, 255, 0.9)', {
-                        description: 'Color for labels and secondary text.',
-                    }),
-                ],
-                presets: [
-                    {
-                        id: 'concertTimer',
-                        label: 'Concert Timer',
-                        values: { fontFamily: 'Inter|600', textColor: '#f8fafc', textSecondaryColor: '#cbd5f5' },
-                    },
-                    {
-                        id: 'techOverlay',
-                        label: 'Tech Overlay',
-                        values: { fontFamily: 'Inter|500', textColor: '#22d3ee', textSecondaryColor: '#94a3b8' },
-                    },
-                    {
-                        id: 'minimalClock',
-                        label: 'Minimal Clock',
-                        values: { fontFamily: 'Inter|400', textColor: '#f5f5f5', textSecondaryColor: '#a3a3a3' },
-                    },
-                ],
+                name: 'Time Display',
+                description: 'Current time and beat position display',
+                category: 'Misc',
             },
-        ]);
+            [
+                {
+                    id: 'timeDisplay',
+                    label: 'Time Display',
+                    variant: 'basic',
+                    collapsed: false,
+                    description: 'Adjust offsets and primary colors for the timer.',
+                    properties: [
+                        prop.number('offsetBars', 'Offset Bars', 0, {
+                            min: -512,
+                            max: 512,
+                            step: 1,
+                            description: 'Shift the displayed musical + real time by this many bars (can be negative).',
+                        }),
+                        prop.boolean('showProgress', 'Show Progress Bars', true),
+                        prop.color('color', 'Primary Text Color', '#FFFFFF', {
+                            description: 'Color for the main time and beat numbers.',
+                        }),
+                        prop.color('textSecondaryColor', 'Secondary Text Color', 'rgba(255, 255, 255, 0.9)', {
+                            description: 'Color for labels and secondary text.',
+                        }),
+                    ],
+                    presets: [
+                        {
+                            id: 'concertTimer',
+                            label: 'Concert Timer',
+                            values: { fontFamily: 'Inter|600', color: '#f8fafc', textSecondaryColor: '#cbd5f5' },
+                        },
+                        {
+                            id: 'techOverlay',
+                            label: 'Tech Overlay',
+                            values: { fontFamily: 'Inter|500', color: '#22d3ee', textSecondaryColor: '#94a3b8' },
+                        },
+                        {
+                            id: 'minimalClock',
+                            label: 'Minimal Clock',
+                            values: { fontFamily: 'Inter|400', color: '#f5f5f5', textSecondaryColor: '#a3a3a3' },
+                        },
+                    ],
+                },
+                propGroup.typography(),
+                propGroup.container(),
+            ]
+        );
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
@@ -87,8 +103,9 @@ export class TimeDisplayElement extends SceneElement {
         const fontSelection = props.fontFamily ?? 'Inter';
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
         const fontWeight = (weightPart || '400').toString();
-        const textColor = props.textColor ?? '#FFFFFF';
+        const textColor = props.color ?? props.textColor ?? '#FFFFFF';
         const textSecondaryColor = props.textSecondaryColor ?? 'rgba(255, 255, 255, 0.9)';
+        const baseFontSize = props.fontSize ?? 24;
 
         // Update timing manager via plugin API (timeline.read capability)
         const { api } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
@@ -100,11 +117,6 @@ export class TimeDisplayElement extends SceneElement {
         if (snapshot?.timeline.masterTempoMap && snapshot.timeline.masterTempoMap.length > 0)
             this.timingManager.setTempoMap(snapshot.timeline.masterTempoMap, 'seconds');
         else this.timingManager.setTempoMap(null);
-        // Don't force a specific PPQ; respect MIDI data when available
-
-        // Debug logging for timing calculations
-        // const secondsPerBeat = this.timingManager.getSecondsPerBeat();
-        // console.log(`TimeDisplay [${this.id}]: BPM=${bpm}, SecondsPerBeat=${secondsPerBeat.toFixed(4)}, Tempo=${this.timingManager.tempo}`);
 
         // Apply offsetBars (display only). We convert the bar offset to seconds using current tempo context.
         // This keeps internal timing intact while shifting only what is shown.
@@ -113,8 +125,8 @@ export class TimeDisplayElement extends SceneElement {
         if (offsetBars !== 0) {
             try {
                 // For tempo-mapped timelines, approximate by converting bars->beats->seconds via timing manager.
-                const beatsPerBar = this.timingManager.beatsPerBar;
-                const offsetBeats = offsetBars * beatsPerBar;
+                const beatsPerBarLocal = this.timingManager.beatsPerBar;
+                const offsetBeats = offsetBars * beatsPerBarLocal;
                 const offsetSeconds = this.timingManager.beatsToSeconds(offsetBeats);
                 displayTime = targetTime + offsetSeconds;
             } catch {
@@ -132,8 +144,6 @@ export class TimeDisplayElement extends SceneElement {
         const milliseconds = Math.floor(totalMs % 1000);
 
         const minSecMs: MinSecMs = { minutes, seconds, milliseconds };
-
-        const baseFontSize = 24; // Fixed size, scaling handled by transform system
 
         // Format display text with zero-padding
         const barText = String(barBeatTick.bar).padStart(3, '0');
@@ -228,6 +238,23 @@ export class TimeDisplayElement extends SceneElement {
             );
 
             renderObjects.push(tickBarBg, tickBar, beatBarBg, beatBar);
+        }
+
+        // Background container if enabled
+        if (props.showBackground) {
+            const paddingX = props.backgroundPaddingX ?? 8;
+            const paddingY = props.backgroundPaddingY ?? 4;
+            const totalHeight = showProgress ? beatY + baseFontSize * 0.6 : beatY + baseFontSize * 0.3;
+            const bgColor = applyOpacity(props.backgroundColor ?? '#000000', props.backgroundOpacity ?? 0.8);
+            const bg = new Rectangle(
+                x - paddingX,
+                -baseFontSize - paddingY,
+                baseFontSize * 6 + paddingX * 2,
+                totalHeight + baseFontSize + paddingY * 2,
+                bgColor
+            );
+            bg.cornerRadius = props.backgroundCornerRadius ?? 4;
+            renderObjects.unshift(bg);
         }
 
         return renderObjects;

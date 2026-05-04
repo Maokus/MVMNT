@@ -4,20 +4,22 @@ _Phase 0 audit — May 2026. Prerequisite for all subsequent phases of the suite
 
 **Phase 1 complete** — all `colorAlpha` props split to `color` + `opacity`. TypeScript: zero errors.
 
+**Phase 2 complete** — `propGroup.*` applied across all builtin elements. TypeScript: zero errors.
+
 ---
 
 ## Phase 0 — Infrastructure
 
-- [ ] Implement `propGroup.*` namespace (`plugin-sdk-prop-groups.ts` or extend `plugin-sdk-prop-factories.ts`)
-    - [ ] `propGroup.appearance(opts?)` — `color`, `opacity`; opt-in `blendMode`
-    - [ ] `propGroup.typography(opts?)` — `fontFamily`, `fontSize`, `textAlign`, `letterSpacing`; opt-in `stroke`, `textShadow`
-    - [ ] `propGroup.border(opts?)` — `borderColor`, `borderWidth`; opt-in `cornerRadius`
-    - [ ] `propGroup.container()` — `showBackground`, `backgroundColor`, `backgroundOpacity`, `backgroundPaddingX/Y`, `backgroundCornerRadius`
-    - [ ] `propGroup.shadow()` — `shadowEnabled`, `shadowColor`, `shadowBlur`, `shadowOffsetX/Y`
-    - [ ] `propGroup.audioSource(key?)` — source group wrapping `audioTrackId`
-    - [ ] `propGroup.midiSource(key?)` — source group wrapping `midiTrackId`
-- [ ] Export `BLEND_MODE_CHOICES` constant (16 modes, `source-over` first)
-- [ ] Co-export from `plugin-sdk.ts` surface if these groups should be available to plugin authors
+- [x] Implement `propGroup.*` namespace (`plugin-sdk-prop-groups.ts` or extend `plugin-sdk-prop-factories.ts`)
+    - [x] `propGroup.appearance(opts?)` — `color`, `opacity`; opt-in `blendMode`
+    - [x] `propGroup.typography(opts?)` — `fontFamily`, `fontSize`, `textAlign`, `letterSpacing`; opt-in `stroke`, `textShadow`
+    - [x] `propGroup.border(opts?)` — `borderColor`, `borderWidth`; opt-in `cornerRadius`
+    - [x] `propGroup.container()` — `showBackground`, `backgroundColor`, `backgroundOpacity`, `backgroundPaddingX/Y`, `backgroundCornerRadius`
+    - [x] `propGroup.shadow()` — `shadowEnabled`, `shadowColor`, `shadowBlur`, `shadowOffsetX/Y`
+    - [x] `propGroup.audioSource(key?)` — source group wrapping `audioTrackId`
+    - [x] `propGroup.midiSource(key?)` — source group wrapping `midiTrackId`
+- [x] Export `BLEND_MODE_CHOICES` constant (16 modes, `source-over` first)
+- [x] Co-export from `plugin-sdk.ts` surface if these groups should be available to plugin authors
 
 ---
 
@@ -170,105 +172,105 @@ Apply `propGroup.*` across elements per the applicability table. New props use s
 
 #### misc/background.ts
 
-- [ ] Replace `backgroundAppearance` group → `propGroup.appearance()`
-- [ ] Add `propGroup.border()`
-- [ ] Rename group from `backgroundAppearance` to canonical `'Appearance'`
+- [x] Replace `backgroundAppearance` group → `propGroup.appearance()`
+- [x] Add `propGroup.border()`
+- [x] Rename group from `backgroundAppearance` to canonical `'Appearance'`
 
 #### misc/basic-shapes.ts
 
-- [ ] Replace `shapeAppearance` `fillColor`+`strokeColor` with `propGroup.appearance({ blendMode: true })` (primary fill = `color`+`opacity`)
-- [ ] Replace `shapeShadow` group → `propGroup.shadow()`
-- [ ] Keep stroke as custom props in `'Border'`-style group (strokeColor, strokeWidth, lineCap, dash)
-- [ ] Use shared `BLEND_MODE_CHOICES` constant instead of inline array
+- [x] Replace `shapeAppearance` `fillColor`+`strokeColor` with `propGroup.appearance({ blendMode: true })` (primary fill = `color`+`opacity`)
+- [x] Replace `shapeShadow` group → `propGroup.shadow()`
+- [x] Keep stroke as custom props in `'Border'`-style group (strokeColor, strokeWidth, lineCap, dash)
+- [x] Use shared `BLEND_MODE_CHOICES` constant instead of inline array
 
 #### misc/image.ts
 
-- [ ] Add `propGroup.appearance({ blendMode: true })`
-- [ ] Add `propGroup.border({ cornerRadius: true })`
-- [ ] Add `propGroup.shadow()`
-- [ ] Use shared `BLEND_MODE_CHOICES`
+- [x] Add `propGroup.appearance({ blendMode: true })`
+- [x] Add `propGroup.border({ cornerRadius: true })`
+- [x] Add `propGroup.shadow()`
+- [x] Use shared `BLEND_MODE_CHOICES`
 
 #### misc/text-overlay.ts
 
-- [ ] Replace `typography` group → `propGroup.typography({ stroke: true })`
-- [ ] Add `propGroup.appearance({ blendMode: true })`
-- [ ] Add `propGroup.container()`
-- [ ] Add `textAlign`, `letterSpacing` (currently missing)
-- [ ] Use shared `BLEND_MODE_CHOICES`
+- [x] Replace `typography` group → `propGroup.typography({ stroke: true })`
+- [x] Add `propGroup.appearance({ blendMode: true })`
+- [x] Add `propGroup.container()`
+- [x] Add `textAlign`, `letterSpacing` (currently missing)
+- [x] Use shared `BLEND_MODE_CHOICES`
 
 #### misc/time-display.ts
 
-- [ ] Standardize `textColor` → `color` (in appearance group)
-- [ ] Add `propGroup.typography()`
-- [ ] Add `propGroup.container()`
-- [ ] Decide fate of `textSecondaryColor` (secondary label color — keep as custom prop or drop)
+- [x] Standardize `textColor` → `color` (in appearance group)
+- [x] Add `propGroup.typography()`
+- [x] Add `propGroup.container()`
+- [x] Decide fate of `textSecondaryColor` (secondary label color — keep as custom prop or drop)
 
 #### misc/progress-display.ts
 
-- [ ] Rename `progressAppearance` group → canonical `'Appearance'`
-- [ ] Standardize prop names: `barColor`/`barOpacity` → consider if bar color belongs in appearance or a sub-section
-- [ ] Add `propGroup.typography()` for stats text labels
+- [x] Rename `progressAppearance` group → canonical `'Appearance'`
+- [x] Standardize prop names: `barColor`/`barOpacity` → consider if bar color belongs in appearance or a sub-section
+- [x] Add `propGroup.typography()` for stats text labels
 
 #### audio-displays/audio-spectrum.ts
 
-- [ ] Ensure `propGroup.audioSource()` used for `audioTrackId`
-- [ ] Wrap `color`+`opacity`+`blendMode` into `propGroup.appearance({ blendMode: true })`
-- [ ] Use shared `BLEND_MODE_CHOICES`
+- [x] Ensure `propGroup.audioSource()` used for `audioTrackId`
+- [x] Wrap `color`+`opacity`+`blendMode` into `propGroup.appearance({ blendMode: true })`
+- [x] Use shared `BLEND_MODE_CHOICES`
 
 #### audio-displays/audio-waveform.ts
 
-- [ ] Primary color → `propGroup.appearance({ blendMode: true })`
-- [ ] Secondary color stays as custom `secondaryColor`+`secondaryOpacity` props
-- [ ] Ensure `propGroup.audioSource()` for `audioTrackId`
-- [ ] Use shared `BLEND_MODE_CHOICES`
+- [x] Primary color → `propGroup.appearance({ blendMode: true })`
+- [x] Secondary color stays as custom `secondaryColor`+`secondaryOpacity` props
+- [x] Ensure `propGroup.audioSource()` for `audioTrackId`
+- [x] Use shared `BLEND_MODE_CHOICES`
 
 #### audio-displays/audio-volume-meter.ts
 
-- [ ] Wrap `color`+`opacity` into `propGroup.appearance()`
-- [ ] Add `propGroup.typography()` scoped to label display (for `showValue` label font)
-- [ ] Ensure `propGroup.audioSource()` for `audioTrackId`
+- [x] Wrap `color`+`opacity` into `propGroup.appearance()`
+- [x] Add `propGroup.typography()` scoped to label display (for `showValue` label font)
+- [x] Ensure `propGroup.audioSource()` for `audioTrackId`
 
 #### audio-displays/audio-locked-oscilloscope.ts
 
-- [ ] Wrap `color`+`opacity` into `propGroup.appearance({ blendMode: true })`
-- [ ] Ensure `propGroup.audioSource()` for `audioTrackId`
-- [ ] Use shared `BLEND_MODE_CHOICES`
+- [x] Wrap `color`+`opacity` into `propGroup.appearance({ blendMode: true })`
+- [x] Ensure `propGroup.audioSource()` for `audioTrackId`
+- [x] Use shared `BLEND_MODE_CHOICES`
 
 #### midi-displays/notes-played-tracker.ts
 
-- [ ] Rename `trackerSource` group → `propGroup.midiSource()`
-- [ ] Rename `appearance` group → `propGroup.appearance()`
-- [ ] Replace `textJustification`/`fontFamily`/`fontSize`/`lineSpacing` → `propGroup.typography()`
-- [ ] Add `propGroup.container()`
-- [ ] Note: `textJustification` uses `['left', 'right']` — Phase 2 should standardize to `textAlign: ['left', 'center', 'right']`
+- [x] Rename `trackerSource` group → `propGroup.midiSource()`
+- [x] Rename `appearance` group → `propGroup.appearance()`
+- [x] Replace `textJustification`/`fontFamily`/`fontSize`/`lineSpacing` → `propGroup.typography()`
+- [x] Add `propGroup.container()`
+- [x] Note: `textJustification` uses `['left', 'right']` — Phase 2 should standardize to `textAlign: ['left', 'center', 'right']`
 
 #### midi-displays/notes-playing-display.ts
 
-- [ ] Same as Notes Played Tracker above (identical structure)
+- [x] Same as Notes Played Tracker above (identical structure)
 
 #### midi-displays/cc-monitor.ts
 
-- [ ] Rename `ccSource` → `propGroup.midiSource()`
-- [ ] Rename `ccTypography` → `propGroup.typography()`
-- [ ] Standardize `textColor` → `color` in typography group
-- [ ] Add `propGroup.appearance()` wrapping the standardized `color`+`opacity`
+- [x] Rename `ccSource` → `propGroup.midiSource()`
+- [x] Rename `ccTypography` → `propGroup.typography()`
+- [x] Standardize `textColor` → `color` in typography group
+- [x] Add `propGroup.appearance()` wrapping the standardized `color`+`opacity`
 
 #### midi-displays/chord-estimate-display.ts
 
-- [ ] Rename `chordSource` → `propGroup.midiSource()`
-- [ ] Replace `appearance` group's color+font → `propGroup.appearance()` + `propGroup.typography()`
-- [ ] Replace `textJustification` → `textAlign` with full `['left', 'center', 'right']`
-- [ ] Add `propGroup.container()`
+- [x] Rename `chordSource` → `propGroup.midiSource()`
+- [x] Replace `appearance` group's color+font → `propGroup.appearance()` + `propGroup.typography()`
+- [x] Replace `textJustification` → `textAlign` with full `['left', 'center', 'right']`
+- [x] Add `propGroup.container()`
 
 #### midi-displays/moving-notes-piano-roll.ts
 
-- [ ] Add `propGroup.midiSource()` (rename `midiSource` group)
-- [ ] Add `propGroup.appearance()` for the primary note color (`color`+`opacity`)
-- [ ] Keep channel colors (`channel0Color`–`channel15Color`) as custom multi-color props
+- [x] Add `propGroup.midiSource()` (rename `midiSource` group)
+- [x] Add `propGroup.appearance()` for the primary note color (`color`+`opacity`)
+- [x] Keep channel colors (`channel0Color`–`channel15Color`) as custom multi-color props
 
 #### midi-displays/time-unit-piano-roll.ts
 
-- [ ] Same piano-roll approach as above
+- [x] Same piano-roll approach as above
 
 ---
 

@@ -1,11 +1,13 @@
 // Notes Playing Display: show currently playing notes per channel/track
 import { SceneElement } from '../base';
 import { EnhancedConfigSchema } from '@core/types.js';
-import { RenderObject, Text } from '@core/render/render-objects';
+import { RenderObject, Text, Rectangle } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { propGroup } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { applyOpacity } from '@utils/color';
 
 export class NotesPlayingDisplayElement extends SceneElement {
     constructor(id: string = 'notesPlayingDisplay', config: { [key: string]: any } = {}) {
@@ -13,61 +15,67 @@ export class NotesPlayingDisplayElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Notes Playing Display',
-            description: 'Displays active notes and velocities per track/channel (timeline-backed)',
-            category: 'MIDI Displays',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'playingContent',
-                label: 'Source',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Select which MIDI track(s) feed the live note readout.',
-                properties: [
-                    prop.midiTrack('midiTrackId', 'MIDI Track'),
-                    prop.boolean('showAllAvailableTracks', 'Show All Tracks When Idle', false),
-                ],
-                presets: [
-                    { id: 'singleTrack', label: 'Single Track', values: { showAllAvailableTracks: false } },
-                    { id: 'multiTrack', label: 'Multi-Track Overview', values: { showAllAvailableTracks: true } },
-                ],
+                name: 'Notes Playing Display',
+                description: 'Displays active notes and velocities per track/channel (timeline-backed)',
+                category: 'MIDI Displays',
             },
-            {
-                id: 'appearance',
-                label: 'Typography',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Tweak alignment and spacing for the note list.',
-                properties: [
-                    prop.select('textJustification', 'Text Alignment', 'left', [
-                        { value: 'left', label: 'Left' },
-                        { value: 'right', label: 'Right' },
-                    ]),
-                    prop.font('fontFamily', 'Font Family', 'Inter'),
-                    prop.number('fontSize', 'Font Size (px)', 30, { step: 1 }),
-                    prop.color('color', 'Text Color', '#cccccc'),
-                    prop.number('lineSpacing', 'Line Spacing (px)', 4, { step: 1 }),
-                ],
-                presets: [
-                    {
-                        id: 'compact',
-                        label: 'Compact List',
-                        values: { fontSize: 24, lineSpacing: 2, color: '#cbd5f5' },
-                    },
-                    {
-                        id: 'stageReadout',
-                        label: 'Stage Readout',
-                        values: { fontSize: 36, lineSpacing: 6, color: '#f8fafc' },
-                    },
-                    {
-                        id: 'monitor',
-                        label: 'Monitor Overlay',
-                        values: { fontSize: 28, lineSpacing: 4, color: '#22d3ee' },
-                    },
-                ],
-            },
-        ]);
+            [
+                {
+                    id: 'midiSource',
+                    label: 'Source',
+                    variant: 'basic',
+                    collapsed: false,
+                    description: 'Select which MIDI track(s) feed the live note readout.',
+                    properties: [
+                        prop.midiTrack('midiTrackId', 'MIDI Track'),
+                        prop.boolean('showAllAvailableTracks', 'Show All Tracks When Idle', false),
+                    ],
+                    presets: [
+                        { id: 'singleTrack', label: 'Single Track', values: { showAllAvailableTracks: false } },
+                        { id: 'multiTrack', label: 'Multi-Track Overview', values: { showAllAvailableTracks: true } },
+                    ],
+                },
+                propGroup.appearance(),
+                {
+                    id: 'typography',
+                    label: 'Typography',
+                    variant: 'basic',
+                    collapsed: false,
+                    description: 'Tweak alignment and spacing for the note list.',
+                    properties: [
+                        prop.font('fontFamily', 'Font Family', 'Inter'),
+                        prop.number('fontSize', 'Font Size (px)', 30, { min: 6, max: 72, step: 1 }),
+                        prop.select('textAlign', 'Text Alignment', 'left', [
+                            { value: 'left', label: 'Left' },
+                            { value: 'center', label: 'Center' },
+                            { value: 'right', label: 'Right' },
+                        ]),
+                        prop.number('lineSpacing', 'Line Spacing (px)', 4, { min: 0, max: 40, step: 1 }),
+                    ],
+                    presets: [
+                        {
+                            id: 'compact',
+                            label: 'Compact List',
+                            values: { fontSize: 24, lineSpacing: 2, color: '#cbd5f5' },
+                        },
+                        {
+                            id: 'stageReadout',
+                            label: 'Stage Readout',
+                            values: { fontSize: 36, lineSpacing: 6, color: '#f8fafc' },
+                        },
+                        {
+                            id: 'monitor',
+                            label: 'Monitor Overlay',
+                            values: { fontSize: 28, lineSpacing: 4, color: '#22d3ee' },
+                        },
+                    ],
+                },
+                propGroup.container(),
+            ]
+        );
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
@@ -110,7 +118,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
         const fontWeight = (weightPart || '400').toString();
         const fontSize = props.fontSize ?? 30;
-        const color = props.color ?? '#cccccc';
+        const color = applyOpacity(props.color ?? '#cccccc', props.opacity ?? 1);
         const lineSpacing = props.lineSpacing ?? 4;
         if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const font = `${fontWeight} ${fontSize}px ${fontFamily || 'Inter'}, sans-serif`;
@@ -152,8 +160,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
 
         let y = 0;
         if ((byChannel.size === 0 || targetTime < 0) && !showAll) {
-            const justification = props.textJustification ?? ('left' as CanvasTextAlign);
-            // Placeholder when nothing is playing
+            const justification = (props.textAlign ?? props.textJustification ?? 'left') as CanvasTextAlign;
             const placeholderLeft = justification === 'left';
             const staticPrefix = placeholderLeft ? 'Track 1 > ' : ' < Track 1';
             const dynamicText = 'Note: ';
@@ -176,10 +183,18 @@ export class NotesPlayingDisplayElement extends SceneElement {
                 dynamicObj.x = -measureWidth(staticPrefix, font); // place to the left of static (since align right)
                 renderObjects.push(dynamicObj, staticObj);
             }
+            if (props.showBackground) {
+                const paddingX = props.backgroundPaddingX ?? 8;
+                const paddingY = props.backgroundPaddingY ?? 4;
+                const bgColor = applyOpacity(props.backgroundColor ?? '#000000', props.backgroundOpacity ?? 0.8);
+                const bg = new Rectangle(-paddingX, -paddingY, 400 + paddingX * 2, 120 + paddingY * 2, bgColor);
+                if (props.backgroundCornerRadius) bg.cornerRadius = props.backgroundCornerRadius;
+                renderObjects.unshift(bg);
+            }
             return renderObjects;
         }
 
-        const justification = props.textJustification ?? ('left' as CanvasTextAlign);
+        const justification = (props.textAlign ?? props.textJustification ?? 'left') as CanvasTextAlign;
         const sortedChannels = Array.from(byChannel.keys()).sort((a, b) => a - b);
         for (const ch of sortedChannels) {
             const list = byChannel.get(ch) || [];
@@ -215,6 +230,17 @@ export class NotesPlayingDisplayElement extends SceneElement {
                 renderObjects.push(staticObj);
             }
             y += fontSize + lineSpacing;
+        }
+
+        if (props.showBackground) {
+            const paddingX = props.backgroundPaddingX ?? 8;
+            const paddingY = props.backgroundPaddingY ?? 4;
+            const bgColor = applyOpacity(props.backgroundColor ?? '#000000', props.backgroundOpacity ?? 0.8);
+            const bgWidth = 400 + paddingX * 2;
+            const bgHeight = 120 + paddingY * 2;
+            const bg = new Rectangle(-paddingX, -paddingY, bgWidth, bgHeight, bgColor);
+            if (props.backgroundCornerRadius) bg.cornerRadius = props.backgroundCornerRadius;
+            renderObjects.unshift(bg);
         }
 
         return renderObjects;

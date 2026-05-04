@@ -7,6 +7,7 @@ import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { propGroup } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 const { descriptor: WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'waveform' });
 
@@ -549,13 +550,14 @@ export class AudioWaveformElement extends SceneElement {
                 category: 'Audio Displays',
             },
             [
+                propGroup.audioSource(),
+                propGroup.appearance({ blendMode: true }),
                 {
-                    id: 'oscilloscopeBasics',
+                    id: 'waveform',
                     label: 'Oscilloscope',
                     variant: 'basic',
                     collapsed: false,
                     properties: [
-                        prop.audioTrack('audioTrackId', 'Audio Track'),
                         {
                             key: 'windowSeconds',
                             type: 'number',
@@ -570,8 +572,6 @@ export class AudioWaveformElement extends SceneElement {
                                 defaultValue: 0.12,
                             },
                         },
-                        prop.number('width', 'Width (px)', 420, { step: 1 }),
-                        prop.number('height', 'Height (px)', 140, { step: 1 }),
                         {
                             key: 'side',
                             type: 'select',
@@ -618,36 +618,6 @@ export class AudioWaveformElement extends SceneElement {
                                 transform: (value) => normalizeWaveformChannel(value, DEFAULT_SECONDARY_CHANNEL),
                                 defaultValue: DEFAULT_SECONDARY_CHANNEL,
                             },
-                        },
-                        {
-                            key: 'color',
-                            type: 'color',
-                            label: 'Primary Color',
-                            default: DEFAULT_PRIMARY_LINE_COLOR,
-                            runtime: {
-                                transform: (value, element) => {
-                                    const legacyColor =
-                                        element instanceof AudioWaveformElement
-                                            ? element.readLegacyLineColor()
-                                            : undefined;
-                                    const candidate = (value as string | undefined) ?? legacyColor;
-                                    if (!candidate) return DEFAULT_PRIMARY_LINE_COLOR;
-                                    // Strip embedded alpha if present (legacy colorAlpha values)
-                                    const normalized = normalizeColorAlphaValue(candidate, DEFAULT_PRIMARY_LINE_COLOR);
-                                    return normalized.slice(0, 7); // '#RRGGBB'
-                                },
-                                defaultValue: DEFAULT_PRIMARY_LINE_COLOR,
-                            },
-                        },
-                        {
-                            key: 'opacity',
-                            type: 'range',
-                            label: 'Primary Opacity',
-                            default: 1,
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
-                            runtime: { transform: asNumber, defaultValue: 1 },
                         },
                         {
                             key: 'secondaryColor',
@@ -798,21 +768,6 @@ export class AudioWaveformElement extends SceneElement {
         );
     }
 
-    private readLegacyLineColor(): string | undefined {
-        if (!this.bindings.has('lineColor')) {
-            return undefined;
-        }
-        try {
-            const legacy = this.getProperty<string>('lineColor');
-            if (typeof legacy === 'string' && legacy.trim()) {
-                return normalizeColorAlphaValue(legacy, DEFAULT_PRIMARY_LINE_COLOR);
-            }
-        } catch {
-            return undefined;
-        }
-        return undefined;
-    }
-
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
         const width = props.width ?? 420;
@@ -832,6 +787,7 @@ export class AudioWaveformElement extends SceneElement {
         const density = clamp(typeof props.density === 'number' ? props.density : 1, 0.1, 1);
         const startOffset = clamp(typeof props.startOffset === 'number' ? props.startOffset : 0.5, 0, 1);
         const showPlayhead = props.showPlayhead === true;
+        const blendMode = (props.blendMode ?? 'source-over') as GlobalCompositeOperation;
 
         const descriptor = WAVEFORM_DESCRIPTOR;
 
@@ -934,6 +890,12 @@ export class AudioWaveformElement extends SceneElement {
                 lineWidth,
                 objects,
             });
+        }
+
+        if (blendMode !== 'source-over') {
+            for (let i = 1; i < objects.length; i++) {
+                objects[i].blendMode = blendMode;
+            }
         }
 
         if (showPlayhead) {

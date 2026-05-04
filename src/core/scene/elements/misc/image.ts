@@ -7,6 +7,7 @@ import {
     insertElementGroups,
     prop,
     VisualMediaPlayback,
+    propGroup,
 } from '@mvmnt/plugin-sdk';
 
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
@@ -63,6 +64,9 @@ export class ImageElement extends SceneElement {
                         }),
                     ],
                 },
+                propGroup.appearance({ blendMode: true }),
+                propGroup.border({ cornerRadius: true }),
+                propGroup.shadow(),
             ]
         );
     }
@@ -100,6 +104,25 @@ export class ImageElement extends SceneElement {
             .setFitMode(props.fitMode ?? 'contain')
             .setPreserveAspectRatio(props.preserveAspectRatio ?? true);
 
-        return [this._layoutRect, this._renderObject];
+        this._renderObject.opacity = props.opacity ?? 1;
+        const bm = (props.blendMode ?? 'source-over') as GlobalCompositeOperation;
+        this._renderObject.blendMode = bm === 'source-over' ? null : bm;
+
+        const result: RenderObject[] = [this._layoutRect, this._renderObject];
+        const borderWidth = props.borderWidth ?? 0;
+        if (borderWidth > 0) {
+            const borderRect = new Rectangle(
+                0,
+                0,
+                props.width,
+                props.height,
+                null,
+                props.borderColor ?? '#ffffff',
+                borderWidth
+            );
+            borderRect.cornerRadius = props.cornerRadius ?? 0;
+            result.push(borderRect);
+        }
+        return result;
     }
 }

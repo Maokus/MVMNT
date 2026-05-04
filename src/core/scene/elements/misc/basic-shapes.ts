@@ -1,4 +1,4 @@
-import { SceneElement, type EnhancedConfigSchema, prop, insertElementGroups } from '@mvmnt/plugin-sdk';
+import { SceneElement, type EnhancedConfigSchema, prop, insertElementGroups, propGroup } from '@mvmnt/plugin-sdk';
 import { Arc, Line, Poly, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import { applyOpacity } from '@utils/color';
 
@@ -48,17 +48,14 @@ export class BasicShapesElement extends SceneElement {
                         { id: 'line', label: 'Line', values: { shapeType: 'line' } },
                     ],
                 },
+                propGroup.appearance({ blendMode: true }),
                 {
-                    id: 'shapeAppearance',
-                    label: 'Appearance',
+                    id: 'shapeStroke',
+                    label: 'Stroke',
                     variant: 'basic',
                     collapsed: false,
-                    description: 'Fill, stroke, and blending for the shape.',
+                    description: 'Outline, dashing, and line cap for the shape.',
                     properties: [
-                        prop.color('fillColor', 'Fill Color', '#4488ff', {
-                            description: 'Interior fill color.',
-                        }),
-                        prop.range('fillOpacity', 'Fill Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                         prop.color('strokeColor', 'Stroke Color', '#ffffff', {
                             description: 'Outline color.',
                         }),
@@ -96,43 +93,19 @@ export class BasicShapesElement extends SceneElement {
                             description: 'Gap between dash segments.',
                             visibleWhen: [{ key: 'shapeType', notEquals: 'rectangle' }],
                         }),
-                        prop.select(
-                            'blendMode',
-                            'Blend Mode',
-                            'source-over',
-                            [
-                                { value: 'source-over', label: 'Normal' },
-                                { value: 'screen', label: 'Screen' },
-                                { value: 'multiply', label: 'Multiply' },
-                                { value: 'overlay', label: 'Overlay' },
-                                { value: 'darken', label: 'Darken' },
-                                { value: 'lighten', label: 'Lighten' },
-                                { value: 'color-dodge', label: 'Color Dodge' },
-                                { value: 'color-burn', label: 'Color Burn' },
-                                { value: 'hard-light', label: 'Hard Light' },
-                                { value: 'soft-light', label: 'Soft Light' },
-                                { value: 'difference', label: 'Difference' },
-                                { value: 'exclusion', label: 'Exclusion' },
-                                { value: 'hue', label: 'Hue' },
-                                { value: 'saturation', label: 'Saturation' },
-                                { value: 'color', label: 'Color' },
-                                { value: 'luminosity', label: 'Luminosity' },
-                            ],
-                            { description: 'Canvas composite blending operation.' }
-                        ),
                     ],
                     presets: [
                         {
                             id: 'filled',
                             label: 'Filled',
-                            values: { fillColor: '#4488ff', fillOpacity: 1, strokeWidth: 0 },
+                            values: { color: '#4488ff', opacity: 1, strokeWidth: 0 },
                         },
                         {
                             id: 'outlined',
                             label: 'Outlined',
                             values: {
-                                fillColor: '#4488ff',
-                                fillOpacity: 0,
+                                color: '#4488ff',
+                                opacity: 0,
                                 strokeColor: '#ffffff',
                                 strokeOpacity: 1,
                                 strokeWidth: 2,
@@ -142,8 +115,8 @@ export class BasicShapesElement extends SceneElement {
                             id: 'filledOutlined',
                             label: 'Filled + Outline',
                             values: {
-                                fillColor: '#4488ff',
-                                fillOpacity: 0.8,
+                                color: '#4488ff',
+                                opacity: 0.8,
                                 strokeColor: '#ffffff',
                                 strokeOpacity: 1,
                                 strokeWidth: 2,
@@ -239,41 +212,7 @@ export class BasicShapesElement extends SceneElement {
                         }),
                     ],
                 },
-                {
-                    id: 'shapeShadow',
-                    label: 'Shadow',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Drop shadow for the shape.',
-                    properties: [
-                        prop.boolean('shadowEnabled', 'Drop Shadow', false),
-                        prop.color('shadowColor', 'Shadow Color', '#000000', {
-                            description: 'Color of the drop shadow.',
-                            visibleWhen: [{ key: 'shadowEnabled', equals: true }],
-                        }),
-                        prop.number('shadowBlur', 'Shadow Blur (px)', 8, {
-                            min: 0,
-                            max: 100,
-                            step: 1,
-                            description: 'Blur radius of the drop shadow.',
-                            visibleWhen: [{ key: 'shadowEnabled', equals: true }],
-                        }),
-                        prop.number('shadowOffsetX', 'Shadow Offset X (px)', 2, {
-                            min: -200,
-                            max: 200,
-                            step: 1,
-                            description: 'Horizontal offset of the shadow.',
-                            visibleWhen: [{ key: 'shadowEnabled', equals: true }],
-                        }),
-                        prop.number('shadowOffsetY', 'Shadow Offset Y (px)', 2, {
-                            min: -200,
-                            max: 200,
-                            step: 1,
-                            description: 'Vertical offset of the shadow.',
-                            visibleWhen: [{ key: 'shadowEnabled', equals: true }],
-                        }),
-                    ],
-                },
+                propGroup.shadow(),
             ]
         );
     }
@@ -283,12 +222,12 @@ export class BasicShapesElement extends SceneElement {
         if (!props.visible) return [];
 
         const shapeType = (props.shapeType ?? 'rectangle') as ShapeType;
-        const fillOpacity = props.fillOpacity ?? 1;
+        const opacity = props.opacity ?? props.fillOpacity ?? 1;
         const strokeOpacity = props.strokeOpacity ?? 1;
         const strokeWidth = props.strokeWidth ?? 0;
         const blendMode = (props.blendMode ?? 'source-over') as GlobalCompositeOperation;
 
-        const effectiveFill = fillOpacity > 0 ? applyOpacity(props.fillColor ?? '#4488ff', fillOpacity) : null;
+        const effectiveFill = opacity > 0 ? applyOpacity(props.color ?? props.fillColor ?? '#4488ff', opacity) : null;
         const effectiveStroke =
             strokeWidth > 0 && strokeOpacity > 0 ? applyOpacity(props.strokeColor ?? '#ffffff', strokeOpacity) : null;
 

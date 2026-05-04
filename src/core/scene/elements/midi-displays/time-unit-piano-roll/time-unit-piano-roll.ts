@@ -11,6 +11,7 @@ import { getPluginHostApi, PLUGIN_CAPABILITIES, noteName } from '@mvmnt/plugin-s
 import { debugLog } from '@utils/debug-log';
 import { normalizeColorAlphaValue, ensureEightDigitHex, applyOpacity } from '@utils/color';
 import { insertElementGroups, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { propGroup } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 const DEFAULT_ROLL_WIDTH = 800;
 const DEFAULT_NOTE_COLOR = '#FF6B6B';
@@ -118,18 +119,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 category: 'MIDI Displays',
             },
             [
-                {
-                    id: 'midiSource',
-                    label: 'MIDI Source',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Choose which MIDI track drives the piano roll.',
-                    properties: [
-                        prop.midiTrack('midiTrackId', 'MIDI Track', {
-                            description: 'Pick a track from the current timeline session.',
-                        }),
-                    ],
-                },
+                propGroup.midiSource(),
+                propGroup.appearance(),
                 {
                     id: 'dimensions',
                     label: 'Layout & Range',
@@ -174,21 +165,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         prop.boolean('useChannelColors', 'Use Per-Channel Colors', false, {
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
                         }),
-                        prop.color('noteColor', 'Note Color', DEFAULT_NOTE_COLOR, {
-                            visibleWhen: [
-                                { key: 'showNotes', truthy: true },
-                                { key: 'useChannelColors', falsy: true },
-                            ],
-                        }),
-                        prop.range('noteOpacity', 'Note Opacity', 0.8, {
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
-                            visibleWhen: [
-                                { key: 'showNotes', truthy: true },
-                                { key: 'useChannelColors', falsy: true },
-                            ],
-                        }),
                         prop.number('noteHeight', 'Note Height (px)', 20, {
                             step: 1,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
@@ -226,8 +202,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             values: {
                                 showNotes: true,
                                 noteHeight: 20,
-                                noteColor: '#FF6B6B',
-                                noteOpacity: 0.85,
+                                color: '#FF6B6B',
+                                opacity: 0.85,
                                 noteGlowOpacity: 0.4,
                             },
                         },
@@ -236,8 +212,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             label: 'Ghosted',
                             values: {
                                 showNotes: true,
-                                noteColor: '#FF6B6B',
-                                noteOpacity: 0.5,
+                                color: '#FF6B6B',
+                                opacity: 0.5,
                                 noteGlowOpacity: 0.2,
                                 noteStrokeWidth: 1,
                             },
@@ -247,8 +223,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             label: 'Neon',
                             values: {
                                 showNotes: true,
-                                noteColor: '#FF6B6B',
-                                noteOpacity: 0.9,
+                                color: '#FF6B6B',
+                                opacity: 0.9,
                                 noteGlowOpacity: 0.7,
                                 noteGlowBlur: 12,
                             },
@@ -286,7 +262,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             values: {
                                 showNotes: true,
                                 useChannelColors: false,
-                                noteColor: DEFAULT_NOTE_COLOR,
+                                color: DEFAULT_NOTE_COLOR,
                             },
                         },
                     ],
@@ -1183,8 +1159,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
     getChannelColors(): string[] {
         const props = this.getSchemaProps();
         const baseColor = applyOpacity(
-            (props.noteColor ?? props.channel0Color ?? DEFAULT_NOTE_COLOR) as string,
-            props.noteOpacity ?? 0.8
+            (props.color ?? props.noteColor ?? props.channel0Color ?? DEFAULT_NOTE_COLOR) as string,
+            (props.opacity ?? props.noteOpacity ?? 0.8) as number
         );
         if (!props.useChannelColors) {
             return Array.from({ length: 16 }, () => baseColor);

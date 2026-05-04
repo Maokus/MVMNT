@@ -7,6 +7,7 @@ import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { applyOpacity } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { propGroup } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 const { descriptor: PITCH_WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchWaveform' });
 
@@ -51,13 +52,14 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                 category: 'Audio Displays',
             },
             [
+                propGroup.audioSource(),
+                propGroup.appearance({ blendMode: true }),
                 {
-                    id: 'lockedOscilloscopeBasics',
-                    label: 'Pitch Waveform',
+                    id: 'lockedOscilloscope',
+                    label: 'Waveform',
                     variant: 'basic',
                     collapsed: false,
                     properties: [
-                        prop.audioTrack('audioTrackId', 'Audio Track'),
                         {
                             key: 'channelSelector',
                             type: 'string',
@@ -67,8 +69,6 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                         },
                         prop.number('width', 'Width (px)', 420, { step: 1 }),
                         prop.number('height', 'Height (px)', 140, { step: 1 }),
-                        prop.color('color', 'Color', DEFAULT_LINE_COLOR),
-                        prop.range('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                         {
                             key: 'lineWidth',
                             type: 'number',
@@ -93,6 +93,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
+        const blendMode = (props.blendMode ?? 'source-over') as GlobalCompositeOperation;
         const objects: RenderObject[] = [];
         objects.push(
             new Rectangle(
@@ -179,6 +180,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
         const lineColor = applyOpacity(props.color ?? DEFAULT_LINE_COLOR, props.opacity ?? 1);
         const line = new Poly(points, null, lineColor, props.lineWidth, { includeInLayoutBounds: false });
         line.setClosed(false);
+        line.blendMode = blendMode === 'source-over' ? null : blendMode;
         objects.push(line);
 
         return objects;

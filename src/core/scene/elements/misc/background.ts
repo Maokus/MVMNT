@@ -1,5 +1,5 @@
 // Background element for rendering the main background with property bindings
-import { SceneElement, type EnhancedConfigSchema, prop, insertElementGroups } from '@mvmnt/plugin-sdk';
+import { SceneElement, type EnhancedConfigSchema, insertElementGroups, propGroup } from '@mvmnt/plugin-sdk';
 import { Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import { applyOpacity } from '@utils/color';
 
@@ -12,8 +12,9 @@ export class BackgroundElement extends SceneElement {
             offsetX: 0,
             offsetY: 0,
             zIndex: -1000,
-            backgroundColor: '#1a1a1a',
-            backgroundOpacity: 1,
+            color: '#1a1a1a',
+            opacity: 1,
+            borderWidth: 0,
         };
 
         for (const [key, value] of Object.entries(defaults)) {
@@ -31,38 +32,7 @@ export class BackgroundElement extends SceneElement {
                 description: 'Solid background color for the visualization',
                 category: 'Misc',
             },
-            [
-                {
-                    id: 'backgroundAppearance',
-                    label: 'Background',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Set the backdrop tone for the entire scene.',
-                    properties: [
-                        prop.color('backgroundColor', 'Background Color', '#1a1a1a', {
-                            description: 'Color fill applied behind every element.',
-                        }),
-                        prop.range('backgroundOpacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
-                    ],
-                    presets: [
-                        {
-                            id: 'deepStage',
-                            label: 'Deep Stage',
-                            values: { backgroundColor: '#0f172a', backgroundOpacity: 1 },
-                        },
-                        {
-                            id: 'warmGlow',
-                            label: 'Warm Glow',
-                            values: { backgroundColor: '#f59e0b', backgroundOpacity: 1 },
-                        },
-                        {
-                            id: 'graphPaper',
-                            label: 'Graph Paper',
-                            values: { backgroundColor: '#111827', backgroundOpacity: 1 },
-                        },
-                    ],
-                },
-            ]
+            [propGroup.appearance(), propGroup.border()]
         );
     }
 
@@ -72,7 +42,12 @@ export class BackgroundElement extends SceneElement {
         if (!props.visible) return [];
 
         const { canvas } = config;
-        const color = applyOpacity(props.backgroundColor ?? '#1a1a1a', props.backgroundOpacity ?? 1);
-        return [new Rectangle(0, 0, canvas.width, canvas.height, color)];
+        const fill = applyOpacity(
+            props.color ?? props.backgroundColor ?? '#1a1a1a',
+            props.opacity ?? props.backgroundOpacity ?? 1
+        );
+        const borderWidth = props.borderWidth ?? 0;
+        const stroke = borderWidth > 0 ? (props.borderColor ?? '#ffffff') : null;
+        return [new Rectangle(0, 0, canvas.width, canvas.height, fill, stroke, borderWidth)];
     }
 }

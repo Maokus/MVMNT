@@ -4,14 +4,27 @@ import { RenderObject, Text, Arc, Rectangle, Line } from '@core/render/render-ob
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { getPluginHostApi, PLUGIN_CAPABILITIES, type PluginHostApi } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { propGroup } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { applyOpacity } from '@utils/color';
 import type { TimelineCCEvent } from '@core/timing/types';
 
 // Common CC controller names for compact display
 const CC_NAMES: Record<number, string> = {
-    1: 'Mod', 2: 'Breath', 7: 'Volume', 10: 'Pan', 11: 'Expr',
-    64: 'Sustain', 65: 'Portamento', 66: 'Sostenuto', 67: 'Soft Pdl',
-    71: 'Resonance', 72: 'Release', 73: 'Attack', 74: 'Cutoff',
-    91: 'Reverb', 93: 'Chorus',
+    1: 'Mod',
+    2: 'Breath',
+    7: 'Volume',
+    10: 'Pan',
+    11: 'Expr',
+    64: 'Sustain',
+    65: 'Portamento',
+    66: 'Sostenuto',
+    67: 'Soft Pdl',
+    71: 'Resonance',
+    72: 'Release',
+    73: 'Attack',
+    74: 'Cutoff',
+    91: 'Reverb',
+    93: 'Chorus',
 };
 
 function ccLabel(controller: number): string {
@@ -22,14 +35,16 @@ function ccLabel(controller: number): string {
 function applyAlpha(hexColor: string, alpha: number): string {
     const baseHex = hexColor.replace(/^#/, '');
     const rgb = baseHex.length === 8 ? baseHex.slice(0, 6) : baseHex.length === 6 ? baseHex : 'cccccc';
-    const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255).toString(16).padStart(2, '0');
+    const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255)
+        .toString(16)
+        .padStart(2, '0');
     return `#${rgb}${a}`;
 }
 
 // Knob geometry: 270° sweep, gap centred at the bottom
 // MIN position = 7:30 on a clock face = 135° from the canvas x-axis (0 = 3 o'clock)
-const KNOB_START = (3 / 4) * Math.PI;   // 135° = 2.356 rad
-const KNOB_SWEEP = (3 / 2) * Math.PI;   // 270°
+const KNOB_START = (3 / 4) * Math.PI; // 135° = 2.356 rad
+const KNOB_SWEEP = (3 / 2) * Math.PI; // 270°
 
 export class CCMonitorElement extends SceneElement {
     constructor(id = 'ccMonitor', config: Record<string, unknown> = {}) {
@@ -39,97 +54,133 @@ export class CCMonitorElement extends SceneElement {
     static override getConfigSchema(): EnhancedConfigSchema {
         const whenMode = (mode: string) => [{ key: 'mode', equals: mode }];
         const whenSingleCC = [{ key: 'mode', equals: 'singleCC' }];
-        const whenKnob = [{ key: 'mode', equals: 'singleCC' }, { key: 'singleCCDisplayMode', equals: 'knob' }];
-        const whenOpacity = [{ key: 'mode', equals: 'singleCC' }, { key: 'singleCCDisplayMode', equals: 'opacity' }];
+        const whenKnob = [
+            { key: 'mode', equals: 'singleCC' },
+            { key: 'singleCCDisplayMode', equals: 'knob' },
+        ];
+        const whenOpacity = [
+            { key: 'mode', equals: 'singleCC' },
+            { key: 'singleCCDisplayMode', equals: 'opacity' },
+        ];
 
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'CC Monitor',
-            description: 'Monitor MIDI CC messages — full event log, single controller value, or sustain pedal state.',
-            category: 'MIDI Displays',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'ccSource',
-                label: 'Source',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.midiTrack('midiTrackId', 'MIDI Track'),
-                    prop.select('mode', 'Monitor Mode', 'fullMonitor', [
-                        { value: 'fullMonitor', label: 'Full Monitor' },
-                        { value: 'singleCC', label: 'Single CC' },
-                        { value: 'sustainPedal', label: 'Sustain Pedal' },
-                    ]),
-                ],
+                name: 'CC Monitor',
+                description:
+                    'Monitor MIDI CC messages — full event log, single controller value, or sustain pedal state.',
+                category: 'MIDI Displays',
             },
-            {
-                id: 'fullMonitorSettings',
-                label: 'Full Monitor Settings',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Recent CC events scroll up and fade out over time.',
-                properties: [
-                    prop.number('maxMessages', 'Max Messages', 8, {
-                        min: 1, max: 20, step: 1,
-                        visibleWhen: whenMode('fullMonitor'),
-                    }),
-                    prop.number('fadeDuration', 'Fade Duration (sec)', 3, {
-                        min: 0.5, max: 10, step: 0.1,
-                        visibleWhen: whenMode('fullMonitor'),
-                    }),
-                ],
-            },
-            {
-                id: 'singleCCSettings',
-                label: 'Single CC Settings',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Display the current value of one CC controller.',
-                properties: [
-                    prop.number('ccController', 'Controller (0–127)', 1, {
-                        min: 0, max: 127, step: 1,
-                        visibleWhen: whenSingleCC,
-                    }),
-                    prop.select('singleCCDisplayMode', 'Display Mode', 'text', [
-                        { value: 'text', label: 'Text' },
-                        { value: 'knob', label: 'Knob' },
-                        { value: 'opacity', label: 'Opacity' },
-                    ], { visibleWhen: whenSingleCC }),
-                    // Knob options
-                    prop.number('knobRadius', 'Knob Radius (px)', 50, {
-                        min: 10, max: 200, step: 1,
-                        visibleWhen: whenKnob,
-                    }),
-                    prop.number('knobTrackWidth', 'Track Stroke Width (px)', 6, {
-                        min: 1, max: 30, step: 1,
-                        visibleWhen: whenKnob,
-                    }),
-                    prop.color('knobTrackColor', 'Track Color', '#444444', { visibleWhen: whenKnob }),
-                    prop.color('knobValueColor', 'Value Color', '#00aaff', { visibleWhen: whenKnob }),
-                    // Opacity rect options
-                    prop.number('opacityRectWidth', 'Rect Width (px)', 120, {
-                        min: 1, max: 1920, step: 1,
-                        visibleWhen: whenOpacity,
-                    }),
-                    prop.number('opacityRectHeight', 'Rect Height (px)', 120, {
-                        min: 1, max: 1080, step: 1,
-                        visibleWhen: whenOpacity,
-                    }),
-                    prop.color('opacityRectColor', 'Rect Color', '#ffffff', { visibleWhen: whenOpacity }),
-                ],
-            },
-            {
-                id: 'ccTypography',
-                label: 'Typography',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.font('fontFamily', 'Font Family', 'Inter'),
-                    prop.number('fontSize', 'Font Size (px)', 24, { min: 6, max: 72, step: 1 }),
-                    prop.color('textColor', 'Text Color', '#cccccc'),
-                    prop.number('lineSpacing', 'Line Spacing (px)', 6, { min: 0, max: 40, step: 1 }),
-                ],
-            },
-        ]);
+            [
+                {
+                    id: 'ccSource',
+                    label: 'Source',
+                    variant: 'basic',
+                    collapsed: false,
+                    properties: [
+                        prop.midiTrack('midiTrackId', 'MIDI Track'),
+                        prop.select('mode', 'Monitor Mode', 'fullMonitor', [
+                            { value: 'fullMonitor', label: 'Full Monitor' },
+                            { value: 'singleCC', label: 'Single CC' },
+                            { value: 'sustainPedal', label: 'Sustain Pedal' },
+                        ]),
+                    ],
+                },
+                propGroup.appearance(),
+                {
+                    id: 'fullMonitorSettings',
+                    label: 'Full Monitor Settings',
+                    variant: 'basic',
+                    collapsed: false,
+                    description: 'Recent CC events scroll up and fade out over time.',
+                    properties: [
+                        prop.number('maxMessages', 'Max Messages', 8, {
+                            min: 1,
+                            max: 20,
+                            step: 1,
+                            visibleWhen: whenMode('fullMonitor'),
+                        }),
+                        prop.number('fadeDuration', 'Fade Duration (sec)', 3, {
+                            min: 0.5,
+                            max: 10,
+                            step: 0.1,
+                            visibleWhen: whenMode('fullMonitor'),
+                        }),
+                    ],
+                },
+                {
+                    id: 'singleCCSettings',
+                    label: 'Single CC Settings',
+                    variant: 'basic',
+                    collapsed: false,
+                    description: 'Display the current value of one CC controller.',
+                    properties: [
+                        prop.number('ccController', 'Controller (0–127)', 1, {
+                            min: 0,
+                            max: 127,
+                            step: 1,
+                            visibleWhen: whenSingleCC,
+                        }),
+                        prop.select(
+                            'singleCCDisplayMode',
+                            'Display Mode',
+                            'text',
+                            [
+                                { value: 'text', label: 'Text' },
+                                { value: 'knob', label: 'Knob' },
+                                { value: 'opacity', label: 'Opacity' },
+                            ],
+                            { visibleWhen: whenSingleCC }
+                        ),
+                        // Knob options
+                        prop.number('knobRadius', 'Knob Radius (px)', 50, {
+                            min: 10,
+                            max: 200,
+                            step: 1,
+                            visibleWhen: whenKnob,
+                        }),
+                        prop.number('knobTrackWidth', 'Track Stroke Width (px)', 6, {
+                            min: 1,
+                            max: 30,
+                            step: 1,
+                            visibleWhen: whenKnob,
+                        }),
+                        prop.color('knobTrackColor', 'Track Color', '#444444', { visibleWhen: whenKnob }),
+                        prop.color('knobValueColor', 'Value Color', '#00aaff', { visibleWhen: whenKnob }),
+                        // Opacity rect options
+                        prop.number('opacityRectWidth', 'Rect Width (px)', 120, {
+                            min: 1,
+                            max: 1920,
+                            step: 1,
+                            visibleWhen: whenOpacity,
+                        }),
+                        prop.number('opacityRectHeight', 'Rect Height (px)', 120, {
+                            min: 1,
+                            max: 1080,
+                            step: 1,
+                            visibleWhen: whenOpacity,
+                        }),
+                        prop.color('opacityRectColor', 'Rect Color', '#ffffff', { visibleWhen: whenOpacity }),
+                    ],
+                },
+                {
+                    id: 'typography',
+                    label: 'Typography',
+                    variant: 'basic',
+                    collapsed: false,
+                    properties: [
+                        prop.font('fontFamily', 'Font Family', 'Inter'),
+                        prop.number('fontSize', 'Font Size (px)', 24, { min: 6, max: 72, step: 1 }),
+                        prop.select('textAlign', 'Alignment', 'left', [
+                            { value: 'left', label: 'Left' },
+                            { value: 'center', label: 'Center' },
+                            { value: 'right', label: 'Right' },
+                        ]),
+                        prop.number('lineSpacing', 'Line Spacing (px)', 6, { min: 0, max: 40, step: 1 }),
+                    ],
+                },
+            ]
+        );
     }
 
     protected _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
@@ -144,13 +195,26 @@ export class CCMonitorElement extends SceneElement {
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
         const fontWeight = (weightPart || '400').toString();
         const fontSize = (props.fontSize as number) ?? 24;
-        const textColor = (props.textColor as string) ?? '#cccccc';
+        const textColor = applyOpacity(
+            (props.color as string) ?? (props.textColor as string) ?? '#cccccc',
+            (props.opacity as number) ?? 1
+        );
         const lineSpacing = (props.lineSpacing as number) ?? 6;
         if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const font = `${fontWeight} ${fontSize}px ${fontFamily || 'Inter'}, sans-serif`;
 
         if (mode === 'fullMonitor') {
-            return this._buildFullMonitor({ props, targetTime, api, status, trackId, font, textColor, fontSize, lineSpacing });
+            return this._buildFullMonitor({
+                props,
+                targetTime,
+                api,
+                status,
+                trackId,
+                font,
+                textColor,
+                fontSize,
+                lineSpacing,
+            });
         }
         if (mode === 'singleCC') {
             return this._buildSingleCC({ props, targetTime, api, status, trackId, font, textColor, fontSize });

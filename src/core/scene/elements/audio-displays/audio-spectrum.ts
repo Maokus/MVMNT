@@ -6,6 +6,7 @@ import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { applyOpacity } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { propGroup } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -207,13 +208,14 @@ export class AudioSpectrumElement extends SceneElement {
                 category: 'Audio Displays',
             },
             [
+                propGroup.audioSource(),
+                propGroup.appearance({ blendMode: true }),
                 {
-                    id: 'spectrumBasics',
+                    id: 'spectrum',
                     label: 'Spectrum',
                     variant: 'basic',
                     collapsed: false,
                     properties: [
-                        prop.audioTrack('audioTrackId', 'Audio Track'),
                         {
                             key: 'barCount',
                             type: 'number',
@@ -235,8 +237,6 @@ export class AudioSpectrumElement extends SceneElement {
                         prop.number('maxDecibels', 'Maximum Value', 0, { min: -80, max: 24, step: 1 }),
                         prop.number('width', 'Width (px)', 420, { step: 1 }),
                         prop.number('height', 'Height (px)', 180, { step: 1 }),
-                        prop.color('color', 'Color', DEFAULT_BAR_COLOR),
-                        prop.range('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                         prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
                         prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
                         {
@@ -371,6 +371,7 @@ export class AudioSpectrumElement extends SceneElement {
         const binCenter = (index: number) => binLeft(index) + actualBarWidth / 2;
         const shapeThickness = Math.max(0.5, props.thickness ?? 1);
         const drawColor = applyOpacity(props.color ?? DEFAULT_BAR_COLOR, props.opacity ?? 1);
+        const blendMode = (props.blendMode ?? 'source-over') as GlobalCompositeOperation;
 
         const renderBars = () => {
             const barWidth = Math.max(1, Math.min(actualBarWidth - gap, shapeThickness));
@@ -378,7 +379,9 @@ export class AudioSpectrumElement extends SceneElement {
                 const x = binLeft(index) + gap * 0.5;
                 const barHeight = ratio * props.height;
                 const y = peakY(ratio);
-                objects.push(new Rectangle(x, y, barWidth, barHeight, drawColor));
+                const rect = new Rectangle(x, y, barWidth, barHeight, drawColor);
+                if (blendMode !== 'source-over') rect.blendMode = blendMode;
+                objects.push(rect);
             });
         };
 
@@ -390,6 +393,7 @@ export class AudioSpectrumElement extends SceneElement {
             }
             const poly = new Poly(points, null, drawColor, shapeThickness);
             poly.setClosed(false).setLineJoin('round').setLineCap('round');
+            poly.blendMode = blendMode === 'source-over' ? null : blendMode;
             objects.push(poly);
         };
 
@@ -398,12 +402,12 @@ export class AudioSpectrumElement extends SceneElement {
             normalized.forEach((ratio, index) => {
                 const x = binCenter(index);
                 const y = peakY(ratio);
-                objects.push(
-                    new Arc(x, y, radius, 0, Math.PI * 2, false, {
-                        fillColor: drawColor,
-                        strokeColor: '#FFFFFF00',
-                    })
-                );
+                const arc = new Arc(x, y, radius, 0, Math.PI * 2, false, {
+                    fillColor: drawColor,
+                    strokeColor: '#FFFFFF00',
+                });
+                if (blendMode !== 'source-over') arc.blendMode = blendMode;
+                objects.push(arc);
             });
         };
 
