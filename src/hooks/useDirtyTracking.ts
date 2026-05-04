@@ -91,6 +91,8 @@ export interface DirtyTrackingState {
     isDirty: boolean;
     /** Call after a successful save to IndexedDB or a load from IndexedDB. */
     markClean: () => void;
+    /** Explicitly mark the scene as dirty (e.g. after loading a template/remix). */
+    markDirty: () => void;
 }
 
 export function useDirtyTracking(): DirtyTrackingState {
@@ -100,6 +102,14 @@ export function useDirtyTracking(): DirtyTrackingState {
     const markClean = useCallback(() => {
         checkpointRef.current = captureCheckpoint();
         setIsDirty(false);
+    }, []);
+
+    const markDirty = useCallback(() => {
+        if (!checkpointRef.current) {
+            // Initialise checkpoint so subscriptions track future changes correctly.
+            checkpointRef.current = captureCheckpoint();
+        }
+        setIsDirty(true);
     }, []);
 
     useEffect(() => {
@@ -141,5 +151,5 @@ export function useDirtyTracking(): DirtyTrackingState {
         };
     }, []);
 
-    return { isDirty, markClean };
+    return { isDirty, markClean, markDirty };
 }

@@ -2,13 +2,14 @@ import { useCallback } from 'react';
 import { importScene } from '@persistence/index';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
+import { SceneNameGenerator } from '@core/scene-name-generator';
 import { useUndo } from '@context/UndoContext';
 import { useScene } from '@context/SceneContext';
 import { useVisualizer } from '@context/VisualizerContext';
 import type { LoadedTemplateArtifact, TemplateDefinition } from './types';
 
 export function useTemplateApply() {
-    const { refreshSceneUI, isDirty, saveToLocal } = useScene();
+    const { refreshSceneUI, isDirty, markDirty } = useScene();
     const undo = useUndo();
     const visualizerCtx = useVisualizer() as { visualizer?: { invalidateRender?: () => void } } | undefined;
     const visualizer = visualizerCtx?.visualizer ?? (visualizerCtx as any);
@@ -19,7 +20,7 @@ export function useTemplateApply() {
         async (template: TemplateDefinition): Promise<boolean> => {
             if (isDirty) {
                 const ok = window.confirm(
-                    `Loading "${template.name}" will replace your current project.\n\nAny unsaved changes will be lost. Continue?`
+                    `Use template "${template.name}"?\n\nYou have unsaved changes that will be lost. Continue?`
                 );
                 if (!ok) return false;
             }
@@ -41,30 +42,38 @@ export function useTemplateApply() {
                     alert(`Failed to load template: ${message}`);
                     return false;
                 }
+
+                // Read the imported template's identity for attribution (hydrate() has already set these).
                 const metadataStore = useSceneMetadataStore.getState();
-                const importedName = metadataStore.metadata?.name?.trim();
-                if (!importedName) {
-                    const fallbackName = artifact.metadata?.name?.trim() || template.name;
-                    if (fallbackName) {
-                        metadataStore.setName(fallbackName);
-                    }
-                }
-                const importedAuthor = metadataStore.metadata?.author?.trim();
-                if (!importedAuthor || importedAuthor.length === 0) {
-                    const fallbackAuthor = artifact.metadata?.author?.trim() || template.author || '';
-                    metadataStore.setAuthor(fallbackAuthor);
-                }
+                const importedName =
+                    metadataStore.metadata?.name?.trim() || artifact.metadata?.name?.trim() || template.name;
+                const importedAuthor =
+                    metadataStore.metadata?.author?.trim() ||
+                    artifact.metadata?.author?.trim() ||
+                    template.author ||
+                    '';
+
+                const attribution = importedAuthor
+                    ? `Based on "${importedName}" by ${importedAuthor}`
+                    : `Based on "${importedName}"`;
+
+                // Give the remixed scene a fresh generated name and clear the template's author.
+                metadataStore.setName(SceneNameGenerator.generate());
+                metadataStore.setAuthor('');
+                metadataStore.setAttribution(attribution);
+
                 if (typeof undo?.reset === 'function') {
                     undo.reset();
                 }
                 refreshSceneUI();
                 visualizer?.invalidateRender?.();
-                await saveToLocal();
+                // Don't persist to IDB — this is a new unsaved remix, not a saved file.
+                markDirty();
                 return true;
             } finally {
                 finishTemplateLoading();
             }
         },
-        [finishTemplateLoading, isDirty, refreshSceneUI, saveToLocal, startTemplateLoading, undo, visualizer]
+        [finishTemplateLoading, isDirty, markDirty, refreshSceneUI, startTemplateLoading, undo, visualizer]
     );
 }
