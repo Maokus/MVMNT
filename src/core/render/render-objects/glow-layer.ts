@@ -14,11 +14,17 @@ function getOffscreenCtx(w: number, h: number): CanvasRenderingContext2D | null 
         if (!_offscreenCtx) return null;
     }
     if (_offscreenEl.width !== w || _offscreenEl.height !== h) {
-        // Assigning width/height resets and clears the canvas automatically.
+        // Assigning width/height resets pixels AND context state automatically.
         _offscreenEl.width = w;
         _offscreenEl.height = h;
     } else {
+        // clearRect only clears pixels — context state (globalAlpha, filter,
+        // composite op, transform) persists across frames and must be reset explicitly.
         _offscreenCtx.clearRect(0, 0, w, h);
+        _offscreenCtx.globalAlpha = 1;
+        _offscreenCtx.globalCompositeOperation = 'source-over';
+        _offscreenCtx.filter = 'none';
+        _offscreenCtx.setTransform(1, 0, 0, 1, 0, 0);
     }
     return _offscreenCtx;
 }
