@@ -36,25 +36,17 @@ const CommunityAuthBar: React.FC<CommunityAuthBarProps> = ({ user, onAuthChange 
       if (mode === 'signin') {
         const input = loginInput.trim();
         if (!input.includes('@')) {
-          // Username sign-in: resolved server-side so the email is never exposed to the client
-          const { data: fnData, error: fnErr } = await supabase.functions.invoke('sign-in-with-username', {
-            body: { username: input, password },
+          // Resolve username → email via SECURITY DEFINER RPC (email never shown in UI)
+          const { data: email, error: lookupErr } = await supabase.rpc('get_email_by_username', {
+            p_username: input,
           });
-          if (fnErr) {
-            // FunctionsHttpError carries the response body in .context — extract the real message
-            let message = 'Incorrect username or password.';
-            try {
-              const body = await (fnErr as any).context?.json?.();
-              if (body?.error) message = body.error;
-            } catch { /* ignore parse failure */ }
-            throw new Error(message);
+          if (lookupErr || !email) {
+            throw new Error('Incorrect username or password.');
           }
-          if (fnData?.error) throw new Error(fnData.error);
-          const { error: sessionErr } = await supabase.auth.setSession({
-            access_token: fnData.session.access_token,
-            refresh_token: fnData.session.refresh_token,
-          });
-          if (sessionErr) throw sessionErr;
+          const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+          if (signInErr) {
+            throw new Error('Incorrect username or password.');
+          }
         } else {
           const { error } = await supabase.auth.signInWithPassword({ email: input, password });
           if (error) {

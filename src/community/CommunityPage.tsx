@@ -163,8 +163,6 @@ const CommunityPage: React.FC = () => {
             ))}
           </div>
 
-          <div className="flex-1" />
-
           {/* Search */}
           <form
             onSubmit={(e) => { e.preventDefault(); setSearchQuery(searchInput); setPage(0); }}
@@ -189,6 +187,8 @@ const CommunityPage: React.FC = () => {
               </button>
             )}
           </form>
+
+          <div className="flex-1" />
 
           {user && (
             <button
