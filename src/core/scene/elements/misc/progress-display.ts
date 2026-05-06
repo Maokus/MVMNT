@@ -10,14 +10,9 @@ import {
     parseFontSelection,
     ensureFontLoaded,
     propGroup,
+    colorSlotProps,
 } from '@mvmnt/plugin-sdk';
 import { Rectangle, type RenderObject, Text } from '@mvmnt/plugin-sdk/render';
-
-const clampUnit: PropertyTransform<number, SceneElementInterface> = (value, element) => {
-    const numeric = asNumber(value, element);
-    if (numeric === undefined) return undefined;
-    return Math.max(0, Math.min(1, numeric));
-};
 
 const clampNonNegative: PropertyTransform<number, SceneElementInterface> = (value, element) => {
     const numeric = asNumber(value, element);
@@ -113,62 +108,24 @@ export class ProgressDisplayElement extends SceneElement {
                     collapsed: true,
                     description: 'Fine-tune bar and statistics styling.',
                     properties: [
-                        prop.color('barColor', 'Bar Color', '#cccccc', {
+                        ...colorSlotProps('bar', 'Bar', '#cccccc', {
                             visibleWhen: [{ key: 'showBar', truthy: true }],
-                        }),
-                        {
-                            key: 'barOpacity',
-                            type: 'number',
-                            label: 'Bar Opacity',
-                            default: 1,
-                            min: 0,
-                            max: 1,
                             step: 0.05,
-                            visibleWhen: [{ key: 'showBar', truthy: true }],
-                            runtime: { transform: clampUnit, defaultValue: 1 },
-                        },
-                        prop.color('barBgColor', 'Bar Background Color', '#ffffff', {
-                            visibleWhen: [{ key: 'showBar', truthy: true }],
                         }),
-                        {
-                            key: 'barBgOpacity',
-                            type: 'number',
-                            label: 'Bar Background Opacity',
-                            default: 0.1,
-                            min: 0,
-                            max: 1,
+                        ...colorSlotProps('barBg', 'Bar Background', '#ffffff', {
+                            opacityDefault: 0.1,
+                            visibleWhen: [{ key: 'showBar', truthy: true }],
                             step: 0.05,
-                            visibleWhen: [{ key: 'showBar', truthy: true }],
-                            runtime: { transform: clampUnit, defaultValue: 0.1 },
-                        },
-                        prop.color('borderColor', 'Border Color', '#ffffff', {
-                            visibleWhen: [{ key: 'showBar', truthy: true }],
                         }),
-                        {
-                            key: 'borderOpacity',
-                            type: 'number',
-                            label: 'Border Opacity',
-                            default: 0.3,
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
+                        ...colorSlotProps('border', 'Border', '#ffffff', {
+                            opacityDefault: 0.3,
                             visibleWhen: [{ key: 'showBar', truthy: true }],
-                            runtime: { transform: clampUnit, defaultValue: 0.3 },
-                        },
-                        prop.color('statsTextColor', 'Stats Text Color', '#cccccc', {
+                            step: 0.05,
+                        }),
+                        ...colorSlotProps('statsText', 'Stats Text', '#cccccc', {
                             visibleWhen: [{ key: 'showStats', truthy: true }],
-                        }),
-                        {
-                            key: 'statsTextOpacity',
-                            type: 'number',
-                            label: 'Stats Text Opacity',
-                            default: 1,
-                            min: 0,
-                            max: 1,
                             step: 0.05,
-                            visibleWhen: [{ key: 'showStats', truthy: true }],
-                            runtime: { transform: clampUnit, defaultValue: 1 },
-                        },
+                        }),
                     ],
                     presets: [
                         {

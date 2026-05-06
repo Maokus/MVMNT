@@ -1,4 +1,4 @@
-import type { PropertyGroup } from '@core/types';
+import type { PropertyDefinition, PropertyGroup, PropertyVisibilityCondition } from '@core/types';
 import { prop } from './plugin-sdk-prop-factories';
 
 // ─── Blend mode choices ──────────────────────────────────────────────────────
@@ -28,6 +28,16 @@ export const BLEND_MODE_CHOICES = [
 interface AppearanceOpts {
     /** Add a Blend Mode selector to the group. */
     blendMode?: boolean;
+    /** Override the group label (default: `'Appearance'`). */
+    label?: string;
+    /** Override the group id (default: `'appearance'`). */
+    id?: string;
+    /**
+     * Prefix all property keys (e.g. `'fill'` → `fillColor`, `fillOpacity`, `fillBlendMode`).
+     * Property labels remain 'Color', 'Opacity', 'Blend Mode' — the group label provides context.
+     * Use this when a single element needs multiple appearance-style groups without key collisions.
+     */
+    keyPrefix?: string;
 }
 
 interface TypographyOpts {
@@ -59,22 +69,28 @@ export const propGroup = {
     /**
      * Standard appearance group: `color`, `opacity`, optional `blendMode`.
      *
+     * Pass `label` / `id` to rename the group without touching property keys.
+     * Pass `keyPrefix` to prefix all property keys, enabling multiple appearance groups
+     * per element without key collisions (e.g. `keyPrefix: 'fill'` → `fillColor`, `fillOpacity`).
+     *
      * Pair with Phase 1 `colorAlpha` splits — elements that already have
      * `color`+`opacity` props can adopt this group directly.
      */
     appearance(opts?: AppearanceOpts): PropertyGroup {
+        const prefix = opts?.keyPrefix ?? '';
+        const keyFor = (base: string) => (prefix ? `${prefix}${base[0].toUpperCase()}${base.slice(1)}` : base);
         return {
-            id: 'appearance',
-            label: 'Appearance',
+            id: opts?.id ?? 'appearance',
+            label: opts?.label ?? 'Appearance',
             variant: 'basic',
             collapsed: false,
             properties: [
-                prop.color('color', 'Color', '#ffffff'),
-                prop.range('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                prop.color(keyFor('color'), 'Color', '#ffffff'),
+                prop.range(keyFor('opacity'), 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                 ...(opts?.blendMode
                     ? [
                           prop.select(
-                              'blendMode',
+                              keyFor('blendMode'),
                               'Blend Mode',
                               'source-over',
                               BLEND_MODE_CHOICES as unknown as Array<{ value: string; label: string }>,
@@ -270,3 +286,46 @@ export const propGroup = {
         };
     },
 } as const;
+
+// ─── colorSlotProps ──────────────────────────────────────────────────────────
+
+/**
+ * Returns a `[color, opacity]` pair of `PropertyDefinition` objects for a named visual surface.
+ *
+ * Keys are derived from `keyPrefix`: e.g. `colorSlotProps('bar', 'Bar')` → `barColor`, `barOpacity`.
+ * Use this inside any group's `properties` array to reduce color+opacity boilerplate:
+ *
+ * ```ts
+ * properties: [
+ *   ...colorSlotProps('bar', 'Bar', '#cccccc', { visibleWhen: [{ key: 'showBar', truthy: true }] }),
+ *   ...colorSlotProps('barBg', 'Bar Background', '#000000', { opacityDefault: 0.2 }),
+ * ]
+ * ```
+ *
+ * @param keyPrefix    Camel-case prefix for the generated keys (e.g. `'bar'`, `'barBg'`).
+ * @param label        Human-readable surface name used in property labels (e.g. `'Bar'`).
+ * @param defaultColor Hex color default (default: `'#ffffff'`).
+ * @param opts         Optional overrides for opacity default, slider step, and visibility conditions.
+ */
+export function colorSlotProps(
+    keyPrefix: string,
+    label: string,
+    defaultColor = '#ffffff',
+    opts?: {
+        opacityDefault?: number;
+        step?: number;
+        visibleWhen?: PropertyVisibilityCondition[];
+    }
+): PropertyDefinition[] {
+    return [
+        prop.color(`${keyPrefix}Color`, `${label} Color`, defaultColor, {
+            visibleWhen: opts?.visibleWhen,
+        }),
+        prop.range(`${keyPrefix}Opacity`, `${label} Opacity`, opts?.opacityDefault ?? 1, {
+            min: 0,
+            max: 1,
+            step: opts?.step ?? 0.01,
+            visibleWhen: opts?.visibleWhen,
+        }),
+    ];
+}

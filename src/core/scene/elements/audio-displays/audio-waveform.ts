@@ -551,13 +551,47 @@ export class AudioWaveformElement extends SceneElement {
             },
             [
                 propGroup.audioSource(),
-                propGroup.appearance({ blendMode: true }),
+                propGroup.appearance({ label: 'Primary Channel', blendMode: true }),
                 {
                     id: 'waveform',
                     label: 'Oscilloscope',
                     variant: 'basic',
                     collapsed: false,
                     properties: [
+                        {
+                            key: 'secondaryColor',
+                            type: 'color',
+                            label: 'Secondary Color',
+                            default: DEFAULT_SECONDARY_LINE_COLOR,
+                            runtime: {
+                                transform: (value) => {
+                                    if (!value) return DEFAULT_SECONDARY_LINE_COLOR;
+                                    const normalized = normalizeColorAlphaValue(
+                                        value as string,
+                                        DEFAULT_SECONDARY_LINE_COLOR
+                                    );
+                                    return normalized.slice(0, 7);
+                                },
+                                defaultValue: DEFAULT_SECONDARY_LINE_COLOR,
+                            },
+                        },
+                        prop.range('secondaryOpacity', 'Secondary Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                        {
+                            key: 'secondaryChannel',
+                            type: 'select',
+                            label: 'Secondary Channel',
+                            default: DEFAULT_SECONDARY_CHANNEL,
+                            options: [
+                                { label: 'Left', value: 'left' },
+                                { label: 'Right', value: 'right' },
+                                { label: 'Mid (L+R)', value: 'mid' },
+                                { label: 'Side (L-R)', value: 'side' },
+                            ],
+                            runtime: {
+                                transform: (value) => normalizeWaveformChannel(value, DEFAULT_SECONDARY_CHANNEL),
+                                defaultValue: DEFAULT_SECONDARY_CHANNEL,
+                            },
+                        },
                         {
                             key: 'windowSeconds',
                             type: 'number',
@@ -602,49 +636,6 @@ export class AudioWaveformElement extends SceneElement {
                                 transform: (value) => normalizeWaveformChannel(value, DEFAULT_PRIMARY_CHANNEL),
                                 defaultValue: DEFAULT_PRIMARY_CHANNEL,
                             },
-                        },
-                        {
-                            key: 'secondaryChannel',
-                            type: 'select',
-                            label: 'Secondary Channel',
-                            default: DEFAULT_SECONDARY_CHANNEL,
-                            options: [
-                                { label: 'Left', value: 'left' },
-                                { label: 'Right', value: 'right' },
-                                { label: 'Mid (L+R)', value: 'mid' },
-                                { label: 'Side (L-R)', value: 'side' },
-                            ],
-                            runtime: {
-                                transform: (value) => normalizeWaveformChannel(value, DEFAULT_SECONDARY_CHANNEL),
-                                defaultValue: DEFAULT_SECONDARY_CHANNEL,
-                            },
-                        },
-                        {
-                            key: 'secondaryColor',
-                            type: 'color',
-                            label: 'Secondary Color',
-                            default: DEFAULT_SECONDARY_LINE_COLOR,
-                            runtime: {
-                                transform: (value) => {
-                                    if (!value) return DEFAULT_SECONDARY_LINE_COLOR;
-                                    const normalized = normalizeColorAlphaValue(
-                                        value as string,
-                                        DEFAULT_SECONDARY_LINE_COLOR
-                                    );
-                                    return normalized.slice(0, 7);
-                                },
-                                defaultValue: DEFAULT_SECONDARY_LINE_COLOR,
-                            },
-                        },
-                        {
-                            key: 'secondaryOpacity',
-                            type: 'range',
-                            label: 'Secondary Opacity',
-                            default: 1,
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
-                            runtime: { transform: asNumber, defaultValue: 1 },
                         },
                         {
                             key: 'lineWidth',

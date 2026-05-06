@@ -6,7 +6,7 @@ import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { applyOpacity } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
-import { propGroup } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { propGroup, BLEND_MODE_CHOICES } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -209,7 +209,25 @@ export class AudioSpectrumElement extends SceneElement {
             },
             [
                 propGroup.audioSource(),
-                propGroup.appearance({ blendMode: true }),
+                {
+                    id: 'appearance',
+                    label: 'Appearance',
+                    variant: 'basic',
+                    collapsed: false,
+                    properties: [
+                        prop.color('color', 'Color', DEFAULT_BAR_COLOR),
+                        prop.range('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                        prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
+                        prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
+                        prop.select(
+                            'blendMode',
+                            'Blend Mode',
+                            'source-over',
+                            BLEND_MODE_CHOICES as unknown as Array<{ value: string; label: string }>,
+                            { description: 'Canvas composite blending operation.' }
+                        ),
+                    ],
+                },
                 {
                     id: 'spectrum',
                     label: 'Spectrum',
@@ -237,8 +255,6 @@ export class AudioSpectrumElement extends SceneElement {
                         prop.number('maxDecibels', 'Maximum Value', 0, { min: -80, max: 24, step: 1 }),
                         prop.number('width', 'Width (px)', 420, { step: 1 }),
                         prop.number('height', 'Height (px)', 180, { step: 1 }),
-                        prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
-                        prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
                         {
                             key: 'display',
                             type: 'select',
