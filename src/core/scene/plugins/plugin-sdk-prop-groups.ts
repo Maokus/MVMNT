@@ -50,6 +50,15 @@ interface TypographyOpts {
 interface BorderOpts {
     /** Add a corner radius prop. */
     cornerRadius?: boolean;
+    /** Override the group label (default: `'Border'`). */
+    label?: string;
+    /** Override the group id (default: `'border'`). */
+    id?: string;
+    /**
+     * Prefix all property keys (e.g. `'inner'` → `innerBorderColor`, `innerBorderWidth`).
+     * Use this when a single element needs multiple border-style groups without key collisions.
+     */
+    keyPrefix?: string;
 }
 
 // ─── propGroup namespace ─────────────────────────────────────────────────────
@@ -161,18 +170,25 @@ export const propGroup = {
 
     /**
      * Standard border group: `borderColor`, `borderWidth`, optional `cornerRadius`.
+     *
+     * Pass `label` / `id` to rename the group without touching property keys.
+     * Pass `keyPrefix` to prefix all property keys, enabling multiple border groups
+     * per element without key collisions (e.g. `keyPrefix: 'inner'` → `innerBorderColor`, `innerBorderWidth`).
      */
     border(opts?: BorderOpts): PropertyGroup {
+        const prefix = opts?.keyPrefix ?? '';
+        const keyFor = (base: string) =>
+            prefix ? `${prefix}${base[0].toUpperCase()}${base.slice(1)}` : base;
         return {
-            id: 'border',
-            label: 'Border',
+            id: opts?.id ?? 'border',
+            label: opts?.label ?? 'Border',
             variant: 'basic',
             collapsed: true,
             properties: [
-                prop.color('borderColor', 'Border Color', '#ffffff'),
-                prop.range('borderWidth', 'Border Width', 1, { min: 0, max: 50, step: 0.5 }),
+                prop.color(keyFor('borderColor'), 'Border Color', '#ffffff'),
+                prop.range(keyFor('borderWidth'), 'Border Width', 1, { min: 0, max: 50, step: 0.5 }),
                 ...(opts?.cornerRadius
-                    ? [prop.range('cornerRadius', 'Corner Radius', 0, { min: 0, max: 200, step: 1 })]
+                    ? [prop.range(keyFor('cornerRadius'), 'Corner Radius', 0, { min: 0, max: 200, step: 1 })]
                     : []),
             ],
         };
@@ -317,15 +333,94 @@ export function colorSlotProps(
         visibleWhen?: PropertyVisibilityCondition[];
     }
 ): PropertyDefinition[] {
-    return [
-        prop.color(`${keyPrefix}Color`, `${label} Color`, defaultColor, {
-            visibleWhen: opts?.visibleWhen,
-        }),
-        prop.range(`${keyPrefix}Opacity`, `${label} Opacity`, opts?.opacityDefault ?? 1, {
-            min: 0,
-            max: 1,
-            step: opts?.step ?? 0.01,
-            visibleWhen: opts?.visibleWhen,
-        }),
-    ];
+    return prop.slot.colorOpacity(keyPrefix, label, defaultColor, opts);
 }
+
+// ─── section helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Thin group factories that encode the canonical inspector section ids and labels.
+ * Use these alongside `propGroup.*` to assemble schemas in a consistent order.
+ *
+ * Canonical section order (left to right / top to bottom in the inspector):
+ * `Source → Content → Layout → Appearance → Typography → Border → Container → Effects → Advanced`
+ *
+ * Each helper takes a flat `PropertyDefinition[]` and returns a `PropertyGroup` with the
+ * correct id, label, and `variant`. Use `propGroup.*` factories when the full standard
+ * property set is needed; use `section.*` when you want the canonical id/label but with
+ * element-specific properties.
+ *
+ * @example
+ * return insertElementGroups(super.getConfigSchema(), { name: 'My Element' }, [
+ *   propGroup.audioSource(),
+ *   section.content([
+ *     prop.boolean('showTitle', 'Show Title', true),
+ *   ]),
+ *   section.appearance([
+ *     prop.color('color', 'Color', '#ffffff'),
+ *     prop.range('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+ *   ]),
+ *   propGroup.typography(),
+ *   propGroup.container(),
+ * ]);
+ */
+export const section = {
+    /** Groups content-selection props (toggles, text inputs, asset pickers). */
+    content(properties: PropertyDefinition[]): PropertyGroup {
+        return { id: 'content', label: 'Content', variant: 'basic', collapsed: false, properties };
+    },
+
+    /** Groups dimensional and positional props (width, height, padding, offsets). */
+    layout(properties: PropertyDefinition[]): PropertyGroup {
+        return { id: 'layout', label: 'Layout', variant: 'basic', collapsed: false, properties };
+    },
+
+    /**
+     * Groups color, opacity, and blend mode props for a visual surface.
+     * Pass `id` / `label` to create a named appearance section when an element
+     * has multiple visual surfaces (e.g. `section.appearance([...], { id: 'fillAppearance', label: 'Fill' })`).
+     */
+    appearance(
+        properties: PropertyDefinition[],
+        opts?: { id?: string; label?: string }
+    ): PropertyGroup {
+        return {
+            id: opts?.id ?? 'appearance',
+            label: opts?.label ?? 'Appearance',
+            variant: 'basic',
+            collapsed: false,
+            properties,
+        };
+    },
+
+    /** Groups font, size, alignment, and spacing props. */
+    typography(properties: PropertyDefinition[]): PropertyGroup {
+        return { id: 'typography', label: 'Typography', variant: 'basic', collapsed: false, properties };
+    },
+
+    /** Groups border color, width, and radius props. */
+    border(properties: PropertyDefinition[], opts?: { id?: string; label?: string }): PropertyGroup {
+        return {
+            id: opts?.id ?? 'border',
+            label: opts?.label ?? 'Border',
+            variant: 'basic',
+            collapsed: true,
+            properties,
+        };
+    },
+
+    /** Groups background container toggle + color/padding/radius sub-props. Collapsed by default. */
+    container(properties: PropertyDefinition[]): PropertyGroup {
+        return { id: 'container', label: 'Background Container', variant: 'advanced', collapsed: true, properties };
+    },
+
+    /** Groups shadow, blur, and filter props. Advanced variant, collapsed by default. */
+    effects(properties: PropertyDefinition[]): PropertyGroup {
+        return { id: 'effects', label: 'Effects', variant: 'advanced', collapsed: true, properties };
+    },
+
+    /** Catch-all for technical or rarely-changed props. Advanced variant, collapsed by default. */
+    advanced(properties: PropertyDefinition[]): PropertyGroup {
+        return { id: 'advanced', label: 'Advanced', variant: 'advanced', collapsed: true, properties };
+    },
+} as const;

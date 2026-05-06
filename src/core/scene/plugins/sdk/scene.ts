@@ -17,7 +17,7 @@ export {
 } from '@core/scene/elements/base';
 
 export { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
-export { propGroup, BLEND_MODE_CHOICES, colorSlotProps } from '@core/scene/plugins/plugin-sdk-prop-groups';
+export { propGroup, BLEND_MODE_CHOICES, colorSlotProps, section } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 export type {
     EnhancedConfigSchema,
