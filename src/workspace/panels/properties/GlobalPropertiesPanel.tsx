@@ -99,7 +99,7 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
             <div className="global-properties-content">
                 <div className="settings-grid">
                     {/* Global Macros Section */}
-                    <div className="setting-group">
+                    <div className="setting-group p-4">
                         <MacroConfig visualizer={visualizer} />
                     </div>
                 </div>

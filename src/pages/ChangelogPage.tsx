@@ -26,31 +26,35 @@ const ChangelogPage: React.FC = () => {
                             'Added tempo automation',
                             'i to add keyframe',
                             'blender-style auto keying',
-                            'the timeline panel alone now has 7k lines of code'
+                            'the timeline panel alone now has 7k lines of code. i hate it'
                         ],
                         'Added community tab',
                         [
                             'Browse and share templates and plugins',
                             'Install plugins and open templates directly from the community tab'
                         ],
-                        'Misc Improvements/new content',
+                        'Misc Improvements',
+                        [
+                            'Implement tabs for properties',
+                            'Internally store MIDI as binary to reduce file sizes',
+                            'Improve timeline navigation',
+                            'Change color picker',
+                            'Modify persistence system (now uses indexeddb so you don\'t keep losing your progress on reload)',
+                        ],
+                        'New Content',
                         [
                             'Add basic shapes element',
                             'Add MIDI cc monitor element',
                             'More note animations for TUPR/MNPR',
-                            'Internally store MIDI as binary to reduce file sizes',
-                            'Improve timeline navigation',
-                            'Change color picker',
-                            'Modify persistence system (now uses indexeddb so you don\'t keep losing your progress on reload)'
                         ],
-                        'Implemented custom element system and api',
+                        'Implemented custom element plugin system',
                         [
-                            'Added builtin pack of custom elements',
                             'Embed plugins into save files',
-                            'DevEx quality of life scripts',
-                            'Support midi cc in midi ingestion and expose via api',
+                            'Support midi cc in midi ingestion',
                             'Element property factories',
-                            'Improve version conflict management'
+                            'Improve version conflict management',
+                            'Consolidated api',
+                            'DevEx quality of life scripts',
                         ],
                         'Added asset manager',
                         [

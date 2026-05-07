@@ -1,21 +1,25 @@
 # MVMNT
 
-> Create polished MIDI-driven motion graphics without leaving your browser.
+> Create polished Music visualisation motion graphics without leaving your browser.
 
-MVMNT (pronounced _movement_) is a React-powered MIDI visualization studio for producing social-media-ready videos from standard MIDI files. The project embraces a store-first architecture, deterministic rendering pipeline, and in-browser tooling so artists can experiment, iterate, and export with confidence.
+MVMNT (pronounced _movement_) is a free and open source music visualization tool designed to create beautiful, modern, MIDI and audio-reactive graphics.
+
+For creatives, MVMNT is a customisable and fully featured application with
 
 ## Table of Contents
 
--   [Quick Start](#quick-start)
--   [Local Backend (Supabase)](#local-backend-supabase)
--   [Making Plugins](#making-plugins)
--   [Development Workflow](#development-workflow)
--   [Scene Files](#scene-files)
--   [Extending MVMNT](#extending-mvmnt)
-    -   [Custom Scene Elements](#custom-scene-elements)
-    -   [Custom Piano Roll Animations](#custom-piano-roll-animations)
--   [Debug Utilities](#debug-utilities)
--   [License](#license)
+- [MVMNT](#mvmnt)
+    - [Table of Contents](#table-of-contents)
+    - [Quick Start](#quick-start)
+    - [Local Backend (Supabase)](#local-backend-supabase)
+        - [Prerequisites](#prerequisites)
+        - [Setup](#setup)
+        - [Useful local URLs](#useful-local-urls)
+        - [Schema changes](#schema-changes)
+        - [Stopping](#stopping)
+    - [Making Plugins](#making-plugins)
+    - [Development Workflow](#development-workflow)
+    - [License](#license)
 
 ## Quick Start
 
@@ -34,8 +38,8 @@ The community features (uploads, ratings, downloads) require a Supabase backend.
 
 ### Prerequisites
 
--   [Docker Desktop](https://www.docker.com/products/docker-desktop/)
--   [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started)
 
     ```bash
     # macOS
@@ -93,12 +97,12 @@ npm run dev
 
 ### Useful local URLs
 
-| Service | URL |
-|---|---|
-| App | http://localhost:5173 |
-| Supabase Studio | http://127.0.0.1:54323 |
-| Email testing (Mailpit) | http://127.0.0.1:54324 |
-| Direct Postgres | `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
+| Service                 | URL                                                       |
+| ----------------------- | --------------------------------------------------------- |
+| App                     | http://localhost:5173                                     |
+| Supabase Studio         | http://127.0.0.1:54323                                    |
+| Email testing (Mailpit) | http://127.0.0.1:54324                                    |
+| Direct Postgres         | `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
 
 Studio lets you browse tables, manage auth users, and run queries against the local database. Mailpit captures all auth emails (magic links, confirmations) so you can complete auth flows without a real mail server.
 
@@ -129,7 +133,7 @@ supabase db reset    # wipe and replay from migrations + seed
 
 MVMNT's scene elements are fully pluggable. You can write, build, and distribute your own elements — things like custom MIDI visualisers, audio-reactive shapes, or generative art — using the same API that the built-in elements use.
 
-Plugins are TypeScript classes that extend `SceneElement`. They (1) declare their configurable properties and (2) implement a `_buildRenderObjects()` method that draws on the canvas each frame. 
+Plugins are TypeScript classes that extend `SceneElement`. They (1) declare their configurable properties and (2) implement a `_buildRenderObjects()` method that draws on the canvas each frame.
 
 The `@mvmnt/plugin-sdk` module provides everything you need: the base class, render primitives, and access to the timeline, audio features, and timing data via a stable host API.
 

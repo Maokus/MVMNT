@@ -186,11 +186,17 @@ export interface SceneInteractionState {
     expandedPropertyGroups: Record<string, Record<string, boolean>>;
     /** Active property tab per element in the properties panel, keyed by elementId. */
     activePropertyTab: Record<string, string>;
+    propertyClipboard: PropertyClipboard | null;
 }
 
 export interface SceneClipboard {
     exportedAt: number;
     elementIds: string[];
+}
+
+export interface PropertyClipboard {
+    elementType: string;
+    values: Record<string, any>;
 }
 
 export interface SceneMacroState {
@@ -308,6 +314,7 @@ export interface SceneStoreActions {
     setInteractionState: (patch: Partial<SceneInteractionState>) => void;
     setPropertyGroupCollapseState: (elementId: string, groupId: string, collapsed: boolean) => void;
     setActivePropertyTab: (elementId: string, tabId: string) => void;
+    setPropertyClipboard: (clipboard: PropertyClipboard | null) => void;
     setAutomationChannel: (channel: AutomationChannel) => void;
     removeAutomationChannel: (channelId: string) => void;
     updateAutomationKeyframes: (channelId: string, keyframes: AutomationKeyframe[]) => void;
@@ -354,6 +361,7 @@ function createInitialInteractionState(): SceneInteractionState {
         automationSearchQuery: '',
         expandedPropertyGroups: {},
         activePropertyTab: {},
+        propertyClipboard: null,
     };
 }
 
@@ -1820,6 +1828,16 @@ const createSceneStoreState = (
                     ...state.interaction.activePropertyTab,
                     [elementId]: tabId,
                 },
+            },
+        }));
+    },
+
+    setPropertyClipboard: (clipboard) => {
+        set((state) => ({
+            ...state,
+            interaction: {
+                ...state.interaction,
+                propertyClipboard: clipboard,
             },
         }));
     },
