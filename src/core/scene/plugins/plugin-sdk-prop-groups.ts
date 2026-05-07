@@ -1,4 +1,4 @@
-import type { PropertyDefinition, PropertyGroup, PropertyVisibilityCondition } from '@core/types';
+import type { PropertyDefinition, PropertyGroup, PropertyTab, PropertyVisibilityCondition } from '@core/types';
 import { prop } from './plugin-sdk-prop-factories';
 
 // ─── Blend mode choices ──────────────────────────────────────────────────────
@@ -422,5 +422,47 @@ export const section = {
     /** Catch-all for technical or rarely-changed props. Advanced variant, collapsed by default. */
     advanced(properties: PropertyDefinition[]): PropertyGroup {
         return { id: 'advanced', label: 'Advanced', variant: 'advanced', collapsed: true, properties };
+    },
+} as const;
+
+// ─── tab helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Factory helpers for building `PropertyTab` objects.
+ *
+ * Use these to group `PropertyGroup[]` arrays into named tabs for `insertElementGroups`.
+ * The Transform tab is always prepended by `insertElementGroups` — do not create it here.
+ *
+ * @example
+ * return insertElementGroups(super.getConfigSchema(), { name: 'Audio Spectrum' }, [
+ *   tab.content([propGroup.audioSource(), section.content([...])]),
+ *   tab.appearance([section.appearance([...])]),
+ * ]);
+ */
+export const tab = {
+    transform(groups: PropertyGroup[]): PropertyTab {
+        return { id: 'transform', label: 'Transform', groups };
+    },
+    content(groups: PropertyGroup[]): PropertyTab {
+        return { id: 'content', label: 'Content', groups };
+    },
+    appearance(groups: PropertyGroup[]): PropertyTab {
+        return { id: 'appearance', label: 'Appearance', groups };
+    },
+    grid(groups: PropertyGroup[]): PropertyTab {
+        return { id: 'grid', label: 'Grid', groups };
+    },
+    animation(groups: PropertyGroup[]): PropertyTab {
+        return { id: 'animation', label: 'Animation', groups };
+    },
+    advanced(groups: PropertyGroup[]): PropertyTab {
+        return { id: 'advanced', label: 'Advanced', groups };
+    },
+    /** Escape hatch for simple elements with a single group of properties. */
+    properties(groups: PropertyGroup[]): PropertyTab {
+        return { id: 'properties', label: 'Properties', groups };
+    },
+    custom(id: string, label: string, groups: PropertyGroup[]): PropertyTab {
+        return { id, label, groups };
     },
 } as const;

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import PropertyGroupPanel from './PropertyGroupPanel';
-import { EnhancedConfigSchema, PropertyDefinition } from '@fonts/components';
+import { EnhancedConfigSchema, PropertyDefinition } from '@core/types';
 import { useMacros } from '@context/MacroContext';
 import type { ElementBindings } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
@@ -77,7 +77,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     // Fast property-type lookup used by auto-keying logic
     const propertyTypeMap = useMemo(() => {
         const map = new Map<string, string>();
-        enhancedSchema?.groups.forEach((group) => {
+        enhancedSchema?.tabs.flatMap((t) => t.groups).forEach((group) => {
             group.properties.forEach((prop) => map.set(prop.key, prop.type));
         });
         return map;
@@ -88,7 +88,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const delinkedKeys = useMemo(() => {
         const keys = new Set<string>();
         if (!enhancedSchema) return keys;
-        enhancedSchema.groups.forEach((group) => {
+        enhancedSchema.tabs.flatMap((t) => t.groups).forEach((group) => {
             group.properties.forEach((property) => {
                 const binding = bindingsMemo[property.key];
                 if (binding?.type === 'keyframes') {
@@ -125,7 +125,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         const nextValues: PropertyValues = {};
         const nextAssignments: MacroAssignments = {};
 
-        groupedSchema.groups.forEach((group) => {
+        groupedSchema.tabs.flatMap((t) => t.groups).forEach((group) => {
             group.properties.forEach((property) => {
                 const binding = bindingsMemo[property.key];
                 if (binding?.type === 'macro') {
@@ -175,7 +175,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
 
         // Initialize any groups that don't yet have a stored collapse state
         const currentGroupState = useSceneStore.getState().interaction.expandedPropertyGroups[elementId] ?? {};
-        groupedSchema.groups.forEach((group) => {
+        groupedSchema.tabs.flatMap((t) => t.groups).forEach((group) => {
             if (!Object.prototype.hasOwnProperty.call(currentGroupState, group.id) && group.collapsed) {
                 setPropertyGroupCollapseState(elementId, group.id, true);
             }
@@ -224,7 +224,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const filteredGroups = useMemo(() => {
         if (!enhancedSchema) return [];
 
-        return enhancedSchema.groups
+        return enhancedSchema.tabs.flatMap((t) => t.groups)
             .map((group) => {
                 const groupLabel = group.label?.toLowerCase?.() ?? '';
                 const groupDescription = group.description?.toLowerCase?.() ?? '';
@@ -252,7 +252,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const elementPresets = useMemo(() => {
         if (!enhancedSchema) return [];
 
-        return enhancedSchema.groups.flatMap((group) =>
+        return enhancedSchema.tabs.flatMap((t) => t.groups).flatMap((group) =>
             (group.presets ?? []).map((preset) => ({
                 value: `${group.id}::${preset.id}`,
                 label: `${group.label ?? 'Group'} · ${preset.label}`,
@@ -364,7 +364,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         if (!enhancedSchema) return;
 
         const nextValues: Record<string, any> = {};
-        enhancedSchema.groups.forEach((group) => {
+        enhancedSchema.tabs.flatMap((t) => t.groups).forEach((group) => {
             group.properties.forEach((property) => {
                 nextValues[property.key] = property.default ?? null;
                 if (macroAssignments[property.key]) {
@@ -380,7 +380,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         (presetKey: string) => {
             if (!enhancedSchema) return;
             const [groupId, presetId] = presetKey.split('::');
-            const group = enhancedSchema.groups.find((entry) => entry.id === groupId);
+            const group = enhancedSchema.tabs.flatMap((t) => t.groups).find((entry) => entry.id === groupId);
             if (!group || !group.presets) return;
             const preset = group.presets.find((entry) => entry.id === presetId);
             if (!preset) return;
@@ -404,7 +404,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         const values: Record<string, any> = {};
         const macros: Record<string, string> = {};
 
-        enhancedSchema.groups.forEach((group) => {
+        enhancedSchema.tabs.flatMap((t) => t.groups).forEach((group) => {
             group.properties.forEach((property) => {
                 if (Object.prototype.hasOwnProperty.call(propertyValues, property.key)) {
                     values[property.key] = propertyValues[property.key];
@@ -423,7 +423,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         if (elementClipboard.elementType !== elementType) return;
 
         const nextValues: Record<string, any> = {};
-        enhancedSchema.groups.forEach((group) => {
+        enhancedSchema.tabs.flatMap((t) => t.groups).forEach((group) => {
             group.properties.forEach((property) => {
                 if (Object.prototype.hasOwnProperty.call(elementClipboard.values, property.key)) {
                     nextValues[property.key] = elementClipboard.values[property.key];
@@ -433,7 +433,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
 
         applyBulkValueChange(nextValues);
 
-        enhancedSchema.groups.forEach((group) => {
+        enhancedSchema.tabs.flatMap((t) => t.groups).forEach((group) => {
             group.properties.forEach((property) => {
                 const macroName = elementClipboard.macroAssignments[property.key];
                 if (macroName && macroLookup.has(macroName)) {

@@ -365,7 +365,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
             const schema = sceneElementRegistry.getSchema(elementType) as any;
             if (schema) {
                 const trackInputs: TrackInputDef[] = [];
-                for (const group of (schema.groups ?? [])) {
+                for (const group of (schema.tabs?.flatMap((t: any) => t.groups) ?? [])) {
                     for (const propDef of (group.properties ?? [])) {
                         if (propDef.type === 'timelineTrackRef') {
                             trackInputs.push({

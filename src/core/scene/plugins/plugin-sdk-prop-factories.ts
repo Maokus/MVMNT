@@ -1,5 +1,5 @@
 import { asNumber, asBoolean, asString, asTrimmedString } from '@core/scene/elements/base';
-import type { EnhancedConfigSchema, PropertyDefinition, PropertyGroup, PropertyVisibilityCondition } from '@core/types';
+import type { EnhancedConfigSchema, PropertyDefinition, PropertyGroup, PropertyTab, PropertyVisibilityCondition } from '@core/types';
 
 // ─── Shared option types ────────────────────────────────────────────────────
 
@@ -310,34 +310,41 @@ export const prop = {
     },
 } as const;
 
+// ─── isPropertyTabArray ──────────────────────────────────────────────────────
+
+/** Returns true when the value is a `PropertyTab[]` (has a `groups` array on the first element). */
+export function isPropertyTabArray(x: PropertyTab[] | PropertyGroup[]): x is PropertyTab[] {
+    return x.length === 0 || (x[0] as PropertyTab).groups !== undefined;
+}
+
 // ─── insertElementGroups ─────────────────────────────────────────────────────
 
 /**
- * Inserts plugin-specific property groups into the base element schema, placing them
- * between the base's "basic" groups and "advanced" groups.
+ * Inserts plugin-specific property groups or tabs into the base element schema.
  *
- * Replaces the three-line boilerplate that every element previously copy-pasted:
- * ```ts
- * // Before:
- * const base = super.getConfigSchema();
- * const basicGroups    = base.groups.filter(g => g.variant !== 'advanced');
- * const advancedGroups = base.groups.filter(g => g.variant === 'advanced');
- * return { ...base, name: '...', groups: [...basicGroups, ...myGroups, ...advancedGroups] };
+ * Pass `PropertyTab[]` (Phase 2+ style) to supply named tabs. The result will be
+ * `[Transform tab, ...pluginTabs]`.
  *
- * // After:
- * return insertElementGroups(super.getConfigSchema(), { name: 'My Element' }, myGroups);
- * ```
+ * Pass `PropertyGroup[]` (compat path) to wrap the groups in a single "Properties" tab
+ * and prepend the Transform tab. This path is silent — no runtime warning.
  *
  * @param base         The schema returned by `super.getConfigSchema()`.
  * @param overrides    Fields to override on the base schema (`name`, `description`, `category`).
- * @param pluginGroups The property groups specific to this element.
+ * @param pluginGroups The property groups or tabs specific to this element.
  */
 export function insertElementGroups(
     base: EnhancedConfigSchema,
     overrides: Partial<Pick<EnhancedConfigSchema, 'name' | 'description' | 'category'>>,
-    pluginGroups: PropertyGroup[]
+    pluginGroups: PropertyTab[] | PropertyGroup[]
 ): EnhancedConfigSchema {
-    const basicGroups = base.groups.filter((g) => g.variant !== 'advanced');
-    const advancedGroups = base.groups.filter((g) => g.variant === 'advanced');
-    return { ...base, ...overrides, groups: [...basicGroups, ...pluginGroups, ...advancedGroups] };
+    const transformTab = base.tabs[0];
+    const newTabs: PropertyTab[] = isPropertyTabArray(pluginGroups)
+        ? [transformTab, ...pluginGroups]
+        : [transformTab, { id: 'properties', label: 'Properties', groups: pluginGroups as PropertyGroup[] }];
+    return {
+        ...base,
+        ...overrides,
+        tabs: newTabs,
+        get groups() { return this.tabs.flatMap((t) => t.groups); },
+    };
 }
