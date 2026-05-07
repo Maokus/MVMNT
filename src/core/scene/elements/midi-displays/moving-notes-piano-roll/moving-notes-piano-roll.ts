@@ -9,7 +9,7 @@ import { MovingNotesAnimationController } from './animation-controller';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { TimingManager } from '@core/timing';
 import { insertElementGroups, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
-import { propGroup } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 const DEFAULT_NOTE_COLOR = '#FF6B6B';
 
@@ -109,320 +109,341 @@ export class MovingNotesPianoRollElement extends SceneElement {
                 category: 'MIDI Displays',
             },
             [
-                propGroup.midiSource(),
-                propGroup.appearance(),
-                {
-                    id: 'dimensions',
-                    label: 'Layout & Range',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Configure viewport width, time window, and pitch range.',
-                    properties: [
-                        prop.number('rollWidth', 'Roll Width (px)', 800, {
-                            min: 100,
-                            max: 4000,
-                            step: 10,
-                            description: 'Total width for the moving-notes viewport.',
-                        }),
-                        prop.number('timeUnitBars', 'Time Unit (bars)', 1, { min: 1, max: 8, step: 1 }),
-                        prop.number('minNote', 'Minimum MIDI Note', 30, { min: 0, max: 127, step: 1 }),
-                        prop.number('maxNote', 'Maximum MIDI Note', 72, { min: 0, max: 127, step: 1 }),
-                    ],
-                    presets: [
-                        {
-                            id: 'wideStage',
-                            label: 'Wide Stage',
-                            values: { pianoWidth: 140, rollWidth: 1200, timeUnitBars: 2, minNote: 24, maxNote: 84 },
-                        },
-                        {
-                            id: 'compactKeys',
-                            label: 'Compact Keys',
-                            values: { pianoWidth: 100, rollWidth: 700, timeUnitBars: 1, minNote: 36, maxNote: 84 },
-                        },
-                        {
-                            id: 'fullRange',
-                            label: 'Full Range',
-                            values: { pianoWidth: 120, rollWidth: 1400, timeUnitBars: 4, minNote: 21, maxNote: 108 },
-                        },
-                    ],
-                },
-                {
-                    id: 'notes',
-                    label: 'Notes',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Control how notes are drawn as they move past the playhead.',
-                    properties: [
-                        prop.boolean('showNotes', 'Show Notes', true),
-                        prop.boolean('useChannelColors', 'Use Per-Channel Colors', false, {
-                            visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        }),
-                        prop.number('noteHeight', 'Note Height (px)', 20, {
-                            min: 4,
-                            max: 40,
-                            step: 1,
-                            visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        }),
-                        prop.number('noteCornerRadius', 'Note Corner Radius (px)', 2, {
-                            min: 0,
-                            max: 20,
-                            step: 1,
-                            visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        }),
-                        prop.color('noteStrokeColor', 'Note Stroke Color', '#ffffff', {
-                            visibleWhen: [
-                                { key: 'showNotes', truthy: true },
-                                { key: 'noteStrokeWidth', truthy: true },
-                            ],
-                        }),
-                        prop.number('noteStrokeWidth', 'Note Stroke Width (px)', 0, {
-                            min: 0,
-                            max: 10,
-                            step: 1,
-                            visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        }),
-                        prop.number('noteGlowBlur', 'Note Glow Blur (px)', 0, {
-                            min: 0,
-                            max: 50,
-                            step: 1,
-                            visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        }),
-                        prop.number('noteGlowOpacity', 'Note Glow Opacity', 0.5, {
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
-                            visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        }),
-                        ...channelColorProperties,
-                    ],
-                    presets: [
-                        {
-                            id: 'classicBlocks',
-                            label: 'Classic Blocks',
-                            values: {
-                                showNotes: true,
-                                noteHeight: 20,
-                                color: '#FF6B6B',
-                                opacity: 0.85,
-                                noteGlowOpacity: 0.4,
+                tab.content([
+                    propGroup.midiSource(),
+                    {
+                        id: 'dimensions',
+                        label: 'Layout & Range',
+                        variant: 'basic',
+                        collapsed: false,
+                        description: 'Configure viewport width, time window, and pitch range.',
+                        properties: [
+                            prop.number('rollWidth', 'Roll Width (px)', 800, {
+                                min: 100,
+                                max: 4000,
+                                step: 10,
+                                description: 'Total width for the moving-notes viewport.',
+                            }),
+                            prop.number('timeUnitBars', 'Time Unit (bars)', 1, { min: 1, max: 8, step: 1 }),
+                            prop.number('minNote', 'Minimum MIDI Note', 30, { min: 0, max: 127, step: 1 }),
+                            prop.number('maxNote', 'Maximum MIDI Note', 72, { min: 0, max: 127, step: 1 }),
+                        ],
+                        presets: [
+                            {
+                                id: 'wideStage',
+                                label: 'Wide Stage',
+                                values: { pianoWidth: 140, rollWidth: 1200, timeUnitBars: 2, minNote: 24, maxNote: 84 },
                             },
-                        },
-                        {
-                            id: 'ghosted',
-                            label: 'Ghosted',
-                            values: {
-                                showNotes: true,
-                                color: '#FF6B6B',
-                                opacity: 0.5,
-                                noteGlowOpacity: 0.2,
-                                noteStrokeWidth: 1,
+                            {
+                                id: 'compactKeys',
+                                label: 'Compact Keys',
+                                values: { pianoWidth: 100, rollWidth: 700, timeUnitBars: 1, minNote: 36, maxNote: 84 },
                             },
-                        },
-                        {
-                            id: 'neon',
-                            label: 'Neon',
-                            values: {
-                                showNotes: true,
-                                color: '#FF6B6B',
-                                opacity: 0.9,
-                                noteGlowOpacity: 0.7,
-                                noteGlowBlur: 12,
+                            {
+                                id: 'fullRange',
+                                label: 'Full Range',
+                                values: {
+                                    pianoWidth: 120,
+                                    rollWidth: 1400,
+                                    timeUnitBars: 4,
+                                    minNote: 21,
+                                    maxNote: 108,
+                                },
                             },
-                        },
-                        {
-                            id: 'perChannelRainbow',
-                            label: 'Per-Channel Rainbow',
-                            values: {
-                                showNotes: true,
-                                useChannelColors: true,
-                                ...createChannelPreset(channelColorDefaults),
+                        ],
+                    },
+                    {
+                        id: 'notes',
+                        label: 'Notes',
+                        variant: 'basic',
+                        collapsed: false,
+                        description: 'Control how notes are drawn as they move past the playhead.',
+                        properties: [
+                            prop.boolean('showNotes', 'Show Notes', true),
+                            prop.boolean('useChannelColors', 'Use Per-Channel Colors', false, {
+                                visibleWhen: [{ key: 'showNotes', truthy: true }],
+                            }),
+                            prop.number('noteHeight', 'Note Height (px)', 20, {
+                                min: 4,
+                                max: 40,
+                                step: 1,
+                                visibleWhen: [{ key: 'showNotes', truthy: true }],
+                            }),
+                            prop.number('noteCornerRadius', 'Note Corner Radius (px)', 2, {
+                                min: 0,
+                                max: 20,
+                                step: 1,
+                                visibleWhen: [{ key: 'showNotes', truthy: true }],
+                            }),
+                            prop.color('noteStrokeColor', 'Note Stroke Color', '#ffffff', {
+                                visibleWhen: [
+                                    { key: 'showNotes', truthy: true },
+                                    { key: 'noteStrokeWidth', truthy: true },
+                                ],
+                            }),
+                            prop.number('noteStrokeWidth', 'Note Stroke Width (px)', 0, {
+                                min: 0,
+                                max: 10,
+                                step: 1,
+                                visibleWhen: [{ key: 'showNotes', truthy: true }],
+                            }),
+                            prop.number('noteGlowBlur', 'Note Glow Blur (px)', 0, {
+                                min: 0,
+                                max: 50,
+                                step: 1,
+                                visibleWhen: [{ key: 'showNotes', truthy: true }],
+                            }),
+                            prop.number('noteGlowOpacity', 'Note Glow Opacity', 0.5, {
+                                min: 0,
+                                max: 1,
+                                step: 0.05,
+                                visibleWhen: [{ key: 'showNotes', truthy: true }],
+                            }),
+                            ...channelColorProperties,
+                        ],
+                        presets: [
+                            {
+                                id: 'classicBlocks',
+                                label: 'Classic Blocks',
+                                values: {
+                                    showNotes: true,
+                                    noteHeight: 20,
+                                    color: '#FF6B6B',
+                                    opacity: 0.85,
+                                    noteGlowOpacity: 0.4,
+                                },
                             },
-                        },
-                        {
-                            id: 'perChannelPastel',
-                            label: 'Per-Channel Pastel',
-                            values: {
-                                showNotes: true,
-                                useChannelColors: true,
-                                ...createChannelPreset(channelColorPastel),
+                            {
+                                id: 'ghosted',
+                                label: 'Ghosted',
+                                values: {
+                                    showNotes: true,
+                                    color: '#FF6B6B',
+                                    opacity: 0.5,
+                                    noteGlowOpacity: 0.2,
+                                    noteStrokeWidth: 1,
+                                },
                             },
-                        },
-                        {
-                            id: 'perChannelHeatMap',
-                            label: 'Per-Channel Heat Map',
-                            values: {
-                                showNotes: true,
-                                useChannelColors: true,
-                                ...createChannelPreset(channelColorHeatmap),
+                            {
+                                id: 'neon',
+                                label: 'Neon',
+                                values: {
+                                    showNotes: true,
+                                    color: '#FF6B6B',
+                                    opacity: 0.9,
+                                    noteGlowOpacity: 0.7,
+                                    noteGlowBlur: 12,
+                                },
                             },
-                        },
-                        {
-                            id: 'singleColor',
-                            label: 'Single Color',
-                            values: {
-                                showNotes: true,
-                                useChannelColors: false,
-                                color: DEFAULT_NOTE_COLOR,
+                            {
+                                id: 'perChannelRainbow',
+                                label: 'Per-Channel Rainbow',
+                                values: {
+                                    showNotes: true,
+                                    useChannelColors: true,
+                                    ...createChannelPreset(channelColorDefaults),
+                                },
                             },
-                        },
-                    ],
-                },
-                {
-                    id: 'piano',
-                    label: 'Piano',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Optional static keyboard rendered alongside the roll.',
-                    properties: [
-                        prop.boolean('showPiano', 'Show Piano', false),
-                        prop.number('pianoWidth', 'Piano Width (px)', 0, {
-                            min: 80,
-                            max: 300,
-                            step: 10,
-                            visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        }),
-                        prop.color('whiteKeyColor', 'White Key Color', '#f0f0f0', {
-                            visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        }),
-                        prop.color('blackKeyColor', 'Black Key Color', '#555555', {
-                            visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        }),
-                        prop.number('pianoOpacity', 'Piano Opacity', 1, {
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
-                            visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        }),
-                        prop.color('pianoRightBorderColor', 'Piano Right Border', '#333333', {
-                            visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        }),
-                        prop.number('pianoRightBorderWidth', 'Piano Right Border Width (px)', 2, {
-                            min: 0,
-                            max: 10,
-                            step: 1,
-                            visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        }),
-                    ],
-                    presets: [
-                        {
-                            id: 'classicPiano',
-                            label: 'Classic Piano',
-                            values: {
-                                showPiano: true,
-                                whiteKeyColor: '#f8fafc',
-                                blackKeyColor: '#111827',
-                                pianoOpacity: 1,
+                            {
+                                id: 'perChannelPastel',
+                                label: 'Per-Channel Pastel',
+                                values: {
+                                    showNotes: true,
+                                    useChannelColors: true,
+                                    ...createChannelPreset(channelColorPastel),
+                                },
                             },
-                        },
-                        {
-                            id: 'ghostKeys',
-                            label: 'Ghost Keys',
-                            values: {
-                                showPiano: true,
-                                whiteKeyColor: '#94a3b8',
-                                blackKeyColor: '#1f2937',
-                                pianoOpacity: 0.6,
+                            {
+                                id: 'perChannelHeatMap',
+                                label: 'Per-Channel Heat Map',
+                                values: {
+                                    showNotes: true,
+                                    useChannelColors: true,
+                                    ...createChannelPreset(channelColorHeatmap),
+                                },
                             },
-                        },
-                        { id: 'hiddenKeys', label: 'No Keyboard', values: { showPiano: false } },
-                    ],
-                },
-                {
-                    id: 'animation',
-                    label: 'Animation',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Choose how notes animate when triggered.',
-                    properties: [
-                        prop.select('animationType', 'Animation Type', 'expand', [
-                            ...getAnimationSelectOptions(),
-                            { value: 'none', label: 'No Animation' },
-                        ]),
-                        prop.number('attackDuration', 'Attack Duration (s)', 0.3, { min: 0, max: 10, step: 0.05 }),
-                        prop.number('decayDuration', 'Decay Duration (s)', 0.3, { min: 0, max: 10, step: 0.05 }),
-                        prop.number('releaseDuration', 'Release Duration (s)', 0.3, { min: 0, max: 10, step: 0.05 }),
-                        prop.number('playheadPosition', 'Playhead Position (0–1)', 0.5, { min: 0, max: 1, step: 0.01 }),
-                        prop.number('playheadOffset', 'Playhead Offset (px)', 0, {
-                            min: -4000,
-                            max: 4000,
-                            step: 1,
-                            description: 'Pixel offset added to playhead position within the element width.',
-                        }),
-                    ],
-                    presets: [
-                        {
-                            id: 'expand',
-                            label: 'Expand',
-                            values: {
-                                animationType: 'expand',
-                                attackDuration: 0.3,
-                                decayDuration: 0.3,
-                                releaseDuration: 0.3,
+                            {
+                                id: 'singleColor',
+                                label: 'Single Color',
+                                values: {
+                                    showNotes: true,
+                                    useChannelColors: false,
+                                    color: DEFAULT_NOTE_COLOR,
+                                },
                             },
-                        },
-                        {
-                            id: 'staccato',
-                            label: 'Staccato',
-                            values: {
-                                animationType: 'expand',
-                                attackDuration: 0.1,
-                                decayDuration: 0.15,
-                                releaseDuration: 0.2,
+                        ],
+                    },
+                    {
+                        id: 'piano',
+                        label: 'Piano',
+                        variant: 'advanced',
+                        collapsed: true,
+                        description: 'Optional static keyboard rendered alongside the roll.',
+                        properties: [
+                            prop.boolean('showPiano', 'Show Piano', false),
+                            prop.number('pianoWidth', 'Piano Width (px)', 0, {
+                                min: 80,
+                                max: 300,
+                                step: 10,
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.color('whiteKeyColor', 'White Key Color', '#f0f0f0', {
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.color('blackKeyColor', 'Black Key Color', '#555555', {
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.number('pianoOpacity', 'Piano Opacity', 1, {
+                                min: 0,
+                                max: 1,
+                                step: 0.05,
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.color('pianoRightBorderColor', 'Piano Right Border', '#333333', {
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.number('pianoRightBorderWidth', 'Piano Right Border Width (px)', 2, {
+                                min: 0,
+                                max: 10,
+                                step: 1,
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                        ],
+                        presets: [
+                            {
+                                id: 'classicPiano',
+                                label: 'Classic Piano',
+                                values: {
+                                    showPiano: true,
+                                    whiteKeyColor: '#f8fafc',
+                                    blackKeyColor: '#111827',
+                                    pianoOpacity: 1,
+                                },
                             },
-                        },
-                        {
-                            id: 'noAnimation',
-                            label: 'No Animation',
-                            values: { animationType: 'none', attackDuration: 0, decayDuration: 0, releaseDuration: 0 },
-                        },
-                    ],
-                },
-                {
-                    id: 'playhead',
-                    label: 'Playhead',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Style the static playhead indicator.',
-                    properties: [
-                        prop.boolean('showPlayhead', 'Show Playhead', true),
-                        prop.color('playheadColor', 'Playhead Color', '#ff6b6b', {
-                            visibleWhen: [{ key: 'showPlayhead', truthy: true }],
-                        }),
-                        prop.range('playheadOpacity', 'Playhead Opacity', 1, {
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
-                            visibleWhen: [{ key: 'showPlayhead', truthy: true }],
-                        }),
-                        prop.number('playheadLineWidth', 'Playhead Line Width (px)', 2, {
-                            min: 1,
-                            max: 10,
-                            step: 1,
-                            visibleWhen: [{ key: 'showPlayhead', truthy: true }],
-                        }),
-                    ],
-                    presets: [
-                        {
-                            id: 'standard',
-                            label: 'Standard',
-                            values: {
-                                showPlayhead: true,
-                                playheadColor: '#ff6b6b',
-                                playheadLineWidth: 2,
+                            {
+                                id: 'ghostKeys',
+                                label: 'Ghost Keys',
+                                values: {
+                                    showPiano: true,
+                                    whiteKeyColor: '#94a3b8',
+                                    blackKeyColor: '#1f2937',
+                                    pianoOpacity: 0.6,
+                                },
                             },
-                        },
-                        {
-                            id: 'thin',
-                            label: 'Thin Line',
-                            values: {
-                                showPlayhead: true,
-                                playheadLineWidth: 1,
-                                playheadColor: '#f8fafc',
+                            { id: 'hiddenKeys', label: 'No Keyboard', values: { showPiano: false } },
+                        ],
+                    },
+                    {
+                        id: 'animation',
+                        label: 'Animation',
+                        variant: 'advanced',
+                        collapsed: true,
+                        description: 'Choose how notes animate when triggered.',
+                        properties: [
+                            prop.select('animationType', 'Animation Type', 'expand', [
+                                ...getAnimationSelectOptions(),
+                                { value: 'none', label: 'No Animation' },
+                            ]),
+                            prop.number('attackDuration', 'Attack Duration (s)', 0.3, { min: 0, max: 10, step: 0.05 }),
+                            prop.number('decayDuration', 'Decay Duration (s)', 0.3, { min: 0, max: 10, step: 0.05 }),
+                            prop.number('releaseDuration', 'Release Duration (s)', 0.3, {
+                                min: 0,
+                                max: 10,
+                                step: 0.05,
+                            }),
+                            prop.number('playheadPosition', 'Playhead Position (0–1)', 0.5, {
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                            }),
+                            prop.number('playheadOffset', 'Playhead Offset (px)', 0, {
+                                min: -4000,
+                                max: 4000,
+                                step: 1,
+                                description: 'Pixel offset added to playhead position within the element width.',
+                            }),
+                        ],
+                        presets: [
+                            {
+                                id: 'expand',
+                                label: 'Expand',
+                                values: {
+                                    animationType: 'expand',
+                                    attackDuration: 0.3,
+                                    decayDuration: 0.3,
+                                    releaseDuration: 0.3,
+                                },
                             },
-                        },
-                        { id: 'hidden', label: 'Hidden', values: { showPlayhead: false } },
-                    ],
-                },
+                            {
+                                id: 'staccato',
+                                label: 'Staccato',
+                                values: {
+                                    animationType: 'expand',
+                                    attackDuration: 0.1,
+                                    decayDuration: 0.15,
+                                    releaseDuration: 0.2,
+                                },
+                            },
+                            {
+                                id: 'noAnimation',
+                                label: 'No Animation',
+                                values: {
+                                    animationType: 'none',
+                                    attackDuration: 0,
+                                    decayDuration: 0,
+                                    releaseDuration: 0,
+                                },
+                            },
+                        ],
+                    },
+                    {
+                        id: 'playhead',
+                        label: 'Playhead',
+                        variant: 'advanced',
+                        collapsed: true,
+                        description: 'Style the static playhead indicator.',
+                        properties: [
+                            prop.boolean('showPlayhead', 'Show Playhead', true),
+                            prop.color('playheadColor', 'Playhead Color', '#ff6b6b', {
+                                visibleWhen: [{ key: 'showPlayhead', truthy: true }],
+                            }),
+                            prop.range('playheadOpacity', 'Playhead Opacity', 1, {
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                                visibleWhen: [{ key: 'showPlayhead', truthy: true }],
+                            }),
+                            prop.number('playheadLineWidth', 'Playhead Line Width (px)', 2, {
+                                min: 1,
+                                max: 10,
+                                step: 1,
+                                visibleWhen: [{ key: 'showPlayhead', truthy: true }],
+                            }),
+                        ],
+                        presets: [
+                            {
+                                id: 'standard',
+                                label: 'Standard',
+                                values: {
+                                    showPlayhead: true,
+                                    playheadColor: '#ff6b6b',
+                                    playheadLineWidth: 2,
+                                },
+                            },
+                            {
+                                id: 'thin',
+                                label: 'Thin Line',
+                                values: {
+                                    showPlayhead: true,
+                                    playheadLineWidth: 1,
+                                    playheadColor: '#f8fafc',
+                                },
+                            },
+                            { id: 'hidden', label: 'Hidden', values: { showPlayhead: false } },
+                        ],
+                    },
+                ]),
+                tab.appearance([propGroup.appearance()]),
             ]
         );
     }

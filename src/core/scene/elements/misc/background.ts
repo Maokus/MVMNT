@@ -1,5 +1,5 @@
 // Background element for rendering the main background with property bindings
-import { SceneElement, type EnhancedConfigSchema, insertElementGroups, propGroup } from '@mvmnt/plugin-sdk';
+import { SceneElement, type EnhancedConfigSchema, insertElementGroups, propGroup, tab } from '@mvmnt/plugin-sdk';
 import { Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import { applyOpacity } from '@utils/color';
 
@@ -32,7 +32,7 @@ export class BackgroundElement extends SceneElement {
                 description: 'Solid background color for the visualization',
                 category: 'Misc',
             },
-            [propGroup.appearance(), propGroup.border()]
+            [tab.appearance([propGroup.appearance(), propGroup.border()])]
         );
     }
 

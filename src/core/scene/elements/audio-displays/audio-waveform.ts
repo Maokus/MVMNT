@@ -7,7 +7,7 @@ import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
-import { propGroup } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 const { descriptor: WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'waveform' });
 
@@ -550,10 +550,10 @@ export class AudioWaveformElement extends SceneElement {
                 category: 'Audio Displays',
             },
             [
-                propGroup.audioSource(),
-                propGroup.appearance({ label: 'Primary Channel', blendMode: true }),
-                {
-                    id: 'waveform',
+                tab.content([
+                    propGroup.audioSource(),
+                    {
+                        id: 'waveform',
                     label: 'Oscilloscope',
                     variant: 'basic',
                     collapsed: false,
@@ -755,6 +755,10 @@ export class AudioWaveformElement extends SceneElement {
                         },
                     ],
                 },
+                ]),
+                tab.appearance([
+                    propGroup.appearance({ label: 'Primary Channel', blendMode: true }),
+                ]),
             ]
         );
     }

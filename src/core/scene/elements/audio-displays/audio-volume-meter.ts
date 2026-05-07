@@ -6,7 +6,7 @@ import { normalizeChannelSelectorInput, selectChannelSample } from '@audio/audio
 import { applyOpacity } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
-import { propGroup } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -50,42 +50,44 @@ export class AudioVolumeMeterElement extends SceneElement {
                 category: 'Audio Displays',
             },
             [
-                propGroup.audioSource(),
-                propGroup.appearance(),
-                {
-                    id: 'volumeMeter',
-                    label: 'Volume Meter',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'channelSelector',
-                            type: 'string',
-                            label: 'Channel',
-                            default: null,
-                            runtime: { transform: normalizeChannelSelector, defaultValue: null },
-                        },
-                        prop.select('orientation', 'Orientation', 'vertical', [
-                            { label: 'Vertical', value: 'vertical' },
-                            { label: 'Horizontal', value: 'horizontal' },
-                        ]),
-                        prop.number('width', 'Width (px)', 48, { step: 1 }),
-                        prop.number('height', 'Height (px)', 240, { step: 1 }),
-                        prop.number('minValue', 'Minimum Value', 0, { step: 0.01 }),
-                        prop.number('maxValue', 'Maximum Value', 1, { step: 0.01 }),
-                        prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
-                        prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
-                        prop.boolean('showValue', 'Show Value Label', true),
-                        {
-                            key: 'smoothing',
-                            type: 'number',
-                            label: 'Smoothing',
-                            default: 0,
-                            step: 1,
-                            runtime: { transform: clampSmoothing, defaultValue: 0 },
-                        },
-                    ],
-                },
+                tab.content([
+                    propGroup.audioSource(),
+                    {
+                        id: 'volumeMeter',
+                        label: 'Volume Meter',
+                        variant: 'basic',
+                        collapsed: false,
+                        properties: [
+                            {
+                                key: 'channelSelector',
+                                type: 'string',
+                                label: 'Channel',
+                                default: null,
+                                runtime: { transform: normalizeChannelSelector, defaultValue: null },
+                            },
+                            prop.select('orientation', 'Orientation', 'vertical', [
+                                { label: 'Vertical', value: 'vertical' },
+                                { label: 'Horizontal', value: 'horizontal' },
+                            ]),
+                            prop.number('width', 'Width (px)', 48, { step: 1 }),
+                            prop.number('height', 'Height (px)', 240, { step: 1 }),
+                            prop.number('minValue', 'Minimum Value', 0, { step: 0.01 }),
+                            prop.number('maxValue', 'Maximum Value', 1, { step: 0.01 }),
+                            prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
+                            prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
+                            prop.boolean('showValue', 'Show Value Label', true),
+                            {
+                                key: 'smoothing',
+                                type: 'number',
+                                label: 'Smoothing',
+                                default: 0,
+                                step: 1,
+                                runtime: { transform: clampSmoothing, defaultValue: 0 },
+                            },
+                        ],
+                    },
+                ]),
+                tab.appearance([propGroup.appearance()]),
             ]
         );
     }

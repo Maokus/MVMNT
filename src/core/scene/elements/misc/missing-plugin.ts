@@ -4,6 +4,7 @@ import {
     asTrimmedString,
     type EnhancedConfigSchema,
     insertElementGroups,
+    tab,
 } from '@mvmnt/plugin-sdk';
 import { Rectangle, Text, type RenderObject } from '@mvmnt/plugin-sdk/render';
 
@@ -20,7 +21,7 @@ export class MissingPluginElement extends SceneElement {
                 description: 'Placeholder shown when a plugin-backed element is unavailable.',
                 category: 'System',
             },
-            [
+            [tab.properties([
                 {
                     id: 'placeholderStyle',
                     label: 'Placeholder Style',
@@ -55,7 +56,7 @@ export class MissingPluginElement extends SceneElement {
                         },
                     ],
                 },
-            ]
+            ])]
         );
     }
 

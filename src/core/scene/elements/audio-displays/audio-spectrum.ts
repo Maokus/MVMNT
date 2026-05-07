@@ -6,7 +6,7 @@ import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { applyOpacity } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
-import { propGroup, BLEND_MODE_CHOICES } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -208,116 +208,120 @@ export class AudioSpectrumElement extends SceneElement {
                 category: 'Audio Displays',
             },
             [
-                propGroup.audioSource(),
-                {
-                    id: 'appearance',
-                    label: 'Appearance',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.color('color', 'Color', DEFAULT_BAR_COLOR),
-                        prop.range('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
-                        prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
-                        prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
-                        prop.select(
-                            'blendMode',
-                            'Blend Mode',
-                            'source-over',
-                            BLEND_MODE_CHOICES as unknown as Array<{ value: string; label: string }>,
-                            { description: 'Canvas composite blending operation.' }
-                        ),
-                    ],
-                },
-                {
-                    id: 'spectrum',
-                    label: 'Spectrum',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'barCount',
-                            type: 'number',
-                            label: 'Bars',
-                            default: 48,
-                            min: 4,
-                            max: 256,
-                            step: 1,
-                            runtime: {
-                                transform: (value, element) => {
-                                    const numeric = asNumber(value, element);
-                                    if (numeric === undefined) return undefined;
-                                    return clamp(Math.floor(numeric), 4, 512);
+                tab.content([
+                    propGroup.audioSource(),
+                    {
+                        id: 'spectrum',
+                        label: 'Spectrum',
+                        variant: 'basic',
+                        collapsed: false,
+                        properties: [
+                            {
+                                key: 'barCount',
+                                type: 'number',
+                                label: 'Bars',
+                                default: 48,
+                                min: 4,
+                                max: 256,
+                                step: 1,
+                                runtime: {
+                                    transform: (value, element) => {
+                                        const numeric = asNumber(value, element);
+                                        if (numeric === undefined) return undefined;
+                                        return clamp(Math.floor(numeric), 4, 512);
+                                    },
+                                    defaultValue: 48,
                                 },
-                                defaultValue: 48,
                             },
-                        },
-                        prop.number('minDecibels', 'Minimum Value', -80, { min: -80, max: 0, step: 1 }),
-                        prop.number('maxDecibels', 'Maximum Value', 0, { min: -80, max: 24, step: 1 }),
-                        prop.number('width', 'Width (px)', 420, { step: 1 }),
-                        prop.number('height', 'Height (px)', 180, { step: 1 }),
-                        {
-                            key: 'display',
-                            type: 'select',
-                            label: 'Display Mode',
-                            default: 'bar',
-                            options: [
-                                { label: 'Bars', value: 'bar' },
-                                { label: 'Line', value: 'line' },
-                                { label: 'Dots', value: 'dot' },
-                            ],
-                            runtime: { transform: normalizeSpectrumDisplay, defaultValue: 'bar' },
-                        },
-                        prop.number('thickness', 'Thickness', 4, { step: 0.5 }),
-                        {
-                            key: 'scale',
-                            type: 'select',
-                            label: 'Frequency Scale',
-                            default: 'mel',
-                            options: [
-                                { label: 'Linear', value: 'linear' },
-                                { label: 'Logarithmic', value: 'log' },
-                                { label: 'Mel', value: 'mel' },
-                            ],
-                            runtime: { transform: normalizeSpectrumScale, defaultValue: 'linear' },
-                        },
-                        prop.number('tilt', 'Tilt Factor', 0, { step: 0.01 }),
-                        prop.number('gain', 'Gain', 1, { step: 0.01 }),
-                        {
-                            key: 'minFrequency',
-                            type: 'number',
-                            label: 'Min Frequency (Hz)',
-                            default: DEFAULT_MIN_FREQUENCY,
-                            min: 0,
-                            max: MAX_FREQUENCY_LIMIT,
-                            step: 1,
-                            runtime: { transform: normalizeFrequency, defaultValue: DEFAULT_MIN_FREQUENCY },
-                        },
-                        {
-                            key: 'maxFrequency',
-                            type: 'number',
-                            label: 'Max Frequency (Hz)',
-                            default: DEFAULT_MAX_FREQUENCY,
-                            min: 1,
-                            max: MAX_FREQUENCY_LIMIT,
-                            step: 1,
-                            runtime: { transform: normalizeFrequency, defaultValue: DEFAULT_MAX_FREQUENCY },
-                        },
-                        {
-                            key: 'smoothing',
-                            type: 'number',
-                            label: 'Smoothing',
-                            default: 0,
-                            step: 1,
-                            runtime: {
-                                transform: (value, element) => {
-                                    const numeric = asNumber(value, element);
-                                    return numeric === undefined ? undefined : clamp(numeric, 0, 64);
+                            prop.number('minDecibels', 'Minimum Value', -80, { min: -80, max: 0, step: 1 }),
+                            prop.number('maxDecibels', 'Maximum Value', 0, { min: -80, max: 24, step: 1 }),
+                            prop.number('width', 'Width (px)', 420, { step: 1 }),
+                            prop.number('height', 'Height (px)', 180, { step: 1 }),
+                            {
+                                key: 'display',
+                                type: 'select',
+                                label: 'Display Mode',
+                                default: 'bar',
+                                options: [
+                                    { label: 'Bars', value: 'bar' },
+                                    { label: 'Line', value: 'line' },
+                                    { label: 'Dots', value: 'dot' },
+                                ],
+                                runtime: { transform: normalizeSpectrumDisplay, defaultValue: 'bar' },
+                            },
+                            prop.number('thickness', 'Thickness', 4, { step: 0.5 }),
+                            {
+                                key: 'scale',
+                                type: 'select',
+                                label: 'Frequency Scale',
+                                default: 'mel',
+                                options: [
+                                    { label: 'Linear', value: 'linear' },
+                                    { label: 'Logarithmic', value: 'log' },
+                                    { label: 'Mel', value: 'mel' },
+                                ],
+                                runtime: { transform: normalizeSpectrumScale, defaultValue: 'linear' },
+                            },
+                            prop.number('tilt', 'Tilt Factor', 0, { step: 0.01 }),
+                            prop.number('gain', 'Gain', 1, { step: 0.01 }),
+                            {
+                                key: 'minFrequency',
+                                type: 'number',
+                                label: 'Min Frequency (Hz)',
+                                default: DEFAULT_MIN_FREQUENCY,
+                                min: 0,
+                                max: MAX_FREQUENCY_LIMIT,
+                                step: 1,
+                                runtime: { transform: normalizeFrequency, defaultValue: DEFAULT_MIN_FREQUENCY },
+                            },
+                            {
+                                key: 'maxFrequency',
+                                type: 'number',
+                                label: 'Max Frequency (Hz)',
+                                default: DEFAULT_MAX_FREQUENCY,
+                                min: 1,
+                                max: MAX_FREQUENCY_LIMIT,
+                                step: 1,
+                                runtime: { transform: normalizeFrequency, defaultValue: DEFAULT_MAX_FREQUENCY },
+                            },
+                            {
+                                key: 'smoothing',
+                                type: 'number',
+                                label: 'Smoothing',
+                                default: 0,
+                                step: 1,
+                                runtime: {
+                                    transform: (value, element) => {
+                                        const numeric = asNumber(value, element);
+                                        return numeric === undefined ? undefined : clamp(numeric, 0, 64);
+                                    },
+                                    defaultValue: 0,
                                 },
-                                defaultValue: 0,
                             },
-                        },
-                    ],
-                },
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    {
+                        id: 'appearance',
+                        label: 'Appearance',
+                        variant: 'basic',
+                        collapsed: false,
+                        properties: [
+                            prop.color('color', 'Color', DEFAULT_BAR_COLOR),
+                            prop.range('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                            prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
+                            prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
+                            prop.select(
+                                'blendMode',
+                                'Blend Mode',
+                                'source-over',
+                                BLEND_MODE_CHOICES as unknown as Array<{ value: string; label: string }>,
+                                { description: 'Canvas composite blending operation.' }
+                            ),
+                        ],
+                    },
+                ]),
             ]
         );
     }

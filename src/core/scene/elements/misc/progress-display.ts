@@ -11,6 +11,7 @@ import {
     ensureFontLoaded,
     propGroup,
     colorSlotProps,
+    tab,
 } from '@mvmnt/plugin-sdk';
 import { Rectangle, type RenderObject, Text } from '@mvmnt/plugin-sdk/render';
 
@@ -51,6 +52,7 @@ export class ProgressDisplayElement extends SceneElement {
                 category: 'Misc',
             },
             [
+                tab.content([
                 {
                     id: 'progressBasics',
                     label: 'Progress & Stats',
@@ -101,6 +103,8 @@ export class ProgressDisplayElement extends SceneElement {
                         },
                     ],
                 },
+                ]),
+                tab.appearance([
                 {
                     id: 'appearance',
                     label: 'Appearance',
@@ -172,7 +176,8 @@ export class ProgressDisplayElement extends SceneElement {
                         },
                     ],
                 },
-                propGroup.typography(),
+                    propGroup.typography(),
+                ]),
             ]
         );
     }

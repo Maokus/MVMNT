@@ -310,23 +310,15 @@ export const prop = {
     },
 } as const;
 
-// ─── isPropertyTabArray ──────────────────────────────────────────────────────
-
-/** Returns true when the value is a `PropertyTab[]` (has a `groups` array on the first element). */
-export function isPropertyTabArray(x: PropertyTab[] | PropertyGroup[]): x is PropertyTab[] {
-    return x.length === 0 || (x[0] as PropertyTab).groups !== undefined;
-}
-
 // ─── insertElementGroups ─────────────────────────────────────────────────────
 
 /**
- * Inserts plugin-specific property groups or tabs into the base element schema.
+ * Inserts plugin-specific property tabs into the base element schema.
  *
- * Pass `PropertyTab[]` (Phase 2+ style) to supply named tabs. The result will be
+ * Pass `PropertyTab[]` to supply named tabs. The result will be
  * `[Transform tab, ...pluginTabs]`.
  *
- * Pass `PropertyGroup[]` (compat path) to wrap the groups in a single "Properties" tab
- * and prepend the Transform tab. This path is silent — no runtime warning.
+ * Pass `PropertyGroup[]` (legacy compat path) to wrap the groups in a single "Properties" tab.
  *
  * @param base         The schema returned by `super.getConfigSchema()`.
  * @param overrides    Fields to override on the base schema (`name`, `description`, `category`).
@@ -338,8 +330,9 @@ export function insertElementGroups(
     pluginGroups: PropertyTab[] | PropertyGroup[]
 ): EnhancedConfigSchema {
     const transformTab = base.tabs[0];
-    const newTabs: PropertyTab[] = isPropertyTabArray(pluginGroups)
-        ? [transformTab, ...pluginGroups]
+    const isTabArray = pluginGroups.length === 0 || (pluginGroups[0] as PropertyTab).groups !== undefined;
+    const newTabs: PropertyTab[] = isTabArray
+        ? [transformTab, ...(pluginGroups as PropertyTab[])]
         : [transformTab, { id: 'properties', label: 'Properties', groups: pluginGroups as PropertyGroup[] }];
     return {
         ...base,

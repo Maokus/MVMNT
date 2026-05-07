@@ -6,7 +6,7 @@ import { RenderObject, Text, Rectangle } from '@core/render/render-objects';
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
-import { propGroup } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 import { applyOpacity } from '@utils/color';
 
 export class NotesPlayedTrackerElement extends SceneElement {
@@ -24,39 +24,45 @@ export class NotesPlayedTrackerElement extends SceneElement {
                 category: 'MIDI Displays',
             },
             [
-                propGroup.midiSource(),
-                propGroup.appearance(),
-                {
-                    id: 'typography',
-                    label: 'Typography',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Adjust alignment and styling for the counters.',
-                    properties: [
-                        prop.font('fontFamily', 'Font Family', 'Inter'),
-                        prop.number('fontSize', 'Font Size (px)', 30, { min: 6, max: 72, step: 1 }),
-                        prop.select('textAlign', 'Text Alignment', 'left', [
-                            { value: 'left', label: 'Left' },
-                            { value: 'center', label: 'Center' },
-                            { value: 'right', label: 'Right' },
-                        ]),
-                        prop.number('lineSpacing', 'Line Spacing (px)', 4, { min: 0, max: 40, step: 1 }),
-                    ],
-                    presets: [
-                        {
-                            id: 'studio',
-                            label: 'Studio Monitor',
-                            values: { fontSize: 28, color: '#f8fafc', lineSpacing: 6 },
-                        },
-                        { id: 'sidebar', label: 'Sidebar', values: { fontSize: 22, color: '#22d3ee', lineSpacing: 3 } },
-                        {
-                            id: 'bigBoard',
-                            label: 'Big Board',
-                            values: { fontSize: 36, color: '#f97316', lineSpacing: 8 },
-                        },
-                    ],
-                },
-                propGroup.container(),
+                tab.content([propGroup.midiSource()]),
+                tab.appearance([
+                    propGroup.appearance(),
+                    {
+                        id: 'typography',
+                        label: 'Typography',
+                        variant: 'basic',
+                        collapsed: false,
+                        description: 'Adjust alignment and styling for the counters.',
+                        properties: [
+                            prop.font('fontFamily', 'Font Family', 'Inter'),
+                            prop.number('fontSize', 'Font Size (px)', 30, { min: 6, max: 72, step: 1 }),
+                            prop.select('textAlign', 'Text Alignment', 'left', [
+                                { value: 'left', label: 'Left' },
+                                { value: 'center', label: 'Center' },
+                                { value: 'right', label: 'Right' },
+                            ]),
+                            prop.number('lineSpacing', 'Line Spacing (px)', 4, { min: 0, max: 40, step: 1 }),
+                        ],
+                        presets: [
+                            {
+                                id: 'studio',
+                                label: 'Studio Monitor',
+                                values: { fontSize: 28, color: '#f8fafc', lineSpacing: 6 },
+                            },
+                            {
+                                id: 'sidebar',
+                                label: 'Sidebar',
+                                values: { fontSize: 22, color: '#22d3ee', lineSpacing: 3 },
+                            },
+                            {
+                                id: 'bigBoard',
+                                label: 'Big Board',
+                                values: { fontSize: 36, color: '#f97316', lineSpacing: 8 },
+                            },
+                        ],
+                    },
+                    propGroup.container(),
+                ]),
             ]
         );
     }

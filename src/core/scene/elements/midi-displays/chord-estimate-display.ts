@@ -2,7 +2,7 @@
 import { SceneElement, asNumber, type PropertyTransform } from '../base';
 import { EnhancedConfigSchema, type SceneElementInterface } from '@core/types.js';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
-import { propGroup } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 import { applyOpacity } from '@utils/color';
 import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
@@ -76,149 +76,168 @@ export class ChordEstimateDisplayElement extends SceneElement {
                 category: 'MIDI Displays',
             },
             [
-                {
-                    id: 'chordSource',
-                    label: 'Source',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Choose the MIDI track and analysis window for detection.',
-                    properties: [
-                        prop.midiTrack('midiTrackId', 'MIDI Track'),
-                        {
-                            key: 'windowSeconds',
-                            type: 'number',
-                            label: 'Analysis Window (s)',
-                            default: 0.1,
-                            step: 0.05,
-                            runtime: { transform: clampWindowSeconds, defaultValue: 0.1 },
-                        },
-                        {
-                            key: 'windowFuturePercent',
-                            type: 'number',
-                            label: 'Future Window (%)',
-                            default: 0,
-                            step: 5,
-                            runtime: { transform: clampWindowFuturePercent, defaultValue: 0 },
-                        },
-                    ],
-                },
-                {
-                    id: 'estimation',
-                    label: 'Estimation',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Refine which chord qualities are considered during detection.',
-                    properties: [
-                        prop.boolean('includeTriads', 'Allow Triads (maj/min)', true),
-                        prop.boolean('includeDiminished', 'Allow Diminished', true),
-                        prop.boolean('includeAugmented', 'Allow Augmented', false),
-                        prop.boolean('includeSevenths', 'Allow 7ths', true),
-                        prop.boolean('preferBassRoot', 'Prefer Root in Bass', true),
-                        prop.boolean('showInversion', 'Show Inversion (slash)', true),
-                        {
-                            key: 'smoothingMs',
-                            type: 'number',
-                            label: 'Hold Chord (ms)',
-                            default: 100,
-                            step: 10,
-                            runtime: { transform: clampSmoothingMs, defaultValue: 1 },
-                        },
-                    ],
-                    presets: [
-                        {
-                            id: 'bandDefault',
-                            label: 'Band Default',
-                            values: {
-                                includeTriads: true,
-                                includeDiminished: true,
-                                includeAugmented: false,
-                                includeSevenths: true,
-                                preferBassRoot: true,
-                                showInversion: true,
-                                smoothingMs: 160,
+                tab.content([
+                    {
+                        id: 'chordSource',
+                        label: 'Source',
+                        variant: 'basic',
+                        collapsed: false,
+                        description: 'Choose the MIDI track and analysis window for detection.',
+                        properties: [
+                            prop.midiTrack('midiTrackId', 'MIDI Track'),
+                            {
+                                key: 'windowSeconds',
+                                type: 'number',
+                                label: 'Analysis Window (s)',
+                                default: 0.1,
+                                step: 0.05,
+                                runtime: { transform: clampWindowSeconds, defaultValue: 0.1 },
                             },
-                        },
-                        {
-                            id: 'jazzExtended',
-                            label: 'Jazz Extended',
-                            values: {
-                                includeTriads: true,
-                                includeDiminished: true,
-                                includeAugmented: true,
-                                includeSevenths: true,
-                                preferBassRoot: false,
-                                showInversion: true,
-                                smoothingMs: 240,
+                            {
+                                key: 'windowFuturePercent',
+                                type: 'number',
+                                label: 'Future Window (%)',
+                                default: 0,
+                                step: 5,
+                                runtime: { transform: clampWindowFuturePercent, defaultValue: 0 },
                             },
-                        },
-                        {
-                            id: 'simpleTriads',
-                            label: 'Simple Triads',
-                            values: {
-                                includeTriads: true,
-                                includeDiminished: false,
-                                includeAugmented: false,
-                                includeSevenths: false,
-                                preferBassRoot: true,
-                                showInversion: false,
-                                smoothingMs: 120,
+                        ],
+                    },
+                    {
+                        id: 'estimation',
+                        label: 'Estimation',
+                        variant: 'advanced',
+                        collapsed: true,
+                        description: 'Refine which chord qualities are considered during detection.',
+                        properties: [
+                            prop.boolean('includeTriads', 'Allow Triads (maj/min)', true),
+                            prop.boolean('includeDiminished', 'Allow Diminished', true),
+                            prop.boolean('includeAugmented', 'Allow Augmented', false),
+                            prop.boolean('includeSevenths', 'Allow 7ths', true),
+                            prop.boolean('preferBassRoot', 'Prefer Root in Bass', true),
+                            prop.boolean('showInversion', 'Show Inversion (slash)', true),
+                            {
+                                key: 'smoothingMs',
+                                type: 'number',
+                                label: 'Hold Chord (ms)',
+                                default: 100,
+                                step: 10,
+                                runtime: { transform: clampSmoothingMs, defaultValue: 1 },
                             },
-                        },
-                    ],
-                },
-                propGroup.appearance(),
-                {
-                    id: 'typography',
-                    label: 'Typography',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.font('fontFamily', 'Font Family', 'Inter'),
-                        prop.number('fontSize', 'Label Font Size (px)', 48, { step: 1 }),
-                        {
-                            key: 'chordFontSize',
-                            type: 'number',
-                            label: 'Chord Font Size (px)',
-                            default: 48,
-                            step: 1,
-                            runtime: { transform: asNumber },
-                        },
-                        {
-                            key: 'detailsFontSize',
-                            type: 'number',
-                            label: 'Details Font Size (px)',
-                            default: 24,
-                            step: 1,
-                            runtime: { transform: asNumber },
-                        },
-                        prop.select('textAlign', 'Text Alignment', 'left', [
-                            { value: 'left', label: 'Left' },
-                            { value: 'center', label: 'Center' },
-                            { value: 'right', label: 'Right' },
-                        ]),
-                        prop.number('lineSpacing', 'Line Spacing (px)', 6, { step: 1 }),
-                        prop.boolean('showActiveNotes', 'Show Active Notes', true),
-                        prop.boolean('showChroma', 'Show Chroma Chart', true),
-                    ],
-                    presets: [
-                        {
-                            id: 'darkStage',
-                            label: 'Dark Stage',
-                            values: { fontFamily: 'Inter|600', chordFontSize: 54, color: '#f8fafc', lineSpacing: 8 },
-                        },
-                        {
-                            id: 'glassOverlay',
-                            label: 'Glass Overlay',
-                            values: { fontFamily: 'Inter|400', chordFontSize: 42, color: '#cbd5f5', lineSpacing: 4 },
-                        },
-                        {
-                            id: 'boldBroadcast',
-                            label: 'Broadcast Bold',
-                            values: { fontFamily: 'Inter|700', chordFontSize: 60, color: '#f97316', lineSpacing: 10 },
-                        },
-                    ],
-                },
-                propGroup.container(),
+                        ],
+                        presets: [
+                            {
+                                id: 'bandDefault',
+                                label: 'Band Default',
+                                values: {
+                                    includeTriads: true,
+                                    includeDiminished: true,
+                                    includeAugmented: false,
+                                    includeSevenths: true,
+                                    preferBassRoot: true,
+                                    showInversion: true,
+                                    smoothingMs: 160,
+                                },
+                            },
+                            {
+                                id: 'jazzExtended',
+                                label: 'Jazz Extended',
+                                values: {
+                                    includeTriads: true,
+                                    includeDiminished: true,
+                                    includeAugmented: true,
+                                    includeSevenths: true,
+                                    preferBassRoot: false,
+                                    showInversion: true,
+                                    smoothingMs: 240,
+                                },
+                            },
+                            {
+                                id: 'simpleTriads',
+                                label: 'Simple Triads',
+                                values: {
+                                    includeTriads: true,
+                                    includeDiminished: false,
+                                    includeAugmented: false,
+                                    includeSevenths: false,
+                                    preferBassRoot: true,
+                                    showInversion: false,
+                                    smoothingMs: 120,
+                                },
+                            },
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    propGroup.appearance(),
+                    {
+                        id: 'typography',
+                        label: 'Typography',
+                        variant: 'basic',
+                        collapsed: false,
+                        properties: [
+                            prop.font('fontFamily', 'Font Family', 'Inter'),
+                            prop.number('fontSize', 'Label Font Size (px)', 48, { step: 1 }),
+                            {
+                                key: 'chordFontSize',
+                                type: 'number',
+                                label: 'Chord Font Size (px)',
+                                default: 48,
+                                step: 1,
+                                runtime: { transform: asNumber },
+                            },
+                            {
+                                key: 'detailsFontSize',
+                                type: 'number',
+                                label: 'Details Font Size (px)',
+                                default: 24,
+                                step: 1,
+                                runtime: { transform: asNumber },
+                            },
+                            prop.select('textAlign', 'Text Alignment', 'left', [
+                                { value: 'left', label: 'Left' },
+                                { value: 'center', label: 'Center' },
+                                { value: 'right', label: 'Right' },
+                            ]),
+                            prop.number('lineSpacing', 'Line Spacing (px)', 6, { step: 1 }),
+                            prop.boolean('showActiveNotes', 'Show Active Notes', true),
+                            prop.boolean('showChroma', 'Show Chroma Chart', true),
+                        ],
+                        presets: [
+                            {
+                                id: 'darkStage',
+                                label: 'Dark Stage',
+                                values: {
+                                    fontFamily: 'Inter|600',
+                                    chordFontSize: 54,
+                                    color: '#f8fafc',
+                                    lineSpacing: 8,
+                                },
+                            },
+                            {
+                                id: 'glassOverlay',
+                                label: 'Glass Overlay',
+                                values: {
+                                    fontFamily: 'Inter|400',
+                                    chordFontSize: 42,
+                                    color: '#cbd5f5',
+                                    lineSpacing: 4,
+                                },
+                            },
+                            {
+                                id: 'boldBroadcast',
+                                label: 'Broadcast Bold',
+                                values: {
+                                    fontFamily: 'Inter|700',
+                                    chordFontSize: 60,
+                                    color: '#f97316',
+                                    lineSpacing: 10,
+                                },
+                            },
+                        ],
+                    },
+                    propGroup.container(),
+                ]),
             ]
         );
     }

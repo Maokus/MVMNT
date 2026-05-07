@@ -6,7 +6,7 @@ import { RenderObject, Text, Rectangle } from '@core/render/render-objects';
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
-import { propGroup } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 import { applyOpacity } from '@utils/color';
 
 export class NotesPlayingDisplayElement extends SceneElement {
@@ -23,57 +23,65 @@ export class NotesPlayingDisplayElement extends SceneElement {
                 category: 'MIDI Displays',
             },
             [
-                {
-                    id: 'midiSource',
-                    label: 'Source',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Select which MIDI track(s) feed the live note readout.',
-                    properties: [
-                        prop.midiTrack('midiTrackId', 'MIDI Track'),
-                        prop.boolean('showAllAvailableTracks', 'Show All Tracks When Idle', false),
-                    ],
-                    presets: [
-                        { id: 'singleTrack', label: 'Single Track', values: { showAllAvailableTracks: false } },
-                        { id: 'multiTrack', label: 'Multi-Track Overview', values: { showAllAvailableTracks: true } },
-                    ],
-                },
-                propGroup.appearance(),
-                {
-                    id: 'typography',
-                    label: 'Typography',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Tweak alignment and spacing for the note list.',
-                    properties: [
-                        prop.font('fontFamily', 'Font Family', 'Inter'),
-                        prop.number('fontSize', 'Font Size (px)', 30, { min: 6, max: 72, step: 1 }),
-                        prop.select('textAlign', 'Text Alignment', 'left', [
-                            { value: 'left', label: 'Left' },
-                            { value: 'center', label: 'Center' },
-                            { value: 'right', label: 'Right' },
-                        ]),
-                        prop.number('lineSpacing', 'Line Spacing (px)', 4, { min: 0, max: 40, step: 1 }),
-                    ],
-                    presets: [
-                        {
-                            id: 'compact',
-                            label: 'Compact List',
-                            values: { fontSize: 24, lineSpacing: 2, color: '#cbd5f5' },
-                        },
-                        {
-                            id: 'stageReadout',
-                            label: 'Stage Readout',
-                            values: { fontSize: 36, lineSpacing: 6, color: '#f8fafc' },
-                        },
-                        {
-                            id: 'monitor',
-                            label: 'Monitor Overlay',
-                            values: { fontSize: 28, lineSpacing: 4, color: '#22d3ee' },
-                        },
-                    ],
-                },
-                propGroup.container(),
+                tab.content([
+                    {
+                        id: 'midiSource',
+                        label: 'Source',
+                        variant: 'basic',
+                        collapsed: false,
+                        description: 'Select which MIDI track(s) feed the live note readout.',
+                        properties: [
+                            prop.midiTrack('midiTrackId', 'MIDI Track'),
+                            prop.boolean('showAllAvailableTracks', 'Show All Tracks When Idle', false),
+                        ],
+                        presets: [
+                            { id: 'singleTrack', label: 'Single Track', values: { showAllAvailableTracks: false } },
+                            {
+                                id: 'multiTrack',
+                                label: 'Multi-Track Overview',
+                                values: { showAllAvailableTracks: true },
+                            },
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    propGroup.appearance(),
+                    {
+                        id: 'typography',
+                        label: 'Typography',
+                        variant: 'basic',
+                        collapsed: false,
+                        description: 'Tweak alignment and spacing for the note list.',
+                        properties: [
+                            prop.font('fontFamily', 'Font Family', 'Inter'),
+                            prop.number('fontSize', 'Font Size (px)', 30, { min: 6, max: 72, step: 1 }),
+                            prop.select('textAlign', 'Text Alignment', 'left', [
+                                { value: 'left', label: 'Left' },
+                                { value: 'center', label: 'Center' },
+                                { value: 'right', label: 'Right' },
+                            ]),
+                            prop.number('lineSpacing', 'Line Spacing (px)', 4, { min: 0, max: 40, step: 1 }),
+                        ],
+                        presets: [
+                            {
+                                id: 'compact',
+                                label: 'Compact List',
+                                values: { fontSize: 24, lineSpacing: 2, color: '#cbd5f5' },
+                            },
+                            {
+                                id: 'stageReadout',
+                                label: 'Stage Readout',
+                                values: { fontSize: 36, lineSpacing: 6, color: '#f8fafc' },
+                            },
+                            {
+                                id: 'monitor',
+                                label: 'Monitor Overlay',
+                                values: { fontSize: 28, lineSpacing: 4, color: '#22d3ee' },
+                            },
+                        ],
+                    },
+                    propGroup.container(),
+                ]),
             ]
         );
     }

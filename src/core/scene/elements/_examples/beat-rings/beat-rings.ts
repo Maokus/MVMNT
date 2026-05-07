@@ -15,6 +15,7 @@ import {
     SceneElement,
     prop,
     insertElementGroups,
+    tab,
     getPluginHostApi,
     PLUGIN_CAPABILITIES,
     registerFeatureRequirements,
@@ -42,39 +43,43 @@ export class BeatRingsElement extends SceneElement {
                 category: 'Examples',
             },
             [
-                {
-                    id: 'audio',
-                    label: 'Audio',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.audioTrack('audioTrackId', 'Audio Track', {
-                            description: 'Audio track to react to',
-                        }),
-                        prop.number('baseRadius', 'Base Radius', 60, {
-                            min: 10,
-                            max: 300,
-                            step: 1,
-                            description: 'Ring radius when audio is silent',
-                        }),
-                        prop.number('reactivity', 'Reactivity', 150, {
-                            min: 0,
-                            max: 500,
-                            step: 10,
-                            description: 'How much the radius grows with volume',
-                        }),
-                    ],
-                },
-                {
-                    id: 'appearance',
-                    label: 'Appearance',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.colorAlpha('ringColor', 'Ring Color', '#818CF8FF'),
-                        prop.number('strokeWidth', 'Stroke Width', 3, { min: 1, max: 20, step: 1 }),
-                    ],
-                },
+                tab.content([
+                    {
+                        id: 'audio',
+                        label: 'Audio',
+                        variant: 'basic',
+                        collapsed: false,
+                        properties: [
+                            prop.audioTrack('audioTrackId', 'Audio Track', {
+                                description: 'Audio track to react to',
+                            }),
+                            prop.number('baseRadius', 'Base Radius', 60, {
+                                min: 10,
+                                max: 300,
+                                step: 1,
+                                description: 'Ring radius when audio is silent',
+                            }),
+                            prop.number('reactivity', 'Reactivity', 150, {
+                                min: 0,
+                                max: 500,
+                                step: 10,
+                                description: 'How much the radius grows with volume',
+                            }),
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    {
+                        id: 'appearance',
+                        label: 'Appearance',
+                        variant: 'basic',
+                        collapsed: false,
+                        properties: [
+                            prop.colorAlpha('ringColor', 'Ring Color', '#818CF8FF'),
+                            prop.number('strokeWidth', 'Stroke Width', 3, { min: 1, max: 20, step: 1 }),
+                        ],
+                    },
+                ]),
             ]
         );
     }

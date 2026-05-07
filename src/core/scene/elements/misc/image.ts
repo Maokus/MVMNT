@@ -8,6 +8,7 @@ import {
     prop,
     VisualMediaPlayback,
     propGroup,
+    tab,
 } from '@mvmnt/plugin-sdk';
 
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
@@ -33,40 +34,44 @@ export class ImageElement extends SceneElement {
                 category: 'Misc',
             },
             [
-                {
-                    id: 'imageSource',
-                    label: 'Image Source',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Pick the artwork and playback speed for animated assets.',
-                    properties: [
-                        prop.imageAsset('imageSource', 'Image'),
-                        prop.number('playbackSpeed', 'Playback Speed (×)', 1, { step: 0.1 }),
-                    ],
-                },
-                {
-                    id: 'imageLayout',
-                    label: 'Layout',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Size and crop behaviour for the image frame.',
-                    properties: [
-                        prop.number('width', 'Width (px)', 200, { step: 10 }),
-                        prop.number('height', 'Height (px)', 200, { step: 10 }),
-                        prop.select('fitMode', 'Fit Mode', 'contain', [
-                            { value: 'contain', label: 'Contain (fit within bounds)' },
-                            { value: 'cover', label: 'Cover (fill bounds, may crop)' },
-                            { value: 'fill', label: 'Fill (stretch to fit)' },
-                            { value: 'clip', label: 'Clip (native pixel size)' },
-                        ]),
-                        prop.boolean('preserveAspectRatio', 'Preserve Aspect Ratio', true, {
-                            visibleWhen: [{ key: 'fitMode', notEquals: 'fill' }],
-                        }),
-                    ],
-                },
-                propGroup.appearance({ blendMode: true }),
-                propGroup.border({ cornerRadius: true }),
-                propGroup.shadow(),
+                tab.content([
+                    {
+                        id: 'imageSource',
+                        label: 'Image Source',
+                        variant: 'basic',
+                        collapsed: false,
+                        description: 'Pick the artwork and playback speed for animated assets.',
+                        properties: [
+                            prop.imageAsset('imageSource', 'Image'),
+                            prop.number('playbackSpeed', 'Playback Speed (×)', 1, { step: 0.1 }),
+                        ],
+                    },
+                    {
+                        id: 'imageLayout',
+                        label: 'Layout',
+                        variant: 'basic',
+                        collapsed: false,
+                        description: 'Size and crop behaviour for the image frame.',
+                        properties: [
+                            prop.number('width', 'Width (px)', 200, { step: 10 }),
+                            prop.number('height', 'Height (px)', 200, { step: 10 }),
+                            prop.select('fitMode', 'Fit Mode', 'contain', [
+                                { value: 'contain', label: 'Contain (fit within bounds)' },
+                                { value: 'cover', label: 'Cover (fill bounds, may crop)' },
+                                { value: 'fill', label: 'Fill (stretch to fit)' },
+                                { value: 'clip', label: 'Clip (native pixel size)' },
+                            ]),
+                            prop.boolean('preserveAspectRatio', 'Preserve Aspect Ratio', true, {
+                                visibleWhen: [{ key: 'fitMode', notEquals: 'fill' }],
+                            }),
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    propGroup.appearance({ blendMode: true }),
+                    propGroup.border({ cornerRadius: true }),
+                    propGroup.shadow(),
+                ]),
             ]
         );
     }

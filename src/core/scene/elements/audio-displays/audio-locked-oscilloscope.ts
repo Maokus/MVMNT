@@ -7,7 +7,7 @@ import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { applyOpacity } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
-import { propGroup } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 const { descriptor: PITCH_WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchWaveform' });
 
@@ -52,41 +52,43 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                 category: 'Audio Displays',
             },
             [
-                propGroup.audioSource(),
-                propGroup.appearance({ blendMode: true }),
-                {
-                    id: 'lockedOscilloscope',
-                    label: 'Waveform',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'channelSelector',
-                            type: 'string',
-                            label: 'Channel',
-                            default: null,
-                            runtime: { transform: normalizeChannelSelector, defaultValue: null },
-                        },
-                        prop.number('width', 'Width (px)', 420, { step: 1 }),
-                        prop.number('height', 'Height (px)', 140, { step: 1 }),
-                        {
-                            key: 'lineWidth',
-                            type: 'number',
-                            label: 'Line Width (px)',
-                            default: 2,
-                            step: 0.5,
-                            runtime: {
-                                transform: (value, element) => {
-                                    const numeric = asNumber(value, element);
-                                    return numeric === undefined ? undefined : clamp(numeric, 0.5, 10);
-                                },
-                                defaultValue: 2,
+                tab.content([
+                    propGroup.audioSource(),
+                    {
+                        id: 'lockedOscilloscope',
+                        label: 'Waveform',
+                        variant: 'basic',
+                        collapsed: false,
+                        properties: [
+                            {
+                                key: 'channelSelector',
+                                type: 'string',
+                                label: 'Channel',
+                                default: null,
+                                runtime: { transform: normalizeChannelSelector, defaultValue: null },
                             },
-                        },
-                        prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
-                        prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
-                    ],
-                },
+                            prop.number('width', 'Width (px)', 420, { step: 1 }),
+                            prop.number('height', 'Height (px)', 140, { step: 1 }),
+                            {
+                                key: 'lineWidth',
+                                type: 'number',
+                                label: 'Line Width (px)',
+                                default: 2,
+                                step: 0.5,
+                                runtime: {
+                                    transform: (value, element) => {
+                                        const numeric = asNumber(value, element);
+                                        return numeric === undefined ? undefined : clamp(numeric, 0.5, 10);
+                                    },
+                                    defaultValue: 2,
+                                },
+                            },
+                            prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
+                            prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
+                        ],
+                    },
+                ]),
+                tab.appearance([propGroup.appearance({ blendMode: true })]),
             ]
         );
     }
