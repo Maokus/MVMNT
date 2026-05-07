@@ -865,8 +865,8 @@ export class SceneElement implements SceneElementInterface {
             category: 'general',
             tabs: [
                 {
-                    id: 'transform',
-                    label: 'Transform',
+                    id: 'element',
+                    label: 'Element',
                     groups: [
                         {
                             id: 'basicVisibility',

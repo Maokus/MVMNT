@@ -1,8 +1,8 @@
-import { SceneElement, asNumber, type PropertyTransform } from '../base';
+import { SceneElement, asNumber } from '../base';
 import { Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
-import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
+import type { EnhancedConfigSchema } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
-import { normalizeChannelSelectorInput, sampleFeatureFrame, selectChannelSample } from '@audio/audioFeatureUtils';
+import { sampleFeatureFrame } from '@audio/audioFeatureUtils';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { applyOpacity } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
@@ -34,9 +34,6 @@ function buildPolylinePoints(values: number[], width: number, height: number): {
     });
 }
 
-const normalizeChannelSelector: PropertyTransform<string | number | null, SceneElementInterface> = (value) =>
-    normalizeChannelSelectorInput(value);
-
 export class AudioLockedOscilloscopeElement extends SceneElement {
     // Phase 3 reference pattern: intentionally consume audio data through the public plugin API.
     constructor(id: string = 'audioLockedOscilloscope', config: Record<string, unknown> = {}) {
@@ -59,18 +56,6 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                         label: 'Waveform',
                         collapsed: false,
                         properties: [
-                            {
-                                key: 'channelSelector',
-                                type: 'select',
-                                label: 'Channel',
-                                default: null,
-                                options: [
-                                    { label: 'Mix (all channels)', value: null },
-                                    { label: 'Left', value: 0 },
-                                    { label: 'Right', value: 1 },
-                                ],
-                                runtime: { transform: normalizeChannelSelector, defaultValue: null },
-                            },
                             prop.number('width', 'Width (px)', 420, { step: 1 }),
                             prop.number('height', 'Height (px)', 140, { step: 1 }),
                             {
@@ -89,15 +74,15 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                             },
                             prop.color('color', 'Primary Color', DEFAULT_LINE_COLOR),
                             prop.range('opacity', 'Primary Opacity', 1, { min: 0, max: 1, step: 0.01 }),
-                            prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
-                            prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
                             prop.select(
                                 'blendMode',
-                                'Blend Mode',
+                                'Primary Blend Mode',
                                 'source-over',
                                 BLEND_MODE_CHOICES as unknown as Array<{ value: string; label: string }>,
                                 { description: 'Canvas composite blending operation.' }
                             ),
+                            prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
+                            prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
                         ],
                     },
                 ]),
@@ -147,8 +132,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
 
         const frame =
             sample?.metadata.frame ?? sampleFeatureFrame(props.audioTrackId, PITCH_WAVEFORM_DESCRIPTOR, targetTime);
-        const selection = selectChannelSample(frame, props.channelSelector);
-        const channelValues = selection?.values ?? sample?.values ?? frame?.values ?? [];
+        const channelValues = frame?.values ?? sample?.values ?? [];
 
         if (!channelValues.length) {
             objects.push(

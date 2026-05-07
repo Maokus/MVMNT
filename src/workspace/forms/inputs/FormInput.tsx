@@ -209,7 +209,14 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
         const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
             const inputValue = e.target.value;
 
+            const revertToActual = () => {
+                const displayValue = typeof value === 'number' && !isNaN(value) ? value.toString() :
+                    (typeof schema?.default === 'number' ? schema.default.toString() : '0');
+                setLocalValue(displayValue);
+            };
+
             if (inputValue === '' || inputValue === '-') {
+                revertToActual();
                 return;
             }
 
@@ -217,6 +224,8 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
             if (evaluated !== null) {
                 setLocalValue(evaluated.toString());
                 emitChange(evaluated);
+            } else {
+                revertToActual();
             }
         };
 

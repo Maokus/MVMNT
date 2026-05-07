@@ -383,13 +383,12 @@ function buildRangeFromHostSamples(
     const frameCount = perSample.length;
     const hopTicks = Math.max(1, Math.round((endTick - startTick) / Math.max(1, frameCount - 1)));
     const frameTicks = Float64Array.from({ length: frameCount }, (_, index) => startTick + index * hopTicks);
-    const format = samples[0]?.metadata?.frame?.format ?? 'float32';
 
     return {
         hopTicks,
         frameCount,
         channels,
-        format,
+        format: 'float32',
         data: Float32Array.from(data),
         frameTicks,
         requestedStartTick: startTick,
@@ -557,6 +556,8 @@ export class AudioWaveformElement extends SceneElement {
                         label: 'Oscilloscope',
                         collapsed: false,
                         properties: [
+                            prop.number('width', 'Width (px)', 420, { step: 1 }),
+                            prop.number('height', 'Height (px)', 140, { step: 1 }),
                             {
                                 key: 'windowSeconds',
                                 type: 'number',
@@ -702,6 +703,13 @@ export class AudioWaveformElement extends SceneElement {
                             },
                             prop.color('color', 'Primary Color', DEFAULT_PRIMARY_LINE_COLOR),
                             prop.range('opacity', 'Primary Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                            prop.select(
+                                'primaryBlendMode',
+                                'Blend Mode',
+                                'source-over',
+                                BLEND_MODE_CHOICES as unknown as Array<{ value: string; label: string }>,
+                                { description: 'Canvas composite blending operation.' }
+                            ),
                         ],
                     },
                     {
@@ -743,6 +751,13 @@ export class AudioWaveformElement extends SceneElement {
                                 },
                             },
                             prop.range('secondaryOpacity', 'Secondary Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                            prop.select(
+                                'secondaryBlendMode',
+                                'Blend Mode',
+                                'source-over',
+                                BLEND_MODE_CHOICES as unknown as Array<{ value: string; label: string }>,
+                                { description: 'Canvas composite blending operation.' }
+                            ),
                         ],
                     },
                     {
@@ -767,13 +782,6 @@ export class AudioWaveformElement extends SceneElement {
                                 step: 0.01,
                                 runtime: { transform: asNumber, defaultValue: 0 },
                             },
-                            prop.select(
-                                'blendMode',
-                                'Blend Mode',
-                                'source-over',
-                                BLEND_MODE_CHOICES as unknown as Array<{ value: string; label: string }>,
-                                { description: 'Canvas composite blending operation.' }
-                            ),
                         ],
                     },
                 ]),
@@ -800,7 +808,8 @@ export class AudioWaveformElement extends SceneElement {
         const density = clamp(typeof props.density === 'number' ? props.density : 1, 0.1, 1);
         const startOffset = clamp(typeof props.startOffset === 'number' ? props.startOffset : 0.5, 0, 1);
         const showPlayhead = props.showPlayhead === true;
-        const blendMode = (props.blendMode ?? 'source-over') as GlobalCompositeOperation;
+        const primaryBlendMode = (props.primaryBlendMode ?? 'source-over') as GlobalCompositeOperation;
+        const secondaryBlendMode = (props.secondaryBlendMode ?? 'source-over') as GlobalCompositeOperation;
 
         const descriptor = WAVEFORM_DESCRIPTOR;
 
@@ -884,6 +893,7 @@ export class AudioWaveformElement extends SceneElement {
         }
 
         if (preparedSecondary !== undefined) {
+            const secondaryStart = objects.length;
             renderWaveformSeries(preparedSecondary, {
                 mode: displayMode,
                 width,
@@ -892,9 +902,15 @@ export class AudioWaveformElement extends SceneElement {
                 lineWidth,
                 objects,
             });
+            if (secondaryBlendMode !== 'source-over') {
+                for (let i = secondaryStart; i < objects.length; i++) {
+                    objects[i].blendMode = secondaryBlendMode;
+                }
+            }
         }
 
         if (preparedPrimary !== undefined) {
+            const primaryStart = objects.length;
             renderWaveformSeries(preparedPrimary, {
                 mode: displayMode,
                 width,
@@ -903,11 +919,10 @@ export class AudioWaveformElement extends SceneElement {
                 lineWidth,
                 objects,
             });
-        }
-
-        if (blendMode !== 'source-over') {
-            for (let i = 1; i < objects.length; i++) {
-                objects[i].blendMode = blendMode;
+            if (primaryBlendMode !== 'source-over') {
+                for (let i = primaryStart; i < objects.length; i++) {
+                    objects[i].blendMode = primaryBlendMode;
+                }
             }
         }
 
