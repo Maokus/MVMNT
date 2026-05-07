@@ -6,6 +6,13 @@ import { EmptyRenderObject } from './empty';
 let _offscreenEl: HTMLCanvasElement | null = null;
 let _offscreenCtx: CanvasRenderingContext2D | null = null;
 
+function resetOffscreenCtx(ctx: CanvasRenderingContext2D): void {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.filter = 'none';
+}
+
 function getOffscreenCtx(w: number, h: number): CanvasRenderingContext2D | null {
     if (typeof document === 'undefined') return null;
     if (!_offscreenEl || !_offscreenCtx) {
@@ -17,15 +24,12 @@ function getOffscreenCtx(w: number, h: number): CanvasRenderingContext2D | null 
         // Assigning width/height resets pixels AND context state automatically.
         _offscreenEl.width = w;
         _offscreenEl.height = h;
-    } else {
-        // clearRect only clears pixels — context state (globalAlpha, filter,
-        // composite op, transform) persists across frames and must be reset explicitly.
-        _offscreenCtx.clearRect(0, 0, w, h);
-        _offscreenCtx.globalAlpha = 1;
-        _offscreenCtx.globalCompositeOperation = 'source-over';
-        _offscreenCtx.filter = 'none';
-        _offscreenCtx.setTransform(1, 0, 0, 1, 0, 0);
     }
+    // clearRect is affected by the current transform, so reset state before
+    // clearing. Otherwise a transformed GlowLayer can leave stale pixels in
+    // the shared buffer for the next frame.
+    resetOffscreenCtx(_offscreenCtx);
+    _offscreenCtx.clearRect(0, 0, w, h);
     return _offscreenCtx;
 }
 

@@ -67,7 +67,29 @@ export class ImageElement extends SceneElement {
                 ]),
                 tab.appearance([
                     propGroup.appearance({ blendMode: true }),
-                    propGroup.border({ cornerRadius: true }),
+                    {
+                        id: 'border',
+                        label: 'Border',
+                        collapsed: true,
+                        properties: [
+                            prop.boolean('showBorder', 'Show Border', false),
+                            prop.color('borderColor', 'Border Color', '#ffffff', {
+                                visibleWhen: [{ key: 'showBorder', truthy: true }],
+                            }),
+                            prop.range('borderWidth', 'Border Width', 1, {
+                                min: 0,
+                                max: 50,
+                                step: 0.5,
+                                visibleWhen: [{ key: 'showBorder', truthy: true }],
+                            }),
+                            prop.range('cornerRadius', 'Corner Radius', 0, {
+                                min: 0,
+                                max: 200,
+                                step: 1,
+                                visibleWhen: [{ key: 'showBorder', truthy: true }],
+                            }),
+                        ],
+                    },
                     propGroup.shadow(),
                 ]),
             ]
@@ -112,8 +134,9 @@ export class ImageElement extends SceneElement {
         this._renderObject.blendMode = bm === 'source-over' ? null : bm;
 
         const result: RenderObject[] = [this._layoutRect, this._renderObject];
+        const showBorder = props.showBorder ?? false;
         const borderWidth = props.borderWidth ?? 0;
-        if (borderWidth > 0) {
+        if (showBorder && borderWidth > 0) {
             const borderRect = new Rectangle(
                 0,
                 0,

@@ -51,47 +51,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
             '#fd79a8',
             '#e17055',
         ];
-        const channelColorPastel = [
-            '#f9a8d4',
-            '#fbcfe8',
-            '#fde68a',
-            '#a5f3fc',
-            '#bfdbfe',
-            '#c7d2fe',
-            '#e9d5ff',
-            '#fecdd3',
-            '#fcd34d',
-            '#bbf7d0',
-            '#a7f3d0',
-            '#d1fae5',
-            '#f5d0fe',
-            '#fbcfe8',
-            '#e0f2fe',
-            '#fee2e2',
-        ];
-        const channelColorHeatmap = [
-            '#ef4444',
-            '#f97316',
-            '#f59e0b',
-            '#eab308',
-            '#84cc16',
-            '#22c55e',
-            '#14b8a6',
-            '#0ea5e9',
-            '#2563eb',
-            '#4f46e5',
-            '#7c3aed',
-            '#a855f7',
-            '#ec4899',
-            '#f472b6',
-            '#fb7185',
-            '#f97316',
-        ];
-        const createChannelPreset = (colors: string[]) =>
-            colors.reduce<Record<string, string>>((acc, color, index) => {
-                acc[`channel${index}Color`] = color;
-                return acc;
-            }, {});
         const channelColorProperties: PropertyDefinition[] = Array.from({ length: 16 }, (_, i) =>
             prop.color(`channel${i}Color`, `Channel ${i + 1}`, channelColorDefaults[i], {
                 visibleWhen: [
@@ -126,29 +85,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             prop.number('timeUnitBars', 'Time Unit (bars)', 1, { min: 1, max: 8, step: 1 }),
                             prop.number('minNote', 'Minimum MIDI Note', 30, { min: 0, max: 127, step: 1 }),
                             prop.number('maxNote', 'Maximum MIDI Note', 72, { min: 0, max: 127, step: 1 }),
-                        ],
-                        presets: [
-                            {
-                                id: 'wideStage',
-                                label: 'Wide Stage',
-                                values: { pianoWidth: 140, rollWidth: 1200, timeUnitBars: 2, minNote: 24, maxNote: 84 },
-                            },
-                            {
-                                id: 'compactKeys',
-                                label: 'Compact Keys',
-                                values: { pianoWidth: 100, rollWidth: 700, timeUnitBars: 1, minNote: 36, maxNote: 84 },
-                            },
-                            {
-                                id: 'fullRange',
-                                label: 'Full Range',
-                                values: {
-                                    pianoWidth: 120,
-                                    rollWidth: 1400,
-                                    timeUnitBars: 4,
-                                    minNote: 21,
-                                    maxNote: 108,
-                                },
-                            },
                         ],
                     },
                     {
@@ -199,77 +135,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             }),
                             ...channelColorProperties,
                         ],
-                        presets: [
-                            {
-                                id: 'classicBlocks',
-                                label: 'Classic Blocks',
-                                values: {
-                                    showNotes: true,
-                                    noteHeight: 20,
-                                    color: '#FF6B6B',
-                                    opacity: 0.85,
-                                    noteGlowOpacity: 0.4,
-                                },
-                            },
-                            {
-                                id: 'ghosted',
-                                label: 'Ghosted',
-                                values: {
-                                    showNotes: true,
-                                    color: '#FF6B6B',
-                                    opacity: 0.5,
-                                    noteGlowOpacity: 0.2,
-                                    noteStrokeWidth: 1,
-                                },
-                            },
-                            {
-                                id: 'neon',
-                                label: 'Neon',
-                                values: {
-                                    showNotes: true,
-                                    color: '#FF6B6B',
-                                    opacity: 0.9,
-                                    noteGlowOpacity: 0.7,
-                                    noteGlowBlur: 12,
-                                },
-                            },
-                            {
-                                id: 'perChannelRainbow',
-                                label: 'Per-Channel Rainbow',
-                                values: {
-                                    showNotes: true,
-                                    useChannelColors: true,
-                                    ...createChannelPreset(channelColorDefaults),
-                                },
-                            },
-                            {
-                                id: 'perChannelPastel',
-                                label: 'Per-Channel Pastel',
-                                values: {
-                                    showNotes: true,
-                                    useChannelColors: true,
-                                    ...createChannelPreset(channelColorPastel),
-                                },
-                            },
-                            {
-                                id: 'perChannelHeatMap',
-                                label: 'Per-Channel Heat Map',
-                                values: {
-                                    showNotes: true,
-                                    useChannelColors: true,
-                                    ...createChannelPreset(channelColorHeatmap),
-                                },
-                            },
-                            {
-                                id: 'singleColor',
-                                label: 'Single Color',
-                                values: {
-                                    showNotes: true,
-                                    useChannelColors: false,
-                                    color: DEFAULT_NOTE_COLOR,
-                                },
-                            },
-                        ],
                     },
                     {
                         id: 'piano',
@@ -306,29 +171,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                                 visibleWhen: [{ key: 'showPiano', truthy: true }],
                             }),
                         ],
-                        presets: [
-                            {
-                                id: 'classicPiano',
-                                label: 'Classic Piano',
-                                values: {
-                                    showPiano: true,
-                                    whiteKeyColor: '#f8fafc',
-                                    blackKeyColor: '#111827',
-                                    pianoOpacity: 1,
-                                },
-                            },
-                            {
-                                id: 'ghostKeys',
-                                label: 'Ghost Keys',
-                                values: {
-                                    showPiano: true,
-                                    whiteKeyColor: '#94a3b8',
-                                    blackKeyColor: '#1f2937',
-                                    pianoOpacity: 0.6,
-                                },
-                            },
-                            { id: 'hiddenKeys', label: 'No Keyboard', values: { showPiano: false } },
-                        ],
                     },
                     {
                         id: 'animation',
@@ -359,38 +201,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                                 description: 'Pixel offset added to playhead position within the element width.',
                             }),
                         ],
-                        presets: [
-                            {
-                                id: 'expand',
-                                label: 'Expand',
-                                values: {
-                                    animationType: 'expand',
-                                    attackDuration: 0.3,
-                                    decayDuration: 0.3,
-                                    releaseDuration: 0.3,
-                                },
-                            },
-                            {
-                                id: 'staccato',
-                                label: 'Staccato',
-                                values: {
-                                    animationType: 'expand',
-                                    attackDuration: 0.1,
-                                    decayDuration: 0.15,
-                                    releaseDuration: 0.2,
-                                },
-                            },
-                            {
-                                id: 'noAnimation',
-                                label: 'No Animation',
-                                values: {
-                                    animationType: 'none',
-                                    attackDuration: 0,
-                                    decayDuration: 0,
-                                    releaseDuration: 0,
-                                },
-                            },
-                        ],
                     },
                     {
                         id: 'playhead',
@@ -414,27 +224,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                                 step: 1,
                                 visibleWhen: [{ key: 'showPlayhead', truthy: true }],
                             }),
-                        ],
-                        presets: [
-                            {
-                                id: 'standard',
-                                label: 'Standard',
-                                values: {
-                                    showPlayhead: true,
-                                    playheadColor: '#ff6b6b',
-                                    playheadLineWidth: 2,
-                                },
-                            },
-                            {
-                                id: 'thin',
-                                label: 'Thin Line',
-                                values: {
-                                    showPlayhead: true,
-                                    playheadLineWidth: 1,
-                                    playheadColor: '#f8fafc',
-                                },
-                            },
-                            { id: 'hidden', label: 'Hidden', values: { showPlayhead: false } },
                         ],
                     },
                 ]),
