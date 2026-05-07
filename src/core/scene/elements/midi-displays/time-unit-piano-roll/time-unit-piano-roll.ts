@@ -9,20 +9,12 @@ import { NoteBlock } from './note-block';
 import { TimingManager } from '@core/timing/timing-manager';
 import { getPluginHostApi, PLUGIN_CAPABILITIES, noteName } from '@mvmnt/plugin-sdk';
 import { debugLog } from '@utils/debug-log';
-import { normalizeColorAlphaValue, ensureEightDigitHex, applyOpacity } from '@utils/color';
+import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
 import { insertElementGroups, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
-import { propGroup } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 const DEFAULT_ROLL_WIDTH = 800;
 const DEFAULT_NOTE_COLOR = '#FF6B6B';
-
-const applyLegacyOpacity = (color: string, opacity?: number): string => {
-    const sanitized = ensureEightDigitHex(color, DEFAULT_NOTE_COLOR);
-    if (opacity === undefined || opacity === null) {
-        return sanitized;
-    }
-    return applyOpacity(sanitized, opacity);
-};
 
 export class TimeUnitPianoRollElement extends SceneElement {
     public timingManager: TimingManager;
@@ -61,42 +53,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
             '#fd79a8',
             '#e17055',
         ];
-        const channelColorPastel = [
-            '#f9a8d4',
-            '#fbcfe8',
-            '#fde68a',
-            '#a5f3fc',
-            '#bfdbfe',
-            '#c7d2fe',
-            '#e9d5ff',
-            '#fecdd3',
-            '#fcd34d',
-            '#bbf7d0',
-            '#a7f3d0',
-            '#d1fae5',
-            '#f5d0fe',
-            '#fbcfe8',
-            '#e0f2fe',
-            '#fee2e2',
-        ];
-        const channelColorHeatmap = [
-            '#ef4444',
-            '#f97316',
-            '#f59e0b',
-            '#eab308',
-            '#84cc16',
-            '#22c55e',
-            '#14b8a6',
-            '#0ea5e9',
-            '#2563eb',
-            '#4f46e5',
-            '#7c3aed',
-            '#a855f7',
-            '#ec4899',
-            '#f472b6',
-            '#fb7185',
-            '#f97316',
-        ];
         const createChannelPreset = (colors: string[]) =>
             colors.reduce<Record<string, string>>((acc, color, index) => {
                 acc[`channel${index}Color`] = color;
@@ -119,521 +75,288 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 category: 'MIDI Displays',
             },
             [
-                propGroup.midiSource(),
-                propGroup.appearance(),
-                {
-                    id: 'dimensions',
-                    label: 'Layout & Range',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Configure viewport width, time window, and pitch range.',
-                    properties: [
-                        prop.number('rollWidth', 'Roll Width (px)', DEFAULT_ROLL_WIDTH, {
-                            step: 50,
-                            description: 'Width of the scrolling window in pixels.',
-                        }),
-                        prop.number('timeUnitBars', 'Time Unit (bars)', 1, { min: 1, max: 8, step: 1 }),
-                        prop.number('minNote', 'Minimum MIDI Note', 30, { min: 0, max: 127, step: 1 }),
-                        prop.number('maxNote', 'Maximum MIDI Note', 72, { min: 0, max: 127, step: 1 }),
-                    ],
-                    presets: [
-                        {
-                            id: 'wideStage',
-                            label: 'Wide Stage',
-                            values: { rollWidth: 1200, timeUnitBars: 2, minNote: 24, maxNote: 96 },
-                        },
-                        {
-                            id: 'compactLead',
-                            label: 'Compact Lead',
-                            values: { rollWidth: 720, timeUnitBars: 1, minNote: 48, maxNote: 84 },
-                        },
-                        {
-                            id: 'fullRange',
-                            label: 'Full Range',
-                            values: { rollWidth: 1400, timeUnitBars: 4, minNote: 21, maxNote: 108 },
-                        },
-                    ],
-                },
-                {
-                    id: 'notes',
-                    label: 'Notes',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Control how note blocks render within the window.',
-                    properties: [
-                        prop.boolean('showNotes', 'Show Notes', true),
-                        prop.boolean('useChannelColors', 'Use Per-Channel Colors', false, {
-                            visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        }),
-                        prop.number('noteHeight', 'Note Height (px)', 20, {
-                            step: 1,
-                            visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        }),
-                        prop.number('noteCornerRadius', 'Note Corner Radius (px)', 2, {
-                            step: 1,
-                            visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        }),
-                        prop.color('noteStrokeColor', 'Note Stroke Color', '#ffffff', {
-                            visibleWhen: [
-                                { key: 'showNotes', truthy: true },
-                                { key: 'noteStrokeWidth', truthy: true },
-                            ],
-                        }),
-                        prop.number('noteStrokeWidth', 'Note Stroke Width (px)', 0, {
-                            step: 1,
-                            visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        }),
-                        prop.number('noteGlowBlur', 'Note Glow Blur (px)', 0, {
-                            step: 1,
-                            visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        }),
-                        prop.number('noteGlowOpacity', 'Note Glow Opacity', 0.5, {
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
-                            visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        }),
-                        ...channelColorProperties,
-                    ],
-                    presets: [
-                        {
-                            id: 'classicBlocks',
-                            label: 'Classic Blocks',
-                            values: {
-                                showNotes: true,
-                                noteHeight: 20,
-                                color: '#FF6B6B',
-                                opacity: 0.85,
-                                noteGlowOpacity: 0.4,
-                            },
-                        },
-                        {
-                            id: 'ghosted',
-                            label: 'Ghosted',
-                            values: {
-                                showNotes: true,
-                                color: '#FF6B6B',
-                                opacity: 0.5,
-                                noteGlowOpacity: 0.2,
-                                noteStrokeWidth: 1,
-                            },
-                        },
-                        {
-                            id: 'neon',
-                            label: 'Neon',
-                            values: {
-                                showNotes: true,
-                                color: '#FF6B6B',
-                                opacity: 0.9,
-                                noteGlowOpacity: 0.7,
-                                noteGlowBlur: 12,
-                            },
-                        },
-                        {
-                            id: 'perChannelRainbow',
-                            label: 'Per-Channel Rainbow',
-                            values: {
-                                showNotes: true,
-                                useChannelColors: true,
-                                ...createChannelPreset(channelColorDefaults),
-                            },
-                        },
-                        {
-                            id: 'perChannelPastel',
-                            label: 'Per-Channel Pastel',
-                            values: {
-                                showNotes: true,
-                                useChannelColors: true,
-                                ...createChannelPreset(channelColorPastel),
-                            },
-                        },
-                        {
-                            id: 'perChannelHeatMap',
-                            label: 'Per-Channel Heat Map',
-                            values: {
-                                showNotes: true,
-                                useChannelColors: true,
-                                ...createChannelPreset(channelColorHeatmap),
-                            },
-                        },
-                        {
-                            id: 'singleColor',
-                            label: 'Single Color',
-                            values: {
-                                showNotes: true,
-                                useChannelColors: false,
-                                color: DEFAULT_NOTE_COLOR,
-                            },
-                        },
-                    ],
-                },
-                {
-                    id: 'noteGrid',
-                    label: 'Note Grid',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Horizontal grid lines for pitch reference.',
-                    properties: [
-                        prop.boolean('showNoteGrid', 'Show Note Grid', true),
-                        prop.color('noteGridColor', 'Grid Line Color', '#333333', {
-                            visibleWhen: [{ key: 'showNoteGrid', truthy: true }],
-                        }),
-                        prop.number('noteGridLineWidth', 'Grid Line Width (px)', 1, {
-                            min: 0.5,
-                            max: 10,
-                            step: 0.5,
-                            visibleWhen: [{ key: 'showNoteGrid', truthy: true }],
-                        }),
-                        prop.number('noteGridOpacity', 'Grid Opacity', 1, {
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
-                            visibleWhen: [{ key: 'showNoteGrid', truthy: true }],
-                        }),
-                    ],
-                    presets: [
-                        {
-                            id: 'brightGuides',
-                            label: 'Bright Guides',
-                            values: {
-                                showNoteGrid: true,
-                                noteGridColor: '#64748b',
-                                noteGridOpacity: 0.8,
-                                noteGridLineWidth: 1,
-                            },
-                        },
-                        {
-                            id: 'subtle',
-                            label: 'Subtle Lines',
-                            values: {
-                                showNoteGrid: true,
-                                noteGridColor: '#1f2937',
-                                noteGridOpacity: 0.4,
-                                noteGridLineWidth: 0.5,
-                            },
-                        },
-                        { id: 'hidden', label: 'Hidden', values: { showNoteGrid: false } },
-                    ],
-                },
-                {
-                    id: 'beatGrid',
-                    label: 'Beat Grid',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Vertical grid lines for beats and bars.',
-                    properties: [
-                        prop.boolean('showBeatGrid', 'Show Beat Grid', true),
-                        prop.color('beatGridBarColor', 'Bar Line Color', '#666666', {
-                            visibleWhen: [{ key: 'showBeatGrid', truthy: true }],
-                        }),
-                        prop.color('beatGridBeatColor', 'Beat Line Color', '#444444', {
-                            visibleWhen: [{ key: 'showBeatGrid', truthy: true }],
-                        }),
-                        prop.number('beatGridBarWidth', 'Bar Line Width (px)', 2, {
-                            min: 0.5,
-                            max: 10,
-                            step: 0.5,
-                            visibleWhen: [{ key: 'showBeatGrid', truthy: true }],
-                        }),
-                        prop.number('beatGridBeatWidth', 'Beat Line Width (px)', 1, {
-                            min: 0.5,
-                            max: 10,
-                            step: 0.5,
-                            visibleWhen: [{ key: 'showBeatGrid', truthy: true }],
-                        }),
-                        prop.number('beatGridOpacity', 'Grid Opacity', 1, {
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
-                            visibleWhen: [{ key: 'showBeatGrid', truthy: true }],
-                        }),
-                    ],
-                    presets: [
-                        {
-                            id: 'barsAndBeats',
-                            label: 'Bars & Beats',
-                            values: {
-                                showBeatGrid: true,
-                                beatGridBarWidth: 2,
-                                beatGridBeatWidth: 1,
-                                beatGridOpacity: 0.9,
-                            },
-                        },
-                        {
-                            id: 'minimal',
-                            label: 'Minimal Bars',
-                            values: { showBeatGrid: true, beatGridBeatWidth: 0.5, beatGridOpacity: 0.4 },
-                        },
-                        { id: 'hidden', label: 'Hidden', values: { showBeatGrid: false } },
-                    ],
-                },
-                {
-                    id: 'piano',
-                    label: 'Piano',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Optional static keyboard rendered alongside the roll.',
-                    properties: [
-                        prop.boolean('showPiano', 'Show Piano', false),
-                        prop.number('pianoWidth', 'Piano Width (px)', 0, {
-                            min: 80,
-                            max: 300,
-                            step: 10,
-                            visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        }),
-                        prop.color('whiteKeyColor', 'White Key Color', '#f0f0f0', {
-                            visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        }),
-                        prop.color('blackKeyColor', 'Black Key Color', '#555555', {
-                            visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        }),
-                        prop.number('pianoOpacity', 'Piano Opacity', 1, {
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
-                            visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        }),
-                        prop.color('pianoRightBorderColor', 'Piano Right Border', '#333333', {
-                            visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        }),
-                        prop.number('pianoRightBorderWidth', 'Piano Right Border Width (px)', 2, {
-                            min: 0,
-                            max: 10,
-                            step: 1,
-                            visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        }),
-                    ],
-                    presets: [
-                        {
-                            id: 'classicPiano',
-                            label: 'Classic Piano',
-                            values: {
-                                showPiano: true,
-                                whiteKeyColor: '#f8fafc',
-                                blackKeyColor: '#111827',
-                                pianoOpacity: 1,
-                            },
-                        },
-                        {
-                            id: 'ghostKeys',
-                            label: 'Ghost Keys',
-                            values: {
-                                showPiano: true,
-                                whiteKeyColor: '#94a3b8',
-                                blackKeyColor: '#1f2937',
-                                pianoOpacity: 0.6,
-                            },
-                        },
-                        { id: 'hidden', label: 'No Keyboard', values: { showPiano: false } },
-                    ],
-                },
-                {
-                    id: 'noteLabels',
-                    label: 'Note Labels',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Configure note name overlays along the piano.',
-                    properties: [
-                        prop.boolean('showNoteLabels', 'Show Note Labels', true),
-                        prop.font('noteLabelFontFamily', 'Font Family', 'Inter', {
-                            visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
-                        }),
-                        prop.number('noteLabelFontSize', 'Font Size (px)', 10, {
-                            min: 6,
-                            max: 32,
-                            step: 1,
-                            visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
-                        }),
-                        prop.color('noteLabelFontColor', 'Font Color', '#ffffff', {
-                            visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
-                        }),
-                        prop.number('noteLabelInterval', 'Label Interval', 1, {
-                            min: 1,
-                            max: 24,
-                            step: 1,
-                            visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
-                        }),
-                        prop.number('noteLabelStartNote', 'Label Start Note', 0, {
-                            min: 0,
-                            max: 127,
-                            step: 1,
-                            visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
-                        }),
-                        prop.number('noteLabelOffsetX', 'Offset X (px)', -10, {
-                            min: -200,
-                            max: 200,
-                            step: 1,
-                            visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
-                        }),
-                        prop.number('noteLabelOffsetY', 'Offset Y (px)', 0, {
-                            min: -200,
-                            max: 200,
-                            step: 1,
-                            visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
-                        }),
-                        prop.number('noteLabelOpacity', 'Label Opacity', 1, {
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
-                            visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
-                        }),
-                    ],
-                    presets: [
-                        {
-                            id: 'everyNote',
-                            label: 'Every Note',
-                            values: { showNoteLabels: true, noteLabelInterval: 1, noteLabelOpacity: 1 },
-                        },
-                        {
-                            id: 'octaves',
-                            label: 'Octaves Only',
-                            values: { showNoteLabels: true, noteLabelInterval: 12, noteLabelOpacity: 0.85 },
-                        },
-                        { id: 'hidden', label: 'Hidden', values: { showNoteLabels: false } },
-                    ],
-                },
-                {
-                    id: 'beatLabels',
-                    label: 'Beat & Bar Labels',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Configure beat/bar text above the grid.',
-                    properties: [
-                        prop.boolean('showBeatLabels', 'Show Beat Labels', true),
-                        prop.font('beatLabelFontFamily', 'Font Family', 'Inter', {
-                            visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
-                        }),
-                        prop.number('beatLabelFontSize', 'Font Size (px)', 12, {
-                            min: 6,
-                            max: 48,
-                            step: 1,
-                            visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
-                        }),
-                        prop.color('beatLabelFontColor', 'Font Color', '#ffffff', {
-                            visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
-                        }),
-                        prop.number('beatLabelOffsetY', 'Offset Y (px)', -5, {
-                            min: -200,
-                            max: 200,
-                            step: 1,
-                            visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
-                        }),
-                        prop.number('beatLabelOffsetX', 'Offset X (px)', 5, {
-                            min: -200,
-                            max: 200,
-                            step: 1,
-                            visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
-                        }),
-                        prop.number('beatLabelOpacity', 'Label Opacity', 1, {
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
-                            visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
-                        }),
-                    ],
-                    presets: [
-                        {
-                            id: 'beatsAndBars',
-                            label: 'Beats & Bars',
-                            values: { showBeatLabels: true, beatLabelOpacity: 1 },
-                        },
-                        {
-                            id: 'barsOnly',
-                            label: 'Bars Only',
-                            values: { showBeatLabels: true, beatLabelOpacity: 0.8, beatLabelFontSize: 14 },
-                        },
-                        { id: 'hidden', label: 'Hidden', values: { showBeatLabels: false } },
-                    ],
-                },
-                {
-                    id: 'animation',
-                    label: 'Animation',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Choose how notes animate when they enter or exit the window.',
-                    properties: [
-                        prop.select('animationType', 'Animation Type', 'expand', [
-                            ...getAnimationSelectOptions(),
-                            { value: 'none', label: 'No Animation' },
-                        ]),
-                        prop.number('attackDuration', 'Attack Duration (s)', 0.3, { step: 0.05 }),
-                        prop.number('decayDuration', 'Decay Duration (s)', 0.3, { step: 0.05 }),
-                        prop.number('releaseDuration', 'Release Duration (s)', 0.3, { step: 0.05 }),
-                    ],
-                    presets: [
-                        {
-                            id: 'expand',
-                            label: 'Expand',
-                            values: {
-                                animationType: 'expand',
-                                attackDuration: 0.3,
-                                decayDuration: 0.3,
-                                releaseDuration: 0.3,
-                            },
-                        },
-                        {
-                            id: 'staccato',
-                            label: 'Staccato',
-                            values: {
-                                animationType: 'expand',
-                                attackDuration: 0.1,
-                                decayDuration: 0.15,
-                                releaseDuration: 0.2,
-                            },
-                        },
-                        {
-                            id: 'noAnimation',
-                            label: 'No Animation',
-                            values: { animationType: 'none', attackDuration: 0, decayDuration: 0, releaseDuration: 0 },
-                        },
-                    ],
-                },
-                {
-                    id: 'playhead',
-                    label: 'Playhead',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Style the static playhead indicator.',
-                    properties: [
-                        prop.boolean('showPlayhead', 'Show Playhead', true),
-                        prop.color('playheadColor', 'Playhead Color', '#ff6b6b', {
-                            visibleWhen: [{ key: 'showPlayhead', truthy: true }],
-                        }),
-                        prop.range('playheadOpacity', 'Playhead Opacity', 1, {
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
-                            visibleWhen: [{ key: 'showPlayhead', truthy: true }],
-                        }),
-                        prop.number('playheadLineWidth', 'Playhead Line Width (px)', 2, {
-                            min: 1,
-                            max: 10,
-                            step: 1,
-                            visibleWhen: [{ key: 'showPlayhead', truthy: true }],
-                        }),
-                    ],
-                    presets: [
-                        {
-                            id: 'standard',
-                            label: 'Standard',
-                            values: {
-                                showPlayhead: true,
-                                playheadColor: '#ff6b6b',
-                                playheadLineWidth: 2,
-                            },
-                        },
-                        {
-                            id: 'thin',
-                            label: 'Thin Line',
-                            values: {
-                                showPlayhead: true,
-                                playheadLineWidth: 1,
-                                playheadColor: '#f8fafc',
-                            },
-                        },
-                        { id: 'hidden', label: 'Hidden', values: { showPlayhead: false } },
-                    ],
-                },
+                tab.content([
+                    propGroup.midiSource(),
+                    {
+                        id: 'dimensions',
+                        label: 'Layout & Range',
+                        collapsed: false,
+                        description: 'Configure viewport width, time window, and pitch range.',
+                        properties: [
+                            prop.number('rollWidth', 'Roll Width (px)', DEFAULT_ROLL_WIDTH, {
+                                step: 50,
+                                description: 'Width of the scrolling window in pixels.',
+                            }),
+                            prop.number('timeUnitBars', 'Time Unit (bars)', 1, { min: 1, max: 8, step: 1 }),
+                            prop.number('minNote', 'Minimum MIDI Note', 30, { min: 0, max: 127, step: 1 }),
+                            prop.number('maxNote', 'Maximum MIDI Note', 72, { min: 0, max: 127, step: 1 }),
+                        ],
+                    },
+                    {
+                        id: 'notes',
+                        label: 'Notes',
+                        collapsed: false,
+                        description: 'Control how note blocks render within the window.',
+                        properties: [
+                            prop.boolean('showNotes', 'Show Notes', true),
+                            prop.boolean('useChannelColors', 'Use Per-Channel Colors', false, {
+                                visibleWhen: [{ key: 'showNotes', truthy: true }],
+                            }),
+                            prop.number('noteHeight', 'Note Height (px)', 20, {
+                                step: 1,
+                                visibleWhen: [{ key: 'showNotes', truthy: true }],
+                            }),
+                            prop.number('noteCornerRadius', 'Note Corner Radius (px)', 2, {
+                                step: 1,
+                                visibleWhen: [{ key: 'showNotes', truthy: true }],
+                            }),
+                            prop.color('noteStrokeColor', 'Note Stroke Color', '#ffffff', {
+                                visibleWhen: [
+                                    { key: 'showNotes', truthy: true },
+                                    { key: 'noteStrokeWidth', truthy: true },
+                                ],
+                            }),
+                            prop.number('noteStrokeWidth', 'Note Stroke Width (px)', 0, {
+                                step: 1,
+                                visibleWhen: [{ key: 'showNotes', truthy: true }],
+                            }),
+                            prop.number('noteGlowBlur', 'Note Glow Blur (px)', 0, {
+                                step: 1,
+                                visibleWhen: [{ key: 'showNotes', truthy: true }],
+                            }),
+                            prop.number('noteGlowOpacity', 'Note Glow Opacity', 0.5, {
+                                min: 0,
+                                max: 1,
+                                step: 0.05,
+                                visibleWhen: [{ key: 'showNotes', truthy: true }],
+                            }),
+                            ...channelColorProperties,
+                        ],
+                    },
+                    {
+                        id: 'noteGrid',
+                        label: 'Note Grid',
+                        collapsed: true,
+                        description: 'Horizontal grid lines for pitch reference.',
+                        properties: [
+                            prop.boolean('showNoteGrid', 'Show Note Grid', true),
+                            prop.color('noteGridColor', 'Grid Line Color', '#333333', {
+                                visibleWhen: [{ key: 'showNoteGrid', truthy: true }],
+                            }),
+                            prop.number('noteGridLineWidth', 'Grid Line Width (px)', 1, {
+                                min: 0.5,
+                                max: 10,
+                                step: 0.5,
+                                visibleWhen: [{ key: 'showNoteGrid', truthy: true }],
+                            }),
+                            prop.number('noteGridOpacity', 'Grid Opacity', 1, {
+                                min: 0,
+                                max: 1,
+                                step: 0.05,
+                                visibleWhen: [{ key: 'showNoteGrid', truthy: true }],
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'beatGrid',
+                        label: 'Beat Grid',
+                        collapsed: true,
+                        description: 'Vertical grid lines for beats and bars.',
+                        properties: [
+                            prop.boolean('showBeatGrid', 'Show Beat Grid', true),
+                            prop.color('beatGridBarColor', 'Bar Line Color', '#666666', {
+                                visibleWhen: [{ key: 'showBeatGrid', truthy: true }],
+                            }),
+                            prop.color('beatGridBeatColor', 'Beat Line Color', '#444444', {
+                                visibleWhen: [{ key: 'showBeatGrid', truthy: true }],
+                            }),
+                            prop.number('beatGridBarWidth', 'Bar Line Width (px)', 2, {
+                                min: 0.5,
+                                max: 10,
+                                step: 0.5,
+                                visibleWhen: [{ key: 'showBeatGrid', truthy: true }],
+                            }),
+                            prop.number('beatGridBeatWidth', 'Beat Line Width (px)', 1, {
+                                min: 0.5,
+                                max: 10,
+                                step: 0.5,
+                                visibleWhen: [{ key: 'showBeatGrid', truthy: true }],
+                            }),
+                            prop.number('beatGridOpacity', 'Grid Opacity', 1, {
+                                min: 0,
+                                max: 1,
+                                step: 0.05,
+                                visibleWhen: [{ key: 'showBeatGrid', truthy: true }],
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'piano',
+                        label: 'Piano',
+                        collapsed: true,
+                        description: 'Optional static keyboard rendered alongside the roll.',
+                        properties: [
+                            prop.boolean('showPiano', 'Show Piano', false),
+                            prop.number('pianoWidth', 'Piano Width (px)', 0, {
+                                min: 80,
+                                max: 300,
+                                step: 10,
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.color('whiteKeyColor', 'White Key Color', '#f0f0f0', {
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.color('blackKeyColor', 'Black Key Color', '#555555', {
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.number('pianoOpacity', 'Piano Opacity', 1, {
+                                min: 0,
+                                max: 1,
+                                step: 0.05,
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.color('pianoRightBorderColor', 'Piano Right Border', '#333333', {
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.number('pianoRightBorderWidth', 'Piano Right Border Width (px)', 2, {
+                                min: 0,
+                                max: 10,
+                                step: 1,
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'noteLabels',
+                        label: 'Note Labels',
+                        collapsed: true,
+                        description: 'Configure note name overlays along the piano.',
+                        properties: [
+                            prop.boolean('showNoteLabels', 'Show Note Labels', true),
+                            prop.font('noteLabelFontFamily', 'Font Family', 'Inter', {
+                                visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
+                            }),
+                            prop.number('noteLabelFontSize', 'Font Size (px)', 10, {
+                                min: 6,
+                                max: 32,
+                                step: 1,
+                                visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
+                            }),
+                            prop.color('noteLabelFontColor', 'Font Color', '#ffffff', {
+                                visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
+                            }),
+                            prop.number('noteLabelInterval', 'Label Interval', 1, {
+                                min: 1,
+                                max: 24,
+                                step: 1,
+                                visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
+                            }),
+                            prop.number('noteLabelStartNote', 'Label Start Note', 0, {
+                                min: 0,
+                                max: 127,
+                                step: 1,
+                                visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
+                            }),
+                            prop.number('noteLabelOffsetX', 'Offset X (px)', -10, {
+                                min: -200,
+                                max: 200,
+                                step: 1,
+                                visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
+                            }),
+                            prop.number('noteLabelOffsetY', 'Offset Y (px)', 0, {
+                                min: -200,
+                                max: 200,
+                                step: 1,
+                                visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
+                            }),
+                            prop.number('noteLabelOpacity', 'Label Opacity', 1, {
+                                min: 0,
+                                max: 1,
+                                step: 0.05,
+                                visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'beatLabels',
+                        label: 'Beat & Bar Labels',
+                        collapsed: true,
+                        description: 'Configure beat/bar text above the grid.',
+                        properties: [
+                            prop.boolean('showBeatLabels', 'Show Beat Labels', true),
+                            prop.font('beatLabelFontFamily', 'Font Family', 'Inter', {
+                                visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
+                            }),
+                            prop.number('beatLabelFontSize', 'Font Size (px)', 12, {
+                                min: 6,
+                                max: 48,
+                                step: 1,
+                                visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
+                            }),
+                            prop.color('beatLabelFontColor', 'Font Color', '#ffffff', {
+                                visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
+                            }),
+                            prop.number('beatLabelOffsetY', 'Offset Y (px)', -5, {
+                                min: -200,
+                                max: 200,
+                                step: 1,
+                                visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
+                            }),
+                            prop.number('beatLabelOffsetX', 'Offset X (px)', 5, {
+                                min: -200,
+                                max: 200,
+                                step: 1,
+                                visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
+                            }),
+                            prop.number('beatLabelOpacity', 'Label Opacity', 1, {
+                                min: 0,
+                                max: 1,
+                                step: 0.05,
+                                visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'animation',
+                        label: 'Animation',
+                        collapsed: true,
+                        description: 'Choose how notes animate when they enter or exit the window.',
+                        properties: [
+                            prop.select('animationType', 'Animation Type', 'expand', [
+                                ...getAnimationSelectOptions(),
+                                { value: 'none', label: 'No Animation' },
+                            ]),
+                            prop.number('attackDuration', 'Attack Duration (s)', 0.3, { step: 0.05 }),
+                            prop.number('decayDuration', 'Decay Duration (s)', 0.3, { step: 0.05 }),
+                            prop.number('releaseDuration', 'Release Duration (s)', 0.3, { step: 0.05 }),
+                        ],
+                    },
+                    {
+                        id: 'playhead',
+                        label: 'Playhead',
+                        collapsed: true,
+                        description: 'Style the static playhead indicator.',
+                        properties: [
+                            prop.boolean('showPlayhead', 'Show Playhead', true),
+                            prop.color('playheadColor', 'Playhead Color', '#ff6b6b', {
+                                visibleWhen: [{ key: 'showPlayhead', truthy: true }],
+                            }),
+                            prop.range('playheadOpacity', 'Playhead Opacity', 1, {
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                                visibleWhen: [{ key: 'showPlayhead', truthy: true }],
+                            }),
+                            prop.number('playheadLineWidth', 'Playhead Line Width (px)', 2, {
+                                min: 1,
+                                max: 10,
+                                step: 1,
+                                visibleWhen: [{ key: 'showPlayhead', truthy: true }],
+                            }),
+                        ],
+                    },
+                ]),
+                tab.appearance([propGroup.appearance()]),
             ]
         );
     }
@@ -855,7 +578,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             noteLines.forEach((l: any) => {
                 if (noteGridColor) l.setColor?.(noteGridColor);
                 if (noteGridLineWidth) l.setLineWidth?.(noteGridLineWidth);
-                l.setOpacity?.(noteGridOpacity);
+                l.opacity = noteGridOpacity;
             });
             renderObjects.push(...noteLines);
         }
@@ -881,7 +604,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 const width = isBar ? beatGridBarWidth : beatGridBeatWidth;
                 l.setColor?.(color);
                 l.setLineWidth?.(width);
-                l.setOpacity?.(beatGridOpacity);
+                l.opacity = beatGridOpacity;
             });
             renderObjects.push(...beatLines);
         }

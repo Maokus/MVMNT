@@ -7,6 +7,7 @@ import {
     ensureFontLoaded,
     parseFontSelection,
     propGroup,
+    tab,
 } from '@mvmnt/plugin-sdk';
 import { type RenderObject, Text, Rectangle } from '@mvmnt/plugin-sdk/render';
 import { applyOpacity } from '@utils/color';
@@ -25,25 +26,28 @@ export class TextOverlayElement extends SceneElement {
                 category: 'Misc',
             },
             [
-                {
-                    id: 'textContent',
-                    label: 'Content',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Edit the copy that appears on screen.',
-                    properties: [
-                        prop.string('text', 'Text Content', 'Sample Text', {
-                            description: 'The text content to display.',
-                        }),
-                    ],
-                    presets: [
-                        { id: 'titleCard', label: 'Title Card', values: { text: 'Title Goes Here' } },
-                        { id: 'callToAction', label: 'Call To Action', values: { text: 'Subscribe for more' } },
-                    ],
-                },
-                propGroup.appearance({ blendMode: true }),
-                propGroup.typography({ stroke: true }),
-                propGroup.container(),
+                tab.content([
+                    {
+                        id: 'textContent',
+                        label: 'Content',
+                        collapsed: false,
+                        description: 'Edit the copy that appears on screen.',
+                        properties: [
+                            prop.string('text', 'Text Content', 'Sample Text', {
+                                description: 'The text content to display.',
+                            }),
+                        ],
+                        presets: [
+                            { id: 'titleCard', label: 'Title Card', values: { text: 'Title Goes Here' } },
+                            { id: 'callToAction', label: 'Call To Action', values: { text: 'Subscribe for more' } },
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    propGroup.appearance({ blendMode: true }),
+                    propGroup.typography({ stroke: true }),
+                    propGroup.container(),
+                ]),
             ]
         );
     }

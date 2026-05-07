@@ -9,6 +9,7 @@ import {
     getPluginHostApi,
     PLUGIN_CAPABILITIES,
     propGroup,
+    tab,
 } from '@mvmnt/plugin-sdk';
 import { Text, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import { TimingManager } from '@core/timing';
@@ -46,47 +47,48 @@ export class TimeDisplayElement extends SceneElement {
                 category: 'Misc',
             },
             [
-                {
-                    id: 'timeDisplay',
-                    label: 'Time Display',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Adjust offsets and primary colors for the timer.',
-                    properties: [
-                        prop.number('offsetBars', 'Offset Bars', 0, {
-                            min: -512,
-                            max: 512,
-                            step: 1,
-                            description: 'Shift the displayed musical + real time by this many bars (can be negative).',
-                        }),
-                        prop.boolean('showProgress', 'Show Progress Bars', true),
-                        prop.color('color', 'Primary Text Color', '#FFFFFF', {
-                            description: 'Color for the main time and beat numbers.',
-                        }),
-                        prop.color('textSecondaryColor', 'Secondary Text Color', 'rgba(255, 255, 255, 0.9)', {
-                            description: 'Color for labels and secondary text.',
-                        }),
-                    ],
-                    presets: [
-                        {
-                            id: 'concertTimer',
-                            label: 'Concert Timer',
-                            values: { fontFamily: 'Inter|600', color: '#f8fafc', textSecondaryColor: '#cbd5f5' },
-                        },
-                        {
-                            id: 'techOverlay',
-                            label: 'Tech Overlay',
-                            values: { fontFamily: 'Inter|500', color: '#22d3ee', textSecondaryColor: '#94a3b8' },
-                        },
-                        {
-                            id: 'minimalClock',
-                            label: 'Minimal Clock',
-                            values: { fontFamily: 'Inter|400', color: '#f5f5f5', textSecondaryColor: '#a3a3a3' },
-                        },
-                    ],
-                },
-                propGroup.typography(),
-                propGroup.container(),
+                tab.content([
+                    {
+                        id: 'timeDisplay',
+                        label: 'Time Display',
+                        collapsed: false,
+                        description: 'Adjust offsets and primary colors for the timer.',
+                        properties: [
+                            prop.number('offsetBars', 'Offset Bars', 0, {
+                                min: -512,
+                                max: 512,
+                                step: 1,
+                                description:
+                                    'Shift the displayed musical + real time by this many bars (can be negative).',
+                            }),
+                            prop.boolean('showProgress', 'Show Progress Bars', true),
+                            prop.color('color', 'Primary Text Color', '#FFFFFF', {
+                                description: 'Color for the main time and beat numbers.',
+                            }),
+                            prop.color('textSecondaryColor', 'Secondary Text Color', 'rgba(255, 255, 255, 0.9)', {
+                                description: 'Color for labels and secondary text.',
+                            }),
+                        ],
+                        presets: [
+                            {
+                                id: 'concertTimer',
+                                label: 'Concert Timer',
+                                values: { fontFamily: 'Inter|600', color: '#f8fafc', textSecondaryColor: '#cbd5f5' },
+                            },
+                            {
+                                id: 'techOverlay',
+                                label: 'Tech Overlay',
+                                values: { fontFamily: 'Inter|500', color: '#22d3ee', textSecondaryColor: '#94a3b8' },
+                            },
+                            {
+                                id: 'minimalClock',
+                                label: 'Minimal Clock',
+                                values: { fontFamily: 'Inter|400', color: '#f5f5f5', textSecondaryColor: '#a3a3a3' },
+                            },
+                        ],
+                    },
+                ]),
+                tab.appearance([propGroup.typography(), propGroup.container()]),
             ]
         );
     }

@@ -1,5 +1,5 @@
 import { asNumber, asBoolean, asString, asTrimmedString } from '@core/scene/elements/base';
-import type { EnhancedConfigSchema, PropertyDefinition, PropertyGroup, PropertyVisibilityCondition } from '@core/types';
+import type { EnhancedConfigSchema, PropertyDefinition, PropertyTab, PropertyVisibilityCondition } from '@core/types';
 
 // ─── Shared option types ────────────────────────────────────────────────────
 
@@ -313,31 +313,22 @@ export const prop = {
 // ─── insertElementGroups ─────────────────────────────────────────────────────
 
 /**
- * Inserts plugin-specific property groups into the base element schema, placing them
- * between the base's "basic" groups and "advanced" groups.
+ * Inserts plugin-specific property tabs into the base element schema.
  *
- * Replaces the three-line boilerplate that every element previously copy-pasted:
- * ```ts
- * // Before:
- * const base = super.getConfigSchema();
- * const basicGroups    = base.groups.filter(g => g.variant !== 'advanced');
- * const advancedGroups = base.groups.filter(g => g.variant === 'advanced');
- * return { ...base, name: '...', groups: [...basicGroups, ...myGroups, ...advancedGroups] };
- *
- * // After:
- * return insertElementGroups(super.getConfigSchema(), { name: 'My Element' }, myGroups);
- * ```
+ * The result will be `[Transform tab, ...pluginTabs]`.
  *
  * @param base         The schema returned by `super.getConfigSchema()`.
  * @param overrides    Fields to override on the base schema (`name`, `description`, `category`).
- * @param pluginGroups The property groups specific to this element.
+ * @param pluginTabs   The property tabs specific to this element.
  */
 export function insertElementGroups(
     base: EnhancedConfigSchema,
     overrides: Partial<Pick<EnhancedConfigSchema, 'name' | 'description' | 'category'>>,
-    pluginGroups: PropertyGroup[]
+    pluginTabs: PropertyTab[]
 ): EnhancedConfigSchema {
-    const basicGroups = base.groups.filter((g) => g.variant !== 'advanced');
-    const advancedGroups = base.groups.filter((g) => g.variant === 'advanced');
-    return { ...base, ...overrides, groups: [...basicGroups, ...pluginGroups, ...advancedGroups] };
+    return {
+        ...base,
+        ...overrides,
+        tabs: [base.tabs[0], ...pluginTabs],
+    };
 }

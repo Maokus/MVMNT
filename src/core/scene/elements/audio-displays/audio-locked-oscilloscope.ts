@@ -7,7 +7,7 @@ import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { applyOpacity } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
-import { propGroup } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 const { descriptor: PITCH_WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchWaveform' });
 
@@ -52,41 +52,55 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                 category: 'Audio Displays',
             },
             [
-                propGroup.audioSource(),
-                propGroup.appearance({ blendMode: true }),
-                {
-                    id: 'lockedOscilloscope',
-                    label: 'Waveform',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'channelSelector',
-                            type: 'string',
-                            label: 'Channel',
-                            default: null,
-                            runtime: { transform: normalizeChannelSelector, defaultValue: null },
-                        },
-                        prop.number('width', 'Width (px)', 420, { step: 1 }),
-                        prop.number('height', 'Height (px)', 140, { step: 1 }),
-                        {
-                            key: 'lineWidth',
-                            type: 'number',
-                            label: 'Line Width (px)',
-                            default: 2,
-                            step: 0.5,
-                            runtime: {
-                                transform: (value, element) => {
-                                    const numeric = asNumber(value, element);
-                                    return numeric === undefined ? undefined : clamp(numeric, 0.5, 10);
-                                },
-                                defaultValue: 2,
+                tab.content([
+                    propGroup.audioSource(),
+                    {
+                        id: 'lockedOscilloscope',
+                        label: 'Waveform',
+                        collapsed: false,
+                        properties: [
+                            {
+                                key: 'channelSelector',
+                                type: 'select',
+                                label: 'Channel',
+                                default: null,
+                                options: [
+                                    { label: 'Mix (all channels)', value: null },
+                                    { label: 'Left', value: 0 },
+                                    { label: 'Right', value: 1 },
+                                ],
+                                runtime: { transform: normalizeChannelSelector, defaultValue: null },
                             },
-                        },
-                        prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
-                        prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
-                    ],
-                },
+                            prop.number('width', 'Width (px)', 420, { step: 1 }),
+                            prop.number('height', 'Height (px)', 140, { step: 1 }),
+                            {
+                                key: 'lineWidth',
+                                type: 'number',
+                                label: 'Line Width (px)',
+                                default: 2,
+                                step: 0.5,
+                                runtime: {
+                                    transform: (value, element) => {
+                                        const numeric = asNumber(value, element);
+                                        return numeric === undefined ? undefined : clamp(numeric, 0.5, 10);
+                                    },
+                                    defaultValue: 2,
+                                },
+                            },
+                            prop.color('color', 'Primary Color', DEFAULT_LINE_COLOR),
+                            prop.range('opacity', 'Primary Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                            prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
+                            prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
+                            prop.select(
+                                'blendMode',
+                                'Blend Mode',
+                                'source-over',
+                                BLEND_MODE_CHOICES as unknown as Array<{ value: string; label: string }>,
+                                { description: 'Canvas composite blending operation.' }
+                            ),
+                        ],
+                    },
+                ]),
             ]
         );
     }
@@ -115,7 +129,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                     '#94a3b8',
                     'left',
                     'middle'
-                )
+                ).setIncludeInLayoutBounds(false)
             );
             return objects;
         }
@@ -146,7 +160,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                     '#94a3b8',
                     'left',
                     'middle'
-                )
+                ).setIncludeInLayoutBounds(false)
             );
             return objects;
         }
@@ -170,14 +184,15 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                     '#94a3b8',
                     'left',
                     'middle'
-                )
+                ).setIncludeInLayoutBounds(false)
             );
             return objects;
         }
 
         const values = channelValues.slice(0, sampleLength).map((value) => clamp(value ?? 0, -1, 1));
         const points = buildPolylinePoints(values, props.width, props.height);
-        const lineColor = applyOpacity(props.color ?? DEFAULT_LINE_COLOR, props.opacity ?? 1);
+        const legacyLineColor = this.bindings.has('lineColor') ? this.getProperty<string>('lineColor') : undefined;
+        const lineColor = applyOpacity(legacyLineColor ?? props.color ?? DEFAULT_LINE_COLOR, props.opacity ?? 1);
         const line = new Poly(points, null, lineColor, props.lineWidth, { includeInLayoutBounds: false });
         line.setClosed(false);
         line.blendMode = blendMode === 'source-over' ? null : blendMode;

@@ -9,6 +9,7 @@ import {
     ensureFontLoaded,
     prop,
     insertElementGroups,
+    tab,
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
@@ -27,7 +28,7 @@ function clamp(v: number, lo: number, hi: number): number {
 
 /** Returns a value in [0, 1]: 0 at x=0 and x=1 (note strike), 1 at x=0.5 (rest). */
 function archCurve(x: number): number {
-    return -(Math.pow((x - 0.5) * 2, 4)) + 1;
+    return -Math.pow((x - 0.5) * 2, 4) + 1;
 }
 
 export class CollisionMidiDisplayElement extends SceneElement {
@@ -36,56 +37,87 @@ export class CollisionMidiDisplayElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Collision Midi Display',
-            description: 'MIDI display which shows notes as the collision of shapes',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'midiSource',
-                label: 'MIDI Source',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.midiTrack('midiTrackId', 'MIDI Track', { description: 'MIDI track to use as the note source' }),
-                ],
+                name: 'Collision Midi Display',
+                description: 'MIDI display which shows notes as the collision of shapes',
             },
-            {
-                id: 'appearance',
-                label: 'Appearance',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.number('noteSize', 'Note Size', 40, { step: 1 }),
-                    prop.number('minNote', 'Min Note', 0, { min: 0, max: 127, step: 1, description: 'Only display notes at or above this MIDI note number' }),
-                    prop.number('maxNote', 'Max Note', 127, { min: 0, max: 127, step: 1, description: 'Only display notes at or below this MIDI note number' }),
-                    prop.number('gap', 'Gap', 16, { step: 1 }),
-                    prop.number('spacing', 'Spacing', 12, { step: 1 }),
-                    prop.colorAlpha('squareColor', 'Square Color', '#334155FF'),
-                    prop.colorAlpha('squareActiveColor', 'Square Active Color', '#6366F1FF', { description: 'Color the square takes on while the note is being held' }),
-                    prop.colorAlpha('circleColor', 'Circle Color', '#10B981FF'),
-                    prop.boolean('showNoteNames', 'Show Note Names', true),
-                    prop.font('labelFontFamily', 'Note Label Font', 'Inter', { description: 'Font family for note name labels (Google Fonts supported).' }),
-                    prop.number('labelFontSize', 'Note Label Font Size', 0, { step: 1, description: '0 = auto (scales with note size)' }),
-                ],
-                presets: [
+            [
+                tab.content([
                     {
-                        id: 'debugLarge',
-                        label: 'Debug Large',
-                        description: 'Large notes with a narrow pitch range — easier to read while debugging MIDI data',
-                        values: { noteSize: 80, minNote: 60, maxNote: 68 },
+                        id: 'midiSource',
+                        label: 'MIDI Source',
+                        collapsed: false,
+                        properties: [
+                            prop.midiTrack('midiTrackId', 'MIDI Track', {
+                                description: 'MIDI track to use as the note source',
+                            }),
+                        ],
                     },
-                ],
-            },
-            {
-                id: 'timing',
-                label: 'Timing',
-                variant: 'basic',
-                collapsed: true,
-                properties: [
-                    prop.number('bounceDuration', 'Bounce Duration (s)', 0.12, { min: 0.02, max: 0.5, step: 0.01 }),
-                ],
-            },
-        ]);
+                ]),
+                tab.appearance([
+                    {
+                        id: 'appearance',
+                        label: 'Appearance',
+                        collapsed: false,
+                        properties: [
+                            prop.number('noteSize', 'Note Size', 40, { step: 1 }),
+                            prop.number('minNote', 'Min Note', 0, {
+                                min: 0,
+                                max: 127,
+                                step: 1,
+                                description: 'Only display notes at or above this MIDI note number',
+                            }),
+                            prop.number('maxNote', 'Max Note', 127, {
+                                min: 0,
+                                max: 127,
+                                step: 1,
+                                description: 'Only display notes at or below this MIDI note number',
+                            }),
+                            prop.number('gap', 'Gap', 16, { step: 1 }),
+                            prop.number('spacing', 'Spacing', 12, { step: 1 }),
+                            prop.colorAlpha('squareColor', 'Square Color', '#334155FF'),
+                            prop.colorAlpha('squareActiveColor', 'Square Active Color', '#6366F1FF', {
+                                description: 'Color the square takes on while the note is being held',
+                            }),
+                            prop.colorAlpha('circleColor', 'Circle Color', '#10B981FF'),
+                            prop.boolean('showNoteNames', 'Show Note Names', true),
+                            prop.font('labelFontFamily', 'Note Label Font', 'Inter', {
+                                description: 'Font family for note name labels (Google Fonts supported).',
+                            }),
+                            prop.number('labelFontSize', 'Note Label Font Size', 0, {
+                                step: 1,
+                                description: '0 = auto (scales with note size)',
+                            }),
+                        ],
+                        presets: [
+                            {
+                                id: 'debugLarge',
+                                label: 'Debug Large',
+                                description:
+                                    'Large notes with a narrow pitch range — easier to read while debugging MIDI data',
+                                values: { noteSize: 80, minNote: 60, maxNote: 68 },
+                            },
+                        ],
+                    },
+                ]),
+                tab.advanced([
+                    {
+                        id: 'timing',
+                        label: 'Timing',
+                        collapsed: true,
+                        properties: [
+                            prop.number('bounceDuration', 'Bounce Duration (s)', 0.12, {
+                                min: 0.02,
+                                max: 0.5,
+                                step: 0.01,
+                            }),
+                        ],
+                    },
+                ]),
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
@@ -114,10 +146,18 @@ export class CollisionMidiDisplayElement extends SceneElement {
         }
 
         const {
-            noteSize, gap, spacing,
-            squareColor, squareActiveColor, circleColor,
-            showNoteNames, labelFontFamily, labelFontSize,
-            bounceDuration, minNote, maxNote,
+            noteSize,
+            gap,
+            spacing,
+            squareColor,
+            squareActiveColor,
+            circleColor,
+            showNoteNames,
+            labelFontFamily,
+            labelFontSize,
+            bounceDuration,
+            minNote,
+            maxNote,
         } = props;
 
         // Font pipeline — supports Google Fonts and custom assets via Family|weight token format
@@ -129,8 +169,9 @@ export class CollisionMidiDisplayElement extends SceneElement {
         const labelFontString = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
 
         // All distinct pitches in the track — filtered to the configured note range
-        const distinctPitches = api.timeline.selectDistinctNoteNumbers({ trackIds: [props.midiTrackId] })
-            .filter(p => p >= minNote && p <= maxNote);
+        const distinctPitches = api.timeline
+            .selectDistinctNoteNumbers({ trackIds: [props.midiTrackId] })
+            .filter((p) => p >= minNote && p <= maxNote);
 
         if (distinctPitches.length === 0) {
             objects.push(new Text(0, 0, 'No notes in track', '12px Inter, sans-serif', '#64748b', 'left', 'top'));
@@ -156,8 +197,8 @@ export class CollisionMidiDisplayElement extends SceneElement {
             totalWidth + boundsPad * 2,
             boundsBottom - boundsTop,
             null,
-            "transparent",
-            1,
+            'transparent',
+            1
         );
         boundsRect.cornerRadius = 4;
         objects.push(boundsRect);
@@ -174,7 +215,10 @@ export class CollisionMidiDisplayElement extends SceneElement {
             let nextNote = null;
             for (const n of pitchNotes) {
                 if (n.startTime <= targetTime) prevNote = n;
-                else if (nextNote === null) { nextNote = n; break; }
+                else if (nextNote === null) {
+                    nextNote = n;
+                    break;
+                }
             }
 
             let circleOffsetY: number;
@@ -222,7 +266,8 @@ export class CollisionMidiDisplayElement extends SceneElement {
                 squareAlpha = lerp(1.0, 0.85, t);
             }
 
-            const isNoteActive = prevNote !== null && targetTime >= prevNote.startTime && targetTime <= prevNote.endTime;
+            const isNoteActive =
+                prevNote !== null && targetTime >= prevNote.startTime && targetTime <= prevNote.endTime;
             const effectiveSquareColor = isNoteActive ? squareActiveColor : squareColor;
 
             // --- Square ---

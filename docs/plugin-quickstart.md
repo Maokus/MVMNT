@@ -33,6 +33,7 @@ Follow the prompts. Your new file will appear at `src/plugins/<your-plugin>/<ele
 import {
     SceneElement,
     prop,
+    tab,
     insertElementGroups,
     Rectangle,
     type RenderObject,
@@ -48,16 +49,15 @@ export class FlashBoxElement extends SceneElement {
             super.getConfigSchema(),
             { name: 'Flash Box', description: 'A box that pulses with time', category: 'custom' },
             [
-                {
+                tab.properties([{
                     id: 'appearance',
                     label: 'Appearance',
-                    variant: 'basic',
                     collapsed: false,
                     properties: [
                         prop.colorAlpha('boxColor', 'Color', '#3B82F6FF'),
                         prop.number('size', 'Size', 100, { min: 10, max: 500, step: 1 }),
                     ],
-                },
+                }]),
             ]
         );
     }

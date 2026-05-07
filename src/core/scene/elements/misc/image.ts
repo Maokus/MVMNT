@@ -8,6 +8,7 @@ import {
     prop,
     VisualMediaPlayback,
     propGroup,
+    tab,
 } from '@mvmnt/plugin-sdk';
 
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
@@ -33,40 +34,64 @@ export class ImageElement extends SceneElement {
                 category: 'Misc',
             },
             [
-                {
-                    id: 'imageSource',
-                    label: 'Image Source',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Pick the artwork and playback speed for animated assets.',
-                    properties: [
-                        prop.imageAsset('imageSource', 'Image'),
-                        prop.number('playbackSpeed', 'Playback Speed (×)', 1, { step: 0.1 }),
-                    ],
-                },
-                {
-                    id: 'imageLayout',
-                    label: 'Layout',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Size and crop behaviour for the image frame.',
-                    properties: [
-                        prop.number('width', 'Width (px)', 200, { step: 10 }),
-                        prop.number('height', 'Height (px)', 200, { step: 10 }),
-                        prop.select('fitMode', 'Fit Mode', 'contain', [
-                            { value: 'contain', label: 'Contain (fit within bounds)' },
-                            { value: 'cover', label: 'Cover (fill bounds, may crop)' },
-                            { value: 'fill', label: 'Fill (stretch to fit)' },
-                            { value: 'clip', label: 'Clip (native pixel size)' },
-                        ]),
-                        prop.boolean('preserveAspectRatio', 'Preserve Aspect Ratio', true, {
-                            visibleWhen: [{ key: 'fitMode', notEquals: 'fill' }],
-                        }),
-                    ],
-                },
-                propGroup.appearance({ blendMode: true }),
-                propGroup.border({ cornerRadius: true }),
-                propGroup.shadow(),
+                tab.content([
+                    {
+                        id: 'imageSource',
+                        label: 'Image Source',
+                        collapsed: false,
+                        description: 'Pick the artwork and playback speed for animated assets.',
+                        properties: [
+                            prop.imageAsset('imageSource', 'Image'),
+                            prop.number('playbackSpeed', 'Playback Speed (×)', 1, { step: 0.1 }),
+                        ],
+                    },
+                    {
+                        id: 'imageLayout',
+                        label: 'Layout',
+                        collapsed: false,
+                        description: 'Size and crop behaviour for the image frame.',
+                        properties: [
+                            prop.number('width', 'Width (px)', 200, { step: 10 }),
+                            prop.number('height', 'Height (px)', 200, { step: 10 }),
+                            prop.select('fitMode', 'Fit Mode', 'contain', [
+                                { value: 'contain', label: 'Contain (fit within bounds)' },
+                                { value: 'cover', label: 'Cover (fill bounds, may crop)' },
+                                { value: 'fill', label: 'Fill (stretch to fit)' },
+                                { value: 'clip', label: 'Clip (native pixel size)' },
+                            ]),
+                            prop.boolean('preserveAspectRatio', 'Preserve Aspect Ratio', true, {
+                                visibleWhen: [{ key: 'fitMode', notEquals: 'fill' }],
+                            }),
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    propGroup.appearance({ blendMode: true }),
+                    {
+                        id: 'border',
+                        label: 'Border',
+                        collapsed: true,
+                        properties: [
+                            prop.boolean('showBorder', 'Show Border', false),
+                            prop.color('borderColor', 'Border Color', '#ffffff', {
+                                visibleWhen: [{ key: 'showBorder', truthy: true }],
+                            }),
+                            prop.range('borderWidth', 'Border Width', 1, {
+                                min: 0,
+                                max: 50,
+                                step: 0.5,
+                                visibleWhen: [{ key: 'showBorder', truthy: true }],
+                            }),
+                            prop.range('cornerRadius', 'Corner Radius', 0, {
+                                min: 0,
+                                max: 200,
+                                step: 1,
+                                visibleWhen: [{ key: 'showBorder', truthy: true }],
+                            }),
+                        ],
+                    },
+                    propGroup.shadow(),
+                ]),
             ]
         );
     }
@@ -109,8 +134,9 @@ export class ImageElement extends SceneElement {
         this._renderObject.blendMode = bm === 'source-over' ? null : bm;
 
         const result: RenderObject[] = [this._layoutRect, this._renderObject];
+        const showBorder = props.showBorder ?? false;
         const borderWidth = props.borderWidth ?? 0;
-        if (borderWidth > 0) {
+        if (showBorder && borderWidth > 0) {
             const borderRect = new Rectangle(
                 0,
                 0,

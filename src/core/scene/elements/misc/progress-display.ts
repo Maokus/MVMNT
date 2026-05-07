@@ -11,6 +11,7 @@ import {
     ensureFontLoaded,
     propGroup,
     colorSlotProps,
+    tab,
 } from '@mvmnt/plugin-sdk';
 import { Rectangle, type RenderObject, Text } from '@mvmnt/plugin-sdk/render';
 
@@ -51,10 +52,10 @@ export class ProgressDisplayElement extends SceneElement {
                 category: 'Misc',
             },
             [
+                tab.content([
                 {
                     id: 'progressBasics',
                     label: 'Progress & Stats',
-                    variant: 'basic',
                     collapsed: false,
                     description: 'Decide which UI elements to show and size the progress bar.',
                     properties: [
@@ -101,10 +102,11 @@ export class ProgressDisplayElement extends SceneElement {
                         },
                     ],
                 },
+                ]),
+                tab.appearance([
                 {
                     id: 'appearance',
                     label: 'Appearance',
-                    variant: 'advanced',
                     collapsed: true,
                     description: 'Fine-tune bar and statistics styling.',
                     properties: [
@@ -172,7 +174,8 @@ export class ProgressDisplayElement extends SceneElement {
                         },
                     ],
                 },
-                propGroup.typography(),
+                    propGroup.typography(),
+                ]),
             ]
         );
     }

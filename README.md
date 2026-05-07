@@ -1,21 +1,24 @@
 # MVMNT
 
-> Create polished MIDI-driven motion graphics without leaving your browser.
+MVMNT (pronounced _movement_) is a free and open source music visualization tool designed to create beautiful, modern, MIDI and audio-reactive graphics.
 
-MVMNT (pronounced _movement_) is a React-powered MIDI visualization studio for producing social-media-ready videos from standard MIDI files. The project embraces a store-first architecture, deterministic rendering pipeline, and in-browser tooling so artists can experiment, iterate, and export with confidence.
+For creatives, it is a highly customisable and fully featured application that draws ui patterns from popular creative softwares (Blender, After Effects, Ableton) to create an intuitive working experience.
+
+For developers, it is a framework which handles a ton of dirty work like getting user input and rendering so that you can focus on just making and sharing beautiful custom visualisations.
 
 ## Table of Contents
 
--   [Quick Start](#quick-start)
--   [Local Backend (Supabase)](#local-backend-supabase)
--   [Making Plugins](#making-plugins)
--   [Development Workflow](#development-workflow)
--   [Scene Files](#scene-files)
--   [Extending MVMNT](#extending-mvmnt)
-    -   [Custom Scene Elements](#custom-scene-elements)
-    -   [Custom Piano Roll Animations](#custom-piano-roll-animations)
--   [Debug Utilities](#debug-utilities)
--   [License](#license)
+- [MVMNT](#mvmnt)
+    - [Table of Contents](#table-of-contents)
+    - [Quick Start](#quick-start)
+    - [Local Backend (Supabase)](#local-backend-supabase)
+        - [Prerequisites](#prerequisites)
+        - [Setup](#setup)
+        - [Schema changes](#schema-changes)
+        - [Stopping](#stopping)
+    - [Making Plugins](#making-plugins)
+    - [Development Workflow](#development-workflow)
+    - [License](#license)
 
 ## Quick Start
 
@@ -26,16 +29,14 @@ npm install
 npm run dev
 ```
 
-The development server runs on Vite with hot module replacement. If optional Rollup native dependencies fail to compile on your platform, rerun `npm install` so npm can choose a compatible fallback build.
-
 ## Local Backend (Supabase)
 
 The community features (uploads, ratings, downloads) require a Supabase backend. For local development you run a full Supabase stack in Docker.
 
 ### Prerequisites
 
--   [Docker Desktop](https://www.docker.com/products/docker-desktop/)
--   [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started)
 
     ```bash
     # macOS
@@ -91,17 +92,6 @@ This applies all migrations in `supabase/migrations/` and runs `supabase/seed.sq
 npm run dev
 ```
 
-### Useful local URLs
-
-| Service | URL |
-|---|---|
-| App | http://localhost:5173 |
-| Supabase Studio | http://127.0.0.1:54323 |
-| Email testing (Mailpit) | http://127.0.0.1:54324 |
-| Direct Postgres | `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
-
-Studio lets you browse tables, manage auth users, and run queries against the local database. Mailpit captures all auth emails (magic links, confirmations) so you can complete auth flows without a real mail server.
-
 ### Schema changes
 
 New migrations go in `supabase/migrations/`. Create one with:
@@ -129,7 +119,7 @@ supabase db reset    # wipe and replay from migrations + seed
 
 MVMNT's scene elements are fully pluggable. You can write, build, and distribute your own elements — things like custom MIDI visualisers, audio-reactive shapes, or generative art — using the same API that the built-in elements use.
 
-Plugins are TypeScript classes that extend `SceneElement`. They (1) declare their configurable properties and (2) implement a `_buildRenderObjects()` method that draws on the canvas each frame. 
+Plugins are TypeScript classes that extend `SceneElement`. They (1) declare their configurable properties and (2) implement a `_buildRenderObjects()` method that draws on the canvas each frame.
 
 The `@mvmnt/plugin-sdk` module provides everything you need: the base class, render primitives, and access to the timeline, audio features, and timing data via a stable host API.
 

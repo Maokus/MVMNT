@@ -15,6 +15,7 @@ import {
     SceneElement,
     prop,
     insertElementGroups,
+    tab,
     VisualMediaPlayback,
     resolveProjectAssetDescriptor,
 } from '@mvmnt/plugin-sdk';
@@ -47,19 +48,20 @@ export class AtlasImageElement extends SceneElement {
                 category: 'Custom',
             },
             [
-                {
-                    id: 'atlasSource',
-                    label: 'Atlas',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.sparrowAsset('atlas', 'Override Atlas', {
-                            description: 'Leave empty to use the bundled BOYFRIEND atlas.',
-                        }),
-                        prop.number('width', 'Display Width', 200, { step: 10 }),
-                        prop.number('height', 'Display Height', 200, { step: 10 }),
-                    ],
-                },
+                tab.properties([
+                    {
+                        id: 'atlasSource',
+                        label: 'Atlas',
+                        collapsed: false,
+                        properties: [
+                            prop.sparrowAsset('atlas', 'Override Atlas', {
+                                description: 'Leave empty to use the bundled BOYFRIEND atlas.',
+                            }),
+                            prop.number('width', 'Display Width', 200, { step: 10 }),
+                            prop.number('height', 'Display Height', 200, { step: 10 }),
+                        ],
+                    },
+                ]),
             ]
         );
     }

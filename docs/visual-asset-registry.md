@@ -50,19 +50,18 @@ Always use these factory methods instead of `new VisualResourceHandle()`, `new B
 ### 1. Declare the property
 
 ```typescript
-import { prop, insertElementGroups } from '@mvmnt/plugin-sdk';
+import { prop, insertElementGroups, tab } from '@mvmnt/plugin-sdk';
 
 static override getConfigSchema() {
     return insertElementGroups(super.getConfigSchema(), { name: 'My Element' }, [
-        {
+        tab.content([{
             id: 'imageSource',
             label: 'Image',
-            variant: 'basic',
             collapsed: false,
             properties: [
                 prop.imageAsset('imageSource', 'Image'),
             ],
-        },
+        }]),
     ]);
 }
 ```

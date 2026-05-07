@@ -100,11 +100,9 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     );
     const { propertyStep, propertyMin, propertyMax } = useMemo(() => {
         if (!elementType) return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
-        const schema = sceneElementRegistry.getSchema(elementType) as
-            | (EnhancedConfigSchema & { groups?: EnhancedConfigSchema['groups'] })
-            | null;
-        if (!schema?.groups) return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
-        for (const group of schema.groups) {
+        const schema = sceneElementRegistry.getSchema(elementType) as EnhancedConfigSchema | null;
+        if (!schema?.tabs) return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
+        for (const group of schema.tabs.flatMap((t) => t.groups)) {
             const prop = group.properties?.find((p) => p.key === channel.propertyKey);
             if (prop) {
                 return {

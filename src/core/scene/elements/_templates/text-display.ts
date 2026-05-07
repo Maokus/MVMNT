@@ -4,6 +4,7 @@ import {
     SceneElement,
     prop,
     insertElementGroups,
+    tab,
     Text,
     Rectangle,
     type RenderObject,
@@ -18,45 +19,56 @@ export class TextDisplayElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Text Display',
-            description: 'Display customizable text',
-            category: 'Custom',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'textContent',
-                label: 'Text Content',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.string('textContent', 'Text', 'Hello World', { description: 'Text to display' }),
-                    prop.number('fontSize', 'Font Size (px)', 36, { min: 8, max: 160, step: 1, description: 'Font size in pixels.' }),
-                    prop.font('fontFamily', 'Font Family', 'Inter', { description: 'Choose the font family (Google Fonts supported).' }),
-                ],
+                name: 'Text Display',
+                description: 'Display customizable text',
+                category: 'Custom',
             },
-            {
-                id: 'textFormatting',
-                label: 'Formatting',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.colorAlpha('textColor', 'Text Color', '#FFFFFFFF'),
-                    prop.select('textAlign', 'Alignment', 'left', [
-                        { label: 'Left', value: 'left' },
-                        { label: 'Center', value: 'center' },
-                        { label: 'Right', value: 'right' },
-                    ]),
-                    prop.select('textBaseline', 'Baseline', 'top', [
-                        { label: 'Top', value: 'top' },
-                        { label: 'Middle', value: 'middle' },
-                        { label: 'Bottom', value: 'bottom' },
-                    ]),
-                    prop.boolean('showBackground', 'Show Background', false),
-                    prop.colorAlpha('backgroundColor', 'Background Color', '#00000080'),
-                    prop.number('backgroundPadding', 'Background Padding', 16, { min: 0, max: 100, step: 1 }),
-                ],
-            },
-        ]);
+            [
+                tab.properties([
+                    {
+                        id: 'textContent',
+                        label: 'Text Content',
+                        collapsed: false,
+                        properties: [
+                            prop.string('textContent', 'Text', 'Hello World', { description: 'Text to display' }),
+                            prop.number('fontSize', 'Font Size (px)', 36, {
+                                min: 8,
+                                max: 160,
+                                step: 1,
+                                description: 'Font size in pixels.',
+                            }),
+                            prop.font('fontFamily', 'Font Family', 'Inter', {
+                                description: 'Choose the font family (Google Fonts supported).',
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'textFormatting',
+                        label: 'Formatting',
+                        collapsed: false,
+                        properties: [
+                            prop.colorAlpha('textColor', 'Text Color', '#FFFFFFFF'),
+                            prop.select('textAlign', 'Alignment', 'left', [
+                                { label: 'Left', value: 'left' },
+                                { label: 'Center', value: 'center' },
+                                { label: 'Right', value: 'right' },
+                            ]),
+                            prop.select('textBaseline', 'Baseline', 'top', [
+                                { label: 'Top', value: 'top' },
+                                { label: 'Middle', value: 'middle' },
+                                { label: 'Bottom', value: 'bottom' },
+                            ]),
+                            prop.boolean('showBackground', 'Show Background', false),
+                            prop.colorAlpha('backgroundColor', 'Background Color', '#00000080'),
+                            prop.number('backgroundPadding', 'Background Padding', 16, { min: 0, max: 100, step: 1 }),
+                        ],
+                    },
+                ]),
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: unknown, _targetTime: number): RenderObject[] {
@@ -96,15 +108,7 @@ export class TextDisplayElement extends SceneElement {
                 bgY = -textHeight - props.backgroundPadding;
             }
 
-            objects.push(
-                new Rectangle(
-                    bgX,
-                    bgY,
-                    bgWidth,
-                    bgHeight,
-                    props.backgroundColor
-                )
-            );
+            objects.push(new Rectangle(bgX, bgY, bgWidth, bgHeight, props.backgroundColor));
         }
 
         // Render text
@@ -115,17 +119,7 @@ export class TextDisplayElement extends SceneElement {
         if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const font = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
 
-        objects.push(
-            new Text(
-                0,
-                0,
-                props.textContent,
-                font,
-                props.textColor,
-                props.textAlign,
-                props.textBaseline
-            )
-        );
+        objects.push(new Text(0, 0, props.textContent, font, props.textColor, props.textAlign, props.textBaseline));
 
         return objects;
     }

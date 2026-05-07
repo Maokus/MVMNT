@@ -1,4 +1,4 @@
-import type { PropertyDefinition, PropertyGroup, PropertyVisibilityCondition } from '@core/types';
+import type { PropertyDefinition, PropertyGroup, PropertyTab, PropertyVisibilityCondition } from '@core/types';
 import { prop } from './plugin-sdk-prop-factories';
 
 // ─── Blend mode choices ──────────────────────────────────────────────────────
@@ -91,7 +91,6 @@ export const propGroup = {
         return {
             id: opts?.id ?? 'appearance',
             label: opts?.label ?? 'Appearance',
-            variant: 'basic',
             collapsed: false,
             properties: [
                 prop.color(keyFor('color'), 'Color', '#ffffff'),
@@ -121,7 +120,6 @@ export const propGroup = {
         return {
             id: 'typography',
             label: 'Typography',
-            variant: 'basic',
             collapsed: false,
             properties: [
                 prop.font('fontFamily', 'Font Family', 'Inter|400'),
@@ -182,7 +180,6 @@ export const propGroup = {
         return {
             id: opts?.id ?? 'border',
             label: opts?.label ?? 'Border',
-            variant: 'basic',
             collapsed: true,
             properties: [
                 prop.color(keyFor('borderColor'), 'Border Color', '#ffffff'),
@@ -202,7 +199,6 @@ export const propGroup = {
         return {
             id: 'container',
             label: 'Background Container',
-            variant: 'advanced',
             collapsed: true,
             properties: [
                 prop.boolean('showBackground', 'Show Background', false),
@@ -245,7 +241,6 @@ export const propGroup = {
         return {
             id: 'shadow',
             label: 'Shadow',
-            variant: 'advanced',
             collapsed: true,
             properties: [
                 prop.boolean('shadowEnabled', 'Drop Shadow', false),
@@ -282,7 +277,6 @@ export const propGroup = {
         return {
             id: 'audioSource',
             label: 'Source',
-            variant: 'basic',
             collapsed: false,
             properties: [prop.audioTrack(key, 'Audio Track')],
         };
@@ -296,7 +290,6 @@ export const propGroup = {
         return {
             id: 'midiSource',
             label: 'Source',
-            variant: 'basic',
             collapsed: false,
             properties: [prop.midiTrack(key, 'MIDI Track')],
         };
@@ -346,7 +339,7 @@ export function colorSlotProps(
  * `Source → Content → Layout → Appearance → Typography → Border → Container → Effects → Advanced`
  *
  * Each helper takes a flat `PropertyDefinition[]` and returns a `PropertyGroup` with the
- * correct id, label, and `variant`. Use `propGroup.*` factories when the full standard
+ * correct id and label. Use `propGroup.*` factories when the full standard
  * property set is needed; use `section.*` when you want the canonical id/label but with
  * element-specific properties.
  *
@@ -367,12 +360,12 @@ export function colorSlotProps(
 export const section = {
     /** Groups content-selection props (toggles, text inputs, asset pickers). */
     content(properties: PropertyDefinition[]): PropertyGroup {
-        return { id: 'content', label: 'Content', variant: 'basic', collapsed: false, properties };
+        return { id: 'content', label: 'Content', collapsed: false, properties };
     },
 
     /** Groups dimensional and positional props (width, height, padding, offsets). */
     layout(properties: PropertyDefinition[]): PropertyGroup {
-        return { id: 'layout', label: 'Layout', variant: 'basic', collapsed: false, properties };
+        return { id: 'layout', label: 'Layout', collapsed: false, properties };
     },
 
     /**
@@ -387,7 +380,6 @@ export const section = {
         return {
             id: opts?.id ?? 'appearance',
             label: opts?.label ?? 'Appearance',
-            variant: 'basic',
             collapsed: false,
             properties,
         };
@@ -395,7 +387,7 @@ export const section = {
 
     /** Groups font, size, alignment, and spacing props. */
     typography(properties: PropertyDefinition[]): PropertyGroup {
-        return { id: 'typography', label: 'Typography', variant: 'basic', collapsed: false, properties };
+        return { id: 'typography', label: 'Typography', collapsed: false, properties };
     },
 
     /** Groups border color, width, and radius props. */
@@ -403,7 +395,6 @@ export const section = {
         return {
             id: opts?.id ?? 'border',
             label: opts?.label ?? 'Border',
-            variant: 'basic',
             collapsed: true,
             properties,
         };
@@ -411,16 +402,58 @@ export const section = {
 
     /** Groups background container toggle + color/padding/radius sub-props. Collapsed by default. */
     container(properties: PropertyDefinition[]): PropertyGroup {
-        return { id: 'container', label: 'Background Container', variant: 'advanced', collapsed: true, properties };
+        return { id: 'container', label: 'Background Container', collapsed: true, properties };
     },
 
-    /** Groups shadow, blur, and filter props. Advanced variant, collapsed by default. */
+    /** Groups shadow, blur, and filter props. Collapsed by default. */
     effects(properties: PropertyDefinition[]): PropertyGroup {
-        return { id: 'effects', label: 'Effects', variant: 'advanced', collapsed: true, properties };
+        return { id: 'effects', label: 'Effects', collapsed: true, properties };
     },
 
-    /** Catch-all for technical or rarely-changed props. Advanced variant, collapsed by default. */
+    /** Catch-all for technical or rarely-changed props. Collapsed by default. */
     advanced(properties: PropertyDefinition[]): PropertyGroup {
-        return { id: 'advanced', label: 'Advanced', variant: 'advanced', collapsed: true, properties };
+        return { id: 'advanced', label: 'Advanced', collapsed: true, properties };
+    },
+} as const;
+
+// ─── tab helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Factory helpers for building `PropertyTab` objects.
+ *
+ * Use these to group `PropertyGroup[]` arrays into named tabs for `insertElementGroups`.
+ * The Transform tab is always prepended by `insertElementGroups` — do not create it here.
+ *
+ * @example
+ * return insertElementGroups(super.getConfigSchema(), { name: 'Audio Spectrum' }, [
+ *   tab.content([propGroup.audioSource(), section.content([...])]),
+ *   tab.appearance([section.appearance([...])]),
+ * ]);
+ */
+export const tab = {
+    transform(groups: PropertyGroup[]): PropertyTab {
+        return { id: 'transform', label: 'Transform', groups };
+    },
+    content(groups: PropertyGroup[]): PropertyTab {
+        return { id: 'content', label: 'Content', groups };
+    },
+    appearance(groups: PropertyGroup[]): PropertyTab {
+        return { id: 'appearance', label: 'Appearance', groups };
+    },
+    grid(groups: PropertyGroup[]): PropertyTab {
+        return { id: 'grid', label: 'Grid', groups };
+    },
+    animation(groups: PropertyGroup[]): PropertyTab {
+        return { id: 'animation', label: 'Animation', groups };
+    },
+    advanced(groups: PropertyGroup[]): PropertyTab {
+        return { id: 'advanced', label: 'Advanced', groups };
+    },
+    /** Escape hatch for simple elements with a single group of properties. */
+    properties(groups: PropertyGroup[]): PropertyTab {
+        return { id: 'properties', label: 'Properties', groups };
+    },
+    custom(id: string, label: string, groups: PropertyGroup[]): PropertyTab {
+        return { id, label, groups };
     },
 } as const;

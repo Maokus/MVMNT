@@ -1,4 +1,4 @@
-import { SceneElement, type EnhancedConfigSchema, prop, insertElementGroups } from '@mvmnt/plugin-sdk';
+import { SceneElement, type EnhancedConfigSchema, prop, insertElementGroups, tab } from '@mvmnt/plugin-sdk';
 import { EmptyRenderObject, Rectangle, type RenderObject, Text } from '@mvmnt/plugin-sdk/render';
 
 // Minimal DebugElement for testing/inheritance demonstration
@@ -16,23 +16,28 @@ export class DebugElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Debug',
-            description: 'Debugging information display',
-            category: 'Misc',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'debugSettings',
-                label: 'Debug Tools',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Toggle helper visuals for layout debugging.',
-                properties: [
-                    prop.boolean('showDots', 'Show Alignment Dots', true),
-                    prop.imageAsset('imageSource', 'Image input')
-                ],
+                name: 'Debug',
+                description: 'Debugging information display',
+                category: 'Misc',
             },
-        ]);
+            [
+                tab.properties([
+                    {
+                        id: 'debugSettings',
+                        label: 'Debug Tools',
+                        collapsed: false,
+                        description: 'Toggle helper visuals for layout debugging.',
+                        properties: [
+                            prop.boolean('showDots', 'Show Alignment Dots', true),
+                            prop.imageAsset('imageSource', 'Image input'),
+                        ],
+                    },
+                ]),
+            ]
+        );
     }
 
     /**
@@ -67,7 +72,7 @@ export class DebugElement extends SceneElement {
         empty1.setIncludeInLayoutBounds(true);
         objects.push(rect1, rect2, rect3, rect4, rect5);
 
-        objects.push(new Text(0,0,`${props.imageSource}`))
+        objects.push(new Text(0, 0, `${props.imageSource}`));
         return objects;
     }
 

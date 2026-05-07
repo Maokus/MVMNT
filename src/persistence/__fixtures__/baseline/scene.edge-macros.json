@@ -11,15 +11,27 @@
         "offsetY": { "type": "constant", "value": 0 },
         "anchorX": { "type": "constant", "value": 0.5 },
         "anchorY": { "type": "constant", "value": 0.5 },
+        "backgroundColor": { "type": "constant", "value": "#000000" },
+        "backgroundCornerRadius": { "type": "constant", "value": 4 },
+        "backgroundOpacity": { "type": "constant", "value": 0.8 },
+        "backgroundPaddingX": { "type": "constant", "value": 8 },
+        "backgroundPaddingY": { "type": "constant", "value": 4 },
+        "blendMode": { "type": "constant", "value": "source-over" },
         "elementScaleX": { "type": "constant", "value": 1 },
         "elementScaleY": { "type": "constant", "value": 1 },
         "elementRotation": { "type": "constant", "value": 0 },
         "elementSkewX": { "type": "constant", "value": 0 },
         "elementSkewY": { "type": "constant", "value": 0 },
         "text": { "type": "constant", "value": "Baseline Scene" },
-        "fontFamily": { "type": "constant", "value": "Inter" },
+        "fontFamily": { "type": "constant", "value": "Inter|400" },
         "fontSize": { "type": "macro", "macroId": "macro.fontSize" },
-        "color": { "type": "macro", "macroId": "macro.color.primary" }
+        "color": { "type": "macro", "macroId": "macro.color.primary" },
+        "letterSpacing": { "type": "constant", "value": 0 },
+        "opacity": { "type": "constant", "value": 1 },
+        "showBackground": { "type": "constant", "value": false },
+        "strokeColor": { "type": "constant", "value": "#000000" },
+        "strokeWidth": { "type": "constant", "value": 0 },
+        "textAlign": { "type": "constant", "value": "center" }
       }
     },
     "background": {
@@ -38,7 +50,11 @@
         "elementRotation": { "type": "constant", "value": 0 },
         "elementSkewX": { "type": "constant", "value": 0 },
         "elementSkewY": { "type": "constant", "value": 0 },
-        "backgroundColor": { "type": "macro", "macroId": "macro.color.background" }
+        "backgroundColor": { "type": "macro", "macroId": "macro.color.background" },
+        "borderColor": { "type": "constant", "value": "#ffffff" },
+        "borderWidth": { "type": "constant", "value": 0 },
+        "color": { "type": "constant", "value": "#1a1a1a" },
+        "opacity": { "type": "constant", "value": 1 }
       }
     }
   },

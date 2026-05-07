@@ -6,6 +6,7 @@ import {
     ensureFontLoaded,
     prop,
     insertElementGroups,
+    tab,
     VisualResourceHandle,
     resolveProjectAssetDescriptor,
 } from '@mvmnt/plugin-sdk';
@@ -67,118 +68,119 @@ export class PopcatMidiDisplayElement extends SceneElement {
                 description: 'Displays popcat reacting to MIDI notes',
             },
             [
-                {
-                    id: 'midiSource',
-                    label: 'MIDI Source',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.midiTrack('midiTrackId', 'MIDI Track', { description: 'MIDI track to monitor for notes' }),
-                    ],
-                },
-                {
-                    id: 'noteFilter',
-                    label: 'Note Filter',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.boolean('manyCats', 'Many Cats', true, {
-                            description: 'Display a grid of cats, one per distinct note in the track',
-                        }),
-                        prop.number('noteSelect', 'Note Select', 0, {
-                            min: 0,
-                            max: 127,
-                            step: 1,
-                            description: 'Only activate on this MIDI note (0 = any note)',
-                            visibleWhen: [{ key: 'manyCats', falsy: true }],
-                        }),
-                        prop.number('offset', 'Offset', 0, {
-                            min: 0,
-                            max: 127,
-                            step: 1,
-                            description:
-                                'Skip this many of the lowest notes before placing cats (0 = start from the lowest note)',
-                            visibleWhen: [{ key: 'manyCats', truthy: true }],
-                        }),
-                        prop.number('numCats', 'Num Cats', 128, {
-                            min: 1,
-                            max: 128,
-                            step: 1,
-                            description: 'Maximum number of cats to display',
-                            visibleWhen: [{ key: 'manyCats', truthy: true }],
-                        }),
-                        prop.number('numRows', 'Num Rows', 3, {
-                            step: 1,
-                            description:
-                                'Number of rows to distribute cats across. Notes fill left to right, bottom to top.',
-                            visibleWhen: [{ key: 'manyCats', truthy: true }],
-                        }),
-                        prop.number('xSpacing', 'X Spacing', 8, {
-                            step: 1,
-                            description: 'Horizontal gap in pixels between cats',
-                            visibleWhen: [{ key: 'manyCats', truthy: true }],
-                        }),
-                        prop.number('ySpacing', 'Y Spacing', 8, {
-                            step: 1,
-                            description: 'Vertical gap in pixels between rows',
-                            visibleWhen: [{ key: 'manyCats', truthy: true }],
-                        }),
-                        prop.boolean('noteLabels', 'Note Labels', false, {
-                            description: 'Show MIDI note names below each cat',
-                            visibleWhen: [{ key: 'manyCats', truthy: true }],
-                        }),
-                        prop.font('labelFontFamily', 'Label Font', 'Inter', {
-                            description: 'Font family for note name labels (Google Fonts supported).',
-                            visibleWhen: [
-                                { key: 'manyCats', truthy: true },
-                                { key: 'noteLabels', truthy: true },
-                            ],
-                        }),
-                    ],
-                },
-                {
-                    id: 'sprites',
-                    label: 'Sprites',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.imageAsset('idleSprite', 'Idle Sprite', {
-                            description: 'Image shown when no note is playing. Defaults to popcat2.',
-                        }),
-                        prop.imageAsset('activeSprite', 'Active Sprite', {
-                            description: 'Image shown when a note is playing. Defaults to popcat1.',
-                        }),
-                    ],
-                },
-                {
-                    id: 'animation',
-                    label: 'Animation',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.select(
-                            'playAnimation',
-                            'Play Animation',
-                            'jump',
-                            [
-                                { value: 'none', label: 'None' },
-                                { value: 'jump', label: 'Jump' },
-                                { value: 'bump', label: 'Bump' },
-                            ],
-                            { description: 'Animation triggered when a note starts playing' }
-                        ),
-                    ],
-                },
-                {
-                    id: 'imageSize',
-                    label: 'Image Size',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.number('imageWidth', 'Width', 200, { step: 1 }),
-                        prop.number('imageHeight', 'Height', 200, { step: 1 }),
-                    ],
-                },
+                tab.content([
+                    {
+                        id: 'midiSource',
+                        label: 'MIDI Source',
+                        collapsed: false,
+                        properties: [
+                            prop.midiTrack('midiTrackId', 'MIDI Track', {
+                                description: 'MIDI track to monitor for notes',
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'noteFilter',
+                        label: 'Note Filter',
+                        collapsed: false,
+                        properties: [
+                            prop.boolean('manyCats', 'Many Cats', true, {
+                                description: 'Display a grid of cats, one per distinct note in the track',
+                            }),
+                            prop.number('noteSelect', 'Note Select', 0, {
+                                min: 0,
+                                max: 127,
+                                step: 1,
+                                description: 'Only activate on this MIDI note (0 = any note)',
+                                visibleWhen: [{ key: 'manyCats', falsy: true }],
+                            }),
+                            prop.number('offset', 'Offset', 0, {
+                                min: 0,
+                                max: 127,
+                                step: 1,
+                                description:
+                                    'Skip this many of the lowest notes before placing cats (0 = start from the lowest note)',
+                                visibleWhen: [{ key: 'manyCats', truthy: true }],
+                            }),
+                            prop.number('numCats', 'Num Cats', 128, {
+                                min: 1,
+                                max: 128,
+                                step: 1,
+                                description: 'Maximum number of cats to display',
+                                visibleWhen: [{ key: 'manyCats', truthy: true }],
+                            }),
+                            prop.number('numRows', 'Num Rows', 3, {
+                                step: 1,
+                                description:
+                                    'Number of rows to distribute cats across. Notes fill left to right, bottom to top.',
+                                visibleWhen: [{ key: 'manyCats', truthy: true }],
+                            }),
+                            prop.number('xSpacing', 'X Spacing', 8, {
+                                step: 1,
+                                description: 'Horizontal gap in pixels between cats',
+                                visibleWhen: [{ key: 'manyCats', truthy: true }],
+                            }),
+                            prop.number('ySpacing', 'Y Spacing', 8, {
+                                step: 1,
+                                description: 'Vertical gap in pixels between rows',
+                                visibleWhen: [{ key: 'manyCats', truthy: true }],
+                            }),
+                            prop.boolean('noteLabels', 'Note Labels', false, {
+                                description: 'Show MIDI note names below each cat',
+                                visibleWhen: [{ key: 'manyCats', truthy: true }],
+                            }),
+                            prop.font('labelFontFamily', 'Label Font', 'Inter', {
+                                description: 'Font family for note name labels (Google Fonts supported).',
+                                visibleWhen: [
+                                    { key: 'manyCats', truthy: true },
+                                    { key: 'noteLabels', truthy: true },
+                                ],
+                            }),
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    {
+                        id: 'sprites',
+                        label: 'Sprites',
+                        collapsed: false,
+                        properties: [
+                            prop.imageAsset('idleSprite', 'Idle Sprite', {
+                                description: 'Image shown when no note is playing. Defaults to popcat2.',
+                            }),
+                            prop.imageAsset('activeSprite', 'Active Sprite', {
+                                description: 'Image shown when a note is playing. Defaults to popcat1.',
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'animation',
+                        label: 'Animation',
+                        collapsed: false,
+                        properties: [
+                            prop.select(
+                                'playAnimation',
+                                'Play Animation',
+                                'jump',
+                                [
+                                    { value: 'none', label: 'None' },
+                                    { value: 'jump', label: 'Jump' },
+                                    { value: 'bump', label: 'Bump' },
+                                ],
+                                { description: 'Animation triggered when a note starts playing' }
+                            ),
+                        ],
+                    },
+                    {
+                        id: 'imageSize',
+                        label: 'Image Size',
+                        collapsed: false,
+                        properties: [
+                            prop.number('imageWidth', 'Width', 200, { step: 1 }),
+                            prop.number('imageHeight', 'Height', 200, { step: 1 }),
+                        ],
+                    },
+                ]),
             ]
         );
     }

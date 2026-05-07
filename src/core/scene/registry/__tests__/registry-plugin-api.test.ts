@@ -6,10 +6,10 @@ import { SceneElement } from '@core/scene/elements/base';
 class TestCustomElement extends SceneElement {
     static override getConfigSchema() {
         return {
+            ...super.getConfigSchema(),
             name: 'Test Custom Element',
             description: 'A test element for plugin registry',
             category: 'test',
-            groups: [],
         };
     }
 
@@ -72,7 +72,10 @@ describe('SceneElementRegistry - Plugin API', () => {
         it('throws error when element class lacks getConfigSchema', () => {
             // Create an element class without getConfigSchema method
             class InvalidElement {
-                constructor(public id: string, public config: any) {}
+                constructor(
+                    public id: string,
+                    public config: any
+                ) {}
                 _buildRenderObjects() {
                     return [];
                 }

@@ -1,6 +1,6 @@
 // Template: Basic Shape Element
 // A simple geometric shape that can be customized with color and size
-import { SceneElement, prop, insertElementGroups, Rectangle, Arc, type RenderObject } from '@mvmnt/plugin-sdk';
+import { SceneElement, prop, insertElementGroups, tab, Rectangle, Arc, type RenderObject } from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class BasicShapeElement extends SceneElement {
@@ -9,34 +9,51 @@ export class BasicShapeElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Basic Shape',
-            description: 'A customizable geometric shape',
-            category: 'Custom',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'shapeAppearance',
-                label: 'Shape',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Configure the shape appearance',
-                properties: [
-                    prop.select('shapeType', 'Shape Type', 'circle', [
-                        { label: 'Circle', value: 'circle' },
-                        { label: 'Rectangle', value: 'rectangle' },
-                    ]),
-                    prop.number('shapeSize', 'Size', 100, {
-                        min: 10, max: 500, step: 1,
-                        description: 'Size of the shape (radius for circle, width/height for rectangle)',
-                    }),
-                    prop.colorAlpha('shapeColor', 'Color', '#3B82F6FF', { description: 'Fill color of the shape' }),
-                ],
-                presets: [
-                    { id: 'smallBlue', label: 'Small Blue', values: { shapeType: 'circle', shapeSize: 50, shapeColor: '#3B82F6FF' } },
-                    { id: 'largeRed', label: 'Large Red', values: { shapeType: 'rectangle', shapeSize: 150, shapeColor: '#EF4444FF' } },
-                ],
+                name: 'Basic Shape',
+                description: 'A customizable geometric shape',
+                category: 'Custom',
             },
-        ]);
+            [
+                tab.properties([
+                    {
+                        id: 'shapeAppearance',
+                        label: 'Shape',
+                        collapsed: false,
+                        description: 'Configure the shape appearance',
+                        properties: [
+                            prop.select('shapeType', 'Shape Type', 'circle', [
+                                { label: 'Circle', value: 'circle' },
+                                { label: 'Rectangle', value: 'rectangle' },
+                            ]),
+                            prop.number('shapeSize', 'Size', 100, {
+                                min: 10,
+                                max: 500,
+                                step: 1,
+                                description: 'Size of the shape (radius for circle, width/height for rectangle)',
+                            }),
+                            prop.colorAlpha('shapeColor', 'Color', '#3B82F6FF', {
+                                description: 'Fill color of the shape',
+                            }),
+                        ],
+                        presets: [
+                            {
+                                id: 'smallBlue',
+                                label: 'Small Blue',
+                                values: { shapeType: 'circle', shapeSize: 50, shapeColor: '#3B82F6FF' },
+                            },
+                            {
+                                id: 'largeRed',
+                                label: 'Large Red',
+                                values: { shapeType: 'rectangle', shapeSize: 150, shapeColor: '#EF4444FF' },
+                            },
+                        ],
+                    },
+                ]),
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: unknown, _targetTime: number): RenderObject[] {

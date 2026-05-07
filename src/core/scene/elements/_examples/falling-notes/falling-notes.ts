@@ -16,6 +16,7 @@ import {
     SceneElement,
     prop,
     insertElementGroups,
+    tab,
     getPluginHostApi,
     PLUGIN_CAPABILITIES,
     Rectangle,
@@ -40,36 +41,36 @@ export class FallingNotesElement extends SceneElement {
                 category: 'Examples',
             },
             [
-                {
-                    id: 'midiSource',
-                    label: 'MIDI Source',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.midiTrack('midiTrackId', 'MIDI Track', {
-                            description: 'Track whose notes to display',
-                        }),
-                        prop.number('lookaheadSec', 'Lookahead (sec)', 3, {
-                            min: 0.5,
-                            max: 10,
-                            step: 0.5,
-                            description: 'How many seconds ahead of now to show',
-                        }),
-                    ],
-                },
-                {
-                    id: 'layout',
-                    label: 'Layout',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.number('width', 'Width', 600, { step: 10 }),
-                        prop.number('height', 'Height', 300, { step: 10 }),
-                        prop.number('noteHeight', 'Note Height', 10, { min: 2, max: 60, step: 1 }),
-                        prop.colorAlpha('noteColor', 'Note Color', '#34D399FF'),
-                        prop.colorAlpha('nowLineColor', 'Now-Line Color', '#F87171FF'),
-                    ],
-                },
+                tab.properties([
+                    {
+                        id: 'midiSource',
+                        label: 'MIDI Source',
+                        collapsed: false,
+                        properties: [
+                            prop.midiTrack('midiTrackId', 'MIDI Track', {
+                                description: 'Track whose notes to display',
+                            }),
+                            prop.number('lookaheadSec', 'Lookahead (sec)', 3, {
+                                min: 0.5,
+                                max: 10,
+                                step: 0.5,
+                                description: 'How many seconds ahead of now to show',
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'layout',
+                        label: 'Layout',
+                        collapsed: false,
+                        properties: [
+                            prop.number('width', 'Width', 600, { step: 10 }),
+                            prop.number('height', 'Height', 300, { step: 10 }),
+                            prop.number('noteHeight', 'Note Height', 10, { min: 2, max: 60, step: 1 }),
+                            prop.colorAlpha('noteColor', 'Note Color', '#34D399FF'),
+                            prop.colorAlpha('nowLineColor', 'Now-Line Color', '#F87171FF'),
+                        ],
+                    },
+                ]),
             ]
         );
     }

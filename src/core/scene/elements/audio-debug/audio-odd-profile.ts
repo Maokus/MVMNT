@@ -1,5 +1,7 @@
 import { EnhancedConfigSchema, RenderObject } from '@core/index';
 import { SceneElement, asTrimmedString } from '../base';
+import { insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 import { Rectangle, Text } from '@core/render/render-objects';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
 import { getFeatureData } from '@audio/features/sceneApi';
@@ -40,35 +42,36 @@ export class AudioOddProfileElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        return {
-            ...base,
-            name: 'Audio Odd Profile',
-            description: 'Requests a non-default analysis profile to validate cache handling',
-            category: 'Audio Debug',
-            groups: [
-                ...base.groups,
-                {
-                    id: 'audioOddProfileBasics',
-                    label: 'Audio Odd Profile',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'audioTrackId',
-                            type: 'timelineTrackRef',
-                            label: 'Audio Track',
-                            default: null,
-                            allowedTrackTypes: ['audio'],
-                            runtime: {
-                                transform: (value, element) => asTrimmedString(value, element) ?? null,
-                                defaultValue: null,
+        return insertElementGroups(
+            super.getConfigSchema(),
+            {
+                name: 'Audio Odd Profile',
+                description: 'Requests a non-default analysis profile to validate cache handling',
+                category: 'Audio Debug',
+            },
+            [
+                tab.properties([
+                    {
+                        id: 'audioOddProfileBasics',
+                        label: 'Audio Odd Profile',
+                        collapsed: false,
+                        properties: [
+                            {
+                                key: 'audioTrackId',
+                                type: 'timelineTrackRef',
+                                label: 'Audio Track',
+                                default: null,
+                                allowedTrackTypes: ['audio'],
+                                runtime: {
+                                    transform: (value, element) => asTrimmedString(value, element) ?? null,
+                                    defaultValue: null,
+                                },
                             },
-                        },
-                    ],
-                },
-            ],
-        };
+                        ],
+                    },
+                ]),
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: any, targetTime: number): RenderObject[] {
@@ -80,8 +83,8 @@ export class AudioOddProfileElement extends SceneElement {
             sample?.channelValues && sample.channelValues.length
                 ? sample.channelValues
                 : result?.values?.length
-                ? [result.values]
-                : [];
+                  ? [result.values]
+                  : [];
         const aliases = result?.metadata?.channelAliases ?? sample?.channelAliases ?? null;
 
         if (!result || !channelValues.length) {

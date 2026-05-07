@@ -184,11 +184,19 @@ export interface SceneInteractionState {
     automationSearchQuery: string;
     /** Collapsed state of property groups in the properties panel, keyed by elementId then groupId. */
     expandedPropertyGroups: Record<string, Record<string, boolean>>;
+    /** Active property tab per element in the properties panel, keyed by elementId. */
+    activePropertyTab: Record<string, string>;
+    propertyClipboard: PropertyClipboard | null;
 }
 
 export interface SceneClipboard {
     exportedAt: number;
     elementIds: string[];
+}
+
+export interface PropertyClipboard {
+    elementType: string;
+    values: Record<string, any>;
 }
 
 export interface SceneMacroState {
@@ -305,6 +313,8 @@ export interface SceneStoreActions {
     replaceMacros: (payload: SceneSerializedMacros | null | undefined) => void;
     setInteractionState: (patch: Partial<SceneInteractionState>) => void;
     setPropertyGroupCollapseState: (elementId: string, groupId: string, collapsed: boolean) => void;
+    setActivePropertyTab: (elementId: string, tabId: string) => void;
+    setPropertyClipboard: (clipboard: PropertyClipboard | null) => void;
     setAutomationChannel: (channel: AutomationChannel) => void;
     removeAutomationChannel: (channelId: string) => void;
     updateAutomationKeyframes: (channelId: string, keyframes: AutomationKeyframe[]) => void;
@@ -350,6 +360,8 @@ function createInitialInteractionState(): SceneInteractionState {
         automationExpandedCurves: [],
         automationSearchQuery: '',
         expandedPropertyGroups: {},
+        activePropertyTab: {},
+        propertyClipboard: null,
     };
 }
 
@@ -417,8 +429,8 @@ function cloneBindingsMap(bindings: ElementBindings, elementType?: string): Elem
                     (entry): entry is Record<string, unknown> & { featureKey: string } =>
                         Boolean(
                             entry &&
-                                typeof entry === 'object' &&
-                                typeof (entry as { featureKey?: unknown }).featureKey === 'string'
+                            typeof entry === 'object' &&
+                            typeof (entry as { featureKey?: unknown }).featureKey === 'string'
                         )
                 ) as AudioFeatureDescriptor[];
                 result.features = {
@@ -489,7 +501,7 @@ function normalizeFontAssetInput(input: FontAsset, existing?: FontAsset): FontAs
     const licensingAcknowledged =
         typeof input.licensingAcknowledged === 'boolean'
             ? input.licensingAcknowledged
-            : existing?.licensingAcknowledged ?? false;
+            : (existing?.licensingAcknowledged ?? false);
     return cloneFontAsset({
         ...existing,
         ...input,
@@ -516,7 +528,6 @@ function rebuildMacroIndex(byElement: Record<string, ElementBindings>): MacroBin
     }
     return byMacro;
 }
-
 
 function bindingEquals(a: BindingState, b: BindingState): boolean {
     if (a.type !== b.type) return false;
@@ -554,9 +565,7 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
         raw.properties != null && typeof raw.properties === 'object' && !Array.isArray(raw.properties)
             ? raw.properties
             : Object.fromEntries(
-                  Object.entries(raw as unknown as Record<string, unknown>).filter(
-                      ([k]) => k !== 'id' && k !== 'type'
-                  )
+                  Object.entries(raw as unknown as Record<string, unknown>).filter(([k]) => k !== 'id' && k !== 'type')
               );
     for (const [key, value] of Object.entries(propertiesSource)) {
         if (!value || typeof value !== 'object') continue;
@@ -635,10 +644,7 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
     return bindings;
 }
 
-function serializeElement(
-    element: SceneElementRecord,
-    bindings: ElementBindings,
-): SceneSerializedElement {
+function serializeElement(element: SceneElementRecord, bindings: ElementBindings): SceneSerializedElement {
     const properties: Record<string, PropertyBindingData> = {};
     for (const [key, binding] of Object.entries(bindings)) {
         if (binding.type === 'constant') {
@@ -1210,8 +1216,8 @@ const createSceneStoreState = (
                                 .filter((entry): entry is Record<string, unknown> & { featureKey: string } =>
                                     Boolean(
                                         entry &&
-                                            typeof entry === 'object' &&
-                                            typeof (entry as { featureKey?: unknown }).featureKey === 'string'
+                                        typeof entry === 'object' &&
+                                        typeof (entry as { featureKey?: unknown }).featureKey === 'string'
                                     )
                                 )
                                 .map((entry) => entry as AudioFeatureDescriptor);
@@ -1279,10 +1285,7 @@ const createSceneStoreState = (
             let nextAutomation = state.automation;
             for (const [key, newBinding] of Object.entries(nextBindingsForElement)) {
                 const prevBinding = existing[key];
-                if (
-                    prevBinding?.type === 'keyframes' &&
-                    newBinding?.type !== 'keyframes'
-                ) {
+                if (prevBinding?.type === 'keyframes' && newBinding?.type !== 'keyframes') {
                     const orphanedChannelId = (prevBinding as KeyframesBindingState).channelId;
                     if (nextAutomation.channels[orphanedChannelId]) {
                         if (nextAutomation === state.automation) {
@@ -1619,7 +1622,9 @@ const createSceneStoreState = (
             } else if (rawElements && typeof rawElements === 'object') {
                 const order = (migratedPayload as any).elementsOrder as string[] | undefined;
                 if (Array.isArray(order)) {
-                    elements = order.map((id) => (rawElements as Record<string, SceneSerializedElement>)[id]).filter(Boolean);
+                    elements = order
+                        .map((id) => (rawElements as Record<string, SceneSerializedElement>)[id])
+                        .filter(Boolean);
                 } else {
                     elements = Object.values(rawElements);
                 }
@@ -1716,29 +1721,36 @@ const createSceneStoreState = (
                 console.warn(`[exportSceneDraft] Failed to serialize element ${id} (${element.type}):`, err);
             }
         });
-        const fontAssets = state.fonts.order.reduce((acc, id) => {
-            const asset = state.fonts.assets[id];
-            if (asset) acc[id] = cloneFontAsset(asset);
-            return acc;
-        }, {} as Record<string, FontAsset>);
+        const fontAssets = state.fonts.order.reduce(
+            (acc, id) => {
+                const asset = state.fonts.assets[id];
+                if (asset) acc[id] = cloneFontAsset(asset);
+                return acc;
+            },
+            {} as Record<string, FontAsset>
+        );
         return {
             elements,
             elementsOrder,
             ...(elementErrors.length > 0 ? { elementErrors } : {}),
             sceneSettings: { ...state.settings },
             macros: buildMacroPayload(state.macros),
-            fontAssets: Object.keys(fontAssets).length ? fontAssets : undefined,
-            fontLicensingAcknowledgedAt: state.fonts.licensingAcknowledgedAt,
-            automation: Object.keys(state.automation.channels).length
+            ...(Object.keys(fontAssets).length ? { fontAssets } : {}),
+            ...(typeof state.fonts.licensingAcknowledgedAt === 'number'
+                ? { fontLicensingAcknowledgedAt: state.fonts.licensingAcknowledgedAt }
+                : {}),
+            ...(Object.keys(state.automation.channels).length
                 ? {
-                    channels: Object.fromEntries(
-                        Object.entries(state.automation.channels).map(([channelId, channel]) => [
-                            channelId,
-                            cloneChannel(channel),
-                        ])
-                    ),
-                }
-                : undefined,
+                      automation: {
+                          channels: Object.fromEntries(
+                              Object.entries(state.automation.channels).map(([channelId, channel]) => [
+                                  channelId,
+                                  cloneChannel(channel),
+                              ])
+                          ),
+                      },
+                  }
+                : {}),
         };
     },
 
@@ -1807,6 +1819,29 @@ const createSceneStoreState = (
                         [groupId]: collapsed,
                     },
                 },
+            },
+        }));
+    },
+
+    setActivePropertyTab: (elementId, tabId) => {
+        set((state) => ({
+            ...state,
+            interaction: {
+                ...state.interaction,
+                activePropertyTab: {
+                    ...state.interaction.activePropertyTab,
+                    [elementId]: tabId,
+                },
+            },
+        }));
+    },
+
+    setPropertyClipboard: (clipboard) => {
+        set((state) => ({
+            ...state,
+            interaction: {
+                ...state.interaction,
+                propertyClipboard: clipboard,
             },
         }));
     },
@@ -1883,9 +1918,7 @@ export const useSceneStore = createSceneStore();
 
 // Wire the automation evaluator's channel provider to the store so it can
 // resolve channels without relying on CommonJS require (which fails in Vite ESM).
-automationEvaluator.setChannelProvider(
-    (channelId) => useSceneStore.getState().automation.channels[channelId],
-);
+automationEvaluator.setChannelProvider((channelId) => useSceneStore.getState().automation.channels[channelId]);
 
 // Clear transient property overrides when the playhead moves so keyframed values
 // take over again (Blender-style delink: manually changed values persist only until scrub/play).

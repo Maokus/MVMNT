@@ -324,17 +324,22 @@ export interface PropertyGroup {
     id: string;
     label: string;
     collapsed: boolean;
-    variant?: 'basic' | 'advanced';
     description?: string;
     properties: PropertyDefinition[];
     presets?: PropertyGroupPreset[];
+}
+
+export interface PropertyTab {
+    id: string;
+    label: string;
+    groups: PropertyGroup[];
 }
 
 export interface EnhancedConfigSchema {
     name: string;
     description: string;
     category?: string;
-    groups: PropertyGroup[];
+    tabs: PropertyTab[];
 }
 
 export interface SceneElementInterface {

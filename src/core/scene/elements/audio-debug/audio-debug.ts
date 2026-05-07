@@ -6,6 +6,8 @@ import { getFeatureData, type FeatureDataResult } from '@audio/features/sceneApi
 import type { ChannelLayoutMeta } from '@audio/features/audioFeatureTypes';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
 import { normalizeColorAlphaValue } from '../../../../utils/color';
+import { insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 interface FeatureOption {
     value: string;
@@ -251,8 +253,8 @@ function collectMetadataLines(result: FeatureDataResult, maxEntries: number): st
         metadata.channelAliases && metadata.channelAliases.length
             ? metadata.channelAliases
             : (frameRecord as any)?.channelAliases && (frameRecord as any).channelAliases.length
-            ? ((frameRecord as any).channelAliases as string[])
-            : null;
+              ? ((frameRecord as any).channelAliases as string[])
+              : null;
     const layout =
         metadata.channelLayout ?? ((frameRecord as any)?.channelLayout as ChannelLayoutMeta | undefined) ?? null;
     if (channelCount != null) {
@@ -305,132 +307,133 @@ export class AudioDebugElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
         const featureOptions = resolveFeatureOptions();
         const defaultFeature = featureOptions[0]?.value ?? null;
-        return {
-            ...base,
-            name: 'Audio Debug',
-            description: 'Inspect raw audio feature values and metadata for debugging.',
-            category: 'Audio Debug',
-            groups: [
-                ...base.groups,
-                {
-                    id: 'audioDebugBasics',
-                    label: 'Audio Debug',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'audioTrackId',
-                            type: 'timelineTrackRef',
-                            label: 'Audio Track',
-                            default: null,
-                            allowedTrackTypes: ['audio'],
-                            runtime: {
-                                transform: (value: unknown, element: SceneElementInterface) =>
-                                    asTrimmedString(value, element) ?? null,
-                                defaultValue: null,
+        return insertElementGroups(
+            super.getConfigSchema(),
+            {
+                name: 'Audio Debug',
+                description: 'Inspect raw audio feature values and metadata for debugging.',
+                category: 'Audio Debug',
+            },
+            [
+                tab.properties([
+                    {
+                        id: 'audioDebugBasics',
+                        label: 'Audio Debug',
+                        collapsed: false,
+                        properties: [
+                            {
+                                key: 'audioTrackId',
+                                type: 'timelineTrackRef',
+                                label: 'Audio Track',
+                                default: null,
+                                allowedTrackTypes: ['audio'],
+                                runtime: {
+                                    transform: (value: unknown, element: SceneElementInterface) =>
+                                        asTrimmedString(value, element) ?? null,
+                                    defaultValue: null,
+                                },
                             },
-                        },
-                        {
-                            key: 'featureKey',
-                            type: 'select',
-                            label: 'Feature',
-                            default: defaultFeature,
-                            options: featureOptions.map((option) => ({
-                                value: option.value,
-                                label: option.label,
-                            })),
-                            runtime: {
-                                transform: normalizeFeatureKey,
-                                defaultValue: defaultFeature,
+                            {
+                                key: 'featureKey',
+                                type: 'select',
+                                label: 'Feature',
+                                default: defaultFeature,
+                                options: featureOptions.map((option) => ({
+                                    value: option.value,
+                                    label: option.label,
+                                })),
+                                runtime: {
+                                    transform: normalizeFeatureKey,
+                                    defaultValue: defaultFeature,
+                                },
                             },
-                        },
-                        {
-                            key: 'maxValuesToDisplay',
-                            type: 'number',
-                            label: 'Max Values to Display',
-                            default: 8,
-                            min: 1,
-                            max: 64,
-                            step: 1,
-                            runtime: { transform: clampToRange(1, 64), defaultValue: 8 },
-                        },
-                        {
-                            key: 'maxMetadataEntries',
-                            type: 'number',
-                            label: 'Max Metadata Lines',
-                            default: 6,
-                            min: 0,
-                            max: 32,
-                            step: 1,
-                            runtime: { transform: clampToRange(0, 32), defaultValue: 6 },
-                        },
-                        {
-                            key: 'panelWidth',
-                            type: 'number',
-                            label: 'Panel Width (px)',
-                            default: 360,
-                            min: 120,
-                            max: 800,
-                            step: 1,
-                            runtime: { transform: clampToRange(120, 800), defaultValue: 360 },
-                        },
-                        {
-                            key: 'fontSize',
-                            type: 'number',
-                            label: 'Font Size (px)',
-                            default: 14,
-                            min: 8,
-                            max: 48,
-                            step: 1,
-                            runtime: { transform: clampToRange(8, 48), defaultValue: 14 },
-                        },
-                        {
-                            key: 'lineHeight',
-                            type: 'number',
-                            label: 'Line Height (px)',
-                            default: 20,
-                            min: 12,
-                            max: 64,
-                            step: 1,
-                            runtime: { transform: clampToRange(12, 64), defaultValue: 20 },
-                        },
-                        {
-                            key: 'padding',
-                            type: 'number',
-                            label: 'Padding (px)',
-                            default: 12,
-                            min: 0,
-                            max: 64,
-                            step: 1,
-                            runtime: { transform: clampToRange(0, 64), defaultValue: 12 },
-                        },
-                        {
-                            key: 'textColor',
-                            type: 'colorAlpha',
-                            label: 'Text Color',
-                            default: DEFAULT_TEXT_COLOR,
-                            runtime: {
-                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_TEXT_COLOR),
-                                defaultValue: DEFAULT_TEXT_COLOR,
+                            {
+                                key: 'maxValuesToDisplay',
+                                type: 'number',
+                                label: 'Max Values to Display',
+                                default: 8,
+                                min: 1,
+                                max: 64,
+                                step: 1,
+                                runtime: { transform: clampToRange(1, 64), defaultValue: 8 },
                             },
-                        },
-                        {
-                            key: 'backgroundColor',
-                            type: 'colorAlpha',
-                            label: 'Background',
-                            default: DEFAULT_BACKGROUND_COLOR,
-                            runtime: {
-                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
-                                defaultValue: DEFAULT_BACKGROUND_COLOR,
+                            {
+                                key: 'maxMetadataEntries',
+                                type: 'number',
+                                label: 'Max Metadata Lines',
+                                default: 6,
+                                min: 0,
+                                max: 32,
+                                step: 1,
+                                runtime: { transform: clampToRange(0, 32), defaultValue: 6 },
                             },
-                        },
-                    ],
-                },
-            ],
-        };
+                            {
+                                key: 'panelWidth',
+                                type: 'number',
+                                label: 'Panel Width (px)',
+                                default: 360,
+                                min: 120,
+                                max: 800,
+                                step: 1,
+                                runtime: { transform: clampToRange(120, 800), defaultValue: 360 },
+                            },
+                            {
+                                key: 'fontSize',
+                                type: 'number',
+                                label: 'Font Size (px)',
+                                default: 14,
+                                min: 8,
+                                max: 48,
+                                step: 1,
+                                runtime: { transform: clampToRange(8, 48), defaultValue: 14 },
+                            },
+                            {
+                                key: 'lineHeight',
+                                type: 'number',
+                                label: 'Line Height (px)',
+                                default: 20,
+                                min: 12,
+                                max: 64,
+                                step: 1,
+                                runtime: { transform: clampToRange(12, 64), defaultValue: 20 },
+                            },
+                            {
+                                key: 'padding',
+                                type: 'number',
+                                label: 'Padding (px)',
+                                default: 12,
+                                min: 0,
+                                max: 64,
+                                step: 1,
+                                runtime: { transform: clampToRange(0, 64), defaultValue: 12 },
+                            },
+                            {
+                                key: 'textColor',
+                                type: 'colorAlpha',
+                                label: 'Text Color',
+                                default: DEFAULT_TEXT_COLOR,
+                                runtime: {
+                                    transform: (value) => normalizeColorAlphaValue(value, DEFAULT_TEXT_COLOR),
+                                    defaultValue: DEFAULT_TEXT_COLOR,
+                                },
+                            },
+                            {
+                                key: 'backgroundColor',
+                                type: 'colorAlpha',
+                                label: 'Background',
+                                default: DEFAULT_BACKGROUND_COLOR,
+                                runtime: {
+                                    transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
+                                    defaultValue: DEFAULT_BACKGROUND_COLOR,
+                                },
+                            },
+                        ],
+                    },
+                ]),
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
@@ -475,7 +478,7 @@ export class AudioDebugElement extends SceneElement {
                 }
             }
 
-            const activeResult = activeKey ? dataByFeature.get(activeKey) ?? null : null;
+            const activeResult = activeKey ? (dataByFeature.get(activeKey) ?? null) : null;
             const activeLabel = featureOptions.find((option) => option.value === activeKey)?.label ?? requestedLabel;
 
             lines.push(`Feature: ${activeLabel}${activeKey ? ` (${activeKey})` : ''}`);

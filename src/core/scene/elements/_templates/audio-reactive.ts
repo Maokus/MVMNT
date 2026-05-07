@@ -4,6 +4,7 @@ import {
     SceneElement,
     prop,
     insertElementGroups,
+    tab,
     Rectangle,
     Text,
     getPluginHostApi,
@@ -24,42 +25,54 @@ export class AudioReactiveElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Audio Reactive',
-            description: 'Shape that reacts to audio volume',
-            category: 'Custom',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'audioSource',
-                label: 'Audio Source',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.audioTrack('audioTrackId', 'Audio Track', { description: 'Audio track to analyze' }),
-                    prop.number('smoothing', 'Smoothing', 4, {
-                        min: 0, max: 64, step: 1,
-                        description: 'Smoothing factor for audio response',
-                    }),
-                ],
+                name: 'Audio Reactive',
+                description: 'Shape that reacts to audio volume',
+                category: 'Custom',
             },
-            {
-                id: 'reactiveAppearance',
-                label: 'Appearance',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.number('baseSize', 'Base Size', 50, {
-                        min: 10, max: 500, step: 1,
-                        description: 'Minimum size when audio is silent',
-                    }),
-                    prop.number('reactivityScale', 'Reactivity', 200, {
-                        min: 0, max: 1000, step: 10,
-                        description: 'How much the size scales with audio',
-                    }),
-                    prop.colorAlpha('shapeColor', 'Color', '#F472B6FF'),
-                ],
-            },
-        ]);
+            [
+                tab.content([
+                    {
+                        id: 'audioSource',
+                        label: 'Audio Source',
+                        collapsed: false,
+                        properties: [
+                            prop.audioTrack('audioTrackId', 'Audio Track', { description: 'Audio track to analyze' }),
+                            prop.number('smoothing', 'Smoothing', 4, {
+                                min: 0,
+                                max: 64,
+                                step: 1,
+                                description: 'Smoothing factor for audio response',
+                            }),
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    {
+                        id: 'reactiveAppearance',
+                        label: 'Appearance',
+                        collapsed: false,
+                        properties: [
+                            prop.number('baseSize', 'Base Size', 50, {
+                                min: 10,
+                                max: 500,
+                                step: 1,
+                                description: 'Minimum size when audio is silent',
+                            }),
+                            prop.number('reactivityScale', 'Reactivity', 200, {
+                                min: 0,
+                                max: 1000,
+                                step: 10,
+                                description: 'How much the size scales with audio',
+                            }),
+                            prop.colorAlpha('shapeColor', 'Color', '#F472B6FF'),
+                        ],
+                    },
+                ]),
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
@@ -71,11 +84,12 @@ export class AudioReactiveElement extends SceneElement {
 
         const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.audioFeaturesRead]);
         if (!api || status !== 'ok') {
-            const message = status === 'unsupported-version'
-                ? 'Plugin API version unsupported'
-                : missingCapabilities.includes(PLUGIN_CAPABILITIES.audioFeaturesRead)
-                    ? 'Audio API unavailable (requires audio.features.read)'
-                    : 'Plugin host API unavailable';
+            const message =
+                status === 'unsupported-version'
+                    ? 'Plugin API version unsupported'
+                    : missingCapabilities.includes(PLUGIN_CAPABILITIES.audioFeaturesRead)
+                      ? 'Audio API unavailable (requires audio.features.read)'
+                      : 'Plugin host API unavailable';
             objects.push(new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top'));
             return objects;
         }
@@ -93,7 +107,7 @@ export class AudioReactiveElement extends SceneElement {
         const volume = audioData?.values?.[0] ?? 0;
 
         // Calculate reactive size
-        const size = props.baseSize + (volume * props.reactivityScale);
+        const size = props.baseSize + volume * props.reactivityScale;
 
         const half = size / 2;
         objects.push(new Rectangle(-half, -half, size, size, props.shapeColor));
