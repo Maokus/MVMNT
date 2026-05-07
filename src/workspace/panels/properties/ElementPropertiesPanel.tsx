@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import PropertyGroupPanel from './PropertyGroupPanel';
+import PropertyTabStrip from './PropertyTabStrip';
 import { EnhancedConfigSchema, PropertyDefinition } from '@core/types';
 import { useMacros } from '@context/MacroContext';
 import type { ElementBindings } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
 import type { FormInputChange } from '@workspace/forms/inputs/FormInput';
-import { FaCopy, FaPaste, FaRotate } from 'react-icons/fa6';
 import { useCurrentTick } from '@automation/hooks';
 import { makeChannelId, findKeyframeAtTick, createKeyframe } from '@automation/types';
 import { useSceneStore } from '@state/sceneStore';
@@ -58,12 +58,6 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         setMacroAssignments({});
     }
     const [macroListenerKey, setMacroListenerKey] = useState(0);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [elementClipboard, setElementClipboard] = useState<{
-        elementType: string;
-        values: Record<string, any>;
-        macroAssignments: Record<string, string>;
-    } | null>(null);
 
     const { assignListener, macros: macroList } = useMacros();
     const macroLookup = useMemo(() => new Map((macroList as any[]).map((macro: any) => [macro.name, macro])), [macroList]);
@@ -73,6 +67,16 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const propertyOverrides = useSceneStore(useCallback((s) => s.propertyOverrides, []));
     const groupCollapseState = useSceneStore(useCallback((s) => s.interaction.expandedPropertyGroups[elementId] ?? {}, [elementId]));
     const setPropertyGroupCollapseState = useSceneStore((s) => s.setPropertyGroupCollapseState);
+    const storedActiveTabId = useSceneStore(useCallback((s) => s.interaction.activePropertyTab[elementId], [elementId]));
+    const setActivePropertyTab = useSceneStore((s) => s.setActivePropertyTab);
+
+    const activeTabId = useMemo(() => {
+        if (!enhancedSchema) return '';
+        if (storedActiveTabId && enhancedSchema.tabs.some((t) => t.id === storedActiveTabId)) {
+            return storedActiveTabId;
+        }
+        return enhancedSchema.tabs[0]?.id ?? '';
+    }, [storedActiveTabId, enhancedSchema]);
 
     // Fast property-type lookup used by auto-keying logic
     const propertyTypeMap = useMemo(() => {
@@ -219,46 +223,23 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         [propertyValues],
     );
 
-    const normalizedSearch = searchTerm.trim().toLowerCase();
-
     const filteredGroups = useMemo(() => {
         if (!enhancedSchema) return [];
+        const activeTab = enhancedSchema.tabs.find((t) => t.id === activeTabId);
+        if (!activeTab) return [];
 
-        return enhancedSchema.tabs.flatMap((t) => t.groups)
+        return activeTab.groups
             .map((group) => {
-                const groupLabel = group.label?.toLowerCase?.() ?? '';
-                const groupDescription = group.description?.toLowerCase?.() ?? '';
-                const groupMatchesSearch = normalizedSearch
-                    ? groupLabel.includes(normalizedSearch) || groupDescription.includes(normalizedSearch)
-                    : true;
-
-                const visibleProperties = group.properties.filter((property) => propertyPassesVisibility(property));
-
-                if (!normalizedSearch || groupMatchesSearch) {
-                    return { group, properties: visibleProperties };
-                }
-
-                const matchingProperties = visibleProperties.filter((property) => {
-                    const label = property.label?.toLowerCase?.() ?? '';
-                    const description = property.description?.toLowerCase?.() ?? '';
-                    return label.includes(normalizedSearch) || description.includes(normalizedSearch);
-                });
-
-                return { group, properties: matchingProperties };
+                const visibleProperties = group.properties.filter(propertyPassesVisibility);
+                return { group, properties: visibleProperties };
             })
             .filter(({ properties }) => properties.length > 0);
-    }, [enhancedSchema, normalizedSearch, propertyPassesVisibility]);
+    }, [enhancedSchema, activeTabId, propertyPassesVisibility]);
 
-    const elementPresets = useMemo(() => {
-        if (!enhancedSchema) return [];
-
-        return enhancedSchema.tabs.flatMap((t) => t.groups).flatMap((group) =>
-            (group.presets ?? []).map((preset) => ({
-                value: `${group.id}::${preset.id}`,
-                label: `${group.label ?? 'Group'} · ${preset.label}`,
-            })),
-        );
-    }, [enhancedSchema]);
+    const handleCollapseToggle = useCallback((groupId: string) => {
+        const current = useSceneStore.getState().interaction.expandedPropertyGroups[elementId] ?? {};
+        setPropertyGroupCollapseState(elementId, groupId, !current[groupId]);
+    }, [elementId, setPropertyGroupCollapseState]);
 
     const handleValueChange = useCallback(
         (key: string, value: any, meta?: FormInputChange['meta']) => {
@@ -269,8 +250,6 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 ...(linked ?? {}),
             }));
 
-            // Auto-keying ON, property not yet automated: create the channel with an initial keyframe.
-            // SceneSelectionContext.updateElementConfig handles the "channel already exists" case.
             if (autoKeying) {
                 const chId = makeChannelId(elementId, key);
                 if (!useSceneStore.getState().automation.channels[chId]) {
@@ -289,12 +268,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                         return;
                     }
                 }
-                // Channel exists: fall through to onConfigChange, which will dispatch addKeyframe
             }
-
-            // Auto-keying OFF: falls through to onConfigChange unconditionally.
-            // SceneSelectionContext.updateElementConfig will dispatch updateElementConfig for all keys,
-            // so any keyframed property's rendered value will revert to the keyframed value on scrub.
 
             if (onConfigChange) {
                 let options: Omit<SceneCommandOptions, 'source'> | undefined;
@@ -345,123 +319,6 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         [elementId, onConfigChange, propertyValues],
     );
 
-    const applyBulkValueChange = useCallback(
-        (changes: Record<string, any>) => {
-            if (!changes || Object.keys(changes).length === 0) {
-                return;
-            }
-
-            setPropertyValues((prev) => ({ ...prev, ...changes }));
-
-            if (onConfigChange) {
-                onConfigChange(elementId, changes);
-            }
-        },
-        [elementId, onConfigChange],
-    );
-
-    const handleResetAll = useCallback(() => {
-        if (!enhancedSchema) return;
-
-        const nextValues: Record<string, any> = {};
-        enhancedSchema.tabs.flatMap((t) => t.groups).forEach((group) => {
-            group.properties.forEach((property) => {
-                nextValues[property.key] = property.default ?? null;
-                if (macroAssignments[property.key]) {
-                    handleMacroAssignment(property.key, '');
-                }
-            });
-        });
-
-        applyBulkValueChange(nextValues);
-    }, [applyBulkValueChange, enhancedSchema, handleMacroAssignment, macroAssignments]);
-
-    const handleApplyPreset = useCallback(
-        (presetKey: string) => {
-            if (!enhancedSchema) return;
-            const [groupId, presetId] = presetKey.split('::');
-            const group = enhancedSchema.tabs.flatMap((t) => t.groups).find((entry) => entry.id === groupId);
-            if (!group || !group.presets) return;
-            const preset = group.presets.find((entry) => entry.id === presetId);
-            if (!preset) return;
-
-            const nextValues: Record<string, any> = {};
-            Object.entries(preset.values).forEach(([key, value]) => {
-                nextValues[key] = value;
-                if (macroAssignments[key]) {
-                    handleMacroAssignment(key, '');
-                }
-            });
-
-            applyBulkValueChange(nextValues);
-        },
-        [applyBulkValueChange, enhancedSchema, handleMacroAssignment, macroAssignments],
-    );
-
-    const handleCopyElement = useCallback(() => {
-        if (!enhancedSchema) return;
-
-        const values: Record<string, any> = {};
-        const macros: Record<string, string> = {};
-
-        enhancedSchema.tabs.flatMap((t) => t.groups).forEach((group) => {
-            group.properties.forEach((property) => {
-                if (Object.prototype.hasOwnProperty.call(propertyValues, property.key)) {
-                    values[property.key] = propertyValues[property.key];
-                }
-                if (macroAssignments[property.key]) {
-                    macros[property.key] = macroAssignments[property.key];
-                }
-            });
-        });
-
-        setElementClipboard({ elementType, values, macroAssignments: macros });
-    }, [enhancedSchema, elementType, macroAssignments, propertyValues]);
-
-    const handlePasteElement = useCallback(() => {
-        if (!enhancedSchema || !elementClipboard) return;
-        if (elementClipboard.elementType !== elementType) return;
-
-        const nextValues: Record<string, any> = {};
-        enhancedSchema.tabs.flatMap((t) => t.groups).forEach((group) => {
-            group.properties.forEach((property) => {
-                if (Object.prototype.hasOwnProperty.call(elementClipboard.values, property.key)) {
-                    nextValues[property.key] = elementClipboard.values[property.key];
-                }
-            });
-        });
-
-        applyBulkValueChange(nextValues);
-
-        enhancedSchema.tabs.flatMap((t) => t.groups).forEach((group) => {
-            group.properties.forEach((property) => {
-                const macroName = elementClipboard.macroAssignments[property.key];
-                if (macroName && macroLookup.has(macroName)) {
-                    handleMacroAssignment(property.key, macroName);
-                } else if (macroAssignments[property.key]) {
-                    handleMacroAssignment(property.key, '');
-                }
-            });
-        });
-    }, [applyBulkValueChange, elementClipboard, enhancedSchema, handleMacroAssignment, macroAssignments, macroLookup, elementType]);
-
-    const handlePresetSelection = useCallback(
-        (event: React.ChangeEvent<HTMLSelectElement>) => {
-            const presetKey = event.target.value;
-            if (!presetKey) return;
-            handleApplyPreset(presetKey);
-            event.target.value = '';
-        },
-        [handleApplyPreset],
-    );
-
-    const handleCollapseToggle = useCallback((groupId: string) => {
-        const current = useSceneStore.getState().interaction.expandedPropertyGroups[elementId] ?? {};
-        setPropertyGroupCollapseState(elementId, groupId, !current[groupId]);
-    }, [elementId, setPropertyGroupCollapseState]);
-
-    const canPasteElement = elementClipboard?.elementType === elementType;
-
     if (!enhancedSchema) {
         return (
             <div className="element-properties-panel ae-style empty">
@@ -472,83 +329,25 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
 
     return (
         <div className="element-properties-panel ae-style">
-            <div className="ae-properties-toolbar">
-                <div className="ae-toolbar-row">
-                    <input
-                        type="search"
-                        className="ae-properties-search"
-                        placeholder="Search properties…"
-                        value={searchTerm}
-                        onChange={(event) => setSearchTerm(event.target.value)}
-                    />
-                </div>
-                <div className="ae-toolbar-row ae-element-actions">
-                    {elementPresets.length > 0 && (
-                        <select
-                            className="ae-element-preset"
-                            onChange={handlePresetSelection}
-                            defaultValue=""
-                            title="Apply a preset to this element"
-                        >
-                            <option value="" disabled>
-                                Apply preset…
-                            </option>
-                            {elementPresets.map((preset) => (
-                                <option key={preset.value} value={preset.value}>
-                                    {preset.label}
-                                </option>
-                            ))}
-                        </select>
-                    )}
-                    <button
-                        type="button"
-                        className="ae-element-action"
-                        onClick={handleResetAll}
-                        title="Reset all properties to their defaults"
-                    >
-                        <FaRotate />
-                    </button>
-                    <button
-                        type="button"
-                        className="ae-element-action"
-                        onClick={handleCopyElement}
-                        title="Copy all properties for this element"
-                    >
-                        <FaCopy />
-                    </button>
-                    <button
-                        type="button"
-                        className="ae-element-action"
-                        disabled={!canPasteElement}
-                        onClick={handlePasteElement}
-                        title={
-                            elementClipboard && elementClipboard.elementType !== elementType
-                                ? 'Clipboard contains a different element type'
-                                : 'Paste properties from a copied element'
-                        }
-                    >
-                        <FaPaste />
-                    </button>
-                </div>
-            </div>
-            {filteredGroups.length === 0 ? (
-                <div className="ae-empty-search">No properties match your search.</div>
-            ) : (
-                filteredGroups.map(({ group, properties }) => (
-                    <PropertyGroupPanel
-                        key={group.id}
-                        group={{ ...group, collapsed: groupCollapseState[group.id] ?? group.collapsed }}
-                        properties={properties}
-                        values={propertyValues}
-                        macroAssignments={macroAssignments}
-                        elementId={elementId}
-                        delinkedKeys={delinkedKeys}
-                        onValueChange={handleValueChange}
-                        onMacroAssignment={handleMacroAssignment}
-                        onCollapseToggle={handleCollapseToggle}
-                    />
-                ))
-            )}
+            <PropertyTabStrip
+                tabs={enhancedSchema.tabs}
+                activeTabId={activeTabId}
+                onTabChange={(tabId) => setActivePropertyTab(elementId, tabId)}
+            />
+            {filteredGroups.map(({ group, properties }) => (
+                <PropertyGroupPanel
+                    key={group.id}
+                    group={{ ...group, collapsed: groupCollapseState[group.id] ?? group.collapsed }}
+                    properties={properties}
+                    values={propertyValues}
+                    macroAssignments={macroAssignments}
+                    elementId={elementId}
+                    delinkedKeys={delinkedKeys}
+                    onValueChange={handleValueChange}
+                    onMacroAssignment={handleMacroAssignment}
+                    onCollapseToggle={handleCollapseToggle}
+                />
+            ))}
         </div>
     );
 };

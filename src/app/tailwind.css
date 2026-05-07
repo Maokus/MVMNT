@@ -200,7 +200,7 @@
         @apply hidden;
     }
 
-    .file-input+label {
+    .file-input + label {
         @apply cursor-pointer;
     }
 
@@ -615,36 +615,16 @@
         @apply border-b border-[#383838];
     }
 
-    .ae-properties-toolbar {
-        @apply px-2 py-2 border-b border-[#383838] bg-[#1f1f1f] flex flex-col gap-2;
+    .ae-tab-strip {
+        @apply flex flex-row border-b border-[#383838] bg-[#1f1f1f] overflow-x-auto flex-shrink-0;
     }
 
-    .ae-toolbar-row {
-        @apply flex flex-wrap items-center gap-2;
+    .ae-tab {
+        @apply px-3 py-1.5 text-[11px] text-[#9ca3af] cursor-pointer border-b-2 border-transparent whitespace-nowrap transition-colors bg-transparent hover:text-[#e0e0e0];
     }
 
-    .ae-properties-search {
-        @apply flex-1 min-w-[140px] h-7 rounded border border-[#3f3f46] bg-[#2b2b2b] px-3 text-[12px] text-[#f4f4f5] placeholder:text-[#9ca3af] focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40;
-    }
-
-    .ae-element-actions {
-        @apply flex flex-wrap items-center gap-1;
-    }
-
-    .ae-element-preset {
-        @apply h-7 rounded border border-[#3f3f46] bg-[#1f1f1f] px-2 text-[11px] text-[#f4f4f5] focus:outline-none focus:border-accent flex-1 min-w-[180px] max-w-[260px];
-    }
-
-    .ae-element-action {
-        @apply h-7 px-3 rounded border border-[#3f3f46] bg-[#1f1f1f] text-[11px] uppercase tracking-wide text-[#f4f4f5] cursor-pointer transition-colors flex-shrink-0;
-    }
-
-    .ae-element-action:disabled {
-        @apply cursor-not-allowed opacity-50;
-    }
-
-    .ae-element-action:not(:disabled):hover {
-        @apply border-accent bg-accent/10 text-white;
+    .ae-tab--active {
+        @apply text-[#f4f4f5] border-accent;
     }
 
     .ae-empty-search {
@@ -773,7 +753,9 @@
         fill: transparent;
         stroke: var(--twc-accent);
         stroke-width: 1;
-        transition: fill 0.15s, stroke 0.15s;
+        transition:
+            fill 0.15s,
+            stroke 0.15s;
     }
 
     .ae-keyframe-toggle.automated:hover .ae-keyframe-diamond path {
@@ -835,7 +817,9 @@
         @apply flex flex-col items-center rounded border p-0.5 cursor-pointer;
         background: rgba(255, 255, 255, 0.03);
         border-color: rgba(255, 255, 255, 0.08);
-        transition: border-color 0.15s, background 0.15s;
+        transition:
+            border-color 0.15s,
+            background 0.15s;
     }
 
     .ae-easing-thumb:hover {
