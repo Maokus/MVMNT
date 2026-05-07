@@ -233,7 +233,7 @@ export class AudioSpectrumElement extends SceneElement {
                                 },
                             },
                             prop.number('minDecibels', 'Minimum Value', -80, { min: -80, max: 0, step: 1 }),
-                            prop.number('maxDecibels', 'Maximum Value', 0, { min: -80, max: 24, step: 1 }),
+                            prop.number('maxDecibels', 'Maximum Value', 0, { min: -80, max: 0, step: 1 }),
                             prop.number('width', 'Width (px)', 420, { step: 1 }),
                             prop.number('height', 'Height (px)', 180, { step: 1 }),
                             {
@@ -297,17 +297,8 @@ export class AudioSpectrumElement extends SceneElement {
                                     defaultValue: 0,
                                 },
                             },
-                        ],
-                    },
-                ]),
-                tab.appearance([
-                    {
-                        id: 'appearance',
-                        label: 'Appearance',
-                        collapsed: false,
-                        properties: [
-                            prop.color('color', 'Color', DEFAULT_BAR_COLOR),
-                            prop.range('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                            prop.color('color', 'Primary Color', DEFAULT_BAR_COLOR),
+                            prop.range('opacity', 'Primary Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                             prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
                             prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
                             prop.select(
@@ -339,7 +330,7 @@ export class AudioSpectrumElement extends SceneElement {
         );
 
         const pushMessage = (message: string) => {
-            objects.push(new Text(8, props.height / 2, message, '12px Inter, sans-serif', '#94a3b8', 'left', 'middle'));
+            objects.push(new Text(8, props.height / 2, message, '12px Inter, sans-serif', '#94a3b8', 'left', 'middle').setIncludeInLayoutBounds(false));
             return objects;
         };
 
@@ -409,7 +400,7 @@ export class AudioSpectrumElement extends SceneElement {
             if (points.length === 1) {
                 points.push({ ...points[0] });
             }
-            const poly = new Poly(points, null, drawColor, shapeThickness);
+            const poly = new Poly(points, null, drawColor, shapeThickness, { includeInLayoutBounds: false });
             poly.setClosed(false).setLineJoin('round').setLineCap('round');
             poly.blendMode = blendMode === 'source-over' ? null : blendMode;
             objects.push(poly);
@@ -424,6 +415,7 @@ export class AudioSpectrumElement extends SceneElement {
                     fillColor: drawColor,
                     strokeColor: '#FFFFFF00',
                 });
+                arc.setIncludeInLayoutBounds(false);
                 if (blendMode !== 'source-over') arc.blendMode = blendMode;
                 objects.push(arc);
             });

@@ -84,6 +84,8 @@ export class CCMonitorElement extends SceneElement {
                                 { value: 'singleCC', label: 'Single CC' },
                                 { value: 'sustainPedal', label: 'Sustain Pedal' },
                             ]),
+                            prop.number('layoutWidth', 'Width (px)', 320, { min: 1, step: 1 }),
+                            prop.number('layoutHeight', 'Layout Height (px)', 200, { min: 1, step: 1 }),
                         ],
                     },
                     {
@@ -187,6 +189,11 @@ export class CCMonitorElement extends SceneElement {
         const props = this.getSchemaProps();
         if (!props.visible) return [];
 
+        const layoutWidth = (props.layoutWidth as number) ?? 320;
+        const layoutHeight = (props.layoutHeight as number) ?? 200;
+        const layoutRect = new Rectangle(0, 0, layoutWidth, layoutHeight, null, null, 0);
+        layoutRect.setIncludeInLayoutBounds(true);
+
         const mode = (props.mode as string) ?? 'fullMonitor';
         const trackId = (props.midiTrackId as string | null) ?? null;
         const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
@@ -203,8 +210,9 @@ export class CCMonitorElement extends SceneElement {
         if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const font = `${fontWeight} ${fontSize}px ${fontFamily || 'Inter'}, sans-serif`;
 
+        let contentObjects: RenderObject[] = [];
         if (mode === 'fullMonitor') {
-            return this._buildFullMonitor({
+            contentObjects = this._buildFullMonitor({
                 props,
                 targetTime,
                 api,
@@ -215,14 +223,17 @@ export class CCMonitorElement extends SceneElement {
                 fontSize,
                 lineSpacing,
             });
+        } else if (mode === 'singleCC') {
+            contentObjects = this._buildSingleCC({ props, targetTime, api, status, trackId, font, textColor, fontSize });
+        } else if (mode === 'sustainPedal') {
+            contentObjects = this._buildSustainPedal({ props, targetTime, api, status, trackId, font, textColor });
         }
-        if (mode === 'singleCC') {
-            return this._buildSingleCC({ props, targetTime, api, status, trackId, font, textColor, fontSize });
+
+        for (const obj of contentObjects) {
+            obj.setIncludeInLayoutBounds(false);
         }
-        if (mode === 'sustainPedal') {
-            return this._buildSustainPedal({ props, targetTime, api, status, trackId, font, textColor });
-        }
-        return [];
+
+        return [layoutRect, ...contentObjects];
     }
 
     private _buildFullMonitor(ctx: {

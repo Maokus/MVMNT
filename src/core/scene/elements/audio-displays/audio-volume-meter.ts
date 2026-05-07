@@ -6,7 +6,7 @@ import { normalizeChannelSelectorInput, selectChannelSample } from '@audio/audio
 import { applyOpacity } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
-import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -59,9 +59,14 @@ export class AudioVolumeMeterElement extends SceneElement {
                         properties: [
                             {
                                 key: 'channelSelector',
-                                type: 'string',
+                                type: 'select',
                                 label: 'Channel',
                                 default: null,
+                                options: [
+                                    { label: 'Mix (all channels)', value: null },
+                                    { label: 'Left', value: 0 },
+                                    { label: 'Right', value: 1 },
+                                ],
                                 runtime: { transform: normalizeChannelSelector, defaultValue: null },
                             },
                             prop.select('orientation', 'Orientation', 'vertical', [
@@ -72,6 +77,8 @@ export class AudioVolumeMeterElement extends SceneElement {
                             prop.number('height', 'Height (px)', 240, { step: 1 }),
                             prop.number('minValue', 'Minimum Value', 0, { step: 0.01 }),
                             prop.number('maxValue', 'Maximum Value', 1, { step: 0.01 }),
+                            prop.color('color', 'Color', DEFAULT_METER_COLOR),
+                            prop.range('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                             prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
                             prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
                             prop.boolean('showValue', 'Show Value Label', true),
@@ -83,10 +90,16 @@ export class AudioVolumeMeterElement extends SceneElement {
                                 step: 1,
                                 runtime: { transform: clampSmoothing, defaultValue: 0 },
                             },
+                            prop.select(
+                                'blendMode',
+                                'Blend Mode',
+                                'source-over',
+                                BLEND_MODE_CHOICES as unknown as Array<{ value: string; label: string }>,
+                                { description: 'Canvas composite blending operation.' }
+                            ),
                         ],
                     },
                 ]),
-                tab.appearance([propGroup.appearance()]),
             ]
         );
     }
@@ -115,7 +128,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                     '#94a3b8',
                     'left',
                     'middle'
-                )
+                ).setIncludeInLayoutBounds(false)
             );
             return objects;
         }
@@ -138,17 +151,17 @@ export class AudioVolumeMeterElement extends SceneElement {
 
         if (props.orientation === 'horizontal') {
             const fillWidth = normalized * props.width;
-            objects.push(new Rectangle(0, 0, fillWidth, props.height, meterColor));
+            objects.push(new Rectangle(0, 0, fillWidth, props.height, meterColor).setIncludeInLayoutBounds(false));
         } else {
             const fillHeight = normalized * props.height;
             const y = props.height - fillHeight;
-            objects.push(new Rectangle(0, y, props.width, fillHeight, meterColor));
+            objects.push(new Rectangle(0, y, props.width, fillHeight, meterColor).setIncludeInLayoutBounds(false));
         }
 
         if (props.showValue) {
             const percent = Math.round(normalized * 100);
             const labelY = props.orientation === 'horizontal' ? props.height + 16 : props.height + 16;
-            objects.push(new Text(0, labelY, `${percent}%`, '12px Inter, sans-serif', '#e2e8f0', 'left', 'middle'));
+            objects.push(new Text(0, labelY, `${percent}%`, '12px Inter, sans-serif', '#e2e8f0', 'left', 'middle').setIncludeInLayoutBounds(false));
         }
 
         return objects;

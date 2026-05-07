@@ -97,15 +97,19 @@ export class ChordEstimateDisplayElement extends SceneElement {
                                 type: 'number',
                                 label: 'Future Window (%)',
                                 default: 0,
+                                min: 0,
+                                max: 100,
                                 step: 5,
                                 runtime: { transform: clampWindowFuturePercent, defaultValue: 0 },
                             },
+                            prop.number('layoutWidth', 'Width (px)', 400, { min: 1, step: 1 }),
+                            prop.number('layoutHeight', 'Layout Height (px)', 100, { min: 1, step: 1 }),
                         ],
                     },
                     {
                         id: 'estimation',
                         label: 'Estimation',
-                        collapsed: true,
+                        collapsed: false,
                         description: 'Refine which chord qualities are considered during detection.',
                         properties: [
                             prop.boolean('includeTriads', 'Allow Triads (maj/min)', true),
@@ -268,7 +272,12 @@ export class ChordEstimateDisplayElement extends SceneElement {
         const color = applyOpacity(rawColor ?? '#ffffff', props.opacity ?? 1);
         const justify = (props.textAlign ?? props.textJustification ?? 'left') as CanvasTextAlign;
 
-        const renderObjects: RenderObject[] = [];
+        const layoutWidth = (props as any).layoutWidth ?? 400;
+        const layoutHeight = (props as any).layoutHeight ?? 100;
+        const layoutRect = new Rectangle(0, 0, layoutWidth, layoutHeight, null, null, 0);
+        layoutRect.setIncludeInLayoutBounds(true);
+
+        const renderObjects: RenderObject[] = [layoutRect];
 
         // Effective time
         const t = Math.max(0, targetTime);
@@ -343,7 +352,19 @@ export class ChordEstimateDisplayElement extends SceneElement {
 
         let y = 0;
         const label = chord ? this._formatChordLabel(chord, showInversion) : 'N.C.';
-        const title = new Text(0, y, label, fontChord, color, justify, 'top');
+
+        // When a background is shown, anchor text within the background width so it doesn't overflow.
+        const bgWidth = 400;
+        const textXForJustify = (j: CanvasTextAlign): number => {
+            if (!props.showBackground) return 0;
+            if (j === 'center') return bgWidth / 2;
+            if (j === 'right' || j === 'end') return bgWidth;
+            return 0;
+        };
+        const textX = textXForJustify(justify);
+
+        const title = new Text(textX, y, label, fontChord, color, justify, 'top');
+        title.setIncludeInLayoutBounds(false);
         renderObjects.push(title);
         y += chordFontSize + lineSpacing;
 
@@ -370,7 +391,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
             const noteLine = uniqueNotes.length
                 ? `Notes: ${uniqueNotes.map((n) => noteName(n)).join(' ')}`
                 : 'Notes: —';
-            const ln = new Text(0, y, noteLine, fontDetails, color, justify, 'top');
+            const ln = new Text(textX, y, noteLine, fontDetails, color, justify, 'top');
             ln.setIncludeInLayoutBounds(false);
             renderObjects.push(ln);
             y += detailsFontSize + lineSpacing;
@@ -382,12 +403,13 @@ export class ChordEstimateDisplayElement extends SceneElement {
             const rectWidth = 20;
             const spacing = 30;
             const totalWidth = (names.length - 1) * spacing + rectWidth;
-            let startX = 0;
-            if (justify === 'center') startX = -totalWidth / 2;
-            else if (justify === 'right' || justify === 'end') startX = -totalWidth;
+            let startX = textX;
+            if (justify === 'center') startX = textX - totalWidth / 2;
+            else if (justify === 'right' || justify === 'end') startX = textX - totalWidth;
             for (let i = 0; i < names.length; i++) {
                 const rectX = startX + i * spacing;
                 const rect = new Rectangle(rectX, y, rectWidth, 20, `rgba(255,255,255,${chroma[i]})`);
+                rect.setIncludeInLayoutBounds(false);
                 renderObjects.push(rect);
             }
             y += detailsFontSize + lineSpacing;
@@ -398,9 +420,10 @@ export class ChordEstimateDisplayElement extends SceneElement {
             const paddingY = props.backgroundPaddingY ?? 4;
             const bgColor = applyOpacity(props.backgroundColor ?? '#000000', props.backgroundOpacity ?? 0.8);
             const estimatedHeight = chordFontSize * 1.4 + lineSpacing + paddingY * 2;
-            const bg = new Rectangle(-paddingX, -paddingY, 400 + paddingX * 2, estimatedHeight, bgColor);
+            const bg = new Rectangle(-paddingX, -paddingY, bgWidth + paddingX * 2, estimatedHeight, bgColor);
             if (props.backgroundCornerRadius) bg.cornerRadius = props.backgroundCornerRadius;
-            renderObjects.unshift(bg);
+            bg.setIncludeInLayoutBounds(false);
+            renderObjects.splice(1, 0, bg);
         }
 
         return renderObjects;

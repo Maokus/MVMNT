@@ -7,7 +7,7 @@ import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { applyOpacity } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
-import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 const { descriptor: PITCH_WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchWaveform' });
 
@@ -61,9 +61,14 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                         properties: [
                             {
                                 key: 'channelSelector',
-                                type: 'string',
+                                type: 'select',
                                 label: 'Channel',
                                 default: null,
+                                options: [
+                                    { label: 'Mix (all channels)', value: null },
+                                    { label: 'Left', value: 0 },
+                                    { label: 'Right', value: 1 },
+                                ],
                                 runtime: { transform: normalizeChannelSelector, defaultValue: null },
                             },
                             prop.number('width', 'Width (px)', 420, { step: 1 }),
@@ -82,12 +87,20 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                                     defaultValue: 2,
                                 },
                             },
+                            prop.color('color', 'Primary Color', DEFAULT_LINE_COLOR),
+                            prop.range('opacity', 'Primary Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                             prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
                             prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
+                            prop.select(
+                                'blendMode',
+                                'Blend Mode',
+                                'source-over',
+                                BLEND_MODE_CHOICES as unknown as Array<{ value: string; label: string }>,
+                                { description: 'Canvas composite blending operation.' }
+                            ),
                         ],
                     },
                 ]),
-                tab.appearance([propGroup.appearance({ blendMode: true })]),
             ]
         );
     }
@@ -116,7 +129,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                     '#94a3b8',
                     'left',
                     'middle'
-                )
+                ).setIncludeInLayoutBounds(false)
             );
             return objects;
         }
@@ -147,7 +160,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                     '#94a3b8',
                     'left',
                     'middle'
-                )
+                ).setIncludeInLayoutBounds(false)
             );
             return objects;
         }
@@ -171,7 +184,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                     '#94a3b8',
                     'left',
                     'middle'
-                )
+                ).setIncludeInLayoutBounds(false)
             );
             return objects;
         }
