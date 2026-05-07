@@ -4,7 +4,6 @@ import { EnhancedConfigSchema, type PropertyDefinition } from '@core/types.js';
 import { Line, EmptyRenderObject, RenderObject, Rectangle, GlowLayer } from '@core/render/render-objects';
 import { getAnimationSelectOptions } from '@core/scene/elements/midi-displays/note-animations';
 import { normalizeColorAlphaValue, ensureEightDigitHex, applyOpacity } from '@utils/color';
-// Timeline-backed migration: remove per-element MidiManager usage
 import { MovingNotesAnimationController } from './animation-controller';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { TimingManager } from '@core/timing';
@@ -24,7 +23,6 @@ const applyLegacyOpacity = (color: string, opacity?: number): string => {
 export class MovingNotesPianoRollElement extends SceneElement {
     public animationController: MovingNotesAnimationController;
     private timingManager: TimingManager;
-    // Phase 3 reference pattern: intentionally consume timeline data through the public plugin API.
 
     constructor(id: string = 'movingNotesPianoRoll', config: { [key: string]: any } = {}) {
         super('movingNotesPianoRoll', id, config);
@@ -82,9 +80,15 @@ export class MovingNotesPianoRollElement extends SceneElement {
                                 step: 10,
                                 description: 'Total width for the moving-notes viewport.',
                             }),
+                            prop.number('rollHeight', 'Roll Height (px)', 400, {
+                                min: 20,
+                                max: 4000,
+                                step: 10,
+                                description: 'Total height of the piano roll.',
+                            }),
                             prop.number('timeUnitBars', 'Time Unit (bars)', 1, { min: 1, max: 8, step: 1 }),
-                            prop.number('minNote', 'Minimum MIDI Note', 30, { min: 0, max: 127, step: 1 }),
-                            prop.number('maxNote', 'Maximum MIDI Note', 72, { min: 0, max: 127, step: 1 }),
+                            prop.number('minNote', 'Minimum MIDI Note', -1, { min: -1, max: 127, step: 1 }),
+                            prop.number('maxNote', 'Maximum MIDI Note', -1, { min: -1, max: 127, step: 1 }),
                         ],
                     },
                     {
@@ -95,12 +99,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                         properties: [
                             prop.boolean('showNotes', 'Show Notes', true),
                             prop.boolean('useChannelColors', 'Use Per-Channel Colors', false, {
-                                visibleWhen: [{ key: 'showNotes', truthy: true }],
-                            }),
-                            prop.number('noteHeight', 'Note Height (px)', 20, {
-                                min: 4,
-                                max: 40,
-                                step: 1,
                                 visibleWhen: [{ key: 'showNotes', truthy: true }],
                             }),
                             prop.number('noteCornerRadius', 'Note Corner Radius (px)', 2, {
@@ -236,30 +234,52 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const props = this.getSchemaProps();
 
         const renderObjects: RenderObject[] = [];
-        // Use global timeline tempo and meter
-        // timeOffset removed; use targetTime directly
         const effectiveTime = targetTime;
-        const timeUnitBars = Math.max(1, Math.round(props.timeUnitBars ?? 1));
-        const pianoWidth = Math.max(0, props.pianoWidth ?? 0);
-        const rollWidth = Math.max(0, props.rollWidth ?? 0);
-        const showNotes = props.showNotes ?? true;
-        const minNote = Math.max(0, Math.min(127, Math.floor(props.minNote ?? 30)));
-        const maxNote = Math.max(0, Math.min(127, Math.floor(props.maxNote ?? 72)));
-        const noteHeight = Math.max(4, Math.min(40, props.noteHeight ?? 20));
-        const showPlayhead = props.showPlayhead ?? true;
-        const playheadLineWidth = Math.max(0, props.playheadLineWidth ?? 2);
-        const playheadColor = applyOpacity((props.playheadColor ?? '#ff6b6b') as string, props.playheadOpacity ?? 1);
-        const playheadPosition = Math.max(0, Math.min(1, props.playheadPosition ?? 0.25));
-        const playheadOffset = props.playheadOffset ?? 0;
-        const showPiano = props.showPiano ?? false;
-        const whiteKeyColor = props.whiteKeyColor ?? '#f0f0f0';
-        const blackKeyColor = props.blackKeyColor ?? '#555555';
-        const pianoOpacity = Math.max(0, Math.min(1, props.pianoOpacity ?? 1));
-        const pianoRightBorderColor = props.pianoRightBorderColor ?? '#333333';
-        const pianoRightBorderWidth = Math.max(0, props.pianoRightBorderWidth ?? 2);
-        const effectivePianoWidth = showPiano ? pianoWidth : 0; // mirror TimeUnit roll layout behavior
+        const timeUnitBars = props.timeUnitBars as number;
+        const pianoWidth = props.pianoWidth as number;
+        const rollWidth = props.rollWidth as number;
+        const rollHeight = props.rollHeight as number;
+        const showNotes = props.showNotes as boolean;
+        const showPlayhead = props.showPlayhead as boolean;
+        const playheadLineWidth = props.playheadLineWidth as number;
+        const playheadColor = applyOpacity(props.playheadColor as string, props.playheadOpacity as number);
+        const playheadPosition = props.playheadPosition as number;
+        const playheadOffset = props.playheadOffset as number;
+        const showPiano = props.showPiano as boolean;
+        const whiteKeyColor = props.whiteKeyColor as string;
+        const blackKeyColor = props.blackKeyColor as string;
+        const pianoOpacity = props.pianoOpacity as number;
+        const pianoRightBorderColor = props.pianoRightBorderColor as string;
+        const pianoRightBorderWidth = props.pianoRightBorderWidth as number;
+        const effectivePianoWidth = showPiano ? pianoWidth : 0;
         const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
         const timelineState = status === 'ok' ? api?.timeline.getStateSnapshot() : null;
+
+        const rawMinNote = props.minNote as number;
+        const rawMaxNote = props.maxNote as number;
+        let minNote: number;
+        let maxNote: number;
+        if (rawMinNote === -1 && rawMaxNote === -1) {
+            const trackId = props.midiTrackId as string | undefined;
+            if (trackId && status === 'ok' && api) {
+                const allNotes = api.timeline.selectNotesInWindow({ trackIds: [trackId], startSec: -99999, endSec: 99999 });
+                if (allNotes.length > 0) {
+                    minNote = Math.min(...allNotes.map(n => n.note));
+                    maxNote = Math.max(...allNotes.map(n => n.note));
+                } else {
+                    minNote = 0;
+                    maxNote = 127;
+                }
+            } else {
+                minNote = 0;
+                maxNote = 127;
+            }
+        } else {
+            minNote = rawMinNote === -1 ? 0 : rawMinNote;
+            maxNote = rawMaxNote === -1 ? 128 : rawMaxNote;
+        }
+        const numNotes = Math.max(1, maxNote - minNote + 1);
+        const noteHeight = rollHeight / numNotes;
 
         // Update local timing manager from global timeline snapshot for view window duration calculations
         try {
@@ -345,11 +365,11 @@ export class MovingNotesPianoRollElement extends SceneElement {
             );
 
             // Style customizations
-            const noteCornerRadius = Math.max(0, props.noteCornerRadius ?? 2);
-            const noteStrokeColor = props.noteStrokeColor;
-            const noteStrokeWidth = Math.max(0, props.noteStrokeWidth ?? 0);
-            const noteGlowBlur = Math.max(0, props.noteGlowBlur ?? 0);
-            const noteGlowOpacity = Math.max(0, Math.min(1, props.noteGlowOpacity ?? 0.5));
+            const noteCornerRadius = props.noteCornerRadius as number;
+            const noteStrokeColor = props.noteStrokeColor as string;
+            const noteStrokeWidth = props.noteStrokeWidth as number;
+            const noteGlowBlur = props.noteGlowBlur as number;
+            const noteGlowOpacity = props.noteGlowOpacity as number;
             (animatedRenderObjects as any[]).forEach((obj) => {
                 if (!obj) return;
                 if (typeof obj.setCornerRadius === 'function' && noteCornerRadius > 0)
@@ -415,7 +435,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
         return [playhead];
     }
 
-    // Convenience getters/setters removed: element uses global tempo/meter from store
     getAnimationType(): string {
         return (this.getSchemaProps().animationType as string | undefined) ?? 'expand';
     }
@@ -445,7 +464,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
         return this.timingManager.getTimeUnitDuration(this.getTimeUnitBars());
     }
 
-    // Macro bindings for bpm/beat removed
     getChannelColors(): string[] {
         const props = this.getSchemaProps();
         const baseColor = applyOpacity(

@@ -19,9 +19,6 @@ const DEFAULT_NOTE_COLOR = '#FF6B6B';
 export class TimeUnitPianoRollElement extends SceneElement {
     public timingManager: TimingManager;
     public animationController: AnimationController;
-    // (Min BBox cache removed; layout stabilizes via includeInLayoutBounds)
-    // Phase 3 reference pattern: intentionally consume timeline data through the public plugin API.
-
     constructor(id: string = 'timeUnitPianoRoll', config: { [key: string]: any } = {}) {
         super('timeUnitPianoRoll', id, config);
 
@@ -30,8 +27,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
         // Initialize animation controller
         this.animationController = new AnimationController(this);
-
-        // midiFile handling removed; timeline tracks only
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
@@ -87,9 +82,15 @@ export class TimeUnitPianoRollElement extends SceneElement {
                                 step: 50,
                                 description: 'Width of the scrolling window in pixels.',
                             }),
+                            prop.number('rollHeight', 'Roll Height (px)', 400, {
+                                min: 20,
+                                max: 4000,
+                                step: 10,
+                                description: 'Total height of the piano roll.',
+                            }),
                             prop.number('timeUnitBars', 'Time Unit (bars)', 1, { min: 1, max: 8, step: 1 }),
-                            prop.number('minNote', 'Minimum MIDI Note', 30, { min: 0, max: 127, step: 1 }),
-                            prop.number('maxNote', 'Maximum MIDI Note', 72, { min: 0, max: 127, step: 1 }),
+                            prop.number('minNote', 'Minimum MIDI Note', -1, { min: -1, max: 127, step: 1 }),
+                            prop.number('maxNote', 'Maximum MIDI Note', -1, { min: -1, max: 127, step: 1 }),
                         ],
                     },
                     {
@@ -100,10 +101,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         properties: [
                             prop.boolean('showNotes', 'Show Notes', true),
                             prop.boolean('useChannelColors', 'Use Per-Channel Colors', false, {
-                                visibleWhen: [{ key: 'showNotes', truthy: true }],
-                            }),
-                            prop.number('noteHeight', 'Note Height (px)', 20, {
-                                step: 1,
                                 visibleWhen: [{ key: 'showNotes', truthy: true }],
                             }),
                             prop.number('noteCornerRadius', 'Note Corner Radius (px)', 2, {
@@ -366,66 +363,83 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
         const renderObjects: RenderObject[] = [];
 
-        // timeOffset removed; targetTime used directly
         const effectiveTime = targetTime;
-        const timeUnitBars = Math.max(1, Math.round(props.timeUnitBars ?? 1));
-        const showPiano = props.showPiano ?? false;
-        const pianoWidth = showPiano ? Math.max(0, props.pianoWidth ?? 0) : 0;
-        const rollWidth = Math.max(0, props.rollWidth ?? DEFAULT_ROLL_WIDTH);
+        const timeUnitBars = props.timeUnitBars as number;
+        const showPiano = props.showPiano as boolean;
+        const pianoWidth = showPiano ? props.pianoWidth as number : 0;
+        const rollWidth = props.rollWidth as number;
+        const rollHeight = props.rollHeight as number;
         const effectiveRollWidth = rollWidth;
-        const showNoteGrid = props.showNoteGrid ?? true;
-        const showNoteLabels = props.showNoteLabels ?? true;
-        const showNotes = props.showNotes ?? true;
-        const minNote = Math.max(0, Math.min(127, Math.floor(props.minNote ?? 30)));
-        const maxNote = Math.max(0, Math.min(127, Math.floor(props.maxNote ?? 72)));
-        const showBeatGrid = props.showBeatGrid ?? true;
-        const showBeatLabels = props.showBeatLabels ?? true;
-        const noteHeight = Math.max(4, Math.min(40, props.noteHeight ?? 20));
-        const showPlayhead = props.showPlayhead ?? true;
-        const playheadLineWidth = Math.max(0, props.playheadLineWidth ?? 2);
-        const playheadColor = applyOpacity((props.playheadColor ?? '#ff6b6b') as string, props.playheadOpacity ?? 1);
-        const whiteKeyColor = props.whiteKeyColor ?? '#f0f0f0';
-        const blackKeyColor = props.blackKeyColor ?? '#555555';
-        const pianoOpacity = Math.max(0, Math.min(1, props.pianoOpacity ?? 1));
-        const pianoRightBorderColor = props.pianoRightBorderColor ?? '#333333';
-        const pianoRightBorderWidth = Math.max(0, props.pianoRightBorderWidth ?? 2);
-        const noteGridColor = props.noteGridColor ?? '#333333';
-        const noteGridLineWidth = Math.max(0, props.noteGridLineWidth ?? 1);
-        const noteGridOpacity = Math.max(0, Math.min(1, props.noteGridOpacity ?? 1));
-        const beatGridBarColor = props.beatGridBarColor ?? '#666666';
-        const beatGridBeatColor = props.beatGridBeatColor ?? '#444444';
-        const beatGridBarWidth = Math.max(0, props.beatGridBarWidth ?? 2);
-        const beatGridBeatWidth = Math.max(0, props.beatGridBeatWidth ?? 1);
-        const beatGridOpacity = Math.max(0, Math.min(1, props.beatGridOpacity ?? 1));
-        const noteLabelFontSelection = props.noteLabelFontFamily ?? 'Inter';
-        const { family: noteLabelFontFamily, weight: noteLabelFontWeightPart } = parseFontSelection(
-            noteLabelFontSelection as string
-        );
-        const noteLabelFontSize = props.noteLabelFontSize ?? 10;
-        const noteLabelFontColor = props.noteLabelFontColor ?? '#ffffff';
+        const showNoteGrid = props.showNoteGrid as boolean;
+        const showNoteLabels = props.showNoteLabels as boolean;
+        const showNotes = props.showNotes as boolean;
+        const showBeatGrid = props.showBeatGrid as boolean;
+        const showBeatLabels = props.showBeatLabels as boolean;
+        const showPlayhead = props.showPlayhead as boolean;
+        const playheadLineWidth = props.playheadLineWidth as number;
+        const playheadColor = applyOpacity(props.playheadColor as string, props.playheadOpacity as number);
+        const whiteKeyColor = props.whiteKeyColor as string;
+        const blackKeyColor = props.blackKeyColor as string;
+        const pianoOpacity = props.pianoOpacity as number;
+        const pianoRightBorderColor = props.pianoRightBorderColor as string;
+        const pianoRightBorderWidth = props.pianoRightBorderWidth as number;
+        const noteGridColor = props.noteGridColor as string;
+        const noteGridLineWidth = props.noteGridLineWidth as number;
+        const noteGridOpacity = props.noteGridOpacity as number;
+        const beatGridBarColor = props.beatGridBarColor as string;
+        const beatGridBeatColor = props.beatGridBeatColor as string;
+        const beatGridBarWidth = props.beatGridBarWidth as number;
+        const beatGridBeatWidth = props.beatGridBeatWidth as number;
+        const beatGridOpacity = props.beatGridOpacity as number;
+        const noteLabelFontSelection = props.noteLabelFontFamily as string;
+        const { family: noteLabelFontFamily, weight: noteLabelFontWeightPart } = parseFontSelection(noteLabelFontSelection);
+        const noteLabelFontSize = props.noteLabelFontSize as number;
+        const noteLabelFontColor = props.noteLabelFontColor as string;
         const noteLabelFontWeight = (noteLabelFontWeightPart || '400').toString();
-        const noteLabelInterval = Math.max(1, Math.round(props.noteLabelInterval ?? 1));
-        const noteLabelStartNote = props.noteLabelStartNote ?? 0;
-        const noteLabelOffsetX = props.noteLabelOffsetX ?? -10;
-        const noteLabelOffsetY = props.noteLabelOffsetY ?? 0;
-        const noteLabelOpacity = Math.max(0, Math.min(1, props.noteLabelOpacity ?? 1));
-        const beatLabelFontSelection = props.beatLabelFontFamily ?? 'Inter';
-        const { family: beatLabelFontFamily, weight: beatLabelFontWeightPart } = parseFontSelection(
-            beatLabelFontSelection as string
-        );
-        const beatLabelFontSize = props.beatLabelFontSize ?? 12;
-        const beatLabelFontColor = props.beatLabelFontColor ?? '#ffffff';
+        const noteLabelInterval = props.noteLabelInterval as number;
+        const noteLabelStartNote = props.noteLabelStartNote as number;
+        const noteLabelOffsetX = props.noteLabelOffsetX as number;
+        const noteLabelOffsetY = props.noteLabelOffsetY as number;
+        const noteLabelOpacity = props.noteLabelOpacity as number;
+        const beatLabelFontSelection = props.beatLabelFontFamily as string;
+        const { family: beatLabelFontFamily, weight: beatLabelFontWeightPart } = parseFontSelection(beatLabelFontSelection);
+        const beatLabelFontSize = props.beatLabelFontSize as number;
+        const beatLabelFontColor = props.beatLabelFontColor as string;
         const beatLabelFontWeight = (beatLabelFontWeightPart || '400').toString();
-        const beatLabelOffsetY = props.beatLabelOffsetY ?? -5;
-        const beatLabelOffsetX = props.beatLabelOffsetX ?? 5;
-        const beatLabelOpacity = Math.max(0, Math.min(1, props.beatLabelOpacity ?? 1));
-        const attackDuration = Math.max(0, props.attackDuration ?? 0.3);
+        const beatLabelOffsetY = props.beatLabelOffsetY as number;
+        const beatLabelOffsetX = props.beatLabelOffsetX as number;
+        const beatLabelOpacity = props.beatLabelOpacity as number;
+        const attackDuration = props.attackDuration as number;
         const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
         const timelineState = status === 'ok' ? api?.timeline.getStateSnapshot() : null;
         if (noteLabelFontFamily) ensureFontLoaded(noteLabelFontFamily, noteLabelFontWeight);
         if (beatLabelFontFamily) ensureFontLoaded(beatLabelFontFamily, beatLabelFontWeight);
 
-        // midiFile handling removed; use timeline tracks only
+        const rawMinNote = props.minNote as number;
+        const rawMaxNote = props.maxNote as number;
+        let minNote: number;
+        let maxNote: number;
+        if (rawMinNote === -1 && rawMaxNote === -1) {
+            const trackId = props.midiTrackId as string | undefined;
+            if (trackId && status === 'ok' && api) {
+                const allNotes = api.timeline.selectNotesInWindow({ trackIds: [trackId], startSec: -99999, endSec: 99999 });
+                if (allNotes.length > 0) {
+                    minNote = Math.min(...allNotes.map(n => n.note));
+                    maxNote = Math.max(...allNotes.map(n => n.note));
+                } else {
+                    minNote = 0;
+                    maxNote = 127;
+                }
+            } else {
+                minNote = 0;
+                maxNote = 127;
+            }
+        } else {
+            minNote = rawMinNote === -1 ? 0 : rawMinNote;
+            maxNote = rawMaxNote === -1 ? 128 : rawMaxNote;
+        }
+        const numNotes = Math.max(1, maxNote - minNote + 1);
+        const noteHeight = rollHeight / numNotes;
 
         // Update timing from global timeline snapshot
         try {
@@ -441,8 +455,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         } catch {}
 
         // Compute overall content extents (for layout bounds and optional backgrounds)
-        const totalHeight = (maxNote - minNote + 1) * noteHeight;
-        const totalWidth = (showPiano ? pianoWidth : 0) + effectiveRollWidth;
+        const totalHeight = rollHeight;
+        const totalWidth = pianoWidth + effectiveRollWidth;
 
         // Add an invisible rectangle that establishes the layout bounds to roughly cover the content area
         // This prevents jitter when other decorative elements toggle or animations change.
@@ -543,11 +557,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 effectiveTime
             );
             // Apply note style customizations
-            const noteCornerRadius = Math.max(0, props.noteCornerRadius ?? 0);
-            const noteStrokeColor = props.noteStrokeColor ?? undefined;
-            const noteStrokeWidth = Math.max(0, props.noteStrokeWidth ?? 0);
-            const noteGlowBlur = Math.max(0, props.noteGlowBlur ?? 0);
-            const noteGlowOpacity = Math.max(0, Math.min(1, props.noteGlowOpacity ?? 0.5));
+            const noteCornerRadius = props.noteCornerRadius as number;
+            const noteStrokeColor = props.noteStrokeColor as string;
+            const noteStrokeWidth = props.noteStrokeWidth as number;
+            const noteGlowBlur = props.noteGlowBlur as number;
+            const noteGlowOpacity = props.noteGlowOpacity as number;
             (animatedRenderObjects as any[]).forEach((obj) => {
                 if (!obj) return;
                 // Animation-generated objects should not affect layout bounds
@@ -675,12 +689,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
             renderObjects.push(...ph);
         }
 
-        // (Min BBox anchoring removed)
-
         return renderObjects;
     }
-
-    // midi file support removed
 
     /**
      * Create horizontal note grid lines across the roll area
@@ -812,10 +822,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
         return playheadObjects;
     }
 
-    // (Removed min-bbox helpers)
-
-    // Note name resolved using noteName() from @mvmnt/plugin-sdk
-
     /**
      * Dispatch a change event to trigger re-renders
      */
@@ -829,21 +835,14 @@ export class TimeUnitPianoRollElement extends SceneElement {
         }
     }
 
-    // Macro listener for midiFile removed
-
-    // Ensure listeners are detached when element is disposed
     dispose(): void {
         super.dispose();
     }
 
-    // Convenience methods for property access (timing-specific methods removed; global timeline used)
-
-    // Public getters for animation properties (used by AnimationController)
     getAnimationType(): string {
         return (this.getSchemaProps().animationType as string | undefined) ?? 'expand';
     }
 
-    // ADSR phase durations
     getAttackDuration(): number {
         return Math.max(0, (this.getSchemaProps().attackDuration as number | undefined) ?? 0.3);
     }
@@ -866,15 +865,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
     }
 
     getTimeUnit(): number {
-        // Provide a tempo-aware duration of a bar group using default reference time
         return this.timingManager.getTimeUnitDuration(this.getTimeUnitBars());
     }
-
-    // Removed midiFile getters/setters
-
-    // Binding-specific methods (timing macro binding removed)
-
-    // Removed midiFile macro binding
 
     /**
      * Get channel colors for MIDI channels
