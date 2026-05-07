@@ -310,7 +310,10 @@ export class SceneElement implements SceneElementInterface {
      */
     dispose(): void {
         this.onDestroy();
-        for (const h of this._trackedVisualHandles) h.destroy();
+        const trackedVisualHandles = Array.isArray((this as any)._trackedVisualHandles)
+            ? (this as any)._trackedVisualHandles
+            : [];
+        for (const h of trackedVisualHandles) h.destroy();
         if (this._macroUnsubscribe) {
             this._macroUnsubscribe();
             this._macroUnsubscribe = undefined;

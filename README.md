@@ -1,10 +1,10 @@
 # MVMNT
 
-> Create polished Music visualisation motion graphics without leaving your browser.
-
 MVMNT (pronounced _movement_) is a free and open source music visualization tool designed to create beautiful, modern, MIDI and audio-reactive graphics.
 
-For creatives, MVMNT is a customisable and fully featured application with
+For creatives, it is a highly customisable and fully featured application that draws ui patterns from popular creative softwares (Blender, After Effects, Ableton) to create an intuitive working experience.
+
+For developers, it is a framework which handles a ton of dirty work like getting user input and rendering so that you can focus on just making and sharing beautiful custom visualisations.
 
 ## Table of Contents
 
@@ -14,7 +14,6 @@ For creatives, MVMNT is a customisable and fully featured application with
     - [Local Backend (Supabase)](#local-backend-supabase)
         - [Prerequisites](#prerequisites)
         - [Setup](#setup)
-        - [Useful local URLs](#useful-local-urls)
         - [Schema changes](#schema-changes)
         - [Stopping](#stopping)
     - [Making Plugins](#making-plugins)
@@ -29,8 +28,6 @@ cd MVMNT
 npm install
 npm run dev
 ```
-
-The development server runs on Vite with hot module replacement. If optional Rollup native dependencies fail to compile on your platform, rerun `npm install` so npm can choose a compatible fallback build.
 
 ## Local Backend (Supabase)
 
@@ -94,17 +91,6 @@ This applies all migrations in `supabase/migrations/` and runs `supabase/seed.sq
 ```bash
 npm run dev
 ```
-
-### Useful local URLs
-
-| Service                 | URL                                                       |
-| ----------------------- | --------------------------------------------------------- |
-| App                     | http://localhost:5173                                     |
-| Supabase Studio         | http://127.0.0.1:54323                                    |
-| Email testing (Mailpit) | http://127.0.0.1:54324                                    |
-| Direct Postgres         | `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
-
-Studio lets you browse tables, manage auth users, and run queries against the local database. Mailpit captures all auth emails (magic links, confirmations) so you can complete auth flows without a real mail server.
 
 ### Schema changes
 

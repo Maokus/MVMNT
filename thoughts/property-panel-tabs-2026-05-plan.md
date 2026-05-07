@@ -4,6 +4,24 @@ Based on: `property-panel-tabs-2026-05.md` + `property-panel-tabs-2026-05-decisi
 
 ---
 
+## Completion Status — 7 May 2026
+
+All planned phases are implemented.
+
+- **Phase 1:** Complete. `PropertyTab` is first-class, `EnhancedConfigSchema` uses `tabs`, base schemas initialize from tab groups, and property tab interaction state exists in `sceneStore`.
+- **Phase 2:** Complete. First-party elements, examples, and templates now pass `PropertyTab[]` via `tab.*` helpers. The old `groups` compatibility getter and `PropertyGroup.variant` field are removed.
+- **Phase 3:** Complete. `ElementPropertiesPanel` renders a tab strip, filters groups by active tab, and persists the active tab per element.
+- **Phase 4:** Complete. Search is available from the tab strip and Cmd/Ctrl+F, search spans all tabs, Escape or clearing the input exits search, Reset/Copy/Paste/presets are exposed through the overflow menu, and property clipboard state is stored in `sceneStore`.
+- **Plugin authoring docs:** Updated. `docs/creating-custom-elements.md`, `docs/plugin-api-v1.md`, `docs/plugin-quickstart.md`, `docs/visual-asset-registry.md`, and template README snippets now describe the `tab.*`/`tabs` authoring pattern instead of `groups`/`variant`.
+
+Verification:
+
+- `npm run test` passed.
+- `npm run build` passed.
+- `npm run compile` passed.
+
+---
+
 ## Phase 1 — Schema & Core Infrastructure
 
 **Goal:** Introduce `PropertyTab` as a first-class type, update all internal consumers, add the store slice and tab helpers. No element files touched yet. Zero visible UI change — the panel continues to render identically via a compatibility shim.

@@ -178,7 +178,8 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
 
         const values = channelValues.slice(0, sampleLength).map((value) => clamp(value ?? 0, -1, 1));
         const points = buildPolylinePoints(values, props.width, props.height);
-        const lineColor = applyOpacity(props.color ?? DEFAULT_LINE_COLOR, props.opacity ?? 1);
+        const legacyLineColor = this.bindings.has('lineColor') ? this.getProperty<string>('lineColor') : undefined;
+        const lineColor = applyOpacity(legacyLineColor ?? props.color ?? DEFAULT_LINE_COLOR, props.opacity ?? 1);
         const line = new Poly(points, null, lineColor, props.lineWidth, { includeInLayoutBounds: false });
         line.setClosed(false);
         line.blendMode = blendMode === 'source-over' ? null : blendMode;

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { FaTimes } from 'react-icons/fa';
 import PropertyGroupPanel from './PropertyGroupPanel';
 import PropertyTabStrip, { OverflowAction } from './PropertyTabStrip';
 import { EnhancedConfigSchema, PropertyDefinition } from '@core/types';
@@ -455,12 +456,19 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                         type="text"
                         placeholder="Search properties…"
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onChange={(e) => {
+                            const nextTerm = e.target.value;
+                            if (nextTerm === '') {
+                                closeSearch();
+                                return;
+                            }
+                            setSearchTerm(nextTerm);
+                        }}
                         onKeyDown={handleSearchKeyDown}
                         autoFocus
                     />
                     <button type="button" className="ae-search-close" onClick={closeSearch} title="Close search">
-                        ✕
+                        <FaTimes aria-hidden="true" />
                     </button>
                 </div>
             )}
@@ -485,6 +493,9 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                     onCollapseToggle={handleCollapseToggle}
                 />
             ))}
+            {searchActive && searchTerm.trim() && filteredGroups.length === 0 && (
+                <div className="ae-empty-search">No matching properties.</div>
+            )}
         </div>
     );
 };

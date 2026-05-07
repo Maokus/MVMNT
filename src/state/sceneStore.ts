@@ -1735,18 +1735,22 @@ const createSceneStoreState = (
             ...(elementErrors.length > 0 ? { elementErrors } : {}),
             sceneSettings: { ...state.settings },
             macros: buildMacroPayload(state.macros),
-            fontAssets: Object.keys(fontAssets).length ? fontAssets : undefined,
-            fontLicensingAcknowledgedAt: state.fonts.licensingAcknowledgedAt,
-            automation: Object.keys(state.automation.channels).length
+            ...(Object.keys(fontAssets).length ? { fontAssets } : {}),
+            ...(typeof state.fonts.licensingAcknowledgedAt === 'number'
+                ? { fontLicensingAcknowledgedAt: state.fonts.licensingAcknowledgedAt }
+                : {}),
+            ...(Object.keys(state.automation.channels).length
                 ? {
-                      channels: Object.fromEntries(
-                          Object.entries(state.automation.channels).map(([channelId, channel]) => [
-                              channelId,
-                              cloneChannel(channel),
-                          ])
-                      ),
+                      automation: {
+                          channels: Object.fromEntries(
+                              Object.entries(state.automation.channels).map(([channelId, channel]) => [
+                                  channelId,
+                                  cloneChannel(channel),
+                              ])
+                          ),
+                      },
                   }
-                : undefined,
+                : {}),
         };
     },
 

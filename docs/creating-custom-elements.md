@@ -1,6 +1,6 @@
 # Creating Custom Elements
 
-_Last Updated: 14 April 2026_
+_Last Updated: 7 May 2026_
 
 This guide explains how to create custom scene elements for MVMNT using the plugin system.
 
@@ -75,7 +75,7 @@ Here's a complete minimal plugin that renders a colored rectangle:
 
 ```typescript
 // src/plugins/my-plugin/simple-box.ts
-import { SceneElement, asNumber, asTrimmedString, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk';
+import { SceneElement, prop, insertElementGroups, tab, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class SimpleBoxElement extends SceneElement {
@@ -84,55 +84,26 @@ export class SimpleBoxElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const basicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const advancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        
-        return {
-            ...base,
-            name: 'Simple Box',
-            description: 'A colored rectangle element',
-            category: 'Custom',
-            groups: [
-                ...basicGroups,
-                {
+        return insertElementGroups(
+            super.getConfigSchema(),
+            {
+                name: 'Simple Box',
+                description: 'A colored rectangle element',
+                category: 'Custom',
+            },
+            [
+                tab.properties([{
                     id: 'boxAppearance',
                     label: 'Box Appearance',
-                    variant: 'basic',
                     collapsed: false,
                     properties: [
-                        {
-                            key: 'boxWidth',
-                            type: 'number',
-                            label: 'Box Width',
-                            default: 100,
-                            min: 10,
-                            max: 1000,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 100 },
-                        },
-                        {
-                            key: 'boxHeight',
-                            type: 'number',
-                            label: 'Box Height',
-                            default: 100,
-                            min: 10,
-                            max: 1000,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 100 },
-                        },
-                        {
-                            key: 'boxColor',
-                            type: 'colorAlpha',
-                            label: 'Box Color',
-                            default: '#3B82F6FF',
-                            runtime: { transform: asTrimmedString, defaultValue: '#3B82F6FF' },
-                        },
+                        prop.number('boxWidth', 'Box Width', 100, { min: 10, max: 1000, step: 1 }),
+                        prop.number('boxHeight', 'Box Height', 100, { min: 10, max: 1000, step: 1 }),
+                        prop.colorAlpha('boxColor', 'Box Color', '#3B82F6FF'),
                     ],
-                },
-                ...advancedGroups,
-            ],
-        };
+                }]),
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: unknown, _targetTime: number): RenderObject[] {
@@ -232,33 +203,39 @@ The `getConfigSchema()` static method defines the element's configurable propert
 ```typescript
 static override getConfigSchema(): EnhancedConfigSchema {
     const base = super.getConfigSchema();
-    const basicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-    const advancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-    
+
     return {
         ...base,
         name: 'My Element',           // Display name
         description: 'Element desc',  // Description
         category: 'Custom',           // UI category
-        groups: [
-            ...basicGroups,           // Keep base groups
+        tabs: [
             {
-                id: 'myGroup',        // Unique group ID
-                label: 'My Settings', // Group label
-                variant: 'basic',     // 'basic' or 'advanced'
-                collapsed: false,     // Initially collapsed?
-                properties: [
-                    // Property definitions...
-                ],
-                presets: [            // Optional presets
-                    {
-                        id: 'preset1',
-                        label: 'Preset 1',
-                        values: { prop1: 'value1' }
-                    }
-                ]
+                id: 'transform',
+                label: 'Transform',
+                groups: base.tabs[0].groups,
             },
-            ...advancedGroups,
+            {
+                id: 'properties',     // Unique tab ID
+                label: 'Properties',  // Tab label
+                groups: [
+                    {
+                        id: 'mySettings',  // Unique group ID
+                        label: 'My Settings',
+                        collapsed: false,  // Initially collapsed?
+                        properties: [
+                            // Property definitions...
+                        ],
+                        presets: [         // Optional presets
+                            {
+                                id: 'preset1',
+                                label: 'Preset 1',
+                                values: { prop1: 'value1' }
+                            }
+                        ]
+                    },
+                ],
+            },
         ],
     };
 }
@@ -266,10 +243,10 @@ static override getConfigSchema(): EnhancedConfigSchema {
 
 **Property Factory Helpers (Recommended):**
 
-`@mvmnt/plugin-sdk` exports the `prop` object and `insertElementGroups` helper. These reduce boilerplate by pre-filling the `runtime` transform and removing the need to manually split base groups:
+`@mvmnt/plugin-sdk` exports `prop`, `tab`, `section`, `propGroup`, and `insertElementGroups`. These reduce boilerplate by pre-filling the `runtime` transform, keeping the base Transform tab, and grouping your element settings into property-panel tabs:
 
 ```typescript
-import { prop, insertElementGroups } from '@mvmnt/plugin-sdk';
+import { prop, insertElementGroups, tab, section } from '@mvmnt/plugin-sdk';
 
 static override getConfigSchema(): EnhancedConfigSchema {
     return insertElementGroups(super.getConfigSchema(), {
@@ -277,28 +254,28 @@ static override getConfigSchema(): EnhancedConfigSchema {
         description: 'Element description',
         category: 'Custom',
     }, [
-        {
-            id: 'myGroup',
-            label: 'My Settings',
-            variant: 'basic',
-            collapsed: false,
-            properties: [
-                prop.number('size', 'Size', 100, { min: 10, max: 500, step: 1 }),
-                prop.colorAlpha('color', 'Color', '#3B82F6FF'),
+        tab.content([
+            section.content([
+                prop.string('label', 'Label', 'Hello'),
                 prop.boolean('showLabel', 'Show Label', true),
-                prop.select('mode', 'Mode', 'circle', ['circle', 'square']),
                 prop.midiTrack('midiTrackId', 'MIDI Track'),
                 prop.audioTrack('audioTrackId', 'Audio Track'),
-                prop.font('fontFamily', 'Font', 'Inter'),
-                prop.string('label', 'Label', 'Hello'),
                 prop.file('imageFile', 'Image', { accept: 'image/*' }),
-            ],
-        },
+            ]),
+        ]),
+        tab.appearance([
+            section.appearance([
+                prop.number('size', 'Size', 100, { min: 10, max: 500, step: 1 }),
+                prop.colorAlpha('color', 'Color', '#3B82F6FF'),
+                prop.select('mode', 'Mode', 'circle', ['circle', 'square']),
+                prop.font('fontFamily', 'Font', 'Inter'),
+            ]),
+        ]),
     ]);
 }
 ```
 
-`insertElementGroups(base, overrides, pluginGroups)` inserts your groups between the base element's basic and advanced groups automatically.
+`insertElementGroups(base, overrides, pluginTabs)` prepends the base Transform tab automatically. For simple elements, use `tab.properties([...groups])`; for larger elements, split groups into `tab.content`, `tab.appearance`, `tab.grid`, `tab.animation`, `tab.advanced`, or `tab.custom(id, label, groups)`.
 
 Available `prop.*` factories:
 
@@ -370,11 +347,11 @@ A property can be conditionally hidden based on the value of another property us
     default: 2,
     runtime: { transform: asNumber, defaultValue: 2 },
     // Only show when 'mode' is NOT 'minimal'
-    visibleWhen: [{ key: 'mode', falsy: true, value: 'minimal' }],
+    visibleWhen: [{ key: 'mode', notEquals: 'minimal' }],
 },
 ```
 
-Each entry in `visibleWhen` is an AND condition. Use `truthy: true` to show when the referenced property is true/non-empty, `falsy: true` to show when it is false/empty, or supply `value` to compare against a specific value.
+Each entry in `visibleWhen` is an AND condition. Use `equals` / `notEquals` for value comparisons, `truthy: true` to show when the referenced property is true/non-empty, or `falsy: true` to show when it is false/empty. Conditions may reference properties in another tab; the property panel evaluates visibility against the full element value set.
 
 ### Render Methods
 

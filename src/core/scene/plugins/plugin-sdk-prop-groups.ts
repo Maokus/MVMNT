@@ -339,7 +339,7 @@ export function colorSlotProps(
  * `Source → Content → Layout → Appearance → Typography → Border → Container → Effects → Advanced`
  *
  * Each helper takes a flat `PropertyDefinition[]` and returns a `PropertyGroup` with the
- * correct id, label, and `variant`. Use `propGroup.*` factories when the full standard
+ * correct id and label. Use `propGroup.*` factories when the full standard
  * property set is needed; use `section.*` when you want the canonical id/label but with
  * element-specific properties.
  *
@@ -405,12 +405,12 @@ export const section = {
         return { id: 'container', label: 'Background Container', collapsed: true, properties };
     },
 
-    /** Groups shadow, blur, and filter props. Advanced variant, collapsed by default. */
+    /** Groups shadow, blur, and filter props. Collapsed by default. */
     effects(properties: PropertyDefinition[]): PropertyGroup {
         return { id: 'effects', label: 'Effects', collapsed: true, properties };
     },
 
-    /** Catch-all for technical or rarely-changed props. Advanced variant, collapsed by default. */
+    /** Catch-all for technical or rarely-changed props. Collapsed by default. */
     advanced(properties: PropertyDefinition[]): PropertyGroup {
         return { id: 'advanced', label: 'Advanced', collapsed: true, properties };
     },

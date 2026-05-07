@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { FaEllipsisV, FaSearch } from 'react-icons/fa';
 import { PropertyTab } from '@core/types';
 
 export interface OverflowAction {
@@ -54,6 +55,7 @@ const PropertyTabStrip: React.FC<PropertyTabStripProps> = ({
                         key={tab.id}
                         type="button"
                         className={`ae-tab${tab.id === activeTabId ? ' ae-tab--active' : ''}`}
+                        aria-pressed={tab.id === activeTabId}
                         onClick={() => onTabChange(tab.id)}
                     >
                         {tab.label}
@@ -68,11 +70,14 @@ const PropertyTabStrip: React.FC<PropertyTabStripProps> = ({
                             className="ae-overflow-btn"
                             onClick={() => setOverflowOpen((o) => !o)}
                             title="More actions"
+                            aria-label="More property actions"
+                            aria-haspopup="menu"
+                            aria-expanded={overflowOpen}
                         >
-                            ···
+                            <FaEllipsisV aria-hidden="true" />
                         </button>
                         {overflowOpen && (
-                            <div className="ae-overflow-menu">
+                            <div className="ae-overflow-menu" role="menu">
                                 <div className="ae-overflow-options">
                                     {overflowActions!.map((action) => (
                                         <React.Fragment key={action.label}>
@@ -81,6 +86,7 @@ const PropertyTabStrip: React.FC<PropertyTabStripProps> = ({
                                                 type="button"
                                                 className="ae-overflow-option"
                                                 disabled={action.disabled}
+                                                role="menuitem"
                                                 onClick={() => {
                                                     if (!action.disabled) {
                                                         setOverflowOpen(false);
@@ -103,8 +109,9 @@ const PropertyTabStrip: React.FC<PropertyTabStripProps> = ({
                         className="ae-search-btn"
                         onClick={onSearch}
                         title="Search properties (⌘F)"
+                        aria-label="Search properties"
                     >
-                        ⌕
+                        <FaSearch aria-hidden="true" />
                     </button>
                 )}
             </div>

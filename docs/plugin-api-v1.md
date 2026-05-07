@@ -293,15 +293,15 @@ const curve = new FloatCurve([
 const scale = curve.valAt(progress);
 ```
 
-### Property factories (`prop`, `insertElementGroups`)
+### Property factories (`prop`, `tab`, `section`, `propGroup`, `insertElementGroups`)
 
 See [Creating Custom Elements — Property Factory Helpers](creating-custom-elements.md#configuration-schema) for the full reference. Summary:
 
 ```ts
-import { prop, insertElementGroups } from '@mvmnt/plugin-sdk';
+import { prop, tab, section, propGroup, insertElementGroups } from '@mvmnt/plugin-sdk';
 ```
 
-`prop.*` factories build complete `PropertyDefinition` objects with the correct `runtime` transform pre-filled. `insertElementGroups` places your property groups between the base element's basic and advanced groups without boilerplate.
+`prop.*` factories build complete `PropertyDefinition` objects with the correct `runtime` transform pre-filled. `section.*` and `propGroup.*` build reusable property groups. `tab.*` groups those groups into the inspector tabs. `insertElementGroups` prepends the base Transform tab and appends your element-specific tabs without boilerplate.
 
 ### Asset loading (`loadBundledAsset`)
 
