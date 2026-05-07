@@ -76,7 +76,6 @@ export class CCMonitorElement extends SceneElement {
                     {
                         id: 'ccSource',
                         label: 'Source',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             prop.midiTrack('midiTrackId', 'MIDI Track'),
@@ -90,7 +89,6 @@ export class CCMonitorElement extends SceneElement {
                     {
                         id: 'fullMonitorSettings',
                         label: 'Full Monitor Settings',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Recent CC events scroll up and fade out over time.',
                         properties: [
@@ -111,7 +109,6 @@ export class CCMonitorElement extends SceneElement {
                     {
                         id: 'singleCCSettings',
                         label: 'Single CC Settings',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Display the current value of one CC controller.',
                         properties: [
@@ -169,7 +166,6 @@ export class CCMonitorElement extends SceneElement {
                     {
                         id: 'typography',
                         label: 'Typography',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             prop.font('fontFamily', 'Font Family', 'Inter'),

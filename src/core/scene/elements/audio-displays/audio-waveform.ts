@@ -555,7 +555,6 @@ export class AudioWaveformElement extends SceneElement {
                     {
                         id: 'waveform',
                     label: 'Oscilloscope',
-                    variant: 'basic',
                     collapsed: false,
                     properties: [
                         {

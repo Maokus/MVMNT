@@ -1,5 +1,5 @@
 import { asNumber, asBoolean, asString, asTrimmedString } from '@core/scene/elements/base';
-import type { EnhancedConfigSchema, PropertyDefinition, PropertyGroup, PropertyTab, PropertyVisibilityCondition } from '@core/types';
+import type { EnhancedConfigSchema, PropertyDefinition, PropertyTab, PropertyVisibilityCondition } from '@core/types';
 
 // ─── Shared option types ────────────────────────────────────────────────────
 
@@ -315,29 +315,20 @@ export const prop = {
 /**
  * Inserts plugin-specific property tabs into the base element schema.
  *
- * Pass `PropertyTab[]` to supply named tabs. The result will be
- * `[Transform tab, ...pluginTabs]`.
- *
- * Pass `PropertyGroup[]` (legacy compat path) to wrap the groups in a single "Properties" tab.
+ * The result will be `[Transform tab, ...pluginTabs]`.
  *
  * @param base         The schema returned by `super.getConfigSchema()`.
  * @param overrides    Fields to override on the base schema (`name`, `description`, `category`).
- * @param pluginGroups The property groups or tabs specific to this element.
+ * @param pluginTabs   The property tabs specific to this element.
  */
 export function insertElementGroups(
     base: EnhancedConfigSchema,
     overrides: Partial<Pick<EnhancedConfigSchema, 'name' | 'description' | 'category'>>,
-    pluginGroups: PropertyTab[] | PropertyGroup[]
+    pluginTabs: PropertyTab[]
 ): EnhancedConfigSchema {
-    const transformTab = base.tabs[0];
-    const isTabArray = pluginGroups.length === 0 || (pluginGroups[0] as PropertyTab).groups !== undefined;
-    const newTabs: PropertyTab[] = isTabArray
-        ? [transformTab, ...(pluginGroups as PropertyTab[])]
-        : [transformTab, { id: 'properties', label: 'Properties', groups: pluginGroups as PropertyGroup[] }];
     return {
         ...base,
         ...overrides,
-        tabs: newTabs,
-        get groups() { return this.tabs.flatMap((t) => t.groups); },
+        tabs: [base.tabs[0], ...pluginTabs],
     };
 }

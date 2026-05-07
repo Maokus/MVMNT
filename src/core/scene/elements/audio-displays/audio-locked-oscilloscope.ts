@@ -57,7 +57,6 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                     {
                         id: 'lockedOscilloscope',
                         label: 'Waveform',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             {

@@ -2,6 +2,7 @@ import {
     SceneElement,
     prop,
     insertElementGroups,
+    tab,
     resolveProjectAssetDescriptor,
     getPluginHostApi,
     PLUGIN_CAPABILITIES,
@@ -43,31 +44,33 @@ export class BoyfriendElement extends SceneElement {
                 category: 'us.maok.fnf',
             },
             [
-                {
-                    id: 'midiSource',
-                    label: 'MIDI',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.midiTrack('midiTrackId', 'MIDI Track', {
-                            description: 'Track to read notes from. note % 4: 0=LEFT, 1=DOWN, 2=UP, 3=RIGHT.',
-                        }),
-                    ],
-                },
-                {
-                    id: 'atlasSource',
-                    label: 'Sprite',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.sparrowAsset('atlas', 'Override Atlas', {
-                            description: 'Leave empty to use the bundled BOYFRIEND atlas.',
-                        }),
-                        prop.number('scale', 'Scale', 1, { min: 0, step: 0.1 }),
-                        prop.number('debugOriginX', 'Debug Origin X', 0, { min: 0, max: 1, step: 0.1 }),
-                        prop.number('debugOriginY', 'Debug Origin Y', 0, { min: 0, max: 1, step: 0.1 }),
-                    ],
-                },
+                tab.content([
+                    {
+                        id: 'midiSource',
+                        label: 'MIDI',
+                        collapsed: false,
+                        properties: [
+                            prop.midiTrack('midiTrackId', 'MIDI Track', {
+                                description: 'Track to read notes from. note % 4: 0=LEFT, 1=DOWN, 2=UP, 3=RIGHT.',
+                            }),
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    {
+                        id: 'atlasSource',
+                        label: 'Sprite',
+                        collapsed: false,
+                        properties: [
+                            prop.sparrowAsset('atlas', 'Override Atlas', {
+                                description: 'Leave empty to use the bundled BOYFRIEND atlas.',
+                            }),
+                            prop.number('scale', 'Scale', 1, { min: 0, step: 0.1 }),
+                            prop.number('debugOriginX', 'Debug Origin X', 0, { min: 0, max: 1, step: 0.1 }),
+                            prop.number('debugOriginY', 'Debug Origin Y', 0, { min: 0, max: 1, step: 0.1 }),
+                        ],
+                    },
+                ]),
             ]
         );
     }

@@ -30,7 +30,6 @@ export class TextOverlayElement extends SceneElement {
                     {
                         id: 'textContent',
                         label: 'Content',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Edit the copy that appears on screen.',
                         properties: [

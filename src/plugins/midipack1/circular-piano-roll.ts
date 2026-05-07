@@ -6,6 +6,7 @@ import {
     SceneElement,
     prop,
     insertElementGroups,
+    tab,
     Rectangle,
     Text,
     Line,
@@ -16,10 +17,7 @@ import {
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
-import {
-    withAlpha,
-    pushHitEffects,
-} from './piano-roll-effects';
+import { withAlpha, pushHitEffects } from './piano-roll-effects';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Animation / effect constants
@@ -35,11 +33,15 @@ const PULSE_ANIM = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function hslToHex(h: number, s: number, l: number): string {
-    s /= 100; l /= 100;
+    s /= 100;
+    l /= 100;
     const k = (n: number) => (n + h / 30) % 12;
     const a = s * Math.min(l, 1 - l);
     const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-    const hex = (x: number) => Math.round(x * 255).toString(16).padStart(2, '0');
+    const hex = (x: number) =>
+        Math.round(x * 255)
+            .toString(16)
+            .padStart(2, '0');
     return `#${hex(f(0))}${hex(f(8))}${hex(f(4))}`;
 }
 
@@ -55,11 +57,15 @@ function pitchToColor(note: number, saturation: number, lightness: number): stri
 
 /** Draw faint concentric lane separators for the polar piano roll. */
 function drawPolarGrid(
-    cx: number, cy: number,
-    innerRadius: number, outerRadius: number,
-    minNote: number, maxNote: number,
+    cx: number,
+    cy: number,
+    innerRadius: number,
+    outerRadius: number,
+    minNote: number,
+    maxNote: number,
     color: string,
-    arcStart: number, arcEnd: number,
+    arcStart: number,
+    arcEnd: number,
     objects: RenderObject[]
 ): void {
     const totalNotes = maxNote - minNote + 1;
@@ -81,7 +87,7 @@ function drawPolarGrid(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Convert clock-degrees (0 = top, clockwise) to standard math radians. */
-const clockDegToRad = (deg: number) => (deg - 90) * Math.PI / 180;
+const clockDegToRad = (deg: number) => ((deg - 90) * Math.PI) / 180;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Element
@@ -93,168 +99,189 @@ export class CircularPianoRollElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Circular Piano Roll',
-            description: 'Notes travel around a ring and play when they reach the trigger point.',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'midiSource',
-                label: 'MIDI Source',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.midiTrack('midiTrackId', 'MIDI Track'),
-                ],
+                name: 'Circular Piano Roll',
+                description: 'Notes travel around a ring and play when they reach the trigger point.',
             },
-            {
-                id: 'layout',
-                label: 'Layout',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.select('ringMode', 'Mode', 'polar', [
-                        { value: 'ring', label: 'Ring (all notes share one ring)' },
-                        { value: 'polar', label: 'Polar (pitch = radius, like a piano roll)' },
-                    ]),
-                    prop.number('ringRadius', 'Outer Radius (px)', 400, { step: 5 }),
-                    prop.number('ringWidth', 'Ring Width (px)', 20, {
-                        step: 1,
-                        visibleWhen: [{ key: 'ringMode', equals: 'ring' }],
-                    }),
-                    prop.number('innerRadius', 'Inner Radius (px)', 60, {
-                        step: 5,
-                        visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
-                    }),
-                    prop.number('minNote', 'Min MIDI Note', 36, {
-                        min: 0, max: 127, step: 1,
-                        visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
-                    }),
-                    prop.number('maxNote', 'Max MIDI Note', 84, {
-                        min: 0, max: 127, step: 1,
-                        visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
-                    }),
-                    prop.number('polarNoteHeight', 'Note Lane Height (px)', 8, {
-                        step: 1,
-                        visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
-                    }),
-                    prop.number('timeWindowBars', 'Time Window (bars)', 2, { min: 1, max: 16, step: 1 }),
-                    prop.number('startAngle', 'Start Angle (°)', 0, { min: 0, max: 360, step: 1 }),
-                    prop.number('endAngle', 'End Angle (°)', 360, { min: 0, max: 360, step: 1 }),
-                    prop.number('playheadPosition', 'Playhead Position', 0.5, { min: 0, max: 1, step: 0.01 }),
-                ],
-            },
-            {
-                id: 'notes',
-                label: 'Notes',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.select('colorMode', 'Color Mode', 'single', [
-                        { value: 'pitch', label: 'By Pitch (Hue)' },
-                        { value: 'single', label: 'Single Color' },
-                    ]),
-                    prop.colorAlpha('noteColor', 'Note Color', '#FF6B6BCC', {
-                        visibleWhen: [{ key: 'colorMode', equals: 'single' }],
-                    }),
-                    prop.number('pitchSaturation', 'Hue Saturation (%)', 75, {
-                        min: 10, max: 100, step: 1,
-                        visibleWhen: [{ key: 'colorMode', equals: 'pitch' }],
-                    }),
-                    prop.number('pitchLightness', 'Hue Lightness (%)', 60, {
-                        min: 20, max: 85, step: 1,
-                        visibleWhen: [{ key: 'colorMode', equals: 'pitch' }],
-                    }),
-                    prop.number('noteOpacity', 'Note Opacity', 0.85, { min: 0.05, max: 1.0, step: 0.01 }),
-                ],
-            },
-            {
-                id: 'ring',
-                label: 'Ring',
-                variant: 'advanced',
-                collapsed: true,
-                properties: [
-                    prop.boolean('showRing', 'Show Background Ring', false),
-                    prop.colorAlpha('ringColor', 'Ring Color', '#2A2A3A88', {
-                        visibleWhen: [{ key: 'showRing', truthy: true }],
-                    }),
-                    prop.boolean('showPolarGrid', 'Show Pitch Grid Lines', false, {
-                        visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
-                    }),
-                    prop.colorAlpha('polarGridColor', 'Grid Line Color', '#FFFFFF18', {
-                        visibleWhen: [{ key: 'ringMode', equals: 'polar' }, { key: 'showPolarGrid', truthy: true }],
-                    }),
-                    prop.boolean('showTriggerIndicator', 'Show Trigger Indicator', false),
-                    prop.colorAlpha('triggerColor', 'Trigger Color', '#FFFFFFFF', {
-                        visibleWhen: [{ key: 'showTriggerIndicator', truthy: true }],
-                    }),
-                    prop.number('triggerIndicatorLength', 'Trigger Line Length (px)', 30, {
-                        step: 1,
-                        visibleWhen: [{ key: 'showTriggerIndicator', truthy: true }, { key: 'ringMode', equals: 'ring' }],
-                    }),
-                ],
-            },
-            {
-                id: 'marker',
-                label: 'Marker',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Symbol that appears at the trigger point when a note plays.',
-                properties: [
-                    prop.select('markerType', 'Marker', 'none', [
-                        { value: 'diamond', label: 'Diamond' },
-                        { value: 'heart', label: 'Heart' },
-                        { value: 'text', label: 'Text' },
-                        { value: 'none', label: 'No Marker' },
-                    ]),
-                    prop.string('markerText', 'Marker Text', '♪', {
-                        visibleWhen: [{ key: 'markerType', equals: 'text' }],
-                    }),
-                    prop.number('markerSize', 'Marker Size (px)', 22, { step: 1 }),
-                    prop.color('markerColor', 'Marker Color', '#FFFFFF'),
-                    prop.number('markerDuration', 'Marker Duration (s)', 0.4, { min: 0.05, max: 3, step: 0.05 }),
-                ],
-            },
-            {
-                id: 'ripple',
-                label: 'Ripple',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Effect that radiates from the trigger point when a note plays.',
-                properties: [
-                    prop.select('rippleType', 'Ripple', 'none', [
-                        { value: 'burst', label: 'Burst' },
-                        { value: 'circle', label: 'Circle' },
-                        { value: 'none', label: 'No Ripple' },
-                    ]),
-                    prop.number('rippleRadius', 'Ripple Radius (px)', 50, {
-                        step: 1,
-                        visibleWhen: [{ key: 'rippleType', notEquals: 'none' }],
-                    }),
-                    prop.color('rippleColor', 'Ripple Color', '#FFFFFF', {
-                        visibleWhen: [{ key: 'rippleType', notEquals: 'none' }],
-                    }),
-                    prop.number('rippleDuration', 'Ripple Duration (s)', 0.5, {
-                        min: 0.05, max: 3, step: 0.05,
-                        visibleWhen: [{ key: 'rippleType', notEquals: 'none' }],
-                    }),
-                ],
-            },
-            {
-                id: 'animation',
-                label: 'Animation',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Pulse applied to the note arc as it crosses the trigger point.',
-                properties: [
-                    prop.boolean('pulseOnHit', 'Pulse Note on Hit', true),
-                    prop.number('animationDuration', 'Pulse Duration (s)', 0.25, {
-                        min: 0.05, max: 2, step: 0.05,
-                        visibleWhen: [{ key: 'pulseOnHit', truthy: true }],
-                    }),
-                    prop.number('bloomRadius', 'Bloom', 0, { step: 1 }),
-                ],
-            },
-        ]);
+            [
+                tab.content([
+                    {
+                        id: 'midiSource',
+                        label: 'MIDI Source',
+                        collapsed: false,
+                        properties: [prop.midiTrack('midiTrackId', 'MIDI Track')],
+                    },
+                    {
+                        id: 'layout',
+                        label: 'Layout',
+                        collapsed: false,
+                        properties: [
+                            prop.select('ringMode', 'Mode', 'polar', [
+                                { value: 'ring', label: 'Ring (all notes share one ring)' },
+                                { value: 'polar', label: 'Polar (pitch = radius, like a piano roll)' },
+                            ]),
+                            prop.number('ringRadius', 'Outer Radius (px)', 400, { step: 5 }),
+                            prop.number('ringWidth', 'Ring Width (px)', 20, {
+                                step: 1,
+                                visibleWhen: [{ key: 'ringMode', equals: 'ring' }],
+                            }),
+                            prop.number('innerRadius', 'Inner Radius (px)', 60, {
+                                step: 5,
+                                visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
+                            }),
+                            prop.number('minNote', 'Min MIDI Note', 36, {
+                                min: 0,
+                                max: 127,
+                                step: 1,
+                                visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
+                            }),
+                            prop.number('maxNote', 'Max MIDI Note', 84, {
+                                min: 0,
+                                max: 127,
+                                step: 1,
+                                visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
+                            }),
+                            prop.number('polarNoteHeight', 'Note Lane Height (px)', 8, {
+                                step: 1,
+                                visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
+                            }),
+                            prop.number('timeWindowBars', 'Time Window (bars)', 2, { min: 1, max: 16, step: 1 }),
+                            prop.number('startAngle', 'Start Angle (°)', 0, { min: 0, max: 360, step: 1 }),
+                            prop.number('endAngle', 'End Angle (°)', 360, { min: 0, max: 360, step: 1 }),
+                            prop.number('playheadPosition', 'Playhead Position', 0.5, { min: 0, max: 1, step: 0.01 }),
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    {
+                        id: 'notes',
+                        label: 'Notes',
+                        collapsed: false,
+                        properties: [
+                            prop.select('colorMode', 'Color Mode', 'single', [
+                                { value: 'pitch', label: 'By Pitch (Hue)' },
+                                { value: 'single', label: 'Single Color' },
+                            ]),
+                            prop.colorAlpha('noteColor', 'Note Color', '#FF6B6BCC', {
+                                visibleWhen: [{ key: 'colorMode', equals: 'single' }],
+                            }),
+                            prop.number('pitchSaturation', 'Hue Saturation (%)', 75, {
+                                min: 10,
+                                max: 100,
+                                step: 1,
+                                visibleWhen: [{ key: 'colorMode', equals: 'pitch' }],
+                            }),
+                            prop.number('pitchLightness', 'Hue Lightness (%)', 60, {
+                                min: 20,
+                                max: 85,
+                                step: 1,
+                                visibleWhen: [{ key: 'colorMode', equals: 'pitch' }],
+                            }),
+                            prop.number('noteOpacity', 'Note Opacity', 0.85, { min: 0.05, max: 1.0, step: 0.01 }),
+                        ],
+                    },
+                    {
+                        id: 'ring',
+                        label: 'Ring',
+                        collapsed: true,
+                        properties: [
+                            prop.boolean('showRing', 'Show Background Ring', false),
+                            prop.colorAlpha('ringColor', 'Ring Color', '#2A2A3A88', {
+                                visibleWhen: [{ key: 'showRing', truthy: true }],
+                            }),
+                            prop.boolean('showPolarGrid', 'Show Pitch Grid Lines', false, {
+                                visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
+                            }),
+                            prop.colorAlpha('polarGridColor', 'Grid Line Color', '#FFFFFF18', {
+                                visibleWhen: [
+                                    { key: 'ringMode', equals: 'polar' },
+                                    { key: 'showPolarGrid', truthy: true },
+                                ],
+                            }),
+                            prop.boolean('showTriggerIndicator', 'Show Trigger Indicator', false),
+                            prop.colorAlpha('triggerColor', 'Trigger Color', '#FFFFFFFF', {
+                                visibleWhen: [{ key: 'showTriggerIndicator', truthy: true }],
+                            }),
+                            prop.number('triggerIndicatorLength', 'Trigger Line Length (px)', 30, {
+                                step: 1,
+                                visibleWhen: [
+                                    { key: 'showTriggerIndicator', truthy: true },
+                                    { key: 'ringMode', equals: 'ring' },
+                                ],
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'marker',
+                        label: 'Marker',
+                        collapsed: false,
+                        description: 'Symbol that appears at the trigger point when a note plays.',
+                        properties: [
+                            prop.select('markerType', 'Marker', 'none', [
+                                { value: 'diamond', label: 'Diamond' },
+                                { value: 'heart', label: 'Heart' },
+                                { value: 'text', label: 'Text' },
+                                { value: 'none', label: 'No Marker' },
+                            ]),
+                            prop.string('markerText', 'Marker Text', '♪', {
+                                visibleWhen: [{ key: 'markerType', equals: 'text' }],
+                            }),
+                            prop.number('markerSize', 'Marker Size (px)', 22, { step: 1 }),
+                            prop.color('markerColor', 'Marker Color', '#FFFFFF'),
+                            prop.number('markerDuration', 'Marker Duration (s)', 0.4, {
+                                min: 0.05,
+                                max: 3,
+                                step: 0.05,
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'ripple',
+                        label: 'Ripple',
+                        collapsed: false,
+                        description: 'Effect that radiates from the trigger point when a note plays.',
+                        properties: [
+                            prop.select('rippleType', 'Ripple', 'none', [
+                                { value: 'burst', label: 'Burst' },
+                                { value: 'circle', label: 'Circle' },
+                                { value: 'none', label: 'No Ripple' },
+                            ]),
+                            prop.number('rippleRadius', 'Ripple Radius (px)', 50, {
+                                step: 1,
+                                visibleWhen: [{ key: 'rippleType', notEquals: 'none' }],
+                            }),
+                            prop.color('rippleColor', 'Ripple Color', '#FFFFFF', {
+                                visibleWhen: [{ key: 'rippleType', notEquals: 'none' }],
+                            }),
+                            prop.number('rippleDuration', 'Ripple Duration (s)', 0.5, {
+                                min: 0.05,
+                                max: 3,
+                                step: 0.05,
+                                visibleWhen: [{ key: 'rippleType', notEquals: 'none' }],
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'animation',
+                        label: 'Animation',
+                        collapsed: false,
+                        description: 'Pulse applied to the note arc as it crosses the trigger point.',
+                        properties: [
+                            prop.boolean('pulseOnHit', 'Pulse Note on Hit', true),
+                            prop.number('animationDuration', 'Pulse Duration (s)', 0.25, {
+                                min: 0.05,
+                                max: 2,
+                                step: 0.05,
+                                visibleWhen: [{ key: 'pulseOnHit', truthy: true }],
+                            }),
+                            prop.number('bloomRadius', 'Bloom', 0, { step: 1 }),
+                        ],
+                    },
+                ]),
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
@@ -293,9 +320,9 @@ export class CircularPianoRollElement extends SceneElement {
         const endAngleDeg = (p.endAngle as number) ?? 360;
         const playheadPosition = Math.max(0, Math.min(1, (p.playheadPosition as number) ?? 0.5));
         const startAngleRad = clockDegToRad(startAngleDeg);
-        let arcSpanDeg = ((endAngleDeg - startAngleDeg) % 360 + 360) % 360;
+        let arcSpanDeg = (((endAngleDeg - startAngleDeg) % 360) + 360) % 360;
         if (arcSpanDeg === 0) arcSpanDeg = 360; // equal start/end = full circle
-        const arcSpanRad = arcSpanDeg * Math.PI / 180;
+        const arcSpanRad = (arcSpanDeg * Math.PI) / 180;
         const endAngleRad = startAngleRad + arcSpanRad;
         const triggerAngle = startAngleRad + playheadPosition * arcSpanRad;
 
@@ -331,7 +358,6 @@ export class CircularPianoRollElement extends SceneElement {
         const cx = 0;
         const cy = 0;
 
-
         // ── Query notes ──────────────────────────────────────────────────────
         const queryStart = targetTime - timeWindowDuration;
         const queryEnd = targetTime + timeWindowDuration;
@@ -343,8 +369,7 @@ export class CircularPianoRollElement extends SceneElement {
         });
 
         // ── Time → angle ─────────────────────────────────────────────────────
-        const timeToAngle = (t: number) =>
-            triggerAngle + ((t - targetTime) / timeWindowDuration) * arcSpanRad;
+        const timeToAngle = (t: number) => triggerAngle + ((t - targetTime) / timeWindowDuration) * arcSpanRad;
 
         const effects: RenderObject[] = [];
 
@@ -368,7 +393,7 @@ export class CircularPianoRollElement extends SceneElement {
 
             for (const n of notes) {
                 const startTime = n.startTime;
-                const endTime = n.endTime ?? (startTime + 0.25);
+                const endTime = n.endTime ?? startTime + 0.25;
                 const timeSinceHit = targetTime - startTime;
 
                 let baseColor: string;
@@ -406,8 +431,15 @@ export class CircularPianoRollElement extends SceneElement {
 
                 if (timeSinceHit >= 0) {
                     pushHitEffects(effects, triggerX, triggerY, timeSinceHit, {
-                        markerType, markerText, markerSize, markerColor, markerDuration,
-                        rippleType, rippleRadius, rippleColor, rippleDuration,
+                        markerType,
+                        markerText,
+                        markerSize,
+                        markerColor,
+                        markerDuration,
+                        rippleType,
+                        rippleRadius,
+                        rippleColor,
+                        rippleDuration,
                         circleRippleConfig: { startFraction: 0.05 },
                     });
                 }
@@ -421,7 +453,14 @@ export class CircularPianoRollElement extends SceneElement {
                 const sin = Math.sin(triggerAngle);
                 const innerR = ringRadius - ringWidth / 2 - 4;
                 const outerR = ringRadius + ringWidth / 2 + triggerIndicatorLength;
-                const ind = new Line(cx + cos * innerR, cy + sin * innerR, cx + cos * outerR, cy + sin * outerR, triggerColor, 2);
+                const ind = new Line(
+                    cx + cos * innerR,
+                    cy + sin * innerR,
+                    cx + cos * outerR,
+                    cy + sin * outerR,
+                    triggerColor,
+                    2
+                );
                 (ind as any).setIncludeInLayoutBounds?.(false);
                 objects.push(ind);
             }
@@ -439,8 +478,7 @@ export class CircularPianoRollElement extends SceneElement {
             const laneHeight = radialSpan / totalNotes;
 
             // Note's centre radius (analogous to lane centre Y in cartesian roll)
-            const radiusFromNote = (note: number) =>
-                innerRadius + (note - minNote + 0.5) * laneHeight;
+            const radiusFromNote = (note: number) => innerRadius + (note - minNote + 0.5) * laneHeight;
 
             // Background fill ring (partial annulus)
             if (showRing) {
@@ -457,7 +495,18 @@ export class CircularPianoRollElement extends SceneElement {
 
             // Pitch grid lines (concentric arcs at lane boundaries)
             if (showPolarGrid) {
-                drawPolarGrid(cx, cy, innerRadius, ringRadius, minNote, maxNote, polarGridColor, startAngleRad, endAngleRad, objects);
+                drawPolarGrid(
+                    cx,
+                    cy,
+                    innerRadius,
+                    ringRadius,
+                    minNote,
+                    maxNote,
+                    polarGridColor,
+                    startAngleRad,
+                    endAngleRad,
+                    objects
+                );
             }
 
             // Trigger radial line from inner to outer radius
@@ -471,7 +520,7 @@ export class CircularPianoRollElement extends SceneElement {
                 if (noteIdx < 0 || noteIdx >= totalNotes) continue;
 
                 const startTime = n.startTime;
-                const endTime = n.endTime ?? (startTime + 0.25);
+                const endTime = n.endTime ?? startTime + 0.25;
                 const timeSinceHit = targetTime - startTime;
 
                 let baseColor: string;
@@ -517,8 +566,15 @@ export class CircularPianoRollElement extends SceneElement {
                     const hitY = cy + noteRadius * Math.sin(triggerAngle);
 
                     pushHitEffects(effects, hitX, hitY, timeSinceHit, {
-                        markerType, markerText, markerSize, markerColor, markerDuration,
-                        rippleType, rippleRadius, rippleColor, rippleDuration,
+                        markerType,
+                        markerText,
+                        markerSize,
+                        markerColor,
+                        markerDuration,
+                        rippleType,
+                        rippleRadius,
+                        rippleColor,
+                        rippleDuration,
                         circleRippleConfig: { startFraction: 0.05 },
                     });
                 }

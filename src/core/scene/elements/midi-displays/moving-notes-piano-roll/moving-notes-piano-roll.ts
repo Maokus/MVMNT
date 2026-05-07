@@ -114,7 +114,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     {
                         id: 'dimensions',
                         label: 'Layout & Range',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Configure viewport width, time window, and pitch range.',
                         properties: [
@@ -155,7 +154,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     {
                         id: 'notes',
                         label: 'Notes',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Control how notes are drawn as they move past the playhead.',
                         properties: [
@@ -276,7 +274,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     {
                         id: 'piano',
                         label: 'Piano',
-                        variant: 'advanced',
                         collapsed: true,
                         description: 'Optional static keyboard rendered alongside the roll.',
                         properties: [
@@ -336,7 +333,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     {
                         id: 'animation',
                         label: 'Animation',
-                        variant: 'advanced',
                         collapsed: true,
                         description: 'Choose how notes animate when triggered.',
                         properties: [
@@ -399,7 +395,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     {
                         id: 'playhead',
                         label: 'Playhead',
-                        variant: 'advanced',
                         collapsed: true,
                         description: 'Style the static playhead indicator.',
                         properties: [

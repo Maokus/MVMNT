@@ -21,7 +21,6 @@ export class BasicShapeElement extends SceneElement {
                     {
                         id: 'shapeAppearance',
                         label: 'Shape',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Configure the shape appearance',
                         properties: [

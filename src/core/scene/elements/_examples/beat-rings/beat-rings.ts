@@ -47,7 +47,6 @@ export class BeatRingsElement extends SceneElement {
                     {
                         id: 'audio',
                         label: 'Audio',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             prop.audioTrack('audioTrackId', 'Audio Track', {
@@ -72,7 +71,6 @@ export class BeatRingsElement extends SceneElement {
                     {
                         id: 'appearance',
                         label: 'Appearance',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             prop.colorAlpha('ringColor', 'Ring Color', '#818CF8FF'),

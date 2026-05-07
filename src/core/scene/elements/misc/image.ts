@@ -38,7 +38,6 @@ export class ImageElement extends SceneElement {
                     {
                         id: 'imageSource',
                         label: 'Image Source',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Pick the artwork and playback speed for animated assets.',
                         properties: [
@@ -49,7 +48,6 @@ export class ImageElement extends SceneElement {
                     {
                         id: 'imageLayout',
                         label: 'Layout',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Size and crop behaviour for the image frame.',
                         properties: [

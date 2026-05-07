@@ -55,7 +55,6 @@ export class AudioVolumeMeterElement extends SceneElement {
                     {
                         id: 'volumeMeter',
                         label: 'Volume Meter',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             {

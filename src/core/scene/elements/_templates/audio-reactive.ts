@@ -37,7 +37,6 @@ export class AudioReactiveElement extends SceneElement {
                     {
                         id: 'audioSource',
                         label: 'Audio Source',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             prop.audioTrack('audioTrackId', 'Audio Track', { description: 'Audio track to analyze' }),
@@ -54,7 +53,6 @@ export class AudioReactiveElement extends SceneElement {
                     {
                         id: 'reactiveAppearance',
                         label: 'Appearance',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             prop.number('baseSize', 'Base Size', 50, {

@@ -31,7 +31,6 @@ export class TextDisplayElement extends SceneElement {
                     {
                         id: 'textContent',
                         label: 'Text Content',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             prop.string('textContent', 'Text', 'Hello World', { description: 'Text to display' }),
@@ -49,7 +48,6 @@ export class TextDisplayElement extends SceneElement {
                     {
                         id: 'textFormatting',
                         label: 'Formatting',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             prop.colorAlpha('textColor', 'Text Color', '#FFFFFFFF'),

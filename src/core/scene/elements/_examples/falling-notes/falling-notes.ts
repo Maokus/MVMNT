@@ -45,7 +45,6 @@ export class FallingNotesElement extends SceneElement {
                     {
                         id: 'midiSource',
                         label: 'MIDI Source',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             prop.midiTrack('midiTrackId', 'MIDI Track', {
@@ -62,7 +61,6 @@ export class FallingNotesElement extends SceneElement {
                     {
                         id: 'layout',
                         label: 'Layout',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             prop.number('width', 'Width', 600, { step: 10 }),

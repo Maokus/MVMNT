@@ -213,7 +213,6 @@ export class AudioSpectrumElement extends SceneElement {
                     {
                         id: 'spectrum',
                         label: 'Spectrum',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             {
@@ -305,7 +304,6 @@ export class AudioSpectrumElement extends SceneElement {
                     {
                         id: 'appearance',
                         label: 'Appearance',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             prop.color('color', 'Color', DEFAULT_BAR_COLOR),

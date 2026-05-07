@@ -46,7 +46,6 @@ export class BundledImageElement extends SceneElement {
                     {
                         id: 'imageSource',
                         label: 'Image',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             prop.imageAsset('imageSource', 'Override Image', {

@@ -1,4 +1,12 @@
-import { SceneElement, prop, insertElementGroups, Rectangle, ClipLayer, type RenderObject } from '@mvmnt/plugin-sdk';
+import {
+    SceneElement,
+    prop,
+    insertElementGroups,
+    tab,
+    Rectangle,
+    ClipLayer,
+    type RenderObject,
+} from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class CheckersPatternElement extends SceneElement {
@@ -7,42 +15,73 @@ export class CheckersPatternElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Checkers Pattern',
-            description: 'A scrolling checkerboard background pattern',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'checkerAppearance',
-                label: 'Appearance',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Checkerboard colors and square size',
-                properties: [
-                    prop.number('patternWidth', 'Width', 640, { step: 1 }),
-                    prop.number('patternHeight', 'Height', 360, { step: 1 }),
-                    prop.number('squareWidth', 'Square Width', 80, { step: 1 }),
-                    prop.number('squareHeight', 'Square Height', 80, { step: 1 }),
-                    prop.colorAlpha('color1', 'Color 1', '#222222FF'),
-                    prop.colorAlpha('color2', 'Color 2', '#444444FF'),
-                ],
-                presets: [
-                    { id: 'blackWhite', label: 'Black & White', values: { patternWidth: 640, patternHeight: 360, squareWidth: 80, squareHeight: 80, color1: '#000000FF', color2: '#FFFFFFFF' } },
-                    { id: 'blueGold', label: 'Blue & Gold', values: { patternWidth: 640, patternHeight: 360, squareWidth: 60, squareHeight: 60, color1: '#1E3A8AFF', color2: '#F59E0BFF' } },
-                ],
+                name: 'Checkers Pattern',
+                description: 'A scrolling checkerboard background pattern',
             },
-            {
-                id: 'checkerMotion',
-                label: 'Motion',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Pan direction and speed',
-                properties: [
-                    prop.number('motionAngle', 'Motion Angle (deg)', 0, { min: 0, max: 360, step: 1, description: '0 = right, 90 = down' }),
-                    prop.number('motionSpeed', 'Motion Speed (px/s)', 60, { step: 1 }),
-                ],
-                presets: [],
-            },
-        ]);
+            [
+                tab.appearance([
+                    {
+                        id: 'checkerAppearance',
+                        label: 'Appearance',
+                        collapsed: false,
+                        description: 'Checkerboard colors and square size',
+                        properties: [
+                            prop.number('patternWidth', 'Width', 640, { step: 1 }),
+                            prop.number('patternHeight', 'Height', 360, { step: 1 }),
+                            prop.number('squareWidth', 'Square Width', 80, { step: 1 }),
+                            prop.number('squareHeight', 'Square Height', 80, { step: 1 }),
+                            prop.colorAlpha('color1', 'Color 1', '#222222FF'),
+                            prop.colorAlpha('color2', 'Color 2', '#444444FF'),
+                        ],
+                        presets: [
+                            {
+                                id: 'blackWhite',
+                                label: 'Black & White',
+                                values: {
+                                    patternWidth: 640,
+                                    patternHeight: 360,
+                                    squareWidth: 80,
+                                    squareHeight: 80,
+                                    color1: '#000000FF',
+                                    color2: '#FFFFFFFF',
+                                },
+                            },
+                            {
+                                id: 'blueGold',
+                                label: 'Blue & Gold',
+                                values: {
+                                    patternWidth: 640,
+                                    patternHeight: 360,
+                                    squareWidth: 60,
+                                    squareHeight: 60,
+                                    color1: '#1E3A8AFF',
+                                    color2: '#F59E0BFF',
+                                },
+                            },
+                        ],
+                    },
+                    {
+                        id: 'checkerMotion',
+                        label: 'Motion',
+                        collapsed: false,
+                        description: 'Pan direction and speed',
+                        properties: [
+                            prop.number('motionAngle', 'Motion Angle (deg)', 0, {
+                                min: 0,
+                                max: 360,
+                                step: 1,
+                                description: '0 = right, 90 = down',
+                            }),
+                            prop.number('motionSpeed', 'Motion Speed (px/s)', 60, { step: 1 }),
+                        ],
+                        presets: [],
+                    },
+                ]),
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: unknown, _targetTime: number): RenderObject[] {

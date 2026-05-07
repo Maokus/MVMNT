@@ -25,7 +25,6 @@ export class BasicShapesElement extends SceneElement {
                     {
                         id: 'shapeType',
                         label: 'Shape',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Choose which primitive shape to render.',
                         properties: [
@@ -53,7 +52,6 @@ export class BasicShapesElement extends SceneElement {
                     {
                         id: 'shapeStroke',
                         label: 'Stroke',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Outline, dashing, and line cap for the shape.',
                         properties: [
@@ -130,7 +128,6 @@ export class BasicShapesElement extends SceneElement {
                     {
                         id: 'shapeSize',
                         label: 'Size',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Dimensions for the selected shape.',
                         properties: [

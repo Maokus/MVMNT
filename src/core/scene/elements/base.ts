@@ -946,9 +946,6 @@ export class SceneElement implements SceneElementInterface {
                     ],
                 },
             ],
-            get groups() {
-                return this.tabs.flatMap((t) => t.groups);
-            },
         };
     }
 

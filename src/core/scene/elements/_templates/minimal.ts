@@ -22,7 +22,6 @@ export class MinimalElement extends SceneElement {
                     {
                         id: 'appearance',
                         label: 'Appearance',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             prop.colorAlpha('color', 'Color', '#3B82F6FF'),

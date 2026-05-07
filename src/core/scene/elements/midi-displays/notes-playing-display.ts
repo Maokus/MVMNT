@@ -27,7 +27,6 @@ export class NotesPlayingDisplayElement extends SceneElement {
                     {
                         id: 'midiSource',
                         label: 'Source',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Select which MIDI track(s) feed the live note readout.',
                         properties: [
@@ -49,7 +48,6 @@ export class NotesPlayingDisplayElement extends SceneElement {
                     {
                         id: 'typography',
                         label: 'Typography',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Tweak alignment and spacing for the note list.',
                         properties: [

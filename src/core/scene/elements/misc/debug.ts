@@ -28,7 +28,6 @@ export class DebugElement extends SceneElement {
                     {
                         id: 'debugSettings',
                         label: 'Debug Tools',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Toggle helper visuals for layout debugging.',
                         properties: [

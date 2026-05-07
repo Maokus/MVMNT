@@ -124,7 +124,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     {
                         id: 'dimensions',
                         label: 'Layout & Range',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Configure viewport width, time window, and pitch range.',
                         properties: [
@@ -157,7 +156,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     {
                         id: 'notes',
                         label: 'Notes',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Control how note blocks render within the window.',
                         properties: [
@@ -270,7 +268,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     {
                         id: 'noteGrid',
                         label: 'Note Grid',
-                        variant: 'advanced',
                         collapsed: true,
                         description: 'Horizontal grid lines for pitch reference.',
                         properties: [
@@ -318,7 +315,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     {
                         id: 'beatGrid',
                         label: 'Beat Grid',
-                        variant: 'advanced',
                         collapsed: true,
                         description: 'Vertical grid lines for beats and bars.',
                         properties: [
@@ -370,7 +366,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     {
                         id: 'piano',
                         label: 'Piano',
-                        variant: 'advanced',
                         collapsed: true,
                         description: 'Optional static keyboard rendered alongside the roll.',
                         properties: [
@@ -430,7 +425,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     {
                         id: 'noteLabels',
                         label: 'Note Labels',
-                        variant: 'advanced',
                         collapsed: true,
                         description: 'Configure note name overlays along the piano.',
                         properties: [
@@ -495,7 +489,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     {
                         id: 'beatLabels',
                         label: 'Beat & Bar Labels',
-                        variant: 'advanced',
                         collapsed: true,
                         description: 'Configure beat/bar text above the grid.',
                         properties: [
@@ -548,7 +541,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     {
                         id: 'animation',
                         label: 'Animation',
-                        variant: 'advanced',
                         collapsed: true,
                         description: 'Choose how notes animate when they enter or exit the window.',
                         properties: [
@@ -596,7 +588,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     {
                         id: 'playhead',
                         label: 'Playhead',
-                        variant: 'advanced',
                         collapsed: true,
                         description: 'Style the static playhead indicator.',
                         properties: [

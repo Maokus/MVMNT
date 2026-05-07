@@ -5,6 +5,7 @@ import {
     SceneElement,
     prop,
     insertElementGroups,
+    tab,
     Rectangle,
     Text,
     Line,
@@ -14,11 +15,7 @@ import {
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
-import {
-    pushHitEffects,
-    getPressTransform,
-    getPluckTransform,
-} from './piano-roll-effects';
+import { pushHitEffects, getPressTransform, getPluckTransform } from './piano-roll-effects';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Element
@@ -30,143 +27,156 @@ export class AlmamlikePianoRollElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Almamlike Piano Roll',
-            description: 'Notes scroll right-to-left; markers and ripples trigger when a note crosses the playhead.',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'midiSource',
-                label: 'MIDI Source',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.midiTrack('midiTrackId', 'MIDI Track'),
-                ],
+                name: 'Almamlike Piano Roll',
+                description:
+                    'Notes scroll right-to-left; markers and ripples trigger when a note crosses the playhead.',
             },
-            {
-                id: 'layout',
-                label: 'Layout & Range',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.number('rollWidth', 'Roll Width (px)', 1200, { step: 10 }),
-                    prop.number('timeUnitBars', 'Time Window (bars)', 2, { min: 1, max: 8, step: 1 }),
-                    prop.number('minNote', 'Min MIDI Note', 30, { min: 0, max: 127, step: 1 }),
-                    prop.number('maxNote', 'Max MIDI Note', 72, { min: 0, max: 127, step: 1 }),
-                    prop.number('noteHeight', 'Note Height (px)', 20, { step: 1 }),
-                    prop.number('playheadPosition', 'Playhead Position (0–1)', 0.25, { min: 0, max: 1, step: 0.01 }),
-                ],
-            },
-            {
-                id: 'notes',
-                label: 'Notes',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.colorAlpha('noteColor', 'Note Color', '#FFFFFFFF'),
-                    prop.number('noteCornerRadius', 'Corner Radius (px)', 2, { step: 1 }),
-                ],
-            },
-            {
-                id: 'playhead',
-                label: 'Playhead',
-                variant: 'advanced',
-                collapsed: true,
-                properties: [
-                    prop.boolean('showPlayhead', 'Show Playhead', false),
-                    prop.colorAlpha('playheadColor', 'Playhead Color', '#FFFFFFFF', {
-                        visibleWhen: [{ key: 'showPlayhead', truthy: true }],
-                    }),
-                    prop.number('playheadLineWidth', 'Playhead Width (px)', 2, {
-                        step: 1,
-                        visibleWhen: [{ key: 'showPlayhead', truthy: true }],
-                    }),
-                ],
-            },
-            {
-                id: 'marker',
-                label: 'Marker',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Symbol that appears at the playhead when a note is hit.',
-                properties: [
-                    prop.select('markerType', 'Marker', 'diamond', [
-                        { value: 'diamond', label: 'Diamond' },
-                        { value: 'heart', label: 'Heart' },
-                        { value: 'text', label: 'Text' },
-                        { value: 'none', label: 'No Marker' },
-                    ]),
-                    prop.string('markerText', 'Marker Text', '♪', {
-                        visibleWhen: [{ key: 'markerType', equals: 'text' }],
-                    }),
-                    prop.number('markerSize', 'Marker Size (px)', 40, { step: 1 }),
-                    prop.color('markerColor', 'Marker Color', '#FFFFFF'),
-                    prop.number('markerDuration', 'Marker Duration (s)', 0.5, { min: 0.05, max: 3, step: 0.05 }),
-                ],
-            },
-            {
-                id: 'ripple',
-                label: 'Ripple',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Effect that emanates from the playhead when a note is hit.',
-                properties: [
-                    prop.select('rippleType', 'Ripple', 'circle', [
-                        { value: 'burst', label: 'Burst' },
-                        { value: 'circle', label: 'Circle' },
-                        { value: 'none', label: 'No Ripple' },
-                    ]),
-                    prop.number('rippleRadius', 'Ripple Radius (px)', 70, {
-                        step: 1,
-                        visibleWhen: [{ key: 'rippleType', notEquals: 'none' }],
-                    }),
-                    prop.color('rippleColor', 'Ripple Color', '#FFFFFF', {
-                        visibleWhen: [{ key: 'rippleType', notEquals: 'none' }],
-                    }),
-                    prop.number('rippleDuration', 'Ripple Duration (s)', 0.5, {
-                        min: 0.05, max: 3, step: 0.05,
-                        visibleWhen: [{ key: 'rippleType', notEquals: 'none' }],
-                    }),
-                ],
-            },
-            {
-                id: 'animation',
-                label: 'Animation',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Animation played on the note itself when it crosses the playhead.',
-                properties: [
-                    prop.select('animationType', 'Animation', 'press', [
-                        { value: 'press', label: 'Press' },
-                        { value: 'pluck', label: 'Pluck' },
-                        { value: 'none', label: 'No Animation' },
-                    ]),
-                    prop.number('animationDuration', 'Animation Duration (s)', 0.3, {
-                        min: 0.05, max: 2, step: 0.05,
-                        visibleWhen: [{ key: 'animationType', notEquals: 'none' }],
-                    }),
-                    prop.number('bloomRadius', 'Bloom', 0, { step: 1 }),
-                ],
-            },
-            {
-                id: 'shake',
-                label: 'Shake',
-                variant: 'basic',
-                collapsed: true,
-                description: 'Camera shake and zoom that triggers when a note crosses the playhead.',
-                properties: [
-                    prop.boolean('enableShake', 'Enable Shake', false),
-                    prop.number('zoomIntensity', 'Zoom Intensity', 5, {
-                        step: 0.5,
-                        visibleWhen: [{ key: 'enableShake', truthy: true }],
-                    }),
-                    prop.number('shakeIntensity', 'Shake Intensity', 8, {
-                        step: 0.5,
-                        visibleWhen: [{ key: 'enableShake', truthy: true }],
-                    }),
-                ],
-            },
-        ]);
+            [
+                tab.content([
+                    {
+                        id: 'midiSource',
+                        label: 'MIDI Source',
+                        collapsed: false,
+                        properties: [prop.midiTrack('midiTrackId', 'MIDI Track')],
+                    },
+                    {
+                        id: 'layout',
+                        label: 'Layout & Range',
+                        collapsed: false,
+                        properties: [
+                            prop.number('rollWidth', 'Roll Width (px)', 1200, { step: 10 }),
+                            prop.number('timeUnitBars', 'Time Window (bars)', 2, { min: 1, max: 8, step: 1 }),
+                            prop.number('minNote', 'Min MIDI Note', 30, { min: 0, max: 127, step: 1 }),
+                            prop.number('maxNote', 'Max MIDI Note', 72, { min: 0, max: 127, step: 1 }),
+                            prop.number('noteHeight', 'Note Height (px)', 20, { step: 1 }),
+                            prop.number('playheadPosition', 'Playhead Position (0–1)', 0.25, {
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                            }),
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    {
+                        id: 'notes',
+                        label: 'Notes',
+                        collapsed: false,
+                        properties: [
+                            prop.colorAlpha('noteColor', 'Note Color', '#FFFFFFFF'),
+                            prop.number('noteCornerRadius', 'Corner Radius (px)', 2, { step: 1 }),
+                        ],
+                    },
+                    {
+                        id: 'playhead',
+                        label: 'Playhead',
+                        collapsed: true,
+                        properties: [
+                            prop.boolean('showPlayhead', 'Show Playhead', false),
+                            prop.colorAlpha('playheadColor', 'Playhead Color', '#FFFFFFFF', {
+                                visibleWhen: [{ key: 'showPlayhead', truthy: true }],
+                            }),
+                            prop.number('playheadLineWidth', 'Playhead Width (px)', 2, {
+                                step: 1,
+                                visibleWhen: [{ key: 'showPlayhead', truthy: true }],
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'marker',
+                        label: 'Marker',
+                        collapsed: false,
+                        description: 'Symbol that appears at the playhead when a note is hit.',
+                        properties: [
+                            prop.select('markerType', 'Marker', 'diamond', [
+                                { value: 'diamond', label: 'Diamond' },
+                                { value: 'heart', label: 'Heart' },
+                                { value: 'text', label: 'Text' },
+                                { value: 'none', label: 'No Marker' },
+                            ]),
+                            prop.string('markerText', 'Marker Text', '♪', {
+                                visibleWhen: [{ key: 'markerType', equals: 'text' }],
+                            }),
+                            prop.number('markerSize', 'Marker Size (px)', 40, { step: 1 }),
+                            prop.color('markerColor', 'Marker Color', '#FFFFFF'),
+                            prop.number('markerDuration', 'Marker Duration (s)', 0.5, {
+                                min: 0.05,
+                                max: 3,
+                                step: 0.05,
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'ripple',
+                        label: 'Ripple',
+                        collapsed: false,
+                        description: 'Effect that emanates from the playhead when a note is hit.',
+                        properties: [
+                            prop.select('rippleType', 'Ripple', 'circle', [
+                                { value: 'burst', label: 'Burst' },
+                                { value: 'circle', label: 'Circle' },
+                                { value: 'none', label: 'No Ripple' },
+                            ]),
+                            prop.number('rippleRadius', 'Ripple Radius (px)', 70, {
+                                step: 1,
+                                visibleWhen: [{ key: 'rippleType', notEquals: 'none' }],
+                            }),
+                            prop.color('rippleColor', 'Ripple Color', '#FFFFFF', {
+                                visibleWhen: [{ key: 'rippleType', notEquals: 'none' }],
+                            }),
+                            prop.number('rippleDuration', 'Ripple Duration (s)', 0.5, {
+                                min: 0.05,
+                                max: 3,
+                                step: 0.05,
+                                visibleWhen: [{ key: 'rippleType', notEquals: 'none' }],
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'animation',
+                        label: 'Animation',
+                        collapsed: false,
+                        description: 'Animation played on the note itself when it crosses the playhead.',
+                        properties: [
+                            prop.select('animationType', 'Animation', 'press', [
+                                { value: 'press', label: 'Press' },
+                                { value: 'pluck', label: 'Pluck' },
+                                { value: 'none', label: 'No Animation' },
+                            ]),
+                            prop.number('animationDuration', 'Animation Duration (s)', 0.3, {
+                                min: 0.05,
+                                max: 2,
+                                step: 0.05,
+                                visibleWhen: [{ key: 'animationType', notEquals: 'none' }],
+                            }),
+                            prop.number('bloomRadius', 'Bloom', 0, { step: 1 }),
+                        ],
+                    },
+                ]),
+                tab.advanced([
+                    {
+                        id: 'shake',
+                        label: 'Shake',
+                        collapsed: true,
+                        description: 'Camera shake and zoom that triggers when a note crosses the playhead.',
+                        properties: [
+                            prop.boolean('enableShake', 'Enable Shake', false),
+                            prop.number('zoomIntensity', 'Zoom Intensity', 5, {
+                                step: 0.5,
+                                visibleWhen: [{ key: 'enableShake', truthy: true }],
+                            }),
+                            prop.number('shakeIntensity', 'Shake Intensity', 8, {
+                                step: 0.5,
+                                visibleWhen: [{ key: 'enableShake', truthy: true }],
+                            }),
+                        ],
+                    },
+                ]),
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
@@ -241,8 +251,7 @@ export class AlmamlikePianoRollElement extends SceneElement {
             endSec: windowEnd,
         });
 
-        const xFromTime = (t: number) =>
-            playheadX + ((t - targetTime) / timeUnitDuration) * rollWidth;
+        const xFromTime = (t: number) => playheadX + ((t - targetTime) / timeUnitDuration) * rollWidth;
         const yFromNote = (note: number) => (maxNote - note) * noteHeight;
 
         // ── Shake / zoom ────────────────────────────────────────────────────
@@ -257,15 +266,9 @@ export class AlmamlikePianoRollElement extends SceneElement {
                 }
             }
         }
-        const shakeOffsetX = enableShake
-            ? Math.sin(targetTime * 60 * Math.PI) * shakeIntensity * shakeStrength
-            : 0;
-        const shakeOffsetY = enableShake
-            ? Math.cos(targetTime * 78 * Math.PI) * shakeIntensity * shakeStrength
-            : 0;
-        const zoomScale = enableShake
-            ? 1 + (zoomIntensity / 100) * shakeStrength
-            : 1;
+        const shakeOffsetX = enableShake ? Math.sin(targetTime * 60 * Math.PI) * shakeIntensity * shakeStrength : 0;
+        const shakeOffsetY = enableShake ? Math.cos(targetTime * 78 * Math.PI) * shakeIntensity * shakeStrength : 0;
+        const zoomScale = enableShake ? 1 + (zoomIntensity / 100) * shakeStrength : 1;
         const zoomOriginX = playheadX;
         const zoomOriginY = (totalNotes * noteHeight) / 2;
 
@@ -275,7 +278,6 @@ export class AlmamlikePianoRollElement extends SceneElement {
             return [sx, sy];
         };
 
-
         const effects: RenderObject[] = [];
 
         for (const n of notes) {
@@ -283,7 +285,7 @@ export class AlmamlikePianoRollElement extends SceneElement {
             if (noteIdx < 0 || noteIdx >= totalNotes) continue;
 
             const startTime = n.startTime;
-            const endTime = n.endTime ?? (startTime + 0.25);
+            const endTime = n.endTime ?? startTime + 0.25;
             const noteDuration = endTime - startTime;
             const timeSinceHit = targetTime - startTime;
 
@@ -327,13 +329,20 @@ export class AlmamlikePianoRollElement extends SceneElement {
             if (timeSinceHit >= 0) {
                 const [effectCx, effectCy] = applyShake(
                     playheadX,
-                    yFromNote(n.note) + animDy + (noteHeight + animDh) / 2,
+                    yFromNote(n.note) + animDy + (noteHeight + animDh) / 2
                 );
                 const noteSeed = n.note * 7919 + Math.round(startTime * 100);
 
                 pushHitEffects(effects, effectCx, effectCy, timeSinceHit, {
-                    markerType, markerText, markerSize, markerColor, markerDuration,
-                    rippleType, rippleRadius, rippleColor, rippleDuration,
+                    markerType,
+                    markerText,
+                    markerSize,
+                    markerColor,
+                    markerDuration,
+                    rippleType,
+                    rippleRadius,
+                    rippleColor,
+                    rippleDuration,
                     noteSeed,
                     circleRippleConfig: { startFraction: 0.1 },
                 });

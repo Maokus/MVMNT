@@ -51,7 +51,6 @@ export class TimeDisplayElement extends SceneElement {
                     {
                         id: 'timeDisplay',
                         label: 'Time Display',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Adjust offsets and primary colors for the timer.',
                         properties: [

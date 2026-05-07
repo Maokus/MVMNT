@@ -31,7 +31,6 @@ export class MidiNotesElement extends SceneElement {
                     {
                         id: 'midiSource',
                         label: 'MIDI Source',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             prop.midiTrack('midiTrackId', 'MIDI Track', { description: 'MIDI track to display' }),
@@ -42,7 +41,6 @@ export class MidiNotesElement extends SceneElement {
                     {
                         id: 'notesAppearance',
                         label: 'Appearance',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             prop.number('noteWidth', 'Note Width', 40, { min: 10, max: 200, step: 1 }),

@@ -80,7 +80,6 @@ export class ChordEstimateDisplayElement extends SceneElement {
                     {
                         id: 'chordSource',
                         label: 'Source',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Choose the MIDI track and analysis window for detection.',
                         properties: [
@@ -106,7 +105,6 @@ export class ChordEstimateDisplayElement extends SceneElement {
                     {
                         id: 'estimation',
                         label: 'Estimation',
-                        variant: 'advanced',
                         collapsed: true,
                         description: 'Refine which chord qualities are considered during detection.',
                         properties: [
@@ -173,7 +171,6 @@ export class ChordEstimateDisplayElement extends SceneElement {
                     {
                         id: 'typography',
                         label: 'Typography',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             prop.font('fontFamily', 'Font Family', 'Inter'),

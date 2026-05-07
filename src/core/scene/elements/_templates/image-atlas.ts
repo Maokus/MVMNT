@@ -52,7 +52,6 @@ export class AtlasImageElement extends SceneElement {
                     {
                         id: 'atlasSource',
                         label: 'Atlas',
-                        variant: 'basic',
                         collapsed: false,
                         properties: [
                             prop.sparrowAsset('atlas', 'Override Atlas', {

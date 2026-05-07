@@ -30,7 +30,6 @@ export class NotesPlayedTrackerElement extends SceneElement {
                     {
                         id: 'typography',
                         label: 'Typography',
-                        variant: 'basic',
                         collapsed: false,
                         description: 'Adjust alignment and styling for the counters.',
                         properties: [

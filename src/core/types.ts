@@ -324,8 +324,6 @@ export interface PropertyGroup {
     id: string;
     label: string;
     collapsed: boolean;
-    /** @deprecated Will be removed in Phase 2. Use tabs to separate groups instead. */
-    variant?: 'basic' | 'advanced';
     description?: string;
     properties: PropertyDefinition[];
     presets?: PropertyGroupPreset[];
@@ -342,10 +340,6 @@ export interface EnhancedConfigSchema {
     description: string;
     category?: string;
     tabs: PropertyTab[];
-    /**
-     * @deprecated Use `tabs.flatMap(t => t.groups)` instead. Will be removed in Phase 2.
-     */
-    readonly groups: PropertyGroup[];
 }
 
 export interface SceneElementInterface {
