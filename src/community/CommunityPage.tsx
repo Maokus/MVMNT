@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { FaPlus, FaXmark } from 'react-icons/fa6';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
@@ -10,9 +10,11 @@ import CommunityUploadModal from './CommunityUploadModal';
 import CommunityEditModal from './CommunityEditModal';
 import AdminTagPanel from './AdminTagPanel';
 import {
-  fetchItems, fetchAllTags, getUserRole,
+  fetchItems, fetchItemById, fetchAllTags, getUserRole,
   type CommunityItem, type CommunityTag, type SortBy, type FilterType, type UserRole,
 } from './communityApi';
+
+export const ITEM_ID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const SORT_OPTIONS: { value: SortBy; label: string }[] = [
   { value: 'newest', label: 'Newest' },
@@ -27,6 +29,9 @@ const FILTER_OPTIONS: { value: FilterType; label: string }[] = [
 ];
 
 const CommunityPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialIdRef = useRef(searchParams.get('id'));
+
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<UserRole>('regular');
   const [items, setItems] = useState<CommunityItem[]>([]);
@@ -44,12 +49,32 @@ const CommunityPage: React.FC = () => {
   const [showTagDropdown, setShowTagDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [deepLinkError, setDeepLinkError] = useState<string | null>(null);
 
   // Get initial session
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
     });
+  }, []);
+
+  // Handle ?id= deep link — runs once on mount
+  useEffect(() => {
+    const id = initialIdRef.current;
+    if (!id) return;
+    // Remove param from URL immediately so closing the modal doesn't re-trigger
+    setSearchParams({}, { replace: true });
+    if (!ITEM_ID_REGEX.test(id)) {
+      setDeepLinkError('Plugin not found');
+      return;
+    }
+    fetchItemById(id)
+      .then((item) => {
+        if (item) setSelectedItem(item);
+        else setDeepLinkError('Plugin not found');
+      })
+      .catch(() => setDeepLinkError('Plugin not found'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fetch user role whenever the user changes
@@ -126,6 +151,20 @@ const CommunityPage: React.FC = () => {
             <CommunityAuthBar user={user} onAuthChange={setUser} />
           </div>
         </div>
+
+        {/* Deep link not-found banner */}
+        {deepLinkError && (
+          <div className="mb-6 flex items-center justify-between rounded-lg border border-red-700/50 bg-red-950/40 px-4 py-2.5 text-sm text-red-300">
+            <span>{deepLinkError}</span>
+            <button
+              onClick={() => setDeepLinkError(null)}
+              className="ml-3 text-red-400 hover:text-red-200"
+              aria-label="Dismiss"
+            >
+              <FaXmark />
+            </button>
+          </div>
+        )}
 
         {/* Experimental notice */}
         <div className="mb-6 rounded-lg border border-yellow-600/40 bg-yellow-900/20 px-4 py-3 text-sm text-yellow-200">

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaDownload, FaStar, FaTrash, FaXmark, FaArrowRight, FaBolt, FaPen, FaArrowsRotate } from 'react-icons/fa6';
+import { FaDownload, FaStar, FaTrash, FaXmark, FaArrowRight, FaBolt, FaPen, FaArrowsRotate, FaLink } from 'react-icons/fa6';
 import type { User } from '@supabase/supabase-js';
 import type { CommunityItem, UserRole } from './communityApi';
 import { getThumbnailUrl, downloadItem, rateItem, getUserRating, deleteItem, semverGt } from './communityApi';
@@ -64,6 +64,15 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showInstallWarning, setShowInstallWarning] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+
+  const handleShare = useCallback(() => {
+    const url = `${window.location.origin}${window.location.pathname}?id=${item.id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    }).catch(() => { });
+  }, [item.id]);
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -320,6 +329,13 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
                 )}
               </>
             )}
+            <button
+              onClick={handleShare}
+              className="inline-flex items-center gap-1.5 rounded border border-neutral-600 px-3 py-1.5 text-[13px] font-medium text-neutral-300 transition-colors hover:bg-white/10"
+              aria-label="Copy share link"
+            >
+              <FaLink className="text-[10px]" /> {shareCopied ? 'Copied!' : 'Share'}
+            </button>
             <button
               onClick={handleDownload}
               disabled={downloading}

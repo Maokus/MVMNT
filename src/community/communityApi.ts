@@ -54,7 +54,13 @@ const SORT_MAP: Record<SortBy, { column: string; ascending: boolean }[]> = {
     most_downloaded: [{ column: 'downloads_count', ascending: false }],
 };
 
-export async function fetchItems(sortBy: SortBy, filterType: FilterType, page: number, filterTags?: string[], searchQuery?: string) {
+export async function fetchItems(
+    sortBy: SortBy,
+    filterType: FilterType,
+    page: number,
+    filterTags?: string[],
+    searchQuery?: string
+) {
     // If filtering by tags, first get matching item IDs
     let tagFilterIds: string[] | null = null;
     if (filterTags && filterTags.length > 0) {
@@ -378,10 +384,7 @@ export async function getUserRating(itemId: string, userId: string): Promise<num
 }
 
 export async function deleteItem(itemId: string, userId: string, asAdmin = false) {
-    let pathQuery = supabase
-        .from('community_items')
-        .select('thumbnail_path, file_path')
-        .eq('id', itemId);
+    let pathQuery = supabase.from('community_items').select('thumbnail_path, file_path').eq('id', itemId);
     if (!asAdmin) pathQuery = pathQuery.eq('user_id', userId);
     const { data: item } = await pathQuery.single();
 
@@ -413,6 +416,27 @@ export function semverGt(a: string, b: string): boolean {
 // ─── Tags ──────────────────────────────────────────────
 
 /** Fetch existing tags for autocomplete. Hidden tags are excluded unless includeHidden is set. */
+export async function fetchItemById(id: string): Promise<CommunityItem | null> {
+    const { data, error } = await supabase.from('community_items').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+
+    const item = data as Omit<CommunityItem, 'uploader_username' | 'tags'>;
+    const [usernameMap, tagsMap] = await Promise.all([
+        (async () => {
+            const { data: profiles } = await supabase.from('profiles').select('id, username').eq('id', item.user_id);
+            return Object.fromEntries((profiles ?? []).map((p: any) => [p.id, p.username]));
+        })(),
+        fetchItemTagsBatch([item.id]),
+    ]);
+
+    return {
+        ...item,
+        uploader_username: usernameMap[item.user_id] ?? null,
+        tags: tagsMap[item.id] ?? [],
+    } as CommunityItem;
+}
+
 export async function fetchAllTags(opts?: { includeHidden?: boolean }): Promise<CommunityTag[]> {
     let query = supabase.from('community_tags').select('id, name, is_hidden').order('name');
     if (!opts?.includeHidden) {

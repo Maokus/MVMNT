@@ -299,15 +299,15 @@ export class AudioSpectrumElement extends SceneElement {
                             },
                             prop.color('color', 'Primary Color', DEFAULT_BAR_COLOR),
                             prop.range('opacity', 'Primary Opacity', 1, { min: 0, max: 1, step: 0.01 }),
-                            prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
-                            prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
                             prop.select(
                                 'blendMode',
-                                'Blend Mode',
+                                'Primary Blend Mode',
                                 'source-over',
                                 BLEND_MODE_CHOICES as unknown as Array<{ value: string; label: string }>,
                                 { description: 'Canvas composite blending operation.' }
                             ),
+                            prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
+                            prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
                         ],
                     },
                 ]),
@@ -330,7 +330,17 @@ export class AudioSpectrumElement extends SceneElement {
         );
 
         const pushMessage = (message: string) => {
-            objects.push(new Text(8, props.height / 2, message, '12px Inter, sans-serif', '#94a3b8', 'left', 'middle').setIncludeInLayoutBounds(false));
+            objects.push(
+                new Text(
+                    8,
+                    props.height / 2,
+                    message,
+                    '12px Inter, sans-serif',
+                    '#94a3b8',
+                    'left',
+                    'middle'
+                ).setIncludeInLayoutBounds(false)
+            );
             return objects;
         };
 
