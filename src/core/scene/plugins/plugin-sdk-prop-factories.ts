@@ -97,6 +97,19 @@ export const prop = {
         };
     },
 
+    /** A multi-line plain text string. Enter inserts a newline rather than confirming. */
+    longString(key: string, label: string, defaultValue: string, opts?: CommonOpts): PropertyDefinition {
+        return {
+            key,
+            type: 'longString',
+            label,
+            default: defaultValue,
+            ...(opts?.description && { description: opts.description }),
+            ...(opts?.visibleWhen && { visibleWhen: opts.visibleWhen }),
+            runtime: { transform: asString, defaultValue },
+        };
+    },
+
     /** An opaque colour (no alpha channel). Stored as a hex string. */
     color(key: string, label: string, defaultValue: string, opts?: CommonOpts): PropertyDefinition {
         return {

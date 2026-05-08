@@ -84,8 +84,6 @@ export class CCMonitorElement extends SceneElement {
                                 { value: 'singleCC', label: 'Single CC' },
                                 { value: 'sustainPedal', label: 'Sustain Pedal' },
                             ]),
-                            prop.number('layoutWidth', 'Width (px)', 320, { min: 1, step: 1 }),
-                            prop.number('layoutHeight', 'Layout Height (px)', 200, { min: 1, step: 1 }),
                         ],
                     },
                     {
@@ -189,24 +187,51 @@ export class CCMonitorElement extends SceneElement {
         const props = this.getSchemaProps();
         if (!props.visible) return [];
 
-        const layoutWidth = (props.layoutWidth as number) ?? 320;
-        const layoutHeight = (props.layoutHeight as number) ?? 200;
+        const mode = (props.mode as string) ?? 'fullMonitor';
+        const fontSize = (props.fontSize as number) ?? 24;
+        const lineSpacing = (props.lineSpacing as number) ?? 6;
+
+        // Compute layout bounds from mode and content settings
+        let layoutWidth: number;
+        let layoutHeight: number;
+        if (mode === 'singleCC') {
+            const displayMode = (props.singleCCDisplayMode as string) ?? 'text';
+            if (displayMode === 'knob') {
+                const knobRadius = (props.knobRadius as number) ?? 50;
+                const trackWidth = (props.knobTrackWidth as number) ?? 6;
+                const size = knobRadius * 2 + trackWidth * 2;
+                layoutWidth = size;
+                layoutHeight = size;
+            } else if (displayMode === 'opacity') {
+                layoutWidth = (props.opacityRectWidth as number) ?? 120;
+                layoutHeight = (props.opacityRectHeight as number) ?? 120;
+            } else {
+                layoutWidth = 320;
+                layoutHeight = fontSize + lineSpacing + 4;
+            }
+        } else if (mode === 'fullMonitor') {
+            const maxMessages = Math.max(1, (props.maxMessages as number) ?? 8);
+            layoutWidth = 320;
+            layoutHeight = maxMessages * (fontSize + lineSpacing);
+        } else {
+            // sustainPedal
+            layoutWidth = 320;
+            layoutHeight = fontSize + lineSpacing + 4;
+        }
+
         const layoutRect = new Rectangle(0, 0, layoutWidth, layoutHeight, null, null, 0);
         layoutRect.setIncludeInLayoutBounds(true);
 
-        const mode = (props.mode as string) ?? 'fullMonitor';
         const trackId = (props.midiTrackId as string | null) ?? null;
         const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
 
         const fontSelection = (props.fontFamily as string) ?? 'Inter';
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
         const fontWeight = (weightPart || '400').toString();
-        const fontSize = (props.fontSize as number) ?? 24;
         const textColor = applyOpacity(
             (props.color as string) ?? (props.textColor as string) ?? '#cccccc',
             (props.opacity as number) ?? 1
         );
-        const lineSpacing = (props.lineSpacing as number) ?? 6;
         if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const font = `${fontWeight} ${fontSize}px ${fontFamily || 'Inter'}, sans-serif`;
 

@@ -39,7 +39,7 @@ type ChordEstimateRuntimeProps = {
     showInversion: boolean;
     smoothingMs: number;
     fontFamily: string;
-    fontSize: number;
+    fontSize?: number;
     chordFontSize?: number;
     detailsFontSize?: number;
     color: string;
@@ -49,6 +49,8 @@ type ChordEstimateRuntimeProps = {
     lineSpacing: number;
     showActiveNotes: boolean;
     showChroma: boolean;
+    chromaColor?: string;
+    chromaOpacity?: number;
     // container props
     showBackground?: boolean;
     backgroundColor?: string;
@@ -171,14 +173,21 @@ export class ChordEstimateDisplayElement extends SceneElement {
                     },
                 ]),
                 tab.appearance([
-                    propGroup.appearance(),
+                    {
+                        id: 'appearance',
+                        label: 'Appearance',
+                        collapsed: false,
+                        properties: [
+                            prop.color('color', 'Text Color', '#ffffff'),
+                            prop.range('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                        ],
+                    },
                     {
                         id: 'typography',
                         label: 'Typography',
                         collapsed: false,
                         properties: [
                             prop.font('fontFamily', 'Font Family', 'Inter'),
-                            prop.number('fontSize', 'Label Font Size (px)', 48, { step: 1 }),
                             {
                                 key: 'chordFontSize',
                                 type: 'number',
@@ -203,6 +212,15 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             prop.number('lineSpacing', 'Line Spacing (px)', 6, { step: 1 }),
                             prop.boolean('showActiveNotes', 'Show Active Notes', true),
                             prop.boolean('showChroma', 'Show Chroma Chart', true),
+                            prop.color('chromaColor', 'Chroma Chart Color', '#ffffff', {
+                                visibleWhen: [{ key: 'showChroma', equals: true }],
+                            }),
+                            prop.range('chromaOpacity', 'Chroma Chart Opacity', 1, {
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                                visibleWhen: [{ key: 'showChroma', equals: true }],
+                            }),
                         ],
                         presets: [
                             {
@@ -260,7 +278,6 @@ export class ChordEstimateDisplayElement extends SceneElement {
             showInversion,
             smoothingMs,
             fontFamily: configuredFont,
-            fontSize,
             chordFontSize: chordFontSizeRaw,
             detailsFontSize: detailsFontSizeRaw,
             color: rawColor,
@@ -344,8 +361,8 @@ export class ChordEstimateDisplayElement extends SceneElement {
         const fontSelection = configuredFont ?? 'Inter';
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
         const fontWeight = (weightPart || '600').toString();
-        const chordFontSize = chordFontSizeRaw ?? fontSize;
-        const detailsFontSize = detailsFontSizeRaw ?? Math.max(6, Math.round(fontSize * 0.5));
+        const chordFontSize = chordFontSizeRaw ?? 48;
+        const detailsFontSize = detailsFontSizeRaw ?? 24;
         if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const fontChord = `${fontWeight} ${chordFontSize}px ${fontFamily || 'Inter'}, sans-serif`;
         const fontDetails = `${fontWeight} ${detailsFontSize}px ${fontFamily || 'Inter'}, sans-serif`;
@@ -399,6 +416,8 @@ export class ChordEstimateDisplayElement extends SceneElement {
 
         // Chroma line (12 bins with names)
         if (showChroma) {
+            const chromaColorRaw = props.chromaColor ?? '#ffffff';
+            const chromaOpacityScale = props.chromaOpacity ?? 1;
             const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
             const rectWidth = 20;
             const spacing = 30;
@@ -408,19 +427,19 @@ export class ChordEstimateDisplayElement extends SceneElement {
             else if (justify === 'right' || justify === 'end') startX = textX - totalWidth;
             for (let i = 0; i < names.length; i++) {
                 const rectX = startX + i * spacing;
-                const rect = new Rectangle(rectX, y, rectWidth, 20, `rgba(255,255,255,${chroma[i]})`);
+                const rect = new Rectangle(rectX, y, rectWidth, 20, applyOpacity(chromaColorRaw, chroma[i] * chromaOpacityScale));
                 rect.setIncludeInLayoutBounds(false);
                 renderObjects.push(rect);
             }
-            y += detailsFontSize + lineSpacing;
+            y += 20 + lineSpacing;
         }
 
         if (props.showBackground) {
             const paddingX = props.backgroundPaddingX ?? 8;
             const paddingY = props.backgroundPaddingY ?? 4;
             const bgColor = applyOpacity(props.backgroundColor ?? '#000000', props.backgroundOpacity ?? 0.8);
-            const estimatedHeight = chordFontSize * 1.4 + lineSpacing + paddingY * 2;
-            const bg = new Rectangle(-paddingX, -paddingY, bgWidth + paddingX * 2, estimatedHeight, bgColor);
+            const bgHeight = y + paddingY * 2;
+            const bg = new Rectangle(-paddingX, -paddingY, bgWidth + paddingX * 2, bgHeight, bgColor);
             if (props.backgroundCornerRadius) bg.cornerRadius = props.backgroundCornerRadius;
             bg.setIncludeInLayoutBounds(false);
             renderObjects.splice(1, 0, bg);

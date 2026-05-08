@@ -82,7 +82,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
             const displayValue = typeof value === 'number' && !isNaN(value) ? value.toString() :
                 (typeof schema?.default === 'number' ? schema.default.toString() : '0');
             setLocalValue(displayValue);
-        } else if (type === 'string' || type === 'text') {
+        } else if (type === 'string' || type === 'text' || type === 'longString') {
             const displayValue = typeof value === 'string' ? value : (typeof schema?.default === 'string' ? schema.default : '');
             setLocalValue(displayValue);
             if (displayValue.trim().length > 0) {
@@ -320,6 +320,43 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
                 disabled={disabled}
                 title={title}
                 onChange={onChange}
+            />
+        );
+    }
+
+    if (type === 'longString') {
+        const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+            const newValue = e.target.value;
+            setLocalValue(newValue);
+            emitChange(newValue);
+            if (newValue.trim().length > 0) {
+                lastNonEmptyValueRef.current = newValue;
+            }
+        };
+
+        const handleTextareaBlur = () => {
+            if (localValue.trim().length > 0) return;
+            const fallbackFromHistory = lastNonEmptyValueRef.current;
+            const schemaDefault = typeof schema?.default === 'string' ? schema.default : '';
+            const nextValue = fallbackFromHistory.trim().length > 0 ? fallbackFromHistory : schemaDefault;
+            if (nextValue !== localValue) {
+                setLocalValue(nextValue);
+                emitChange(nextValue);
+            }
+            if (nextValue.trim().length > 0) {
+                lastNonEmptyValueRef.current = nextValue;
+            }
+        };
+
+        return (
+            <textarea
+                id={id}
+                value={localValue}
+                disabled={disabled}
+                title={title}
+                onChange={handleTextareaChange}
+                onBlur={handleTextareaBlur}
+                rows={4}
             />
         );
     }

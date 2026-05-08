@@ -198,6 +198,7 @@ export interface BaseSceneElementConfig {
 export interface ConfigSchemaProperty {
     type:
         | 'string'
+        | 'longString'
         | 'number'
         | 'boolean'
         | 'color'
@@ -272,6 +273,7 @@ export interface PropertyDefinition {
     key: string;
     type:
         | 'string'
+        | 'longString'
         | 'number'
         | 'boolean'
         | 'color'
