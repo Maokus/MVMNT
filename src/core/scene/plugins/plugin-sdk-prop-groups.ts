@@ -129,11 +129,11 @@ export const propGroup = {
                     { value: 'center', label: 'Center' },
                     { value: 'right', label: 'Right' },
                 ]),
-                prop.range('letterSpacing', 'Letter Spacing', 0, { min: -20, max: 100, step: 0.5 }),
+                prop.number('letterSpacing', 'Letter Spacing', 0, { min: -20, step: 0.5 }),
                 ...(opts?.stroke
                     ? [
                           prop.color('strokeColor', 'Stroke Color', '#000000'),
-                          prop.range('strokeWidth', 'Stroke Width', 0, { min: 0, max: 20, step: 0.5 }),
+                          prop.number('strokeWidth', 'Stroke Width', 0, { min: 0, step: 0.5 }),
                       ]
                     : []),
                 ...(opts?.textShadow
@@ -175,8 +175,7 @@ export const propGroup = {
      */
     border(opts?: BorderOpts): PropertyGroup {
         const prefix = opts?.keyPrefix ?? '';
-        const keyFor = (base: string) =>
-            prefix ? `${prefix}${base[0].toUpperCase()}${base.slice(1)}` : base;
+        const keyFor = (base: string) => (prefix ? `${prefix}${base[0].toUpperCase()}${base.slice(1)}` : base);
         return {
             id: opts?.id ?? 'border',
             label: opts?.label ?? 'Border',
@@ -373,10 +372,7 @@ export const section = {
      * Pass `id` / `label` to create a named appearance section when an element
      * has multiple visual surfaces (e.g. `section.appearance([...], { id: 'fillAppearance', label: 'Fill' })`).
      */
-    appearance(
-        properties: PropertyDefinition[],
-        opts?: { id?: string; label?: string }
-    ): PropertyGroup {
+    appearance(properties: PropertyDefinition[], opts?: { id?: string; label?: string }): PropertyGroup {
         return {
             id: opts?.id ?? 'appearance',
             label: opts?.label ?? 'Appearance',

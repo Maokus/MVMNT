@@ -131,6 +131,83 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         ],
                     },
                     {
+                        id: 'animation',
+                        label: 'Animation',
+                        collapsed: true,
+                        description: 'Choose how notes animate when they enter or exit the window.',
+                        properties: [
+                            prop.select('animationType', 'Animation Type', 'expand', [
+                                ...getAnimationSelectOptions(),
+                                { value: 'none', label: 'No Animation' },
+                            ]),
+                            prop.number('attackDuration', 'Attack Duration (s)', 0.3, { step: 0.05 }),
+                            prop.number('decayDuration', 'Decay Duration (s)', 0.3, { step: 0.05 }),
+                            prop.number('releaseDuration', 'Release Duration (s)', 0.3, { step: 0.05 }),
+                        ],
+                    },
+                    {
+                        id: 'playhead',
+                        label: 'Playhead',
+                        collapsed: true,
+                        description: 'Style the static playhead indicator.',
+                        properties: [
+                            prop.boolean('showPlayhead', 'Show Playhead', true),
+                            prop.color('playheadColor', 'Playhead Color', '#ff6b6b', {
+                                visibleWhen: [{ key: 'showPlayhead', truthy: true }],
+                            }),
+                            prop.range('playheadOpacity', 'Playhead Opacity', 1, {
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                                visibleWhen: [{ key: 'showPlayhead', truthy: true }],
+                            }),
+                            prop.number('playheadLineWidth', 'Playhead Line Width (px)', 2, {
+                                min: 1,
+                                max: 10,
+                                step: 1,
+                                visibleWhen: [{ key: 'showPlayhead', truthy: true }],
+                            }),
+                        ],
+                    },
+                ]),
+                tab.custom('reference', 'Reference', [
+                    {
+                        id: 'piano',
+                        label: 'Piano',
+                        collapsed: false,
+                        description: 'Optional static keyboard rendered alongside the roll.',
+                        properties: [
+                            prop.boolean('showPiano', 'Show Piano', false),
+                            prop.number('pianoWidth', 'Piano Width (px)', 0, {
+                                min: 80,
+                                max: 300,
+                                step: 10,
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.color('whiteKeyColor', 'White Key Color', '#f0f0f0', {
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.color('blackKeyColor', 'Black Key Color', '#555555', {
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.number('pianoOpacity', 'Piano Opacity', 1, {
+                                min: 0,
+                                max: 1,
+                                step: 0.05,
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.color('pianoRightBorderColor', 'Piano Right Border', '#333333', {
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.number('pianoRightBorderWidth', 'Piano Right Border Width (px)', 2, {
+                                min: 0,
+                                max: 10,
+                                step: 1,
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                        ],
+                    },
+                    {
                         id: 'noteGrid',
                         label: 'Note Grid',
                         collapsed: true,
@@ -184,42 +261,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                                 max: 1,
                                 step: 0.05,
                                 visibleWhen: [{ key: 'showBeatGrid', truthy: true }],
-                            }),
-                        ],
-                    },
-                    {
-                        id: 'piano',
-                        label: 'Piano',
-                        collapsed: true,
-                        description: 'Optional static keyboard rendered alongside the roll.',
-                        properties: [
-                            prop.boolean('showPiano', 'Show Piano', false),
-                            prop.number('pianoWidth', 'Piano Width (px)', 0, {
-                                min: 80,
-                                max: 300,
-                                step: 10,
-                                visibleWhen: [{ key: 'showPiano', truthy: true }],
-                            }),
-                            prop.color('whiteKeyColor', 'White Key Color', '#f0f0f0', {
-                                visibleWhen: [{ key: 'showPiano', truthy: true }],
-                            }),
-                            prop.color('blackKeyColor', 'Black Key Color', '#555555', {
-                                visibleWhen: [{ key: 'showPiano', truthy: true }],
-                            }),
-                            prop.number('pianoOpacity', 'Piano Opacity', 1, {
-                                min: 0,
-                                max: 1,
-                                step: 0.05,
-                                visibleWhen: [{ key: 'showPiano', truthy: true }],
-                            }),
-                            prop.color('pianoRightBorderColor', 'Piano Right Border', '#333333', {
-                                visibleWhen: [{ key: 'showPiano', truthy: true }],
-                            }),
-                            prop.number('pianoRightBorderWidth', 'Piano Right Border Width (px)', 2, {
-                                min: 0,
-                                max: 10,
-                                step: 1,
-                                visibleWhen: [{ key: 'showPiano', truthy: true }],
                             }),
                         ],
                     },
@@ -313,45 +354,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             }),
                         ],
                     },
-                    {
-                        id: 'animation',
-                        label: 'Animation',
-                        collapsed: true,
-                        description: 'Choose how notes animate when they enter or exit the window.',
-                        properties: [
-                            prop.select('animationType', 'Animation Type', 'expand', [
-                                ...getAnimationSelectOptions(),
-                                { value: 'none', label: 'No Animation' },
-                            ]),
-                            prop.number('attackDuration', 'Attack Duration (s)', 0.3, { step: 0.05 }),
-                            prop.number('decayDuration', 'Decay Duration (s)', 0.3, { step: 0.05 }),
-                            prop.number('releaseDuration', 'Release Duration (s)', 0.3, { step: 0.05 }),
-                        ],
-                    },
-                    {
-                        id: 'playhead',
-                        label: 'Playhead',
-                        collapsed: true,
-                        description: 'Style the static playhead indicator.',
-                        properties: [
-                            prop.boolean('showPlayhead', 'Show Playhead', true),
-                            prop.color('playheadColor', 'Playhead Color', '#ff6b6b', {
-                                visibleWhen: [{ key: 'showPlayhead', truthy: true }],
-                            }),
-                            prop.range('playheadOpacity', 'Playhead Opacity', 1, {
-                                min: 0,
-                                max: 1,
-                                step: 0.01,
-                                visibleWhen: [{ key: 'showPlayhead', truthy: true }],
-                            }),
-                            prop.number('playheadLineWidth', 'Playhead Line Width (px)', 2, {
-                                min: 1,
-                                max: 10,
-                                step: 1,
-                                visibleWhen: [{ key: 'showPlayhead', truthy: true }],
-                            }),
-                        ],
-                    },
                 ]),
                 tab.appearance([propGroup.appearance()]),
             ]
@@ -366,7 +368,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const effectiveTime = targetTime;
         const timeUnitBars = props.timeUnitBars as number;
         const showPiano = props.showPiano as boolean;
-        const pianoWidth = showPiano ? props.pianoWidth as number : 0;
+        const pianoWidth = showPiano ? (props.pianoWidth as number) : 0;
         const rollWidth = props.rollWidth as number;
         const rollHeight = props.rollHeight as number;
         const effectiveRollWidth = rollWidth;
@@ -392,7 +394,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const beatGridBeatWidth = props.beatGridBeatWidth as number;
         const beatGridOpacity = props.beatGridOpacity as number;
         const noteLabelFontSelection = props.noteLabelFontFamily as string;
-        const { family: noteLabelFontFamily, weight: noteLabelFontWeightPart } = parseFontSelection(noteLabelFontSelection);
+        const { family: noteLabelFontFamily, weight: noteLabelFontWeightPart } =
+            parseFontSelection(noteLabelFontSelection);
         const noteLabelFontSize = props.noteLabelFontSize as number;
         const noteLabelFontColor = props.noteLabelFontColor as string;
         const noteLabelFontWeight = (noteLabelFontWeightPart || '400').toString();
@@ -402,7 +405,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const noteLabelOffsetY = props.noteLabelOffsetY as number;
         const noteLabelOpacity = props.noteLabelOpacity as number;
         const beatLabelFontSelection = props.beatLabelFontFamily as string;
-        const { family: beatLabelFontFamily, weight: beatLabelFontWeightPart } = parseFontSelection(beatLabelFontSelection);
+        const { family: beatLabelFontFamily, weight: beatLabelFontWeightPart } =
+            parseFontSelection(beatLabelFontSelection);
         const beatLabelFontSize = props.beatLabelFontSize as number;
         const beatLabelFontColor = props.beatLabelFontColor as string;
         const beatLabelFontWeight = (beatLabelFontWeightPart || '400').toString();
@@ -422,10 +426,14 @@ export class TimeUnitPianoRollElement extends SceneElement {
         if (rawMinNote === -1 && rawMaxNote === -1) {
             const trackId = props.midiTrackId as string | undefined;
             if (trackId && status === 'ok' && api) {
-                const allNotes = api.timeline.selectNotesInWindow({ trackIds: [trackId], startSec: -99999, endSec: 99999 });
+                const allNotes = api.timeline.selectNotesInWindow({
+                    trackIds: [trackId],
+                    startSec: -99999,
+                    endSec: 99999,
+                });
                 if (allNotes.length > 0) {
-                    minNote = Math.min(...allNotes.map(n => n.note));
-                    maxNote = Math.max(...allNotes.map(n => n.note));
+                    minNote = Math.min(...allNotes.map((n) => n.note));
+                    maxNote = Math.max(...allNotes.map((n) => n.note));
                 } else {
                     minNote = 0;
                     maxNote = 127;

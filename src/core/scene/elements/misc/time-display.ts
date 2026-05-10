@@ -62,12 +62,6 @@ export class TimeDisplayElement extends SceneElement {
                                     'Shift the displayed musical + real time by this many bars (can be negative).',
                             }),
                             prop.boolean('showProgress', 'Show Progress Bars', true),
-                            prop.color('color', 'Primary Text Color', '#FFFFFF', {
-                                description: 'Color for the main time and beat numbers.',
-                            }),
-                            prop.color('textSecondaryColor', 'Secondary Text Color', 'rgba(255, 255, 255, 0.9)', {
-                                description: 'Color for labels and secondary text.',
-                            }),
                         ],
                         presets: [
                             {
@@ -88,7 +82,24 @@ export class TimeDisplayElement extends SceneElement {
                         ],
                     },
                 ]),
-                tab.appearance([propGroup.typography(), propGroup.container()]),
+                tab.appearance([
+                    {
+                        id: 'colors',
+                        label: 'Appearance',
+                        collapsed: false,
+                        description: 'Colors for primary and secondary text.',
+                        properties: [
+                            prop.color('color', 'Primary Text Color', '#FFFFFF', {
+                                description: 'Color for the main time and beat numbers.',
+                            }),
+                            prop.color('textSecondaryColor', 'Secondary Text Color', 'rgba(255, 255, 255, 0.9)', {
+                                description: 'Color for labels and secondary text.',
+                            }),
+                        ],
+                    },
+                    propGroup.typography(),
+                    propGroup.container(),
+                ]),
             ]
         );
     }
@@ -246,13 +257,16 @@ export class TimeDisplayElement extends SceneElement {
         if (props.showBackground) {
             const paddingX = props.backgroundPaddingX ?? 8;
             const paddingY = props.backgroundPaddingY ?? 4;
-            const totalHeight = showProgress ? beatY + baseFontSize * 0.6 : beatY + baseFontSize * 0.3;
+            // Content top: "time" label sits at y = -baseFontSize with labelFont height = baseFontSize*0.8,
+            // so the topmost content edge is at -(baseFontSize + baseFontSize * 0.8) = -baseFontSize * 1.8
+            const contentTop = -baseFontSize * 1.8;
+            const contentBottom = showProgress ? beatY + baseFontSize * 0.6 : beatY + baseFontSize * 0.3;
             const bgColor = applyOpacity(props.backgroundColor ?? '#000000', props.backgroundOpacity ?? 0.8);
             const bg = new Rectangle(
                 x - paddingX,
-                -baseFontSize - paddingY,
+                contentTop - paddingY,
                 baseFontSize * 6 + paddingX * 2,
-                totalHeight + baseFontSize + paddingY * 2,
+                contentBottom - contentTop + paddingY * 2,
                 bgColor
             );
             bg.cornerRadius = props.backgroundCornerRadius ?? 4;

@@ -158,7 +158,9 @@ export class Text extends RenderObject {
         }
         const prevFont = ctx.font;
         ctx.font = this.font;
+        if (this.letterSpacing !== 0) (ctx as any).letterSpacing = this.letterSpacing + 'px';
         const metrics = ctx.measureText(this.text);
+        if (this.letterSpacing !== 0) (ctx as any).letterSpacing = '0px';
         ctx.font = prevFont;
         let width = metrics.width || 0;
         const ascent = metrics.actualBoundingBoxAscent ?? fontSize * 0.8;

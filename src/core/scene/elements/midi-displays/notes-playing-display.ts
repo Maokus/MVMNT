@@ -58,17 +58,32 @@ export class NotesPlayingDisplayElement extends SceneElement {
                                 step: 1,
                                 visibleWhen: [{ key: 'displayMode', equals: 'letters' }],
                             }),
-                            prop.number('gridMinNote', 'Grid Min Note', 24, {
-                                min: 0,
-                                max: 127,
+                            prop.number('gridColumns', 'Columns', 12, {
+                                min: 1,
+                                max: 128,
                                 step: 1,
                                 visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
                             }),
-                            prop.number('gridMaxNote', 'Grid Max Note', 96, {
-                                min: 0,
+                            prop.number('gridRows', 'Rows', 8, {
+                                min: 1,
+                                max: 32,
+                                step: 1,
+                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
+                            }),
+                            prop.number('gridRowNoteOffset', 'Row Note Offset', 12, {
+                                min: 1,
                                 max: 127,
                                 step: 1,
                                 visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
+                                description: 'MIDI note offset between rows. E.g. 12 = octave, 5 = perfect fourth.',
+                            }),
+                            prop.number('gridStartNote', 'Start Note', -1, {
+                                min: -1,
+                                max: 127,
+                                step: 1,
+                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
+                                description:
+                                    'MIDI note at grid position [0,0]. Set to -1 to auto-detect from the MIDI file.',
                             }),
                             prop.number('gridCellWidth', 'Grid Cell Width (px)', 42, {
                                 min: 6,
@@ -117,6 +132,12 @@ export class NotesPlayingDisplayElement extends SceneElement {
                                     { key: 'displayMode', equals: 'grid' },
                                     { key: 'gridStrokeWidth', truthy: true },
                                 ],
+                            }),
+                            prop.range('gridTextOpacity', 'Grid Text Opacity', 1, {
+                                min: 0,
+                                max: 1,
+                                step: 0.05,
+                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
                             }),
                         ],
                     },
@@ -214,33 +235,6 @@ export class NotesPlayingDisplayElement extends SceneElement {
         const displayMode = (props.displayMode as string) ?? 'letters';
         const showAll = props.showAllAvailableTracks ?? false;
 
-        let layoutWidth = 1;
-        let layoutHeight = fontSize;
-        if (displayMode === 'grid') {
-            const minNote = Math.max(0, Math.min(127, Math.floor((props.gridMinNote as number) ?? 24)));
-            const maxNote = Math.max(0, Math.min(127, Math.floor((props.gridMaxNote as number) ?? 96)));
-            const safeMin = Math.min(minNote, maxNote);
-            const safeMax = Math.max(minNote, maxNote);
-            const totalNotes = safeMax - safeMin + 1;
-            const rows = Math.max(1, Math.ceil(totalNotes / 12));
-            const cellWidth = Math.max(1, (props.gridCellWidth as number) ?? 42);
-            const cellHeight = Math.max(1, (props.gridCellHeight as number) ?? 28);
-            const cellGap = Math.max(0, (props.gridCellGap as number) ?? 4);
-            layoutWidth = 12 * cellWidth + 11 * cellGap;
-            layoutHeight = rows * cellHeight + (rows - 1) * cellGap;
-        } else {
-            const spacing = Math.max(1, (props.lettersSpacing as number) ?? 32);
-            const letterWidth = Math.max(1, measureWidth('C#', font));
-            layoutWidth = 11 * spacing + letterWidth;
-            layoutHeight = fontSize;
-        }
-
-        const justification = (props.textAlign ?? props.textJustification ?? 'left') as CanvasTextAlign;
-        const layoutX = justification === 'center' ? -layoutWidth / 2 : justification === 'right' ? -layoutWidth : 0;
-        const layoutRect = new Rectangle(layoutX, 0, layoutWidth, layoutHeight, null, null, 0);
-        layoutRect.setIncludeInLayoutBounds(true);
-        renderObjects.push(layoutRect);
-
         // Determine active notes at effectiveTime via plugin host API
         const trackId = props.midiTrackId;
         const activeNotes = new Set<number>();
@@ -257,11 +251,33 @@ export class NotesPlayingDisplayElement extends SceneElement {
             }
         }
 
+        let layoutWidth = 1;
+        let layoutHeight = fontSize;
         if (displayMode === 'grid') {
-            const minNote = Math.max(0, Math.min(127, Math.floor((props.gridMinNote as number) ?? 24)));
-            const maxNote = Math.max(0, Math.min(127, Math.floor((props.gridMaxNote as number) ?? 96)));
-            const safeMin = Math.min(minNote, maxNote);
-            const safeMax = Math.max(minNote, maxNote);
+            const columns = Math.max(1, Math.floor((props.gridColumns as number) ?? 12));
+            const rows = Math.max(1, Math.floor((props.gridRows as number) ?? 8));
+            const cellWidth = Math.max(1, (props.gridCellWidth as number) ?? 42);
+            const cellHeight = Math.max(1, (props.gridCellHeight as number) ?? 28);
+            const cellGap = Math.max(0, (props.gridCellGap as number) ?? 4);
+            layoutWidth = columns * cellWidth + (columns - 1) * cellGap;
+            layoutHeight = rows * cellHeight + (rows - 1) * cellGap;
+        } else {
+            const spacing = Math.max(1, (props.lettersSpacing as number) ?? 32);
+            const letterWidth = Math.max(1, measureWidth('C#', font));
+            layoutWidth = 11 * spacing + letterWidth;
+            layoutHeight = fontSize;
+        }
+
+        const justification = (props.textAlign ?? props.textJustification ?? 'left') as CanvasTextAlign;
+        const layoutX = justification === 'center' ? -layoutWidth / 2 : justification === 'right' ? -layoutWidth : 0;
+        const layoutRect = new Rectangle(layoutX, 0, layoutWidth, layoutHeight, null, null, 0);
+        layoutRect.setIncludeInLayoutBounds(true);
+        renderObjects.push(layoutRect);
+
+        if (displayMode === 'grid') {
+            const columns = Math.max(1, Math.floor((props.gridColumns as number) ?? 12));
+            const rows = Math.max(1, Math.floor((props.gridRows as number) ?? 8));
+            const rowNoteOffset = Math.max(1, Math.floor((props.gridRowNoteOffset as number) ?? 12));
             const cellWidth = Math.max(1, (props.gridCellWidth as number) ?? 42);
             const cellHeight = Math.max(1, (props.gridCellHeight as number) ?? 28);
             const cellGap = Math.max(0, (props.gridCellGap as number) ?? 4);
@@ -271,37 +287,60 @@ export class NotesPlayingDisplayElement extends SceneElement {
                 (props.gridFillOpacity as number) ?? 1
             );
             const textColor = (props.gridTextColor as string) ?? '#0f172a';
+            const textOpacity = (props.gridTextOpacity as number) ?? 1;
+            const textColorWithOpacity = applyOpacity(textColor, textOpacity);
             const strokeWidth = Math.max(0, (props.gridStrokeWidth as number) ?? 0);
             const strokeColor = strokeWidth > 0 ? ((props.gridStrokeColor as string) ?? '#0f172a') : null;
 
-            if (activeNotes.size === 0 && showAll) {
-                for (let n = safeMin; n <= safeMax; n += 1) activeNotes.add(n);
+            // Determine start note: auto-detect lowest note in MIDI file when -1
+            let startNote = Math.floor((props.gridStartNote as number) ?? -1);
+            if (startNote === -1) {
+                if (trackId && api && status === 'ok') {
+                    const allNotes = api.timeline.selectNotesInWindow({
+                        trackIds: [trackId],
+                        startSec: -99999,
+                        endSec: 99999,
+                    });
+                    startNote = allNotes.length > 0 ? Math.min(...allNotes.map((n) => n.note)) : 0;
+                } else {
+                    startNote = 0;
+                }
             }
 
-            for (const note of activeNotes) {
-                if (note < safeMin || note > safeMax) continue;
-                const index = note - safeMin;
-                const row = Math.floor(index / 12);
-                const col = index % 12;
-                const x = layoutX + col * (cellWidth + cellGap);
-                const y = row * (cellHeight + cellGap);
-                const cell = new Rectangle(x, y, cellWidth, cellHeight, fillColor, strokeColor, strokeWidth);
-                cell.cornerRadius = cornerRadius;
-                cell.setIncludeInLayoutBounds?.(false);
-                renderObjects.push(cell);
+            if (activeNotes.size === 0 && showAll) {
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < columns; c++) {
+                        activeNotes.add(startNote + c + r * rowNoteOffset);
+                    }
+                }
+            }
 
-                const label = noteLabel(note);
-                const text = new Text(
-                    x + cellWidth / 2,
-                    y + cellHeight / 2,
-                    label,
-                    font,
-                    textColor,
-                    'center',
-                    'middle',
-                    { includeInLayoutBounds: false }
-                );
-                renderObjects.push(text);
+            // Render cells: iterate all grid positions and light up matching active notes
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < columns; c++) {
+                    const cellNote = startNote + c + r * rowNoteOffset;
+                    if (!activeNotes.has(cellNote)) continue;
+                    // Higher rows = higher notes, rendered bottom-to-top
+                    const x = layoutX + c * (cellWidth + cellGap);
+                    const y = (rows - 1 - r) * (cellHeight + cellGap);
+                    const cell = new Rectangle(x, y, cellWidth, cellHeight, fillColor, strokeColor, strokeWidth);
+                    cell.cornerRadius = cornerRadius;
+                    cell.setIncludeInLayoutBounds?.(false);
+                    renderObjects.push(cell);
+
+                    const label = noteLabel(cellNote);
+                    const text = new Text(
+                        x + cellWidth / 2,
+                        y + cellHeight / 2,
+                        label,
+                        font,
+                        textColorWithOpacity,
+                        'center',
+                        'middle',
+                        { includeInLayoutBounds: false }
+                    );
+                    renderObjects.push(text);
+                }
             }
         } else {
             const spacing = Math.max(1, (props.lettersSpacing as number) ?? 32);

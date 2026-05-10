@@ -11,14 +11,17 @@ import {
 import { type RenderObject, Text, Rectangle } from '@mvmnt/plugin-sdk/render';
 import { applyOpacity } from '@utils/color';
 
-const measureLineWidth = (text: string, font: string): number => {
+const measureLineWidth = (text: string, font: string, letterSpacing = 0): number => {
     try {
         if (typeof OffscreenCanvas !== 'undefined') {
             const c = new OffscreenCanvas(1, 1);
             const ctx = c.getContext('2d') as CanvasRenderingContext2D | null;
             if (ctx) {
                 ctx.font = font;
-                return ctx.measureText(text).width || 0;
+                if (letterSpacing !== 0) (ctx as any).letterSpacing = letterSpacing + 'px';
+                const w = ctx.measureText(text).width || 0;
+                if (letterSpacing !== 0) (ctx as any).letterSpacing = '0px';
+                return w;
             }
         }
         if (typeof document !== 'undefined') {
@@ -26,13 +29,16 @@ const measureLineWidth = (text: string, font: string): number => {
             const ctx = c.getContext('2d');
             if (ctx) {
                 ctx.font = font;
-                return ctx.measureText(text).width || 0;
+                if (letterSpacing !== 0) (ctx as any).letterSpacing = letterSpacing + 'px';
+                const w = ctx.measureText(text).width || 0;
+                if (letterSpacing !== 0) (ctx as any).letterSpacing = '0px';
+                return w;
             }
         }
     } catch {}
     const m = font.match(/(\d*\.?\d+)px/);
     const fs = m ? parseFloat(m[1]) : 16;
-    return text.length * fs * 0.6;
+    return text.length * fs * 0.6 + text.length * letterSpacing;
 };
 
 export class TextOverlayElement extends SceneElement {
@@ -116,7 +122,7 @@ export class TextOverlayElement extends SceneElement {
         if (props.showBackground) {
             const paddingX = props.backgroundPaddingX ?? 8;
             const paddingY = props.backgroundPaddingY ?? 4;
-            const maxLineWidth = Math.max(1, ...lines.map((l) => measureLineWidth(l, font)));
+            const maxLineWidth = Math.max(1, ...lines.map((l) => measureLineWidth(l, font, letterSpacing)));
             const bgColor = applyOpacity(props.backgroundColor ?? '#000000', props.backgroundOpacity ?? 0.8);
             const bgX =
                 textAlign === 'center'

@@ -135,42 +135,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                         ],
                     },
                     {
-                        id: 'piano',
-                        label: 'Piano',
-                        collapsed: true,
-                        description: 'Optional static keyboard rendered alongside the roll.',
-                        properties: [
-                            prop.boolean('showPiano', 'Show Piano', false),
-                            prop.number('pianoWidth', 'Piano Width (px)', 0, {
-                                min: 80,
-                                max: 300,
-                                step: 10,
-                                visibleWhen: [{ key: 'showPiano', truthy: true }],
-                            }),
-                            prop.color('whiteKeyColor', 'White Key Color', '#f0f0f0', {
-                                visibleWhen: [{ key: 'showPiano', truthy: true }],
-                            }),
-                            prop.color('blackKeyColor', 'Black Key Color', '#555555', {
-                                visibleWhen: [{ key: 'showPiano', truthy: true }],
-                            }),
-                            prop.number('pianoOpacity', 'Piano Opacity', 1, {
-                                min: 0,
-                                max: 1,
-                                step: 0.05,
-                                visibleWhen: [{ key: 'showPiano', truthy: true }],
-                            }),
-                            prop.color('pianoRightBorderColor', 'Piano Right Border', '#333333', {
-                                visibleWhen: [{ key: 'showPiano', truthy: true }],
-                            }),
-                            prop.number('pianoRightBorderWidth', 'Piano Right Border Width (px)', 2, {
-                                min: 0,
-                                max: 10,
-                                step: 1,
-                                visibleWhen: [{ key: 'showPiano', truthy: true }],
-                            }),
-                        ],
-                    },
-                    {
                         id: 'animation',
                         label: 'Animation',
                         collapsed: true,
@@ -225,6 +189,44 @@ export class MovingNotesPianoRollElement extends SceneElement {
                         ],
                     },
                 ]),
+                tab.custom('reference', 'Reference', [
+                    {
+                        id: 'piano',
+                        label: 'Piano',
+                        collapsed: false,
+                        description: 'Optional static keyboard rendered alongside the roll.',
+                        properties: [
+                            prop.boolean('showPiano', 'Show Piano', false),
+                            prop.number('pianoWidth', 'Piano Width (px)', 0, {
+                                min: 80,
+                                max: 300,
+                                step: 10,
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.color('whiteKeyColor', 'White Key Color', '#f0f0f0', {
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.color('blackKeyColor', 'Black Key Color', '#555555', {
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.number('pianoOpacity', 'Piano Opacity', 1, {
+                                min: 0,
+                                max: 1,
+                                step: 0.05,
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.color('pianoRightBorderColor', 'Piano Right Border', '#333333', {
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                            prop.number('pianoRightBorderWidth', 'Piano Right Border Width (px)', 2, {
+                                min: 0,
+                                max: 10,
+                                step: 1,
+                                visibleWhen: [{ key: 'showPiano', truthy: true }],
+                            }),
+                        ],
+                    },
+                ]),
                 tab.appearance([propGroup.appearance()]),
             ]
         );
@@ -262,10 +264,14 @@ export class MovingNotesPianoRollElement extends SceneElement {
         if (rawMinNote === -1 && rawMaxNote === -1) {
             const trackId = props.midiTrackId as string | undefined;
             if (trackId && status === 'ok' && api) {
-                const allNotes = api.timeline.selectNotesInWindow({ trackIds: [trackId], startSec: -99999, endSec: 99999 });
+                const allNotes = api.timeline.selectNotesInWindow({
+                    trackIds: [trackId],
+                    startSec: -99999,
+                    endSec: 99999,
+                });
                 if (allNotes.length > 0) {
-                    minNote = Math.min(...allNotes.map(n => n.note));
-                    maxNote = Math.max(...allNotes.map(n => n.note));
+                    minNote = Math.min(...allNotes.map((n) => n.note));
+                    maxNote = Math.max(...allNotes.map((n) => n.note));
                 } else {
                     minNote = 0;
                     maxNote = 127;

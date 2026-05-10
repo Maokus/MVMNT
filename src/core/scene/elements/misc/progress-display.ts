@@ -53,127 +53,131 @@ export class ProgressDisplayElement extends SceneElement {
             },
             [
                 tab.content([
-                {
-                    id: 'progressBasics',
-                    label: 'Progress & Stats',
-                    collapsed: false,
-                    description: 'Decide which UI elements to show and size the progress bar.',
-                    properties: [
-                        prop.boolean('showBar', 'Show Progress Bar', true),
-                        prop.boolean('showStats', 'Show Statistics', true),
-                        {
-                            key: 'barWidth',
-                            type: 'number',
-                            label: 'Bar Width (px)',
-                            default: 400,
-                            min: 100,
-                            max: 1200,
-                            step: 5,
-                            visibleWhen: [{ key: 'showBar', truthy: true }],
-                            runtime: { transform: clampNonNegative, defaultValue: 400 },
-                        },
-                        {
-                            key: 'height',
-                            type: 'number',
-                            label: 'Bar Height (px)',
-                            default: 20,
-                            min: 10,
-                            max: 80,
-                            step: 5,
-                            visibleWhen: [{ key: 'showBar', truthy: true }],
-                            runtime: { transform: clampNonNegative, defaultValue: 20 },
-                        },
-                    ],
-                    presets: [
-                        {
-                            id: 'fullPanel',
-                            label: 'Full Panel',
-                            values: { showBar: true, showStats: true, barWidth: 480, height: 24 },
-                        },
-                        {
-                            id: 'barOnly',
-                            label: 'Bar Only',
-                            values: { showBar: true, showStats: false, barWidth: 560, height: 18 },
-                        },
-                        {
-                            id: 'statsOverlay',
-                            label: 'Stats Overlay',
-                            values: { showBar: false, showStats: true },
-                        },
-                    ],
-                },
+                    {
+                        id: 'progressBasics',
+                        label: 'Progress & Stats',
+                        collapsed: false,
+                        description: 'Decide which UI elements to show and size the progress bar.',
+                        properties: [
+                            prop.boolean('showBar', 'Show Progress Bar', true),
+                            prop.boolean('showStats', 'Show Statistics', true),
+                            prop.boolean('countDown', 'Count Down', false, {
+                                visibleWhen: [{ key: 'showStats', truthy: true }],
+                                description: 'When on, shows remaining time instead of current/total.',
+                            }),
+                            {
+                                key: 'barWidth',
+                                type: 'number',
+                                label: 'Bar Width (px)',
+                                default: 400,
+                                min: 100,
+                                max: 1200,
+                                step: 5,
+                                visibleWhen: [{ key: 'showBar', truthy: true }],
+                                runtime: { transform: clampNonNegative, defaultValue: 400 },
+                            },
+                            {
+                                key: 'height',
+                                type: 'number',
+                                label: 'Bar Height (px)',
+                                default: 20,
+                                min: 10,
+                                max: 80,
+                                step: 5,
+                                visibleWhen: [{ key: 'showBar', truthy: true }],
+                                runtime: { transform: clampNonNegative, defaultValue: 20 },
+                            },
+                        ],
+                        presets: [
+                            {
+                                id: 'fullPanel',
+                                label: 'Full Panel',
+                                values: { showBar: true, showStats: true, barWidth: 480, height: 24 },
+                            },
+                            {
+                                id: 'barOnly',
+                                label: 'Bar Only',
+                                values: { showBar: true, showStats: false, barWidth: 560, height: 18 },
+                            },
+                            {
+                                id: 'statsOverlay',
+                                label: 'Stats Overlay',
+                                values: { showBar: false, showStats: true },
+                            },
+                        ],
+                    },
                 ]),
                 tab.appearance([
-                {
-                    id: 'appearance',
-                    label: 'Appearance',
-                    collapsed: true,
-                    description: 'Fine-tune bar and statistics styling.',
-                    properties: [
-                        ...colorSlotProps('bar', 'Bar', '#cccccc', {
-                            visibleWhen: [{ key: 'showBar', truthy: true }],
-                            step: 0.05,
-                        }),
-                        ...colorSlotProps('barBg', 'Bar Background', '#ffffff', {
-                            opacityDefault: 0.1,
-                            visibleWhen: [{ key: 'showBar', truthy: true }],
-                            step: 0.05,
-                        }),
-                        ...colorSlotProps('border', 'Border', '#ffffff', {
-                            opacityDefault: 0.3,
-                            visibleWhen: [{ key: 'showBar', truthy: true }],
-                            step: 0.05,
-                        }),
-                        ...colorSlotProps('statsText', 'Stats Text', '#cccccc', {
-                            visibleWhen: [{ key: 'showStats', truthy: true }],
-                            step: 0.05,
-                        }),
-                    ],
-                    presets: [
-                        {
-                            id: 'glass',
-                            label: 'Glass Overlay',
-                            values: {
-                                barColor: '#38bdf8',
-                                barOpacity: 0.8,
-                                barBgColor: '#0f172a',
-                                barBgOpacity: 0.35,
-                                borderColor: '#38bdf8',
-                                borderOpacity: 0.5,
-                                statsTextColor: '#f8fafc',
-                                statsTextOpacity: 0.9,
+                    {
+                        id: 'appearance',
+                        label: 'Appearance',
+                        collapsed: true,
+                        description: 'Fine-tune bar and statistics styling.',
+                        properties: [
+                            ...colorSlotProps('bar', 'Bar', '#cccccc', {
+                                visibleWhen: [{ key: 'showBar', truthy: true }],
+                                step: 0.05,
+                            }),
+                            ...colorSlotProps('barBg', 'Bar Background', '#ffffff', {
+                                opacityDefault: 0.1,
+                                visibleWhen: [{ key: 'showBar', truthy: true }],
+                                step: 0.05,
+                            }),
+                            ...colorSlotProps('border', 'Border', '#ffffff', {
+                                opacityDefault: 0.3,
+                                visibleWhen: [{ key: 'showBar', truthy: true }],
+                                step: 0.05,
+                            }),
+                            ...colorSlotProps('statsText', 'Stats Text', '#cccccc', {
+                                visibleWhen: [{ key: 'showStats', truthy: true }],
+                                step: 0.05,
+                            }),
+                        ],
+                        presets: [
+                            {
+                                id: 'glass',
+                                label: 'Glass Overlay',
+                                values: {
+                                    barColor: '#38bdf8',
+                                    barOpacity: 0.8,
+                                    barBgColor: '#0f172a',
+                                    barBgOpacity: 0.35,
+                                    borderColor: '#38bdf8',
+                                    borderOpacity: 0.5,
+                                    statsTextColor: '#f8fafc',
+                                    statsTextOpacity: 0.9,
+                                },
                             },
-                        },
-                        {
-                            id: 'minimal',
-                            label: 'Minimal Line',
-                            values: {
-                                barColor: '#e2e8f0',
-                                barOpacity: 0.6,
-                                barBgColor: '#ffffff',
-                                barBgOpacity: 0.08,
-                                borderColor: '#ffffff',
-                                borderOpacity: 0.2,
-                                statsTextColor: '#cbd5f5',
-                                statsTextOpacity: 0.8,
+                            {
+                                id: 'minimal',
+                                label: 'Minimal Line',
+                                values: {
+                                    barColor: '#e2e8f0',
+                                    barOpacity: 0.6,
+                                    barBgColor: '#ffffff',
+                                    barBgOpacity: 0.08,
+                                    borderColor: '#ffffff',
+                                    borderOpacity: 0.2,
+                                    statsTextColor: '#cbd5f5',
+                                    statsTextOpacity: 0.8,
+                                },
                             },
-                        },
-                        {
-                            id: 'clubNight',
-                            label: 'Club Night',
-                            values: {
-                                barColor: '#f97316',
-                                barOpacity: 0.9,
-                                barBgColor: '#111827',
-                                barBgOpacity: 0.4,
-                                borderColor: '#f59e0b',
-                                borderOpacity: 0.6,
-                                statsTextColor: '#f8fafc',
-                                statsTextOpacity: 1,
+                            {
+                                id: 'clubNight',
+                                label: 'Club Night',
+                                values: {
+                                    barColor: '#f97316',
+                                    barOpacity: 0.9,
+                                    barBgColor: '#111827',
+                                    barBgOpacity: 0.4,
+                                    borderColor: '#f59e0b',
+                                    borderOpacity: 0.6,
+                                    statsTextColor: '#f8fafc',
+                                    statsTextOpacity: 1,
+                                },
                             },
-                        },
-                    ],
-                },
+                        ],
+                    },
                     propGroup.typography(),
                 ]),
             ]
@@ -279,11 +283,19 @@ export class ProgressDisplayElement extends SceneElement {
             const font = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
             const statsTextColorRaw = props.statsTextColor ?? '#cccccc';
             const statsTextOpacity = props.statsTextOpacity ?? 1;
+            const textAlign = (props.textAlign ?? 'left') as CanvasTextAlign;
+            const letterSpacing = props.letterSpacing ?? 0;
+            const countDown = props.countDown ?? false;
 
-            // Time progress
-            const currentTimeText = this._formatTime(Math.max(0, relTime));
-            const durationText = this._formatTime(totalDuration);
-            const timeText = `${currentTimeText} / ${durationText}`;
+            let timeText: string;
+            if (countDown) {
+                const remaining = Math.max(0, totalDuration - relTime);
+                timeText = this._formatTime(remaining);
+            } else {
+                const currentTimeText = this._formatTime(Math.max(0, relTime));
+                const durationText = this._formatTime(totalDuration);
+                timeText = `${currentTimeText} / ${durationText}`;
+            }
 
             const timeLabel = new Text(
                 margin,
@@ -291,9 +303,10 @@ export class ProgressDisplayElement extends SceneElement {
                 timeText,
                 font,
                 this._hexToRgba(statsTextColorRaw, statsTextOpacity),
-                'left',
+                textAlign,
                 'top'
             );
+            timeLabel.letterSpacing = letterSpacing;
             renderObjects.push(timeLabel);
         }
 
