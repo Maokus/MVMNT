@@ -201,7 +201,6 @@ export const useMenuBar = ({
 
         void (async () => {
             const newSceneName = SceneNameGenerator.generate();
-            onSceneNameChange(newSceneName);
 
             let resetSucceeded = false;
             try {
@@ -212,6 +211,10 @@ export const useMenuBar = ({
             if (!resetSucceeded) {
                 await loadDefaultScene('useMenuBar.createNewDefaultScene.fallback');
             }
+
+            // Set the generated name after the template has loaded so the
+            // template's embedded name does not overwrite the generated one.
+            onSceneNameChange(newSceneName);
 
             try {
                 const settings = useSceneStore.getState().settings;

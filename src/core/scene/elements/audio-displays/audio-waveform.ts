@@ -701,15 +701,6 @@ export class AudioWaveformElement extends SceneElement {
                                     defaultValue: DEFAULT_PRIMARY_CHANNEL,
                                 },
                             },
-                            prop.color('color', 'Primary Color', DEFAULT_PRIMARY_LINE_COLOR),
-                            prop.range('opacity', 'Primary Opacity', 1, { min: 0, max: 1, step: 0.01 }),
-                            prop.select(
-                                'primaryBlendMode',
-                                'Blend Mode',
-                                'source-over',
-                                BLEND_MODE_CHOICES as unknown as Array<{ value: string; label: string }>,
-                                { description: 'Canvas composite blending operation.' }
-                            ),
                         ],
                     },
                     {
@@ -733,6 +724,31 @@ export class AudioWaveformElement extends SceneElement {
                                     defaultValue: DEFAULT_SECONDARY_CHANNEL,
                                 },
                             },
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    {
+                        id: 'primaryColors',
+                        label: 'Colors',
+                        collapsed: false,
+                        properties: [
+                            prop.color('color', 'Primary Color', DEFAULT_PRIMARY_LINE_COLOR),
+                            prop.range('opacity', 'Primary Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                            prop.select(
+                                'primaryBlendMode',
+                                'Blend Mode',
+                                'source-over',
+                                BLEND_MODE_CHOICES as unknown as Array<{ value: string; label: string }>,
+                                { description: 'Canvas composite blending operation.' }
+                            ),
+                        ],
+                    },
+                    {
+                        id: 'secondaryColors',
+                        label: 'Secondary Colors',
+                        collapsed: false,
+                        properties: [
                             {
                                 key: 'secondaryColor',
                                 type: 'color',
@@ -763,12 +779,12 @@ export class AudioWaveformElement extends SceneElement {
                     {
                         id: 'background',
                         label: 'Background',
-                        collapsed: false,
+                        collapsed: true,
                         properties: [
                             {
                                 key: 'backgroundColor',
                                 type: 'color',
-                                label: 'Background',
+                                label: 'Background Color',
                                 default: DEFAULT_BACKGROUND_COLOR,
                                 runtime: { transform: asTrimmedString, defaultValue: DEFAULT_BACKGROUND_COLOR },
                             },

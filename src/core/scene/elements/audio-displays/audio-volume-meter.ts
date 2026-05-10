@@ -77,10 +77,6 @@ export class AudioVolumeMeterElement extends SceneElement {
                             prop.number('height', 'Height (px)', 240, { step: 1 }),
                             prop.number('minValue', 'Minimum Value', 0, { step: 0.01 }),
                             prop.number('maxValue', 'Maximum Value', 1, { step: 0.01 }),
-                            prop.color('color', 'Color', DEFAULT_METER_COLOR),
-                            prop.range('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
-                            prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
-                            prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
                             prop.boolean('showValue', 'Show Value Label', true),
                             {
                                 key: 'smoothing',
@@ -90,13 +86,18 @@ export class AudioVolumeMeterElement extends SceneElement {
                                 step: 1,
                                 runtime: { transform: clampSmoothing, defaultValue: 0 },
                             },
-                            prop.select(
-                                'blendMode',
-                                'Blend Mode',
-                                'source-over',
-                                BLEND_MODE_CHOICES as unknown as Array<{ value: string; label: string }>,
-                                { description: 'Canvas composite blending operation.' }
-                            ),
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    propGroup.appearance({ blendMode: true }),
+                    {
+                        id: 'background',
+                        label: 'Background',
+                        collapsed: true,
+                        properties: [
+                            prop.color('backgroundColor', 'Background Color', DEFAULT_BACKGROUND_COLOR),
+                            prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
                         ],
                     },
                 ]),
@@ -161,7 +162,17 @@ export class AudioVolumeMeterElement extends SceneElement {
         if (props.showValue) {
             const percent = Math.round(normalized * 100);
             const labelY = props.orientation === 'horizontal' ? props.height + 16 : props.height + 16;
-            objects.push(new Text(0, labelY, `${percent}%`, '12px Inter, sans-serif', '#e2e8f0', 'left', 'middle').setIncludeInLayoutBounds(false));
+            objects.push(
+                new Text(
+                    0,
+                    labelY,
+                    `${percent}%`,
+                    '12px Inter, sans-serif',
+                    '#e2e8f0',
+                    'left',
+                    'middle'
+                ).setIncludeInLayoutBounds(false)
+            );
         }
 
         return objects;

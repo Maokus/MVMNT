@@ -72,16 +72,17 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                                     defaultValue: 2,
                                 },
                             },
-                            prop.color('color', 'Primary Color', DEFAULT_LINE_COLOR),
-                            prop.range('opacity', 'Primary Opacity', 1, { min: 0, max: 1, step: 0.01 }),
-                            prop.select(
-                                'blendMode',
-                                'Primary Blend Mode',
-                                'source-over',
-                                BLEND_MODE_CHOICES as unknown as Array<{ value: string; label: string }>,
-                                { description: 'Canvas composite blending operation.' }
-                            ),
-                            prop.color('backgroundColor', 'Background', DEFAULT_BACKGROUND_COLOR),
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    propGroup.appearance({ blendMode: true }),
+                    {
+                        id: 'background',
+                        label: 'Background',
+                        collapsed: true,
+                        properties: [
+                            prop.color('backgroundColor', 'Background Color', DEFAULT_BACKGROUND_COLOR),
                             prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
                         ],
                     },

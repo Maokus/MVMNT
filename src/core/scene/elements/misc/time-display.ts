@@ -85,7 +85,7 @@ export class TimeDisplayElement extends SceneElement {
                 tab.appearance([
                     {
                         id: 'colors',
-                        label: 'Appearance',
+                        label: 'Colors',
                         collapsed: false,
                         description: 'Colors for primary and secondary text.',
                         properties: [

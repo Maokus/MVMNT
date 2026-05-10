@@ -35,7 +35,11 @@ export class NotesPlayedTrackerElement extends SceneElement {
                             prop.longString(
                                 'formatString',
                                 'Format String',
-                                'Num played notes: #playedNotes/#totalNotes (#percentNotes%)\nNum played events: #playedEvents/#totalEvents (#percentEvents%)'
+                                'Num played notes: #playedNotes/#totalNotes (#percentNotes%)\nNum played events: #playedEvents/#totalEvents (#percentEvents%)',
+                                {
+                                    description:
+                                        'Tokens substituted: #playedNotes, #totalNotes, #percentNotes — note counts; #playedEvents, #totalEvents, #percentEvents — all events including CC messages.',
+                                }
                             ),
                         ],
                         presets: [
@@ -90,6 +94,7 @@ export class NotesPlayedTrackerElement extends SceneElement {
         let totalNotes = 0;
         let playedNotes = 0;
         let playedEvents = 0;
+        let totalCCEvents = 0;
         if (trackId && (!api || status !== 'ok')) {
             const message =
                 status === 'unsupported-version'
@@ -108,6 +113,13 @@ export class NotesPlayedTrackerElement extends SceneElement {
                     endSec: Number.POSITIVE_INFINITY,
                 }) ?? [];
             totalNotes = all.length;
+            const allCC =
+                api?.timeline.selectCCInWindow({
+                    trackIds: [trackId],
+                    startSec: 0,
+                    endSec: Number.POSITIVE_INFINITY,
+                }) ?? [];
+            totalCCEvents = allCC.length;
             if (targetTime >= 0) {
                 for (const note of all) {
                     if ((note.startTime ?? 0) <= effectiveTime) {
@@ -118,9 +130,14 @@ export class NotesPlayedTrackerElement extends SceneElement {
                         playedEvents += 1;
                     }
                 }
+                for (const cc of allCC) {
+                    if (cc.timeSec <= effectiveTime) {
+                        playedEvents += 1;
+                    }
+                }
             }
         }
-        const totalEvents = totalNotes * 2;
+        const totalEvents = totalNotes * 2 + totalCCEvents;
 
         const pctNotes = totalNotes > 0 ? (playedNotes / totalNotes) * 100 : 0;
         const pctEvents = totalEvents > 0 ? (playedEvents / totalEvents) * 100 : 0;

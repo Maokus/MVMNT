@@ -33,14 +33,6 @@ export class NotesPlayingDisplayElement extends SceneElement {
                             prop.midiTrack('midiTrackId', 'MIDI Track'),
                             prop.boolean('showAllAvailableTracks', 'Show All Tracks When Idle', false),
                         ],
-                        presets: [
-                            { id: 'singleTrack', label: 'Single Track', values: { showAllAvailableTracks: false } },
-                            {
-                                id: 'multiTrack',
-                                label: 'Multi-Track Overview',
-                                values: { showAllAvailableTracks: true },
-                            },
-                        ],
                     },
                     {
                         id: 'display',
@@ -64,7 +56,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
                                 step: 1,
                                 visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
                             }),
-                            prop.number('gridRows', 'Rows', 8, {
+                            prop.number('gridRows', 'Rows', 12, {
                                 min: 1,
                                 max: 32,
                                 step: 1,
@@ -85,13 +77,13 @@ export class NotesPlayingDisplayElement extends SceneElement {
                                 description:
                                     'MIDI note at grid position [0,0]. Set to -1 to auto-detect from the MIDI file.',
                             }),
-                            prop.number('gridCellWidth', 'Grid Cell Width (px)', 42, {
+                            prop.number('gridCellWidth', 'Grid Cell Width (px)', 65, {
                                 min: 6,
                                 max: 200,
                                 step: 1,
                                 visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
                             }),
-                            prop.number('gridCellHeight', 'Grid Cell Height (px)', 28, {
+                            prop.number('gridCellHeight', 'Grid Cell Height (px)', 65, {
                                 min: 6,
                                 max: 200,
                                 step: 1,
@@ -109,7 +101,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
                                 step: 1,
                                 visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
                             }),
-                            prop.color('gridFillColor', 'Grid Fill Color', '#22d3ee', {
+                            prop.color('gridFillColor', 'Grid Fill Color', '#EFEFEF', {
                                 visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
                             }),
                             prop.range('gridFillOpacity', 'Grid Fill Opacity', 1, {
@@ -158,23 +150,6 @@ export class NotesPlayingDisplayElement extends SceneElement {
                                 { value: 'right', label: 'Right' },
                             ]),
                             prop.number('lineSpacing', 'Line Spacing (px)', 4, { min: 0, max: 40, step: 1 }),
-                        ],
-                        presets: [
-                            {
-                                id: 'compact',
-                                label: 'Compact List',
-                                values: { fontSize: 24, lineSpacing: 2, color: '#cbd5f5' },
-                            },
-                            {
-                                id: 'stageReadout',
-                                label: 'Stage Readout',
-                                values: { fontSize: 36, lineSpacing: 6, color: '#f8fafc' },
-                            },
-                            {
-                                id: 'monitor',
-                                label: 'Monitor Overlay',
-                                values: { fontSize: 28, lineSpacing: 4, color: '#22d3ee' },
-                            },
                         ],
                     },
                     propGroup.container(),

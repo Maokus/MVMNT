@@ -110,7 +110,7 @@ export class ProgressDisplayElement extends SceneElement {
                 tab.appearance([
                     {
                         id: 'appearance',
-                        label: 'Appearance',
+                        label: 'Colors',
                         collapsed: true,
                         description: 'Fine-tune bar and statistics styling.',
                         properties: [
@@ -286,6 +286,9 @@ export class ProgressDisplayElement extends SceneElement {
             const textAlign = (props.textAlign ?? 'left') as CanvasTextAlign;
             const letterSpacing = props.letterSpacing ?? 0;
             const countDown = props.countDown ?? false;
+            const barWidth = props.barWidth ?? 400;
+            const textX =
+                textAlign === 'right' ? barWidth : textAlign === 'center' ? barWidth / 2 : margin;
 
             let timeText: string;
             if (countDown) {
@@ -298,7 +301,7 @@ export class ProgressDisplayElement extends SceneElement {
             }
 
             const timeLabel = new Text(
-                margin,
+                textX,
                 textY,
                 timeText,
                 font,

@@ -175,7 +175,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                 tab.appearance([
                     {
                         id: 'appearance',
-                        label: 'Appearance',
+                        label: 'Colors',
                         collapsed: false,
                         properties: [
                             prop.color('color', 'Text Color', '#ffffff'),
@@ -427,7 +427,13 @@ export class ChordEstimateDisplayElement extends SceneElement {
             else if (justify === 'right' || justify === 'end') startX = textX - totalWidth;
             for (let i = 0; i < names.length; i++) {
                 const rectX = startX + i * spacing;
-                const rect = new Rectangle(rectX, y, rectWidth, 20, applyOpacity(chromaColorRaw, chroma[i] * chromaOpacityScale));
+                const rect = new Rectangle(
+                    rectX,
+                    y,
+                    rectWidth,
+                    20,
+                    applyOpacity(chromaColorRaw, chroma[i] * chromaOpacityScale)
+                );
                 rect.setIncludeInLayoutBounds(false);
                 renderObjects.push(rect);
             }

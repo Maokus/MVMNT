@@ -154,6 +154,8 @@ export class BasicShapesElement extends SceneElement {
                             }),
                         ],
                     },
+                ]),
+                tab.appearance([
                     fillAppearanceGroup,
                     {
                         id: 'shapeStroke',

@@ -170,7 +170,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         ],
                     },
                 ]),
-                tab.custom('reference', 'Reference', [
+                tab.custom('annotation', 'Annotation', [
                     {
                         id: 'piano',
                         label: 'Piano',

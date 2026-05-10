@@ -35,17 +35,21 @@ const ChangelogPage: React.FC = () => {
                         ],
                         'Misc Improvements',
                         [
-                            'Implement tabs for properties',
                             'Internally store MIDI as binary to reduce file sizes',
-                            'Improve timeline navigation',
+                            'Improve timeline navigation (scroll in peace)',
                             'Change color picker',
                             'Modify persistence system (now uses indexeddb so you don\'t keep losing your progress on reload)',
                         ],
-                        'New Content',
+                        'Full rework of inbuilt elements',
                         [
+                            'Implement tabs for properties',
+                            'Audit builtin elements for property display and usage consistency and quality',
                             'Add basic shapes element',
                             'Add MIDI cc monitor element',
                             'More note animations for TUPR/MNPR',
+                            'Notes Playing Display given two new display modes inspired by tn-shi and ableton push respectively',
+                            'Notes Played Tracker given format string property for improved flexibility',
+
                         ],
                         'Implemented custom element plugin system',
                         [
