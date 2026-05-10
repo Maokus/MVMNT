@@ -33,7 +33,7 @@ export class TextOverlayElement extends SceneElement {
                         collapsed: false,
                         description: 'Edit the copy that appears on screen.',
                         properties: [
-                            prop.string('text', 'Text Content', 'Sample Text', {
+                            prop.longString('text', 'Text Content', 'Sample Text', {
                                 description: 'The text content to display.',
                             }),
                         ],

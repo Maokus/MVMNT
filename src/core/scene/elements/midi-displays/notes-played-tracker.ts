@@ -24,7 +24,22 @@ export class NotesPlayedTrackerElement extends SceneElement {
                 category: 'MIDI Displays',
             },
             [
-                tab.content([propGroup.midiSource()]),
+                tab.content([
+                    propGroup.midiSource(),
+                    {
+                        id: 'formatting',
+                        label: 'Formatting',
+                        collapsed: false,
+                        description: 'Customize the display string using tokens like #playedNotes.',
+                        properties: [
+                            prop.longString(
+                                'formatString',
+                                'Format String',
+                                'Num played notes: #playedNotes/#totalNotes (#percentNotes%)\nNum played events: #playedEvents/#totalEvents (#percentEvents%)'
+                            ),
+                        ],
+                    },
+                ]),
                 tab.appearance([
                     propGroup.appearance(),
                     {
@@ -127,23 +142,89 @@ export class NotesPlayedTrackerElement extends SceneElement {
         if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const font = `${fontWeight} ${fontSize}px ${fontFamily || 'Inter'}, sans-serif`;
 
-        const line1 = `Num played notes: ${playedNotes}/${totalNotes} (${pctNotes.toFixed(2)}%)`;
-        const line2 = `Num played events: ${playedEvents}/${totalEvents} (${pctEvents.toFixed(2)}%)`;
-        const justification = (props.textAlign ?? props.textJustification ?? 'left') as CanvasTextAlign;
-        const text1 = new Text(0, 0, line1, font, color, justification, 'top');
-        const text2 = new Text(0, fontSize + lineSpacing, line2, font, color, justification, 'top');
+        const formatTemplate = (template: string, values: Record<string, string>) =>
+            template.replace(
+                /#(playedNotes|totalNotes|percentNotes|playedEvents|totalEvents|percentEvents)/g,
+                (_, token) => values[token] ?? ''
+            );
 
-        renderObjects.push(text1, text2);
+        const displayValues = {
+            playedNotes: playedNotes.toString(),
+            totalNotes: totalNotes.toString(),
+            percentNotes: pctNotes.toFixed(2),
+            playedEvents: playedEvents.toString(),
+            totalEvents: totalEvents.toString(),
+            percentEvents: pctEvents.toFixed(2),
+        };
+        const layoutValues = {
+            playedNotes: totalNotes.toString(),
+            totalNotes: totalNotes.toString(),
+            percentNotes: '100.00',
+            playedEvents: totalEvents.toString(),
+            totalEvents: totalEvents.toString(),
+            percentEvents: '100.00',
+        };
+        const template =
+            (props.formatString as string) ??
+            'Num played notes: #playedNotes/#totalNotes (#percentNotes%)\nNum played events: #playedEvents/#totalEvents (#percentEvents%)';
+        const displayText = formatTemplate(template, displayValues);
+        const layoutText = formatTemplate(template, layoutValues);
+
+        const measureWidth = (text: string, fontStr: string): number => {
+            try {
+                if (typeof OffscreenCanvas !== 'undefined') {
+                    const c = new OffscreenCanvas(1, 1);
+                    const ctx = c.getContext('2d') as CanvasRenderingContext2D | null;
+                    if (ctx) {
+                        ctx.font = fontStr;
+                        return ctx.measureText(text).width || 0;
+                    }
+                }
+                if (typeof document !== 'undefined') {
+                    const c = document.createElement('canvas');
+                    const ctx = c.getContext('2d');
+                    if (ctx) {
+                        ctx.font = fontStr;
+                        return ctx.measureText(text).width || 0;
+                    }
+                }
+            } catch {}
+            const m = fontStr.match(/(\d*\.?\d+)px/);
+            const fs = m ? parseFloat(m[1]) : 16;
+            return text.length * fs * 0.6;
+        };
+
+        const displayLines = displayText.split(/\r?\n/);
+        const layoutLines = layoutText.split(/\r?\n/);
+        const layoutWidth = Math.max(1, ...layoutLines.map((line) => measureWidth(line, font)));
+        const layoutHeight =
+            layoutLines.length > 0
+                ? layoutLines.length * fontSize + Math.max(0, layoutLines.length - 1) * lineSpacing
+                : fontSize;
+        const justification = (props.textAlign ?? props.textJustification ?? 'left') as CanvasTextAlign;
+        const layoutX = justification === 'center' ? -layoutWidth / 2 : justification === 'right' ? -layoutWidth : 0;
+
+        const layoutRect = new Rectangle(layoutX, 0, layoutWidth, layoutHeight, null, null, 0);
+        layoutRect.setIncludeInLayoutBounds(true);
+        renderObjects.push(layoutRect);
+
+        displayLines.forEach((line, index) => {
+            const y = index * (fontSize + lineSpacing);
+            const textObj = new Text(0, y, line, font, color, justification, 'top', {
+                includeInLayoutBounds: false,
+            });
+            renderObjects.push(textObj);
+        });
 
         if (props.showBackground) {
             const paddingX = props.backgroundPaddingX ?? 8;
             const paddingY = props.backgroundPaddingY ?? 4;
             const bgColor = applyOpacity(props.backgroundColor ?? '#000000', props.backgroundOpacity ?? 0.8);
-            const lineH = (props.fontSize ?? 30) * 1.4;
-            const bgWidth = 400 + paddingX * 2;
-            const bgHeight = lineH * 2 + (props.lineSpacing ?? 4) + paddingY * 2;
-            const bg = new Rectangle(-paddingX, -paddingY, bgWidth, bgHeight, bgColor);
+            const bgWidth = layoutWidth + paddingX * 2;
+            const bgHeight = layoutHeight + paddingY * 2;
+            const bg = new Rectangle(layoutX - paddingX, -paddingY, bgWidth, bgHeight, bgColor);
             if (props.backgroundCornerRadius) bg.cornerRadius = props.backgroundCornerRadius;
+            bg.setIncludeInLayoutBounds?.(false);
             renderObjects.unshift(bg);
         }
 

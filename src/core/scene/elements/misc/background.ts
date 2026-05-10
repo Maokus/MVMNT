@@ -14,7 +14,6 @@ export class BackgroundElement extends SceneElement {
             zIndex: -1000,
             color: '#1a1a1a',
             opacity: 1,
-            borderWidth: 0,
         };
 
         for (const [key, value] of Object.entries(defaults)) {
@@ -32,7 +31,7 @@ export class BackgroundElement extends SceneElement {
                 description: 'Solid background color for the visualization',
                 category: 'Misc',
             },
-            [tab.appearance([propGroup.appearance(), propGroup.border()])]
+            [tab.appearance([propGroup.appearance()])]
         );
     }
 
@@ -46,8 +45,6 @@ export class BackgroundElement extends SceneElement {
             props.color ?? props.backgroundColor ?? '#1a1a1a',
             props.opacity ?? props.backgroundOpacity ?? 1
         );
-        const borderWidth = props.borderWidth ?? 0;
-        const stroke = borderWidth > 0 ? (props.borderColor ?? '#ffffff') : null;
-        return [new Rectangle(0, 0, canvas.width, canvas.height, fill, stroke, borderWidth)];
+        return [new Rectangle(0, 0, canvas.width, canvas.height, fill)];
     }
 }
