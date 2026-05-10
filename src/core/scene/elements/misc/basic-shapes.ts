@@ -194,8 +194,6 @@ export class BasicShapesElement extends SceneElement {
                                 description: 'Gap between dash segments.',
                             }),
                             prop.number('dashOffset', 'Dash Offset (px)', 0, {
-                                min: -200,
-                                max: 200,
                                 step: 1,
                                 description: 'Offset into the dash pattern, useful for animating dashes.',
                             }),

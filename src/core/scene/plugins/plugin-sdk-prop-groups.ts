@@ -90,7 +90,7 @@ export const propGroup = {
         const keyFor = (base: string) => (prefix ? `${prefix}${base[0].toUpperCase()}${base.slice(1)}` : base);
         return {
             id: opts?.id ?? 'appearance',
-            label: opts?.label ?? 'Appearance',
+            label: opts?.label ?? 'Colors',
             collapsed: false,
             properties: [
                 prop.color(keyFor('color'), 'Color', '#ffffff'),

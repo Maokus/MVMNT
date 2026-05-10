@@ -89,8 +89,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
                                 description: 'Total height of the piano roll.',
                             }),
                             prop.number('timeUnitBars', 'Time Unit (bars)', 1, { min: 1, max: 8, step: 1 }),
-                            prop.number('minNote', 'Minimum MIDI Note', -1, { min: -1, max: 127, step: 1 }),
-                            prop.number('maxNote', 'Maximum MIDI Note', -1, { min: -1, max: 127, step: 1 }),
+                            prop.number('minNote', 'Minimum MIDI Note', -1, { min: -1, max: 127, step: 1, description: 'Lowest MIDI note shown. Set to -1 to automatically use the lowest note in the track.' }),
+                            prop.number('maxNote', 'Maximum MIDI Note', -1, { min: -1, max: 127, step: 1, description: 'Highest MIDI note shown. Set to -1 to automatically use the highest note in the track.' }),
                         ],
                     },
                     {
@@ -133,7 +133,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     {
                         id: 'animation',
                         label: 'Animation',
-                        collapsed: true,
+                        collapsed: false,
                         description: 'Choose how notes animate when they enter or exit the window.',
                         properties: [
                             prop.select('animationType', 'Animation Type', 'expand', [
@@ -148,7 +148,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     {
                         id: 'playhead',
                         label: 'Playhead',
-                        collapsed: true,
+                        collapsed: false,
                         description: 'Style the static playhead indicator.',
                         properties: [
                             prop.boolean('showPlayhead', 'Show Playhead', true),
@@ -178,7 +178,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         description: 'Optional static keyboard rendered alongside the roll.',
                         properties: [
                             prop.boolean('showPiano', 'Show Piano', false),
-                            prop.number('pianoWidth', 'Piano Width (px)', 0, {
+                            prop.number('pianoWidth', 'Piano Width (px)', 100, {
                                 min: 80,
                                 max: 300,
                                 step: 10,
@@ -213,7 +213,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         collapsed: true,
                         description: 'Horizontal grid lines for pitch reference.',
                         properties: [
-                            prop.boolean('showNoteGrid', 'Show Note Grid', true),
+                            prop.boolean('showNoteGrid', 'Show Note Grid', false),
                             prop.color('noteGridColor', 'Grid Line Color', '#333333', {
                                 visibleWhen: [{ key: 'showNoteGrid', truthy: true }],
                             }),
@@ -237,7 +237,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         collapsed: true,
                         description: 'Vertical grid lines for beats and bars.',
                         properties: [
-                            prop.boolean('showBeatGrid', 'Show Beat Grid', true),
+                            prop.boolean('showBeatGrid', 'Show Beat Grid', false),
                             prop.color('beatGridBarColor', 'Bar Line Color', '#666666', {
                                 visibleWhen: [{ key: 'showBeatGrid', truthy: true }],
                             }),
@@ -270,7 +270,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         collapsed: true,
                         description: 'Configure note name overlays along the piano.',
                         properties: [
-                            prop.boolean('showNoteLabels', 'Show Note Labels', true),
+                            prop.boolean('showNoteLabels', 'Show Note Labels', false),
                             prop.font('noteLabelFontFamily', 'Font Family', 'Inter', {
                                 visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
                             }),
@@ -321,7 +321,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         collapsed: true,
                         description: 'Configure beat/bar text above the grid.',
                         properties: [
-                            prop.boolean('showBeatLabels', 'Show Beat Labels', true),
+                            prop.boolean('showBeatLabels', 'Show Beat Labels', false),
                             prop.font('beatLabelFontFamily', 'Font Family', 'Inter', {
                                 visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
                             }),
@@ -423,8 +423,10 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const rawMaxNote = props.maxNote as number;
         let minNote: number;
         let maxNote: number;
-        if (rawMinNote === -1 && rawMaxNote === -1) {
+        if (rawMinNote === -1 || rawMaxNote === -1) {
             const trackId = props.midiTrackId as string | undefined;
+            let autoMinNote = 0;
+            let autoMaxNote = 127;
             if (trackId && status === 'ok' && api) {
                 const allNotes = api.timeline.selectNotesInWindow({
                     trackIds: [trackId],
@@ -432,19 +434,15 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     endSec: 99999,
                 });
                 if (allNotes.length > 0) {
-                    minNote = Math.min(...allNotes.map((n) => n.note));
-                    maxNote = Math.max(...allNotes.map((n) => n.note));
-                } else {
-                    minNote = 0;
-                    maxNote = 127;
+                    autoMinNote = Math.min(...allNotes.map((n) => n.note));
+                    autoMaxNote = Math.max(...allNotes.map((n) => n.note));
                 }
-            } else {
-                minNote = 0;
-                maxNote = 127;
             }
+            minNote = rawMinNote === -1 ? autoMinNote : rawMinNote;
+            maxNote = rawMaxNote === -1 ? autoMaxNote : rawMaxNote;
         } else {
-            minNote = rawMinNote === -1 ? 0 : rawMinNote;
-            maxNote = rawMaxNote === -1 ? 128 : rawMaxNote;
+            minNote = rawMinNote;
+            maxNote = rawMaxNote;
         }
         const numNotes = Math.max(1, maxNote - minNote + 1);
         const noteHeight = rollHeight / numNotes;
