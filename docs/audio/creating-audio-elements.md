@@ -1,6 +1,6 @@
 # Creating audio-reactive scene elements
 
-_Last reviewed: 12 November 2025_
+_Last reviewed: May 2026_
 
 ## Overview
 
@@ -13,11 +13,11 @@ runtime. Follow the patterns below to stay aligned with the v4 audio system simp
 Use the metadata registry to declare fixed feature dependencies for your element. The base
 `SceneElement` forwards those requirements to a `FeatureSubscriptionController`, which watches both
 direct property edits and macro-driven updates to `audioTrackId`, so subclasses only need to
-render.【F:src/core/scene/elements/audioElementMetadata.ts†L1-L43】【F:src/core/scene/elements/base.ts†L73-L210】
+render.【F:src/audio/audioElementMetadata.ts†L1-L43】【F:src/core/scene/elements/base.ts†L73-L210】
 
 ```ts
 import { SceneElement } from '@core/scene/elements/base';
-import { registerFeatureRequirements } from '@core/scene/elements/audioElementMetadata';
+import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { getFeatureData } from '@audio/features/sceneApi';
 
 registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
@@ -82,9 +82,9 @@ export class DynamicAudioElement extends SceneElement {
 
 ## Best practices
 
--   Keep user-facing config focused on visual controls; declare audio data needs through metadata.
--   Sample within render-time helpers rather than caching values on the instance to avoid stale data.
--   Use smoothing as a runtime option so multiple elements can share the same cached descriptor while
-    applying different presentation filters.
--   When you introduce a new feature requirement, add a regression test under
-    `src/core/scene/elements/__tests__` that verifies subscription publishing and rendering behavior.
+- Keep user-facing config focused on visual controls; declare audio data needs through metadata.
+- Sample within render-time helpers rather than caching values on the instance to avoid stale data.
+- Use smoothing as a runtime option so multiple elements can share the same cached descriptor while
+  applying different presentation filters.
+- When you introduce a new feature requirement, add a regression test under
+  `src/core/scene/elements/__tests__` that verifies subscription publishing and rendering behavior.

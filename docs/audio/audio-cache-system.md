@@ -1,6 +1,6 @@
 # Audio Cache System
 
-_Last reviewed: 12 November 2025_
+_Last reviewed: May 2026_
 
 The audio cache system transforms decoded audio into tempo-aligned feature tracks that any scene element can sample. Phase 9 of the audio system simplification project clarified how the pieces fit together—this document captures the current mental model and links to the developer guides you will use most often.
 
@@ -30,7 +30,7 @@ The [Audio Features Quick Start](audio/quickstart.md) provides a copy/paste frie
 1. **Declare requirements** inside the element module using `registerFeatureRequirements`. These declarations are internal metadata—not user configuration.
 2. **Sample at render time** with `getFeatureData(element, trackId, featureKey, time, samplingOptions?)`. Sampling options (such as smoothing) describe presentation-time adjustments and never affect cache identity.
 
-If you need deeper background or want to reason about the mental model before coding, read the [Audio Concepts](audio/concepts.md) guide. It unpacks the separation between data dependencies and user-facing properties.
+If you need deeper background or want to reason about the mental model before coding, read the [Audio Concepts](concepts.md) guide. It unpacks the separation between data dependencies and user-facing properties.
 
 The sections below dive into architecture details, advanced usage, and the migration path from legacy descriptor smoothing.
 
@@ -38,12 +38,12 @@ The sections below dive into architecture details, advanced usage, and the migra
 
 ### Data Ownership and Flow
 
--   **Timeline Store** owns decoded buffers, cache maps (`audioFeatureCaches`), and cache status entries (`audioFeatureCacheStatus`). The store persists analysis results and coordinates retries without reloading audio files.【F:src/state/timelineStore.ts†L880-L1088】
--   **Analysis Scheduler** runs calculators sequentially, reporting progress, handling cancellation, and ensuring only one analysis job touches a source at a time.【F:src/audio/features/audioFeatureScheduler.ts†L38-L102】【F:src/state/timelineStore.ts†L283-L375】
--   **Feature Requirements Registry** lets elements register internal dependencies once. During runtime the registry informs diagnostics panels and simplifies reasoning about which data a surface needs.【F:src/core/scene/elements/audioElementMetadata.ts†L1-L44】
--   **Analysis Intent Bus** deduplicates subscriptions. When multiple surfaces need the same descriptor, they share cache entries automatically without triggering duplicate work.【F:src/audio/features/analysisIntents.ts†L80-L133】
--   **Feature Subscription Controller** keeps per-element state, normalizes track IDs (including macro-driven changes), merges static requirements with ad-hoc descriptors, and publishes intents only when something meaningful changes. It also generates fallback element IDs during early render passes so requests are never dropped before persistence assigns a real ID.【F:src/audio/features/featureSubscriptionController.ts†L1-L404】
--   **Tempo-Aligned View Adapter** translates timeline ticks or seconds into frame indices and applies runtime presentation logic (interpolation, smoothing) without altering descriptor identity.【F:src/audio/features/tempoAlignedViewAdapter.ts†L1-L218】
+- **Timeline Store** owns decoded buffers, cache maps (`audioFeatureCaches`), and cache status entries (`audioFeatureCacheStatus`). The store persists analysis results and coordinates retries without reloading audio files.【F:src/state/timelineStore.ts†L880-L1088】
+- **Analysis Scheduler** runs calculators sequentially, reporting progress, handling cancellation, and ensuring only one analysis job touches a source at a time.【F:src/audio/features/audioFeatureScheduler.ts†L38-L102】【F:src/state/timelineStore.ts†L283-L375】
+- **Feature Requirements Registry** lets elements register internal dependencies once. During runtime the registry informs diagnostics panels and simplifies reasoning about which data a surface needs.【F:src/audio/audioElementMetadata.ts†L1-L44】
+- **Analysis Intent Bus** deduplicates subscriptions. When multiple surfaces need the same descriptor, they share cache entries automatically without triggering duplicate work.【F:src/audio/features/analysisIntents.ts†L80-L133】
+- **Feature Subscription Controller** keeps per-element state, normalizes track IDs (including macro-driven changes), merges static requirements with ad-hoc descriptors, and publishes intents only when something meaningful changes. It also generates fallback element IDs during early render passes so requests are never dropped before persistence assigns a real ID.【F:src/audio/features/featureSubscriptionController.ts†L1-L404】
+- **Tempo-Aligned View Adapter** translates timeline ticks or seconds into frame indices and applies runtime presentation logic (interpolation, smoothing) without altering descriptor identity.【F:src/audio/features/tempoAlignedViewAdapter.ts†L1-L218】
 
 ### Descriptors vs Sampling Options
 
@@ -65,11 +65,11 @@ When an audio track is bound in the timeline, the store:
 
 Statuses progress through these states:
 
--   `idle` → initial state, no analysis started
--   `pending` → analysis job is running
--   `ready` → all feature tracks successfully generated
--   `failed` → calculator threw an error during analysis
--   `stale` → cache exists but is outdated (calculator version changed, tempo map changed, or manual invalidation)
+- `idle` → initial state, no analysis started
+- `pending` → analysis job is running
+- `ready` → all feature tracks successfully generated
+- `failed` → calculator threw an error during analysis
+- `stale` → cache exists but is outdated (calculator version changed, tempo map changed, or manual invalidation)
 
 The store records why data became stale, enabling targeted reanalysis without discarding valid feature tracks.【F:src/state/timelineStore.ts†L880-L987】【F:src/audio/features/audioFeatureTypes.ts†L113-L132】
 
@@ -77,15 +77,15 @@ The store records why data became stale, enabling targeted reanalysis without di
 
 Every cache (`AudioFeatureCache`) contains:
 
--   **Audio Source ID**: links back to the decoded buffer
--   **Hop Metadata**: canonical hop duration in seconds and ticks for tempo alignment
--   **Tempo Projection**: start tick, tempo map hash for verifying alignment
--   **Frame Count**: total number of analysis frames
--   **Feature Tracks**: map of feature key → `AudioFeatureTrack` (spectrogram, RMS, waveform, etc.)
--   **Analysis Parameters**: window size, hop size, FFT size, smoothing, calculator versions
--   **Analysis Profiles**: reusable parameter sets for different quality/performance trade-offs
--   **Channel Aliases**: semantic labels like "Left", "Right", "Mid" for multi-channel audio
--   **Channel Layout**: optional metadata describing alias ordering and semantics for each track
+- **Audio Source ID**: links back to the decoded buffer
+- **Hop Metadata**: canonical hop duration in seconds and ticks for tempo alignment
+- **Tempo Projection**: start tick, tempo map hash for verifying alignment
+- **Frame Count**: total number of analysis frames
+- **Feature Tracks**: map of feature key → `AudioFeatureTrack` (spectrogram, RMS, waveform, etc.)
+- **Analysis Parameters**: window size, hop size, FFT size, smoothing, calculator versions
+- **Analysis Profiles**: reusable parameter sets for different quality/performance trade-offs
+- **Channel Aliases**: semantic labels like "Left", "Right", "Mid" for multi-channel audio
+- **Channel Layout**: optional metadata describing alias ordering and semantics for each track
 
 Track metadata includes calculator IDs, versions, channel counts, channel layout hints, and per-track configuration so downstream consumers can render results without guessing at FFT sizes or smoothing strategies.【F:src/audio/features/audioFeatureTypes.ts†L19-L111】
 
@@ -93,8 +93,8 @@ Track metadata includes calculator IDs, versions, channel counts, channel layout
 
 Cache serialization utilities:
 
--   Flatten typed arrays (`Float32Array`, `Uint8Array`) into JSON-safe payloads or external file references
--   Attach default analysis profiles automatically
+- Flatten typed arrays (`Float32Array`, `Uint8Array`) into JSON-safe payloads or external file references
+- Attach default analysis profiles automatically
 
 These utilities ensure caches can be saved and restored without data loss.【F:src/audio/features/audioFeatureAnalysis.ts†L569-L718】
 
@@ -115,22 +115,22 @@ const rmsDescriptor: AudioFeatureDescriptor = {
 
 ### Descriptor Properties
 
--   **`featureKey`**: The type of feature data (e.g., `'spectrogram'`, `'rms'`, `'waveform'`)
--   **`calculatorId`**: Optional calculator identifier if multiple calculators produce the same feature key
--   **`bandIndex`**: Optional frequency band index for multi-band features like spectrograms
--   **Sampling options**: Runtime parameters such as smoothing and interpolation are supplied when sampling via `getFeatureData`, keeping descriptors focused on analysis identity.
+- **`featureKey`**: The type of feature data (e.g., `'spectrogram'`, `'rms'`, `'waveform'`)
+- **`calculatorId`**: Optional calculator identifier if multiple calculators produce the same feature key
+- **`bandIndex`**: Optional frequency band index for multi-band features like spectrograms
+- **Sampling options**: Runtime parameters such as smoothing and interpolation are supplied when sampling via `getFeatureData`, keeping descriptors focused on analysis identity.
 
 ### Channel metadata & runtime filtering
 
--   `AudioFeatureTrack.channelLayout` mirrors the runtime contract by exposing optional alias arrays
-    and semantics (e.g., `'stereo'`, `'mid-side'`).【F:src/audio/features/audioFeatureTypes.ts†L42-L88】
--   Calculators populate `channelLayout.aliases` alongside legacy `channelAliases` so downstream
-    consumers can migrate gradually.
--   Sampling utilities (`getFeatureData`, `sampleFeatureHistory`) now return full channel vectors.
-    Scene elements pick the desired channel index at render time using the metadata attached to the
-    cache or track.
--   Cache-level `channelAliases` remain available for backwards compatibility and continue to
-    describe the canonical ordering when per-track metadata is missing.
+- `AudioFeatureTrack.channelLayout` mirrors the runtime contract by exposing optional alias arrays
+  and semantics (e.g., `'stereo'`, `'mid-side'`).【F:src/audio/features/audioFeatureTypes.ts†L42-L88】
+- Calculators populate `channelLayout.aliases` alongside legacy `channelAliases` so downstream
+  consumers can migrate gradually.
+- Sampling utilities (`getFeatureData`, `sampleFeatureHistory`) now return full channel vectors.
+  Scene elements pick the desired channel index at render time using the metadata attached to the
+  cache or track.
+- Cache-level `channelAliases` remain available for backwards compatibility and continue to
+  describe the canonical ordering when per-track metadata is missing.
 
 ### Match Keys and Deduplication
 
@@ -141,38 +141,45 @@ analysis work even if they originate from different UI components, reducing dupl
 
 ### Overview
 
--   Calculators transform audio buffers into `AudioFeatureTrack` payloads. Each calculator declares an id, version, feature key, and `calculate` function that receives windowing parameters, hop size, and tempo projection metadata for the request.【F:src/audio/features/audioFeatureTypes.ts†L160-L213】
--   During analysis the system registers built-in calculators (spectrogram, RMS loudness, waveform) and invokes them sequentially. Calculators may yield periodically to avoid blocking the UI and call the provided `reportProgress` callback with frame counts for status updates.【F:src/audio/features/audioFeatureAnalysis.ts†L720-L841】
--   Results include tempo-projected metadata, channel aliases, analysis profile identifiers, and an optional serializer so tracks can be saved and restored without rerunning expensive FFT work. Registering a calculator automatically invalidates caches created with older versions to keep data aligned with the implementation.【F:src/audio/features/audioFeatureAnalysis.ts†L720-L880】【F:src/audio/features/audioFeatureRegistry.ts†L1-L36】
+- Calculators transform audio buffers into `AudioFeatureTrack` payloads. Each calculator declares an id, version, feature key, and `calculate` function that receives windowing parameters, hop size, and tempo projection metadata for the request.【F:src/audio/features/audioFeatureTypes.ts†L160-L213】
+- During analysis the system registers built-in calculators (spectrogram, RMS loudness, waveform) and invokes them sequentially. Calculators may yield periodically to avoid blocking the UI and call the provided `reportProgress` callback with frame counts for status updates.【F:src/audio/features/audioFeatureAnalysis.ts†L720-L841】
+- Results include tempo-projected metadata, channel aliases, analysis profile identifiers, and an optional serializer so tracks can be saved and restored without rerunning expensive FFT work. Registering a calculator automatically invalidates caches created with older versions to keep data aligned with the implementation.【F:src/audio/features/audioFeatureAnalysis.ts†L720-L880】【F:src/audio/features/audioFeatureRegistry.ts†L1-L36】
 
 ### Built-in Calculators
 
 #### 1. Spectrogram Calculator (`mvmnt.spectrogram`)
 
--   Performs FFT analysis to extract frequency-domain magnitude data
--   Outputs decibel values per frequency bin per frame
--   Uses Hann windowing and radix-2 FFT implementation
--   Default range: -80 dB to 0 dB
--   **Format**: `float32` (frameCount × binCount)
--   **Metadata**: includes FFT size, sample rate, min/max decibels
+- Performs FFT analysis to extract frequency-domain magnitude data
+- Outputs decibel values per frequency bin per frame
+- Uses Hann windowing and radix-2 FFT implementation
+- Default range: -80 dB to 0 dB
+- **Format**: `float32` (frameCount × binCount)
+- **Metadata**: includes FFT size, sample rate, min/max decibels
 
 #### 2. RMS Calculator (`mvmnt.rms`)
 
--   Computes root-mean-square loudness per frame
--   Mixed to mono before analysis
--   **Format**: `float32` (frameCount × 1)
--   **Use case**: volume meters, envelope followers
+- Computes root-mean-square loudness per frame
+- Mixed to mono before analysis
+- **Format**: `float32` (frameCount × 1)
+- **Use case**: volume meters, envelope followers
 
 #### 3. Waveform Calculator (`mvmnt.waveform`)
 
--   Extracts min/max peaks at higher resolution (8× oversample)
--   Produces compact representation for waveform rendering
--   **Format**: `waveform-minmax` (separate min/max arrays)
--   **Use case**: timeline waveform displays, scrubbing preview
+- Extracts min/max peaks at higher resolution (8× oversample)
+- Produces compact representation for waveform rendering
+- **Format**: `waveform-minmax` (separate min/max arrays)
+- **Use case**: timeline waveform displays, scrubbing preview
+
+#### 4. Pitch Waveform Calculator (`mvmnt.pitch-waveform`)
+
+- Produces a pitch-aligned waveform for oscilloscope-style displays
+- Mixed to mono before analysis
+- **Format**: `float32`
+- **Use case**: pitch-locked waveform visualization
 
 ### Registering a Custom Calculator
 
-Use the calculator registry to add bespoke features before analysis runs. The timeline store will invalidate caches that were produced with an older version of the same calculator id.
+Calculators are plain objects — no factory pattern required. Register before analysis runs.
 
 ```ts
 import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
@@ -186,37 +193,24 @@ const peakHoldCalculator: AudioFeatureCalculator = {
     id: 'example.peak-hold',
     version: 1,
     featureKey: 'peakHold',
-    label: 'Peak Hold', // Optional UI label
-
-    // Optional: pre-compute data shared across all frames
-    prepare: async (params) => {
-        // Expensive setup goes here
-        return {
-            /* prepared data */
-        };
-    },
+    label: 'Peak Hold',
 
     async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
-        const { audioBuffer, hopSeconds, hopTicks, frameCount, signal } = context;
+        const { audioBuffer, hopSeconds, hopTicks, frameCount, analysisParams, signal } = context;
         const channelCount = audioBuffer.numberOfChannels || 1;
         const peaks = new Float32Array(frameCount * channelCount);
 
         for (let frame = 0; frame < frameCount; frame++) {
-            // Check for cancellation
-            if (signal?.aborted) {
-                throw new Error('Analysis cancelled');
-            }
+            if (signal?.aborted) throw new Error('Analysis cancelled');
 
             for (let channel = 0; channel < channelCount; channel++) {
                 const channelData = audioBuffer.getChannelData(channel);
-                const sampleIndex = frame * context.analysisParams.hopSize;
+                const sampleIndex = frame * analysisParams.hopSize;
                 peaks[frame * channelCount + channel] = Math.abs(channelData[sampleIndex] ?? 0);
             }
 
-            // Report progress for UI updates
             context.reportProgress?.(frame + 1, frameCount);
 
-            // Yield periodically to avoid blocking
             if (frame % 100 === 0) {
                 await new Promise((resolve) => setTimeout(resolve, 0));
             }
@@ -234,28 +228,22 @@ const peakHoldCalculator: AudioFeatureCalculator = {
             tempoProjection: context.tempoProjection,
             format: 'float32',
             data: peaks,
-            channelAliases: null,
-            analysisProfileId: 'default',
+            channelLayout: { aliases: channelCount === 2 ? ['Left', 'Right'] : ['Mono'] },
+            analysisProfileId: context.analysisProfileId,
         };
-    },
-
-    // Optional: custom serialization
-    serializeResult: (track) => ({
-        /* custom JSON representation */
-    }),
-
-    // Optional: custom deserialization
-    deserializeResult: (payload) => {
-        /* reconstruct track from JSON */
-        return null;
     },
 };
 
-// Register before analysis starts
+// Register before analysis starts (e.g. at module scope)
 audioFeatureCalculatorRegistry.register(peakHoldCalculator);
 ```
 
-**Important**: Incrementing the `version` field automatically marks all existing caches as stale, ensuring downstream consumers always use the latest algorithm.
+**Important notes**:
+
+- Increment `version` to bust existing caches when output format or algorithm changes.
+- `featureKey` collisions with existing calculators produce a console warning — use a namespaced key (e.g. `'myplugin.loudness'`, not `'rms'`).
+- Set `channelLayout.aliases` to match `channels` exactly to avoid out-of-bounds channel selection.
+- The factory pattern used by built-in calculators (`createRmsCalculator({...})`) is for internal dependency injection only — external calculators do not need it.
 
 ## Requesting and Sampling Feature Data in Scene Elements
 
@@ -264,13 +252,13 @@ Scene elements declare their audio feature needs through the metadata registry. 
 macro-driven updates), so renderers only have to sample data at runtime. Requirements remain
 internal to the element—authors never see or edit them in the property panel. When an element is
 instantiated before it receives a persisted ID, the subscription controller now generates a
-deterministic fallback key so the initial intent is still published and cached.【F:src/core/scene/elements/audioElementMetadata.ts†L1-L44】【F:src/core/scene/elements/base.ts†L73-L210】
+deterministic fallback key so the initial intent is still published and cached.【F:src/audio/audioElementMetadata.ts†L1-L44】【F:src/core/scene/elements/base.ts†L73-L210】
 
 ### Basic Usage Pattern
 
 ```ts
 import { SceneElement } from '@core/scene/elements/base';
-import { registerFeatureRequirements } from '@core/scene/elements/audioElementMetadata';
+import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { getFeatureData } from '@audio/features/sceneApi';
 
 registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
@@ -325,21 +313,21 @@ export class DynamicAudioElement extends SceneElement {
 
 ### Key Helper Functions
 
--   **`registerFeatureRequirements`**: Declares static feature needs for a scene element. The base
-    class subscribes automatically, and requirements are deduplicated across instances.
--   **`getFeatureData`**: Samples a tempo-aligned frame for the current time, applying any runtime
-    smoothing or interpolation options.
--   **`sampleFeatureFrame`**: Low-level helper powering `getFeatureData`. It now forwards the
-    descriptor's resolved `analysisProfileId` so ad-hoc profiles sample the correct cache entry, and
-    memoization keys include the profile identifier to prevent cross-profile reuse.【F:src/core/scene/elements/audioFeatureUtils.ts†L126-L253】
--   **`resolveDescriptorProfileId`**: Utility that sanitizes descriptor metadata into the effective
-    analysis profile id. Use it whenever you need to bridge descriptors with raw cache access or
-    timeline selectors.【F:src/core/scene/elements/audioFeatureUtils.ts†L134-L151】
--   **`sampleFeatureHistory`**: Retrieves multiple past frames for trail effects or historical
-    analysis. The helper now uses `resolveDescriptorProfileId` internally so history requests stay
-    on the same profile-aware key path as single-frame sampling.【F:src/utils/audioVisualization/history.ts†L1-L170】
--   **`getTempoAlignedFrame`**: Low-level adapter for range sampling and interpolation tools for
-    history visualizations, peak meters, and envelope displays.【F:src/audio/features/tempoAlignedViewAdapter.ts†L1-L218】
+- **`registerFeatureRequirements`**: Declares static feature needs for a scene element. The base
+  class subscribes automatically, and requirements are deduplicated across instances.
+- **`getFeatureData`**: Samples a tempo-aligned frame for the current time, applying any runtime
+  smoothing or interpolation options.
+- **`sampleFeatureFrame`**: Low-level helper powering `getFeatureData`. It now forwards the
+  descriptor's resolved `analysisProfileId` so ad-hoc profiles sample the correct cache entry, and
+  memoization keys include the profile identifier to prevent cross-profile reuse.【F:src/core/scene/elements/audioFeatureUtils.ts†L126-L253】
+- **`resolveDescriptorProfileId`**: Utility that sanitizes descriptor metadata into the effective
+  analysis profile id. Use it whenever you need to bridge descriptors with raw cache access or
+  timeline selectors.【F:src/core/scene/elements/audioFeatureUtils.ts†L134-L151】
+- **`sampleFeatureHistory`**: Retrieves multiple past frames for trail effects or historical
+  analysis. The helper now uses `resolveDescriptorProfileId` internally so history requests stay
+  on the same profile-aware key path as single-frame sampling.【F:src/utils/audioVisualization/history.ts†L1-L170】
+- **`getTempoAlignedFrame`**: Low-level adapter for range sampling and interpolation tools for
+  history visualizations, peak meters, and envelope displays.【F:src/audio/features/tempoAlignedViewAdapter.ts†L1-L218】
 
 ### Sample Data Structure
 
@@ -361,9 +349,9 @@ interface AudioFeatureFrameSample {
 
 Audio features are extracted at fixed time intervals (hop size), but MVMNT's timeline operates in musical ticks for beat-synchronized editing. The cache system bridges these two domains:
 
--   **Hop Seconds**: Physical time interval between frames (e.g., 512 samples ÷ 44100 Hz = 0.0116 seconds)
--   **Hop Ticks**: Musical interval in timeline ticks (quantized to align with tempo map)
--   **Tempo Projection**: Metadata linking the cache to a specific tempo map version
+- **Hop Seconds**: Physical time interval between frames (e.g., 512 samples ÷ 44100 Hz = 0.0116 seconds)
+- **Hop Ticks**: Musical interval in timeline ticks (quantized to align with tempo map)
+- **Tempo Projection**: Metadata linking the cache to a specific tempo map version
 
 ### Quantization Process
 
@@ -390,9 +378,9 @@ When the tempo map changes, caches become `stale` and must be reanalyzed to main
 
 The view adapter supports three interpolation modes, set via `AudioSamplingOptions.interpolation`:
 
--   **`nearest`**: Nearest-neighbor sampling for a quantized feel.
--   **`linear`**: Linear interpolation between adjacent frames (default).
--   **`cubic`**: Cubic interpolation for the smoothest curves with a small CPU cost.
+- **`nearest`**: Nearest-neighbor sampling for a quantized feel.
+- **`linear`**: Linear interpolation between adjacent frames (default).
+- **`cubic`**: Cubic interpolation for the smoothest curves with a small CPU cost.
 
 ## FFT Implementation
 
@@ -400,10 +388,10 @@ The built-in spectrogram calculator uses a custom radix-2 FFT implementation opt
 
 ### Key Features
 
--   **Radix-2 Cooley-Tukey algorithm**: Requires power-of-two sizes, highly efficient
--   **In-place computation**: Minimizes memory allocation during analysis
--   **Hann windowing**: Reduces spectral leakage, smooth frequency transitions
--   **Decibel conversion**: Outputs calibrated dB values for perceptual accuracy
+- **Radix-2 Cooley-Tukey algorithm**: Requires power-of-two sizes, highly efficient
+- **In-place computation**: Minimizes memory allocation during analysis
+- **Hann windowing**: Reduces spectral leakage, smooth frequency transitions
+- **Decibel conversion**: Outputs calibrated dB values for perceptual accuracy
 
 ### FFT Plan Caching
 
@@ -419,20 +407,20 @@ Plans are created once per analysis pass and reused across all frames, avoiding 
 
 ### UI Components
 
--   **Timeline Track Selector**: Form control for binding scene properties to analysed audio tracks.
-    It filters available tracks by type and writes selections back through the form system.【F:src/workspace/form/inputs/TimelineTrackSelect.tsx†L1-L198】
+- **Timeline Track Selector**: Form control for binding scene properties to analysed audio tracks.
+  It filters available tracks by type and writes selections back through the form system.【F:src/workspace/form/inputs/TimelineTrackSelect.tsx†L1-L198】
 
--   **Scene Analysis Caches Panel**: Lists cache states, progress, and controls for restarting or reanalyzing individual calculators, respecting whether buffers are available and if jobs are already running.【F:src/workspace/layout/SceneAnalysisCachesTab.tsx†L91-L200】
+- **Scene Analysis Caches Panel**: Lists cache states, progress, and controls for restarting or reanalyzing individual calculators, respecting whether buffers are available and if jobs are already running.【F:src/workspace/layout/SceneAnalysisCachesTab.tsx†L91-L200】
 
 ### Diagnostics System
 
--   Diagnostics state subscribes to the intent bus, records job history, and coordinates regeneration actions. When a descriptor is published for a track with stale data, the diagnostics store prompts the user to re-run the necessary calculators.【F:src/state/audioDiagnosticsStore.ts†L520-L635】
+- Diagnostics state subscribes to the intent bus, records job history, and coordinates regeneration actions. When a descriptor is published for a track with stale data, the diagnostics store prompts the user to re-run the necessary calculators.【F:src/state/audioDiagnosticsStore.ts†L520-L635】
 
--   Extraneous cache cleanup groups deletion candidates by `analysisProfileId`, protecting default caches when ad-hoc profiles are purged and logging whenever removals still have active owners so regressions surface immediately.【F:src/state/audioDiagnosticsStore.ts†L930-L1008】
+- Extraneous cache cleanup groups deletion candidates by `analysisProfileId`, protecting default caches when ad-hoc profiles are purged and logging whenever removals still have active owners so regressions surface immediately.【F:src/state/audioDiagnosticsStore.ts†L930-L1008】
 
--   Tracks fallback reasons when sampling fails (missing cache, invalid descriptor, out-of-bounds time)
--   Records tempo alignment mismatches and interpolation performance
--   Provides real-time progress updates during analysis
+- Tracks fallback reasons when sampling fails (missing cache, invalid descriptor, out-of-bounds time)
+- Records tempo alignment mismatches and interpolation performance
+- Provides real-time progress updates during analysis
 
 ## Common Workflows
 
@@ -442,7 +430,7 @@ Plans are created once per analysis pass and reused across all frames, avoiding 
 
 ```ts
 import { SceneElement } from '@core/scene/elements/base';
-import { registerFeatureRequirements } from '@core/scene/elements/audioElementMetadata';
+import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { getFeatureData } from '@audio/features/sceneApi';
 
 registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
@@ -466,30 +454,32 @@ export class AudioSpectrumElement extends SceneElement {
 }
 ```
 
-### Workflow 2: Multi-Channel Visualization
+### Workflow 2: dBFS Meter with Channel Selection
 
-**Goal**: Show left and right channel RMS levels using runtime channel selection.
+**Goal**: Show a dBFS level meter using RMS with runtime channel selection.
+
+> **Note**: The built-in `rms` calculator always outputs a **mono mix** (`channels: 1`,
+> `channelLayout.aliases: ['Mono']`). Selecting "Left" or "Right" via a channel selector will
+> return the same mono value. To get independent per-channel levels, register a custom calculator
+> with `channels: 2` and your own feature key.
 
 ```ts
-registerFeatureRequirements('dualRmsBars', [{ feature: 'rms' }]);
+registerFeatureRequirements('myVolumeMeter', [{ feature: 'rms' }]);
 
-export class DualRmsBars extends SceneElement {
+export class VolumeMeterElement extends SceneElement {
     protected override _buildRenderObjects(config: unknown, targetTime: number) {
         const trackId = this.getProperty<string>('audioTrackId');
         if (!trackId) return [];
 
         const frame = getFeatureData(this, trackId, 'rms', targetTime);
-        const values = frame?.values ?? [];
+        const linearRms = frame?.values?.[0] ?? 0;
+        const db = linearRms > 0 ? 20 * Math.log10(linearRms) : -Infinity;
+        const normalized = Math.max(0, (db + 60) / 60); // map [-60, 0] dBFS to [0, 1]
 
-        return [
-            new Rectangle(0, 0, 40, (values[0] ?? 0) * 200, '#ff3366'),
-            new Rectangle(50, 0, 40, (values[1] ?? values[0] ?? 0) * 200, '#3366ff'),
-        ];
+        return [new Rectangle(0, 0, 40, normalized * 400, '#f472b6')];
     }
 }
 ```
-
-The `values` array contains one entry per channel in the order advertised by `AudioFeatureTrack.channelLayout.aliases`. Elements can read that metadata when they need to label UI controls or allow manual channel selection.
 
 ### Workflow 3: History/Trail Effects
 
@@ -564,8 +554,8 @@ const zeroCrossingCalculator: AudioFeatureCalculator = {
             tempoProjection: context.tempoProjection,
             format: 'float32',
             data: rates,
-            channelAliases: ['Mono'],
-            analysisProfileId: 'default',
+            channelLayout: { aliases: ['Mono'] },
+            analysisProfileId: context.analysisProfileId,
         };
     },
 };
@@ -605,10 +595,10 @@ function reanalyzeSpectrum() {
 
 The audio cache system includes comprehensive test suites:
 
--   **Analysis Integration Tests**: Verify end-to-end calculator execution, progress reporting, and cache generation
--   **FFT Correctness**: Validate frequency-domain transforms against known signals
--   **Tempo Alignment**: Test quantization and interpolation across different tempo maps
--   **Serialization Round-trips**: Ensure caches survive save/load cycles without data loss
+- **Analysis Integration Tests**: Verify end-to-end calculator execution, progress reporting, and cache generation
+- **FFT Correctness**: Validate frequency-domain transforms against known signals
+- **Tempo Alignment**: Test quantization and interpolation across different tempo maps
+- **Serialization Round-trips**: Ensure caches survive save/load cycles without data loss
 
 Location: `src/audio/__tests__/`
 
@@ -643,10 +633,10 @@ Location: `src/audio/__tests__/`
 
 New calculators automatically:
 
--   Appear in UI selector dropdowns
--   Participate in the shared cache lifecycle
--   Trigger diagnostics tracking
--   Support serialization (if you provide serializers)
+- Appear in UI selector dropdowns
+- Participate in the shared cache lifecycle
+- Trigger diagnostics tracking
+- Support serialization (if you provide serializers)
 
 ### Programmatic Cache Management
 
@@ -672,12 +662,12 @@ Targeted reanalysis merges new tracks into existing caches, preserving valid dat
 
 ### Best Practices
 
--   **Always use descriptors**: Channel feature requests through the intent bus so diagnostics, cache invalidation, and tempo-aligned sampling remain in sync across the app
--   **Yield during analysis**: Call `await maybeYield()` every ~100 frames to keep UI responsive
--   **Report progress**: Invoke `context.reportProgress(processed, total)` for status updates
--   **Handle cancellation**: Check `signal?.aborted` and throw abort errors when needed
--   **Version carefully**: Increment calculator versions only when output format or algorithm changes materially
--   **Profile performance**: Large FFT sizes (>4096) can block the main thread; consider Web Workers for heavy analysis
+- **Always use descriptors**: Channel feature requests through the intent bus so diagnostics, cache invalidation, and tempo-aligned sampling remain in sync across the app
+- **Yield during analysis**: Call `await maybeYield()` every ~100 frames to keep UI responsive
+- **Report progress**: Invoke `context.reportProgress(processed, total)` for status updates
+- **Handle cancellation**: Check `signal?.aborted` and throw abort errors when needed
+- **Version carefully**: Increment calculator versions only when output format or algorithm changes materially
+- **Profile performance**: Large FFT sizes (>4096) can block the main thread; consider Web Workers for heavy analysis
 
 ## Performance Considerations
 
@@ -685,31 +675,31 @@ Targeted reanalysis merges new tracks into existing caches, preserving valid dat
 
 **Cache Size Estimates**:
 
--   **Spectrogram** (2048 FFT, 512 hop, 3 min audio @ 44.1kHz):
-    -   Frame count: ~15,500 frames
-    -   Bin count: 1025 bins
-    -   Total: 15,500 × 1025 × 4 bytes ≈ **63 MB**
--   **RMS** (same audio):
-    -   15,500 × 1 × 4 bytes ≈ **62 KB**
+- **Spectrogram** (2048 FFT, 512 hop, 3 min audio @ 44.1kHz):
+    - Frame count: ~15,500 frames
+    - Bin count: 1025 bins
+    - Total: 15,500 × 1025 × 4 bytes ≈ **63 MB**
+- **RMS** (same audio):
+    - 15,500 × 1 × 4 bytes ≈ **62 KB**
 
 **Optimization Strategies**:
 
--   Use smaller FFT sizes (1024 instead of 4096) when high resolution isn't needed
--   Increase hop size for lower temporal resolution
--   Clear unused caches when switching projects: `store.clearAudioFeatureCache(id)`
--   Consider `uint8` format for features that don't need float32 precision
+- Use smaller FFT sizes (1024 instead of 4096) when high resolution isn't needed
+- Increase hop size for lower temporal resolution
+- Clear unused caches when switching projects: `store.clearAudioFeatureCache(id)`
+- Consider `uint8` format for features that don't need float32 precision
 
 ### Computational Cost
 
 **FFT Complexity**: O(N log N) per frame, where N = FFT size
 
--   1024 FFT: ~10 operations per sample
--   4096 FFT: ~48 operations per sample
+- 1024 FFT: ~10 operations per sample
+- 4096 FFT: ~48 operations per sample
 
 **Analysis Time (approximate)**:
 
--   3-minute audio, 2048 FFT, 512 hop: **1-2 seconds** (desktop)
--   Same with 4096 FFT: **3-5 seconds**
+- 3-minute audio, 2048 FFT, 512 hop: **1-2 seconds** (desktop)
+- Same with 4096 FFT: **3-5 seconds**
 
 **Yielding Strategy**:
 
@@ -727,41 +717,42 @@ for (let frame = 0; frame < frameCount; frame++) {
 
 ### Sampling Performance
 
--   **Frame cache**: Recent samples cached per track (max 128 entries)
--   **Cache hit rate**: Typically >95% during playback
--   **Cold sampling**: ~0.1ms per frame (includes interpolation)
--   **Warm sampling**: ~0.01ms (cached)
+- **Frame cache**: Recent samples cached per track (max 128 entries)
+- **Cache hit rate**: Typically >95% during playback
+- **Cold sampling**: ~0.1ms per frame (includes interpolation)
+- **Warm sampling**: ~0.01ms (cached)
 
 **Optimization Tips**:
 
--   Reuse descriptors across elements to share cache entries
--   Batch sampling when possible (use `sampleFeatureHistory` instead of multiple `sampleFeatureFrame` calls)
--   Prefer `nearest` interpolation for real-time displays (faster than `linear` or `cubic`)
+- Reuse descriptors across elements to share cache entries
+- Batch sampling when possible (use `sampleFeatureHistory` instead of multiple `sampleFeatureFrame` calls)
+- Prefer `nearest` interpolation for real-time displays (faster than `linear` or `cubic`)
 
 ## Glossary
 
-| Term                 | Definition                                                               |
-| -------------------- | ------------------------------------------------------------------------ |
-| **Audio Buffer**     | Decoded PCM audio data in Web Audio API format                           |
-| **Analysis Profile** | Preset configuration of window size, hop size, FFT parameters            |
-| **Calculator**       | Module that transforms audio into a specific feature track               |
-| **Channel Alias**    | Semantic label like "Left", "Right", "Mid" for multi-channel routing     |
-| **Descriptor**       | Query specification: which feature track to analyze (channel-agnostic)   |
-| **Feature Track**    | Time-series array of analysis results (e.g., spectrogram frames)         |
-| **FFT**              | Fast Fourier Transform: converts time-domain audio to frequency spectrum |
-| **Frame**            | Single time slice of analysis data at one hop interval                   |
-| **Hop Size**         | Sample distance between consecutive analysis windows                     |
-| **Hop Ticks**        | Hop duration in musical timeline ticks                                   |
-| **Intent Bus**       | Pub/sub system for declaring feature data dependencies                   |
-| **Tempo Projection** | Metadata linking cache to specific tempo map version                     |
-| **Window Size**      | Number of audio samples analyzed per FFT frame                           |
+| Term                 | Definition                                                                   |
+| -------------------- | ---------------------------------------------------------------------------- |
+| **Audio Buffer**     | Decoded PCM audio data in Web Audio API format                               |
+| **Analysis Profile** | Preset configuration of window size, hop size, FFT parameters                |
+| **Calculator**       | Module that transforms audio into a specific feature track                   |
+| **Channel Alias**    | Semantic label like "Left", "Right", "Mid" for multi-channel routing         |
+| **Descriptor**       | Query specification: which feature track to analyze (channel-agnostic)       |
+| **Feature Track**    | Time-series array of analysis results (e.g., spectrogram frames)             |
+| **FFT**              | Fast Fourier Transform: converts time-domain audio to frequency spectrum     |
+| **Frame**            | Single time slice of analysis data at one hop interval                       |
+| **Hop Size**         | Sample distance between consecutive analysis windows                         |
+| **Hop Ticks**        | Hop duration in musical timeline ticks                                       |
+| **Intent Bus**       | Pub/sub system for declaring feature data dependencies                       |
+| **Smoothing**        | Temporal averaging radius in hop-frames (`smoothing × hopSeconds` = seconds) |
+| **Tempo Projection** | Metadata linking cache to specific tempo map version                         |
+| **Window Size**      | Number of audio samples analyzed per FFT frame                               |
 
 ## Further Reading
 
--   **FFT Theory**: [Understanding the FFT Algorithm](https://www.dspguide.com/)
--   **Audio Features**: [Essentia Audio Analysis Documentation](https://essentia.upf.edu/)
--   **Tempo Mapping**: See `docs/time-domain.md` for MVMNT's tick system
--   **Scene Elements**: See `docs/architecture.md` for rendering pipeline
+- **FFT Theory**: [Understanding the FFT Algorithm](https://www.dspguide.com/)
+- **Audio Features**: [Essentia Audio Analysis Documentation](https://essentia.upf.edu/)
+- **Tempo Mapping**: See `docs/time-domain.md` for MVMNT's tick system
+- **Scene Elements**: See `docs/architecture.md` for rendering pipeline
 
 ## Troubleshooting
 
@@ -781,10 +772,10 @@ for (let frame = 0; frame < frameCount; frame++) {
 
 **Solution**:
 
--   Reduce FFT size (e.g., 2048 → 1024)
--   Increase hop size (e.g., 512 → 1024)
--   Process audio in chunks with yielding
--   Clear old caches before analyzing new files
+- Reduce FFT size (e.g., 2048 → 1024)
+- Increase hop size (e.g., 512 → 1024)
+- Process audio in chunks with yielding
+- Clear old caches before analyzing new files
 
 ### Incorrect Frequency Mapping
 

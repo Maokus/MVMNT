@@ -1,6 +1,15 @@
 /**
  * Audio domain: direct API proxy, sampling shortcuts, and feature types.
  *
+ * ## Which API to use
+ *
+ * - **`sampleAudio` / `sampleAudioRange`** — recommended for most elements. Returns safe defaults
+ *   (null / []) when the audio capability is unavailable.
+ * - **`audioApi`** — direct capability proxy that throws descriptively on missing capabilities.
+ *   Use when you want explicit failure rather than silent null returns.
+ * - **`getPluginHostApi([PLUGIN_CAPABILITIES.audioFeaturesRead])`** — use when you need to
+ *   negotiate multiple capabilities together or inspect the `status` field before sampling.
+ *
  * @module @mvmnt/plugin-sdk/audio
  */
 

@@ -28,10 +28,11 @@ const ChangelogPage: React.FC = () => {
                             'blender-style auto keying',
                             'the timeline panel alone now has 7k lines of code. i hate it'
                         ],
-                        'Added community tab',
+                        'Added community page',
                         [
                             'Browse and share templates and plugins',
-                            'Install plugins and open templates directly from the community tab'
+                            'Install plugins and open templates directly from the community tab',
+                            'Search and filter by tags',
                         ],
                         'Misc Improvements',
                         [
@@ -50,7 +51,7 @@ const ChangelogPage: React.FC = () => {
                             'More note animations for TUPR/MNPR',
                             'Notes Playing Display given two new display modes inspired by tn-shi and ableton push respectively',
                             'Notes Played Tracker given format string property for improved flexibility',
-
+                            'Audio volume element has peak/rms modes, reference lines and improved styling',
                         ],
                         'Implemented custom element plugin system',
                         [

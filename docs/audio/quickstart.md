@@ -1,6 +1,6 @@
 # Audio Features Quick Start
 
-_Last reviewed: 12 November 2025_
+_Last reviewed: May 2026_
 
 This quick start covers the recommended workflow for audio-reactive scene elements using the v4 audio
 system. It assumes you have already loaded audio into the timeline and want to consume analyzed
@@ -14,10 +14,10 @@ import { registerFeatureRequirements } from '@core/scene/elements/audioElementMe
 registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
 ```
 
--   Call the function at module scope so requirements are registered when the element loads.
--   Requirements are internal metadata: they do **not** appear in the property panel.
--   Use multiple entries when the element needs several features. Multi-channel payloads are handled at runtime using the values returned from `getFeatureData`.
--   Need custom analyzer parameters? Provide a `profileParams` override and the runtime will mint an ad-hoc profile ID automatically:
+- Call the function at module scope so requirements are registered when the element loads.
+- Requirements are internal metadata: they do **not** appear in the property panel.
+- Use multiple entries when the element needs several features. Multi-channel payloads are handled at runtime using the values returned from `getFeatureData`.
+- Need custom analyzer parameters? Provide a `profileParams` override and the runtime will mint an ad-hoc profile ID automatically:
 
     ```ts
     registerFeatureRequirements('audioAdhocProfile', [
@@ -51,9 +51,9 @@ if (!sample) return [];
 // sample.values contains the tempo-aligned magnitudes for the current frame.
 ```
 
--   Pass runtime presentation tweaks (smoothing, interpolation) through the final argument.
--   `AudioFeatureDescriptor` objects remain focused on analysis identity.
--   Changing sampling options never invalidates cache entries, so multiple elements share work.
+- Pass runtime presentation tweaks (smoothing, interpolation) through the final argument.
+- `AudioFeatureDescriptor` objects remain focused on analysis identity.
+- Changing sampling options never invalidates cache entries, so multiple elements share work.
 
 ## 3. Let the runtime manage subscriptions
 
@@ -76,6 +76,6 @@ Use the diagnostics panel to monitor analysis progress or restart jobs when inpu
 
 ## 5. Learn more
 
--   [Audio Cache System](audio-cache-system.md) – architecture deep dive and advanced workflows.
--   [Audio Concepts](concepts.md) – mental model for data vs presentation responsibilities.
--   [removeSmoothingFromDescriptor migration](../../src/persistence/migrations/removeSmoothingFromDescriptor.ts) – legacy scene support.
+- [Audio Cache System](audio-cache-system.md) – architecture deep dive and advanced workflows.
+- [Audio Concepts](concepts.md) – mental model for data vs presentation responsibilities.
+- [removeSmoothingFromDescriptor migration](../../src/persistence/migrations/removeSmoothingFromDescriptor.ts) – legacy scene support.

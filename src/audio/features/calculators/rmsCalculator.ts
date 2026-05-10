@@ -12,7 +12,6 @@ export interface RmsCalculatorDependencies {
     cloneTempoProjection: (projection: AudioFeatureTempoProjection, hopTicks: number) => AudioFeatureTempoProjection;
     serializeTrack: (track: AudioFeatureTrack) => SerializedAudioFeatureTrack;
     deserializeTrack: (payload: SerializedAudioFeatureTrack) => AudioFeatureTrack;
-    inferChannelAliases: (channelCount: number) => string[];
 }
 
 export function createRmsCalculator({
@@ -21,7 +20,6 @@ export function createRmsCalculator({
     cloneTempoProjection,
     serializeTrack,
     deserializeTrack,
-    inferChannelAliases,
 }: RmsCalculatorDependencies): AudioFeatureCalculator {
     return {
         id: 'mvmnt.rms',
@@ -50,7 +48,9 @@ export function createRmsCalculator({
                 context.reportProgress?.(frame + 1, frameCount);
             }
             await maybeYield();
-            const aliases = inferChannelAliases(audioBuffer.numberOfChannels || 1);
+            // RMS is always a mono mix regardless of the source buffer's channel count.
+            // Aliases must match channels:1 to avoid out-of-bounds channel selection.
+            const monoAliases = ['Mono'];
             const track: AudioFeatureTrack = {
                 key: 'rms',
                 calculatorId: 'mvmnt.rms',
@@ -66,8 +66,8 @@ export function createRmsCalculator({
                 metadata: {
                     windowSize,
                 },
-                channelAliases: aliases,
-                channelLayout: { aliases },
+                channelAliases: monoAliases,
+                channelLayout: { aliases: monoAliases },
                 analysisProfileId: context.analysisProfileId,
             };
 

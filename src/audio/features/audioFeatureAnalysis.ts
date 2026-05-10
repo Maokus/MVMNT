@@ -406,7 +406,7 @@ function serializeTrack(track: AudioFeatureTrack): SerializedAudioFeatureTrack {
         channelLayout = {
             aliases: Array.isArray(track.channelLayout.aliases)
                 ? track.channelLayout.aliases.slice()
-                : track.channelLayout.aliases ?? null,
+                : (track.channelLayout.aliases ?? null),
             semantics: track.channelLayout.semantics,
         };
     }
@@ -476,7 +476,7 @@ function deserializeTrack(track: SerializedAudioFeatureTrack): AudioFeatureTrack
         metadata: track.metadata,
         analysisParams: track.analysisParams,
         channelAliases: track.channelAliases ?? null,
-        channelLayout: track.channelLayout === undefined ? undefined : track.channelLayout ?? null,
+        channelLayout: track.channelLayout === undefined ? undefined : (track.channelLayout ?? null),
         analysisProfileId: track.analysisProfileId ?? null,
         data: payload,
     };
@@ -588,7 +588,6 @@ function ensureCalculatorsRegistered(): AudioFeatureCalculator[] {
             cloneTempoProjection,
             serializeTrack,
             deserializeTrack,
-            inferChannelAliases,
         }),
         createWaveformCalculator({
             createAnalysisYieldController,

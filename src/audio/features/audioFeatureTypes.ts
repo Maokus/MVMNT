@@ -61,7 +61,12 @@ export interface AudioFeatureDescriptor {
  * for examples of how to pass these options during render.
  */
 export interface AudioSamplingOptions {
-    /** Smoothing radius for temporal averaging (0 = no smoothing) */
+    /**
+     * Temporal averaging radius in **hop-frames** (0 = no smoothing).
+     *
+     * Effective smoothing window in seconds = `smoothing × hopSeconds`. With the default
+     * hop (~23 ms), `smoothing: 8` averages over ~185 ms of audio.
+     */
     smoothing?: number;
     /** Interpolation method between frames */
     interpolation?: 'linear' | 'nearest' | 'cubic';
