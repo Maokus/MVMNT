@@ -39,6 +39,7 @@ const ChangelogPage: React.FC = () => {
                             'Improve timeline navigation (scroll in peace)',
                             'Change color picker',
                             'Modify persistence system (now uses indexeddb so you don\'t keep losing your progress on reload)',
+                            'MIDI Preview uses canvas rather than rendering thousands of divs',
                         ],
                         'Full rework of inbuilt elements',
                         [
