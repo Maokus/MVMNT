@@ -1,5 +1,5 @@
 /**
- * Audio domain: direct API proxy, sampling shortcuts, and feature types.
+ * Audio domain: direct API proxy, sampling shortcuts, feature types, and calculator registration.
  *
  * ## Which API to use
  *
@@ -7,6 +7,8 @@
  *   (null / []) when the audio capability is unavailable.
  * - **`audioApi`** — direct capability proxy that throws descriptively on missing capabilities.
  *   Use when you want explicit failure rather than silent null returns.
+ * - **`audioCalculatorsApi`** — register custom audio feature calculators. Call `register()` at
+ *   module scope so the calculator is ready before audio analysis runs.
  * - **`getPluginHostApi([PLUGIN_CAPABILITIES.audioFeaturesRead])`** — use when you need to
  *   negotiate multiple capabilities together or inspect the `status` field before sampling.
  *
@@ -15,6 +17,16 @@
 
 // Direct capability proxy — throws descriptively if capability is missing
 export { audioApi } from '@core/scene/plugins/plugin-sdk-capabilities';
+
+// Calculator registration API
+export { audioCalculatorsApi } from '@core/scene/plugins/plugin-sdk-capabilities';
+export type {
+    PluginAudioCalculator,
+    PluginAudioCalculatorContext,
+    PluginAudioCalculatorResult,
+    PluginAudioCalculatorInfo,
+    PluginAudioCalculatorApi,
+} from '@core/scene/plugins/host-api/plugin-api';
 
 // Convenience shortcuts (return safe defaults when API unavailable)
 export { sampleAudio, sampleAudioRange } from '@core/scene/plugins/plugin-sdk-shortcuts';

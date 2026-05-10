@@ -74,7 +74,44 @@ duplicate cache work.
 Sampling returns `null` until the cache is ready. Early-return and render nothing until data arrives.
 Use the diagnostics panel to monitor analysis progress or restart jobs when inputs change.
 
-## 5. Learn more
+## 5. Register a custom calculator (optional)
+
+If built-in features (spectrogram, RMS, waveform) don't cover your needs, register a custom calculator
+at module scope using `audioCalculatorsApi`:
+
+```ts
+import { audioCalculatorsApi, registerFeatureRequirements, type PluginAudioCalculator } from '@mvmnt/plugin-sdk';
+
+const myCalculator: PluginAudioCalculator = {
+    id: 'myplugin.zeroCrossing',
+    version: 1,
+    featureKey: 'zeroCrossing',
+    async calculate(ctx) {
+        const channelData = ctx.audioBuffer.getChannelData(0);
+        const rates = new Float32Array(ctx.frameCount);
+        for (let frame = 0; frame < ctx.frameCount; frame++) {
+            const start = frame * ctx.analysisParams.hopSize;
+            const end = Math.min(start + ctx.analysisParams.hopSize, channelData.length);
+            let crossings = 0;
+            for (let i = start + 1; i < end; i++) {
+                if ((channelData[i - 1]! >= 0) !== (channelData[i]! >= 0)) crossings++;
+            }
+            rates[frame] = crossings / ctx.analysisParams.hopSize;
+            ctx.reportProgress?.(frame + 1, ctx.frameCount);
+        }
+        return { frameCount: ctx.frameCount, channels: 1, format: 'float32', data: rates };
+    },
+};
+
+// Both calls must be at module scope — they run once when the file loads.
+audioCalculatorsApi.register(myCalculator);
+registerFeatureRequirements('myZeroCrossingElement', [{ feature: 'zeroCrossing' }]);
+```
+
+Then sample `'zeroCrossing'` in render exactly like any built-in feature (step 2 above).
+See [Custom Calculator Quickstart](custom-calculator-quickstart.md) for a complete end-to-end example.
+
+## 6. Learn more
 
 - [Audio Cache System](audio-cache-system.md) – architecture deep dive and advanced workflows.
 - [Audio Concepts](concepts.md) – mental model for data vs presentation responsibilities.

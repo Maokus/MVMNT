@@ -13,7 +13,15 @@
  */
 
 import { getPluginHostApi } from './host-api/get-plugin-host-api';
-import { PLUGIN_CAPABILITIES, type PluginHostApi, type PluginTimelineApi, type PluginAudioApi, type PluginTimingApi, type PluginUtilityApi } from './host-api/plugin-api';
+import {
+    PLUGIN_CAPABILITIES,
+    type PluginHostApi,
+    type PluginTimelineApi,
+    type PluginAudioApi,
+    type PluginTimingApi,
+    type PluginUtilityApi,
+    type PluginAudioCalculatorApi,
+} from './host-api/plugin-api';
 
 /**
  * Create a lazy proxy that calls getPluginHostApi() on first access
@@ -23,38 +31,35 @@ function createCapabilityProxy<T extends object>(
     capabilityKey: keyof typeof PLUGIN_CAPABILITIES,
     getter: (api: PluginHostApi) => T
 ): T {
-    return new Proxy(
-        {} as T,
-        {
-            get(target, prop) {
-                const { api, status } = getPluginHostApi();
+    return new Proxy({} as T, {
+        get(target, prop) {
+            const { api, status } = getPluginHostApi();
 
-                if (status !== 'ok' || !api) {
-                    const capability = PLUGIN_CAPABILITIES[capabilityKey];
-                    const error = new Error(
-                        `[PluginApi] Cannot access ${String(prop)} on ${capabilityKey}: ` +
+            if (status !== 'ok' || !api) {
+                const capability = PLUGIN_CAPABILITIES[capabilityKey];
+                const error = new Error(
+                    `[PluginApi] Cannot access ${String(prop)} on ${capabilityKey}: ` +
                         `capability "${capability}" is not available. ` +
                         `Status: ${status}`
-                    );
-                    if (api) {
-                        api.emitError(error, capability);
-                    }
-                    throw error;
+                );
+                if (api) {
+                    api.emitError(error, capability);
                 }
+                throw error;
+            }
 
-                const apiSection = getter(api);
-                const value = (apiSection as any)[prop];
+            const apiSection = getter(api);
+            const value = (apiSection as any)[prop];
 
-                if (typeof value === 'function') {
-                    return function (...args: any[]) {
-                        return value.apply(apiSection, args);
-                    };
-                }
+            if (typeof value === 'function') {
+                return function (...args: any[]) {
+                    return value.apply(apiSection, args);
+                };
+            }
 
-                return value;
-            },
-        }
-    ) as T;
+            return value;
+        },
+    }) as T;
 }
 
 /**
@@ -96,3 +101,19 @@ export const timingApi: PluginTimingApi = createCapabilityProxy('timingConversio
  *   const noteName = utilitiesApi.midiNoteToName(60);
  */
 export const utilitiesApi: PluginUtilityApi = createCapabilityProxy('midiUtils', (api) => api.utilities);
+
+/**
+ * Direct access to the audio calculator registration API.
+ * Always available — the calculator registry is a module-level singleton.
+ *
+ * Call `register()` at module scope so the calculator is ready before analysis runs.
+ *
+ * @example
+ *   import { audioCalculatorsApi, registerFeatureRequirements } from '@mvmnt/plugin-sdk';
+ *   audioCalculatorsApi.register({ id: 'myplugin.loudness', version: 1, featureKey: 'loudness', calculate: ... });
+ *   registerFeatureRequirements('myElement', [{ feature: 'loudness' }]);
+ */
+export const audioCalculatorsApi: PluginAudioCalculatorApi = createCapabilityProxy(
+    'audioCalculatorsRegister',
+    (api) => api.audioCalculators
+);

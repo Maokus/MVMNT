@@ -1,5 +1,11 @@
 import type { PluginCapabilityMap } from '@core/scene/plugins/host-api/plugin-api';
-import { timelineApi, audioApi, timingApi, utilitiesApi } from '@core/scene/plugins/plugin-sdk-capabilities';
+import {
+    timelineApi,
+    audioApi,
+    timingApi,
+    utilitiesApi,
+    audioCalculatorsApi,
+} from '@core/scene/plugins/plugin-sdk-capabilities';
 
 // Public plugin SDK — domain-based re-exports. Keep this file intentionally narrow and stable.
 
@@ -34,4 +40,5 @@ const _verifyCapabilityExports = {
     audioFeaturesRead: audioApi,
     timingConversion: timingApi,
     midiUtils: utilitiesApi,
+    audioCalculatorsRegister: audioCalculatorsApi,
 } satisfies _CapabilityExportMap;

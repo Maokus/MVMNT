@@ -181,21 +181,22 @@ analysis work even if they originate from different UI components, reducing dupl
 
 Calculators are plain objects — no factory pattern required. Register before analysis runs.
 
-```ts
-import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
-import type {
-    AudioFeatureCalculator,
-    AudioFeatureCalculatorContext,
-    AudioFeatureTrack,
-} from '@audio/features/audioFeatureTypes';
+**Plugin authors** (code in `src/plugins/` or external packages): use `audioCalculatorsApi` from `@mvmnt/plugin-sdk`. This is the stable public surface — it accepts the narrower `PluginAudioCalculator` interface and bridges to the internal registry automatically.
 
-const peakHoldCalculator: AudioFeatureCalculator = {
+```ts
+import {
+    audioCalculatorsApi,
+    registerFeatureRequirements,
+    type PluginAudioCalculator,
+} from '@mvmnt/plugin-sdk';
+
+const peakHoldCalculator: PluginAudioCalculator = {
     id: 'example.peak-hold',
     version: 1,
     featureKey: 'peakHold',
     label: 'Peak Hold',
 
-    async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
+    async calculate(context) {
         const { audioBuffer, hopSeconds, hopTicks, frameCount, analysisParams, signal } = context;
         const channelCount = audioBuffer.numberOfChannels || 1;
         const peaks = new Float32Array(frameCount * channelCount);
@@ -217,13 +218,47 @@ const peakHoldCalculator: AudioFeatureCalculator = {
         }
 
         return {
+            frameCount,
+            channels: channelCount,
+            format: 'float32',
+            data: peaks,
+            channelLayout: { aliases: channelCount === 2 ? ['Left', 'Right'] : ['Mono'] },
+        };
+    },
+};
+
+// Register at module scope — must run before audio analysis starts.
+audioCalculatorsApi.register(peakHoldCalculator);
+
+// Tell the runtime this element needs the 'peakHold' feature.
+registerFeatureRequirements('myElement', [{ feature: 'peakHold' }]);
+```
+
+**Internal MVMNT code** (built-in calculators, tests): use `audioFeatureCalculatorRegistry` directly from `@audio/features/audioFeatureRegistry`. The internal `AudioFeatureCalculator` interface has a richer return type (full `AudioFeatureTrack` with `key`, `calculatorId`, `hopSeconds`, `tempoProjection`, etc.).
+
+```ts
+import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
+import type {
+    AudioFeatureCalculator,
+    AudioFeatureCalculatorContext,
+    AudioFeatureTrack,
+} from '@audio/features/audioFeatureTypes';
+
+const peakHoldCalculator: AudioFeatureCalculator = {
+    id: 'example.peak-hold',
+    version: 1,
+    featureKey: 'peakHold',
+
+    async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
+        // ... same logic ...
+        return {
             key: 'peakHold',
             calculatorId: 'example.peak-hold',
             version: 1,
             frameCount,
             channels: channelCount,
-            hopSeconds,
-            hopTicks,
+            hopSeconds: context.hopSeconds,
+            hopTicks: context.hopTicks,
             startTimeSeconds: 0,
             tempoProjection: context.tempoProjection,
             format: 'float32',
@@ -234,7 +269,6 @@ const peakHoldCalculator: AudioFeatureCalculator = {
     },
 };
 
-// Register before analysis starts (e.g. at module scope)
 audioFeatureCalculatorRegistry.register(peakHoldCalculator);
 ```
 
@@ -244,6 +278,7 @@ audioFeatureCalculatorRegistry.register(peakHoldCalculator);
 - `featureKey` collisions with existing calculators produce a console warning — use a namespaced key (e.g. `'myplugin.loudness'`, not `'rms'`).
 - Set `channelLayout.aliases` to match `channels` exactly to avoid out-of-bounds channel selection.
 - The factory pattern used by built-in calculators (`createRmsCalculator({...})`) is for internal dependency injection only — external calculators do not need it.
+- For a complete end-to-end example including the element that consumes the custom calculator, see [Custom Calculator Quickstart](custom-calculator-quickstart.md).
 
 ## Requesting and Sampling Feature Data in Scene Elements
 

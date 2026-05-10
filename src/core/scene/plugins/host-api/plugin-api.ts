@@ -14,8 +14,20 @@ import {
     type FeatureDataResult,
     type FeatureInput,
 } from '@audio/features/sceneApi';
-import type { AudioSamplingOptions } from '@audio/features/audioFeatureTypes';
-import { createTimingContext, secondsToTicks, ticksToSeconds, secondsToBeatsContext, beatsToSecondsContext } from '@state/timelineTime';
+import type {
+    AudioSamplingOptions,
+    AudioFeatureCalculator as InternalAudioFeatureCalculator,
+    AudioFeatureCalculatorContext,
+    AudioFeatureTrack,
+} from '@audio/features/audioFeatureTypes';
+import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
+import {
+    createTimingContext,
+    secondsToTicks,
+    ticksToSeconds,
+    secondsToBeatsContext,
+    beatsToSecondsContext,
+} from '@state/timelineTime';
 import { beatsToTicks, ticksToBeats } from '@core/timing/ppq';
 
 export const PLUGIN_API_VERSION = '1.0.0' as const;
@@ -25,6 +37,7 @@ export const PLUGIN_CAPABILITIES = {
     audioFeaturesRead: 'audio.features.read',
     timingConversion: 'timing.conversion',
     midiUtils: 'midi.utils',
+    audioCalculatorsRegister: 'audio.calculators.register',
 } as const;
 
 export type PluginHostCapability = (typeof PLUGIN_CAPABILITIES)[keyof typeof PLUGIN_CAPABILITIES];
@@ -40,9 +53,16 @@ export interface PluginTimelineApi {
     /** Sorted array of unique MIDI note numbers (0–127) from the given tracks/window. Omit args to query all tracks, all time. */
     selectDistinctNoteNumbers(args?: { trackIds?: string[]; startSec?: number; endSec?: number }): number[];
     /** All events for a single MIDI note number. Omit trackIds/window to query all tracks and all time. */
-    selectNotesByPitch(note: number, args?: { trackIds?: string[]; startSec?: number; endSec?: number }): TimelineNoteEvent[];
+    selectNotesByPitch(
+        note: number,
+        args?: { trackIds?: string[]; startSec?: number; endSec?: number }
+    ): TimelineNoteEvent[];
     /** Min/max MIDI note numbers used in the given tracks/window. Returns null if there are no notes. */
-    getNoteRange(args?: { trackIds?: string[]; startSec?: number; endSec?: number }): { min: number; max: number } | null;
+    getNoteRange(args?: {
+        trackIds?: string[];
+        startSec?: number;
+        endSec?: number;
+    }): { min: number; max: number } | null;
     /** Total scene duration in seconds, derived from the playback range end (or timeline view end as fallback). */
     getTimelineDuration(): number;
     getTrackById(trackId: string | null | undefined): TimelineState['tracks'][string] | null;
@@ -92,6 +112,69 @@ export interface PluginUtilityApi {
     midiNoteToName(noteNumber: number): string;
 }
 
+// ============================================================================
+// Audio Calculator public API types
+// ============================================================================
+
+/** Narrowed context passed to plugin calculator `calculate()` functions. */
+export interface PluginAudioCalculatorContext {
+    audioBuffer: AudioBuffer;
+    hopTicks: number;
+    hopSeconds: number;
+    frameCount: number;
+    analysisParams: {
+        windowSize: number;
+        hopSize: number;
+        sampleRate: number;
+        fftSize: number | null;
+    };
+    analysisProfileId: string;
+    signal?: AbortSignal;
+    reportProgress?: (processed: number, total: number) => void;
+}
+
+/** Return value from a plugin calculator. Subset of the internal AudioFeatureTrack shape. */
+export interface PluginAudioCalculatorResult {
+    frameCount: number;
+    channels: number;
+    format: 'float32' | 'uint8';
+    data: Float32Array | Uint8Array;
+    channelLayout?: { aliases: string[] };
+}
+
+/** Public calculator contract for plugin authors. */
+export interface PluginAudioCalculator {
+    /** Namespaced identifier, e.g. `'myplugin.loudness'`. Must be unique across all registered calculators. */
+    id: string;
+    /** Increment to bust existing caches when output format or algorithm changes. */
+    version: number;
+    /** Feature key elements request via `registerFeatureRequirements`. */
+    featureKey: string;
+    /** Optional friendly label for UI display. */
+    label?: string;
+    calculate(
+        context: PluginAudioCalculatorContext
+    ): Promise<PluginAudioCalculatorResult> | PluginAudioCalculatorResult;
+}
+
+/** Descriptor returned by `audioCalculatorsApi.list()`. */
+export interface PluginAudioCalculatorInfo {
+    id: string;
+    version: number;
+    featureKey: string;
+    label?: string;
+}
+
+/** Public API surface for registering and managing custom audio feature calculators. */
+export interface PluginAudioCalculatorApi {
+    /** Register a calculator. Call at module scope so it is ready before audio analysis runs. */
+    register(calculator: PluginAudioCalculator): void;
+    /** Unregister a calculator by id. */
+    unregister(id: string): void;
+    /** List all currently registered calculators (built-in and plugin). */
+    list(): PluginAudioCalculatorInfo[];
+}
+
 export interface PluginHostApi {
     apiVersion: typeof PLUGIN_API_VERSION;
     capabilities: PluginHostCapability[];
@@ -99,6 +182,7 @@ export interface PluginHostApi {
     audio: PluginAudioApi;
     timing: PluginTimingApi;
     utilities: PluginUtilityApi;
+    audioCalculators: PluginAudioCalculatorApi;
     getAvailableCapabilities(): PluginCapabilityMap;
     onError(callback: (error: Error, capability: string) => void): void;
     emitError(error: Error, capability: string): void;
@@ -143,9 +227,53 @@ function toSafeNoteName(noteNumber: number): string {
     return `${noteName}${octave}`;
 }
 
+/** Bridges a public PluginAudioCalculator to the internal AudioFeatureCalculator shape. */
+function adaptPluginCalculator(plugin: PluginAudioCalculator): InternalAudioFeatureCalculator {
+    return {
+        id: plugin.id,
+        version: plugin.version,
+        featureKey: plugin.featureKey,
+        label: plugin.label,
+        async calculate(ctx: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
+            const result = await plugin.calculate({
+                audioBuffer: ctx.audioBuffer,
+                hopTicks: ctx.hopTicks,
+                hopSeconds: ctx.hopSeconds,
+                frameCount: ctx.frameCount,
+                analysisParams: {
+                    windowSize: ctx.analysisParams.windowSize,
+                    hopSize: ctx.analysisParams.hopSize,
+                    sampleRate: ctx.analysisParams.sampleRate,
+                    fftSize: ctx.analysisParams.fftSize ?? null,
+                },
+                analysisProfileId: ctx.analysisProfileId,
+                signal: ctx.signal,
+                reportProgress: ctx.reportProgress,
+            });
+            return {
+                key: plugin.featureKey,
+                calculatorId: plugin.id,
+                version: plugin.version,
+                frameCount: result.frameCount,
+                channels: result.channels,
+                hopTicks: ctx.hopTicks,
+                hopSeconds: ctx.hopSeconds,
+                startTimeSeconds: 0,
+                tempoProjection: ctx.tempoProjection,
+                format: result.format,
+                data: result.data,
+                channelLayout: result.channelLayout ?? null,
+                channelAliases: result.channelLayout?.aliases ?? null,
+                analysisProfileId: ctx.analysisProfileId,
+            };
+        },
+    };
+}
+
 export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreatePluginHostApiResult {
     const timelineStore = deps.timelineStore === undefined ? useTimelineStore : deps.timelineStore;
-    const selectNotesInWindow = deps.selectNotesInWindow === undefined ? selectNotesInWindowSelector : deps.selectNotesInWindow;
+    const selectNotesInWindow =
+        deps.selectNotesInWindow === undefined ? selectNotesInWindowSelector : deps.selectNotesInWindow;
     const selectTrackById = deps.selectTrackById === undefined ? selectTrackByIdSelector : deps.selectTrackById;
     const selectTracksByIds = deps.selectTracksByIds === undefined ? selectTracksByIdsSelector : deps.selectTracksByIds;
     const selectMidiTracks = deps.selectMidiTracks === undefined ? selectMidiTracksSelector : deps.selectMidiTracks;
@@ -153,15 +281,19 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
 
     const hasTimelineRead = Boolean(
         timelineStore &&
-            typeof timelineStore.getState === 'function' &&
-            typeof selectNotesInWindow === 'function' &&
-            typeof selectTrackById === 'function' &&
-            typeof selectTracksByIds === 'function' &&
-            typeof selectMidiTracks === 'function'
+        typeof timelineStore.getState === 'function' &&
+        typeof selectNotesInWindow === 'function' &&
+        typeof selectTrackById === 'function' &&
+        typeof selectTracksByIds === 'function' &&
+        typeof selectMidiTracks === 'function'
     );
     const hasAudioFeaturesRead = typeof getFeatureData === 'function';
 
-    const capabilities: PluginHostCapability[] = [PLUGIN_CAPABILITIES.timingConversion, PLUGIN_CAPABILITIES.midiUtils];
+    const capabilities: PluginHostCapability[] = [
+        PLUGIN_CAPABILITIES.timingConversion,
+        PLUGIN_CAPABILITIES.midiUtils,
+        PLUGIN_CAPABILITIES.audioCalculatorsRegister,
+    ];
     if (hasTimelineRead) {
         capabilities.unshift(PLUGIN_CAPABILITIES.timelineRead);
     }
@@ -192,7 +324,7 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                     return [];
                 }
                 const state = timelineStore.getState();
-                const trackIds = selectMidiTracks(state).map(t => t.id);
+                const trackIds = selectMidiTracks(state).map((t) => t.id);
                 return selectNotesInWindow(state, { trackIds, startSec: args.startSec, endSec: args.endSec });
             },
             selectDistinctNoteNumbers(args) {
@@ -200,7 +332,7 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                     return [];
                 }
                 const state = timelineStore.getState();
-                const trackIds = args?.trackIds ?? selectMidiTracks(state).map(t => t.id);
+                const trackIds = args?.trackIds ?? selectMidiTracks(state).map((t) => t.id);
                 const startSec = args?.startSec ?? -Infinity;
                 const endSec = args?.endSec ?? Infinity;
                 const events = selectNotesInWindow(state, { trackIds, startSec, endSec });
@@ -213,23 +345,24 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                     return [];
                 }
                 const state = timelineStore.getState();
-                const trackIds = args?.trackIds ?? selectMidiTracks(state).map(t => t.id);
+                const trackIds = args?.trackIds ?? selectMidiTracks(state).map((t) => t.id);
                 const startSec = args?.startSec ?? -Infinity;
                 const endSec = args?.endSec ?? Infinity;
                 const events = selectNotesInWindow(state, { trackIds, startSec, endSec });
-                return events.filter(e => e.note === note);
+                return events.filter((e) => e.note === note);
             },
             getNoteRange(args) {
                 if (!hasTimelineRead || !timelineStore || !selectNotesInWindow || !selectMidiTracks) {
                     return null;
                 }
                 const state = timelineStore.getState();
-                const trackIds = args?.trackIds ?? selectMidiTracks(state).map(t => t.id);
+                const trackIds = args?.trackIds ?? selectMidiTracks(state).map((t) => t.id);
                 const startSec = args?.startSec ?? -Infinity;
                 const endSec = args?.endSec ?? Infinity;
                 const events = selectNotesInWindow(state, { trackIds, startSec, endSec });
                 if (events.length === 0) return null;
-                let min = 127, max = 0;
+                let min = 127,
+                    max = 0;
                 for (const e of events) {
                     if (e.note < min) min = e.note;
                     if (e.note > max) max = e.note;
@@ -280,8 +413,13 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                     return null;
                 }
                 return (
-                    getFeatureData(element ?? DEFAULT_AUDIO_ELEMENT_REF, trackId, feature, time, samplingOptions ?? null) ??
-                    null
+                    getFeatureData(
+                        element ?? DEFAULT_AUDIO_ELEMENT_REF,
+                        trackId,
+                        feature,
+                        time,
+                        samplingOptions ?? null
+                    ) ?? null
                 );
             },
             sampleFeatureRange({ element, trackId, feature, startTime, endTime, stepSec, samplingOptions }) {
@@ -336,19 +474,36 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                 return toSafeNoteName(noteNumber);
             },
         },
+        audioCalculators: {
+            register(calculator: PluginAudioCalculator): void {
+                audioFeatureCalculatorRegistry.register(adaptPluginCalculator(calculator));
+            },
+            unregister(id: string): void {
+                audioFeatureCalculatorRegistry.unregister(id);
+            },
+            list(): PluginAudioCalculatorInfo[] {
+                return audioFeatureCalculatorRegistry.list().map((c) => ({
+                    id: c.id,
+                    version: c.version,
+                    featureKey: c.featureKey,
+                    label: c.label,
+                }));
+            },
+        },
         getAvailableCapabilities() {
             return {
                 timelineRead: capabilities.includes(PLUGIN_CAPABILITIES.timelineRead),
                 audioFeaturesRead: capabilities.includes(PLUGIN_CAPABILITIES.audioFeaturesRead),
                 timingConversion: capabilities.includes(PLUGIN_CAPABILITIES.timingConversion),
                 midiUtils: capabilities.includes(PLUGIN_CAPABILITIES.midiUtils),
+                audioCalculatorsRegister: capabilities.includes(PLUGIN_CAPABILITIES.audioCalculatorsRegister),
             };
         },
         onError(callback: (error: Error, capability: string) => void) {
             errorCallbacks.push(callback);
         },
         emitError(error: Error, capability: string) {
-            errorCallbacks.forEach(cb => cb(error, capability));
+            errorCallbacks.forEach((cb) => cb(error, capability));
         },
     };
 
