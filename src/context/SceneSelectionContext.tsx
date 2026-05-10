@@ -338,8 +338,12 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     const addElement = useCallback(
         (elementType: string, initialConfig?: Record<string, unknown>) => {
             const uniqueId = generateUniqueElementId(elementType);
+            const selectedId = useSelectionStore.getState().selectedElementIds[0] ?? null;
+            const currentOrder = useSceneStore.getState().order;
+            const selectedIndex = selectedId != null ? currentOrder.indexOf(selectedId) : -1;
+            const targetIndex = selectedIndex >= 0 ? selectedIndex + 1 : undefined;
             const created = runSceneCommand(
-                { type: 'addElement', elementType, elementId: uniqueId, config: initialConfig },
+                { type: 'addElement', elementType, elementId: uniqueId, config: initialConfig, targetIndex },
                 'SceneSelectionContext.addElement'
             );
             if (!created) return;

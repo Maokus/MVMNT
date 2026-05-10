@@ -8,15 +8,19 @@ import type { SerializedAudioFeatureTrack } from '../audioFeatureAnalysis';
 
 export interface RmsCalculatorDependencies {
     createAnalysisYieldController: (signal?: AbortSignal) => () => Promise<void>;
-    mixBufferToMono: (buffer: AudioBuffer, maybeYield?: () => Promise<void>) => Promise<Float32Array>;
     cloneTempoProjection: (projection: AudioFeatureTempoProjection, hopTicks: number) => AudioFeatureTempoProjection;
     serializeTrack: (track: AudioFeatureTrack) => SerializedAudioFeatureTrack;
     deserializeTrack: (payload: SerializedAudioFeatureTrack) => AudioFeatureTrack;
 }
 
+function channelAliasesForCount(count: number): string[] {
+    if (count === 1) return ['Mono'];
+    if (count === 2) return ['Left', 'Right'];
+    return Array.from({ length: count }, (_, i) => `Ch ${i + 1}`);
+}
+
 export function createRmsCalculator({
     createAnalysisYieldController,
-    mixBufferToMono,
     cloneTempoProjection,
     serializeTrack,
     deserializeTrack,
@@ -28,35 +32,42 @@ export function createRmsCalculator({
         async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
             const { audioBuffer, analysisParams, hopTicks, hopSeconds, frameCount, signal } = context;
             const maybeYield = createAnalysisYieldController(signal);
-            const mono = await mixBufferToMono(audioBuffer, maybeYield);
             const { windowSize, hopSize } = analysisParams;
-            const output = new Float32Array(frameCount);
+            const numChannels = audioBuffer.numberOfChannels;
+            const channelDatas: Float32Array[] = [];
+            for (let ch = 0; ch < numChannels; ch++) {
+                channelDatas.push(audioBuffer.getChannelData(ch));
+            }
+            // Interleaved output: data[frame * numChannels + ch] = RMS for that frame/channel
+            const output = new Float32Array(frameCount * numChannels);
             const frameYieldInterval = Math.max(1, Math.floor(frameCount / 12));
             for (let frame = 0; frame < frameCount; frame++) {
                 const start = frame * hopSize;
-                let sumSquares = 0;
-                const end = Math.min(start + windowSize, mono.length);
-                for (let i = start; i < end; i++) {
-                    const sample = mono[i] ?? 0;
-                    sumSquares += sample * sample;
-                }
+                const bufLen = channelDatas[0]?.length ?? 0;
+                const end = Math.min(start + windowSize, bufLen);
                 const count = Math.max(1, end - start);
-                output[frame] = Math.sqrt(sumSquares / count);
+                for (let ch = 0; ch < numChannels; ch++) {
+                    const data = channelDatas[ch];
+                    let sumSquares = 0;
+                    for (let i = start; i < end; i++) {
+                        const sample = data?.[i] ?? 0;
+                        sumSquares += sample * sample;
+                    }
+                    output[frame * numChannels + ch] = Math.sqrt(sumSquares / count);
+                }
                 if ((frame + 1) % frameYieldInterval === 0) {
                     await maybeYield();
                 }
                 context.reportProgress?.(frame + 1, frameCount);
             }
             await maybeYield();
-            // RMS is always a mono mix regardless of the source buffer's channel count.
-            // Aliases must match channels:1 to avoid out-of-bounds channel selection.
-            const monoAliases = ['Mono'];
+            const aliases = channelAliasesForCount(numChannels);
             const track: AudioFeatureTrack = {
                 key: 'rms',
                 calculatorId: 'mvmnt.rms',
                 version: 1,
                 frameCount,
-                channels: 1,
+                channels: numChannels,
                 hopTicks,
                 hopSeconds,
                 startTimeSeconds: 0,
@@ -66,8 +77,8 @@ export function createRmsCalculator({
                 metadata: {
                     windowSize,
                 },
-                channelAliases: monoAliases,
-                channelLayout: { aliases: monoAliases },
+                channelAliases: aliases,
+                channelLayout: { aliases },
                 analysisProfileId: context.analysisProfileId,
             };
 

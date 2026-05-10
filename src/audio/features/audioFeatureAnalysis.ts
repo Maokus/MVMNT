@@ -584,7 +584,6 @@ function ensureCalculatorsRegistered(): AudioFeatureCalculator[] {
         }),
         createRmsCalculator({
             createAnalysisYieldController,
-            mixBufferToMono,
             cloneTempoProjection,
             serializeTrack,
             deserializeTrack,
