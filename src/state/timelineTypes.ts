@@ -24,3 +24,12 @@ export interface CCEventRaw {
     value: number;
     tick: number;
 }
+
+/** Pre-computed bounds for a MIDI cache entry. Populated by ingestMidiToCache when notes are sorted. */
+export interface MidiCacheBounds {
+    minTick: number;
+    maxTick: number;
+    minNote: number;
+    maxNote: number;
+    maxDurationTicks: number;
+}

@@ -1,5 +1,5 @@
 import type { TimelineState, TimelineTrack } from '../timelineStore';
-import { beatsToSeconds as convertBeatsToSeconds } from '@core/timing/tempo-utils';
+import { beatsToSeconds as convertBeatsToSeconds, secondsToBeats } from '@core/timing/tempo-utils';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { offsetTicksToBeats } from '@core/timing/offset-utils';
 import type { TimelineNoteEvent, TimelineCCEvent } from '@core/timing/types';
@@ -46,9 +46,7 @@ export const selectTrackById = (s: TimelineState, id: string | undefined | null)
 };
 
 export const selectTracksByIds = (s: TimelineState, ids: string[]): TimelineTrack[] =>
-    ids
-        .map((id) => s.tracks[id])
-        .filter((track): track is TimelineTrack => Boolean(track) && track.type === 'midi');
+    ids.map((id) => s.tracks[id]).filter((track): track is TimelineTrack => Boolean(track) && track.type === 'midi');
 
 export const selectTransport = (s: TimelineState) => s.transport;
 export const selectTimeline = (s: TimelineState) => s.timeline;
@@ -76,7 +74,26 @@ export const selectNotesInWindow = (
         // Convert window to track-local seconds
         const localStartSec = Math.max(0, startSec - offsetSec);
         const localEndSec = Math.max(0, endSec - offsetSec);
-        for (const n of cache.notesRaw) {
+        const notesRaw = cache.notesRaw;
+        // Binary search for start index when cache is sorted (bounds present)
+        let startIdx = 0;
+        if (cache.bounds && notesRaw.length > 32) {
+            const localStartBeats = secondsToBeats(s.timeline.masterTempoMap, Math.max(0, localStartSec), spbFallback);
+            const searchStartTick = Math.max(
+                0,
+                Math.round(localStartBeats * CANONICAL_PPQ) - cache.bounds.maxDurationTicks
+            );
+            let lo = 0,
+                hi = notesRaw.length;
+            while (lo < hi) {
+                const mid = (lo + hi) >>> 1;
+                if (notesRaw[mid].startTick < searchStartTick) lo = mid + 1;
+                else hi = mid;
+            }
+            startIdx = lo;
+        }
+        for (let i = startIdx; i < notesRaw.length; i++) {
+            const n = notesRaw[i];
             const startBeat = n.startBeat !== undefined ? n.startBeat : n.startTick / CANONICAL_PPQ;
             const endBeat = n.endBeat !== undefined ? n.endBeat : n.endTick / CANONICAL_PPQ;
             // Region clipping in tick space
@@ -85,7 +102,11 @@ export const selectNotesInWindow = (
             const noteEndSec = convertBeatsToSeconds(s.timeline.masterTempoMap, endBeat, spbFallback);
             const localStart = noteStartSec;
             const localEnd = noteEndSec;
-            if (localEnd <= localStartSec || localStart >= localEndSec) continue;
+            if (localEnd <= localStartSec || localStart >= localEndSec) {
+                // When cache is sorted, notes starting after the window end cannot match: break early
+                if (cache.bounds && localStart >= localEndSec) break;
+                continue;
+            }
             const timelineStartSec = localStart + offsetSec;
             const timelineEndSec = localEnd + offsetSec;
             res.push({
@@ -152,10 +173,7 @@ export const selectCCInWindow = (
 };
 
 // Returns true if sustain pedal (CC 64) is held at the given time
-export const selectSustainStateAtTime = (
-    s: TimelineState,
-    args: { trackIds?: string[]; timeSec: number }
-): boolean => {
+export const selectSustainStateAtTime = (s: TimelineState, args: { trackIds?: string[]; timeSec: number }): boolean => {
     // Get all CC 64 events up to and including the target time
     const events = selectCCInWindow(s, {
         trackIds: args.trackIds,
@@ -192,7 +210,7 @@ export const selectNotesInWindowMemo = (
             `${tid}:${t.enabled ? 1 : 0}${t.mute ? 1 : 0}:${getTrackOffsetSeconds(s, t)}:${t.regionStartTick ?? ''}:$${
                 t.regionEndTick ?? ''
             }:` +
-                `${cache ? cache.ticksPerQuarter : ''}:${cache ? cache.tempoMap?.length ?? 0 : ''}:${
+                `${cache ? cache.ticksPerQuarter : ''}:${cache ? (cache.tempoMap?.length ?? 0) : ''}:${
                     notesId ? (notesId as any).length : 0
                 }`
         );
