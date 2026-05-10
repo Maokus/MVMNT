@@ -23,6 +23,8 @@ import type {
 import { createChannel, insertKeyframeSorted, makeChannelId, removeKeyframeAtTick } from '@automation/types';
 import { AutomationCurve } from '@automation/automation-curve';
 import { useTimelineStore } from '@state/timelineStore';
+import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import { SceneNameGenerator } from '@core/scene-name-generator';
 
 export type SceneCommand =
     | {
@@ -732,6 +734,8 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
             if (command.clearMacros === false && previousMacros) {
                 store.replaceMacros(previousMacros);
             }
+            useSceneMetadataStore.getState().setName(SceneNameGenerator.generate());
+            useTimelineStore.setState({ playbackRange: undefined, playbackRangeUserDefined: false });
             break;
         }
         case 'resetSceneSettings':

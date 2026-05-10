@@ -1,4 +1,4 @@
-// Notes Played Tracker element: shows counts of played notes and events from a MIDI file
+// Note Count Tracker element: shows counts of played notes and events from a MIDI file
 import { SceneElement } from '../base';
 import type { EnhancedConfigSchema } from '@core/types.js';
 import { RenderObject, Text, Rectangle } from '@core/render/render-objects';
@@ -9,7 +9,7 @@ import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-f
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 import { applyOpacity } from '@utils/color';
 
-export class NotesPlayedTrackerElement extends SceneElement {
+export class NoteCountTrackerElement extends SceneElement {
     // Phase 3 reference pattern: intentionally consume timeline data through the public plugin API.
     constructor(id: string = 'notesPlayedTracker', config: { [key: string]: any } = {}) {
         super('notesPlayedTracker', id, config);
@@ -19,7 +19,7 @@ export class NotesPlayedTrackerElement extends SceneElement {
         return insertElementGroups(
             super.getConfigSchema(),
             {
-                name: 'Notes Played Tracker',
+                name: 'Note Count Tracker',
                 description: 'Displays how many notes/events have played so far (timeline-backed)',
                 category: 'MIDI Displays',
             },

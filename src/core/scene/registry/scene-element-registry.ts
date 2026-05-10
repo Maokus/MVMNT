@@ -214,7 +214,7 @@ export class SceneElementRegistry {
 
         this.registerElementFromClass('timeUnitPianoRoll', elements.TimeUnitPianoRollElement);
         this.registerElementFromClass('movingNotesPianoRoll', elements.MovingNotesPianoRollElement);
-        this.registerElementFromClass('notesPlayedTracker', elements.NotesPlayedTrackerElement);
+        this.registerElementFromClass('notesPlayedTracker', elements.NoteCountTrackerElement);
         this.registerElementFromClass('notesPlayingDisplay', elements.NotesPlayingDisplayElement);
         this.registerElementFromClass('chordEstimateDisplay', elements.ChordEstimateDisplayElement);
         this.registerElementFromClass('ccMonitor', elements.CCMonitorElement);

@@ -234,8 +234,8 @@ export class AudioSpectrumElement extends SceneElement {
                             },
                             prop.number('minDecibels', 'Minimum Value', -80, { min: -80, max: 0, step: 1 }),
                             prop.number('maxDecibels', 'Maximum Value', 0, { min: -80, max: 0, step: 1 }),
-                            prop.number('width', 'Width (px)', 420, { step: 1 }),
-                            prop.number('height', 'Height (px)', 180, { step: 1 }),
+                            prop.number('width', 'Width (px)', 800, { step: 1 }),
+                            prop.number('height', 'Height (px)', 300, { step: 1 }),
                             {
                                 key: 'display',
                                 type: 'select',

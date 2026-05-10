@@ -19,7 +19,7 @@ export { TimeDisplayElement } from './misc/time-display';
 export { DebugElement } from './misc/debug';
 export { TimeUnitPianoRollElement } from './midi-displays/time-unit-piano-roll/time-unit-piano-roll';
 export { MovingNotesPianoRollElement } from './midi-displays/moving-notes-piano-roll/moving-notes-piano-roll';
-export { NotesPlayedTrackerElement } from './midi-displays/notes-played-tracker';
+export { NoteCountTrackerElement } from './midi-displays/note-count-tracker';
 export { NotesPlayingDisplayElement } from './midi-displays/notes-playing-display';
 export { ChordEstimateDisplayElement } from './midi-displays/chord-estimate-display';
 export { CCMonitorElement } from './midi-displays/cc-monitor';

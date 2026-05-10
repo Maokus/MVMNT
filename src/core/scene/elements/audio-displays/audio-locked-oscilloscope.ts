@@ -56,8 +56,8 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                         label: 'Waveform',
                         collapsed: false,
                         properties: [
-                            prop.number('width', 'Width (px)', 420, { step: 1 }),
-                            prop.number('height', 'Height (px)', 140, { step: 1 }),
+                            prop.number('width', 'Width (px)', 800, { step: 1 }),
+                            prop.number('height', 'Height (px)', 300, { step: 1 }),
                             {
                                 key: 'lineWidth',
                                 type: 'number',
