@@ -12,6 +12,7 @@ export class Arc extends RenderObject {
     strokeWidth: number;
     lineCap: CanvasLineCap;
     lineDash: number[];
+    lineDashOffset: number;
     shadowColor: string | null;
     shadowBlur: number;
     shadowOffsetX: number;
@@ -45,6 +46,7 @@ export class Arc extends RenderObject {
         this.strokeWidth = options?.strokeWidth ?? 1;
         this.lineCap = 'butt';
         this.lineDash = [];
+        this.lineDashOffset = 0;
         this.shadowColor = null;
         this.shadowBlur = 0;
         this.shadowOffsetX = 0;
@@ -130,7 +132,10 @@ export class Arc extends RenderObject {
             ctx.lineWidth = this.strokeWidth;
             ctx.lineCap = this.lineCap;
         }
-        if (this.lineDash.length && hasStroke) ctx.setLineDash(this.lineDash);
+        if (this.lineDash.length && hasStroke) {
+            ctx.setLineDash(this.lineDash);
+            ctx.lineDashOffset = this.lineDashOffset;
+        }
 
         ctx.beginPath();
         if (this.arcFillStyle === 'sector') {
@@ -148,7 +153,10 @@ export class Arc extends RenderObject {
         }
         if (hasStroke) ctx.stroke();
 
-        if (this.lineDash.length && hasStroke) ctx.setLineDash([]);
+        if (this.lineDash.length && hasStroke) {
+            ctx.setLineDash([]);
+            ctx.lineDashOffset = 0;
+        }
         if (this.shadowColor && this.shadowBlur > 0) {
             ctx.shadowColor = 'transparent';
             ctx.shadowBlur = 0;

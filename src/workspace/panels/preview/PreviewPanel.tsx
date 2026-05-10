@@ -4,6 +4,7 @@ import { useSceneSelection } from '@context/SceneSelectionContext';
 // (Former inline math-related logic moved to canvasInteractionUtils)
 import { onCanvasMouseDown, onCanvasMouseMove, onCanvasMouseUp, onCanvasMouseLeave } from './canvasInteractionUtils';
 import { useTimelineStore } from '@state/timelineStore';
+import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 import { DRAG_ASSET_TYPE } from '../asset-manager/AssetManagerPanel';
 
 interface PreviewPanelProps {
@@ -125,7 +126,28 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
         const scaleY = height / rect.height;
         const offsetX = Math.round(relX * scaleX);
         const offsetY = Math.round(relY * scaleY);
-        addElement('image', { imageSource: assetId, offsetX, offsetY });
+
+        const asset = useVisualAssetRegistryStore.getState().assets[assetId];
+        if (asset?.file) {
+            const isObjectUrl = typeof asset.file !== 'string';
+            const url = isObjectUrl ? URL.createObjectURL(asset.file as File) : (asset.file as string);
+            const img = new Image();
+            img.onload = () => {
+                if (isObjectUrl) URL.revokeObjectURL(url);
+                if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                    addElement('image', { imageSource: assetId, offsetX, offsetY, width: img.naturalWidth, height: img.naturalHeight });
+                } else {
+                    addElement('image', { imageSource: assetId, offsetX, offsetY });
+                }
+            };
+            img.onerror = () => {
+                if (isObjectUrl) URL.revokeObjectURL(url);
+                addElement('image', { imageSource: assetId, offsetX, offsetY });
+            };
+            img.src = url;
+        } else {
+            addElement('image', { imageSource: assetId, offsetX, offsetY });
+        }
     };
 
     return (

@@ -4,14 +4,20 @@ import { applyOpacity } from '@utils/color';
 
 type ShapeType = 'rectangle' | 'circle' | 'triangle' | 'line';
 
-const DEG_TO_RAD = Math.PI / 180;
-
 export class BasicShapesElement extends SceneElement {
     constructor(id: string = 'basicShapes', config: { [key: string]: any } = {}) {
         super('basicShapes', id, config);
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
+        // Build a custom appearance group with "Fill Color" / "Fill Opacity" labels
+        const fillAppearanceGroup = propGroup.appearance({ blendMode: true });
+        fillAppearanceGroup.properties = fillAppearanceGroup.properties.map((p: any) => {
+            if (p.key === 'color') return { ...p, label: 'Fill Color' };
+            if (p.key === 'opacity') return { ...p, label: 'Fill Opacity' };
+            return p;
+        });
+
         return insertElementGroups(
             super.getConfigSchema(),
             {
@@ -46,83 +52,6 @@ export class BasicShapesElement extends SceneElement {
                             { id: 'circle', label: 'Circle', values: { shapeType: 'circle' } },
                             { id: 'triangle', label: 'Polygon', values: { shapeType: 'triangle' } },
                             { id: 'line', label: 'Line', values: { shapeType: 'line' } },
-                        ],
-                    },
-                    propGroup.appearance({ blendMode: true }),
-                    {
-                        id: 'shapeStroke',
-                        label: 'Stroke',
-                        collapsed: false,
-                        description: 'Outline, dashing, and line cap for the shape.',
-                        properties: [
-                            prop.color('strokeColor', 'Stroke Color', '#ffffff', {
-                                description: 'Outline color.',
-                            }),
-                            prop.range('strokeOpacity', 'Stroke Opacity', 1, { min: 0, max: 1, step: 0.01 }),
-                            prop.number('strokeWidth', 'Stroke Width (px)', 0, {
-                                min: 0,
-                                step: 1,
-                                description: 'Width of the stroke in pixels (0 = no stroke).',
-                            }),
-                            prop.select(
-                                'lineCap',
-                                'Line Cap',
-                                'butt',
-                                [
-                                    { value: 'butt', label: 'Butt' },
-                                    { value: 'round', label: 'Round' },
-                                    { value: 'square', label: 'Square' },
-                                ],
-                                {
-                                    description: 'Shape of stroke endpoints.',
-                                    visibleWhen: [{ key: 'shapeType', notEquals: 'rectangle' }],
-                                }
-                            ),
-                            prop.number('dashLength', 'Dash Length (px)', 0, {
-                                min: 0,
-                                max: 200,
-                                step: 1,
-                                description: 'Length of each dash segment. 0 = solid line.',
-                                visibleWhen: [{ key: 'shapeType', notEquals: 'rectangle' }],
-                            }),
-                            prop.number('dashGap', 'Dash Gap (px)', 4, {
-                                min: 0,
-                                max: 200,
-                                step: 1,
-                                description: 'Gap between dash segments.',
-                                visibleWhen: [{ key: 'shapeType', notEquals: 'rectangle' }],
-                            }),
-                        ],
-                        presets: [
-                            {
-                                id: 'filled',
-                                label: 'Filled',
-                                values: { color: '#4488ff', opacity: 1, strokeWidth: 0 },
-                            },
-                            {
-                                id: 'outlined',
-                                label: 'Outlined',
-                                values: {
-                                    color: '#4488ff',
-                                    opacity: 0,
-                                    strokeColor: '#ffffff',
-                                    strokeOpacity: 1,
-                                    strokeWidth: 2,
-                                },
-                            },
-                            {
-                                id: 'filledOutlined',
-                                label: 'Filled + Outline',
-                                values: {
-                                    color: '#4488ff',
-                                    opacity: 0.8,
-                                    strokeColor: '#ffffff',
-                                    strokeOpacity: 1,
-                                    strokeWidth: 2,
-                                },
-                            },
-                            { id: 'screen', label: 'Screen Blend', values: { blendMode: 'screen' } },
-                            { id: 'multiply', label: 'Multiply Blend', values: { blendMode: 'multiply' } },
                         ],
                     },
                     {
@@ -202,6 +131,20 @@ export class BasicShapesElement extends SceneElement {
                                     'Number of polygon vertices (3 = triangle, 4 = rhombus, 6 = hexagon, etc.).',
                                 visibleWhen: [{ key: 'shapeType', equals: 'triangle' }],
                             }),
+                            prop.boolean('star', 'Star', false, {
+                                description: 'Render as a star by alternating outer and inner radius points.',
+                                visibleWhen: [{ key: 'shapeType', equals: 'triangle' }],
+                            }),
+                            prop.number('innerRadius', 'Inner Radius (px)', 50, {
+                                min: 1,
+                                max: 2000,
+                                step: 1,
+                                description: 'Inner radius for star polygons.',
+                                visibleWhen: [
+                                    { key: 'shapeType', equals: 'triangle' },
+                                    { key: 'star', truthy: true },
+                                ],
+                            }),
                             prop.number('lineLength', 'Length (px)', 200, {
                                 min: 1,
                                 max: 4000,
@@ -209,6 +152,84 @@ export class BasicShapesElement extends SceneElement {
                                 description: 'Total length of the line in pixels (element rotation controls angle).',
                                 visibleWhen: [{ key: 'shapeType', equals: 'line' }],
                             }),
+                        ],
+                    },
+                    fillAppearanceGroup,
+                    {
+                        id: 'shapeStroke',
+                        label: 'Stroke',
+                        collapsed: false,
+                        description: 'Outline, dashing, and line cap for the shape.',
+                        properties: [
+                            prop.color('strokeColor', 'Stroke Color', '#ffffff', {
+                                description: 'Outline color.',
+                            }),
+                            prop.range('strokeOpacity', 'Stroke Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                            prop.number('strokeWidth', 'Stroke Width (px)', 0, {
+                                min: 0,
+                                step: 1,
+                                description: 'Width of the stroke in pixels (0 = no stroke).',
+                            }),
+                            prop.select(
+                                'lineCap',
+                                'Line Cap',
+                                'butt',
+                                [
+                                    { value: 'butt', label: 'Butt' },
+                                    { value: 'round', label: 'Round' },
+                                    { value: 'square', label: 'Square' },
+                                ],
+                                { description: 'Shape of stroke endpoints.' }
+                            ),
+                            prop.number('dashLength', 'Dash Length (px)', 0, {
+                                min: 0,
+                                max: 200,
+                                step: 1,
+                                description: 'Length of each dash segment. 0 = solid line.',
+                            }),
+                            prop.number('dashGap', 'Dash Gap (px)', 4, {
+                                min: 0,
+                                max: 200,
+                                step: 1,
+                                description: 'Gap between dash segments.',
+                            }),
+                            prop.number('dashOffset', 'Dash Offset (px)', 0, {
+                                min: -200,
+                                max: 200,
+                                step: 1,
+                                description: 'Offset into the dash pattern, useful for animating dashes.',
+                            }),
+                        ],
+                        presets: [
+                            {
+                                id: 'filled',
+                                label: 'Filled',
+                                values: { color: '#4488ff', opacity: 1, strokeWidth: 0 },
+                            },
+                            {
+                                id: 'outlined',
+                                label: 'Outlined',
+                                values: {
+                                    color: '#4488ff',
+                                    opacity: 0,
+                                    strokeColor: '#ffffff',
+                                    strokeOpacity: 1,
+                                    strokeWidth: 2,
+                                },
+                            },
+                            {
+                                id: 'filledOutlined',
+                                label: 'Filled + Outline',
+                                values: {
+                                    color: '#4488ff',
+                                    opacity: 0.8,
+                                    strokeColor: '#ffffff',
+                                    strokeOpacity: 1,
+                                    strokeWidth: 2,
+                                },
+                            },
+                            { id: 'screen', label: 'Screen Blend', values: { blendMode: 'screen' } },
+                            { id: 'multiply', label: 'Multiply Blend', values: { blendMode: 'multiply' } },
                         ],
                     },
                     propGroup.shadow(),
@@ -226,6 +247,7 @@ export class BasicShapesElement extends SceneElement {
         const strokeOpacity = props.strokeOpacity ?? 1;
         const strokeWidth = props.strokeWidth ?? 0;
         const blendMode = (props.blendMode ?? 'source-over') as GlobalCompositeOperation;
+        const dashOffset = props.dashOffset ?? 0;
 
         const effectiveFill = opacity > 0 ? applyOpacity(props.color ?? props.fillColor ?? '#4488ff', opacity) : null;
         const effectiveStroke =
@@ -246,8 +268,15 @@ export class BasicShapesElement extends SceneElement {
                 const h = Math.max(1, props.rectHeight ?? 120);
                 layoutBounds = { w, h };
                 const cr = props.cornerRadius ?? 0;
+                const lineCap = (props.lineCap ?? 'butt') as CanvasLineCap;
+                const dashLength = props.dashLength ?? 0;
+                const dashGap = props.dashGap ?? 4;
                 const rect = new Rectangle(-w / 2, -h / 2, w, h, effectiveFill, effectiveStroke, strokeWidth);
                 rect.cornerRadius = cr;
+                if (dashLength > 0) {
+                    rect.lineDash = [dashLength, dashGap];
+                    rect.lineDashOffset = dashOffset;
+                }
                 if (hasShadow) rect.setShadow(shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY);
                 ro = rect;
                 break;
@@ -269,7 +298,10 @@ export class BasicShapesElement extends SceneElement {
                 });
                 arc.lineCap = lineCap;
                 arc.arcFillStyle = circleFillStyle;
-                if (dashLength > 0) arc.lineDash = [dashLength, dashGap];
+                if (dashLength > 0) {
+                    arc.lineDash = [dashLength, dashGap];
+                    arc.lineDashOffset = dashOffset;
+                }
                 if (hasShadow) arc.setShadow(shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY);
                 ro = arc;
                 break;
@@ -278,17 +310,32 @@ export class BasicShapesElement extends SceneElement {
                 const r = Math.max(1, props.radius ?? 100);
                 layoutBounds = { w: r * 2, h: r * 2 };
                 const sides = Math.max(3, Math.round(props.sides ?? 3));
+                const isStar = props.star === true;
+                const innerR = isStar ? Math.max(1, props.innerRadius ?? r * 0.5) : r;
                 const lineCap = (props.lineCap ?? 'butt') as CanvasLineCap;
                 const dashLength = props.dashLength ?? 0;
                 const dashGap = props.dashGap ?? 4;
-                // Regular polygon centered at origin, first vertex pointing up
-                const points = Array.from({ length: sides }, (_, i) => {
-                    const angle = (i / sides) * Math.PI * 2 - Math.PI / 2;
-                    return { x: r * Math.cos(angle), y: r * Math.sin(angle) };
-                });
+
+                let points: { x: number; y: number }[];
+                if (isStar) {
+                    points = [];
+                    for (let i = 0; i < sides * 2; i++) {
+                        const angle = (i / (sides * 2)) * Math.PI * 2 - Math.PI / 2;
+                        const rad = i % 2 === 0 ? r : innerR;
+                        points.push({ x: rad * Math.cos(angle), y: rad * Math.sin(angle) });
+                    }
+                } else {
+                    points = Array.from({ length: sides }, (_, i) => {
+                        const angle = (i / sides) * Math.PI * 2 - Math.PI / 2;
+                        return { x: r * Math.cos(angle), y: r * Math.sin(angle) };
+                    });
+                }
                 const poly = new Poly(points, effectiveFill, effectiveStroke, strokeWidth);
                 poly.lineCap = lineCap;
-                if (dashLength > 0) poly.lineDash = [dashLength, dashGap];
+                if (dashLength > 0) {
+                    poly.lineDash = [dashLength, dashGap];
+                    poly.lineDashOffset = dashOffset;
+                }
                 if (hasShadow) poly.setShadow(shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY);
                 ro = poly;
                 break;
@@ -308,7 +355,10 @@ export class BasicShapesElement extends SceneElement {
                     strokeWidth || 2
                 );
                 line.lineCap = lineCap;
-                if (dashLength > 0) line.lineDash = [dashLength, dashGap];
+                if (dashLength > 0) {
+                    line.lineDash = [dashLength, dashGap];
+                    line.lineDashOffset = dashOffset;
+                }
                 if (hasShadow) line.setShadow(shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY);
                 ro = line;
                 break;

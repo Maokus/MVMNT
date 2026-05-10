@@ -15,6 +15,7 @@ export class Poly extends RenderObject {
     lineCap: CanvasLineCap;
     miterLimit: number;
     lineDash: number[];
+    lineDashOffset: number;
     shadowColor: string | null;
     shadowBlur: number;
     shadowOffsetX: number;
@@ -38,6 +39,7 @@ export class Poly extends RenderObject {
         this.lineCap = 'butt';
         this.miterLimit = 10;
         this.lineDash = [];
+        this.lineDashOffset = 0;
         this.shadowColor = null;
         this.shadowBlur = 0;
         this.shadowOffsetX = 0;
@@ -136,7 +138,10 @@ export class Poly extends RenderObject {
             ctx.lineJoin = this.lineJoin;
             ctx.lineCap = this.lineCap;
             ctx.miterLimit = this.miterLimit;
-            if (this.lineDash.length) ctx.setLineDash(this.lineDash);
+            if (this.lineDash.length) {
+                ctx.setLineDash(this.lineDash);
+                ctx.lineDashOffset = this.lineDashOffset;
+            }
         }
         const doFill = this.closed && this.fillColor;
         if (doFill) {
@@ -146,7 +151,10 @@ export class Poly extends RenderObject {
                 ctx.stroke();
             } else ctx.fill();
         } else if (this.strokeColor && this.strokeWidth > 0) ctx.stroke();
-        if (this.lineDash.length) ctx.setLineDash([]);
+        if (this.lineDash.length) {
+            ctx.setLineDash([]);
+            ctx.lineDashOffset = 0;
+        }
         if (this.shadowColor && this.shadowBlur > 0) {
             ctx.shadowColor = 'transparent';
             ctx.shadowBlur = 0;

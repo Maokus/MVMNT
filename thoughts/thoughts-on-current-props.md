@@ -1,32 +1,38 @@
 Make the neccessary code changes in line with the following comments:
 
-Notes played tracker:
-
-- Generalise the notes played tracker by adding a string input that allows users to format their own string, so the default will look something like
-
-```
-Num played notes: #playedNotes/#totalNotes (#percentNotes%)
-Num played events: #playedEvents/#totalEvents (#percentEvents%)
-```
-
-- Use the stable layout box pattern for this element (make the text non-layout). Have the size of the layout box be estimated based on the input string.
-- Ensure the background container logic also uses this intelligently computer bounds.
-
 Text display element:
 
-- Change the text content to a longstring prop.
+- Make the text renderobject compatible with rendering newlines.
+- Make the longstring property styling more consistent with the rest of the application. The color of the text in the textbox should be light, and the background of the textbox should be dark.
 
-Almamlike piano roll:
+Notes played tracker:
 
-- Rename to Vidilike piano roll
+- Make use of the new multiline text render object
+- Remove all current presets, and add a new preset which resets the format string to the default
 
-Background:
+Basic shapes:
 
-- Remove border property group
+- Change the color property to fill color and opacity to fill opacity
+- Give the rectangle the same stroke properties as the rest of the basic shapes
+- Move the "size" property group under "shape". Add a boolean property "star" that appears for polygons. When "star" is checked also add an inner radius property.
+- Add a dash offset property.
 
-Notes playing display:
+Image:
 
-- Currently, there are two issues with the notes playing display. Firstly, the layout bounds are quite unstable, so use a stable layout rectangle. Secondly, the element is not very flexible. Implement two alternate display modes "grid" and "letters".
-- The "grid" display has a rectangle with a letter name for each note, in rows of 12. When the corresponding note is played, that rectangle appears.
-- The "letters" display has 12 text elements spaced out. When notes are played (at any octave) the corresponding letter appears.
-- Make "letters" the default.
+- When an image is dragged in from the asset manager, have the image element width and height be created at the width and height of the image itself.
+- Make the default fit mode cover.
+- The "shadow" properties don't seem to be working. Fix this.
+
+Progress display:
+
+- The text alignment and letter spacing properties don't seem to do anything. Fix this.
+- Add a "count down" boolean property which causes the text to count down rather than count up. When count down is on, instead of "current time/total time" just print "remaining time"
+
+Text:
+
+- Change letter spacing and stroke width to numeric inputs without maximum values.
+- Currently, it seems the layout bounds of the text input do not take into account letter spacing. Fix this.
+
+Time display:
+
+- Change the background

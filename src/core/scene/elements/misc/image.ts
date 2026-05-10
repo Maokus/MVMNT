@@ -53,7 +53,7 @@ export class ImageElement extends SceneElement {
                         properties: [
                             prop.number('width', 'Width (px)', 200, { step: 10 }),
                             prop.number('height', 'Height (px)', 200, { step: 10 }),
-                            prop.select('fitMode', 'Fit Mode', 'contain', [
+                            prop.select('fitMode', 'Fit Mode', 'cover', [
                                 { value: 'contain', label: 'Contain (fit within bounds)' },
                                 { value: 'cover', label: 'Cover (fill bounds, may crop)' },
                                 { value: 'fill', label: 'Fill (stretch to fit)' },
@@ -126,12 +126,24 @@ export class ImageElement extends SceneElement {
             .setResource(resource, status)
             .setLocalTime(this._playback.computeLocalTime(targetTime))
             .setDimensions(props.width, props.height)
-            .setFitMode(props.fitMode ?? 'contain')
+            .setFitMode(props.fitMode ?? 'cover')
             .setPreserveAspectRatio(props.preserveAspectRatio ?? true);
 
         this._renderObject.opacity = props.opacity ?? 1;
         const bm = (props.blendMode ?? 'source-over') as GlobalCompositeOperation;
         this._renderObject.blendMode = bm === 'source-over' ? null : bm;
+
+        if (props.shadowEnabled) {
+            const shadowColor = props.shadowColor ?? '#000000';
+            this._renderObject.setShadow(
+                shadowColor,
+                props.shadowBlur ?? 8,
+                props.shadowOffsetX ?? 2,
+                props.shadowOffsetY ?? 2
+            );
+        } else {
+            this._renderObject.setShadow(null, 0, 0, 0);
+        }
 
         const result: RenderObject[] = [this._layoutRect, this._renderObject];
         const showBorder = props.showBorder ?? false;

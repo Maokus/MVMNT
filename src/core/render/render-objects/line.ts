@@ -9,6 +9,7 @@ export class Line extends RenderObject {
     lineWidth: number;
     lineCap: LineCap;
     lineDash: number[];
+    lineDashOffset: number;
     shadowColor: string | null;
     shadowBlur: number;
     shadowOffsetX: number;
@@ -30,6 +31,7 @@ export class Line extends RenderObject {
         this.lineWidth = lineWidth;
         this.lineCap = 'butt';
         this.lineDash = [];
+        this.lineDashOffset = 0;
         this.shadowColor = null;
         this.shadowBlur = 0;
         this.shadowOffsetX = 0;
@@ -46,12 +48,18 @@ export class Line extends RenderObject {
         ctx.strokeStyle = this.color;
         ctx.lineWidth = this.lineWidth;
         ctx.lineCap = this.lineCap;
-        if (this.lineDash.length > 0) ctx.setLineDash(this.lineDash);
+        if (this.lineDash.length > 0) {
+            ctx.setLineDash(this.lineDash);
+            ctx.lineDashOffset = this.lineDashOffset;
+        }
         ctx.beginPath();
         ctx.moveTo(0, 0);
         ctx.lineTo(this.deltaX, this.deltaY);
         ctx.stroke();
-        if (this.lineDash.length > 0) ctx.setLineDash([]);
+        if (this.lineDash.length > 0) {
+            ctx.setLineDash([]);
+            ctx.lineDashOffset = 0;
+        }
         if (this.shadowColor && this.shadowBlur > 0) {
             ctx.shadowColor = 'transparent';
             ctx.shadowBlur = 0;

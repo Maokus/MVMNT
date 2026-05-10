@@ -38,6 +38,16 @@ export class NotesPlayedTrackerElement extends SceneElement {
                                 'Num played notes: #playedNotes/#totalNotes (#percentNotes%)\nNum played events: #playedEvents/#totalEvents (#percentEvents%)'
                             ),
                         ],
+                        presets: [
+                            {
+                                id: 'resetDefault',
+                                label: 'Reset to Default',
+                                values: {
+                                    formatString:
+                                        'Num played notes: #playedNotes/#totalNotes (#percentNotes%)\nNum played events: #playedEvents/#totalEvents (#percentEvents%)',
+                                },
+                            },
+                        ],
                     },
                 ]),
                 tab.appearance([
@@ -56,23 +66,6 @@ export class NotesPlayedTrackerElement extends SceneElement {
                                 { value: 'right', label: 'Right' },
                             ]),
                             prop.number('lineSpacing', 'Line Spacing (px)', 4, { min: 0, max: 40, step: 1 }),
-                        ],
-                        presets: [
-                            {
-                                id: 'studio',
-                                label: 'Studio Monitor',
-                                values: { fontSize: 28, color: '#f8fafc', lineSpacing: 6 },
-                            },
-                            {
-                                id: 'sidebar',
-                                label: 'Sidebar',
-                                values: { fontSize: 22, color: '#22d3ee', lineSpacing: 3 },
-                            },
-                            {
-                                id: 'bigBoard',
-                                label: 'Big Board',
-                                values: { fontSize: 36, color: '#f97316', lineSpacing: 8 },
-                            },
                         ],
                     },
                     propGroup.container(),

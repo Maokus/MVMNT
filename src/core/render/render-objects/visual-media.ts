@@ -48,15 +48,15 @@ export type FramePlacement = FramePlacementPreset | FramePlacementCustom;
 
 const PRESET_VALUES: Record<FramePlacementPreset, [number, number, number, number]> = {
     //                          contX  contY  frameX frameY
-    'center':        [0.5, 0.5, 0.5, 0.5],
-    'top-left':      [0,   0,   0,   0  ],
-    'top-center':    [0.5, 0,   0.5, 0  ],
-    'top-right':     [1,   0,   1,   0  ],
-    'center-left':   [0,   0.5, 0,   0.5],
-    'center-right':  [1,   0.5, 1,   0.5],
-    'bottom-left':   [0,   1,   0,   1  ],
-    'bottom-center': [0.5, 1,   0.5, 1  ],
-    'bottom-right':  [1,   1,   1,   1  ],
+    center: [0.5, 0.5, 0.5, 0.5],
+    'top-left': [0, 0, 0, 0],
+    'top-center': [0.5, 0, 0.5, 0],
+    'top-right': [1, 0, 1, 0],
+    'center-left': [0, 0.5, 0, 0.5],
+    'center-right': [1, 0.5, 1, 0.5],
+    'bottom-left': [0, 1, 0, 1],
+    'bottom-center': [0.5, 1, 0.5, 1],
+    'bottom-right': [1, 1, 1, 1],
 };
 
 // ─── VisualMediaOptions ───────────────────────────────────────────────────────
@@ -177,6 +177,10 @@ export class VisualMedia extends RenderObject {
      * - Yellow diamond: the origin / transform origin inside the container.
      */
     showDebug: boolean;
+    shadowColor: string | null;
+    shadowBlur: number;
+    shadowOffsetX: number;
+    shadowOffsetY: number;
 
     private _resource: VisualResource | null = null;
     private _status: ResourceStatus = 'idle';
@@ -205,6 +209,10 @@ export class VisualMedia extends RenderObject {
         this.fitMode = options.fitMode ?? 'contain';
         this.preserveAspectRatio = options.preserveAspectRatio ?? true;
         this.showDebug = options.showDebug ?? false;
+        this.shadowColor = null;
+        this.shadowBlur = 0;
+        this.shadowOffsetX = 0;
+        this.shadowOffsetY = 0;
 
         // layoutBoundsMode wins; fall back to includeInLayoutBounds for compat.
         if (options.layoutBoundsMode) {
@@ -292,6 +300,14 @@ export class VisualMedia extends RenderObject {
 
     setPreserveAspectRatio(val: boolean): this {
         this.preserveAspectRatio = val;
+        return this;
+    }
+
+    setShadow(color: string | null, blur = 10, offsetX = 0, offsetY = 0): this {
+        this.shadowColor = color;
+        this.shadowBlur = blur;
+        this.shadowOffsetX = offsetX;
+        this.shadowOffsetY = offsetY;
         return this;
     }
 
@@ -533,6 +549,14 @@ export class VisualMedia extends RenderObject {
         const params = this.#calculateDrawParams(imgW, imgH);
         const { baseX, baseY, scaleX, scaleY } = params;
 
+        const hasShadow = !!(this.shadowColor && this.shadowBlur > 0);
+        if (hasShadow) {
+            ctx.shadowColor = this.shadowColor!;
+            ctx.shadowBlur = this.shadowBlur;
+            ctx.shadowOffsetX = this.shadowOffsetX;
+            ctx.shadowOffsetY = this.shadowOffsetY;
+        }
+
         // Sparrow trimOffset adjusts for where the visible pixels sit within the
         // logical frame. It is frame-reconstruction data only and does not interact
         // with the origin or framePlacement systems.
@@ -572,6 +596,13 @@ export class VisualMedia extends RenderObject {
         }
 
         if (needsClip) ctx.restore();
+
+        if (hasShadow) {
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+        }
 
         if (debug) this.#drawDebugOverlay(ctx, params, imgW, imgH);
     }
