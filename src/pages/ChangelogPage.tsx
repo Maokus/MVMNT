@@ -61,6 +61,7 @@ const ChangelogPage: React.FC = () => {
                             'Improve version conflict management',
                             'Consolidated api',
                             'DevEx quality of life scripts',
+                            'Make custom audio feature extraction possible',
                         ],
                         'Added asset manager',
                         [

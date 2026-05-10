@@ -25,6 +25,7 @@ import { AutomationCurve } from '@automation/automation-curve';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { SceneNameGenerator } from '@core/scene-name-generator';
+import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 
 export type SceneCommand =
     | {
@@ -731,6 +732,7 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
         case 'clearScene': {
             const previousMacros = command.clearMacros === false ? (getMacroSnapshot() ?? undefined) : undefined;
             store.clearScene();
+            useVisualAssetRegistryStore.getState()._clear();
             if (command.clearMacros === false && previousMacros) {
                 store.replaceMacros(previousMacros);
             }

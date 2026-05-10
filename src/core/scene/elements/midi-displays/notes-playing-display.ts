@@ -214,6 +214,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
         const trackId = props.midiTrackId;
         const activeNotes = new Set<number>();
         const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+        const timelineState = status === 'ok' ? api?.timeline.getStateSnapshot() : null;
         if (trackId && api && status === 'ok') {
             const EPS = 1e-3;
             const notes = api.timeline.selectNotesInWindow({
@@ -270,13 +271,11 @@ export class NotesPlayingDisplayElement extends SceneElement {
             // Determine start note: auto-detect lowest note in MIDI file when -1
             let startNote = Math.floor((props.gridStartNote as number) ?? -1);
             if (startNote === -1) {
-                if (trackId && api && status === 'ok') {
-                    const allNotes = api.timeline.selectNotesInWindow({
-                        trackIds: [trackId],
-                        startSec: -99999,
-                        endSec: 99999,
-                    });
-                    startNote = allNotes.length > 0 ? Math.min(...allNotes.map((n) => n.note)) : 0;
+                if (trackId && api && status === 'ok' && timelineState) {
+                    const track = timelineState.tracks[trackId];
+                    const midiSourceId = (track as { midiSourceId?: string })?.midiSourceId;
+                    const bounds = midiSourceId ? timelineState.midiCache[midiSourceId]?.bounds : undefined;
+                    startNote = bounds ? bounds.minNote : 0;
                 } else {
                     startNote = 0;
                 }

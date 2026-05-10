@@ -427,15 +427,13 @@ export class TimeUnitPianoRollElement extends SceneElement {
             const trackId = props.midiTrackId as string | undefined;
             let autoMinNote = 0;
             let autoMaxNote = 127;
-            if (trackId && status === 'ok' && api) {
-                const allNotes = api.timeline.selectNotesInWindow({
-                    trackIds: [trackId],
-                    startSec: -99999,
-                    endSec: 99999,
-                });
-                if (allNotes.length > 0) {
-                    autoMinNote = Math.min(...allNotes.map((n) => n.note));
-                    autoMaxNote = Math.max(...allNotes.map((n) => n.note));
+            if (trackId && status === 'ok' && api && timelineState) {
+                const track = timelineState.tracks[trackId];
+                const midiSourceId = (track as { midiSourceId?: string })?.midiSourceId;
+                const bounds = midiSourceId ? timelineState.midiCache[midiSourceId]?.bounds : undefined;
+                if (bounds) {
+                    autoMinNote = bounds.minNote;
+                    autoMaxNote = bounds.maxNote;
                 }
             }
             minNote = rawMinNote === -1 ? autoMinNote : rawMinNote;

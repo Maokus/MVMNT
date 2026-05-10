@@ -77,11 +77,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                                 type: 'select',
                                 label: 'Channel',
                                 default: null,
-                                options: [
-                                    { label: 'Mix (all channels)', value: null },
-                                    { label: 'Left', value: 0 },
-                                    { label: 'Right', value: 1 },
-                                ],
+                                options: [{ label: 'Mix (mono)', value: null }],
                                 runtime: { transform: normalizeChannelSelector, defaultValue: null },
                             },
                             prop.select('meterMode', 'Meter Mode', 'rms', [
