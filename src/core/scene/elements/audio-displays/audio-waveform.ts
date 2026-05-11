@@ -578,19 +578,36 @@ export class AudioWaveformElement extends SceneElement {
                         properties: [
                             prop.number('width', 'Width (px)', 800, { step: 1 }),
                             prop.number('height', 'Height (px)', 300, { step: 1 }),
+                            prop.boolean('detailed', 'Detailed (Raw PCM)', true),
+                            {
+                                key: 'detailedWindowSeconds',
+                                type: 'number',
+                                label: 'Window (seconds)',
+                                default: 0.12,
+                                step: 0.005,
+                                runtime: {
+                                    transform: (value, element) => {
+                                        const numeric = asNumber(value, element);
+                                        return numeric === undefined ? undefined : clamp(numeric, 0.005, 0.18);
+                                    },
+                                    defaultValue: 0.12,
+                                },
+                                visibleWhen: [{ key: 'detailed', equals: true }],
+                            },
                             {
                                 key: 'windowSeconds',
                                 type: 'number',
                                 label: 'Window (seconds)',
-                                default: 0.12,
-                                step: 0.01,
+                                default: 2,
+                                step: 0.1,
                                 runtime: {
                                     transform: (value, element) => {
                                         const numeric = asNumber(value, element);
-                                        return numeric === undefined ? undefined : clamp(numeric, 0.01, 100);
+                                        return numeric === undefined ? undefined : clamp(numeric, 0.1, 100);
                                     },
-                                    defaultValue: 0.12,
+                                    defaultValue: 2,
                                 },
+                                visibleWhen: [{ key: 'detailed', equals: false }],
                             },
                             {
                                 key: 'side',
@@ -844,6 +861,7 @@ export class AudioWaveformElement extends SceneElement {
         const density = clamp(typeof props.density === 'number' ? props.density : 1, 0.1, 1);
         const startOffset = clamp(typeof props.startOffset === 'number' ? props.startOffset : 0.5, 0, 1);
         const showPlayhead = props.showPlayhead === true;
+        const useDetailed = props.detailed !== false;
         const primaryBlendMode = (props.primaryBlendMode ?? 'source-over') as GlobalCompositeOperation;
         const secondaryBlendMode = (props.secondaryBlendMode ?? 'source-over') as GlobalCompositeOperation;
 
@@ -875,13 +893,17 @@ export class AudioWaveformElement extends SceneElement {
             PLUGIN_CAPABILITIES.timingConversion,
         ]);
 
-        const startSeconds = targetTime - props.windowSeconds * startOffset;
-        const endSeconds = startSeconds + props.windowSeconds;
+        const windowSeconds = useDetailed
+            ? clamp(typeof props.detailedWindowSeconds === 'number' ? props.detailedWindowSeconds : 0.12, 0.005, 0.18)
+            : clamp(typeof props.windowSeconds === 'number' ? props.windowSeconds : 2, 0.1, 100);
+        const startSeconds = targetTime - windowSeconds * startOffset;
+        const endSeconds = startSeconds + windowSeconds;
         let startTick = 0;
         let endTick = 0;
 
-        // Try raw PCM path first for small windows (returns null if window exceeds cap)
+        // Use raw PCM path when detailed mode is enabled
         const rawPath = (() => {
+            if (!useDetailed) return null;
             if (!api || status !== 'ok') return null;
             const leftRaw = api.audio.getRawSamples({
                 trackId: props.audioTrackId,
@@ -985,7 +1007,7 @@ export class AudioWaveformElement extends SceneElement {
             }
             startTick = Math.floor(startTickRaw);
             endTick = Math.max(startTick + 1, Math.ceil(endTickRaw));
-            const stepSec = Math.max(1 / 240, props.windowSeconds / Math.max(32, Math.round(width)));
+            const stepSec = Math.max(1 / 240, windowSeconds / Math.max(32, Math.round(width)));
             const hostSamples = api.audio.sampleFeatureRange({
                 element: this,
                 trackId: props.audioTrackId,

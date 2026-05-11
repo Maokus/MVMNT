@@ -478,8 +478,18 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                 if (!entry) return null;
                 const { audioBuffer } = entry;
                 const sampleRate = audioBuffer.sampleRate;
-                const startSample = Math.max(0, Math.floor(startSec * sampleRate));
-                const endSample = Math.min(audioBuffer.length, Math.ceil(endSec * sampleRate));
+                // Convert timeline seconds to audio-file-local seconds, accounting for track offset and region trim.
+                const timingCtx = createTimingContext(state.timeline);
+                const trackOffsetTicks = track.offsetTicks ?? 0;
+                const regionStartTick = track.regionStartTick ?? 0;
+                const rawStartTick = secondsToTicks(timingCtx, startSec);
+                const rawEndTick = secondsToTicks(timingCtx, endSec);
+                if (rawStartTick === null || rawEndTick === null) return null;
+                const fileStartSec = ticksToSeconds(timingCtx, rawStartTick - trackOffsetTicks + regionStartTick);
+                const fileEndSec = ticksToSeconds(timingCtx, rawEndTick - trackOffsetTicks + regionStartTick);
+                if (fileStartSec === null || fileEndSec === null) return null;
+                const startSample = Math.max(0, Math.floor(fileStartSec * sampleRate));
+                const endSample = Math.min(audioBuffer.length, Math.ceil(fileEndSec * sampleRate));
                 if (endSample <= startSample) return null;
                 const count = endSample - startSample;
                 if (count > MAX_RAW_SAMPLES) return null;
@@ -516,8 +526,18 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                 if (!entry) return null;
                 const { audioBuffer } = entry;
                 const sampleRate = audioBuffer.sampleRate;
-                const startSample = Math.max(0, Math.floor(startSec * sampleRate));
-                const endSample = Math.min(audioBuffer.length, Math.ceil(endSec * sampleRate));
+                // Convert timeline seconds to audio-file-local seconds, accounting for track offset and region trim.
+                const timingCtx = createTimingContext(state.timeline);
+                const trackOffsetTicks = track.offsetTicks ?? 0;
+                const regionStartTick = track.regionStartTick ?? 0;
+                const rawStartTick = secondsToTicks(timingCtx, startSec);
+                const rawEndTick = secondsToTicks(timingCtx, endSec);
+                if (rawStartTick === null || rawEndTick === null) return null;
+                const fileStartSec = ticksToSeconds(timingCtx, rawStartTick - trackOffsetTicks + regionStartTick);
+                const fileEndSec = ticksToSeconds(timingCtx, rawEndTick - trackOffsetTicks + regionStartTick);
+                if (fileStartSec === null || fileEndSec === null) return null;
+                const startSample = Math.max(0, Math.floor(fileStartSec * sampleRate));
+                const endSample = Math.min(audioBuffer.length, Math.ceil(fileEndSec * sampleRate));
                 if (endSample <= startSample) return null;
                 const count = endSample - startSample;
                 const numChannels = audioBuffer.numberOfChannels;
