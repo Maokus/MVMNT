@@ -1,12 +1,10 @@
 import { SceneElement, asNumber, type PropertyTransform } from '../base';
 import { Rectangle, Text, Line, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
-import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { applyOpacity } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
-import type { TempoAlignedFrameSample } from '@audio/features/tempoAlignedViewAdapter';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -38,29 +36,32 @@ const PEAK_FALL_RATE_DB_PER_MS = 12 / 1000;
 
 const STEREO_GAP = 3;
 
-registerFeatureRequirements('audioVolumeMeter', [{ feature: 'rms' }]);
+function getChannelValue(readings: Float32Array | null, channelIndex: number): number {
+    if (!readings || readings.length === 0) return 0;
+    return readings[Math.min(channelIndex, readings.length - 1)] ?? 0;
+}
+
+function getMonoValue(readings: Float32Array | null): number {
+    if (!readings || readings.length === 0) return 0;
+    let sum = 0;
+    for (let i = 0; i < readings.length; i++) sum += readings[i] ?? 0;
+    return sum / readings.length;
+}
+
+function findMaxAbs(samples: Float32Array): number {
+    let peak = 0;
+    for (let i = 0; i < samples.length; i++) {
+        const abs = Math.abs(samples[i] ?? 0);
+        if (abs > peak) peak = abs;
+    }
+    return peak;
+}
 
 const clampSmoothing: PropertyTransform<number, SceneElementInterface> = (value, element) => {
     const numeric = asNumber(value, element);
     if (numeric === undefined) return undefined;
     return clamp(numeric, 0, 64);
 };
-
-function getChannelLinear(frame: TempoAlignedFrameSample | null | undefined, channelIndex: number): number {
-    if (!frame) return 0;
-    return frame.channelValues?.[channelIndex]?.[0] ?? frame.values?.[channelIndex] ?? 0;
-}
-
-function getMonoLinear(frame: TempoAlignedFrameSample | null | undefined): number {
-    if (!frame) return 0;
-    const chVals = frame.channelValues;
-    if (!chVals || chVals.length === 0) return frame.values?.[0] ?? 0;
-    let sum = 0;
-    for (const ch of chVals) {
-        sum += ch?.[0] ?? 0;
-    }
-    return sum / chVals.length;
-}
 
 export class AudioVolumeMeterElement extends SceneElement {
     // Per-channel peak tracking: index 0 = L/mono, index 1 = R
@@ -199,20 +200,32 @@ export class AudioVolumeMeterElement extends SceneElement {
             return objects;
         }
 
-        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.audioFeaturesRead]);
-        const smoothing = (props.meterMode ?? 'rms') === 'peak' ? 0 : (props.smoothing ?? 0);
-        const result =
-            api && status === 'ok'
-                ? api.audio.sampleFeatureAtTime({
-                      element: this,
-                      trackId: props.audioTrackId,
-                      feature: 'rms',
-                      time: _targetTime,
-                      samplingOptions: { smoothing },
-                  })
-                : null;
+        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.audioRawRead]);
+        const meterMode = (props.meterMode ?? 'rms') as 'rms' | 'peak';
+        const smoothing = props.smoothing ?? 0;
+        // Window size: 25ms base + 10ms per smoothing unit (0→25ms, 64→665ms)
+        const windowSec = meterMode === 'peak' ? 0.01 : Math.max(0.025, smoothing * 0.01);
+        const halfWindow = windowSec / 2;
 
-        const frame = result?.metadata.frame ?? null;
+        let readings: Float32Array | null = null;
+        if (api && status === 'ok') {
+            const trackId = props.audioTrackId as string;
+            const startSec = _targetTime - halfWindow;
+            const endSec = _targetTime + halfWindow;
+            if (meterMode === 'rms') {
+                readings = api.audio.getRmsInWindow({ trackId, startSec, endSec });
+            } else {
+                // Peak mode: get raw samples per channel and find max abs amplitude
+                const leftSamples = api.audio.getRawSamples({ trackId, startSec, endSec, channel: 'left' });
+                const rightSamples = api.audio.getRawSamples({ trackId, startSec, endSec, channel: 'right' });
+                if (leftSamples || rightSamples) {
+                    readings = new Float32Array(2);
+                    readings[0] = leftSamples ? findMaxAbs(leftSamples) : 0;
+                    readings[1] = rightSamples ? findMaxAbs(rightSamples) : readings[0];
+                }
+            }
+        }
+
         const meterColor = applyOpacity(props.color ?? DEFAULT_METER_COLOR, props.opacity ?? 1);
 
         const nowSec = _targetTime;
@@ -230,7 +243,7 @@ export class AudioVolumeMeterElement extends SceneElement {
 
         if (isStereo) {
             this._buildStereoMeter(objects, {
-                frame,
+                readings,
                 width,
                 height,
                 minDb,
@@ -245,10 +258,10 @@ export class AudioVolumeMeterElement extends SceneElement {
         } else {
             const rawLinear =
                 channelMode === 'left'
-                    ? getChannelLinear(frame, 0)
+                    ? getChannelValue(readings, 0)
                     : channelMode === 'right'
-                      ? getChannelLinear(frame, 1)
-                      : getMonoLinear(frame);
+                      ? getChannelValue(readings, 1)
+                      : getMonoValue(readings);
             const rawDb = linearToDb(rawLinear);
             const clampedDb = clamp(Number.isFinite(rawDb) ? rawDb : minDb, minDb, maxDb);
             const normalized = dbToNormalized(clampedDb, minDb, maxDb);
@@ -282,7 +295,7 @@ export class AudioVolumeMeterElement extends SceneElement {
     private _buildStereoMeter(
         objects: RenderObject[],
         ctx: {
-            frame: import('@audio/features/tempoAlignedViewAdapter').TempoAlignedFrameSample | null;
+            readings: Float32Array | null;
             width: number;
             height: number;
             minDb: number;
@@ -296,7 +309,7 @@ export class AudioVolumeMeterElement extends SceneElement {
         }
     ) {
         const {
-            frame,
+            readings,
             width,
             height,
             minDb,
@@ -309,8 +322,8 @@ export class AudioVolumeMeterElement extends SceneElement {
             props,
         } = ctx;
 
-        const rawLinearL = getChannelLinear(frame, 0);
-        const rawLinearR = getChannelLinear(frame, 1);
+        const rawLinearL = getChannelValue(readings, 0);
+        const rawLinearR = getChannelValue(readings, 1);
         const rawDbL = linearToDb(rawLinearL);
         const rawDbR = linearToDb(rawLinearR);
         const clampedDbL = clamp(Number.isFinite(rawDbL) ? rawDbL : minDb, minDb, maxDb);

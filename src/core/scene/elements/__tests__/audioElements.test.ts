@@ -4,23 +4,28 @@ import { AudioWaveformElement, AudioLockedOscilloscopeElement } from '@core/scen
 import { AudioDebugElement } from '@core/scene/elements/audio-debug/audio-debug';
 import { Poly, Rectangle, Text } from '@core/render/render-objects';
 import * as featureUtils from '@audio/audioFeatureUtils';
-import * as audioSelectors from '@state/selectors/audioFeatureSelectors';
 import * as timelineStore from '@state/timelineStore';
 import * as analysisIntents from '@audio/features/analysisIntents';
 import * as sceneApi from '@audio/features/sceneApi';
 import * as pluginSdk from '@mvmnt/plugin-sdk';
 import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
 
-function makePluginApiResult(overrides: {
-    sampleFeatureAtTime?: (args: unknown) => unknown;
-    sampleFeatureRange?: (args: unknown) => unknown[];
-    secondsToTicks?: (s: number) => number | null;
-} = {}) {
+function makePluginApiResult(
+    overrides: {
+        sampleFeatureAtTime?: (args: unknown) => unknown;
+        sampleFeatureRange?: (args: unknown) => unknown[];
+        getRawSamples?: (args: unknown) => Float32Array | null;
+        getRmsInWindow?: (args: unknown) => Float32Array | null;
+        secondsToTicks?: (s: number) => number | null;
+    } = {}
+) {
     return {
         api: {
             audio: {
                 sampleFeatureAtTime: overrides.sampleFeatureAtTime ?? (() => null),
                 sampleFeatureRange: overrides.sampleFeatureRange ?? (() => []),
+                getRawSamples: overrides.getRawSamples ?? (() => null),
+                getRmsInWindow: overrides.getRmsInWindow ?? (() => null),
             },
             timing: {
                 secondsToTicks: overrides.secondsToTicks ?? (() => null),
@@ -70,41 +75,16 @@ describe('simplified audio scene elements', () => {
 
     it('scales the volume meter fill with the sampled RMS value', () => {
         vi.spyOn(pluginSdk, 'getPluginHostApi')
-            .mockReturnValueOnce(makePluginApiResult({
-                sampleFeatureAtTime: () => ({
-                    values: [0.25],
-                    metadata: {
-                        descriptor: { featureKey: 'rms' },
-                        frame: {
-                            channels: 1, values: [0.25], channelValues: [[0.25]],
-                            channelAliases: null, channelLayout: null,
-                            frameIndex: 0, fractionalIndex: 0, hopTicks: 1, format: 'float32',
-                        },
-                        channels: 1, channelAliases: null, channelLayout: null,
-                    },
-                }),
-            }))
-            .mockReturnValueOnce(makePluginApiResult({
-                sampleFeatureAtTime: () => ({
-                    values: [0.75],
-                    metadata: {
-                        descriptor: { featureKey: 'rms' },
-                        frame: {
-                            channels: 1, values: [0.75], channelValues: [[0.75]],
-                            channelAliases: null, channelLayout: null,
-                            frameIndex: 1, fractionalIndex: 0, hopTicks: 1, format: 'float32',
-                        },
-                        channels: 1, channelAliases: null, channelLayout: null,
-                    },
-                }),
-            }));
+            .mockReturnValueOnce(makePluginApiResult({ getRmsInWindow: () => new Float32Array([0.25]) }))
+            .mockReturnValueOnce(makePluginApiResult({ getRmsInWindow: () => new Float32Array([0.75]) }));
 
         const element = new AudioVolumeMeterElement('meter', {
             audioTrackId: 'track-1',
             width: 40,
             height: 200,
-            minValue: 0,
-            maxValue: 1,
+            minDb: -60,
+            maxDb: 0,
+            channelMode: 'left',
             showValue: false,
         });
 
@@ -112,8 +92,10 @@ describe('simplified audio scene elements', () => {
         const firstRects = (first as any).children.filter(
             (child: unknown) => child instanceof Rectangle
         ) as Rectangle[];
+        // rectangles[0] = background, rectangles[1] = fill bar
         const firstFill = firstRects[1];
-        expect(firstFill.height).toBeCloseTo(50);
+        // rms=0.25 → -12.04 dBFS → normalized ≈ 0.799 → fillH ≈ 159.9
+        expect(firstFill.height).toBeCloseTo(160, 0);
 
         const [second] = element.buildRenderObjects({}, 1.5);
         const secondRects = (second as any).children.filter(
@@ -123,23 +105,10 @@ describe('simplified audio scene elements', () => {
         expect(secondFill.height).toBeGreaterThan(firstFill.height);
     });
 
-    it('respects channel selector aliases for the volume meter', () => {
+    it('respects channel mode for the volume meter', () => {
         vi.spyOn(pluginSdk, 'getPluginHostApi').mockReturnValue(
             makePluginApiResult({
-                sampleFeatureAtTime: () => ({
-                    values: [0.1, 0.9],
-                    metadata: {
-                        descriptor: { featureKey: 'rms' },
-                        frame: {
-                            channels: 2, values: [0.1, 0.9],
-                            channelValues: [[0.1], [0.9]],
-                            channelAliases: ['Left', 'Right'],
-                            channelLayout: null,
-                            frameIndex: 0, fractionalIndex: 0, hopTicks: 1, format: 'float32',
-                        },
-                        channels: 2, channelAliases: ['Left', 'Right'], channelLayout: null,
-                    },
-                }),
+                getRmsInWindow: () => new Float32Array([0.1, 0.9]),
             })
         );
 
@@ -147,18 +116,20 @@ describe('simplified audio scene elements', () => {
             audioTrackId: 'track-1',
             width: 20,
             height: 100,
-            minValue: 0,
-            maxValue: 1,
+            minDb: -60,
+            maxDb: 0,
             showValue: false,
-            channelSelector: 'right',
+            channelMode: 'right',
         });
 
         const [container] = element.buildRenderObjects({}, 0);
         const rectangles = (container as any).children.filter(
             (child: unknown) => child instanceof Rectangle
         ) as Rectangle[];
+        // rectangles[0] = background, rectangles[1] = fill bar
         const fill = rectangles[1];
-        expect(fill.height).toBeCloseTo(90);
+        // right channel rms=0.9 → -0.915 dBFS → normalized ≈ 0.985 → fillH ≈ 98.5
+        expect(fill.height).toBeCloseTo(98.5, 0);
     });
 
     it('builds a waveform polyline from sampled range data', () => {

@@ -12,6 +12,7 @@ import { PLUGIN_CAPABILITIES } from '../host-api/plugin-api';
 import {
     timelineApi,
     audioApi,
+    audioRawApi,
     timingApi,
     utilitiesApi,
     audioCalculatorsApi,
@@ -44,6 +45,7 @@ describe('API Drift Prevention', () => {
             const expectedCapabilities = [
                 'timelineRead',
                 'audioFeaturesRead',
+                'audioRawRead',
                 'timingConversion',
                 'midiUtils',
                 'audioCalculatorsRegister',
@@ -58,6 +60,7 @@ describe('API Drift Prevention', () => {
         it('should provide direct proxy APIs for each capability', () => {
             expect(typeof timelineApi).toBe('object');
             expect(typeof audioApi).toBe('object');
+            expect(typeof audioRawApi).toBe('object');
             expect(typeof timingApi).toBe('object');
             expect(typeof utilitiesApi).toBe('object');
             expect(typeof audioCalculatorsApi).toBe('object');
@@ -86,6 +89,7 @@ describe('API Drift Prevention', () => {
             // Reference mapping:
             //   timelineRead              → timelineApi
             //   audioFeaturesRead         → audioApi
+            //   audioRawRead              → audioRawApi
             //   timingConversion          → timingApi
             //   midiUtils                 → utilitiesApi
             //   audioCalculatorsRegister  → audioCalculatorsApi
@@ -93,6 +97,7 @@ describe('API Drift Prevention', () => {
             const capabilityToExportName: Record<string, string> = {
                 timelineRead: 'timelineApi',
                 audioFeaturesRead: 'audioApi',
+                audioRawRead: 'audioRawApi',
                 timingConversion: 'timingApi',
                 midiUtils: 'utilitiesApi',
                 audioCalculatorsRegister: 'audioCalculatorsApi',
@@ -108,12 +113,13 @@ describe('API Drift Prevention', () => {
 
         it('should match PLUGIN_CAPABILITIES keys with exported proxies', () => {
             const capabilities = Object.keys(PLUGIN_CAPABILITIES);
-            const expectedExports = ['timelineApi', 'audioApi', 'timingApi', 'utilitiesApi', 'audioCalculatorsApi'];
+            const expectedExports = ['timelineApi', 'audioApi', 'audioRawApi', 'timingApi', 'utilitiesApi', 'audioCalculatorsApi'];
 
             expect(capabilities).toHaveLength(expectedExports.length);
 
             expect(timelineApi).toBeDefined();
             expect(audioApi).toBeDefined();
+            expect(audioRawApi).toBeDefined();
             expect(timingApi).toBeDefined();
             expect(utilitiesApi).toBeDefined();
             expect(audioCalculatorsApi).toBeDefined();
@@ -207,6 +213,9 @@ describe('API Drift Prevention', () => {
                         break;
                     case 'audioFeaturesRead':
                         expect(audioApi).toBeDefined();
+                        break;
+                    case 'audioRawRead':
+                        expect(audioRawApi).toBeDefined();
                         break;
                     case 'timingConversion':
                         expect(timingApi).toBeDefined();

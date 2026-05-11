@@ -18,6 +18,10 @@
 // Direct capability proxy — throws descriptively if capability is missing
 export { audioApi } from '@core/scene/plugins/plugin-sdk-capabilities';
 
+// Raw PCM access proxy — throws descriptively if capability is missing
+export { audioRawApi } from '@core/scene/plugins/plugin-sdk-capabilities';
+export { MAX_RAW_SAMPLES } from '@core/scene/plugins/host-api/plugin-api';
+
 // Calculator registration API
 export { audioCalculatorsApi } from '@core/scene/plugins/plugin-sdk-capabilities';
 export type {

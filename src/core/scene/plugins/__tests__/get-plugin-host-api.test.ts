@@ -23,6 +23,8 @@ function makeApi(overrides: Partial<PluginHostApi> = {}): PluginHostApi {
         audio: {
             sampleFeatureAtTime: () => null,
             sampleFeatureRange: () => [],
+            getRawSamples: () => null,
+            getRmsInWindow: () => null,
         },
         timing: {
             secondsToTicks: () => null,
@@ -43,6 +45,7 @@ function makeApi(overrides: Partial<PluginHostApi> = {}): PluginHostApi {
         getAvailableCapabilities: () => ({
             timelineRead: true,
             audioFeaturesRead: true,
+            audioRawRead: true,
             timingConversion: true,
             midiUtils: true,
             audioCalculatorsRegister: true,

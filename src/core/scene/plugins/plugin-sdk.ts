@@ -2,6 +2,7 @@ import type { PluginCapabilityMap } from '@core/scene/plugins/host-api/plugin-ap
 import {
     timelineApi,
     audioApi,
+    audioRawApi,
     timingApi,
     utilitiesApi,
     audioCalculatorsApi,
@@ -38,6 +39,7 @@ type _CapabilityExportMap = Record<keyof PluginCapabilityMap, unknown>;
 const _verifyCapabilityExports = {
     timelineRead: timelineApi,
     audioFeaturesRead: audioApi,
+    audioRawRead: audioRawApi,
     timingConversion: timingApi,
     midiUtils: utilitiesApi,
     audioCalculatorsRegister: audioCalculatorsApi,

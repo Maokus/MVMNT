@@ -21,7 +21,6 @@ import {
 } from './audioFeatureTypes';
 import { normalizeHopTicks, quantizeHopTicks } from './hopQuantization';
 import { createPitchWaveformCalculator } from './calculators/pitchWaveformCalculator';
-import { createRmsCalculator } from './calculators/rmsCalculator';
 import { createSpectrogramCalculator } from './calculators/spectrogramCalculator';
 import { createWaveformCalculator } from './calculators/waveformCalculator';
 import { createTempoMapper, type TempoMapper } from '@core/timing';
@@ -581,12 +580,6 @@ function ensureCalculatorsRegistered(): AudioFeatureCalculator[] {
             serializeTrack,
             deserializeTrack,
             inferChannelAliases,
-        }),
-        createRmsCalculator({
-            createAnalysisYieldController,
-            cloneTempoProjection,
-            serializeTrack,
-            deserializeTrack,
         }),
         createWaveformCalculator({
             createAnalysisYieldController,

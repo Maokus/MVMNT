@@ -83,6 +83,19 @@ export const timelineApi: PluginTimelineApi = createCapabilityProxy('timelineRea
 export const audioApi: PluginAudioApi = createCapabilityProxy('audioFeaturesRead', (api) => api.audio);
 
 /**
+ * Direct access to raw audio PCM data.
+ * Throws if audio.raw.read capability is missing.
+ *
+ * @example
+ *   import { audioRawApi } from '@mvmnt/plugin-sdk';
+ *   const rms = audioRawApi.getRmsInWindow({ trackId, startSec, endSec });
+ */
+export const audioRawApi: Pick<PluginAudioApi, 'getRawSamples' | 'getRmsInWindow'> = createCapabilityProxy(
+    'audioRawRead',
+    (api) => api.audio
+) as Pick<PluginAudioApi, 'getRawSamples' | 'getRmsInWindow'>;
+
+/**
  * Direct access to the timing conversion API
  * Throws if timing.conversion capability is missing
  *

@@ -311,6 +311,26 @@ function averageFinite(values: number[]): number {
     return count > 0 ? total / count : 0;
 }
 
+function rawToNumberArray(samples: Float32Array): number[] {
+    const result = new Array<number>(samples.length);
+    for (let i = 0; i < samples.length; i++) result[i] = samples[i] ?? 0;
+    return result;
+}
+
+function computeRawMid(left: Float32Array, right: Float32Array): number[] {
+    const len = Math.min(left.length, right.length);
+    const result = new Array<number>(len);
+    for (let i = 0; i < len; i++) result[i] = ((left[i] ?? 0) + (right[i] ?? 0)) / 2;
+    return result;
+}
+
+function computeRawSide(left: Float32Array, right: Float32Array): number[] {
+    const len = Math.min(left.length, right.length);
+    const result = new Array<number>(len);
+    for (let i = 0; i < len; i++) result[i] = ((left[i] ?? 0) - (right[i] ?? 0)) / 2;
+    return result;
+}
+
 function extractSampleChannelScalars(sample: {
     values?: number[];
     metadata?: {
@@ -851,6 +871,7 @@ export class AudioWaveformElement extends SceneElement {
 
         const { api, status } = getPluginHostApi([
             PLUGIN_CAPABILITIES.audioFeaturesRead,
+            PLUGIN_CAPABILITIES.audioRawRead,
             PLUGIN_CAPABILITIES.timingConversion,
         ]);
 
@@ -858,6 +879,102 @@ export class AudioWaveformElement extends SceneElement {
         const endSeconds = startSeconds + props.windowSeconds;
         let startTick = 0;
         let endTick = 0;
+
+        // Try raw PCM path first for small windows (returns null if window exceeds cap)
+        const rawPath = (() => {
+            if (!api || status !== 'ok') return null;
+            const leftRaw = api.audio.getRawSamples({
+                trackId: props.audioTrackId,
+                startSec: startSeconds,
+                endSec: endSeconds,
+                channel: 'left',
+            });
+            if (!leftRaw) return null;
+            const rightRaw =
+                api.audio.getRawSamples({
+                    trackId: props.audioTrackId,
+                    startSec: startSeconds,
+                    endSec: endSeconds,
+                    channel: 'right',
+                }) ?? leftRaw;
+            return {
+                left: rawToNumberArray(leftRaw),
+                right: rawToNumberArray(rightRaw),
+                mid: computeRawMid(leftRaw, rightRaw),
+                side: computeRawSide(leftRaw, rightRaw),
+            } satisfies Record<WaveformChannel, number[]>;
+        })();
+
+        if (rawPath) {
+            const preparedPrimary = prepareValuesForDisplay(
+                rawPath[primaryChannel],
+                width,
+                dampRadius,
+                side,
+                density,
+                gain
+            );
+            const preparedSecondary =
+                secondaryChannel !== primaryChannel
+                    ? prepareValuesForDisplay(rawPath[secondaryChannel], width, dampRadius, side, density, gain)
+                    : undefined;
+
+            const hasRenderableSeries = Boolean(
+                (preparedPrimary && preparedPrimary.length >= 2) || (preparedSecondary && preparedSecondary.length >= 2)
+            );
+            if (!hasRenderableSeries) {
+                return pushMessage('Waveform too short');
+            }
+
+            if (preparedSecondary !== undefined) {
+                const secondaryStart = objects.length;
+                renderWaveformSeries(preparedSecondary, {
+                    mode: displayMode,
+                    width,
+                    height,
+                    color: secondaryColor,
+                    lineWidth,
+                    objects,
+                });
+                if (secondaryBlendMode !== 'source-over') {
+                    for (let i = secondaryStart; i < objects.length; i++) {
+                        objects[i].blendMode = secondaryBlendMode;
+                    }
+                }
+            }
+            if (preparedPrimary !== undefined) {
+                const primaryStart = objects.length;
+                renderWaveformSeries(preparedPrimary, {
+                    mode: displayMode,
+                    width,
+                    height,
+                    color: primaryColor,
+                    lineWidth,
+                    objects,
+                });
+                if (primaryBlendMode !== 'source-over') {
+                    for (let i = primaryStart; i < objects.length; i++) {
+                        objects[i].blendMode = primaryBlendMode;
+                    }
+                }
+            }
+            if (showPlayhead) {
+                const playheadX = startOffset * width;
+                const playheadLine = new Poly(
+                    [
+                        { x: playheadX, y: 0 },
+                        { x: playheadX, y: height },
+                    ],
+                    null,
+                    primaryColor,
+                    Math.max(1, lineWidth),
+                    { includeInLayoutBounds: false }
+                );
+                playheadLine.setClosed(false).setLineJoin('round').setLineCap('round');
+                objects.push(playheadLine);
+            }
+            return objects;
+        }
 
         const range = (() => {
             if (!api || status !== 'ok') return null;

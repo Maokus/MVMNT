@@ -35,10 +35,14 @@ export const PLUGIN_API_VERSION = '1.0.0' as const;
 export const PLUGIN_CAPABILITIES = {
     timelineRead: 'timeline.read',
     audioFeaturesRead: 'audio.features.read',
+    audioRawRead: 'audio.raw.read',
     timingConversion: 'timing.conversion',
     midiUtils: 'midi.utils',
     audioCalculatorsRegister: 'audio.calculators.register',
 } as const;
+
+/** Maximum number of raw PCM samples returned by getRawSamples in a single call. */
+export const MAX_RAW_SAMPLES = 8192;
 
 export type PluginHostCapability = (typeof PLUGIN_CAPABILITIES)[keyof typeof PLUGIN_CAPABILITIES];
 
@@ -97,6 +101,29 @@ export interface PluginAudioApi {
         stepSec: number;
         samplingOptions?: AudioSamplingOptions | null;
     }): FeatureDataResult[];
+
+    /**
+     * Return a copy of the decoded PCM samples for a time window on a specific channel.
+     * Returns null if the track is not loaded, the window is invalid, or the sample
+     * count in the window exceeds MAX_RAW_SAMPLES. Request a smaller window, use
+     * getRmsInWindow, or use the feature pipeline for large time ranges.
+     *
+     * channel: 'left' = channel 0, 'right' = channel 1 (falls back to 0 for mono),
+     *          'mono' (default) = average of all channels, number = explicit index.
+     */
+    getRawSamples(opts: {
+        trackId: string;
+        startSec: number;
+        endSec: number;
+        channel?: 'mono' | 'left' | 'right' | number;
+    }): Float32Array | null;
+
+    /**
+     * Compute RMS amplitude over a time window without a pre-computed feature track.
+     * Returns a Float32Array with one value per channel: [rmsL, rmsR] for stereo,
+     * [rms] for mono. Returns null if the track is not loaded or the window is invalid.
+     */
+    getRmsInWindow(opts: { trackId: string; startSec: number; endSec: number }): Float32Array | null;
 }
 
 export interface PluginTimingApi {
@@ -288,6 +315,7 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
         typeof selectMidiTracks === 'function'
     );
     const hasAudioFeaturesRead = typeof getFeatureData === 'function';
+    const hasAudioRawRead = Boolean(timelineStore && typeof timelineStore.getState === 'function');
 
     const capabilities: PluginHostCapability[] = [
         PLUGIN_CAPABILITIES.timingConversion,
@@ -299,6 +327,9 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
     }
     if (hasAudioFeaturesRead) {
         capabilities.push(PLUGIN_CAPABILITIES.audioFeaturesRead);
+    }
+    if (hasAudioRawRead) {
+        capabilities.push(PLUGIN_CAPABILITIES.audioRawRead);
     }
 
     const errorCallbacks: Array<(error: Error, capability: string) => void> = [];
@@ -436,6 +467,72 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                 }
                 return samples;
             },
+            getRawSamples({ trackId, startSec, endSec, channel = 'mono' }) {
+                if (!hasAudioRawRead || !timelineStore) return null;
+                if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) return null;
+                const state = timelineStore.getState();
+                const track = state.tracks[trackId];
+                if (!track || track.type !== 'audio') return null;
+                const sourceId = track.audioSourceId ?? track.id;
+                const entry = state.audioCache[sourceId];
+                if (!entry) return null;
+                const { audioBuffer } = entry;
+                const sampleRate = audioBuffer.sampleRate;
+                const startSample = Math.max(0, Math.floor(startSec * sampleRate));
+                const endSample = Math.min(audioBuffer.length, Math.ceil(endSec * sampleRate));
+                if (endSample <= startSample) return null;
+                const count = endSample - startSample;
+                if (count > MAX_RAW_SAMPLES) return null;
+                const numChannels = audioBuffer.numberOfChannels;
+                if (channel === 'mono') {
+                    const result = new Float32Array(count);
+                    for (let ch = 0; ch < numChannels; ch++) {
+                        const data = audioBuffer.getChannelData(ch);
+                        for (let i = 0; i < count; i++) {
+                            result[i] += data[startSample + i] ?? 0;
+                        }
+                    }
+                    if (numChannels > 1) {
+                        for (let i = 0; i < count; i++) result[i] /= numChannels;
+                    }
+                    return result;
+                }
+                const chIdx =
+                    channel === 'left'
+                        ? 0
+                        : channel === 'right'
+                          ? Math.min(1, numChannels - 1)
+                          : Math.max(0, Math.min(numChannels - 1, channel));
+                return audioBuffer.getChannelData(chIdx).slice(startSample, endSample);
+            },
+            getRmsInWindow({ trackId, startSec, endSec }) {
+                if (!hasAudioRawRead || !timelineStore) return null;
+                if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) return null;
+                const state = timelineStore.getState();
+                const track = state.tracks[trackId];
+                if (!track || track.type !== 'audio') return null;
+                const sourceId = track.audioSourceId ?? track.id;
+                const entry = state.audioCache[sourceId];
+                if (!entry) return null;
+                const { audioBuffer } = entry;
+                const sampleRate = audioBuffer.sampleRate;
+                const startSample = Math.max(0, Math.floor(startSec * sampleRate));
+                const endSample = Math.min(audioBuffer.length, Math.ceil(endSec * sampleRate));
+                if (endSample <= startSample) return null;
+                const count = endSample - startSample;
+                const numChannels = audioBuffer.numberOfChannels;
+                const result = new Float32Array(numChannels);
+                for (let ch = 0; ch < numChannels; ch++) {
+                    const data = audioBuffer.getChannelData(ch);
+                    let sumSquares = 0;
+                    for (let i = startSample; i < endSample; i++) {
+                        const s = data[i] ?? 0;
+                        sumSquares += s * s;
+                    }
+                    result[ch] = Math.sqrt(sumSquares / count);
+                }
+                return result;
+            },
         },
         timing: {
             secondsToTicks(seconds) {
@@ -494,6 +591,7 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
             return {
                 timelineRead: capabilities.includes(PLUGIN_CAPABILITIES.timelineRead),
                 audioFeaturesRead: capabilities.includes(PLUGIN_CAPABILITIES.audioFeaturesRead),
+                audioRawRead: capabilities.includes(PLUGIN_CAPABILITIES.audioRawRead),
                 timingConversion: capabilities.includes(PLUGIN_CAPABILITIES.timingConversion),
                 midiUtils: capabilities.includes(PLUGIN_CAPABILITIES.midiUtils),
                 audioCalculatorsRegister: capabilities.includes(PLUGIN_CAPABILITIES.audioCalculatorsRegister),
@@ -513,6 +611,9 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
     }
     if (!hasAudioFeaturesRead) {
         missingCapabilities.push(PLUGIN_CAPABILITIES.audioFeaturesRead);
+    }
+    if (!hasAudioRawRead) {
+        missingCapabilities.push(PLUGIN_CAPABILITIES.audioRawRead);
     }
 
     return { api, missingCapabilities };
