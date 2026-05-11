@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { RULER_HEIGHT } from '../constants';
 import TrackEditorRow from './TrackEditorRow';
@@ -13,6 +13,22 @@ interface TrackListProps {
 
 const TrackList: React.FC<TrackListProps> = ({ trackIds, activeTab, setActiveTab }) => {
     const tempoEnabled = useTimelineStore((s) => !!s.timeline.tempoAutomation?.enabled);
+    const reorderTracks = useTimelineStore((s) => s.reorderTracks);
+
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+    const handleDragEnd = () => {
+        if (draggedIndex !== null && dragOverIndex !== null && draggedIndex !== dragOverIndex) {
+            const newOrder = [...trackIds];
+            const [removed] = newOrder.splice(draggedIndex, 1);
+            newOrder.splice(dragOverIndex, 0, removed);
+            reorderTracks(newOrder);
+        }
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+    };
+
     const tabButton = (tab: 'clips' | 'automation', label: string) => (
         <button
             type="button"
@@ -46,8 +62,21 @@ const TrackList: React.FC<TrackListProps> = ({ trackIds, activeTab, setActiveTab
                 {tabButton('clips', 'Clips')}
                 {tabButton('automation', 'Automation')}
             </div>
-            {activeTab === 'clips' && trackIds.map((id) => (
-                <TrackEditorRow key={id} trackId={id} />
+            {activeTab === 'clips' && trackIds.map((id, index) => (
+                <div
+                    key={id}
+                    draggable
+                    onDragStart={() => setDraggedIndex(index)}
+                    onDragOver={(e) => { e.preventDefault(); setDragOverIndex(index); }}
+                    onDragEnd={handleDragEnd}
+                    style={{ opacity: draggedIndex === index ? 0.4 : 1 }}
+                >
+                    <TrackEditorRow
+                        trackId={id}
+                        isDragOver={dragOverIndex === index && draggedIndex !== index}
+                        dragHandleProps={{ onMouseDown: (e) => e.stopPropagation() }}
+                    />
+                </div>
             ))}
             {activeTab === 'automation' && <AutomationTrackLabels />}
             {activeTab === 'automation' && <TempoLaneHeader />}

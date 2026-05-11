@@ -57,6 +57,16 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     // shows the previous element's values before the useEffect has a chance to load new ones.
     const [lastRenderedElementId, setLastRenderedElementId] = useState(elementId);
     if (lastRenderedElementId !== elementId) {
+        // Match the active tab by label: if new element has a tab with the same label as the
+        // currently active tab, switch to it. Otherwise fall back to the stored tab for the new element.
+        const prevTabLabel = enhancedSchema?.tabs.find((t) => t.id === activeTabId)?.label;
+        if (prevTabLabel && schema) {
+            const newTabs = (schema as EnhancedConfigSchema).tabs ?? [];
+            const matchingTab = newTabs.find((t) => t.label === prevTabLabel);
+            if (matchingTab) {
+                useSceneStore.getState().setActivePropertyTab(elementId, matchingTab.id);
+            }
+        }
         setLastRenderedElementId(elementId);
         setPropertyValues({});
         setMacroAssignments({});

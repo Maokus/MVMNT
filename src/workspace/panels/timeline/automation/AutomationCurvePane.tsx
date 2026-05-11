@@ -125,10 +125,11 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
 
     // Target range: auto (with min span) or manual (with min span)
     const [targetMin, targetMax] = useMemo(() => {
+        if (channel.valueType === 'boolean') return [0, 1];
         const [autoMin, autoMax] = enforceMinSpan(autoMinVal, autoMaxVal, propertyStep);
         if (autoRange) return [autoMin, autoMax];
         return enforceMinSpan(manualMin, manualMax, propertyStep);
-    }, [autoRange, autoMinVal, autoMaxVal, manualMin, manualMax, propertyStep]);
+    }, [channel.valueType, autoRange, autoMinVal, autoMaxVal, manualMin, manualMax, propertyStep]);
 
     // Lerp toward target each animation frame (~150ms visual half-life at 60fps)
     const animMinRef = useRef(targetMin);
@@ -211,8 +212,10 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
 
     // Grid ticks at "nice" round values derived from the current display range
     const gridTicks = useMemo(
-        () => generateYTicks(minVal, maxVal),
-        [minVal, maxVal],
+        () => channel.valueType === 'boolean'
+            ? [{ value: 0, label: '0' }, { value: 1, label: '1' }]
+            : generateYTicks(minVal, maxVal),
+        [channel.valueType, minVal, maxVal],
     );
 
     // ── Selection state ───────────────────────────────────────────────────────
@@ -272,6 +275,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             // a parent DOM element) never sees this event.
             e.stopPropagation();
             e.preventDefault();
+            if (channel.valueType === 'boolean') return; // range is fixed 0-1 for boolean
             const currentMin = animMinRef.current;
             const currentMax = animMaxRef.current;
             const rangeSpan = currentMax - currentMin;

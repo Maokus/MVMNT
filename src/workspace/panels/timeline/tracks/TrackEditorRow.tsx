@@ -1,9 +1,15 @@
 import React, { useRef, useState } from 'react';
-import { FaTrash } from 'react-icons/fa';
+import { FaTrash, FaGripVertical } from 'react-icons/fa';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 
-const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
+interface TrackEditorRowProps {
+    trackId: string;
+    isDragOver?: boolean;
+    dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
+}
+
+const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dragHandleProps }) => {
     const track = useTimelineStore((s) => s.tracks[trackId]);
     const removeTrack = useTimelineStore((s) => s.removeTrack);
     const updateTrack = useTimelineStore((s) => s.updateTrack);
@@ -33,13 +39,21 @@ const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
 
     return (
         <div
-            className={`timeline-row flex h-full items-center justify-between gap-2 border-b border-neutral-800 px-2 ${selected ? 'bg-blue-700/25' : 'bg-neutral-900/40 hover:bg-neutral-800/40'}`}
+            className={`timeline-row flex h-full items-center justify-between gap-2 border-b px-2 ${isDragOver ? 'border-t-2 border-t-blue-400 border-b-neutral-800' : 'border-b-neutral-800'} ${selected ? 'bg-blue-700/25' : 'bg-neutral-900/40 hover:bg-neutral-800/40'}`}
             onClick={() => selectTracks([trackId])}
             role="button"
             title={selected ? 'Selected' : 'Click to select'}
             style={{ height: rowHeight, minHeight: rowHeight, fontSize: baseFontSize }}
         >
-            <div className="flex items-center gap-2 min-w-0">
+            {/* Drag handle */}
+            <div
+                className="flex-shrink-0 text-neutral-500 hover:text-neutral-300 cursor-grab active:cursor-grabbing px-0.5"
+                title="Drag to reorder"
+                {...dragHandleProps}
+            >
+                <FaGripVertical size={10} />
+            </div>
+            <div className="flex items-center gap-2 min-w-0 flex-1">
                 {/* Name — double-click to edit */}
                 {editingName ? (
                     <input
