@@ -59,7 +59,10 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     if (lastRenderedElementId !== elementId) {
         // Match the active tab by label: if new element has a tab with the same label as the
         // currently active tab, switch to it. Otherwise fall back to the stored tab for the new element.
-        const prevTabLabel = enhancedSchema?.tabs.find((t) => t.id === activeTabId)?.label;
+        // Read the old element's active tab ID directly from the store (activeTabId is not yet
+        // initialized at this point — it's a useMemo declared further down).
+        const oldTabId = useSceneStore.getState().interaction.activePropertyTab[lastRenderedElementId];
+        const prevTabLabel = enhancedSchema?.tabs.find((t) => t.id === oldTabId)?.label;
         if (prevTabLabel && schema) {
             const newTabs = (schema as EnhancedConfigSchema).tabs ?? [];
             const matchingTab = newTabs.find((t) => t.label === prevTabLabel);

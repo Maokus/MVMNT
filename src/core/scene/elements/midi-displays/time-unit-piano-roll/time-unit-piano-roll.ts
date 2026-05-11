@@ -89,8 +89,20 @@ export class TimeUnitPianoRollElement extends SceneElement {
                                 description: 'Total height of the piano roll.',
                             }),
                             prop.number('timeUnitBars', 'Time Unit (bars)', 1, { min: 1, max: 8, step: 1 }),
-                            prop.number('minNote', 'Minimum MIDI Note', -1, { min: -1, max: 127, step: 1, description: 'Lowest MIDI note shown. Set to -1 to automatically use the lowest note in the track.' }),
-                            prop.number('maxNote', 'Maximum MIDI Note', -1, { min: -1, max: 127, step: 1, description: 'Highest MIDI note shown. Set to -1 to automatically use the highest note in the track.' }),
+                            prop.number('minNote', 'Minimum MIDI Note', -1, {
+                                min: -1,
+                                max: 127,
+                                step: 1,
+                                description:
+                                    'Lowest MIDI note shown. Set to -1 to automatically use the lowest note in the track.',
+                            }),
+                            prop.number('maxNote', 'Maximum MIDI Note', -1, {
+                                min: -1,
+                                max: 127,
+                                step: 1,
+                                description:
+                                    'Highest MIDI note shown. Set to -1 to automatically use the highest note in the track.',
+                            }),
                         ],
                     },
                     {
@@ -430,7 +442,9 @@ export class TimeUnitPianoRollElement extends SceneElement {
             if (trackId && status === 'ok' && api && timelineState) {
                 const track = timelineState.tracks[trackId];
                 const midiSourceId = (track as { midiSourceId?: string })?.midiSourceId;
-                const bounds = midiSourceId ? timelineState.midiCache[midiSourceId]?.bounds : undefined;
+                // Use midiSourceId as cache key (same fallback logic as timelineSelectors)
+                const cacheKey = midiSourceId ?? trackId;
+                const bounds = timelineState.midiCache[cacheKey]?.bounds;
                 if (bounds) {
                     autoMinNote = bounds.minNote;
                     autoMaxNote = bounds.maxNote;

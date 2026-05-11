@@ -49,8 +49,18 @@ export class VidilikePianoRollElement extends SceneElement {
                         properties: [
                             prop.number('rollWidth', 'Roll Width (px)', 1200, { step: 10 }),
                             prop.number('timeUnitBars', 'Time Window (bars)', 2, { min: 1, max: 8, step: 1 }),
-                            prop.number('minNote', 'Min MIDI Note', 30, { min: 0, max: 127, step: 1 }),
-                            prop.number('maxNote', 'Max MIDI Note', 72, { min: 0, max: 127, step: 1 }),
+                            prop.number('minNote', 'Min MIDI Note', -1, {
+                                min: -1,
+                                max: 127,
+                                step: 1,
+                                description: 'Lowest note shown. Set to -1 to auto-detect from the track.',
+                            }),
+                            prop.number('maxNote', 'Max MIDI Note', -1, {
+                                min: -1,
+                                max: 127,
+                                step: 1,
+                                description: 'Highest note shown. Set to -1 to auto-detect from the track.',
+                            }),
                             prop.number('noteHeight', 'Note Height (px)', 20, { step: 1 }),
                             prop.number('playheadPosition', 'Playhead Position (0–1)', 0.25, {
                                 min: 0,
@@ -152,8 +162,14 @@ export class VidilikePianoRollElement extends SceneElement {
                                 step: 0.05,
                                 visibleWhen: [{ key: 'animationType', notEquals: 'none' }],
                             }),
-                            prop.number('bloomRadius', 'Bloom', 0, { step: 1 }),
                         ],
+                    },
+                    {
+                        id: 'bloom',
+                        label: 'Bloom',
+                        collapsed: true,
+                        description: 'Glow effect applied to note bodies. Large radii are expensive — keep below 30.',
+                        properties: [prop.number('bloomRadius', 'Bloom Radius (px)', 0, { step: 1, min: 0, max: 40 })],
                     },
                 ]),
                 tab.advanced([
@@ -204,8 +220,32 @@ export class VidilikePianoRollElement extends SceneElement {
         const timeUnitDuration = timeUnitBars * beatsPerBar * (60 / bpm);
 
         const rollWidth = Math.max(100, (p.rollWidth as number) ?? 800);
-        const minNote = Math.max(0, Math.min(127, Math.floor((p.minNote as number) ?? 30)));
-        const maxNote = Math.max(0, Math.min(127, Math.floor((p.maxNote as number) ?? 72)));
+
+        // Auto-detect min/max from midiCache when set to -1
+        const rawMinNote = Math.floor((p.minNote as number) ?? -1);
+        const rawMaxNote = Math.floor((p.maxNote as number) ?? -1);
+        let minNote: number;
+        let maxNote: number;
+        if (rawMinNote === -1 || rawMaxNote === -1) {
+            const trackId = p.midiTrackId as string | undefined;
+            let autoMinNote = 21;
+            let autoMaxNote = 108;
+            if (trackId && timelineState) {
+                const track = timelineState.tracks[trackId];
+                const midiSourceId = (track as { midiSourceId?: string })?.midiSourceId;
+                const cacheKey = midiSourceId ?? trackId;
+                const bounds = (timelineState as any).midiCache?.[cacheKey]?.bounds;
+                if (bounds) {
+                    autoMinNote = bounds.minNote;
+                    autoMaxNote = bounds.maxNote;
+                }
+            }
+            minNote = rawMinNote === -1 ? autoMinNote : Math.max(0, Math.min(127, rawMinNote));
+            maxNote = rawMaxNote === -1 ? autoMaxNote : Math.max(0, Math.min(127, rawMaxNote));
+        } else {
+            minNote = Math.max(0, Math.min(127, rawMinNote));
+            maxNote = Math.max(0, Math.min(127, rawMaxNote));
+        }
         const noteHeight = Math.max(4, (p.noteHeight as number) ?? 12);
         const totalNotes = maxNote - minNote + 1;
 
@@ -349,31 +389,28 @@ export class VidilikePianoRollElement extends SceneElement {
             }
         }
 
-        objects.push(...effects);
-
-        // ── Playhead line ───────────────────────────────────────────────────
-        if (showPlayhead) {
-            const totalHeight = totalNotes * noteHeight;
-            const [phX] = applyShake(playheadX, 0);
-            const ph = new Line(phX, 0, phX, totalHeight, playheadColor, playheadLineWidth);
-            (ph as any).setIncludeInLayoutBounds?.(false);
-            objects.push(ph);
-        }
-
-        // ── Layout bounds sentinel ──────────────────────────────────────────
+        // ── Assemble final output ───────────────────────────────────────────
         const totalHeight = totalNotes * noteHeight;
         const layoutSentinel = new Rectangle(0, 0, rollWidth, totalHeight, null, null, 0);
         (layoutSentinel as any).setIncludeInLayoutBounds?.(true);
 
-        if (bloomRadius > 0) {
-            const glow = new GlowLayer({ glowBlur: bloomRadius });
-            glow.addChildren(objects);
-            // layoutSentinel must stay at the top level — the bounds system
-            // only traverses top-level objects and GlowLayer is excluded by default.
-            return [layoutSentinel, glow];
+        // Build playhead separately so it always stays sharp (not bloomed)
+        const decorations: RenderObject[] = [];
+        if (showPlayhead) {
+            const [phX] = applyShake(playheadX, 0);
+            const ph = new Line(phX, 0, phX, totalHeight, playheadColor, playheadLineWidth);
+            (ph as any).setIncludeInLayoutBounds?.(false);
+            decorations.push(ph);
         }
 
-        objects.push(layoutSentinel);
-        return objects;
+        if (bloomRadius > 0) {
+            // Only bloom note bodies — effects (markers, ripples) and playhead
+            // render sharp on top of the bloom layer.
+            const glow = new GlowLayer({ glowBlur: bloomRadius });
+            glow.addChildren(objects);
+            return [layoutSentinel, glow, ...effects, ...decorations];
+        }
+
+        return [layoutSentinel, ...objects, ...effects, ...decorations];
     }
 }

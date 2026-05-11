@@ -131,16 +131,18 @@ export class CircularPianoRollElement extends SceneElement {
                                 step: 5,
                                 visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
                             }),
-                            prop.number('minNote', 'Min MIDI Note', 36, {
-                                min: 0,
+                            prop.number('minNote', 'Min MIDI Note', -1, {
+                                min: -1,
                                 max: 127,
                                 step: 1,
+                                description: 'Lowest note shown. Set to -1 to auto-detect from the track.',
                                 visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
                             }),
-                            prop.number('maxNote', 'Max MIDI Note', 84, {
-                                min: 0,
+                            prop.number('maxNote', 'Max MIDI Note', -1, {
+                                min: -1,
                                 max: 127,
                                 step: 1,
+                                description: 'Highest note shown. Set to -1 to auto-detect from the track.',
                                 visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
                             }),
                             prop.number('polarNoteHeight', 'Note Lane Height (px)', 8, {
@@ -311,8 +313,32 @@ export class CircularPianoRollElement extends SceneElement {
         const ringRadius = Math.max(40, (p.ringRadius as number) ?? 200);
         const ringWidth = Math.max(4, (p.ringWidth as number) ?? 20);
         const innerRadius = Math.max(10, Math.min(ringRadius - 10, (p.innerRadius as number) ?? 60));
-        const minNote = Math.max(0, Math.min(127, Math.floor((p.minNote as number) ?? 36)));
-        const maxNote = Math.max(0, Math.min(127, Math.floor((p.maxNote as number) ?? 84)));
+
+        // Auto-detect min/max from midiCache when set to -1
+        const rawMinNote = Math.floor((p.minNote as number) ?? -1);
+        const rawMaxNote = Math.floor((p.maxNote as number) ?? -1);
+        let minNote: number;
+        let maxNote: number;
+        if (rawMinNote === -1 || rawMaxNote === -1) {
+            const trackId = p.midiTrackId as string | undefined;
+            let autoMinNote = 21;
+            let autoMaxNote = 108;
+            if (trackId && timelineState) {
+                const track = timelineState.tracks[trackId];
+                const midiSourceId = (track as { midiSourceId?: string })?.midiSourceId;
+                const cacheKey = midiSourceId ?? trackId;
+                const bounds = (timelineState as any).midiCache?.[cacheKey]?.bounds;
+                if (bounds) {
+                    autoMinNote = bounds.minNote;
+                    autoMaxNote = bounds.maxNote;
+                }
+            }
+            minNote = rawMinNote === -1 ? autoMinNote : Math.max(0, Math.min(127, rawMinNote));
+            maxNote = rawMaxNote === -1 ? autoMaxNote : Math.max(0, Math.min(127, rawMaxNote));
+        } else {
+            minNote = Math.max(0, Math.min(127, rawMinNote));
+            maxNote = Math.max(0, Math.min(127, rawMaxNote));
+        }
         const polarNoteHeight = Math.max(1, (p.polarNoteHeight as number) ?? 8);
 
         // Arc geometry

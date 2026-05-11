@@ -370,12 +370,12 @@ export class ChordEstimateDisplayElement extends SceneElement {
         let y = 0;
         const label = chord ? this._formatChordLabel(chord, showInversion) : 'N.C.';
 
-        // When a background is shown, anchor text within the background width so it doesn't overflow.
-        const bgWidth = 400;
+        // When a layout box is active, anchor text within it so alignment matches the visible box.
+        // Always use layoutWidth for text positioning regardless of showBackground — the layout box
+        // defines the element's extent and text should align to it.
         const textXForJustify = (j: CanvasTextAlign): number => {
-            if (!props.showBackground) return 0;
-            if (j === 'center') return bgWidth / 2;
-            if (j === 'right' || j === 'end') return bgWidth;
+            if (j === 'center') return layoutWidth / 2;
+            if (j === 'right' || j === 'end') return layoutWidth;
             return 0;
         };
         const textX = textXForJustify(justify);
@@ -445,7 +445,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
             const paddingY = props.backgroundPaddingY ?? 4;
             const bgColor = applyOpacity(props.backgroundColor ?? '#000000', props.backgroundOpacity ?? 0.8);
             const bgHeight = y + paddingY * 2;
-            const bg = new Rectangle(-paddingX, -paddingY, bgWidth + paddingX * 2, bgHeight, bgColor);
+            const bg = new Rectangle(-paddingX, -paddingY, layoutWidth + paddingX * 2, bgHeight, bgColor);
             if (props.backgroundCornerRadius) bg.cornerRadius = props.backgroundCornerRadius;
             bg.setIncludeInLayoutBounds(false);
             renderObjects.splice(1, 0, bg);

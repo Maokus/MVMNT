@@ -65,8 +65,8 @@ function getMonoLinear(frame: TempoAlignedFrameSample | null | undefined): numbe
 export class AudioVolumeMeterElement extends SceneElement {
     // Per-channel peak tracking: index 0 = L/mono, index 1 = R
     private _peakDb: number[] = [-Infinity, -Infinity];
-    private _peakSetMs: number[] = [0, 0];
-    private _lastRenderMs: number = 0;
+    private _peakSetSec: number[] = [-Infinity, -Infinity];
+    private _lastRenderSec: number = -Infinity;
 
     constructor(id: string = 'audioVolumeMeter', config: Record<string, unknown> = {}) {
         super('audioVolumeMeter', id, config);
@@ -137,17 +137,24 @@ export class AudioVolumeMeterElement extends SceneElement {
         );
     }
 
-    private _updatePeak(channelIndex: number, rawDb: number, nowMs: number, frameDeltaMs: number, peakHoldMs: number, minDb: number): number {
+    private _updatePeak(
+        channelIndex: number,
+        rawDb: number,
+        nowSec: number,
+        frameDeltaSec: number,
+        peakHoldSec: number,
+        minDb: number
+    ): number {
         const currentPeak = this._peakDb[channelIndex] ?? -Infinity;
-        const currentSetMs = this._peakSetMs[channelIndex] ?? 0;
+        const currentSetSec = this._peakSetSec[channelIndex] ?? -Infinity;
         if (!Number.isFinite(currentPeak) || rawDb >= currentPeak) {
             this._peakDb[channelIndex] = rawDb;
-            this._peakSetMs[channelIndex] = nowMs;
+            this._peakSetSec[channelIndex] = nowSec;
             return rawDb;
         }
-        const holdElapsed = nowMs - currentSetMs;
-        if (holdElapsed > peakHoldMs && frameDeltaMs > 0) {
-            const next = Math.max(currentPeak - PEAK_FALL_RATE_DB_PER_MS * frameDeltaMs, minDb - 1);
+        const holdElapsed = nowSec - currentSetSec;
+        if (holdElapsed > peakHoldSec && frameDeltaSec > 0) {
+            const next = Math.max(currentPeak - PEAK_FALL_RATE_DB_PER_MS * frameDeltaSec * 1000, minDb - 1);
             this._peakDb[channelIndex] = next;
             return next;
         }
@@ -179,8 +186,15 @@ export class AudioVolumeMeterElement extends SceneElement {
 
         if (!props.audioTrackId) {
             objects.push(
-                new Text(8, height / 2, 'Select an audio track', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle')
-                    .setIncludeInLayoutBounds(false)
+                new Text(
+                    8,
+                    height / 2,
+                    'Select an audio track',
+                    '12px Inter, sans-serif',
+                    '#94a3b8',
+                    'left',
+                    'middle'
+                ).setIncludeInLayoutBounds(false)
             );
             return objects;
         }
@@ -201,25 +215,44 @@ export class AudioVolumeMeterElement extends SceneElement {
         const frame = result?.metadata.frame ?? null;
         const meterColor = applyOpacity(props.color ?? DEFAULT_METER_COLOR, props.opacity ?? 1);
 
-        const nowMs = Date.now();
-        const frameDeltaMs = this._lastRenderMs > 0 ? nowMs - this._lastRenderMs : 0;
-        this._lastRenderMs = nowMs;
+        const nowSec = _targetTime;
+        // frameDeltaSec is positive when time advances, zero on first frame, negative when scrubbing backwards.
+        // When scrubbing backwards, reset peaks so they reflect the new playback position.
+        const frameDeltaSec = this._lastRenderSec > -Infinity ? nowSec - this._lastRenderSec : 0;
+        this._lastRenderSec = nowSec;
+        if (frameDeltaSec < 0) {
+            // Time went backwards (scrub) — reset peaks to current reading so old peaks don't linger.
+            this._peakDb = [-Infinity, -Infinity];
+            this._peakSetSec = [-Infinity, -Infinity];
+        }
 
-        const peakHoldMs = (props.peakHoldSec ?? 2) * 1000;
+        const peakHoldSec = props.peakHoldSec ?? 2;
 
         if (isStereo) {
             this._buildStereoMeter(objects, {
-                frame, width, height, minDb, maxDb, isVertical,
-                meterColor, nowMs, frameDeltaMs, peakHoldMs, props,
+                frame,
+                width,
+                height,
+                minDb,
+                maxDb,
+                isVertical,
+                meterColor,
+                nowSec,
+                frameDeltaSec,
+                peakHoldSec,
+                props,
             });
         } else {
-            const rawLinear = channelMode === 'left' ? getChannelLinear(frame, 0)
-                : channelMode === 'right' ? getChannelLinear(frame, 1)
-                : getMonoLinear(frame);
+            const rawLinear =
+                channelMode === 'left'
+                    ? getChannelLinear(frame, 0)
+                    : channelMode === 'right'
+                      ? getChannelLinear(frame, 1)
+                      : getMonoLinear(frame);
             const rawDb = linearToDb(rawLinear);
             const clampedDb = clamp(Number.isFinite(rawDb) ? rawDb : minDb, minDb, maxDb);
             const normalized = dbToNormalized(clampedDb, minDb, maxDb);
-            const peakDb = this._updatePeak(0, rawDb, nowMs, frameDeltaMs, peakHoldMs, minDb);
+            const peakDb = this._updatePeak(0, rawDb, nowSec, frameDeltaSec, peakHoldSec, minDb);
 
             this._buildRefLines(objects, { width, height, minDb, maxDb, isVertical, props });
             this._buildBar(objects, { x: 0, y: 0, w: width, h: height, normalized, isVertical, meterColor });
@@ -230,8 +263,15 @@ export class AudioVolumeMeterElement extends SceneElement {
                 const dbLabel = Number.isFinite(rawDb) ? `${clampedDb.toFixed(1)} dB` : '-∞ dB';
                 const labelY = height + 16;
                 objects.push(
-                    new Text(0, labelY, dbLabel, '12px Inter, sans-serif', '#e2e8f0', 'left', 'middle')
-                        .setIncludeInLayoutBounds(false)
+                    new Text(
+                        0,
+                        labelY,
+                        dbLabel,
+                        '12px Inter, sans-serif',
+                        '#e2e8f0',
+                        'left',
+                        'middle'
+                    ).setIncludeInLayoutBounds(false)
                 );
             }
         }
@@ -243,12 +283,31 @@ export class AudioVolumeMeterElement extends SceneElement {
         objects: RenderObject[],
         ctx: {
             frame: import('@audio/features/tempoAlignedViewAdapter').TempoAlignedFrameSample | null;
-            width: number; height: number; minDb: number; maxDb: number; isVertical: boolean;
-            meterColor: string; nowMs: number; frameDeltaMs: number; peakHoldMs: number;
+            width: number;
+            height: number;
+            minDb: number;
+            maxDb: number;
+            isVertical: boolean;
+            meterColor: string;
+            nowSec: number;
+            frameDeltaSec: number;
+            peakHoldSec: number;
             props: Record<string, unknown>;
         }
     ) {
-        const { frame, width, height, minDb, maxDb, isVertical, meterColor, nowMs, frameDeltaMs, peakHoldMs, props } = ctx;
+        const {
+            frame,
+            width,
+            height,
+            minDb,
+            maxDb,
+            isVertical,
+            meterColor,
+            nowSec,
+            frameDeltaSec,
+            peakHoldSec,
+            props,
+        } = ctx;
 
         const rawLinearL = getChannelLinear(frame, 0);
         const rawLinearR = getChannelLinear(frame, 1);
@@ -258,8 +317,8 @@ export class AudioVolumeMeterElement extends SceneElement {
         const clampedDbR = clamp(Number.isFinite(rawDbR) ? rawDbR : minDb, minDb, maxDb);
         const normL = dbToNormalized(clampedDbL, minDb, maxDb);
         const normR = dbToNormalized(clampedDbR, minDb, maxDb);
-        const peakDbL = this._updatePeak(0, rawDbL, nowMs, frameDeltaMs, peakHoldMs, minDb);
-        const peakDbR = this._updatePeak(1, rawDbR, nowMs, frameDeltaMs, peakHoldMs, minDb);
+        const peakDbL = this._updatePeak(0, rawDbL, nowSec, frameDeltaSec, peakHoldSec, minDb);
+        const peakDbR = this._updatePeak(1, rawDbR, nowSec, frameDeltaSec, peakHoldSec, minDb);
 
         if (isVertical) {
             const barW = (width - STEREO_GAP) / 2;
@@ -273,22 +332,74 @@ export class AudioVolumeMeterElement extends SceneElement {
             this._buildBar(objects, { x: xR, y: 0, w: barW, h: height, normalized: normR, isVertical, meterColor });
 
             if (props.showPeakHold !== false) {
-                this._buildPeakLine(objects, { x: xL, y: 0, w: barW, h: height, peakDb: peakDbL, minDb, maxDb, isVertical });
-                this._buildPeakLine(objects, { x: xR, y: 0, w: barW, h: height, peakDb: peakDbR, minDb, maxDb, isVertical });
+                this._buildPeakLine(objects, {
+                    x: xL,
+                    y: 0,
+                    w: barW,
+                    h: height,
+                    peakDb: peakDbL,
+                    minDb,
+                    maxDb,
+                    isVertical,
+                });
+                this._buildPeakLine(objects, {
+                    x: xR,
+                    y: 0,
+                    w: barW,
+                    h: height,
+                    peakDb: peakDbR,
+                    minDb,
+                    maxDb,
+                    isVertical,
+                });
             }
 
             // L / R channel labels inside bars
             const labelFont = '10px Inter, sans-serif';
-            objects.push(new Text(xL + barW / 2, 8, 'L', labelFont, 'rgba(255,255,255,0.5)', 'center', 'top').setIncludeInLayoutBounds(false));
-            objects.push(new Text(xR + barW / 2, 8, 'R', labelFont, 'rgba(255,255,255,0.5)', 'center', 'top').setIncludeInLayoutBounds(false));
+            objects.push(
+                new Text(
+                    xL + barW / 2,
+                    8,
+                    'L',
+                    labelFont,
+                    'rgba(255,255,255,0.5)',
+                    'center',
+                    'top'
+                ).setIncludeInLayoutBounds(false)
+            );
+            objects.push(
+                new Text(
+                    xR + barW / 2,
+                    8,
+                    'R',
+                    labelFont,
+                    'rgba(255,255,255,0.5)',
+                    'center',
+                    'top'
+                ).setIncludeInLayoutBounds(false)
+            );
 
             if (props.showValue) {
                 const labelY = height + 16;
                 const labelFont2 = '11px Inter, sans-serif';
                 const labelL = Number.isFinite(rawDbL) ? `L: ${clampedDbL.toFixed(1)}` : 'L: -∞';
                 const labelR = Number.isFinite(rawDbR) ? `R: ${clampedDbR.toFixed(1)}` : 'R: -∞';
-                objects.push(new Text(xL, labelY, labelL, labelFont2, '#e2e8f0', 'left', 'middle').setIncludeInLayoutBounds(false));
-                objects.push(new Text(xR + barW, labelY, labelR, labelFont2, '#e2e8f0', 'right', 'middle').setIncludeInLayoutBounds(false));
+                objects.push(
+                    new Text(xL, labelY, labelL, labelFont2, '#e2e8f0', 'left', 'middle').setIncludeInLayoutBounds(
+                        false
+                    )
+                );
+                objects.push(
+                    new Text(
+                        xR + barW,
+                        labelY,
+                        labelR,
+                        labelFont2,
+                        '#e2e8f0',
+                        'right',
+                        'middle'
+                    ).setIncludeInLayoutBounds(false)
+                );
             }
         } else {
             // Horizontal stereo: two rows stacked
@@ -303,28 +414,97 @@ export class AudioVolumeMeterElement extends SceneElement {
             this._buildBar(objects, { x: 0, y: yR, w: width, h: barH, normalized: normR, isVertical, meterColor });
 
             if (props.showPeakHold !== false) {
-                this._buildPeakLine(objects, { x: 0, y: yL, w: width, h: barH, peakDb: peakDbL, minDb, maxDb, isVertical });
-                this._buildPeakLine(objects, { x: 0, y: yR, w: width, h: barH, peakDb: peakDbR, minDb, maxDb, isVertical });
+                this._buildPeakLine(objects, {
+                    x: 0,
+                    y: yL,
+                    w: width,
+                    h: barH,
+                    peakDb: peakDbL,
+                    minDb,
+                    maxDb,
+                    isVertical,
+                });
+                this._buildPeakLine(objects, {
+                    x: 0,
+                    y: yR,
+                    w: width,
+                    h: barH,
+                    peakDb: peakDbR,
+                    minDb,
+                    maxDb,
+                    isVertical,
+                });
             }
 
             const labelFont = '10px Inter, sans-serif';
-            objects.push(new Text(4, yL + barH / 2, 'L', labelFont, 'rgba(255,255,255,0.5)', 'left', 'middle').setIncludeInLayoutBounds(false));
-            objects.push(new Text(4, yR + barH / 2, 'R', labelFont, 'rgba(255,255,255,0.5)', 'left', 'middle').setIncludeInLayoutBounds(false));
+            objects.push(
+                new Text(
+                    4,
+                    yL + barH / 2,
+                    'L',
+                    labelFont,
+                    'rgba(255,255,255,0.5)',
+                    'left',
+                    'middle'
+                ).setIncludeInLayoutBounds(false)
+            );
+            objects.push(
+                new Text(
+                    4,
+                    yR + barH / 2,
+                    'R',
+                    labelFont,
+                    'rgba(255,255,255,0.5)',
+                    'left',
+                    'middle'
+                ).setIncludeInLayoutBounds(false)
+            );
 
             if (props.showValue) {
                 const labelFont2 = '11px Inter, sans-serif';
                 const labelL = Number.isFinite(rawDbL) ? `${clampedDbL.toFixed(1)} dB` : '-∞ dB';
                 const labelR = Number.isFinite(rawDbR) ? `${clampedDbR.toFixed(1)} dB` : '-∞ dB';
-                objects.push(new Text(width + 4, yL + barH / 2, labelL, labelFont2, '#e2e8f0', 'left', 'middle').setIncludeInLayoutBounds(false));
-                objects.push(new Text(width + 4, yR + barH / 2, labelR, labelFont2, '#e2e8f0', 'left', 'middle').setIncludeInLayoutBounds(false));
+                objects.push(
+                    new Text(
+                        width + 4,
+                        yL + barH / 2,
+                        labelL,
+                        labelFont2,
+                        '#e2e8f0',
+                        'left',
+                        'middle'
+                    ).setIncludeInLayoutBounds(false)
+                );
+                objects.push(
+                    new Text(
+                        width + 4,
+                        yR + barH / 2,
+                        labelR,
+                        labelFont2,
+                        '#e2e8f0',
+                        'left',
+                        'middle'
+                    ).setIncludeInLayoutBounds(false)
+                );
             }
         }
     }
 
     private _buildRefLines(
         objects: RenderObject[],
-        { width, height, minDb, maxDb, isVertical, props }: {
-            width: number; height: number; minDb: number; maxDb: number; isVertical: boolean;
+        {
+            width,
+            height,
+            minDb,
+            maxDb,
+            isVertical,
+            props,
+        }: {
+            width: number;
+            height: number;
+            minDb: number;
+            maxDb: number;
+            isVertical: boolean;
             props: Record<string, unknown>;
         }
     ) {
@@ -339,19 +519,52 @@ export class AudioVolumeMeterElement extends SceneElement {
             if (isVertical) {
                 const lineY = height - refNorm * height;
                 objects.push(new Line(0, lineY, width, lineY, lineColor, 1).setIncludeInLayoutBounds(false));
-                objects.push(new Text(width + 4, lineY, label, labelFont, REF_LABEL_COLOR, 'left', 'middle').setIncludeInLayoutBounds(false));
+                objects.push(
+                    new Text(
+                        width + 4,
+                        lineY,
+                        label,
+                        labelFont,
+                        REF_LABEL_COLOR,
+                        'left',
+                        'middle'
+                    ).setIncludeInLayoutBounds(false)
+                );
             } else {
                 const lineX = refNorm * width;
                 objects.push(new Line(lineX, 0, lineX, height, lineColor, 1).setIncludeInLayoutBounds(false));
-                objects.push(new Text(lineX, height + 4, label, labelFont, REF_LABEL_COLOR, 'center', 'top').setIncludeInLayoutBounds(false));
+                objects.push(
+                    new Text(
+                        lineX,
+                        height + 4,
+                        label,
+                        labelFont,
+                        REF_LABEL_COLOR,
+                        'center',
+                        'top'
+                    ).setIncludeInLayoutBounds(false)
+                );
             }
         }
     }
 
     private _buildRefLinesHorizontalRow(
         objects: RenderObject[],
-        { x, y, w, h, minDb, maxDb, props }: {
-            x: number; y: number; w: number; h: number; minDb: number; maxDb: number;
+        {
+            x,
+            y,
+            w,
+            h,
+            minDb,
+            maxDb,
+            props,
+        }: {
+            x: number;
+            y: number;
+            w: number;
+            h: number;
+            minDb: number;
+            maxDb: number;
             props: Record<string, unknown>;
         }
     ) {
@@ -367,9 +580,22 @@ export class AudioVolumeMeterElement extends SceneElement {
 
     private _buildBar(
         objects: RenderObject[],
-        { x, y, w, h, normalized, isVertical, meterColor }: {
-            x: number; y: number; w: number; h: number;
-            normalized: number; isVertical: boolean; meterColor: string;
+        {
+            x,
+            y,
+            w,
+            h,
+            normalized,
+            isVertical,
+            meterColor,
+        }: {
+            x: number;
+            y: number;
+            w: number;
+            h: number;
+            normalized: number;
+            isVertical: boolean;
+            meterColor: string;
         }
     ) {
         if (isVertical) {
@@ -382,9 +608,24 @@ export class AudioVolumeMeterElement extends SceneElement {
 
     private _buildPeakLine(
         objects: RenderObject[],
-        { x, y, w, h, peakDb, minDb, maxDb, isVertical }: {
-            x: number; y: number; w: number; h: number;
-            peakDb: number; minDb: number; maxDb: number; isVertical: boolean;
+        {
+            x,
+            y,
+            w,
+            h,
+            peakDb,
+            minDb,
+            maxDb,
+            isVertical,
+        }: {
+            x: number;
+            y: number;
+            w: number;
+            h: number;
+            peakDb: number;
+            minDb: number;
+            maxDb: number;
+            isVertical: boolean;
         }
     ) {
         const peakClamped = clamp(Number.isFinite(peakDb) ? peakDb : minDb, minDb, maxDb);
