@@ -36,12 +36,12 @@ Calculators live in `src/audio/features/calculators/` and are registered via
 
 **Built-in calculators:**
 
-| Calculator     | ID                     | featureKey    | Output                                                    |
-| -------------- | ---------------------- | ------------- | --------------------------------------------------------- |
-| Spectrogram    | `mvmnt.spectrogram`    | `spectrogram` | Frequency magnitude per frame (Uint8Array)                |
-| Pitch Waveform | `mvmnt.pitch-waveform` | `pitch`       | Pitch-aligned waveform                                    |
-| RMS            | `mvmnt.rms`            | `rms`         | Root-mean-square amplitude per frame (Float32Array, mono) |
-| Waveform       | `mvmnt.waveform`       | `waveform`    | Min/max amplitude per hop frame                           |
+| Calculator     | ID                     | featureKey    | Output                                                                                                            |
+| -------------- | ---------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Spectrogram    | `mvmnt.spectrogram`    | `spectrogram` | Frequency magnitude per frame (Uint8Array)                                                                        |
+| Pitch Waveform | `mvmnt.pitch-waveform` | `pitch`       | Pitch-aligned waveform                                                                                            |
+| RMS            | `mvmnt.rms`            | `rms`         | Root-mean-square amplitude per frame (Float32Array, per-channel; interleaved as `data[frame * numChannels + ch]`) |
+| Waveform       | `mvmnt.waveform`       | `waveform`    | Min/max amplitude per hop frame                                                                                   |
 
 **`AudioFeatureCalculator` interface** (all fields a calculator must/can provide):
 
@@ -192,29 +192,22 @@ here but out of scope for near-term changes.
 
 ## Points of Confusion for Developers
 
-### 1. RMS calculator outputs mono even for stereo files
+### 1. RMS calculator is per-channel (stereo)
 
-`rmsCalculator.ts` mixes the buffer to mono before computing RMS:
+`rmsCalculator.ts` computes RMS independently for each channel in the source buffer:
 
 ```typescript
-const mono = await mixBufferToMono(audioBuffer, maybeYield);
+// Interleaved output: data[frame * numChannels + ch] = RMS for that frame/channel
+const output = new Float32Array(frameCount * numChannels);
 // ...
-channels: 1,
+channels: numChannels,
+channelAliases: aliases,    // ['Mono'] | ['Left', 'Right'] | ['Ch 1', 'Ch 2', ...]
+channelLayout: { aliases },
 ```
 
-The resulting track has `channels: 1`, but then `inferChannelAliases(audioBuffer.numberOfChannels)`
-is called and its result is stored in `channelAliases` and `channelLayout.aliases`. So a stereo
-file produces a mono track but with stereo channel aliases — which would be misleading if a
-downstream consumer tries to select a channel. The aliases refer to the source buffer's layout,
-not the track's layout.
-
-**Confusion:** A developer selects "Left channel" in the channel selector, expects left-only RMS,
-but actually gets the mono mix. There is no separate per-channel RMS track.
-
-**Fix options:**
-
-- Compute RMS per-channel (output `channels: N`) so left/right can be independently selected
-- Or document clearly that 'rms' is always mono and add a 'rms-stereo' feature key
+The resulting track has `channels: N` (matching the source buffer), with correct per-channel
+aliases via `channelAliasesForCount(numChannels)`. Left/right channels are independently
+selectable — selecting "Left" gives left-only RMS, not a mono mix.
 
 ### 2. `FeatureInput` accepts both string and `AudioFeatureDescriptor` but the docs don't explain when to use which
 
@@ -283,11 +276,10 @@ try/catch hides this dependency behind a silence guard.
 
 ## Potential Errors and Redundancies
 
-### Error 1: Channel alias mismatch in RMS calculator
+### ~~Error 1: Channel alias mismatch in RMS calculator~~ (resolved)
 
-As described above: `channels: 1` but `channelAliases` may have length > 1. Any downstream code
-that iterates `channelAliases` and expects indices to correspond to track channels will produce
-out-of-bounds reads or wrong data.
+The RMS calculator now computes per-channel output (`channels: N`) so `channelAliases` correctly
+reflects the actual track layout. Left/right can be selected independently.
 
 ### Error 2: `featureDefaults` only tracks the last registered calculator per feature key
 
@@ -347,16 +339,16 @@ a simple shortcut and the full host API.
 
 ## Summary Table
 
-| Issue                                                      | Type       | Severity | Fix                                   |
-| ---------------------------------------------------------- | ---------- | -------- | ------------------------------------- |
-| No public calculator registration API                      | Gap        | High     | Add `PluginAudioCalculatorApi` to SDK |
-| Custom calculators have no init lifecycle hook             | Gap        | High     | Add registration hook before analysis |
-| RMS calculator mono but stereo aliases                     | Bug        | Medium   | Compute per-channel RMS or document   |
-| `featureDefaults` last-write-wins on featureKey collision  | Bug        | Medium   | Warn or throw on collision            |
-| Three overlapping audio API entry points                   | Confusion  | Medium   | Document recommended path             |
-| `smoothing` in frames, not seconds                         | Confusion  | Low      | Document in schema / UI               |
-| `registerFeatureRequirements` silently accepts late calls  | Confusion  | Low      | Add dev warning                       |
-| DI factory pattern implies it's required for calculators   | Confusion  | Low      | Add plain example in docs             |
-| `channelAliases` deprecated but still set everywhere       | Redundancy | Low      | Migrate fully to `channelLayout`      |
-| `analysisProfileId` carried in 3 places                    | Redundancy | Low      | Consolidate or document single source |
-| `sampleAudio` / `audioApi` / `getPluginHostApi` three ways | Redundancy | Low      | Document canonical path               |
+| Issue                                                      | Type       | Severity   | Fix                                   |
+| ---------------------------------------------------------- | ---------- | ---------- | ------------------------------------- |
+| No public calculator registration API                      | Gap        | High       | Add `PluginAudioCalculatorApi` to SDK |
+| Custom calculators have no init lifecycle hook             | Gap        | High       | Add registration hook before analysis |
+| ~~RMS calculator mono but stereo aliases~~                 | ~~Bug~~    | ~~Medium~~ | Resolved — RMS is now per-channel     |
+| `featureDefaults` last-write-wins on featureKey collision  | Bug        | Medium     | Warn or throw on collision            |
+| Three overlapping audio API entry points                   | Confusion  | Medium     | Document recommended path             |
+| `smoothing` in frames, not seconds                         | Confusion  | Low        | Document in schema / UI               |
+| `registerFeatureRequirements` silently accepts late calls  | Confusion  | Low        | Add dev warning                       |
+| DI factory pattern implies it's required for calculators   | Confusion  | Low        | Add plain example in docs             |
+| `channelAliases` deprecated but still set everywhere       | Redundancy | Low        | Migrate fully to `channelLayout`      |
+| `analysisProfileId` carried in 3 places                    | Redundancy | Low        | Consolidate or document single source |
+| `sampleAudio` / `audioApi` / `getPluginHostApi` three ways | Redundancy | Low        | Document canonical path               |

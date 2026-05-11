@@ -10,6 +10,10 @@ import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 import { applyOpacity } from '@utils/color';
 
 export class NotesPlayingDisplayElement extends SceneElement {
+    private _noteOnTimes = new Map<number, number>();
+    private _noteOffTimes = new Map<number, number>();
+    private _lastRenderTime = -Infinity;
+
     constructor(id: string = 'notesPlayingDisplay', config: { [key: string]: any } = {}) {
         super('notesPlayingDisplay', id, config);
     }
@@ -44,6 +48,12 @@ export class NotesPlayingDisplayElement extends SceneElement {
                                 { value: 'letters', label: 'Letters' },
                                 { value: 'grid', label: 'Grid' },
                             ]),
+                            prop.number('fadeOutDuration', 'Fade Out (s)', 0, {
+                                min: 0,
+                                max: 5,
+                                step: 0.05,
+                                description: 'How long a note takes to fade out after being released.',
+                            }),
                             prop.number('lettersSpacing', 'Letters Spacing (px)', 32, {
                                 min: 4,
                                 max: 200,
@@ -101,18 +111,6 @@ export class NotesPlayingDisplayElement extends SceneElement {
                                 step: 1,
                                 visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
                             }),
-                            prop.color('gridFillColor', 'Grid Fill Color', '#EFEFEF', {
-                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
-                            }),
-                            prop.range('gridFillOpacity', 'Grid Fill Opacity', 1, {
-                                min: 0,
-                                max: 1,
-                                step: 0.05,
-                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
-                            }),
-                            prop.color('gridTextColor', 'Grid Text Color', '#0f172a', {
-                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
-                            }),
                             prop.number('gridStrokeWidth', 'Grid Stroke Width (px)', 0, {
                                 min: 0,
                                 max: 12,
@@ -125,7 +123,34 @@ export class NotesPlayingDisplayElement extends SceneElement {
                                     { key: 'gridStrokeWidth', truthy: true },
                                 ],
                             }),
-                            prop.range('gridTextOpacity', 'Grid Text Opacity', 1, {
+                        ],
+                    },
+                    {
+                        id: 'animation',
+                        label: 'Animation',
+                        collapsed: false,
+                        description: 'Animate notes at the moment they start playing.',
+                        properties: [
+                            prop.select('animationType', 'Animation', 'none', [
+                                { value: 'none', label: 'None' },
+                                { value: 'bump', label: 'Bump' },
+                                { value: 'scale', label: 'Scale' },
+                            ]),
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    {
+                        id: 'colors',
+                        label: 'Colors',
+                        collapsed: false,
+                        properties: [
+                            prop.color('textColor', 'Text Color', '#cccccc'),
+                            prop.range('textOpacity', 'Text Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                            prop.color('gridFillColor', 'Grid Fill Color', '#EFEFEF', {
+                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
+                            }),
+                            prop.range('gridFillOpacity', 'Grid Fill Opacity', 1, {
                                 min: 0,
                                 max: 1,
                                 step: 0.05,
@@ -133,9 +158,6 @@ export class NotesPlayingDisplayElement extends SceneElement {
                             }),
                         ],
                     },
-                ]),
-                tab.appearance([
-                    propGroup.appearance(),
                     {
                         id: 'typography',
                         label: 'Typography',
@@ -172,7 +194,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
         const fontWeight = (weightPart || '400').toString();
         const fontSize = props.fontSize ?? 30;
-        const color = applyOpacity(props.color ?? '#cccccc', props.opacity ?? 1);
+        const textColor = applyOpacity((props.textColor as string) ?? '#cccccc', (props.textOpacity as number) ?? 1);
         if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const font = `${fontWeight} ${fontSize}px ${fontFamily || 'Inter'}, sans-serif`;
 
@@ -209,6 +231,8 @@ export class NotesPlayingDisplayElement extends SceneElement {
         };
         const displayMode = (props.displayMode as string) ?? 'letters';
         const showAll = props.showAllAvailableTracks ?? false;
+        const fadeOutDuration = Math.max(0, (props.fadeOutDuration as number) ?? 0);
+        const animationType = (props.animationType as string) ?? 'none';
 
         // Determine active notes at effectiveTime via plugin host API
         const trackId = props.midiTrackId;
@@ -226,6 +250,70 @@ export class NotesPlayingDisplayElement extends SceneElement {
                 if (typeof n.note === 'number') activeNotes.add(n.note);
             }
         }
+
+        // Note state tracking for fade out and animation.
+        // Reset on large time jumps (scrubbing).
+        if (Math.abs(effectiveTime - this._lastRenderTime) > 1.0) {
+            this._noteOnTimes.clear();
+            this._noteOffTimes.clear();
+        }
+        this._lastRenderTime = effectiveTime;
+
+        // Record note-on times for newly active notes; clear off times for still-active notes.
+        for (const note of activeNotes) {
+            if (!this._noteOnTimes.has(note)) this._noteOnTimes.set(note, effectiveTime);
+            this._noteOffTimes.delete(note);
+        }
+        // Record note-off times for notes that just became inactive.
+        for (const [note] of this._noteOnTimes) {
+            if (!activeNotes.has(note) && !this._noteOffTimes.has(note)) {
+                this._noteOffTimes.set(note, effectiveTime);
+            }
+        }
+        // Expire notes whose fade has finished.
+        for (const [note, offTime] of this._noteOffTimes) {
+            if (fadeOutDuration <= 0 || effectiveTime - offTime > fadeOutDuration) {
+                this._noteOffTimes.delete(note);
+                this._noteOnTimes.delete(note);
+            }
+        }
+
+        // The set of notes that should appear this frame (active + still fading).
+        const renderNotes = new Set<number>(activeNotes);
+        if (fadeOutDuration > 0) {
+            for (const [note] of this._noteOffTimes) renderNotes.add(note);
+        }
+
+        // Per-note helpers for fade opacity and animation scale.
+        const getNoteOpacity = (note: number): number => {
+            if (activeNotes.has(note)) return 1;
+            if (fadeOutDuration <= 0) return 0;
+            const offTime = this._noteOffTimes.get(note);
+            if (offTime === undefined) return 0;
+            return Math.max(0, 1 - (effectiveTime - offTime) / fadeOutDuration);
+        };
+
+        const getNoteScale = (note: number): number => {
+            if (animationType === 'none') return 1;
+            const onTime = this._noteOnTimes.get(note);
+            if (onTime === undefined) return 1;
+            const elapsed = effectiveTime - onTime;
+            if (animationType === 'bump') {
+                // Quick overshoot: 1.3 → 1.0 over 150 ms (ease out)
+                const duration = 0.15;
+                if (elapsed >= duration) return 1;
+                const t = elapsed / duration;
+                return 1 + 0.3 * (1 - t * t);
+            }
+            if (animationType === 'scale') {
+                // Smooth grow: 0 → 1 over 200 ms (ease in)
+                const duration = 0.2;
+                if (elapsed >= duration) return 1;
+                const t = elapsed / duration;
+                return t * t;
+            }
+            return 1;
+        };
 
         let layoutWidth = 1;
         let layoutHeight = fontSize;
@@ -259,12 +347,9 @@ export class NotesPlayingDisplayElement extends SceneElement {
             const cellGap = Math.max(0, (props.gridCellGap as number) ?? 4);
             const cornerRadius = Math.max(0, (props.gridCornerRadius as number) ?? 4);
             const fillColor = applyOpacity(
-                (props.gridFillColor as string) ?? '#22d3ee',
+                (props.gridFillColor as string) ?? '#EFEFEF',
                 (props.gridFillOpacity as number) ?? 1
             );
-            const textColor = (props.gridTextColor as string) ?? '#0f172a';
-            const textOpacity = (props.gridTextOpacity as number) ?? 1;
-            const textColorWithOpacity = applyOpacity(textColor, textOpacity);
             const strokeWidth = Math.max(0, (props.gridStrokeWidth as number) ?? 0);
             const strokeColor = strokeWidth > 0 ? ((props.gridStrokeColor as string) ?? '#0f172a') : null;
 
@@ -281,55 +366,92 @@ export class NotesPlayingDisplayElement extends SceneElement {
                 }
             }
 
+            const renderNotesForGrid = new Set<number>(renderNotes);
             if (activeNotes.size === 0 && showAll) {
                 for (let r = 0; r < rows; r++) {
                     for (let c = 0; c < columns; c++) {
-                        activeNotes.add(startNote + c + r * rowNoteOffset);
+                        renderNotesForGrid.add(startNote + c + r * rowNoteOffset);
                     }
                 }
             }
 
-            // Render cells: iterate all grid positions and light up matching active notes
+            // Render cells: iterate all grid positions and light up matching notes
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < columns; c++) {
                     const cellNote = startNote + c + r * rowNoteOffset;
-                    if (!activeNotes.has(cellNote)) continue;
+                    if (!renderNotesForGrid.has(cellNote)) continue;
                     // Higher rows = higher notes, rendered bottom-to-top
                     const x = layoutX + c * (cellWidth + cellGap);
                     const y = (rows - 1 - r) * (cellHeight + cellGap);
-                    const cell = new Rectangle(x, y, cellWidth, cellHeight, fillColor, strokeColor, strokeWidth);
+
+                    const noteOpacity = getNoteOpacity(cellNote);
+                    const noteScale = getNoteScale(cellNote);
+                    const cx = x + cellWidth / 2;
+                    const cy = y + cellHeight / 2;
+
+                    const cell = new Rectangle(cx, cy, cellWidth, cellHeight, fillColor, strokeColor, strokeWidth);
                     cell.cornerRadius = cornerRadius;
                     cell.setIncludeInLayoutBounds?.(false);
+                    cell.opacity = noteOpacity;
+                    cell.scaleX = noteScale;
+                    cell.scaleY = noteScale;
+                    // Pivot at centre so scale/opacity animate from the cell's centre
+                    cell.pivotX = cellWidth / 2;
+                    cell.pivotY = cellHeight / 2;
                     renderObjects.push(cell);
 
                     const label = noteLabel(cellNote);
-                    const text = new Text(
-                        x + cellWidth / 2,
-                        y + cellHeight / 2,
-                        label,
-                        font,
-                        textColorWithOpacity,
-                        'center',
-                        'middle',
-                        { includeInLayoutBounds: false }
-                    );
+                    const text = new Text(cx, cy, label, font, textColor, 'center', 'middle', {
+                        includeInLayoutBounds: false,
+                    });
+                    text.opacity = noteOpacity;
+                    text.scaleX = noteScale;
+                    text.scaleY = noteScale;
+                    text.pivotX = 0;
+                    text.pivotY = 0;
                     renderObjects.push(text);
                 }
             }
         } else {
             const spacing = Math.max(1, (props.lettersSpacing as number) ?? 32);
             const activePitchClasses = new Set<number>();
+            const fadingPitchClasses = new Map<number, { opacity: number; scale: number }>();
+
             if (activeNotes.size === 0 && showAll) {
                 for (let i = 0; i < 12; i += 1) activePitchClasses.add(i);
             } else {
                 for (const note of activeNotes) activePitchClasses.add(note % 12);
+                // Collect fading pitch classes (keep highest opacity/scale per pitch class)
+                for (const note of renderNotes) {
+                    const pc = note % 12;
+                    if (activePitchClasses.has(pc)) continue;
+                    const op = getNoteOpacity(note);
+                    const sc = getNoteScale(note);
+                    const existing = fadingPitchClasses.get(pc);
+                    if (!existing || op > existing.opacity) fadingPitchClasses.set(pc, { opacity: op, scale: sc });
+                }
             }
+
             for (let i = 0; i < 12; i += 1) {
-                if (!activePitchClasses.has(i)) continue;
+                const isActive = activePitchClasses.has(i);
+                const fading = fadingPitchClasses.get(i);
+                if (!isActive && !fading) continue;
+
                 const x = layoutX + i * spacing;
-                const text = new Text(x, 0, noteNames[i], font, color, 'left', 'top', {
+                const text = new Text(x, 0, noteNames[i], font, textColor, 'left', 'top', {
                     includeInLayoutBounds: false,
                 });
+                if (!isActive && fading) {
+                    text.opacity = fading.opacity;
+                    text.scaleX = fading.scale;
+                    text.scaleY = fading.scale;
+                } else if (isActive) {
+                    const firstActiveNote = [...activeNotes].find((n) => n % 12 === i);
+                    if (firstActiveNote !== undefined) {
+                        text.scaleX = getNoteScale(firstActiveNote);
+                        text.scaleY = getNoteScale(firstActiveNote);
+                    }
+                }
                 renderObjects.push(text);
             }
         }
