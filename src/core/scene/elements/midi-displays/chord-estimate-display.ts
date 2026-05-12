@@ -8,7 +8,7 @@ import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { computeChromaFromNotes, estimateChordPB, type EstimatedChord } from '@core/midi/music-theory/chord-estimator';
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
 const clampWindowSeconds: PropertyTransform<number, SceneElementInterface> = (value, element) => {
     const numeric = asNumber(value, element);
@@ -313,9 +313,9 @@ export class ChordEstimateDisplayElement extends SceneElement {
         // Active notes and chroma via plugin host API
         const noteEvents: { note: number; channel: number; startTime: number; endTime: number; velocity: number }[] =
             [];
-        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
-        if (midiTrackId && api && status === 'ok') {
-            const notes = api.timeline.selectNotesInWindow({ trackIds: [midiTrackId], startSec: start, endSec: end });
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
+        if (midiTrackId && host.ok) {
+            const notes = host.api.timeline.selectNotesInWindow({ trackIds: [midiTrackId], startSec: start, endSec: end });
             for (const n of notes) {
                 noteEvents.push({
                     note: n.note,

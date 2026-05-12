@@ -4,7 +4,7 @@ import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import type { FeatureDataResult } from '@audio/features/sceneApi';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { applyOpacity } from '@utils/color';
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
@@ -349,19 +349,18 @@ export class AudioSpectrumElement extends SceneElement {
             return pushMessage('Select an audio track');
         }
 
-        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.audioFeaturesRead]);
-        const sample =
-            api && status === 'ok'
-                ? api.audio.sampleFeatureAtTime({
-                      element: this,
-                      trackId: props.audioTrackId,
-                      feature: 'spectrogram',
-                      time: targetTime,
-                      samplingOptions: {
-                          smoothing: props.smoothing,
-                      },
-                  })
-                : null;
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioFeaturesRead]);
+        const sample = host.ok
+            ? host.api.audio.sampleFeatureAtTime({
+                  element: this,
+                  trackId: props.audioTrackId,
+                  feature: 'spectrogram',
+                  time: targetTime,
+                  samplingOptions: {
+                      smoothing: props.smoothing,
+                  },
+              })
+            : null;
         const rawValues = sample?.values ?? [];
         if (!rawValues.length) {
             return pushMessage('No spectrum data');

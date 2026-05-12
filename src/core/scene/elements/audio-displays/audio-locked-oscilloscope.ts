@@ -5,7 +5,7 @@ import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { sampleFeatureFrame } from '@audio/audioFeatureUtils';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { applyOpacity } from '@utils/color';
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
@@ -120,16 +120,15 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
             return objects;
         }
 
-        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.audioFeaturesRead]);
-        const sample =
-            api && status === 'ok'
-                ? api.audio.sampleFeatureAtTime({
-                      element: this,
-                      trackId: props.audioTrackId,
-                      feature: PITCH_WAVEFORM_DESCRIPTOR,
-                      time: targetTime,
-                  })
-                : null;
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioFeaturesRead]);
+        const sample = host.ok
+            ? host.api.audio.sampleFeatureAtTime({
+                  element: this,
+                  trackId: props.audioTrackId,
+                  feature: PITCH_WAVEFORM_DESCRIPTOR,
+                  time: targetTime,
+              })
+            : null;
 
         const frame =
             sample?.metadata.frame ?? sampleFeatureFrame(props.audioTrackId, PITCH_WAVEFORM_DESCRIPTOR, targetTime);

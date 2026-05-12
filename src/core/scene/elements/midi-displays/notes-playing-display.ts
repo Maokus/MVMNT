@@ -4,7 +4,7 @@ import { EnhancedConfigSchema } from '@core/types.js';
 import { RenderObject, Text, Rectangle } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 import { applyOpacity } from '@utils/color';
@@ -231,7 +231,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
         const animationType = (props.animationType as string) ?? 'none';
 
         const trackId = props.midiTrackId;
-        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
 
         // Determine note state at effectiveTime purely from the timeline.
         // Active notes: started before effectiveTime, end after it.
@@ -243,9 +243,9 @@ export class NotesPlayingDisplayElement extends SceneElement {
         // note → latest endTime among notes that ended within the fade window
         const noteOffTimes = new Map<number, number>();
 
-        if (trackId && api && status === 'ok') {
+        if (trackId && host.ok) {
             const lookbackSec = Math.max(fadeOutDuration + 0.5, 10);
-            const recent = api.timeline.selectNotesInWindow({
+            const recent = host.api.timeline.selectNotesInWindow({
                 trackIds: [trackId],
                 startSec: effectiveTime - lookbackSec,
                 endSec: effectiveTime + 0.1,
@@ -348,9 +348,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
             // Determine start note: auto-detect lowest note via SDK when -1
             let startNote = Math.floor((props.gridStartNote as number) ?? -1);
             if (startNote === -1) {
-                const range = trackId && api && status === 'ok'
-                    ? api.timeline.getNoteRange({ trackIds: [trackId] })
-                    : null;
+                const range = trackId && host.ok ? host.api.timeline.getNoteRange({ trackIds: [trackId] }) : null;
                 startNote = range ? range.min : 0;
             }
 
@@ -405,19 +403,15 @@ export class NotesPlayingDisplayElement extends SceneElement {
             const activePitchClasses = new Set<number>();
             const fadingPitchClasses = new Map<number, { opacity: number; scale: number }>();
 
-            if (activeNotes.size === 0 && showAll) {
-                for (let i = 0; i < 12; i += 1) activePitchClasses.add(i);
-            } else {
-                for (const note of activeNotes) activePitchClasses.add(note % 12);
-                // Collect fading pitch classes (keep highest opacity/scale per pitch class)
-                for (const note of renderNotes) {
-                    const pc = note % 12;
-                    if (activePitchClasses.has(pc)) continue;
-                    const op = getNoteOpacity(note);
-                    const sc = getNoteScale(note);
-                    const existing = fadingPitchClasses.get(pc);
-                    if (!existing || op > existing.opacity) fadingPitchClasses.set(pc, { opacity: op, scale: sc });
-                }
+            for (const note of activeNotes) activePitchClasses.add(note % 12);
+            // Collect fading pitch classes (keep highest opacity/scale per pitch class)
+            for (const note of renderNotes) {
+                const pc = note % 12;
+                if (activePitchClasses.has(pc)) continue;
+                const op = getNoteOpacity(note);
+                const sc = getNoteScale(note);
+                const existing = fadingPitchClasses.get(pc);
+                if (!existing || op > existing.opacity) fadingPitchClasses.set(pc, { opacity: op, scale: sc });
             }
 
             for (let i = 0; i < 12; i += 1) {

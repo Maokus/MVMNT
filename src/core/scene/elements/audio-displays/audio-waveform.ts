@@ -1,8 +1,8 @@
 import { SceneElement, asNumber, asTrimmedString } from '../base';
-import { Arc, Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
+import { Arc, Poly, Rectangle, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
@@ -111,12 +111,18 @@ function normalizeWaveformSide(value: unknown, fallback: WaveformSide = DEFAULT_
     return fallback;
 }
 
-function normalizeWaveformChannel(value: unknown, fallback: WaveformChannel = DEFAULT_PRIMARY_CHANNEL): WaveformChannel {
+function normalizeWaveformChannel(
+    value: unknown,
+    fallback: WaveformChannel = DEFAULT_PRIMARY_CHANNEL
+): WaveformChannel {
     if (value === 'left' || value === 'right' || value === 'mid' || value === 'side') return value;
     return fallback;
 }
 
-function normalizeWaveformDisplay(value: unknown, fallback: WaveformDisplayMode = DEFAULT_DISPLAY_MODE): WaveformDisplayMode {
+function normalizeWaveformDisplay(
+    value: unknown,
+    fallback: WaveformDisplayMode = DEFAULT_DISPLAY_MODE
+): WaveformDisplayMode {
     if (value === 'line' || value === 'bar' || value === 'dot') return value;
     return fallback;
 }
@@ -293,6 +299,7 @@ export class AudioWaveformElement extends SceneElement {
                                 label: 'Sample Count',
                                 default: 4096,
                                 step: 256,
+                                max: MAX_SAMPLE_COUNT - 1,
                                 runtime: {
                                     transform: (value, element) => {
                                         const numeric = asNumber(value, element);
@@ -572,43 +579,50 @@ export class AudioWaveformElement extends SceneElement {
             )
         );
 
-        const pushMessage = (message: string) => {
-            objects.push(new Text(8, height / 2, message, '12px Inter, sans-serif', '#94a3b8', 'left', 'middle'));
+        const pushFlatLine = () => {
+            const centerY = height / 2;
+            const line = new Poly(
+                [{ x: 0, y: centerY }, { x: width, y: centerY }],
+                null,
+                primaryColor,
+                Math.max(1, lineWidth),
+                { includeInLayoutBounds: false }
+            );
+            line.setClosed(false).setLineJoin('round').setLineCap('round');
+            objects.push(line);
             return objects;
         };
 
         if (!props.audioTrackId) {
-            return pushMessage('Select an audio track');
+            return pushFlatLine();
         }
 
-        const { api, status } = getPluginHostApi([
-            PLUGIN_CAPABILITIES.audioRawRead,
-        ]);
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioRawRead]);
 
-        if (!api || status !== 'ok') {
-            return pushMessage('Audio not available');
+        if (!host.ok) {
+            return pushFlatLine();
         }
 
-        const sampleRate = api.audio.getSampleRate({ trackId: props.audioTrackId });
+        const sampleRate = host.api.audio.getSampleRate({ trackId: props.audioTrackId });
         if (!sampleRate) {
-            return pushMessage('Audio not loaded');
+            return pushFlatLine();
         }
 
         const windowSeconds = sampleCount / sampleRate;
         const startSeconds = targetTime - windowSeconds * startOffset;
         const endSeconds = startSeconds + windowSeconds;
 
-        const leftRaw = api.audio.getRawSamples({
+        const leftRaw = host.api.audio.getRawSamples({
             trackId: props.audioTrackId,
             startSec: startSeconds,
             endSec: endSeconds,
             channel: 'left',
         });
         if (!leftRaw) {
-            return pushMessage('Waveform too long or no audio');
+            return pushFlatLine();
         }
         const rightRaw =
-            api.audio.getRawSamples({
+            host.api.audio.getRawSamples({
                 trackId: props.audioTrackId,
                 startSec: startSeconds,
                 endSec: endSeconds,
@@ -622,7 +636,14 @@ export class AudioWaveformElement extends SceneElement {
             side: computeRawSide(leftRaw, rightRaw),
         };
 
-        const preparedPrimary = prepareValuesForDisplay(channels[primaryChannel], width, dampRadius, side, density, gain);
+        const preparedPrimary = prepareValuesForDisplay(
+            channels[primaryChannel],
+            width,
+            dampRadius,
+            side,
+            density,
+            gain
+        );
         const preparedSecondary =
             secondaryChannel !== primaryChannel
                 ? prepareValuesForDisplay(channels[secondaryChannel], width, dampRadius, side, density, gain)
@@ -632,7 +653,7 @@ export class AudioWaveformElement extends SceneElement {
             (preparedPrimary && preparedPrimary.length >= 2) || (preparedSecondary && preparedSecondary.length >= 2)
         );
         if (!hasRenderableSeries) {
-            return pushMessage('Waveform too short');
+            return pushFlatLine();
         }
 
         if (preparedSecondary !== undefined) {

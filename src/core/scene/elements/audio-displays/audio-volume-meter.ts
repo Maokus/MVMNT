@@ -2,7 +2,7 @@ import { SceneElement, asNumber, type PropertyTransform } from '../base';
 import { Rectangle, Text, Line, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { applyOpacity } from '@utils/color';
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
@@ -200,7 +200,7 @@ export class AudioVolumeMeterElement extends SceneElement {
             return objects;
         }
 
-        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.audioRawRead]);
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioRawRead]);
         const meterMode = (props.meterMode ?? 'rms') as 'rms' | 'peak';
         const smoothing = props.smoothing ?? 0;
         // Window size: 25ms base + 10ms per smoothing unit (0→25ms, 64→665ms)
@@ -208,16 +208,16 @@ export class AudioVolumeMeterElement extends SceneElement {
         const halfWindow = windowSec / 2;
 
         let readings: Float32Array | null = null;
-        if (api && status === 'ok') {
+        if (host.ok) {
             const trackId = props.audioTrackId as string;
             const startSec = _targetTime - halfWindow;
             const endSec = _targetTime + halfWindow;
             if (meterMode === 'rms') {
-                readings = api.audio.getRmsInWindow({ trackId, startSec, endSec });
+                readings = host.api.audio.getRmsInWindow({ trackId, startSec, endSec });
             } else {
                 // Peak mode: get raw samples per channel and find max abs amplitude
-                const leftSamples = api.audio.getRawSamples({ trackId, startSec, endSec, channel: 'left' });
-                const rightSamples = api.audio.getRawSamples({ trackId, startSec, endSec, channel: 'right' });
+                const leftSamples = host.api.audio.getRawSamples({ trackId, startSec, endSec, channel: 'left' });
+                const rightSamples = host.api.audio.getRawSamples({ trackId, startSec, endSec, channel: 'right' });
                 if (leftSamples || rightSamples) {
                     readings = new Float32Array(2);
                     readings[0] = leftSamples ? findMaxAbs(leftSamples) : 0;

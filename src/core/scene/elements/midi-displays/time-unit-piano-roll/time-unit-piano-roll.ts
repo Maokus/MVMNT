@@ -7,7 +7,7 @@ import { AnimationController } from './animation-controller';
 import { getAnimationSelectOptions } from '@core/scene/elements/midi-displays/note-animations';
 import { NoteBlock } from './note-block';
 import { TimingManager } from '@core/timing/timing-manager';
-import { getPluginHostApi, PLUGIN_CAPABILITIES, noteName } from '@mvmnt/plugin-sdk';
+import { getRequiredPluginApi, PLUGIN_CAPABILITIES, noteName } from '@mvmnt/plugin-sdk';
 import { debugLog } from '@utils/debug-log';
 import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
 import { insertElementGroups, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
@@ -426,8 +426,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const beatLabelOffsetX = props.beatLabelOffsetX as number;
         const beatLabelOpacity = props.beatLabelOpacity as number;
         const attackDuration = props.attackDuration as number;
-        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
-        const timelineState = status === 'ok' ? api?.timeline.getStateSnapshot() : null;
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
+        const timelineState = host.ok ? host.api.timeline.getStateSnapshot() : null;
         if (noteLabelFontFamily) ensureFontLoaded(noteLabelFontFamily, noteLabelFontWeight);
         if (beatLabelFontFamily) ensureFontLoaded(beatLabelFontFamily, beatLabelFontWeight);
 
@@ -438,8 +438,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         if (rawMinNote === -1 || rawMaxNote === -1) {
             const trackId = props.midiTrackId as string | undefined;
             const range =
-                trackId && api && status === 'ok'
-                    ? api.timeline.getNoteRange({ trackIds: [trackId] })
+                trackId && host.ok
+                    ? host.api.timeline.getNoteRange({ trackIds: [trackId] })
                     : null;
             minNote = rawMinNote === -1 ? (range?.min ?? 0) : rawMinNote;
             maxNote = rawMaxNote === -1 ? (range?.max ?? 127) : rawMaxNote;
@@ -525,8 +525,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 const queryStart = prevStart;
                 const queryEnd = currentWin.end + attackDuration;
                 const events =
-                    status === 'ok' && api
-                        ? api.timeline.selectNotesInWindow({
+                    host.ok
+                        ? host.api.timeline.selectNotesInWindow({
                               trackIds: effectiveTrackIds,
                               startSec: queryStart,
                               endSec: queryEnd,

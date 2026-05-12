@@ -6,7 +6,7 @@ import {
     insertElementGroups,
     ensureFontLoaded,
     parseFontSelection,
-    getPluginHostApi,
+    getRequiredPluginApi,
     PLUGIN_CAPABILITIES,
     propGroup,
     tab,
@@ -121,8 +121,8 @@ export class TimeDisplayElement extends SceneElement {
         const baseFontSize = props.fontSize ?? 24;
 
         // Update timing manager via plugin API (timeline.read capability)
-        const { api } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
-        const snapshot = api?.timeline.getStateSnapshot() ?? null;
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
+        const snapshot = host.ok ? host.api.timeline.getStateSnapshot() : null;
         const bpm = snapshot?.timeline.globalBpm || 120;
         const beatsPerBar = snapshot?.timeline.beatsPerBar || 4;
         this.timingManager.setBPM(bpm);

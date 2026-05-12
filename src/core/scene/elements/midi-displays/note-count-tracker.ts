@@ -4,7 +4,7 @@ import type { EnhancedConfigSchema } from '@core/types.js';
 import { RenderObject, Text, Rectangle } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 import { applyOpacity } from '@utils/color';
@@ -86,7 +86,7 @@ export class NoteCountTrackerElement extends SceneElement {
         const renderObjects: RenderObject[] = [];
 
         const effectiveTime = Math.max(0, targetTime);
-        const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
 
         // Compute counts from notes via timeline
         const trackId = props.midiTrackId;
@@ -95,30 +95,28 @@ export class NoteCountTrackerElement extends SceneElement {
         let playedNotes = 0;
         let playedEvents = 0;
         let totalCCEvents = 0;
-        if (trackId && (!api || status !== 'ok')) {
+        if (trackId && !host.ok) {
             const message =
-                status === 'unsupported-version'
+                host.status === 'unsupported-version'
                     ? 'Plugin API version unsupported'
-                    : missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
+                    : host.missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
                       ? 'Timeline API unavailable (requires timeline.read)'
                       : 'Plugin host API unavailable';
             renderObjects.push(new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top'));
             return renderObjects;
         }
-        if (trackId) {
-            const all =
-                api?.timeline.selectNotesInWindow({
-                    trackIds: [trackId],
-                    startSec: 0,
-                    endSec: Number.POSITIVE_INFINITY,
-                }) ?? [];
+        if (trackId && host.ok) {
+            const all = host.api.timeline.selectNotesInWindow({
+                trackIds: [trackId],
+                startSec: 0,
+                endSec: Number.POSITIVE_INFINITY,
+            });
             totalNotes = all.length;
-            const allCC =
-                api?.timeline.selectCCInWindow({
-                    trackIds: [trackId],
-                    startSec: 0,
-                    endSec: Number.POSITIVE_INFINITY,
-                }) ?? [];
+            const allCC = host.api.timeline.selectCCInWindow({
+                trackIds: [trackId],
+                startSec: 0,
+                endSec: Number.POSITIVE_INFINITY,
+            });
             totalCCEvents = allCC.length;
             if (targetTime >= 0) {
                 for (const note of all) {

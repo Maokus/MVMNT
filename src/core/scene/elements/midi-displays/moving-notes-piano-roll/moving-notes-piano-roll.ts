@@ -5,7 +5,7 @@ import { Line, EmptyRenderObject, RenderObject, Rectangle, GlowLayer } from '@co
 import { getAnimationSelectOptions } from '@core/scene/elements/midi-displays/note-animations';
 import { normalizeColorAlphaValue, ensureEightDigitHex, applyOpacity } from '@utils/color';
 import { MovingNotesAnimationController } from './animation-controller';
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { TimingManager } from '@core/timing';
 import { insertElementGroups, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
@@ -266,8 +266,8 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const pianoRightBorderColor = props.pianoRightBorderColor as string;
         const pianoRightBorderWidth = props.pianoRightBorderWidth as number;
         const effectivePianoWidth = showPiano ? pianoWidth : 0;
-        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
-        const timelineState = status === 'ok' ? api?.timeline.getStateSnapshot() : null;
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
+        const timelineState = host.ok ? host.api.timeline.getStateSnapshot() : null;
 
         const rawMinNote = props.minNote as number;
         const rawMaxNote = props.maxNote as number;
@@ -277,7 +277,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
             const trackId = props.midiTrackId as string | undefined;
             let autoMinNote = 0;
             let autoMaxNote = 127;
-            if (trackId && status === 'ok' && api && timelineState) {
+            if (trackId && host.ok && timelineState) {
                 const track = timelineState.tracks[trackId];
                 const midiSourceId = (track as { midiSourceId?: string })?.midiSourceId;
                 // Use midiSourceId as cache key (same fallback logic as timelineSelectors)
@@ -346,8 +346,8 @@ export class MovingNotesPianoRollElement extends SceneElement {
 
         // Fetch notes for this window from public plugin host API
         const rawNotes =
-            props.midiTrackId && status === 'ok' && api
-                ? api.timeline
+            props.midiTrackId && host.ok
+                ? host.api.timeline
                       .selectNotesInWindow({
                           trackIds: [props.midiTrackId as string],
                           startSec: windowStart,
