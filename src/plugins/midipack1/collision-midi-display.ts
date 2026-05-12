@@ -84,8 +84,6 @@ export class CollisionMidiDisplayElement extends SceneElement {
                             },
                         ],
                     },
-                ]),
-                tab.appearance([
                     {
                         id: 'layout',
                         label: 'Layout',
@@ -103,18 +101,6 @@ export class CollisionMidiDisplayElement extends SceneElement {
                         ],
                     },
                     {
-                        id: 'colors',
-                        label: 'Colors',
-                        collapsed: false,
-                        properties: [
-                            prop.colorAlpha('squareColor', 'Square', '#334155FF'),
-                            prop.colorAlpha('squareActiveColor', 'Square (Active)', '#6366F1FF', {
-                                description: 'Color the square takes on while the note is being held',
-                            }),
-                            prop.colorAlpha('circleColor', 'Circle', '#10B981FF'),
-                        ],
-                    },
-                    {
                         id: 'labels',
                         label: 'Labels',
                         collapsed: false,
@@ -129,6 +115,20 @@ export class CollisionMidiDisplayElement extends SceneElement {
                                 description: '0 = auto (scales with note size)',
                                 visibleWhen: [{ key: 'showNoteNames', truthy: true }],
                             }),
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    {
+                        id: 'colors',
+                        label: 'Colors',
+                        collapsed: false,
+                        properties: [
+                            prop.colorAlpha('squareColor', 'Square', '#334155FF'),
+                            prop.colorAlpha('squareActiveColor', 'Square (Active)', '#6366F1FF', {
+                                description: 'Color the square takes on while the note is being held',
+                            }),
+                            prop.colorAlpha('circleColor', 'Circle', '#10B981FF'),
                         ],
                     },
                 ]),

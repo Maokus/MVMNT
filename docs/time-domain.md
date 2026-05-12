@@ -26,8 +26,8 @@ No seconds (`currentTimeSec`, `loopStartSec`, `offsetSec`, etc.) or beats fields
 
 Fast paths:
 
--   Fixed tempo (no map): seconds = ticks / TPQ \* (60 / BPM)
--   Tempo map: piecewise integration of beats across precomputed cumulative segments.
+- Fixed tempo (no map): seconds = ticks / TPQ \* (60 / BPM)
+- Tempo map: piecewise integration of beats across precomputed cumulative segments.
 
 Selectors & helpers centralize conversions; UI/components never perform ad‑hoc math.
 
@@ -61,9 +61,9 @@ Looping clamps the next tick into `[loopStartTick, loopEndTick)`.
 
 ## Integer & Precision Strategy
 
--   Ticks stored as 32-bit safe integers (< 2^53 to remain precise in JS). With PPQ=960, 2^53 ticks ≈ 9.5e12 ticks ≈ >300,000 years at 120 BPM – safe.
--   Avoid accumulating seconds directly for playhead; always derive from beats/ticks.
--   Fractional accumulation: clock retains `fractionalTicks` remainder to ensure long‑run drift < 1 tick.
+- Ticks stored as 32-bit safe integers (< 2^53 to remain precise in JS). With PPQ=960, 2^53 ticks ≈ 9.5e12 ticks ≈ >300,000 years at 120 BPM – safe.
+- Avoid accumulating seconds directly for playhead; always derive from beats/ticks.
+- Fractional accumulation: clock retains `fractionalTicks` remainder to ensure long‑run drift < 1 tick.
 
 ## Ingestion Normalization
 
@@ -98,22 +98,22 @@ Events are gathered by tick window queries ensuring consistency independent of l
 
 Removed functions / fields (BREAKING):
 
--   `setCurrentTimeSec`, `seek(seconds)`, `scrub(seconds)`
--   `setLoopRange(seconds)`, `loopStartSec`, `loopEndSec`
--   `setTimelineView(seconds)`
--   `setTrackOffset(seconds)` / `offsetSec`, `offsetBeats`
--   `currentTimeSec` playhead mirror
+- `setCurrentTimeSec`, `seek(seconds)`, `scrub(seconds)`
+- `setLoopRange(seconds)`, `loopStartSec`, `loopEndSec`
+- `setTimelineView(seconds)`
+- `setTrackOffset(seconds)` / `offsetSec`, `offsetBeats`
+- `currentTimeSec` playhead mirror
 
 ## Operational Notes
 
--   Legacy tests that depended on seconds-based helpers should be updated to use the tick utilities described above.
--   Debug tooling exposes `window.__mvmntDebug.setCurrentTick(tick)` for programmatic seeking; prefer it over any deprecated second-based helpers.
+- Legacy tests that depended on seconds-based helpers should be updated to use the tick utilities described above.
+- Debug tooling exposes `window.__mvmntDebug.setCurrentTick(tick)` for programmatic seeking; prefer it over any deprecated second-based helpers.
 
 ## Future Extensions
 
--   Meter change map (bars/beat numbering in grid)
--   Per-track tempo envelopes creating layered tick->seconds contexts
--   Swing/humanization as fractional tick offsets prior to render
+- Meter change map (bars/beat numbering in grid)
+- Per-track tempo envelopes creating layered tick->seconds contexts
+- Swing/humanization as fractional tick offsets prior to render
 
 ## Quick Usage Examples
 
@@ -142,6 +142,24 @@ const tm = sharedTimingManager; // or getSharedTimingManager()
 const startSec = tm.ticksToSeconds(note.startTick + track.offsetTicks);
 ```
 
----
+## Accessing Time in Plugin Elements
 
-Last reviewed: 2025-10-09.
+Plugin elements receive time as seconds via `targetTime` in `_buildRenderObjects`. For conversions use the `timing` capability:
+
+```ts
+const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timingConversion]);
+if (!host.ok) return host.renderFallback();
+
+const beats = host.api.timing.secondsToBeats(targetTime) ?? 0;
+const ticks = host.api.timing.secondsToTicks(targetTime) ?? 0;
+```
+
+`timingConversion` is always available — the guard is a formality. The timing API reflects the current tempo map including any automation keyframes on `globalBpm`.
+
+## Tempo Automation
+
+BPM is automatable via the keyframe system (schema version 5+). When `globalBpm` has automation channels, `TimingManager` recomputes tempo segments on each evaluator tick. All tick↔second conversions remain accurate — no additional handling is required in element or plugin code. The `tempoVersion` counter on `TimingManager` invalidates memoized selectors automatically.
+
+Plugin elements that sample audio features should use `targetTime` (seconds) directly — the audio cache system handles tempo-aware alignment internally.
+
+---
