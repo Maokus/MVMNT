@@ -222,6 +222,7 @@ export class SceneElementRegistry {
         this.registerElementFromClass('audioSpectrum', elements.AudioSpectrumElement);
         this.registerElementFromClass('audioVolumeMeter', elements.AudioVolumeMeterElement);
         this.registerElementFromClass('audioWaveform', elements.AudioWaveformElement);
+        this.registerElementFromClass('audioPeaks', elements.AudioPeaksElement);
         this.registerElementFromClass('audioLockedOscilloscope', elements.AudioLockedOscilloscopeElement);
 
         // this.registerElementFromClass('audioMinimal', elements.AudioMinimalElement);

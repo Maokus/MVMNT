@@ -124,6 +124,12 @@ export interface PluginAudioApi {
      * [rms] for mono. Returns null if the track is not loaded or the window is invalid.
      */
     getRmsInWindow(opts: { trackId: string; startSec: number; endSec: number }): Float32Array | null;
+
+    /**
+     * Return the sample rate of the decoded audio buffer for a track.
+     * Returns null if the track is not loaded or is not an audio track.
+     */
+    getSampleRate(opts: { trackId: string }): number | null;
 }
 
 export interface PluginTimingApi {
@@ -552,6 +558,16 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                     result[ch] = Math.sqrt(sumSquares / count);
                 }
                 return result;
+            },
+            getSampleRate({ trackId }) {
+                if (!hasAudioRawRead || !timelineStore) return null;
+                const state = timelineStore.getState();
+                const track = state.tracks[trackId];
+                if (!track || track.type !== 'audio') return null;
+                const sourceId = track.audioSourceId ?? track.id;
+                const entry = state.audioCache[sourceId];
+                if (!entry) return null;
+                return entry.audioBuffer.sampleRate;
             },
         },
         timing: {

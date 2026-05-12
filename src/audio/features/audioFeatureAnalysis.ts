@@ -22,7 +22,7 @@ import {
 import { normalizeHopTicks, quantizeHopTicks } from './hopQuantization';
 import { createPitchWaveformCalculator } from './calculators/pitchWaveformCalculator';
 import { createSpectrogramCalculator } from './calculators/spectrogramCalculator';
-import { createWaveformCalculator } from './calculators/waveformCalculator';
+import { createPeaksCalculator } from './calculators/peaksCalculator';
 import { createTempoMapper, type TempoMapper } from '@core/timing';
 import { getSharedTimingManager } from '@state/timelineStore';
 import type { TempoMapEntry } from '@state/timelineTypes';
@@ -581,7 +581,7 @@ function ensureCalculatorsRegistered(): AudioFeatureCalculator[] {
             deserializeTrack,
             inferChannelAliases,
         }),
-        createWaveformCalculator({
+        createPeaksCalculator({
             createAnalysisYieldController,
             mixBufferToMono,
             cloneTempoProjection,

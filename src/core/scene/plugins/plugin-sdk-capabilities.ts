@@ -90,10 +90,10 @@ export const audioApi: PluginAudioApi = createCapabilityProxy('audioFeaturesRead
  *   import { audioRawApi } from '@mvmnt/plugin-sdk';
  *   const rms = audioRawApi.getRmsInWindow({ trackId, startSec, endSec });
  */
-export const audioRawApi: Pick<PluginAudioApi, 'getRawSamples' | 'getRmsInWindow'> = createCapabilityProxy(
+export const audioRawApi: Pick<PluginAudioApi, 'getRawSamples' | 'getRmsInWindow' | 'getSampleRate'> = createCapabilityProxy(
     'audioRawRead',
     (api) => api.audio
-) as Pick<PluginAudioApi, 'getRawSamples' | 'getRmsInWindow'>;
+) as Pick<PluginAudioApi, 'getRawSamples' | 'getRmsInWindow' | 'getSampleRate'>;
 
 /**
  * Direct access to the timing conversion API

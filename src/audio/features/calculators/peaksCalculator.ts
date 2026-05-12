@@ -7,9 +7,9 @@ import type {
 import { quantizeHopTicks } from '../hopQuantization';
 import type { SerializedAudioFeatureTrack } from '../audioFeatureAnalysis';
 
-const WAVEFORM_OVERSAMPLE_FACTOR = 8;
+const PEAKS_OVERSAMPLE_FACTOR = 8;
 
-export interface WaveformCalculatorDependencies {
+export interface PeaksCalculatorDependencies {
     createAnalysisYieldController: (signal?: AbortSignal) => () => Promise<void>;
     mixBufferToMono: (buffer: AudioBuffer, maybeYield?: () => Promise<void>) => Promise<Float32Array>;
     cloneTempoProjection: (projection: AudioFeatureTempoProjection, hopTicks: number) => AudioFeatureTempoProjection;
@@ -18,18 +18,18 @@ export interface WaveformCalculatorDependencies {
     inferChannelAliases: (channelCount: number) => string[];
 }
 
-export function createWaveformCalculator({
+export function createPeaksCalculator({
     createAnalysisYieldController,
     mixBufferToMono,
     cloneTempoProjection,
     serializeTrack,
     deserializeTrack,
     inferChannelAliases,
-}: WaveformCalculatorDependencies): AudioFeatureCalculator {
+}: PeaksCalculatorDependencies): AudioFeatureCalculator {
     return {
-        id: 'mvmnt.waveform',
-        version: 2,
-        featureKey: 'waveform',
+        id: 'mvmnt.peaks',
+        version: 1,
+        featureKey: 'peaks',
         async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
             const { audioBuffer, analysisParams, signal, tempoMapper } = context;
             const maybeYield = createAnalysisYieldController(signal);
@@ -62,17 +62,17 @@ export function createWaveformCalculator({
             const sampleRate = audioBuffer.sampleRate || analysisParams.sampleRate || 44100;
             const baseHopSeconds = Math.max(context.hopSeconds, analysisParams.hopSize / sampleRate);
             const minHopSeconds = 1 / sampleRate;
-            const waveformHopSeconds = Math.max(baseHopSeconds / WAVEFORM_OVERSAMPLE_FACTOR, minHopSeconds);
-            const waveformHopSamples = Math.max(waveformHopSeconds * sampleRate, 1);
-            const waveformFrameCount = Math.max(1, Math.ceil(totalSamples / waveformHopSamples));
+            const peaksHopSeconds = Math.max(baseHopSeconds / PEAKS_OVERSAMPLE_FACTOR, minHopSeconds);
+            const peaksHopSamples = Math.max(peaksHopSeconds * sampleRate, 1);
+            const peaksFrameCount = Math.max(1, Math.ceil(totalSamples / peaksHopSamples));
             const frameSampleCount = Math.max(1, channelCount);
-            const minValues = new Float32Array(waveformFrameCount * frameSampleCount);
-            const maxValues = new Float32Array(waveformFrameCount * frameSampleCount);
-            const frameYieldInterval = Math.max(1, Math.floor(waveformFrameCount / 12));
-            for (let frame = 0; frame < waveformFrameCount; frame++) {
-                const frameStart = Math.floor(frame * waveformHopSamples);
+            const minValues = new Float32Array(peaksFrameCount * frameSampleCount);
+            const maxValues = new Float32Array(peaksFrameCount * frameSampleCount);
+            const frameYieldInterval = Math.max(1, Math.floor(peaksFrameCount / 12));
+            for (let frame = 0; frame < peaksFrameCount; frame++) {
+                const frameStart = Math.floor(frame * peaksHopSamples);
                 const frameEnd =
-                    frame === waveformFrameCount - 1 ? totalSamples : Math.ceil((frame + 1) * waveformHopSamples);
+                    frame === peaksFrameCount - 1 ? totalSamples : Math.ceil((frame + 1) * peaksHopSamples);
                 for (let channel = 0; channel < frameSampleCount; channel += 1) {
                     const samples = channelSamples[channel] ?? channelSamples[0];
                     const channelLength = samples?.length ?? 0;
@@ -103,30 +103,30 @@ export function createWaveformCalculator({
                 if ((frame + 1) % frameYieldInterval === 0) {
                     await maybeYield();
                 }
-                context.reportProgress?.(frame + 1, waveformFrameCount);
+                context.reportProgress?.(frame + 1, peaksFrameCount);
             }
             await maybeYield();
-            const waveformHopTicks = quantizeHopTicks({
-                hopSeconds: waveformHopSeconds,
+            const peaksHopTicks = quantizeHopTicks({
+                hopSeconds: peaksHopSeconds,
                 tempoMapper,
             });
             const aliases = inferChannelAliases(channelCount);
             const semantics = channelCount === 1 ? 'mono' : channelCount === 2 ? 'stereo' : undefined;
             const track: AudioFeatureTrack = {
-                key: 'waveform',
-                calculatorId: 'mvmnt.waveform',
-                version: 2,
-                frameCount: waveformFrameCount,
+                key: 'peaks',
+                calculatorId: 'mvmnt.peaks',
+                version: 1,
+                frameCount: peaksFrameCount,
                 channels: frameSampleCount,
-                hopTicks: waveformHopTicks,
-                hopSeconds: waveformHopSeconds,
+                hopTicks: peaksHopTicks,
+                hopSeconds: peaksHopSeconds,
                 startTimeSeconds: 0,
-                tempoProjection: cloneTempoProjection(context.tempoProjection, waveformHopTicks),
+                tempoProjection: cloneTempoProjection(context.tempoProjection, peaksHopTicks),
                 format: 'waveform-minmax',
                 data: { min: minValues, max: maxValues },
                 metadata: {
-                    hopSize: waveformHopSamples,
-                    oversampleFactor: WAVEFORM_OVERSAMPLE_FACTOR,
+                    hopSize: peaksHopSamples,
+                    oversampleFactor: PEAKS_OVERSAMPLE_FACTOR,
                 },
                 channelAliases: aliases,
                 channelLayout: semantics ? { aliases, semantics } : { aliases },

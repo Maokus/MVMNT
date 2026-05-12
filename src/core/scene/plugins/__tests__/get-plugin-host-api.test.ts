@@ -25,6 +25,7 @@ function makeApi(overrides: Partial<PluginHostApi> = {}): PluginHostApi {
             sampleFeatureRange: () => [],
             getRawSamples: () => null,
             getRmsInWindow: () => null,
+            getSampleRate: () => null,
         },
         timing: {
             secondsToTicks: () => null,

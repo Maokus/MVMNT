@@ -26,6 +26,7 @@ export { CCMonitorElement } from './midi-displays/cc-monitor';
 export { AudioSpectrumElement } from './audio-displays/audio-spectrum';
 export { AudioVolumeMeterElement } from './audio-displays/audio-volume-meter';
 export { AudioWaveformElement } from './audio-displays/audio-waveform';
+export { AudioPeaksElement } from './audio-displays/audio-peaks';
 export { AudioLockedOscilloscopeElement } from './audio-displays/audio-locked-oscilloscope';
 export { AudioAdhocProfileElement } from './audio-debug/audio-adhoc-profile';
 export { AudioMinimalElement } from './audio-debug/audio-minimal';
