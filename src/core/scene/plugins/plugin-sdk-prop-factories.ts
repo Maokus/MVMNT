@@ -1,5 +1,11 @@
 import { asNumber, asBoolean, asString, asTrimmedString } from '@core/scene/elements/base';
-import type { EnhancedConfigSchema, PropertyDefinition, PropertyTab, PropertyVisibilityCondition } from '@core/types';
+import type {
+    ElementPreset,
+    EnhancedConfigSchema,
+    PropertyDefinition,
+    PropertyTab,
+    PropertyVisibilityCondition,
+} from '@core/types';
 
 // ─── Shared option types ────────────────────────────────────────────────────
 
@@ -336,7 +342,7 @@ export const prop = {
  */
 export function insertElementGroups(
     base: EnhancedConfigSchema,
-    overrides: Partial<Pick<EnhancedConfigSchema, 'name' | 'description' | 'category'>>,
+    overrides: Partial<Pick<EnhancedConfigSchema, 'name' | 'description' | 'category' | 'presets'>>,
     pluginTabs: PropertyTab[]
 ): EnhancedConfigSchema {
     return {

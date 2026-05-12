@@ -25,6 +25,41 @@ export class BasicShapesElement extends SceneElement {
                 description:
                     'Flexible wrapper for primitive render objects — rectangles, circles, polygons, and lines.',
                 category: 'Misc',
+                presets: [
+                    { id: 'rect', label: 'Rectangle', values: { shapeType: 'rectangle' } },
+                    { id: 'circle', label: 'Circle', values: { shapeType: 'circle' } },
+                    { id: 'triangle', label: 'Polygon', values: { shapeType: 'triangle' } },
+                    { id: 'line', label: 'Line', values: { shapeType: 'line' } },
+                    {
+                        id: 'filled',
+                        label: 'Filled',
+                        values: { color: '#4488ff', opacity: 1, strokeWidth: 0 },
+                    },
+                    {
+                        id: 'outlined',
+                        label: 'Outlined',
+                        values: {
+                            color: '#4488ff',
+                            opacity: 0,
+                            strokeColor: '#ffffff',
+                            strokeOpacity: 1,
+                            strokeWidth: 2,
+                        },
+                    },
+                    {
+                        id: 'filledOutlined',
+                        label: 'Filled + Outline',
+                        values: {
+                            color: '#4488ff',
+                            opacity: 0.8,
+                            strokeColor: '#ffffff',
+                            strokeOpacity: 1,
+                            strokeWidth: 2,
+                        },
+                    },
+                    { id: 'screen', label: 'Screen Blend', values: { blendMode: 'screen' } },
+                    { id: 'multiply', label: 'Multiply Blend', values: { blendMode: 'multiply' } },
+                ],
             },
             [
                 tab.properties([
@@ -46,12 +81,6 @@ export class BasicShapesElement extends SceneElement {
                                 ],
                                 { description: 'The primitive shape to draw.' }
                             ),
-                        ],
-                        presets: [
-                            { id: 'rect', label: 'Rectangle', values: { shapeType: 'rectangle' } },
-                            { id: 'circle', label: 'Circle', values: { shapeType: 'circle' } },
-                            { id: 'triangle', label: 'Polygon', values: { shapeType: 'triangle' } },
-                            { id: 'line', label: 'Line', values: { shapeType: 'line' } },
                         ],
                     },
                     {
@@ -199,37 +228,6 @@ export class BasicShapesElement extends SceneElement {
                                 step: 1,
                                 description: 'Offset into the dash pattern, useful for animating dashes.',
                             }),
-                        ],
-                        presets: [
-                            {
-                                id: 'filled',
-                                label: 'Filled',
-                                values: { color: '#4488ff', opacity: 1, strokeWidth: 0 },
-                            },
-                            {
-                                id: 'outlined',
-                                label: 'Outlined',
-                                values: {
-                                    color: '#4488ff',
-                                    opacity: 0,
-                                    strokeColor: '#ffffff',
-                                    strokeOpacity: 1,
-                                    strokeWidth: 2,
-                                },
-                            },
-                            {
-                                id: 'filledOutlined',
-                                label: 'Filled + Outline',
-                                values: {
-                                    color: '#4488ff',
-                                    opacity: 0.8,
-                                    strokeColor: '#ffffff',
-                                    strokeOpacity: 1,
-                                    strokeWidth: 2,
-                                },
-                            },
-                            { id: 'screen', label: 'Screen Blend', values: { blendMode: 'screen' } },
-                            { id: 'multiply', label: 'Multiply Blend', values: { blendMode: 'multiply' } },
                         ],
                     },
                     propGroup.shadow(),

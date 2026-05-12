@@ -4,7 +4,13 @@ import type { EnhancedConfigSchema } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
-import { getRequiredPluginApi, PLUGIN_CAPABILITIES, type FeatureDataResult } from '@mvmnt/plugin-sdk';
+import {
+    getRequiredPluginApi,
+    getFeatureDataRange,
+    PLUGIN_CAPABILITIES,
+    type FeatureDataResult,
+    type RequiredPluginApiResult,
+} from '@mvmnt/plugin-sdk';
 import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
@@ -376,8 +382,7 @@ export class AudioPeaksElement extends SceneElement {
 
         const host = getRequiredPluginApi(this, [
             PLUGIN_CAPABILITIES.audioFeaturesRead,
-            PLUGIN_CAPABILITIES.timingConversion,
-        ]);
+        ]) as RequiredPluginApiResult;
 
         if (!host.ok) {
             return pushMessage('Audio not available');
@@ -387,14 +392,14 @@ export class AudioPeaksElement extends SceneElement {
         const endSeconds = startSeconds + windowSeconds;
         const stepSec = Math.max(1 / 240, windowSeconds / Math.max(32, Math.round(width)));
 
-        const samples = host.api.audio.sampleFeatureRange({
-            element: this,
-            trackId: props.audioTrackId,
-            feature: PEAKS_DESCRIPTOR,
-            startTime: startSeconds,
-            endTime: endSeconds,
-            stepSec,
-        });
+        const samples = getFeatureDataRange(
+            this,
+            props.audioTrackId,
+            PEAKS_DESCRIPTOR,
+            startSeconds,
+            endSeconds,
+            stepSec
+        );
 
         if (samples.length === 0) {
             return pushMessage('No peaks data');

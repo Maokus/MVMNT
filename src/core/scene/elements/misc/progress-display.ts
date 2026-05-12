@@ -50,6 +50,65 @@ export class ProgressDisplayElement extends SceneElement {
                 name: 'Progress Display',
                 description: 'Playback progress bar and statistics',
                 category: 'Misc',
+                presets: [
+                    {
+                        id: 'fullPanel',
+                        label: 'Full Panel',
+                        values: { showBar: true, showStats: true, barWidth: 480, height: 24 },
+                    },
+                    {
+                        id: 'barOnly',
+                        label: 'Bar Only',
+                        values: { showBar: true, showStats: false, barWidth: 560, height: 18 },
+                    },
+                    {
+                        id: 'statsOverlay',
+                        label: 'Stats Overlay',
+                        values: { showBar: false, showStats: true },
+                    },
+                    {
+                        id: 'glass',
+                        label: 'Glass Overlay',
+                        values: {
+                            barColor: '#38bdf8',
+                            barOpacity: 0.8,
+                            barBgColor: '#0f172a',
+                            barBgOpacity: 0.35,
+                            borderColor: '#38bdf8',
+                            borderOpacity: 0.5,
+                            statsTextColor: '#f8fafc',
+                            statsTextOpacity: 0.9,
+                        },
+                    },
+                    {
+                        id: 'minimal',
+                        label: 'Minimal Line',
+                        values: {
+                            barColor: '#e2e8f0',
+                            barOpacity: 0.6,
+                            barBgColor: '#ffffff',
+                            barBgOpacity: 0.08,
+                            borderColor: '#ffffff',
+                            borderOpacity: 0.2,
+                            statsTextColor: '#cbd5f5',
+                            statsTextOpacity: 0.8,
+                        },
+                    },
+                    {
+                        id: 'clubNight',
+                        label: 'Club Night',
+                        values: {
+                            barColor: '#f97316',
+                            barOpacity: 0.9,
+                            barBgColor: '#111827',
+                            barBgOpacity: 0.4,
+                            borderColor: '#f59e0b',
+                            borderOpacity: 0.6,
+                            statsTextColor: '#f8fafc',
+                            statsTextOpacity: 1,
+                        },
+                    },
+                ],
             },
             [
                 tab.content([
@@ -88,23 +147,6 @@ export class ProgressDisplayElement extends SceneElement {
                                 runtime: { transform: clampNonNegative, defaultValue: 20 },
                             },
                         ],
-                        presets: [
-                            {
-                                id: 'fullPanel',
-                                label: 'Full Panel',
-                                values: { showBar: true, showStats: true, barWidth: 480, height: 24 },
-                            },
-                            {
-                                id: 'barOnly',
-                                label: 'Bar Only',
-                                values: { showBar: true, showStats: false, barWidth: 560, height: 18 },
-                            },
-                            {
-                                id: 'statsOverlay',
-                                label: 'Stats Overlay',
-                                values: { showBar: false, showStats: true },
-                            },
-                        ],
                     },
                 ]),
                 tab.appearance([
@@ -132,50 +174,6 @@ export class ProgressDisplayElement extends SceneElement {
                                 visibleWhen: [{ key: 'showStats', truthy: true }],
                                 step: 0.05,
                             }),
-                        ],
-                        presets: [
-                            {
-                                id: 'glass',
-                                label: 'Glass Overlay',
-                                values: {
-                                    barColor: '#38bdf8',
-                                    barOpacity: 0.8,
-                                    barBgColor: '#0f172a',
-                                    barBgOpacity: 0.35,
-                                    borderColor: '#38bdf8',
-                                    borderOpacity: 0.5,
-                                    statsTextColor: '#f8fafc',
-                                    statsTextOpacity: 0.9,
-                                },
-                            },
-                            {
-                                id: 'minimal',
-                                label: 'Minimal Line',
-                                values: {
-                                    barColor: '#e2e8f0',
-                                    barOpacity: 0.6,
-                                    barBgColor: '#ffffff',
-                                    barBgOpacity: 0.08,
-                                    borderColor: '#ffffff',
-                                    borderOpacity: 0.2,
-                                    statsTextColor: '#cbd5f5',
-                                    statsTextOpacity: 0.8,
-                                },
-                            },
-                            {
-                                id: 'clubNight',
-                                label: 'Club Night',
-                                values: {
-                                    barColor: '#f97316',
-                                    barOpacity: 0.9,
-                                    barBgColor: '#111827',
-                                    barBgOpacity: 0.4,
-                                    borderColor: '#f59e0b',
-                                    borderOpacity: 0.6,
-                                    statsTextColor: '#f8fafc',
-                                    statsTextOpacity: 1,
-                                },
-                            },
                         ],
                     },
                     propGroup.typography(),
@@ -287,8 +285,7 @@ export class ProgressDisplayElement extends SceneElement {
             const letterSpacing = props.letterSpacing ?? 0;
             const countDown = props.countDown ?? false;
             const barWidth = props.barWidth ?? 400;
-            const textX =
-                textAlign === 'right' ? barWidth : textAlign === 'center' ? barWidth / 2 : margin;
+            const textX = textAlign === 'right' ? barWidth : textAlign === 'center' ? barWidth / 2 : margin;
 
             let timeText: string;
             if (countDown) {

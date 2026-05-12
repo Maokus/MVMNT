@@ -76,6 +76,77 @@ export class ChordEstimateDisplayElement extends SceneElement {
                 description:
                     'Estimates the current chord (Pardo–Birmingham-inspired) and displays it as text (timeline-backed)',
                 category: 'MIDI Displays',
+                presets: [
+                    {
+                        id: 'bandDefault',
+                        label: 'Band Default',
+                        values: {
+                            includeTriads: true,
+                            includeDiminished: true,
+                            includeAugmented: false,
+                            includeSevenths: true,
+                            preferBassRoot: true,
+                            showInversion: true,
+                            smoothingMs: 160,
+                        },
+                    },
+                    {
+                        id: 'jazzExtended',
+                        label: 'Jazz Extended',
+                        values: {
+                            includeTriads: true,
+                            includeDiminished: true,
+                            includeAugmented: true,
+                            includeSevenths: true,
+                            preferBassRoot: false,
+                            showInversion: true,
+                            smoothingMs: 240,
+                        },
+                    },
+                    {
+                        id: 'simpleTriads',
+                        label: 'Simple Triads',
+                        values: {
+                            includeTriads: true,
+                            includeDiminished: false,
+                            includeAugmented: false,
+                            includeSevenths: false,
+                            preferBassRoot: true,
+                            showInversion: false,
+                            smoothingMs: 120,
+                        },
+                    },
+                    {
+                        id: 'darkStage',
+                        label: 'Dark Stage',
+                        values: {
+                            fontFamily: 'Inter|600',
+                            chordFontSize: 54,
+                            color: '#f8fafc',
+                            lineSpacing: 8,
+                        },
+                    },
+                    {
+                        id: 'glassOverlay',
+                        label: 'Glass Overlay',
+                        values: {
+                            fontFamily: 'Inter|400',
+                            chordFontSize: 42,
+                            color: '#cbd5f5',
+                            lineSpacing: 4,
+                        },
+                    },
+                    {
+                        id: 'boldBroadcast',
+                        label: 'Broadcast Bold',
+                        values: {
+                            fontFamily: 'Inter|700',
+                            chordFontSize: 60,
+                            color: '#f97316',
+                            lineSpacing: 10,
+                        },
+                    },
+                ],
             },
             [
                 tab.content([
@@ -129,47 +200,6 @@ export class ChordEstimateDisplayElement extends SceneElement {
                                 runtime: { transform: clampSmoothingMs, defaultValue: 1 },
                             },
                         ],
-                        presets: [
-                            {
-                                id: 'bandDefault',
-                                label: 'Band Default',
-                                values: {
-                                    includeTriads: true,
-                                    includeDiminished: true,
-                                    includeAugmented: false,
-                                    includeSevenths: true,
-                                    preferBassRoot: true,
-                                    showInversion: true,
-                                    smoothingMs: 160,
-                                },
-                            },
-                            {
-                                id: 'jazzExtended',
-                                label: 'Jazz Extended',
-                                values: {
-                                    includeTriads: true,
-                                    includeDiminished: true,
-                                    includeAugmented: true,
-                                    includeSevenths: true,
-                                    preferBassRoot: false,
-                                    showInversion: true,
-                                    smoothingMs: 240,
-                                },
-                            },
-                            {
-                                id: 'simpleTriads',
-                                label: 'Simple Triads',
-                                values: {
-                                    includeTriads: true,
-                                    includeDiminished: false,
-                                    includeAugmented: false,
-                                    includeSevenths: false,
-                                    preferBassRoot: true,
-                                    showInversion: false,
-                                    smoothingMs: 120,
-                                },
-                            },
-                        ],
                     },
                 ]),
                 tab.appearance([
@@ -221,38 +251,6 @@ export class ChordEstimateDisplayElement extends SceneElement {
                                 step: 0.01,
                                 visibleWhen: [{ key: 'showChroma', equals: true }],
                             }),
-                        ],
-                        presets: [
-                            {
-                                id: 'darkStage',
-                                label: 'Dark Stage',
-                                values: {
-                                    fontFamily: 'Inter|600',
-                                    chordFontSize: 54,
-                                    color: '#f8fafc',
-                                    lineSpacing: 8,
-                                },
-                            },
-                            {
-                                id: 'glassOverlay',
-                                label: 'Glass Overlay',
-                                values: {
-                                    fontFamily: 'Inter|400',
-                                    chordFontSize: 42,
-                                    color: '#cbd5f5',
-                                    lineSpacing: 4,
-                                },
-                            },
-                            {
-                                id: 'boldBroadcast',
-                                label: 'Broadcast Bold',
-                                values: {
-                                    fontFamily: 'Inter|700',
-                                    chordFontSize: 60,
-                                    color: '#f97316',
-                                    lineSpacing: 10,
-                                },
-                            },
                         ],
                     },
                     propGroup.container(),

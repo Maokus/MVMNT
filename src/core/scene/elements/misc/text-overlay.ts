@@ -53,6 +53,10 @@ export class TextOverlayElement extends SceneElement {
                 name: 'Text',
                 description: 'Multi-line text display',
                 category: 'Misc',
+                presets: [
+                    { id: 'titleCard', label: 'Title Card', values: { text: 'Title Goes Here' } },
+                    { id: 'callToAction', label: 'Call To Action', values: { text: 'Subscribe for more' } },
+                ],
             },
             [
                 tab.content([
@@ -66,10 +70,6 @@ export class TextOverlayElement extends SceneElement {
                                 description: 'The text content to display. Use newlines for multiple lines.',
                             }),
                             prop.number('lineSpacing', 'Line Spacing (px)', 4, { min: 0, max: 80, step: 1 }),
-                        ],
-                        presets: [
-                            { id: 'titleCard', label: 'Title Card', values: { text: 'Title Goes Here' } },
-                            { id: 'callToAction', label: 'Call To Action', values: { text: 'Subscribe for more' } },
                         ],
                     },
                 ]),

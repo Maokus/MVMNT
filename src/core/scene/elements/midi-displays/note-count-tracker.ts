@@ -22,6 +22,16 @@ export class NoteCountTrackerElement extends SceneElement {
                 name: 'Note Count Tracker',
                 description: 'Displays how many notes/events have played so far (timeline-backed)',
                 category: 'MIDI Displays',
+                presets: [
+                    {
+                        id: 'resetDefault',
+                        label: 'Reset to Default',
+                        values: {
+                            formatString:
+                                'Num played notes: #playedNotes/#totalNotes (#percentNotes%)\nNum played events: #playedEvents/#totalEvents (#percentEvents%)',
+                        },
+                    },
+                ],
             },
             [
                 tab.content([
@@ -41,16 +51,6 @@ export class NoteCountTrackerElement extends SceneElement {
                                         'Tokens substituted: #playedNotes, #totalNotes, #percentNotes — note counts; #playedEvents, #totalEvents, #percentEvents — all events including CC messages.',
                                 }
                             ),
-                        ],
-                        presets: [
-                            {
-                                id: 'resetDefault',
-                                label: 'Reset to Default',
-                                values: {
-                                    formatString:
-                                        'Num played notes: #playedNotes/#totalNotes (#percentNotes%)\nNum played events: #playedEvents/#totalEvents (#percentEvents%)',
-                                },
-                            },
                         ],
                     },
                 ]),

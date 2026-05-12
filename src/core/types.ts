@@ -328,6 +328,7 @@ export interface PropertyGroup {
     collapsed: boolean;
     description?: string;
     properties: PropertyDefinition[];
+    /** @deprecated Move presets to the top-level `presets` field on `EnhancedConfigSchema`. */
     presets?: PropertyGroupPreset[];
 }
 
@@ -337,11 +338,20 @@ export interface PropertyTab {
     groups: PropertyGroup[];
 }
 
+export interface ElementPreset {
+    id: string;
+    label: string;
+    description?: string;
+    thumbnail?: string;
+    values: Record<string, unknown>;
+}
+
 export interface EnhancedConfigSchema {
     name: string;
     description: string;
     category?: string;
     tabs: PropertyTab[];
+    presets?: ElementPreset[];
 }
 
 export interface SceneElementInterface {
