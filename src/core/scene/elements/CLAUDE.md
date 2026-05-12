@@ -1,229 +1,78 @@
 # Scene Element Property Conventions
 
-These guidelines cover how to organise properties in `getConfigSchema()` — tabs, groups, naming, and
-visibility rules. Follow them when adding or editing element properties so the inspector stays
-consistent across elements.
-
----
+Use these rules when defining `getConfigSchema()` so inspector properties stay consistent.
 
 ## Tabs
 
-Use `tab.*` helpers from `plugin-sdk-prop-groups`. The **Transform** tab is automatically prepended
-by `insertElementGroups` — do not create it.
+Use `tab.*` from `plugin-sdk-prop-groups`. Do **not** create the Transform tab; `insertElementGroups` adds it automatically.
 
-| Helper                          | When to use                                                    |
-| ------------------------------- | -------------------------------------------------------------- |
-| `tab.content()`                 | Source selection, behaviour mode, data input, general settings |
-| `tab.appearance()`              | Colors, opacity, blend modes, typography, background, borders  |
-| `tab.animation()`               | Timing, easing, hold/decay parameters                          |
-| `tab.advanced()`                | Technical or rarely-changed properties                         |
-| `tab.custom(id, label, groups)` | Only when none of the above fit                                |
+- `tab.content()` — source, data, behaviour, general settings
+- `tab.appearance()` — colors, opacity, blend modes, typography, background, borders
+- `tab.animation()` — timing, easing, hold/decay
+- `tab.advanced()` — technical or rarely changed settings
+- `tab.custom(id, label, groups)` — only when the standard tabs do not fit
 
-Tabs that the element doesn't need can be omitted. A simple element may have only `tab.content()`.
+Omit unused tabs.
 
----
+## Group order
 
-## Group order within a tab
+Within each tab, keep groups in this order:
 
-Follow the canonical section order defined in `section.*` / `propGroup.*`:
-
-```
-Source → Content → Layout → Appearance → Typography → Border → Container → Effects → Advanced
+```text
+Source -> Content -> Layout -> Appearance -> Typography -> Border -> Container -> Effects -> Advanced
 ```
 
-This applies within any single tab. Groups that belong to a different tab follow the same order
-within their own tab.
+## Groups
 
----
+- Use `propGroup.audioSource()` or `propGroup.midiSource()` for sources; place source groups first in `tab.content()`.
+- Use inline `PropertyGroup` objects for element-specific settings; keep important/main groups `collapsed: false`.
+- Put always-visible surface colors in `tab.appearance()` with a clear label such as `Colors`, `Primary Colors`, or `Bar Color`; keep these groups `collapsed: false`.
+- Use `propGroup.appearance({ blendMode: true })` for simple single-surface elements.
+- For multiple surfaces, use `propGroup.appearance({ keyPrefix: 'primary' })`, etc.
+- For optional visual features, keep the toggle and dependent properties in the same group, and hide dependent properties with `visibleWhen`.
+- Prefer factories where they fit: `propGroup.container()`, `propGroup.shadow()`, `propGroup.border()`.
+- Inline background groups belong in `tab.appearance()`, label `Background`, and should be `collapsed: true`.
 
-## Property groups
+## Visibility
 
-### Source group
+Use `visibleWhen` for properties that only apply in certain states. Multiple conditions are AND-ed.
 
-Use the factory — do not inline a bare track picker:
+Supported conditions:
 
 ```ts
-propGroup.audioSource(); // key: 'audioTrackId'
-propGroup.midiSource(); // key: 'midiTrackId'
+{ key, equals: value }
+{ key, notEquals: value }
+{ key, truthy: true }
 ```
 
-Source groups are placed first inside `tab.content()`.
+Never show color pickers for disabled features. Pair every feature toggle with `visibleWhen` on all dependent properties.
 
-### Content / feature groups
+## Naming
 
-Inline custom `PropertyGroup` objects for element-specific settings. Keep `collapsed: false` so
-the most important settings are visible immediately:
+- Main surface: `color`, `opacity`, `blendMode`
+- Named surfaces: `{surface}Color`, `{surface}Opacity`, `{surface}BlendMode`
+- Background: `background*`
+- Shadow: `shadow*`
+- Border: `border*`, plus `cornerRadius`
+- Stroke: `stroke*`
+- Dimensions: `width`, `height`
+- Domain sizes: descriptive keys, units in labels only, e.g. `windowSeconds` with `Window (seconds)`
 
-```ts
-{
-    id: 'waveform',
-    label: 'Oscilloscope',
-    collapsed: false,
-    properties: [ ... ],
-}
-```
+## Collapsed defaults
 
-### Appearance — colors for always-visible surfaces
+Use `collapsed: false` for main content, source, and always-visible/secondary surface color groups.
 
-Color properties for surfaces that are always visible belong in `tab.appearance()` inside a group
-whose label describes the surface (e.g. `'Colors'`, `'Primary Colors'`, `'Bar Color'`). The group
-should be `collapsed: false`.
+Use `collapsed: true` for background, border, container, shadow, and anything labelled `Advanced`.
 
-Use `propGroup.appearance()` for simple single-surface elements:
+## Animation Determinism
 
-```ts
-propGroup.appearance({ blendMode: true }); // generates: color, opacity, blendMode
-```
+`_buildRenderObjects()` must be **deterministic**: identical inputs (`targetTime` + props) must always produce identical output, regardless of call order or history.
 
-For multi-surface elements, use `propGroup.appearance({ keyPrefix: 'primary' })` to generate
-`primaryColor`, `primaryOpacity`, etc., and repeat for each surface with a distinct prefix.
+**Do not** store animation state as instance fields (e.g. note-on/off time maps). Doing so makes scrubbing, export, and non-sequential rendering produce incorrect results.
 
-### Appearance — colors for optionally-enabled features
+**Do** derive all animation values from `targetTime` and event times fetched from the SDK:
+- Query notes in a lookback window via `api.timeline.selectNotesInWindow()`
+- Compute elapsed time as `targetTime - note.startTime` (for on-animations) or `targetTime - note.endTime` (for fade-out)
+- For note range auto-detection, use `api.timeline.getNoteRange()` — not `midiCache` internals
 
-When a visual feature can be toggled on/off (shadows, backgrounds, strokes, secondary channels),
-put its toggle and its color properties **in the same group**, with the color properties hidden
-until the toggle is `true`:
-
-```ts
-{
-    id: 'shadow',
-    label: 'Shadow',
-    collapsed: true,
-    properties: [
-        prop.boolean('shadowEnabled', 'Drop Shadow', false),
-        prop.color('shadowColor', 'Shadow Color', '#000000', {
-            visibleWhen: [{ key: 'shadowEnabled', equals: true }],
-        }),
-        prop.number('shadowBlur', 'Shadow Blur (px)', 8, {
-            visibleWhen: [{ key: 'shadowEnabled', equals: true }],
-        }),
-    ],
-}
-```
-
-Use the ready-made factories where they fit:
-
-```ts
-propGroup.container(); // background container toggle + color/padding/radius (collapsed: true)
-propGroup.shadow(); // drop shadow toggle + color/blur/offset (collapsed: true)
-propGroup.border(); // border color + width (collapsed: true)
-```
-
-These factories produce groups that are `collapsed: true` by default because they are secondary to
-the element's main purpose.
-
-### Background groups (not the container factory)
-
-When an element has its own inline background (not the container factory), put it in
-`tab.appearance()` inside a group labelled `'Background'`, `collapsed: true`:
-
-```ts
-{
-    id: 'background',
-    label: 'Background',
-    collapsed: true,
-    properties: [
-        prop.color('backgroundColor', 'Background Color', '#0F172A'),
-        prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
-    ],
-}
-```
-
----
-
-## visibleWhen
-
-Use `visibleWhen` to hide properties that are irrelevant given the current state. Multiple
-conditions are AND-ed together:
-
-```ts
-prop.color('gridColor', 'Grid Color', '#ffffff', {
-    visibleWhen: [
-        { key: 'displayMode', equals: 'grid' },
-        { key: 'showGrid', equals: true },
-    ],
-});
-```
-
-Available condition shapes:
-
-- `{ key, equals: value }` — exact equality
-- `{ key, notEquals: value }` — inequality
-- `{ key, truthy: true }` — truthy check
-
-**Never show color pickers for features that are currently disabled.** Pair every feature toggle
-with `visibleWhen` on all of that feature's sub-properties.
-
----
-
-## Property naming
-
-| Purpose                     | Key pattern                           | Examples                                     |
-| --------------------------- | ------------------------------------- | -------------------------------------------- |
-| Primary color/opacity       | `color` + `opacity`                   | `color`, `opacity`                           |
-| Named surface color/opacity | `{surface}Color` + `{surface}Opacity` | `primaryColor`, `secondaryColor`, `barColor` |
-| Blend modes                 | `{surface}BlendMode`                  | `blendMode`, `primaryBlendMode`              |
-| Background                  | `background*`                         | `backgroundColor`, `backgroundOpacity`       |
-| Shadow                      | `shadow*`                             | `shadowEnabled`, `shadowColor`, `shadowBlur` |
-| Border                      | `border*`                             | `borderColor`, `borderWidth`, `cornerRadius` |
-| Stroke                      | `stroke*`                             | `strokeColor`, `strokeWidth`                 |
-| Dimensions                  | `width`, `height`                     | —                                            |
-| Domain sizes                | descriptive + unit in label           | `windowSeconds`, `barCount`, `minDb`         |
-
-Always include units in the property **label**, not in the key: `'Width (px)'`, `'Window (seconds)'`.
-
----
-
-## Collapsed state
-
-| Pattern                                     | `collapsed` |
-| ------------------------------------------- | ----------- |
-| Main content group (most elements have one) | `false`     |
-| Source group                                | `false`     |
-| Secondary surface colors                    | `false`     |
-| Background group                            | `true`      |
-| `propGroup.border()`                        | `true`      |
-| `propGroup.container()`                     | `true`      |
-| `propGroup.shadow()`                        | `true`      |
-| Anything labelled 'Advanced'                | `true`      |
-
----
-
-## Quick reference — structural template
-
-```ts
-static override getConfigSchema(): EnhancedConfigSchema {
-    return insertElementGroups(
-        super.getConfigSchema(),
-        { name: 'Element Name', description: '...', category: 'Category' },
-        [
-            tab.content([
-                propGroup.audioSource(),          // if audio element
-                {
-                    id: 'main',
-                    label: 'Element Name',
-                    collapsed: false,
-                    properties: [
-                        // dimension, mode, behaviour props
-                    ],
-                },
-            ]),
-            tab.appearance([
-                propGroup.appearance({ blendMode: true }),   // always-visible surface
-                {                                            // optional feature with toggle
-                    id: 'background',
-                    label: 'Background',
-                    collapsed: true,
-                    properties: [
-                        prop.boolean('showBackground', 'Show Background', false),
-                        prop.color('backgroundColor', 'Color', '#000000', {
-                            visibleWhen: [{ key: 'showBackground', equals: true }],
-                        }),
-                    ],
-                },
-                propGroup.shadow(),
-            ]),
-        ]
-    );
-}
-```
+See `src/plugins/midipack1/popcat-midi-display.ts` for the reference implementation.

@@ -55,14 +55,12 @@ export class CollisionMidiDisplayElement extends SceneElement {
                             }),
                         ],
                     },
-                ]),
-                tab.appearance([
                     {
-                        id: 'appearance',
-                        label: 'Appearance',
+                        id: 'noteRange',
+                        label: 'Note Range',
                         collapsed: false,
+                        description: 'Filter which MIDI notes are displayed.',
                         properties: [
-                            prop.number('noteSize', 'Note Size', 40, { step: 1 }),
                             prop.number('minNote', 'Min Note', 0, {
                                 min: 0,
                                 max: 127,
@@ -74,21 +72,6 @@ export class CollisionMidiDisplayElement extends SceneElement {
                                 max: 127,
                                 step: 1,
                                 description: 'Only display notes at or below this MIDI note number',
-                            }),
-                            prop.number('gap', 'Gap', 16, { step: 1 }),
-                            prop.number('spacing', 'Spacing', 12, { step: 1 }),
-                            prop.colorAlpha('squareColor', 'Square Color', '#334155FF'),
-                            prop.colorAlpha('squareActiveColor', 'Square Active Color', '#6366F1FF', {
-                                description: 'Color the square takes on while the note is being held',
-                            }),
-                            prop.colorAlpha('circleColor', 'Circle Color', '#10B981FF'),
-                            prop.boolean('showNoteNames', 'Show Note Names', true),
-                            prop.font('labelFontFamily', 'Note Label Font', 'Inter', {
-                                description: 'Font family for note name labels (Google Fonts supported).',
-                            }),
-                            prop.number('labelFontSize', 'Note Label Font Size', 0, {
-                                step: 1,
-                                description: '0 = auto (scales with note size)',
                             }),
                         ],
                         presets: [
@@ -102,16 +85,64 @@ export class CollisionMidiDisplayElement extends SceneElement {
                         ],
                     },
                 ]),
-                tab.advanced([
+                tab.appearance([
+                    {
+                        id: 'layout',
+                        label: 'Layout',
+                        collapsed: false,
+                        properties: [
+                            prop.number('noteSize', 'Note Size', 40, { step: 1 }),
+                            prop.number('gap', 'Gap', 16, {
+                                step: 1,
+                                description: 'Vertical distance between circle rest position and square',
+                            }),
+                            prop.number('spacing', 'Spacing', 12, {
+                                step: 1,
+                                description: 'Horizontal gap between note columns',
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'colors',
+                        label: 'Colors',
+                        collapsed: false,
+                        properties: [
+                            prop.colorAlpha('squareColor', 'Square', '#334155FF'),
+                            prop.colorAlpha('squareActiveColor', 'Square (Active)', '#6366F1FF', {
+                                description: 'Color the square takes on while the note is being held',
+                            }),
+                            prop.colorAlpha('circleColor', 'Circle', '#10B981FF'),
+                        ],
+                    },
+                    {
+                        id: 'labels',
+                        label: 'Labels',
+                        collapsed: false,
+                        properties: [
+                            prop.boolean('showNoteNames', 'Show Note Names', true),
+                            prop.font('labelFontFamily', 'Font', 'Inter', {
+                                description: 'Font family for note name labels (Google Fonts supported).',
+                                visibleWhen: [{ key: 'showNoteNames', truthy: true }],
+                            }),
+                            prop.number('labelFontSize', 'Font Size', 0, {
+                                step: 1,
+                                description: '0 = auto (scales with note size)',
+                                visibleWhen: [{ key: 'showNoteNames', truthy: true }],
+                            }),
+                        ],
+                    },
+                ]),
+                tab.animation([
                     {
                         id: 'timing',
                         label: 'Timing',
-                        collapsed: true,
+                        collapsed: false,
                         properties: [
                             prop.number('bounceDuration', 'Bounce Duration (s)', 0.12, {
                                 min: 0.02,
                                 max: 0.5,
                                 step: 0.01,
+                                description: 'How long the square pop animation lasts when a note strikes',
                             }),
                         ],
                     },

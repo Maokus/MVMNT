@@ -10,10 +10,6 @@ import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 import { applyOpacity } from '@utils/color';
 
 export class NotesPlayingDisplayElement extends SceneElement {
-    private _noteOnTimes = new Map<number, number>();
-    private _noteOffTimes = new Map<number, number>();
-    private _lastRenderTime = -Infinity;
-
     constructor(id: string = 'notesPlayingDisplay', config: { [key: string]: any } = {}) {
         super('notesPlayingDisplay', id, config);
     }
@@ -234,68 +230,64 @@ export class NotesPlayingDisplayElement extends SceneElement {
         const fadeOutDuration = Math.max(0, (props.fadeOutDuration as number) ?? 0);
         const animationType = (props.animationType as string) ?? 'none';
 
-        // Determine active notes at effectiveTime via plugin host API
         const trackId = props.midiTrackId;
-        const activeNotes = new Set<number>();
         const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
-        const timelineState = status === 'ok' ? api?.timeline.getStateSnapshot() : null;
+
+        // Determine note state at effectiveTime purely from the timeline.
+        // Active notes: started before effectiveTime, end after it.
+        // Fading notes: ended within the fadeOutDuration window before effectiveTime.
+        // Both are derived from note events — no frame-to-frame state is stored.
+        const activeNotes = new Set<number>();
+        // note → latest startTime among notes active at effectiveTime
+        const noteOnTimes = new Map<number, number>();
+        // note → latest endTime among notes that ended within the fade window
+        const noteOffTimes = new Map<number, number>();
+
         if (trackId && api && status === 'ok') {
-            const EPS = 1e-3;
-            const notes = api.timeline.selectNotesInWindow({
+            const lookbackSec = Math.max(fadeOutDuration + 0.5, 10);
+            const recent = api.timeline.selectNotesInWindow({
                 trackIds: [trackId],
-                startSec: effectiveTime - EPS,
-                endSec: effectiveTime + EPS,
+                startSec: effectiveTime - lookbackSec,
+                endSec: effectiveTime + 0.1,
             });
-            for (const n of notes) {
-                if (typeof n.note === 'number') activeNotes.add(n.note);
-            }
-        }
 
-        // Note state tracking for fade out and animation.
-        // Reset on large time jumps (scrubbing).
-        if (Math.abs(effectiveTime - this._lastRenderTime) > 1.0) {
-            this._noteOnTimes.clear();
-            this._noteOffTimes.clear();
-        }
-        this._lastRenderTime = effectiveTime;
+            for (const n of recent) {
+                if (n.startTime <= effectiveTime && effectiveTime < n.endTime) {
+                    activeNotes.add(n.note);
+                    const prev = noteOnTimes.get(n.note);
+                    if (prev === undefined || n.startTime > prev) noteOnTimes.set(n.note, n.startTime);
+                } else if (
+                    fadeOutDuration > 0 &&
+                    n.endTime <= effectiveTime &&
+                    n.endTime >= effectiveTime - fadeOutDuration
+                ) {
+                    const prev = noteOffTimes.get(n.note);
+                    if (prev === undefined || n.endTime > prev) noteOffTimes.set(n.note, n.endTime);
+                }
+            }
 
-        // Record note-on times for newly active notes; clear off times for still-active notes.
-        for (const note of activeNotes) {
-            if (!this._noteOnTimes.has(note)) this._noteOnTimes.set(note, effectiveTime);
-            this._noteOffTimes.delete(note);
-        }
-        // Record note-off times for notes that just became inactive.
-        for (const [note] of this._noteOnTimes) {
-            if (!activeNotes.has(note) && !this._noteOffTimes.has(note)) {
-                this._noteOffTimes.set(note, effectiveTime);
-            }
-        }
-        // Expire notes whose fade has finished.
-        for (const [note, offTime] of this._noteOffTimes) {
-            if (fadeOutDuration <= 0 || effectiveTime - offTime > fadeOutDuration) {
-                this._noteOffTimes.delete(note);
-                this._noteOnTimes.delete(note);
-            }
+            // Active notes take precedence: remove from fading set.
+            for (const note of activeNotes) noteOffTimes.delete(note);
         }
 
         // The set of notes that should appear this frame (active + still fading).
         const renderNotes = new Set<number>(activeNotes);
         if (fadeOutDuration > 0) {
-            for (const [note] of this._noteOffTimes) renderNotes.add(note);
+            for (const [note] of noteOffTimes) renderNotes.add(note);
         }
 
-        // Per-note helpers for fade opacity and animation scale.
+        // Per-note helpers for fade opacity and animation scale — derived from event times only.
         const getNoteOpacity = (note: number): number => {
             if (activeNotes.has(note)) return 1;
             if (fadeOutDuration <= 0) return 0;
-            const offTime = this._noteOffTimes.get(note);
+            const offTime = noteOffTimes.get(note);
             if (offTime === undefined) return 0;
             return Math.max(0, 1 - (effectiveTime - offTime) / fadeOutDuration);
         };
 
         const getNoteScale = (note: number): number => {
             if (animationType === 'none') return 1;
-            const onTime = this._noteOnTimes.get(note);
+            const onTime = noteOnTimes.get(note);
             if (onTime === undefined) return 1;
             const elapsed = effectiveTime - onTime;
             if (animationType === 'bump') {
@@ -353,17 +345,13 @@ export class NotesPlayingDisplayElement extends SceneElement {
             const strokeWidth = Math.max(0, (props.gridStrokeWidth as number) ?? 0);
             const strokeColor = strokeWidth > 0 ? ((props.gridStrokeColor as string) ?? '#0f172a') : null;
 
-            // Determine start note: auto-detect lowest note in MIDI file when -1
+            // Determine start note: auto-detect lowest note via SDK when -1
             let startNote = Math.floor((props.gridStartNote as number) ?? -1);
             if (startNote === -1) {
-                if (trackId && api && status === 'ok' && timelineState) {
-                    const track = timelineState.tracks[trackId];
-                    const midiSourceId = (track as { midiSourceId?: string })?.midiSourceId;
-                    const bounds = midiSourceId ? timelineState.midiCache[midiSourceId]?.bounds : undefined;
-                    startNote = bounds ? bounds.minNote : 0;
-                } else {
-                    startNote = 0;
-                }
+                const range = trackId && api && status === 'ok'
+                    ? api.timeline.getNoteRange({ trackIds: [trackId] })
+                    : null;
+                startNote = range ? range.min : 0;
             }
 
             const renderNotesForGrid = new Set<number>(renderNotes);
