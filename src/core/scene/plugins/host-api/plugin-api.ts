@@ -11,6 +11,7 @@ import type { TimelineNoteEvent } from '@core/timing/types';
 import type { TimelineCCEvent } from '@core/timing/types';
 import {
     getFeatureData as getFeatureDataFromScene,
+    getFeatureDataRange as getFeatureDataRangeFromScene,
     type FeatureDataResult,
     type FeatureInput,
 } from '@audio/features/sceneApi';
@@ -239,6 +240,7 @@ export interface CreatePluginHostApiDeps {
     selectTracksByIds?: typeof selectTracksByIdsSelector | null;
     selectMidiTracks?: typeof selectMidiTracksSelector | null;
     getFeatureData?: typeof getFeatureDataFromScene | null;
+    getFeatureDataRange?: typeof getFeatureDataRangeFromScene | null;
 }
 
 export interface CreatePluginHostApiResult {
@@ -311,6 +313,8 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
     const selectTracksByIds = deps.selectTracksByIds === undefined ? selectTracksByIdsSelector : deps.selectTracksByIds;
     const selectMidiTracks = deps.selectMidiTracks === undefined ? selectMidiTracksSelector : deps.selectMidiTracks;
     const getFeatureData = deps.getFeatureData === undefined ? getFeatureDataFromScene : deps.getFeatureData;
+    const getFeatureDataRange =
+        deps.getFeatureDataRange === undefined ? getFeatureDataRangeFromScene : deps.getFeatureDataRange;
 
     const hasTimelineRead = Boolean(
         timelineStore &&
@@ -460,18 +464,18 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                 );
             },
             sampleFeatureRange({ element, trackId, feature, startTime, endTime, stepSec, samplingOptions }) {
-                if (!hasAudioFeaturesRead || !getFeatureData || stepSec <= 0 || endTime < startTime) {
+                if (!hasAudioFeaturesRead || !getFeatureDataRange || stepSec <= 0 || endTime < startTime) {
                     return [];
                 }
-                const samples: FeatureDataResult[] = [];
-                const elementRef = element ?? DEFAULT_AUDIO_ELEMENT_REF;
-                for (let t = startTime; t <= endTime; t += stepSec) {
-                    const sample = getFeatureData(elementRef, trackId, feature, t, samplingOptions ?? null);
-                    if (sample) {
-                        samples.push(sample);
-                    }
-                }
-                return samples;
+                return getFeatureDataRange(
+                    element ?? DEFAULT_AUDIO_ELEMENT_REF,
+                    trackId,
+                    feature,
+                    startTime,
+                    endTime,
+                    stepSec,
+                    samplingOptions ?? null
+                );
             },
             getRawSamples({ trackId, startSec, endSec, channel = 'mono' }) {
                 if (!hasAudioRawRead || !timelineStore) return null;

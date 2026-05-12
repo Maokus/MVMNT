@@ -46,18 +46,18 @@ An image or GIF that ships with the plugin, with an optional user override. Demo
 A shape that scales with audio volume (RMS). Demonstrates:
 
 - `registerFeatureRequirements()` to declare needed audio features
-- `getPluginHostApi([PLUGIN_CAPABILITIES.audioFeaturesRead])`
-- `api.audio.sampleFeatureAtTime()` and the `rms` feature
-- Graceful fallback when the audio API is unavailable
+- `getRequiredPluginApi([PLUGIN_CAPABILITIES.audioFeaturesRead])`
+- `host.api.audio.sampleFeatureAtTime()` and the `rms` feature
+- Graceful fallback via `host.renderFallback()` when the audio API is unavailable
 
 ### `midi-notes.ts` — MIDI Reactive Visual
 
 Displays currently playing MIDI notes as colored bars. Demonstrates:
 
 - `prop.midiTrack()` for track selection
-- `getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead])`
-- `api.timeline.selectNotesInWindow()` for querying active notes
-- `api.utilities.midiNoteToName()` for human-readable note labels
+- `getRequiredPluginApi([PLUGIN_CAPABILITIES.timelineRead])`
+- `host.api.timeline.selectNotesInWindow()` for querying active notes
+- `host.api.utilities.midiNoteToName()` for human-readable note labels
 
 ### `image-atlas.ts` — Animated Sprite / Atlas
 

@@ -7,7 +7,7 @@ import {
     tab,
     Rectangle,
     Text,
-    getPluginHostApi,
+    getRequiredPluginApi,
     PLUGIN_CAPABILITIES,
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
@@ -70,20 +70,10 @@ export class MidiNotesElement extends SceneElement {
 
         // Get MIDI data at current time from public host plugin API
         const EPS = 1e-3; // Small epsilon to get notes at current time
-        const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
+        if (!host.ok) return host.renderFallback();
 
-        if (!api || status !== 'ok') {
-            const message =
-                status === 'unsupported-version'
-                    ? 'Plugin API version unsupported'
-                    : missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
-                      ? 'Timeline API unavailable (requires timeline.read)'
-                      : 'Plugin host API unavailable';
-            objects.push(new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top'));
-            return objects;
-        }
-
-        const activeNotes = api.timeline.selectNotesInWindow({
+        const activeNotes = host.api.timeline.selectNotesInWindow({
             trackIds: [props.midiTrackId],
             startSec: targetTime - EPS,
             endSec: targetTime + EPS,
@@ -104,7 +94,7 @@ export class MidiNotesElement extends SceneElement {
 
             // Draw note name if enabled
             if (props.showNoteNames) {
-                const noteName = api.utilities.midiNoteToName(noteData.note);
+                const noteName = host.api.utilities.midiNoteToName(noteData.note);
                 objects.push(
                     new Text(
                         x + props.noteWidth / 2,

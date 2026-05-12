@@ -17,7 +17,7 @@ import {
     prop,
     insertElementGroups,
     tab,
-    getPluginHostApi,
+    getRequiredPluginApi,
     PLUGIN_CAPABILITIES,
     Rectangle,
     Line,
@@ -84,13 +84,8 @@ export class FallingNotesElement extends SceneElement {
         }
 
         // Request timeline read capability.
-        const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
-        if (!api || status !== 'ok') {
-            const message = missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
-                ? 'Timeline API unavailable (requires timeline.read)'
-                : 'Plugin host API unavailable';
-            return [new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top')];
-        }
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
+        if (!host.ok) return host.renderFallback();
 
         const w = props.width as number;
         const h = props.height as number;
@@ -102,7 +97,7 @@ export class FallingNotesElement extends SceneElement {
         // Query all notes visible in the lookahead window.
         // We include a small tail behind now (0.1 s) so notes that just fired
         // linger at the bottom momentarily rather than vanishing abruptly.
-        const notes: TimelineNoteEvent[] = api.timeline.selectNotesInWindow({
+        const notes: TimelineNoteEvent[] = host.api.timeline.selectNotesInWindow({
             trackIds: [props.midiTrackId],
             startSec: targetTime - 0.1,
             endSec: targetTime + lookahead,

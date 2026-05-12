@@ -6,8 +6,7 @@ import {
     insertElementGroups,
     tab,
     Rectangle,
-    Text,
-    getPluginHostApi,
+    getRequiredPluginApi,
     PLUGIN_CAPABILITIES,
     registerFeatureRequirements,
     type RenderObject,
@@ -82,20 +81,11 @@ export class AudioReactiveElement extends SceneElement {
 
         const objects: RenderObject[] = [];
 
-        const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.audioFeaturesRead]);
-        if (!api || status !== 'ok') {
-            const message =
-                status === 'unsupported-version'
-                    ? 'Plugin API version unsupported'
-                    : missingCapabilities.includes(PLUGIN_CAPABILITIES.audioFeaturesRead)
-                      ? 'Audio API unavailable (requires audio.features.read)'
-                      : 'Plugin host API unavailable';
-            objects.push(new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top'));
-            return objects;
-        }
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioFeaturesRead]);
+        if (!host.ok) return host.renderFallback();
 
         // Get audio data from public host API
-        const audioData = api.audio.sampleFeatureAtTime({
+        const audioData = host.api.audio.sampleFeatureAtTime({
             element: this,
             trackId: props.audioTrackId,
             feature: 'rms',

@@ -42,9 +42,25 @@ export class AudioSpectrumElement extends SceneElement {
 Call `getFeatureData` to retrieve tempo-aligned frames, passing any runtime smoothing or
 interpolation options you want to apply during rendering. The subscription controller keeps the
 descriptor warm even if the element is still waiting for a persisted ID, using a deterministic
-fallback key until `SceneElement.id` is assigned.【F:src/audio/features/sceneApi.ts†L66-L207】 For
-range windows (such as oscilloscopes), use `sampleFeatureFrame` directly so you can control the
-start and end ticks.【F:src/core/scene/elements/audioFeatureUtils.ts†L126-L213】
+fallback key until `SceneElement.id` is assigned.【F:src/audio/features/sceneApi.ts†L66-L207】
+
+For range windows (such as waveform history or oscilloscope traces), use `getFeatureDataRange`
+instead of calling `getFeatureData` in a loop. It resolves the descriptor and subscription
+controller once, then calls `sampleFeatureFrame` directly in a tight inner loop:
+
+```ts
+import { getFeatureDataRange } from '@mvmnt/plugin-sdk';
+
+const frames = getFeatureDataRange(this, trackId, 'rms', startTime, endTime, stepSec, { smoothing: 4 });
+for (const frame of frames) {
+    // frame.values[], frame.metadata.descriptor, etc.
+}
+```
+
+`getFeatureDataRange` returns the same `FeatureDataResult[]` shape as `getFeatureData`, skipping
+time steps where no cached frame is available. If you need explicit control over the inner loop
+(e.g. mixed features or non-uniform steps), use `sampleFeatureFrame` directly from
+`@audio/audioFeatureUtils`.【F:src/core/scene/elements/audioFeatureUtils.ts†L126-L213】
 
 ## Accessing raw PCM samples
 
@@ -55,19 +71,18 @@ avoids the temporal quantisation inherent in hop-aligned features and gives samp
 Request the `audioRawRead` capability alongside any other capabilities you need:
 
 ```ts
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
-const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.audioRawRead, PLUGIN_CAPABILITIES.timingConversion]);
+const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioRawRead, PLUGIN_CAPABILITIES.timingConversion]);
+if (!host.ok) return host.renderFallback();
 
-if (api && status === 'ok') {
-    const left = api.audio.getRawSamples({
-        trackId,
-        startSec, // absolute timeline seconds
-        endSec,
-        channel: 'left', // 'left' | 'right' | 'mono' | number
-    });
-    const right = api.audio.getRawSamples({ trackId, startSec, endSec, channel: 'right' }) ?? left;
-}
+const left = host.api.audio.getRawSamples({
+    trackId,
+    startSec, // absolute timeline seconds
+    endSec,
+    channel: 'left', // 'left' | 'right' | 'mono' | number
+});
+const right = host.api.audio.getRawSamples({ trackId, startSec, endSec, channel: 'right' }) ?? left;
 ```
 
 `startSec`/`endSec` are **timeline seconds** (same coordinate space as `targetTime`). The
@@ -84,7 +99,7 @@ you never need to subtract the track's start position yourself.
 For RMS amplitude without pre-computed feature tracks, use `getRmsInWindow`:
 
 ```ts
-const rms = api.audio.getRmsInWindow({ trackId, startSec, endSec });
+const rms = host.api.audio.getRmsInWindow({ trackId, startSec, endSec });
 // rms[0] = left/mono, rms[1] = right (for stereo tracks)
 ```
 

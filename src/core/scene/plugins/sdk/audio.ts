@@ -35,6 +35,10 @@ export type {
 // Convenience shortcuts (return safe defaults when API unavailable)
 export { sampleAudio, sampleAudioRange } from '@core/scene/plugins/plugin-sdk-shortcuts';
 
+// Lower-level range sampler: resolves descriptor+controller once, then loops sampleFeatureFrame.
+// Prefer this over calling getFeatureData in a manual loop for multi-frame sampling.
+export { getFeatureDataRange } from '@audio/features/sceneApi';
+
 // Feature requirement registration (used in element class bodies)
 export { registerFeatureRequirements } from '@audio/audioElementMetadata';
 export type { AudioFeatureRequirement } from '@audio/audioElementMetadata';
