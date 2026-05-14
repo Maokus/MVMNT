@@ -87,40 +87,122 @@ function makeResult(
     };
 }
 
-/**
- * Degree-aware omit/alteration detection.
- *
- * Both `actual` and `expected` should be in the same compressed [1, 15] space.
- * Alteration labels are derived from the expected interval's degree name rather
- * than the actual note's label — e.g. P5 (7) flattened gives "b5", not "#4".
- */
-function computeOmitsAndAlterations(actual: number[], expected: number[]): { omits: string[]; alterations: string[] } {
-    const omits: string[] = [];
-    const alterations: string[] = [];
-    const actualSet = new Set(actual);
+// --- MUSICPY-LIKE CANDIDATE COMPARISON HELPERS ---
 
-    for (const exp of expected) {
-        if (!actualSet.has(exp)) {
-            const expLabel = SEMITONE_TO_DEGREE[exp];
-            if (actualSet.has(exp - 1)) {
+/** True if a and b contain the same values in the same order. */
+function sameNotesOrdered(a: number[], b: number[]): boolean {
+    if (a.length !== b.length) return false;
+    return a.every((v, i) => v === b[i]);
+}
+
+/** True if a and b contain the same values as sets (unordered). */
+function samePitchClassSet(a: number[], b: number[]): boolean {
+    if (a.length !== b.length) return false;
+    const setA = new Set(a);
+    return b.every(v => setA.has(v));
+}
+
+/** True if every note in actual is present in candidate. */
+function containsAllActualNotesInCandidate(actual: number[], candidate: number[]): boolean {
+    const candSet = new Set(candidate);
+    return actual.every(n => candSet.has(n));
+}
+
+/**
+ * True if actual can be obtained from candidate by moving each differing note
+ * by exactly ±1 semitone (sorted index-wise, same length required).
+ */
+function changeFrom(actual: number[], candidate: number[]): boolean {
+    if (actual.length !== candidate.length) return false;
+    const sa = [...actual].sort((a, b) => a - b);
+    const sc = [...candidate].sort((a, b) => a - b);
+    return sa.every((a, i) => a === sc[i] || Math.abs(a - sc[i]) === 1);
+}
+
+/**
+ * Returns the inversion index (0-based) if the first note of actual is found
+ * inside candidate, otherwise 0.
+ */
+function inversionWay(actual: number[], candidate: number[]): number {
+    if (actual.length === 0) return 0;
+    const idx = candidate.indexOf(actual[0]);
+    return idx >= 0 ? idx : 0;
+}
+
+/**
+ * Bidirectional omit/alteration detection mirroring musicpy's candidate comparison.
+ *
+ * Both `actual` and `candidate` should be in the same compressed [1, 15] space.
+ *
+ * Priority order:
+ *   1. actual ⊆ candidate  → pure omission (no alterations)
+ *   2. same length + changeFrom → pure alteration (no omissions)
+ *   3. mixed: greedy exact-then-±1 matching; unmatched actual notes are
+ *      treated as extensions (unlabelled) rather than forced alterations.
+ */
+function computeOmitsAndAlterations(actual: number[], candidate: number[]): { omits: string[]; alterations: string[] } {
+    // Case 1: actual ⊆ candidate → pure omission
+    if (containsAllActualNotesInCandidate(actual, candidate)) {
+        const actualSet = new Set(actual);
+        const omits = candidate
+            .filter(c => !actualSet.has(c))
+            .map(c => SEMITONE_TO_DEGREE[c] ?? String(c));
+        return { omits, alterations: [] };
+    }
+
+    // Case 2: same length, each difference ±1 → pure alteration
+    if (actual.length === candidate.length && changeFrom(actual, candidate)) {
+        const sa = [...actual].sort((a, b) => a - b);
+        const sc = [...candidate].sort((a, b) => a - b);
+        const alterations: string[] = [];
+        for (let i = 0; i < sc.length; i++) {
+            if (sa[i] !== sc[i]) {
+                const expLabel = SEMITONE_TO_DEGREE[sc[i]];
                 if (expLabel) {
                     const numeric = expLabel.replace(/^[b#]+/, '');
-                    alterations.push('b' + numeric);
-                } else {
-                    alterations.push(SEMITONE_TO_DEGREE[exp - 1] ?? String(exp - 1));
+                    alterations.push((sa[i] < sc[i] ? 'b' : '#') + numeric);
                 }
-            } else if (actualSet.has(exp + 1)) {
-                if (expLabel) {
-                    const numeric = expLabel.replace(/^[b#]+/, '');
-                    alterations.push('#' + numeric);
-                } else {
-                    alterations.push(SEMITONE_TO_DEGREE[exp + 1] ?? String(exp + 1));
-                }
-            } else {
-                omits.push(expLabel ?? String(exp));
             }
         }
+        return { omits: [], alterations };
     }
+
+    // Case 3: mixed — greedy bidirectional matching
+    // Each slot in candidate can be consumed at most once.
+    const candUsed = new Array<boolean>(candidate.length).fill(false);
+    const actMatched = new Set<number>();
+    const alterations: string[] = [];
+
+    // Pass 1: exact matches
+    for (const act of actual) {
+        const idx = candidate.findIndex((c, i) => !candUsed[i] && c === act);
+        if (idx !== -1) {
+            candUsed[idx] = true;
+            actMatched.add(act);
+        }
+    }
+
+    // Pass 2: ±1 alterations
+    for (const act of actual) {
+        if (actMatched.has(act)) continue;
+        const idx = candidate.findIndex((c, i) => !candUsed[i] && Math.abs(act - c) === 1);
+        if (idx !== -1) {
+            const cand = candidate[idx];
+            const expLabel = SEMITONE_TO_DEGREE[cand];
+            if (expLabel) {
+                const numeric = expLabel.replace(/^[b#]+/, '');
+                alterations.push((act < cand ? 'b' : '#') + numeric);
+            }
+            candUsed[idx] = true;
+            actMatched.add(act);
+        }
+        // Unmatched actual notes are extensions — not labelled as alterations
+    }
+
+    // Unmatched candidate notes are omitted
+    const omits = candidate
+        .filter((_, i) => !candUsed[i])
+        .map(c => SEMITONE_TO_DEGREE[c] ?? String(c));
 
     return { omits, alterations };
 }
@@ -207,27 +289,6 @@ export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}):
         const bassNote = origRootPC !== bassPC ? bassPC : null;
         const inversion = bassNote !== null ? computeInversion(origRootPC, bassPC, origIntervals) : 0;
         return makeResult({ root: origRootPC, chordType, inversion, bassNote, confidence: 1.0 });
-    }
-
-    // --- SAME NOTE SPECIAL (Phase 3) ---
-    // If the input pitch-class set equals a chord's pitch-class set exactly, return immediately
-    // with confidence 1.0 — no need for similarity scoring.
-
-    if (sameNoteSpecial) {
-        const inputPCs = new Set(deduplicated.map(m => ((m % 12) + 12) % 12));
-        for (const entry of CHORD_TYPES) {
-            for (const rootMidi of deduplicated) {
-                const rootPC = ((rootMidi % 12) + 12) % 12;
-                const chordPCs = new Set<number>([rootPC]);
-                for (const iv of entry.intervals) chordPCs.add((rootPC + iv) % 12);
-                if (pcsEqual(inputPCs, chordPCs)) {
-                    const compIntervals = compressedEntryIntervals(entry.intervals);
-                    const bassNote = rootPC !== bassPC ? bassPC : null;
-                    const inversion = bassNote !== null ? computeInversion(rootPC, bassPC, compIntervals) : 0;
-                    return makeResult({ root: rootPC, chordType: entry.name, inversion, bassNote, confidence: 1.0 });
-                }
-            }
-        }
     }
 
     // --- ORIGINAL ORDER SIMILARITY (Phase 2 + Phase 4) ---
@@ -380,6 +441,10 @@ export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}):
     }
 
     const candidates: SimilarityCandidate[] = [];
+    // Precompute input pitch-class set once for sameNoteSpecial scoring.
+    const inputPCsForSameNote = sameNoteSpecial
+        ? new Set(deduplicated.map(m => ((m % 12) + 12) % 12))
+        : null;
 
     for (const rootMidi of deduplicated) {
         const rootPC = ((rootMidi % 12) + 12) % 12;
@@ -387,7 +452,16 @@ export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}):
 
         for (const entry of CHORD_TYPES) {
             const compExpected = compressedEntryIntervals(entry.intervals);
-            const score = sequenceSimilarity(intervals, compExpected);
+            let score = sequenceSimilarity(intervals, compExpected);
+
+            // sameNoteSpecial: if pitch-class sets match exactly, elevate score to 1.0
+            // rather than returning early — keeps all candidates in the ranking pass.
+            if (inputPCsForSameNote && score < 1.0) {
+                const chordPCs = new Set<number>([rootPC]);
+                for (const iv of entry.intervals) chordPCs.add((rootPC + iv) % 12);
+                if (pcsEqual(inputPCsForSameNote, chordPCs)) score = 1.0;
+            }
+
             if (score >= similarityRatio) {
                 candidates.push({
                     root: rootPC,
