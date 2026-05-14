@@ -1,0 +1,138 @@
+Chord Naming
+
+Streamlined Naming System
+Reworked chord suffix logic:
+
+    Minor chords are consistently labeled as m
+
+    Major chords are labeled as Maj
+
+
+    Examples: Cm, CMaj, Cm7, CMaj7, CmM7
+
+Improved Augmented / Diminished Detection
+
+    Refined recognition of E–Ab–C–G: now displayed as Eaug(#9) instead of E(add#5,#9)
+
+    Automatically suppresses redundant #5 or b5 markings in augmented/diminished chords
+
+Alt Label Optimization
+
+    Chords such as 7#9 no longer force an additional alt label when altered tensions are already explicitly defined
+
+Added 5 Chord Support
+
+    Root + perfect fifth is now explicitly displayed as a 5 chord (power chord)
+
+Core Engine Fixes
+Two-Note / Interval Analysis
+
+    Two-note input now displays the interval name in real time (e.g., Major 3rd, Perfect 4th)
+
+    Fixed C–D–G being incorrectly detected as Csus2add9
+
+        Now correctly identified as Csus2
+
+        Adds inversion hint: Gsus4/C
+
+Omission & Inversion Logic Refactor
+
+    Fixed ambiguous detection for C–Eb–F
+
+        Now prioritizes Cmadd11(no5)
+
+        Also suggests F7(no3)
+
+    Adjusted preference for C–Eb–G–Ab
+
+        Now recognized as Cm(b13)
+
+        Provides AbM7/C as inversion reference
+
+Extended Tension Enhancements
+
+11 / 13 Series
+
+    Fixed incomplete detection for C–Eb–G–D–F
+
+        Now correctly recognized as Cmadd9,11
+
+#11 Series
+
+    Fixed failure to detect #11 in C–E–F#–B
+
+        CM7(#11) is now recognized even without the fifth
+
+b13 / Alt Series
+
+    Added support for 7(b13) and 7(b9,b13) including versions with the fifth
+
+    Expanded detection for common jazz alterations: 7(#5,#9) and 7alt
+
+    Added recognition for 7(#9) including full five-note voicings
+
+b5 Series
+
+    Added full support for: Maj7b5, 7b5, 9b5, 13b5
+
+UI & Interaction
+
+Sharp / Flat Toggle
+
+    Added global # / b toggle
+
+    Switch between sharp-based or flat-based note naming instantly
+
+Improved Inversion Display
+
+    Refined first inversion handling for minor chords
+
+        Avoids misleading labels such as D#M6, and instead prioritizes root-related interpretation
+
+    Added more inversion and enharmonic references in the secondary suggestion line
+
+        Example: Gsus now also references related Csus structures
+
+Changelog:
+
+    Sustain Pedal Support: Added full support for MIDI CC 64 (Sustain Pedal).
+
+    Sticky Mode: Introduced a new Freeze/Sticky mode. When enabled, the display will hold the last detected chord after the MIDI signal ceases.
+
+    Chord Visualization: Optimized the display for dim7 and dim7(b13) chords.
+
+    Enhanced Detection: Chords consisting of E3,G#3,C4,E4,G#4,A#4, and D#5 will now be correctly identified and displayed as EMaj7(b5 b13).
+
+    UI Refinement: Redesigned the visual style of the # / b (Sharp/Flat) toggle in the top-right corner.
+
+    Layout Optimization: Improved the typography and spatial arrangement of the Theme Menu.
+
+    Algorithm & Stability: Enhanced the core recognition algorithm and fixed several known bugs.
+
+Added chord degree display mode, allowing switching between Roman numerals and Arabic numerals.
+
+Chord degree display mode now supports specifying the current key.
+
+Redesigned the menu style.
+
+Improved the theme system: foreground and background colors can now be customized.
+
+Made all plugin parameters persistent.
+
+Fixed unresponsive buttons and theme display issues in Cubase.
+
+Algorithm optimizations and other bug fixes.
+
+Grand Staff View: MIDI Lens can now display your playing as live sheet music. Notes are rendered in real time on both the treble and bass clef as you play.
+
+Keyboard Degree Labels: In Degree Display Mode, scale degree numbers based on the selected key are now shown above the piano keyboard.
+
+Added a new menu option: "Show Scale Degrees Above Keyboard in Default Mode". When enabled, degree labels appear above each key even when the chord display is in standard (non-degree) mode.
+
+The plugin window is now resizable.
+
+Improved the visual style of hover tooltips.
+
+Refined the naming of sus chords. Inversion display for seventh and ninth chords is now more accurate.
+
+Significant algorithm improvements, code cleanup, and various rendering refinements.
