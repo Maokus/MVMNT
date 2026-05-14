@@ -10,6 +10,7 @@ export type MusicpyChordResult = {
     alterations: string[]; // e.g. ["b5", "#9"]
     isPolychord: boolean;
     upperChord: MusicpyChordResult | null;
+    lowerChord: MusicpyChordResult | null; // populated for 7+ note polychords (lower half chord)
     confidence: number; // 0-1
 };
 
@@ -42,8 +43,9 @@ const INTERVAL_NAMES: Record<number, string> = {
 };
 
 /**
- * Compute 2*|intersection| / (|a| + |b|) — mirrors Python SequenceMatcher.ratio()
- * for short sorted integer arrays (which is what musicpy uses in find_similarity).
+ * Dice coefficient: 2 * |intersection| / (|a| + |b|).
+ * For sorted, deduplicated integer arrays this is equivalent to Python
+ * SequenceMatcher.ratio() because matching blocks reduce to common elements.
  */
 export function sequenceSimilarity(a: number[], b: number[]): number {
     if (a.length === 0 && b.length === 0) return 1;
@@ -80,6 +82,7 @@ function makeResult(
         alterations: [],
         isPolychord: false,
         upperChord: null,
+        lowerChord: null,
         ...overrides,
     };
 }
@@ -177,13 +180,16 @@ export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}):
 
     // --- DEDUPLICATE + BASS ---
 
+    // Preserve original note order after deduplication — mirrors musicpy's note order.
     const deduplicated = deduplicatePitchClasses(midiNotes);
-    const bassPC = ((deduplicated[0] % 12) + 12) % 12;
+    // Sorted copy needed for bass detection and polychord splitting.
+    const sortedDeduplicated = [...deduplicated].sort((a, b) => a - b);
+    const bassPC = ((sortedDeduplicated[0] % 12) + 12) % 12;
 
     // --- POLYCHORD FIRST ---
 
     if (polyChordFirst && deduplicated.length >= 4) {
-        const poly = tryPolychord(deduplicated, options);
+        const poly = tryPolychord(sortedDeduplicated, options);
         if (poly) return poly;
     }
 
@@ -291,10 +297,11 @@ export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}):
 
     if (wholeDetect && exactHits.length === 0) {
         const voicings = allVoicings(origIntervals);
-        for (const voicing of voicings) {
+        for (const { intervals: voicing, rootOffset } of voicings) {
             const key = intervalKey(voicing);
             if (DETECT_MAP.has(key)) {
-                exactHits.push({ root: origRootPC, chordType: DETECT_MAP.get(key)!, intervals: voicing });
+                const voicingRootPC = (origRootPC + rootOffset) % 12;
+                exactHits.push({ root: voicingRootPC, chordType: DETECT_MAP.get(key)!, intervals: voicing });
             }
         }
     }
@@ -428,21 +435,26 @@ export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}):
     // --- POLYCHORD SPLIT ---
 
     if (!polyChordFirst && deduplicated.length >= 4) {
-        const poly = tryPolychord(deduplicated, options);
+        const poly = tryPolychord(sortedDeduplicated, options);
         if (poly) return poly;
     }
 
     return null;
 }
 
-function tryPolychord(deduplicated: number[], options: DetectOptions): MusicpyChordResult | null {
-    const n = deduplicated.length;
-    const bassPC = ((deduplicated[0] % 12) + 12) % 12;
+function tryPolychord(sortedDeduplicated: number[], options: DetectOptions): MusicpyChordResult | null {
+    const n = sortedDeduplicated.length;
+    const bassPC = ((sortedDeduplicated[0] % 12) + 12) % 12;
 
-    // Split rule: 4–5 notes → lower = single bass note, upper = rest;
-    //             6+ notes  → lower = first floor(n/2) notes, upper = remaining.
-    const lower = n < 6 ? deduplicated.slice(0, 1) : deduplicated.slice(0, Math.floor(n / 2));
-    const upper = n < 6 ? deduplicated.slice(1) : deduplicated.slice(Math.floor(n / 2));
+    // 4–6 notes → single bass note (lower) + upper chord.
+    // 7+ notes  → split into two halves, both detected as full chords.
+    const splitHalf = n >= 7;
+    const lower = splitHalf
+        ? sortedDeduplicated.slice(0, Math.floor(n / 2))
+        : sortedDeduplicated.slice(0, 1);
+    const upper = splitHalf
+        ? sortedDeduplicated.slice(Math.floor(n / 2))
+        : sortedDeduplicated.slice(1);
 
     const subOpts: DetectOptions = { ...options, polyChordFirst: false };
     const lowerResult = detectMusicpy(lower, subOpts);
@@ -461,6 +473,7 @@ function tryPolychord(deduplicated: number[], options: DetectOptions): MusicpyCh
             chordType: `${upperResult.root}/${lowerResult.root}`,
             isPolychord: true,
             upperChord: upperResult,
+            lowerChord: splitHalf ? lowerResult : null,
             bassNote: bassPC,
             confidence: 0.7,
         });
@@ -476,6 +489,11 @@ function tryPolychord(deduplicated: number[], options: DetectOptions): MusicpyCh
  */
 export function formatResult(result: MusicpyChordResult): string {
     if (result.isPolychord && result.upperChord) {
+        if (result.lowerChord) {
+            // 7+ notes: both halves are full chords
+            return `${formatResult(result.upperChord)}/${formatResult(result.lowerChord)}`;
+        }
+        // 4–6 notes: upper chord over a single bass root
         return `${formatResult(result.upperChord)}/${NOTE_NAMES[result.root]}`;
     }
 

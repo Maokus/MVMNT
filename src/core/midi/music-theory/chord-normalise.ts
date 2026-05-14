@@ -4,18 +4,21 @@
  */
 
 /**
- * Remove notes with identical pitch class, keeping the lowest MIDI note for each.
- * Returns MIDI notes sorted ascending by pitch.
+ * Remove notes with identical pitch class, keeping the first occurrence.
+ * Preserves the original input order — callers that need pitch-sorted notes
+ * must sort the result themselves.
  */
 export function deduplicatePitchClasses(midiNotes: number[]): number[] {
-    const pcToMidi = new Map<number, number>();
+    const seen = new Set<number>();
+    const result: number[] = [];
     for (const n of midiNotes) {
         const pc = ((n % 12) + 12) % 12;
-        if (!pcToMidi.has(pc) || n < pcToMidi.get(pc)!) {
-            pcToMidi.set(pc, n);
+        if (!seen.has(pc)) {
+            seen.add(pc);
+            result.push(n);
         }
     }
-    return [...pcToMidi.values()].sort((a, b) => a - b);
+    return result;
 }
 
 /**
@@ -106,18 +109,18 @@ export function allInversions(intervals: number[]): number[][] {
  * relative to it. This is the brute-force fallback for `wholeDetect` mode.
  *
  * @param intervals - Sorted interval array from the root (≤ 5 elements recommended).
+ * @returns Array of `{ intervals, rootOffset }` where `rootOffset` is the semitone distance
+ *          from the original root to this voicing's root (in the same interval space).
  */
-export function allVoicings(intervals: number[]): number[][] {
+export function allVoicings(intervals: number[]): { intervals: number[]; rootOffset: number }[] {
     const notes = [0, ...intervals];
     if (notes.length > 6) {
-        // Guard against combinatorial explosion — caller should check before calling
-        return [intervals];
+        return [{ intervals, rootOffset: 0 }];
     }
 
     const seenKeys = new Set<string>();
-    const result: number[][] = [];
+    const result: { intervals: number[]; rootOffset: number }[] = [];
 
-    // Try each note as the potential root
     for (const root of notes) {
         const voicingIntervals: number[] = [];
         const seen = new Set<number>();
@@ -133,7 +136,7 @@ export function allVoicings(intervals: number[]): number[][] {
         const key = voicingIntervals.join(',');
         if (!seenKeys.has(key)) {
             seenKeys.add(key);
-            result.push(voicingIntervals);
+            result.push({ intervals: voicingIntervals, rootOffset: root });
         }
     }
 
