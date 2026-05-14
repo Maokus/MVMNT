@@ -6,16 +6,18 @@ describe('sceneStore descriptor smoothing migration', () => {
         const raw: SceneSerializedElement = {
             id: 'spectrum',
             type: 'audioSpectrum',
-            features: {
-                type: 'constant',
-                value: [
-                    {
-                        featureKey: 'spectrogram',
-                        calculatorId: 'calc.spectrogram',
-                        bandIndex: null,
-                        smoothing: 6,
-                    },
-                ],
+            properties: {
+                features: {
+                    type: 'constant',
+                    value: [
+                        {
+                            featureKey: 'spectrogram',
+                            calculatorId: 'calc.spectrogram',
+                            bandIndex: null,
+                            smoothing: 6,
+                        },
+                    ],
+                },
             },
         };
 
@@ -38,16 +40,18 @@ describe('sceneStore descriptor smoothing migration', () => {
         const raw: SceneSerializedElement = {
             id: 'meter',
             type: 'audioVolumeMeter',
-            features: {
-                type: 'constant',
-                value: [
-                    {
-                        featureKey: 'rms',
-                        smoothing: 8,
-                    },
-                ],
+            properties: {
+                features: {
+                    type: 'constant',
+                    value: [
+                        {
+                            featureKey: 'rms',
+                            smoothing: 8,
+                        },
+                    ],
+                },
+                smoothing: { type: 'constant', value: 2 },
             },
-            smoothing: { type: 'constant', value: 2 },
         };
 
         const bindings = deserializeElementBindings(raw);

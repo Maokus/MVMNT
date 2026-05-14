@@ -25,40 +25,64 @@ const ChangelogPage: React.FC = () => {
                             'Full visual curve editing and interpolation',
                             'Added tempo automation',
                             'i to add keyframe',
-                            'blender-style auto keying'
+                            'blender-style auto keying',
+                            'the timeline panel alone now has 7k lines of code. i hate it'
                         ],
-                        'Added community tab',
+                        'Added community page',
                         [
                             'Browse and share templates and plugins',
-                            'Install plugins and open templates directly from the community tab'
+                            'Install plugins and open templates directly from the community tab',
+                            'Search and filter by tags',
                         ],
-                        'Misc Improvements/new content',
+                        'Misc Improvements',
                         [
+                            'Internally store MIDI as binary to reduce file sizes',
+                            'Improve timeline navigation (scroll in peace)',
+                            'Change color picker',
+                            'Modify persistence system (now uses indexeddb so you don\'t keep losing your progress on reload)',
+                            'MIDI Preview uses canvas rather than rendering thousands of divs',
+                        ],
+                        'Full rework of inbuilt elements',
+                        [
+                            'Implement tabs for properties',
+                            'Audit builtin elements for property display and usage consistency and quality',
                             'Add basic shapes element',
                             'Add MIDI cc monitor element',
                             'More note animations for TUPR/MNPR',
-                            'Internally store MIDI as binary to reduce file sizes',
-                            'Improve timeline navigation',
-                            'Change color picker'
+                            'Notes Playing Display given two new display modes inspired by tn-shi and ableton push respectively',
+                            'Notes Played Tracker given format string property for improved flexibility',
+                            'Audio volume element has peak/rms modes, reference lines and improved styling',
+                            'Audio Locked Oscilloscope optimised for non-realtime environment',
+                            'Chord estimation algorithm rework'
                         ],
-                        'Implemented custom element system and api',
+                        'Implemented custom element plugin system',
                         [
-                            'Added builtin pack of custom elements',
                             'Embed plugins into save files',
-                            'DevEx quality of life scripts',
-                            'Support midi cc in midi ingestion and expose via api',
+                            'Support midi cc in midi ingestion',
                             'Element property factories',
-                            'Improve version conflict management'
+                            'Improve version conflict management',
+                            'Consolidated api',
+                            'DevEx quality of life scripts',
+                            'Make custom audio feature extraction possible',
+                        ],
+                        'Added asset manager',
+                        [
+                            'Good™️ file management',
+                            'Bundle assets with plugins',
+                            'Drag and drop image creation',
+                            'Support for sparrow atlases (like FNF!)',
+                            'Generalised image render object to VisualMedia'
                         ],
                         'Extended renderobject system',
                         [
                             'Support blend modes, filters and layers',
                             'Improve glow logic',
+                            'Implemented origin calculations',
                         ],
                         'Bugfixes',
                         [
                             'Allowed pre-time unit attack animations in TUPR',
-                            'Changed all angle measurement units to radians (this might break some files)'
+                            'Changed some angle measurement units to radians (this might break some files)'
                         ],
                     ]} />
 

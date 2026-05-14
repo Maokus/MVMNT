@@ -23,9 +23,6 @@ export interface PluginManifest {
 
 export interface PluginElementManifest {
     type: string;
-    name: string;
-    category: string;
-    description?: string;
     entry: string;
     icon?: string;
     thumbnail?: string;

@@ -19,7 +19,7 @@ import {
     resolveFeatureTrackFromCache,
     sanitizeAnalysisProfileId,
 } from '@audio/features/featureTrackIdentity';
-import type { TempoMapEntry, NoteRaw, CCEventRaw } from '@state/timelineTypes';
+import type { TempoMapEntry, NoteRaw, CCEventRaw, MidiCacheBounds } from '@state/timelineTypes';
 import type { TempoKeyframe } from '@core/timing/types';
 import { resolveTempoKeyframes } from '@core/timing/tempo-automation-resolver';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
@@ -47,6 +47,7 @@ import { createTimelineCommandGateway } from './timeline/commandGateway';
 import type { AddTrackCommandResult } from './timeline/commands/addTrackCommand';
 import type { TimelineCommandDispatchResult, TimelineSerializedCommandDescriptor } from './timeline/commandTypes';
 import { mergeFeatureCaches } from './timeline/featureCacheUtils';
+import { useSelectionStore } from '@state/selectionStore';
 
 export { getSharedTimingManager, sharedTimingManager } from './timeline/timelineShared';
 
@@ -101,9 +102,9 @@ export type TimelineState = {
         loopEndTick?: number; // canonical loop end
         rate: number; // playback rate factor (inactive until wired to visualizer/worker)
         quantize: QuantizeSetting; // snap denomination for transport interactions
+        adaptiveSnap: boolean; // when true, snap denominator and grid lines adapt to zoom level
         autoKeying: boolean; // when true, property changes automatically create keyframes
     };
-    selection: { selectedTrackIds: string[] };
     // UI view window in ticks
     timelineView: { startTick: number; endTick: number };
     // Real playback range braces (yellow) in ticks. Optional; when unset, fallback to timelineView.
@@ -112,7 +113,14 @@ export type TimelineState = {
     playbackRangeUserDefined: boolean;
     midiCache: Record<
         string,
-        { midiData: MIDIData; notesRaw: NoteRaw[]; ccRaw: CCEventRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
+        {
+            midiData: MIDIData;
+            notesRaw: NoteRaw[];
+            ccRaw: CCEventRaw[];
+            ticksPerQuarter: number;
+            tempoMap?: TempoMapEntry[];
+            bounds?: MidiCacheBounds;
+        }
     >;
     audioCache: Record<string, AudioCacheEntry>;
     audioFeatureCaches: Record<string, AudioFeatureCache>;
@@ -137,6 +145,7 @@ export type TimelineState = {
     removeTracks: (ids: string[]) => void; // batch removal (single undo snapshot)
     updateTrack: (id: string, patch: Partial<TimelineTrack>) => Promise<void>;
     setTrackOffsetTicks: (id: string, offsetTicks: number) => Promise<void>;
+    setMultipleTrackOffsetTicks: (offsets: Array<{ trackId: string; offsetTicks: number }>) => Promise<void>;
     setTrackRegionTicks: (id: string, startTick?: number, endTick?: number) => Promise<void>;
     setTrackEnabled: (id: string, enabled: boolean) => Promise<void>;
     setTrackMute: (id: string, mute: boolean) => Promise<void>;
@@ -153,13 +162,13 @@ export type TimelineState = {
     scrubTick: (tick: number) => void;
     setRate: (rate: number) => void;
     setQuantize: (q: QuantizeSetting) => void;
+    setAdaptiveSnap: (v: boolean) => void;
     setAutoKeying: (v: boolean) => void;
     setLoopEnabled: (enabled: boolean) => void;
     setLoopRangeTicks: (startTick?: number, endTick?: number) => void;
     toggleLoop: () => void;
     reorderTracks: (order: string[]) => Promise<void>;
     setTimelineViewTicks: (startTick: number, endTick: number) => void;
-    selectTracks: (ids: string[]) => void;
     _clipGroupDrag: { delta: number; trackIds: string[] } | null;
     _setClipGroupDrag: (drag: { delta: number; trackIds: string[] } | null) => void;
     setPlaybackRangeTicks: (startTick?: number, endTick?: number) => void;
@@ -167,7 +176,13 @@ export type TimelineState = {
     setRowHeight: (h: number) => void;
     ingestMidiToCache: (
         id: string,
-        data: { midiData: MIDIData; notesRaw: NoteRaw[]; ccRaw?: CCEventRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
+        data: {
+            midiData: MIDIData;
+            notesRaw: NoteRaw[];
+            ccRaw?: CCEventRaw[];
+            ticksPerQuarter: number;
+            tempoMap?: TempoMapEntry[];
+        }
     ) => void;
     ingestAudioToCache: (
         id: string,
@@ -422,7 +437,6 @@ function createInitialTimelineSlice(): Pick<
     | 'tracks'
     | 'tracksOrder'
     | 'transport'
-    | 'selection'
     | 'midiCache'
     | 'audioCache'
     | 'audioFeatureCaches'
@@ -460,11 +474,11 @@ function createInitialTimelineSlice(): Pick<
             rate: 1.0,
             // Quantize enabled by default (bar snapping)
             quantize: 'bar',
+            adaptiveSnap: true,
             autoKeying: false,
             loopStartTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 2)),
             loopEndTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 5)),
         },
-        selection: { selectedTrackIds: [] },
         _clipGroupDrag: null,
         midiCache: {},
         timelineView: { startTick: 0, endTick: Math.round(beatsToTicks(DEFAULT_TIMING_CONTEXT, 120)) },
@@ -589,6 +603,19 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             throw error;
         }
     },
+    async setMultipleTrackOffsetTicks(offsets: Array<{ trackId: string; offsetTicks: number }>) {
+        if (!offsets.length) return;
+        try {
+            await timelineCommandGateway.dispatchById(
+                'timeline.setMultipleTrackOffsetTicks',
+                { offsets },
+                { source: 'timeline-store' }
+            );
+        } catch (error) {
+            console.error('[timelineStore] setMultipleTrackOffsetTicks command failed', error);
+            throw error;
+        }
+    },
     async setTrackRegionTicks(id: string, startTick?: number, endTick?: number) {
         if (!id) return;
         try {
@@ -701,7 +728,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                         continue;
                     }
                     const offsetTicks = (next.tracks[id] as any)?.offsetTicks ?? 0;
-                    const newDurationTicks = Math.round(timingSecondsToTicksAt(timing, entry.audioBuffer.duration, offsetTicks));
+                    const newDurationTicks = Math.round(
+                        timingSecondsToTicksAt(timing, entry.audioBuffer.duration, offsetTicks)
+                    );
                     updatedAudio[id] = { ...entry, durationTicks: newDurationTicks } as any;
                 }
                 next.audioCache = updatedAudio;
@@ -752,7 +781,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                         continue;
                     }
                     const offsetTicks = (next.tracks[id] as any)?.offsetTicks ?? 0;
-                    const newDurationTicks = Math.round(timingSecondsToTicksAt(timing, entry.audioBuffer.duration, offsetTicks));
+                    const newDurationTicks = Math.round(
+                        timingSecondsToTicksAt(timing, entry.audioBuffer.duration, offsetTicks)
+                    );
                     updatedAudio[id] = { ...entry, durationTicks: newDurationTicks } as any;
                 }
                 next.audioCache = updatedAudio;
@@ -869,6 +900,10 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         set((s: TimelineState) => ({ transport: { ...s.transport, quantize: next } }));
     },
 
+    setAdaptiveSnap(v: boolean) {
+        set((s: TimelineState) => ({ transport: { ...s.transport, adaptiveSnap: v } }));
+    },
+
     setAutoKeying(v: boolean) {
         set((s: TimelineState) => ({ transport: { ...s.transport, autoKeying: v } }));
     },
@@ -911,17 +946,19 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         set(() => ({ timelineView: { startTick: sT, endTick: eT } }));
     },
 
-    selectTracks(ids: string[]) {
-        set(() => ({ selection: { selectedTrackIds: [...ids] } }));
-    },
-
     _setClipGroupDrag(drag) {
         set(() => ({ _clipGroupDrag: drag }));
     },
 
     ingestMidiToCache(
         id: string,
-        data: { midiData: MIDIData; notesRaw: NoteRaw[]; ccRaw?: CCEventRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
+        data: {
+            midiData: MIDIData;
+            notesRaw: NoteRaw[];
+            ccRaw?: CCEventRaw[];
+            ticksPerQuarter: number;
+            tempoMap?: TempoMapEntry[];
+        }
     ) {
         // Update cache; convert beat-based canonical timing to seconds according to current tempo context
         set((s: TimelineState) => {
@@ -934,7 +971,34 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 }
                 return n;
             });
-            return { midiCache: { ...s.midiCache, [id]: { ...data, notesRaw: notes, ccRaw: data.ccRaw ?? [] } } } as TimelineState;
+            // Sort by startTick for binary search in selectNotesInWindow
+            notes.sort((a, b) => a.startTick - b.startTick);
+            // Pre-compute bounds to avoid full scans for range queries
+            let bounds: MidiCacheBounds | undefined;
+            if (notes.length > 0) {
+                let minTick = Infinity,
+                    maxTick = -Infinity,
+                    minNote = 127,
+                    maxNote = 0,
+                    maxDurationTicks = 0;
+                for (const n of notes) {
+                    if (n.startTick < minTick) minTick = n.startTick;
+                    if (n.endTick > maxTick) maxTick = n.endTick;
+                    if (n.note < minNote) minNote = n.note;
+                    if (n.note > maxNote) maxNote = n.note;
+                    if (n.durationTicks > maxDurationTicks) maxDurationTicks = n.durationTicks;
+                }
+                bounds = {
+                    minTick: isFinite(minTick) ? minTick : 0,
+                    maxTick: isFinite(maxTick) ? maxTick : 0,
+                    minNote: isFinite(minNote) ? minNote : 0,
+                    maxNote: isFinite(maxNote) ? maxNote : 127,
+                    maxDurationTicks,
+                };
+            }
+            return {
+                midiCache: { ...s.midiCache, [id]: { ...data, notesRaw: notes, ccRaw: data.ccRaw ?? [], bounds } },
+            } as TimelineState;
         });
         // Now that notes are available, attempt auto adjust (if not user-defined)
         try {
@@ -1274,7 +1338,6 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         set((s: TimelineState) => ({
             tracks: {},
             tracksOrder: [],
-            selection: { selectedTrackIds: [] },
             midiCache: {},
             audioCache: {},
             audioFeatureCaches: {},
@@ -1285,6 +1348,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 fallbackLog: [],
             },
         }));
+        useSelectionStore.getState().clearSelection('tracks');
         try {
             autoAdjustSceneRangeIfNeeded(get, set);
         } catch (error) {
@@ -1409,37 +1473,41 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     enableTempoAutomation() {
         const currentBpm = get().timeline.globalBpm || 120;
-        set((s: TimelineState) => ({
-            timeline: {
-                ...s.timeline,
-                tempoAutomation: {
-                    enabled: true,
-                    keyframes: [{ tick: 0, bpm: currentBpm }],
-                },
-            },
-        } as any));
+        set(
+            (s: TimelineState) =>
+                ({
+                    timeline: {
+                        ...s.timeline,
+                        tempoAutomation: {
+                            enabled: true,
+                            keyframes: [{ tick: 0, bpm: currentBpm }],
+                        },
+                    },
+                }) as any
+        );
         _applyTempoAutomation(get);
     },
 
     disableTempoAutomation() {
-        set((s: TimelineState) => ({
-            timeline: {
-                ...s.timeline,
-                tempoAutomation: {
-                    enabled: false,
-                    keyframes: [],
-                },
-            },
-        } as any));
+        set(
+            (s: TimelineState) =>
+                ({
+                    timeline: {
+                        ...s.timeline,
+                        tempoAutomation: {
+                            enabled: false,
+                            keyframes: [],
+                        },
+                    },
+                }) as any
+        );
         get().setMasterTempoMap(undefined);
     },
 
     addTempoKeyframe(tick: number, bpm: number) {
         set((s: TimelineState) => {
             const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
-            const existing = ta.keyframes.findIndex(
-                (kf) => Math.abs(kf.tick - tick) <= TEMPO_KF_TICK_TOLERANCE,
-            );
+            const existing = ta.keyframes.findIndex((kf) => Math.abs(kf.tick - tick) <= TEMPO_KF_TICK_TOLERANCE);
             let next: TempoKeyframe[];
             if (existing >= 0) {
                 next = [...ta.keyframes];
@@ -1460,9 +1528,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     removeTempoKeyframe(tick: number) {
         set((s: TimelineState) => {
             const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
-            const next = ta.keyframes.filter(
-                (kf) => Math.abs(kf.tick - tick) > TEMPO_KF_TICK_TOLERANCE,
-            );
+            const next = ta.keyframes.filter((kf) => Math.abs(kf.tick - tick) > TEMPO_KF_TICK_TOLERANCE);
             return {
                 timeline: {
                     ...s.timeline,
@@ -1476,9 +1542,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     moveTempoKeyframe(fromTick: number, toTick: number) {
         set((s: TimelineState) => {
             const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
-            const idx = ta.keyframes.findIndex(
-                (kf) => Math.abs(kf.tick - fromTick) <= TEMPO_KF_TICK_TOLERANCE,
-            );
+            const idx = ta.keyframes.findIndex((kf) => Math.abs(kf.tick - fromTick) <= TEMPO_KF_TICK_TOLERANCE);
             if (idx < 0) return s;
             const next = [...ta.keyframes];
             next[idx] = { ...next[idx], tick: toTick };
@@ -1496,9 +1560,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     updateTempoKeyframeBpm(tick: number, bpm: number) {
         set((s: TimelineState) => {
             const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
-            const idx = ta.keyframes.findIndex(
-                (kf) => Math.abs(kf.tick - tick) <= TEMPO_KF_TICK_TOLERANCE,
-            );
+            const idx = ta.keyframes.findIndex((kf) => Math.abs(kf.tick - tick) <= TEMPO_KF_TICK_TOLERANCE);
             if (idx < 0) return s;
             const next = [...ta.keyframes];
             next[idx] = { ...next[idx], bpm };

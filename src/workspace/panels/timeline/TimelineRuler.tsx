@@ -1,31 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { RULER_HEIGHT } from './constants';
-import { useTickScale } from './useTickScale';
+import { useTickScale } from './hooks/useTickScale';
 import { sharedTimingManager } from '@state/timelineStore';
 import { formatTickAsBBT } from '@core/timing/time-domain';
-import { quantizeSettingToBeats, type QuantizeSetting } from '@state/timeline/quantize';
+import { useSnapTicks as useSnapTicksBase } from './hooks/useSnapTicks';
 
-// Snap tick helper
+// Adapter: ruler callers use { altKey, forceBar } opts; shared hook uses positional args.
 function useSnapTicks() {
-    const quantize = useTimelineStore((s) => s.transport.quantize);
-    const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
-    // Use shared singleton timing manager so BPM / tempo map changes propagate consistently
-    const tm = sharedTimingManager;
+    const snap = useSnapTicksBase();
     return useCallback(
         (candidateTick: number, opts?: { altKey?: boolean; forceBar?: boolean }) => {
-            const { altKey, forceBar } = opts || {};
-            if (altKey) return Math.max(0, candidateTick);
-            const target: QuantizeSetting = forceBar ? 'bar' : quantize;
-            if (target === 'off') return Math.max(0, candidateTick);
-            const beatLength = quantizeSettingToBeats(target, beatsPerBar);
-            if (!beatLength) return Math.max(0, candidateTick);
-            const tpq = tm.ticksPerQuarter;
-            const resolution = Math.max(1, Math.round(beatLength * tpq));
-            const snappedUnits = Math.round(candidateTick / resolution);
-            return Math.max(0, snappedUnits * resolution);
+            return snap(candidateTick, opts?.altKey, opts?.forceBar);
         },
-        [quantize, beatsPerBar, tm]
+        [snap]
     );
 }
 

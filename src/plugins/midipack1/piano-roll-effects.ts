@@ -1,15 +1,7 @@
 // Shared hit-effects and note-animation helpers for piano roll elements.
-// Used by almamlike-piano-roll and circular-piano-roll.
+// Used by vidilike-piano-roll and circular-piano-roll.
 
-import {
-    Arc,
-    BezierPath,
-    Line,
-    Poly,
-    remap,
-    Text,
-    type RenderObject,
-} from '@mvmnt/plugin-sdk';
+import { Arc, BezierPath, Line, Poly, remap, Text, type RenderObject } from '@mvmnt/plugin-sdk';
 
 import * as anim from '@mvmnt/plugin-sdk/animation';
 
@@ -47,7 +39,7 @@ export interface CircleRippleConfig {
     fadeFrom: number;
 }
 
-/** Defaults for the burst ripple drawn as tapered triangles (almamlike style). */
+/** Defaults for the burst ripple drawn as tapered triangles (vidilike style). */
 export interface TriangleBurstRippleConfig {
     minRays: number;
     maxRays: number;
@@ -83,7 +75,7 @@ const TRIANGLE_BURST_DEFAULTS: TriangleBurstRippleConfig = {
     easeOutPower: 2.8,
     baseWidthPx: 5,
     angleJitter: 0.55,
-    fadeFrom: 0.40,
+    fadeFrom: 0.4,
 };
 
 const LINE_BURST_DEFAULTS: LineBurstRippleConfig = {
@@ -124,24 +116,43 @@ export function makeRng(seed: number): () => number {
 // Marker helpers (centred at cx, cy)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function drawDiamondMarker(cx: number, cy: number, size: number, color: string, alpha: number, scale: number): RenderObject[] {
+export function drawDiamondMarker(
+    cx: number,
+    cy: number,
+    size: number,
+    color: string,
+    alpha: number,
+    scale: number
+): RenderObject[] {
     const s = (size / 2) * scale;
-    const d = new Poly(
-        [cx, cy - s, cx + s, cy, cx, cy + s, cx - s, cy],
-        withAlpha(color, alpha), null, 0
-    );
+    const d = new Poly([cx, cy - s, cx + s, cy, cx, cy + s, cx - s, cy], withAlpha(color, alpha), null, 0);
     (d as any).setIncludeInLayoutBounds?.(false);
     return [d];
 }
 
-export function drawHeartMarker(cx: number, cy: number, size: number, color: string, alpha: number, scale: number): RenderObject[] {
+export function drawHeartMarker(
+    cx: number,
+    cy: number,
+    size: number,
+    color: string,
+    alpha: number,
+    scale: number
+): RenderObject[] {
     const fontSize = Math.max(10, Math.round(size * scale));
-    const t = new Text(cx, cy, "❤", `bold ${fontSize}px sans-serif`, withAlpha(color, alpha), 'center', 'middle');
+    const t = new Text(cx, cy, '❤', `bold ${fontSize}px sans-serif`, withAlpha(color, alpha), 'center', 'middle');
     (t as any).setIncludeInLayoutBounds?.(false);
     return [t];
 }
 
-export function drawTextMarker(cx: number, cy: number, size: number, color: string, alpha: number, label: string, scale: number): RenderObject[] {
+export function drawTextMarker(
+    cx: number,
+    cy: number,
+    size: number,
+    color: string,
+    alpha: number,
+    label: string,
+    scale: number
+): RenderObject[] {
     const fontSize = Math.max(10, Math.round(size * 0.8 * scale));
     const t = new Text(cx, cy, label, `bold ${fontSize}px sans-serif`, withAlpha(color, alpha), 'center', 'middle');
     (t as any).setIncludeInLayoutBounds?.(false);
@@ -154,10 +165,11 @@ export function drawTextMarker(cx: number, cy: number, size: number, color: stri
 
 /**
  * Expanding ring ripple.
- * @param config - partial overrides for default constants (e.g. startFraction differs between almamlike and circular).
+ * @param config - partial overrides for default constants (e.g. startFraction differs between vidilike and circular).
  */
 export function drawCircleRipple(
-    cx: number, cy: number,
+    cx: number,
+    cy: number,
     progress: number,
     rippleRadius: number,
     color: string,
@@ -177,22 +189,22 @@ export function drawCircleRipple(
 }
 
 /**
- * Burst ripple as randomised tapered triangles (almamlike style).
+ * Burst ripple as randomised tapered triangles (vidilike style).
  * Uses a seeded RNG so ray layouts are stable across frames for the same note.
  */
 export function drawTriangleBurstRipple(
-    cx: number, cy: number,
+    cx: number,
+    cy: number,
     progress: number,
     rippleRadius: number,
     color: string,
     noteSeed: number,
     config?: Partial<TriangleBurstRippleConfig>
 ): RenderObject[] {
-    const {
-        minRays, maxRays,
-        innerFraction, outerFraction,
-        easeOutPower, baseWidthPx, angleJitter, fadeFrom,
-    } = { ...TRIANGLE_BURST_DEFAULTS, ...config };
+    const { minRays, maxRays, innerFraction, outerFraction, easeOutPower, baseWidthPx, angleJitter, fadeFrom } = {
+        ...TRIANGLE_BURST_DEFAULTS,
+        ...config,
+    };
 
     const alpha = anim.remap(fadeFrom, 1, 1, 0, progress);
     if (alpha <= 0) return [];
@@ -238,7 +250,8 @@ export function drawTriangleBurstRipple(
  * Burst ripple as simple evenly-spaced lines (circular piano roll style).
  */
 export function drawLineBurstRipple(
-    cx: number, cy: number,
+    cx: number,
+    cy: number,
     progress: number,
     rippleRadius: number,
     color: string,
@@ -248,7 +261,8 @@ export function drawLineBurstRipple(
     const alpha = anim.remap(fadeFrom, 1, 1, 0, progress);
     if (alpha <= 0) return [];
     const inner = rippleRadius * innerFraction;
-    const outer = rippleRadius * (innerFraction + (outerFraction - innerFraction) * anim.easings.easeOutCubic(progress));
+    const outer =
+        rippleRadius * (innerFraction + (outerFraction - innerFraction) * anim.easings.easeOutCubic(progress));
     const rayColor = withAlpha(color, alpha);
     const out: RenderObject[] = [];
     for (let i = 0; i < numRays; i++) {
@@ -256,9 +270,12 @@ export function drawLineBurstRipple(
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
         const line = new Line(
-            cx + cos * inner, cy + sin * inner,
-            cx + cos * outer, cy + sin * outer,
-            rayColor, strokeWidth
+            cx + cos * inner,
+            cy + sin * inner,
+            cx + cos * outer,
+            cy + sin * outer,
+            rayColor,
+            strokeWidth
         );
         (line as any).setIncludeInLayoutBounds?.(false);
         out.push(line);
@@ -336,13 +353,21 @@ export interface HitEffectsOptions {
 
 export function pushHitEffects(
     effects: RenderObject[],
-    hitX: number, hitY: number,
+    hitX: number,
+    hitY: number,
     timeSinceHit: number,
     opts: HitEffectsOptions
 ): void {
     const {
-        markerType, markerText, markerSize, markerColor, markerDuration,
-        rippleType, rippleRadius, rippleColor, rippleDuration,
+        markerType,
+        markerText,
+        markerSize,
+        markerColor,
+        markerDuration,
+        rippleType,
+        rippleRadius,
+        rippleColor,
+        rippleDuration,
         noteSeed,
     } = opts;
 
@@ -375,12 +400,26 @@ export function pushHitEffects(
         const rippleProgress = timeSinceHit / rippleDuration;
         if (rippleType === 'burst') {
             if (noteSeed !== undefined) {
-                effects.push(...drawTriangleBurstRipple(hitX, hitY, rippleProgress, rippleRadius, rippleColor, noteSeed, opts.triangleBurstConfig));
+                effects.push(
+                    ...drawTriangleBurstRipple(
+                        hitX,
+                        hitY,
+                        rippleProgress,
+                        rippleRadius,
+                        rippleColor,
+                        noteSeed,
+                        opts.triangleBurstConfig
+                    )
+                );
             } else {
-                effects.push(...drawLineBurstRipple(hitX, hitY, rippleProgress, rippleRadius, rippleColor, opts.lineBurstConfig));
+                effects.push(
+                    ...drawLineBurstRipple(hitX, hitY, rippleProgress, rippleRadius, rippleColor, opts.lineBurstConfig)
+                );
             }
         } else if (rippleType === 'circle') {
-            effects.push(...drawCircleRipple(hitX, hitY, rippleProgress, rippleRadius, rippleColor, opts.circleRippleConfig));
+            effects.push(
+                ...drawCircleRipple(hitX, hitY, rippleProgress, rippleRadius, rippleColor, opts.circleRippleConfig)
+            );
         }
     }
 }

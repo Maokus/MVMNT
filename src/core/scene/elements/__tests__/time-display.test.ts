@@ -13,6 +13,7 @@ vi.mock('@state/timelineStore', () => {
                     masterTempoMap: null,
                 },
             }),
+            subscribe: vi.fn(() => () => {}),
         },
     };
 });

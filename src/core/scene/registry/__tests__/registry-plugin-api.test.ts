@@ -6,10 +6,10 @@ import { SceneElement } from '@core/scene/elements/base';
 class TestCustomElement extends SceneElement {
     static override getConfigSchema() {
         return {
+            ...super.getConfigSchema(),
             name: 'Test Custom Element',
             description: 'A test element for plugin registry',
             category: 'test',
-            groups: [],
         };
     }
 
@@ -23,7 +23,9 @@ describe('SceneElementRegistry - Plugin API', () => {
     const testPluginId = 'test.plugin';
 
     afterEach(() => {
-        // Clean up any registered test elements
+        // Clean up plugin-registered elements
+        sceneElementRegistry.unregisterPlugin(testPluginId);
+        // Clean up elements registered without a pluginId
         if (sceneElementRegistry.hasElement(testType)) {
             try {
                 sceneElementRegistry.unregisterElement(testType);
@@ -37,21 +39,21 @@ describe('SceneElementRegistry - Plugin API', () => {
         it('registers a custom element successfully', () => {
             expect(sceneElementRegistry.hasElement(testType)).toBe(false);
 
-            sceneElementRegistry.registerCustomElement(testType, TestCustomElement, {
+            const registryKey = sceneElementRegistry.registerCustomElement(testType, TestCustomElement, {
                 pluginId: testPluginId,
             });
 
-            expect(sceneElementRegistry.hasElement(testType)).toBe(true);
-            expect(sceneElementRegistry.getPluginId(testType)).toBe(testPluginId);
+            expect(sceneElementRegistry.hasElement(registryKey)).toBe(true);
+            expect(sceneElementRegistry.getPluginId(registryKey)).toBe(testPluginId);
         });
 
         it('overrides category when specified', () => {
-            sceneElementRegistry.registerCustomElement(testType, TestCustomElement, {
+            const registryKey = sceneElementRegistry.registerCustomElement(testType, TestCustomElement, {
                 pluginId: testPluginId,
                 overrideCategory: 'custom-category',
             });
 
-            const schema = sceneElementRegistry.getSchema(testType);
+            const schema = sceneElementRegistry.getSchema(registryKey);
             expect(schema?.category).toBe('custom-category');
         });
 
@@ -70,7 +72,10 @@ describe('SceneElementRegistry - Plugin API', () => {
         it('throws error when element class lacks getConfigSchema', () => {
             // Create an element class without getConfigSchema method
             class InvalidElement {
-                constructor(public id: string, public config: any) {}
+                constructor(
+                    public id: string,
+                    public config: any
+                ) {}
                 _buildRenderObjects() {
                     return [];
                 }
@@ -84,16 +89,16 @@ describe('SceneElementRegistry - Plugin API', () => {
 
     describe('unregisterElement', () => {
         it('unregisters a custom element successfully', () => {
-            sceneElementRegistry.registerCustomElement(testType, TestCustomElement, {
+            const registryKey = sceneElementRegistry.registerCustomElement(testType, TestCustomElement, {
                 pluginId: testPluginId,
             });
 
-            expect(sceneElementRegistry.hasElement(testType)).toBe(true);
+            expect(sceneElementRegistry.hasElement(registryKey)).toBe(true);
 
-            const result = sceneElementRegistry.unregisterElement(testType);
+            const result = sceneElementRegistry.unregisterElement(registryKey);
 
             expect(result).toBe(true);
-            expect(sceneElementRegistry.hasElement(testType)).toBe(false);
+            expect(sceneElementRegistry.hasElement(registryKey)).toBe(false);
         });
 
         it('returns false when element does not exist', () => {
@@ -113,21 +118,21 @@ describe('SceneElementRegistry - Plugin API', () => {
             const type1 = 'test-element-1';
             const type2 = 'test-element-2';
 
-            sceneElementRegistry.registerCustomElement(type1, TestCustomElement, {
+            const key1 = sceneElementRegistry.registerCustomElement(type1, TestCustomElement, {
                 pluginId: testPluginId,
             });
-            sceneElementRegistry.registerCustomElement(type2, TestCustomElement, {
+            const key2 = sceneElementRegistry.registerCustomElement(type2, TestCustomElement, {
                 pluginId: testPluginId,
             });
 
-            expect(sceneElementRegistry.hasElement(type1)).toBe(true);
-            expect(sceneElementRegistry.hasElement(type2)).toBe(true);
+            expect(sceneElementRegistry.hasElement(key1)).toBe(true);
+            expect(sceneElementRegistry.hasElement(key2)).toBe(true);
 
             const unregistered = sceneElementRegistry.unregisterPlugin(testPluginId);
 
-            expect(unregistered).toEqual([type1, type2]);
-            expect(sceneElementRegistry.hasElement(type1)).toBe(false);
-            expect(sceneElementRegistry.hasElement(type2)).toBe(false);
+            expect(unregistered).toEqual([key1, key2]);
+            expect(sceneElementRegistry.hasElement(key1)).toBe(false);
+            expect(sceneElementRegistry.hasElement(key2)).toBe(false);
         });
 
         it('returns empty array when plugin has no elements', () => {
@@ -169,10 +174,10 @@ describe('SceneElementRegistry - Plugin API', () => {
 
     describe('getPluginId', () => {
         it('returns plugin ID for custom elements', () => {
-            sceneElementRegistry.registerCustomElement(testType, TestCustomElement, {
+            const registryKey = sceneElementRegistry.registerCustomElement(testType, TestCustomElement, {
                 pluginId: testPluginId,
             });
-            expect(sceneElementRegistry.getPluginId(testType)).toBe(testPluginId);
+            expect(sceneElementRegistry.getPluginId(registryKey)).toBe(testPluginId);
         });
 
         it('returns undefined for built-in elements', () => {

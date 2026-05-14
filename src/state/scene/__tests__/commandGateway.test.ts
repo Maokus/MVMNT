@@ -120,7 +120,7 @@ describe('scene command gateway', () => {
         expect(events[0].durationMs).toBeGreaterThanOrEqual(0);
     });
 
-    it('auto-assigns the sole audio track when adding audio elements', () => {
+    it('does not auto-assign audio tracks when adding audio elements', () => {
         useTimelineStore.setState((state) => ({
             ...state,
             tracks: {
@@ -146,7 +146,7 @@ describe('scene command gateway', () => {
 
         expect(result.success).toBe(true);
         const binding = useSceneStore.getState().bindings.byElement['spectrum-1'].audioTrackId;
-        expect(binding).toEqual({ type: 'constant', value: 'audioTrackA' });
+        expect(binding).toEqual({ type: 'constant', value: '' });
     });
 
     it('routes macro commands through the gateway and keeps store/macros in sync', () => {

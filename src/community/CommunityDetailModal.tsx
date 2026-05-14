@@ -1,16 +1,37 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaDownload, FaStar, FaTrash, FaXmark, FaArrowRight, FaBolt, FaPen, FaArrowsRotate } from 'react-icons/fa6';
+import { FaDownload, FaStar, FaTrash, FaXmark, FaArrowRight, FaBolt, FaPen, FaArrowsRotate, FaLink } from 'react-icons/fa6';
 import type { User } from '@supabase/supabase-js';
-import type { CommunityItem } from './communityApi';
+import type { CommunityItem, UserRole } from './communityApi';
 import { getThumbnailUrl, downloadItem, rateItem, getUserRating, deleteItem, semverGt } from './communityApi';
-import { loadPlugin, upgradePlugin, unloadPlugin } from '@core/scene/plugins';
+import { loadPlugin, upgradePlugin, unloadPlugin, satisfiesVersion, PLUGIN_API_VERSION } from '@core/scene/plugins';
 import { writeStoredImportPayload } from '../utils/importPayloadStorage';
 import { usePluginStore } from '../state/pluginStore';
+import { CURRENT_SCHEMA_VERSION } from '@persistence/validate';
+import pkg from '../../package.json';
+
+interface CompatBadge {
+  level: 'red';
+  message: string;
+}
+
+function getCompatBadge(item: CommunityItem): CompatBadge | null {
+  if (item.template_schema_version != null && item.template_schema_version > CURRENT_SCHEMA_VERSION) {
+    return { level: 'red', message: 'Requires a newer version of MVMNT' };
+  }
+  if (item.plugin_api_version != null && !satisfiesVersion(PLUGIN_API_VERSION, item.plugin_api_version)) {
+    return { level: 'red', message: 'Incompatible with this version of MVMNT' };
+  }
+  if (item.min_app_version != null && semverGt(item.min_app_version, pkg.version ?? '0.0.0')) {
+    return { level: 'red', message: `Requires MVMNT v${item.min_app_version}+` };
+  }
+  return null;
+}
 
 interface CommunityDetailModalProps {
   item: CommunityItem;
   user: User | null;
+  userRole?: UserRole;
   onClose: () => void;
   onItemChanged: () => void;
   onEdit?: () => void;
@@ -23,7 +44,7 @@ function formatBytes(bytes: number): string {
 }
 
 const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
-  item, user, onClose, onItemChanged, onEdit,
+  item, user, userRole, onClose, onItemChanged, onEdit,
 }) => {
   const navigate = useNavigate();
   const plugins = usePluginStore((s) => s.plugins);
@@ -33,6 +54,8 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
   const hasUpdate = isInstalled && item.version != null
     && semverGt(item.version, installedPlugin!.manifest.version);
 
+  const compatBadge = getCompatBadge(item);
+
   const [userRating, setUserRating] = useState<number | null>(null);
   const [hoveredStar, setHoveredStar] = useState<number | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -41,6 +64,15 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showInstallWarning, setShowInstallWarning] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+
+  const handleShare = useCallback(() => {
+    const url = `${window.location.origin}${window.location.pathname}?id=${item.id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    }).catch(() => { });
+  }, [item.id]);
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -154,18 +186,20 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
 
   const handleDelete = useCallback(async () => {
     if (!user || !confirm('Delete this item? This cannot be undone.')) return;
+    const isAdmin = userRole === 'admin';
     setDeleting(true);
     try {
-      await deleteItem(item.id, user.id);
+      await deleteItem(item.id, user.id, isAdmin);
       onItemChanged();
       onClose();
     } catch (err: any) {
       setError(err.message ?? 'Delete failed');
       setDeleting(false);
     }
-  }, [item.id, user, onItemChanged, onClose]);
+  }, [item.id, user, userRole, onItemChanged, onClose]);
 
   const isOwner = user?.id === item.user_id;
+  const canDelete = isOwner || userRole === 'admin';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
@@ -214,7 +248,23 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
               <p className="mt-0.5 text-xs text-neutral-500">by {item.uploader_username}</p>
             )}
             {item.description && <p className="mt-1 text-neutral-400 text-[13px]">{item.description}</p>}
+            {item.tags.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {item.tags.map((tag) => (
+                  <span key={tag} className="rounded bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-[11px] text-neutral-400">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* Compatibility badge */}
+          {compatBadge && (
+            <div className="rounded border border-red-700/60 bg-red-950/40 px-3 py-2 text-[12px] text-red-400">
+              {compatBadge.message}
+            </div>
+          )}
 
           {/* Stats */}
           <div className="flex items-center gap-4 text-xs text-neutral-400">
@@ -260,7 +310,7 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
 
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-2">
-            {isOwner && (
+            {canDelete && (
               <>
                 <button
                   onClick={handleDelete}
@@ -269,7 +319,7 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
                 >
                   <FaTrash className="text-[10px]" /> {deleting ? 'Deleting...' : 'Delete'}
                 </button>
-                {onEdit && (
+                {isOwner && onEdit && (
                   <button
                     onClick={onEdit}
                     className="inline-flex items-center gap-1.5 rounded border border-neutral-600 px-3 py-1.5 text-[13px] font-medium text-neutral-300 transition-colors hover:bg-white/10"
@@ -279,6 +329,13 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
                 )}
               </>
             )}
+            <button
+              onClick={handleShare}
+              className="inline-flex items-center gap-1.5 rounded border border-neutral-600 px-3 py-1.5 text-[13px] font-medium text-neutral-300 transition-colors hover:bg-white/10"
+              aria-label="Copy share link"
+            >
+              <FaLink className="text-[10px]" /> {shareCopied ? 'Copied!' : 'Share'}
+            </button>
             <button
               onClick={handleDownload}
               disabled={downloading}

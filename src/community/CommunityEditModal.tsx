@@ -2,16 +2,18 @@ import React, { useCallback, useState, useRef } from 'react';
 import { FaXmark, FaFloppyDisk } from 'react-icons/fa6';
 import type { User } from '@supabase/supabase-js';
 import type { CommunityItem } from './communityApi';
-import { updateItem, parsePluginManifest, getThumbnailUrl } from './communityApi';
+import { updateItem, parsePluginManifest, getThumbnailUrl, setItemTags, findPluginUidConflict } from './communityApi';
+import CommunityTagInput from './CommunityTagInput';
 
 interface CommunityEditModalProps {
   item: CommunityItem;
   user: User;
+  canCreateTags?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }
 
-const CommunityEditModal: React.FC<CommunityEditModalProps> = ({ item, user, onClose, onSaved }) => {
+const CommunityEditModal: React.FC<CommunityEditModalProps> = ({ item, user, canCreateTags = false, onClose, onSaved }) => {
   const [title, setTitle] = useState(item.title);
   const [description, setDescription] = useState(item.description ?? '');
   const [version, setVersion] = useState(item.version ?? '');
@@ -20,8 +22,10 @@ const CommunityEditModal: React.FC<CommunityEditModalProps> = ({ item, user, onC
   const [mainFile, setMainFile] = useState<File | null>(null);
   const [detectedUid, setDetectedUid] = useState<string | null>(item.plugin_uid);
   const [detectedVersion, setDetectedVersion] = useState<string | null>(null);
+  const [tags, setTags] = useState<string[]>(item.tags ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pluginUidConflict, setPluginUidConflict] = useState(false);
   const thumbInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -45,6 +49,7 @@ const CommunityEditModal: React.FC<CommunityEditModalProps> = ({ item, user, onC
     setMainFile(file);
     setDetectedUid(item.plugin_uid);
     setDetectedVersion(null);
+    setPluginUidConflict(false);
 
     if (file && item.type === 'plugin') {
       const parsed = await parsePluginManifest(file);
@@ -52,9 +57,14 @@ const CommunityEditModal: React.FC<CommunityEditModalProps> = ({ item, user, onC
         setDetectedUid(parsed.id);
         setDetectedVersion(parsed.version);
         setVersion(parsed.version);
+        // Only warn about conflict if the new UID differs from the current one.
+        if (parsed.id !== item.plugin_uid) {
+          const conflictId = await findPluginUidConflict(parsed.id, item.id);
+          setPluginUidConflict(conflictId !== null);
+        }
       }
     }
-  }, [item.plugin_uid, item.type]);
+  }, [item.plugin_uid, item.type, item.id]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +79,7 @@ const CommunityEditModal: React.FC<CommunityEditModalProps> = ({ item, user, onC
         pluginUid: detectedUid ?? undefined,
         version: item.type === 'plugin' && version.trim() ? version.trim() : undefined,
       });
+      await setItemTags(item.id, tags);
       onSaved();
       onClose();
     } catch (err: any) {
@@ -76,7 +87,7 @@ const CommunityEditModal: React.FC<CommunityEditModalProps> = ({ item, user, onC
     } finally {
       setSaving(false);
     }
-  }, [item.id, item.type, user.id, title, description, version, thumbnailFile, mainFile, detectedUid, onSaved, onClose]);
+  }, [item.id, item.type, user.id, title, description, version, thumbnailFile, mainFile, detectedUid, tags, onSaved, onClose]);
 
   const inputClass = "w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none";
 
@@ -187,7 +198,15 @@ const CommunityEditModal: React.FC<CommunityEditModalProps> = ({ item, user, onC
                 <span className="rounded bg-neutral-800 px-2 py-0.5 font-mono text-neutral-300">{detectedUid}</span>
               </div>
             )}
+            {pluginUidConflict && detectedUid && (
+              <p className="mt-1 text-xs text-red-400">
+                A plugin with ID <span className="font-mono">{detectedUid}</span> already exists in the community. Plugin IDs must be globally unique.
+              </p>
+            )}
           </div>
+
+          {/* Tags */}
+          <CommunityTagInput tags={tags} onChange={setTags} canCreateTags={canCreateTags} />
 
           {error && <p className="text-xs text-red-400">{error}</p>}
 
@@ -201,7 +220,7 @@ const CommunityEditModal: React.FC<CommunityEditModalProps> = ({ item, user, onC
             </button>
             <button
               type="submit"
-              disabled={saving || !title.trim()}
+              disabled={saving || !title.trim() || pluginUidConflict}
               className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"
             >
               <FaFloppyDisk className="text-[11px]" /> {saving ? 'Saving...' : 'Save'}

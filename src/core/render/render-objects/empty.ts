@@ -1,5 +1,5 @@
 import { RenderObject, RenderConfig, Bounds } from './base';
-import { applyRSK } from '@math/numeric';
+import { applyRSK } from '@math/transforms/numeric';
 
 interface AnchorVisualizationData {
     layoutBounds: Bounds;

@@ -86,7 +86,8 @@ describe('Arc render object', () => {
         arc.setStroke(null, 0);
         arc.setFillColor('#FF0000');
         arc.setAngles(Math.PI / 2, 0, true);
-        arc.setPosition(20, -10);
+        arc.x = 20;
+        arc.y = -10;
         const bounds = arc.getBounds();
         expect(bounds.x).toBeCloseTo(20, 6);
         expect(bounds.y).toBeCloseTo(-10, 6);

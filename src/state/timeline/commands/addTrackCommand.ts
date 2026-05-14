@@ -13,6 +13,7 @@ import {
     type TimelineTrackLike,
 } from '../patches';
 import type { TimelineCommandContext, TimelineCommandExecuteResult } from '../commandTypes';
+import { useSelectionStore } from '@state/selectionStore';
 
 export type AddTrackCommandPayload =
     | {
@@ -208,7 +209,7 @@ export function createAddTrackCommand(
             telemetryEvent: 'timeline_add_track',
         },
         async execute(context: TimelineCommandContext): Promise<TimelineCommandExecuteResult<AddTrackCommandResult>> {
-            const previousSelection = context.getState().selection.selectedTrackIds;
+            const previousSelection = useSelectionStore.getState().selectedTrackIds;
             if (payload.type === 'midi') {
                 const track: TimelineTrack = {
                     id,

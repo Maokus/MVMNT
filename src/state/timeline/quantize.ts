@@ -54,3 +54,44 @@ export function quantizeSettingToTicks(setting: QuantizeSetting, beatsPerBar: nu
     const resolution = beatLength * ticksPerQuarter;
     return resolution > 0 ? Math.round(resolution) : null;
 }
+
+/**
+ * Returns the best snap setting for a given zoom level (view range in ticks).
+ * Used by adaptive snapping mode to pick the snap denominator automatically.
+ */
+export function getAdaptiveSnapSetting(
+    viewRangeTicks: number,
+    beatsPerBar: number,
+    ticksPerQuarter: number = CANONICAL_PPQ,
+): SnapQuantizeOption {
+    const safeBpb = Number.isFinite(beatsPerBar) && beatsPerBar > 0 ? beatsPerBar : 4;
+    const barsVisible = viewRangeTicks / (safeBpb * ticksPerQuarter);
+    if (barsVisible > 32) return 'bar';
+    if (barsVisible > 8) return 'quarter';
+    if (barsVisible > 2) return 'eighth';
+    if (barsVisible > 0.5) return 'sixteenth';
+    return 'thirty-second';
+}
+
+/**
+ * Returns which grid subdivisions should be visible at a given pixel density.
+ * Used by adaptive GridLines to determine how many levels to draw.
+ */
+export function getAdaptiveGridSubdivisions(
+    widthPx: number,
+    viewRangeTicks: number,
+    beatsPerBar: number,
+    ticksPerQuarter: number = CANONICAL_PPQ,
+): { showBeats: boolean; showEighths: boolean; showSixteenths: boolean } {
+    const MIN_PX = 18; // minimum pixels between lines to render a subdivision level
+    if (viewRangeTicks <= 0 || widthPx <= 0) return { showBeats: false, showEighths: false, showSixteenths: false };
+    const pxPerTick = widthPx / viewRangeTicks;
+    const pxPerBeat = pxPerTick * ticksPerQuarter;
+    const pxPerEighth = pxPerBeat * 0.5;
+    const pxPerSixteenth = pxPerBeat * 0.25;
+    return {
+        showBeats: pxPerBeat >= MIN_PX,
+        showEighths: pxPerEighth >= MIN_PX,
+        showSixteenths: pxPerSixteenth >= MIN_PX,
+    };
+}

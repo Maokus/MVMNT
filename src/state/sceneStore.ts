@@ -22,6 +22,7 @@ import {
 } from '@persistence/migrations/removeSmoothingFromDescriptor';
 import { migrateSceneAudioSystemV5 } from '@persistence/migrations/audioSystemV5';
 import { migrateAutomationState } from '@automation/migration';
+import { useSelectionStore } from '@state/selectionStore';
 
 export type BindingState = ConstantBindingState | MacroBindingState | KeyframesBindingState;
 
@@ -172,7 +173,6 @@ export interface SceneElementRecord {
 }
 
 export interface SceneInteractionState {
-    selectedElementIds: string[];
     hoveredElementId: string | null;
     editingElementId: string | null;
     clipboard: SceneClipboard | null;
@@ -180,15 +180,23 @@ export interface SceneInteractionState {
     automationExpandedElements: string[];
     /** Channel IDs with curve editor pane open. */
     automationExpandedCurves: string[];
-    /** Multi-selected keyframes in the timeline automation lanes. */
-    automationSelectedKeyframes: Array<{ channelId: string; tick: number }>;
     /** Current search query for filtering automation properties. */
     automationSearchQuery: string;
+    /** Collapsed state of property groups in the properties panel, keyed by elementId then groupId. */
+    expandedPropertyGroups: Record<string, Record<string, boolean>>;
+    /** Active property tab per element in the properties panel, keyed by elementId. */
+    activePropertyTab: Record<string, string>;
+    propertyClipboard: PropertyClipboard | null;
 }
 
 export interface SceneClipboard {
     exportedAt: number;
     elementIds: string[];
+}
+
+export interface PropertyClipboard {
+    elementType: string;
+    values: Record<string, any>;
 }
 
 export interface SceneMacroState {
@@ -234,7 +242,9 @@ export interface SceneFontsState {
 }
 
 export interface SceneStoreComputedExport {
-    elements: SceneSerializedElement[];
+    elements: Record<string, SceneSerializedElement>;
+    elementsOrder: string[];
+    elementErrors?: Array<{ id: string; type: string; message: string }>;
     sceneSettings: SceneSettingsState;
     macros?: SceneSerializedMacros;
     fontAssets?: Record<string, FontAsset>;
@@ -245,8 +255,7 @@ export interface SceneStoreComputedExport {
 export interface SceneSerializedElement {
     id: string;
     type: string;
-    index?: number;
-    [key: string]: unknown;
+    properties: Record<string, PropertyBindingData>;
 }
 
 export interface SceneSerializedMacros {
@@ -262,7 +271,8 @@ export interface SceneMacroDefinition {
 }
 
 export interface SceneImportPayload {
-    elements?: SceneSerializedElement[];
+    elements?: SceneSerializedElement[] | Record<string, SceneSerializedElement>;
+    elementsOrder?: string[];
     sceneSettings?: Partial<SceneSettingsState> | null;
     macros?: SceneSerializedMacros | null;
     fontAssets?: Record<string, FontAsset> | null;
@@ -302,6 +312,9 @@ export interface SceneStoreActions {
     exportSceneDraft: () => SceneStoreComputedExport;
     replaceMacros: (payload: SceneSerializedMacros | null | undefined) => void;
     setInteractionState: (patch: Partial<SceneInteractionState>) => void;
+    setPropertyGroupCollapseState: (elementId: string, groupId: string, collapsed: boolean) => void;
+    setActivePropertyTab: (elementId: string, tabId: string) => void;
+    setPropertyClipboard: (clipboard: PropertyClipboard | null) => void;
     setAutomationChannel: (channel: AutomationChannel) => void;
     removeAutomationChannel: (channelId: string) => void;
     updateAutomationKeyframes: (channelId: string, keyframes: AutomationKeyframe[]) => void;
@@ -340,14 +353,15 @@ export const DEFAULT_SCENE_SETTINGS: SceneSettingsState = {
 
 function createInitialInteractionState(): SceneInteractionState {
     return {
-        selectedElementIds: [],
         hoveredElementId: null,
         editingElementId: null,
         clipboard: null,
         automationExpandedElements: [],
         automationExpandedCurves: [],
-        automationSelectedKeyframes: [],
         automationSearchQuery: '',
+        expandedPropertyGroups: {},
+        activePropertyTab: {},
+        propertyClipboard: null,
     };
 }
 
@@ -415,8 +429,8 @@ function cloneBindingsMap(bindings: ElementBindings, elementType?: string): Elem
                     (entry): entry is Record<string, unknown> & { featureKey: string } =>
                         Boolean(
                             entry &&
-                                typeof entry === 'object' &&
-                                typeof (entry as { featureKey?: unknown }).featureKey === 'string'
+                            typeof entry === 'object' &&
+                            typeof (entry as { featureKey?: unknown }).featureKey === 'string'
                         )
                 ) as AudioFeatureDescriptor[];
                 result.features = {
@@ -487,7 +501,7 @@ function normalizeFontAssetInput(input: FontAsset, existing?: FontAsset): FontAs
     const licensingAcknowledged =
         typeof input.licensingAcknowledged === 'boolean'
             ? input.licensingAcknowledged
-            : existing?.licensingAcknowledged ?? false;
+            : (existing?.licensingAcknowledged ?? false);
     return cloneFontAsset({
         ...existing,
         ...input,
@@ -513,29 +527,6 @@ function rebuildMacroIndex(byElement: Record<string, ElementBindings>): MacroBin
         });
     }
     return byMacro;
-}
-
-function normalizeSelection(state: SceneStoreState, ids: string[] | null | undefined): string[] {
-    if (!ids || ids.length === 0) return [];
-    const next: string[] = [];
-    const seen = new Set<string>();
-    for (const raw of ids) {
-        if (typeof raw !== 'string') continue;
-        if (!state.elements[raw]) continue;
-        if (seen.has(raw)) continue;
-        next.push(raw);
-        seen.add(raw);
-    }
-    return next;
-}
-
-function selectionEquals(a: string[], b: string[]): boolean {
-    if (a === b) return true;
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-        if (a[i] !== b[i]) return false;
-    }
-    return true;
 }
 
 function bindingEquals(a: BindingState, b: BindingState): boolean {
@@ -569,8 +560,14 @@ function normalizeSmoothingValue(value: unknown): number {
 export function deserializeElementBindings(raw: SceneSerializedElement): ElementBindings {
     const bindings: ElementBindings = {};
     let migratedSmoothing: number | null = null;
-    for (const [key, value] of Object.entries(raw)) {
-        if (key === 'id' || key === 'type' || key === 'index') continue;
+    // Support both V6 (nested `properties`) and V5 (flat top-level) formats.
+    const propertiesSource =
+        raw.properties != null && typeof raw.properties === 'object' && !Array.isArray(raw.properties)
+            ? raw.properties
+            : Object.fromEntries(
+                  Object.entries(raw as unknown as Record<string, unknown>).filter(([k]) => k !== 'id' && k !== 'type')
+              );
+    for (const [key, value] of Object.entries(propertiesSource)) {
         if (!value || typeof value !== 'object') continue;
         const payload = value as Partial<PropertyBindingData>;
         const type = (value as { type?: string }).type;
@@ -647,26 +644,22 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
     return bindings;
 }
 
-function serializeElement(
-    element: SceneElementRecord,
-    bindings: ElementBindings,
-    index: number
-): SceneSerializedElement {
-    const serialized: SceneSerializedElement = {
-        id: element.id,
-        type: element.type,
-        index,
-    };
+function serializeElement(element: SceneElementRecord, bindings: ElementBindings): SceneSerializedElement {
+    const properties: Record<string, PropertyBindingData> = {};
     for (const [key, binding] of Object.entries(bindings)) {
         if (binding.type === 'constant') {
-            serialized[key] = { type: 'constant', value: binding.value } satisfies PropertyBindingData;
+            properties[key] = { type: 'constant', value: binding.value } satisfies PropertyBindingData;
         } else if (binding.type === 'macro') {
-            serialized[key] = { type: 'macro', macroId: binding.macroId } satisfies PropertyBindingData;
+            properties[key] = { type: 'macro', macroId: binding.macroId } satisfies PropertyBindingData;
         } else if (binding.type === 'keyframes') {
-            serialized[key] = { type: 'keyframes', channelId: binding.channelId };
+            properties[key] = { type: 'keyframes', channelId: binding.channelId };
         }
     }
-    return serialized;
+    return {
+        id: element.id,
+        type: element.type,
+        properties,
+    };
 }
 
 function createRuntimeMeta(): SceneRuntimeMeta {
@@ -1065,7 +1058,6 @@ const createSceneStoreState = (
                 automation: { channels: nextChannels },
                 interaction: {
                     ...state.interaction,
-                    selectedElementIds: state.interaction.selectedElementIds.filter((id) => id !== elementId),
                     hoveredElementId:
                         state.interaction.hoveredElementId === elementId ? null : state.interaction.hoveredElementId,
                     editingElementId:
@@ -1074,6 +1066,8 @@ const createSceneStoreState = (
                 runtimeMeta: markDirty(state, 'removeElement'),
             };
         });
+        // Sync selection store after state update
+        useSelectionStore.getState().removeElementFromSelection(elementId);
     },
 
     updateElementId: (currentId, nextId) => {
@@ -1130,7 +1124,6 @@ const createSceneStoreState = (
 
             const nextInteraction: SceneInteractionState = {
                 ...state.interaction,
-                selectedElementIds: state.interaction.selectedElementIds.map((id) => (id === currentId ? nextId : id)),
                 hoveredElementId:
                     state.interaction.hoveredElementId === currentId ? nextId : state.interaction.hoveredElementId,
                 editingElementId:
@@ -1147,6 +1140,8 @@ const createSceneStoreState = (
                 runtimeMeta: markDirty(state, 'updateElementId'),
             };
         });
+        // Sync selection store after state update
+        useSelectionStore.getState().renameElementInSelection(currentId, nextId);
     },
 
     updateSettings: (patch) => {
@@ -1221,8 +1216,8 @@ const createSceneStoreState = (
                                 .filter((entry): entry is Record<string, unknown> & { featureKey: string } =>
                                     Boolean(
                                         entry &&
-                                            typeof entry === 'object' &&
-                                            typeof (entry as { featureKey?: unknown }).featureKey === 'string'
+                                        typeof entry === 'object' &&
+                                        typeof (entry as { featureKey?: unknown }).featureKey === 'string'
                                     )
                                 )
                                 .map((entry) => entry as AudioFeatureDescriptor);
@@ -1290,10 +1285,7 @@ const createSceneStoreState = (
             let nextAutomation = state.automation;
             for (const [key, newBinding] of Object.entries(nextBindingsForElement)) {
                 const prevBinding = existing[key];
-                if (
-                    prevBinding?.type === 'keyframes' &&
-                    newBinding?.type !== 'keyframes'
-                ) {
+                if (prevBinding?.type === 'keyframes' && newBinding?.type !== 'keyframes') {
                     const orphanedChannelId = (prevBinding as KeyframesBindingState).channelId;
                     if (nextAutomation.channels[orphanedChannelId]) {
                         if (nextAutomation === state.automation) {
@@ -1622,18 +1614,29 @@ const createSceneStoreState = (
     importScene: (payload) => {
         const migratedPayload = migrateSceneAudioSystemV5(payload);
         set((state) => {
-            const elements = migratedPayload.elements ?? [];
-            const sorted = [...elements].sort((a, b) => {
-                const ai = typeof a.index === 'number' ? a.index : elements.indexOf(a);
-                const bi = typeof b.index === 'number' ? b.index : elements.indexOf(b);
-                return ai - bi;
-            });
+            // Normalize elements: accept either V6 Record+order or plain array
+            let elements: SceneSerializedElement[];
+            const rawElements = migratedPayload.elements;
+            if (Array.isArray(rawElements)) {
+                elements = rawElements;
+            } else if (rawElements && typeof rawElements === 'object') {
+                const order = (migratedPayload as any).elementsOrder as string[] | undefined;
+                if (Array.isArray(order)) {
+                    elements = order
+                        .map((id) => (rawElements as Record<string, SceneSerializedElement>)[id])
+                        .filter(Boolean);
+                } else {
+                    elements = Object.values(rawElements);
+                }
+            } else {
+                elements = [];
+            }
 
             const nextElements: Record<string, SceneElementRecord> = {};
             const nextOrder: string[] = [];
             const nextByElement: Record<string, ElementBindings> = {};
 
-            for (const el of sorted) {
+            for (const el of elements) {
                 if (!el || typeof el !== 'object') continue;
                 if (typeof el.id !== 'string' || typeof el.type !== 'string') continue;
                 nextOrder.push(el.id);
@@ -1702,27 +1705,52 @@ const createSceneStoreState = (
 
     exportSceneDraft: () => {
         const state = get();
-        const elements: SceneSerializedElement[] = [];
-        state.order.forEach((id, idx) => {
+        const elements: Record<string, SceneSerializedElement> = {};
+        const elementsOrder: string[] = [];
+        const elementErrors: Array<{ id: string; type: string; message: string }> = [];
+        state.order.forEach((id) => {
             const element = state.elements[id];
             if (!element) return;
             const bindings = state.bindings.byElement[id] ?? {};
-            elements.push(serializeElement(element, bindings, idx));
+            try {
+                elements[id] = serializeElement(element, bindings);
+                elementsOrder.push(id);
+            } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                elementErrors.push({ id, type: element.type, message });
+                console.warn(`[exportSceneDraft] Failed to serialize element ${id} (${element.type}):`, err);
+            }
         });
-        const fontAssets = state.fonts.order.reduce((acc, id) => {
-            const asset = state.fonts.assets[id];
-            if (asset) acc[id] = cloneFontAsset(asset);
-            return acc;
-        }, {} as Record<string, FontAsset>);
+        const fontAssets = state.fonts.order.reduce(
+            (acc, id) => {
+                const asset = state.fonts.assets[id];
+                if (asset) acc[id] = cloneFontAsset(asset);
+                return acc;
+            },
+            {} as Record<string, FontAsset>
+        );
         return {
             elements,
+            elementsOrder,
+            ...(elementErrors.length > 0 ? { elementErrors } : {}),
             sceneSettings: { ...state.settings },
             macros: buildMacroPayload(state.macros),
-            fontAssets: Object.keys(fontAssets).length ? fontAssets : undefined,
-            fontLicensingAcknowledgedAt: state.fonts.licensingAcknowledgedAt,
-            automation: Object.keys(state.automation.channels).length
-                ? { channels: { ...state.automation.channels } }
-                : undefined,
+            ...(Object.keys(fontAssets).length ? { fontAssets } : {}),
+            ...(typeof state.fonts.licensingAcknowledgedAt === 'number'
+                ? { fontLicensingAcknowledgedAt: state.fonts.licensingAcknowledgedAt }
+                : {}),
+            ...(Object.keys(state.automation.channels).length
+                ? {
+                      automation: {
+                          channels: Object.fromEntries(
+                              Object.entries(state.automation.channels).map(([channelId, channel]) => [
+                                  channelId,
+                                  cloneChannel(channel),
+                              ])
+                          ),
+                      },
+                  }
+                : {}),
         };
     },
 
@@ -1737,13 +1765,6 @@ const createSceneStoreState = (
     setInteractionState: (patch) => {
         set((state) => {
             const next: SceneInteractionState = { ...state.interaction };
-
-            if ('selectedElementIds' in patch) {
-                const normalized = normalizeSelection(state, patch.selectedElementIds ?? []);
-                if (!selectionEquals(normalized, next.selectedElementIds)) {
-                    next.selectedElementIds = normalized;
-                }
-            }
 
             if ('hoveredElementId' in patch) {
                 const hovered = patch.hoveredElementId ?? null;
@@ -1772,11 +1793,9 @@ const createSceneStoreState = (
             }
 
             if (
-                next === state.interaction ||
-                (selectionEquals(next.selectedElementIds, state.interaction.selectedElementIds) &&
-                    next.hoveredElementId === state.interaction.hoveredElementId &&
-                    next.editingElementId === state.interaction.editingElementId &&
-                    next.clipboard === state.interaction.clipboard)
+                next.hoveredElementId === state.interaction.hoveredElementId &&
+                next.editingElementId === state.interaction.editingElementId &&
+                next.clipboard === state.interaction.clipboard
             ) {
                 return state;
             }
@@ -1788,8 +1807,46 @@ const createSceneStoreState = (
         });
     },
 
+    setPropertyGroupCollapseState: (elementId, groupId, collapsed) => {
+        set((state) => ({
+            ...state,
+            interaction: {
+                ...state.interaction,
+                expandedPropertyGroups: {
+                    ...state.interaction.expandedPropertyGroups,
+                    [elementId]: {
+                        ...(state.interaction.expandedPropertyGroups[elementId] ?? {}),
+                        [groupId]: collapsed,
+                    },
+                },
+            },
+        }));
+    },
+
+    setActivePropertyTab: (elementId, tabId) => {
+        set((state) => ({
+            ...state,
+            interaction: {
+                ...state.interaction,
+                activePropertyTab: {
+                    ...state.interaction.activePropertyTab,
+                    [elementId]: tabId,
+                },
+            },
+        }));
+    },
+
+    setPropertyClipboard: (clipboard) => {
+        set((state) => ({
+            ...state,
+            interaction: {
+                ...state.interaction,
+                propertyClipboard: clipboard,
+            },
+        }));
+    },
+
     setAutomationChannel: (channel) => {
-        automationEvaluator.invalidateChannel(channel.id);
         set((state) => ({
             ...state,
             automation: {
@@ -1861,9 +1918,7 @@ export const useSceneStore = createSceneStore();
 
 // Wire the automation evaluator's channel provider to the store so it can
 // resolve channels without relying on CommonJS require (which fails in Vite ESM).
-automationEvaluator.setChannelProvider(
-    (channelId) => useSceneStore.getState().automation.channels[channelId],
-);
+automationEvaluator.setChannelProvider((channelId) => useSceneStore.getState().automation.channels[channelId]);
 
 // Clear transient property overrides when the playhead moves so keyframed values
 // take over again (Blender-style delink: manually changed values persist only until scrub/play).

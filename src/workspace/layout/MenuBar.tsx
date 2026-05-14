@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { Link } from 'react-router-dom';
 import { useScene } from '@context/SceneContext';
 import logo from '@assets/Logo_Transparent.png'
-import { FaSave, FaFolderOpen, FaTrash, FaMagic, FaPen, FaEllipsisV, FaCog } from 'react-icons/fa';
-import SceneSettingsModal from './SceneSettingsModal';
+import { FaSave, FaFileExport, FaFolderOpen, FaTrash, FaMagic, FaPen, FaEllipsisV, FaCog } from 'react-icons/fa';
+import SceneSettingsModal from '@workspace/modals/SceneSettingsModal';
 import { BrowseTemplatesButton } from '@workspace/templates/BrowseTemplatesButton';
 import { easyModeTemplates } from '@workspace/templates/easyModeTemplates';
 import { useTemplateApply } from '@workspace/templates/useTemplateApply';
@@ -14,7 +14,7 @@ interface MenuBarProps {
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
-    const { sceneName, setSceneName, saveScene, loadScene, clearScene, createNewDefaultScene } = useScene();
+    const { sceneName, setSceneName, saveToLocal, exportAsFile, isDirty, loadScene, clearScene, createNewDefaultScene } = useScene();
     const [isEditingName, setIsEditingName] = useState(false);
     // temporary local state while editing so user can clear the input fully
     const [tempSceneName, setTempSceneName] = useState<string>(sceneName || '');
@@ -65,7 +65,8 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
         }
     };
 
-    const handleSave = () => { saveScene(); setShowSceneMenu(false); };
+    const handleSave = () => { void saveToLocal(); setShowSceneMenu(false); };
+    const handleExport = () => { exportAsFile(); setShowSceneMenu(false); };
     const handleLoad = () => { loadScene(); setShowSceneMenu(false); };
     const handleClear = () => { clearScene(); setShowSceneMenu(false); };
     const handleNew = () => { createNewDefaultScene(); setShowSceneMenu(false); };
@@ -96,6 +97,20 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                             }}
                             title="Show onboarding / help"
                         >help</button>
+                        <Link
+                            to="/community"
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#cccccc',
+                                cursor: 'pointer',
+                                padding: '4px 6px',
+                                borderRadius: 4,
+                                textDecoration: 'none',
+                                fontSize: 12
+                            }}
+                            title="Browse community templates & plugins"
+                        >community</Link>
                     </nav>
                 </div>
 
@@ -122,7 +137,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                                 className="scene-name-display"
                                 onDoubleClick={() => { setTempSceneName(sceneName); setIsEditingName(true); }}
                             >
-                                {sceneName}
+                                {sceneName}{isDirty ? <span title="Unsaved changes" style={{ marginLeft: 2, opacity: 0.7 }}>*</span> : null}
                             </span>
                         )}
 
@@ -149,10 +164,11 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                                 <div
                                     className={`absolute top-full right-0 border rounded shadow-lg z-[1000] min-w-[180px] mt-1 [background-color:var(--twc-control)] [border-color:#525252] ${showSceneMenu ? 'block' : 'hidden'}`}
                                 >
-                                    <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleSave}><FaSave /> <span>Save Scene (Download .mvt)</span></div>
-                                    <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleLoad}><FaFolderOpen /> <span>Load Scene (Upload .mvt)</span></div>
+                                    <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleSave}><FaSave /> <span>Save</span><span className="ml-auto text-[11px] text-neutral-500">⌘S</span></div>
+                                    <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleExport}><FaFileExport /> <span>Export as File…</span></div>
+                                    <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleLoad}><FaFolderOpen /> <span>Load from File…</span></div>
                                     <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleClear}><FaTrash /> <span>Clear Scene</span></div>
-                                    <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleNew}><FaMagic /> <span>New Default Scene</span></div>
+                                    <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleNew}><FaMagic /> <span>New Scene</span></div>
                                 </div>
                             )}
                         </div>

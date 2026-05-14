@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { FaLink, FaTrash, FaPlus, FaPen } from 'react-icons/fa';
 import { useMacros } from '@context/MacroContext';
-import FontInput from '@workspace/form/inputs/FontInput';
-import TimelineTrackSelect from '@workspace/form/inputs/TimelineTrackSelect';
-import { useNumberDrag } from '@workspace/form/inputs/useNumberDrag';
-import ColorAlphaInput from '@workspace/form/inputs/ColorAlphaInput';
+import FontInput from '@workspace/forms/inputs/FontInput';
+import TimelineTrackSelect from '@workspace/forms/inputs/TimelineTrackSelect';
+import { useNumberDrag } from '@workspace/forms/inputs/useNumberDrag';
+import ColorAlphaInput from '@workspace/forms/inputs/ColorAlphaInput';
 import { useMacroAssignments } from '@state/scene';
 
 interface MacroConfigProps {
@@ -343,10 +343,8 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
     };
 
     const handleDeleteMacro = (name: string) => {
-        if (window.confirm(`Are you sure you want to delete the macro "${name}"?`)) {
-            deleteMacro(name);
-            setMacros(prev => prev.filter(m => m.name !== name));
-        }
+        deleteMacro(name);
+        setMacros(prev => prev.filter(m => m.name !== name));
     };
 
     const handleShowAssignmentDialog = (macroName: string) => {

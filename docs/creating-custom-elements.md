@@ -1,6 +1,6 @@
 # Creating Custom Elements
 
-_Last Updated: 14 April 2026_
+_Last Updated: 7 May 2026_
 
 This guide explains how to create custom scene elements for MVMNT using the plugin system.
 
@@ -24,6 +24,7 @@ This guide explains how to create custom scene elements for MVMNT using the plug
 Custom elements extend MVMNT's visualization capabilities by providing new types of visual objects that can be added to scenes. Elements can react to audio, MIDI, or other data sources.
 
 Key concepts:
+
 - **Scene Elements**: Visual objects that render on the canvas (shapes, text, effects, etc.)
 - **Plugin System**: Bundles custom elements for distribution and runtime loading
 - **Property Bindings**: Dynamic property system supporting constants, macros, and data-driven values
@@ -43,11 +44,11 @@ Use:
 See:
 
 - [Plugin API v1](plugin-api-v1.md)
-- [Plugin API Migration Guide](plugin-api-migration-guide.md)
 
 ## Getting Started
 
 Prerequisites:
+
 - Node.js 18+ installed
 - MVMNT development environment set up
 - Basic understanding of TypeScript and MVMNT's scene system
@@ -55,9 +56,10 @@ Prerequisites:
 ### Quick Start
 
 1. **Create a new element** using the scaffold script:
-   ```bash
-   npm run create-element
-   ```
+
+    ```bash
+    npm run create-element
+    ```
 
 2. **Follow the prompts** to specify element name, type, and category
 
@@ -66,9 +68,9 @@ Prerequisites:
 4. **Test locally** - the element will automatically appear in the element picker
 
 5. **Build for distribution** (Phase 2):
-   ```bash
-   npm run build-plugin -- --plugin {pluginName}
-   ```
+    ```bash
+    npm run build-plugin -- --plugin {pluginName}
+    ```
 
 ## Minimal Example Plugin
 
@@ -76,7 +78,7 @@ Here's a complete minimal plugin that renders a colored rectangle:
 
 ```typescript
 // src/plugins/my-plugin/simple-box.ts
-import { SceneElement, asNumber, asTrimmedString, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk';
+import { SceneElement, prop, insertElementGroups, tab, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class SimpleBoxElement extends SceneElement {
@@ -85,65 +87,36 @@ export class SimpleBoxElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const basicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const advancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        
-        return {
-            ...base,
-            name: 'Simple Box',
-            description: 'A colored rectangle element',
-            category: 'Custom',
-            groups: [
-                ...basicGroups,
-                {
-                    id: 'boxAppearance',
-                    label: 'Box Appearance',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'boxWidth',
-                            type: 'number',
-                            label: 'Box Width',
-                            default: 100,
-                            min: 10,
-                            max: 1000,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 100 },
-                        },
-                        {
-                            key: 'boxHeight',
-                            type: 'number',
-                            label: 'Box Height',
-                            default: 100,
-                            min: 10,
-                            max: 1000,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 100 },
-                        },
-                        {
-                            key: 'boxColor',
-                            type: 'colorAlpha',
-                            label: 'Box Color',
-                            default: '#3B82F6FF',
-                            runtime: { transform: asTrimmedString, defaultValue: '#3B82F6FF' },
-                        },
-                    ],
-                },
-                ...advancedGroups,
-            ],
-        };
+        return insertElementGroups(
+            super.getConfigSchema(),
+            {
+                name: 'Simple Box',
+                description: 'A colored rectangle element',
+                category: 'Custom',
+            },
+            [
+                tab.properties([
+                    {
+                        id: 'boxAppearance',
+                        label: 'Box Appearance',
+                        collapsed: false,
+                        properties: [
+                            prop.number('boxWidth', 'Box Width', 100, { min: 10, max: 1000, step: 1 }),
+                            prop.number('boxHeight', 'Box Height', 100, { min: 10, max: 1000, step: 1 }),
+                            prop.colorAlpha('boxColor', 'Box Color', '#3B82F6FF'),
+                        ],
+                    },
+                ]),
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: unknown, _targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
-        
+
         if (!props.visible) return [];
-        
-        return [
-            new Rectangle(0, 0, props.boxWidth, props.boxHeight, props.boxColor)
-        ];
+
+        return [new Rectangle(0, 0, props.boxWidth, props.boxHeight, props.boxColor)];
     }
 }
 ```
@@ -152,21 +125,18 @@ export class SimpleBoxElement extends SceneElement {
 
 ```json
 {
-  "id": "com.example.my-plugin",
-  "name": "My Plugin",
-  "version": "1.0.0",
-  "apiVersion": "^1.0.0",
-  "description": "Example custom elements",
-  "author": "Your Name",
-  "elements": [
-    {
-      "type": "simple-box",
-      "name": "Simple Box",
-      "category": "custom",
-      "description": "A colored rectangle element",
-      "entry": "simple-box.ts"
-    }
-  ]
+    "id": "com.example.my-plugin",
+    "name": "My Plugin",
+    "version": "1.0.0",
+    "apiVersion": "^1.0.0",
+    "description": "Example custom elements",
+    "author": "Your Name",
+    "elements": [
+        {
+            "type": "simple-box",
+            "entry": "simple-box.ts"
+        }
+    ]
 }
 ```
 
@@ -179,7 +149,7 @@ See [plugin-manifest.schema.json](plugin-manifest.schema.json) for the complete 
 ### Required Fields
 
 - `id`: Unique plugin identifier (reverse domain notation recommended)
-- `name`: Human-readable plugin name  
+- `name`: Human-readable plugin name
 - `version`: Semantic version (e.g., `1.0.0`)
 - `apiVersion`: Compatible Plugin API version range (e.g., `^1.0.0`)
 - `elements`: Array of element definitions
@@ -196,12 +166,14 @@ See [plugin-manifest.schema.json](plugin-manifest.schema.json) for the complete 
 ### Element Definition Fields
 
 Each element in the `elements` array requires:
+
 - `type`: Unique element type identifier (kebab-case, e.g., `my-element`)
 - `name`: Display name for UI
 - `category`: One of: `shapes`, `effects`, `text`, `particles`, `audio-reactive`, `midi`, `utility`, `custom`
 - `entry`: Path to element TypeScript/JavaScript file
 
 Optional element fields:
+
 - `description`: Element description
 - `icon`: Path to icon asset
 - `thumbnail`: Path to thumbnail asset
@@ -225,6 +197,7 @@ export class MyElement extends SceneElement {
 ```
 
 **Constructor Parameters:**
+
 - `type`: Unique element type identifier (must match manifest)
 - `id`: Instance identifier (auto-generated if not provided)
 - `config`: Initial property configuration
@@ -236,33 +209,39 @@ The `getConfigSchema()` static method defines the element's configurable propert
 ```typescript
 static override getConfigSchema(): EnhancedConfigSchema {
     const base = super.getConfigSchema();
-    const basicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-    const advancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-    
+
     return {
         ...base,
         name: 'My Element',           // Display name
         description: 'Element desc',  // Description
         category: 'Custom',           // UI category
-        groups: [
-            ...basicGroups,           // Keep base groups
+        tabs: [
             {
-                id: 'myGroup',        // Unique group ID
-                label: 'My Settings', // Group label
-                variant: 'basic',     // 'basic' or 'advanced'
-                collapsed: false,     // Initially collapsed?
-                properties: [
-                    // Property definitions...
-                ],
-                presets: [            // Optional presets
-                    {
-                        id: 'preset1',
-                        label: 'Preset 1',
-                        values: { prop1: 'value1' }
-                    }
-                ]
+                id: 'transform',
+                label: 'Transform',
+                groups: base.tabs[0].groups,
             },
-            ...advancedGroups,
+            {
+                id: 'properties',     // Unique tab ID
+                label: 'Properties',  // Tab label
+                groups: [
+                    {
+                        id: 'mySettings',  // Unique group ID
+                        label: 'My Settings',
+                        collapsed: false,  // Initially collapsed?
+                        properties: [
+                            // Property definitions...
+                        ],
+                        presets: [         // Optional presets
+                            {
+                                id: 'preset1',
+                                label: 'Preset 1',
+                                values: { prop1: 'value1' }
+                            }
+                        ]
+                    },
+                ],
+            },
         ],
     };
 }
@@ -270,10 +249,10 @@ static override getConfigSchema(): EnhancedConfigSchema {
 
 **Property Factory Helpers (Recommended):**
 
-`@mvmnt/plugin-sdk` exports the `prop` object and `insertElementGroups` helper. These reduce boilerplate by pre-filling the `runtime` transform and removing the need to manually split base groups:
+`@mvmnt/plugin-sdk` exports `prop`, `tab`, `section`, `propGroup`, and `insertElementGroups`. These reduce boilerplate by pre-filling the `runtime` transform, keeping the base Transform tab, and grouping your element settings into property-panel tabs:
 
 ```typescript
-import { prop, insertElementGroups } from '@mvmnt/plugin-sdk';
+import { prop, insertElementGroups, tab, section } from '@mvmnt/plugin-sdk';
 
 static override getConfigSchema(): EnhancedConfigSchema {
     return insertElementGroups(super.getConfigSchema(), {
@@ -281,44 +260,44 @@ static override getConfigSchema(): EnhancedConfigSchema {
         description: 'Element description',
         category: 'Custom',
     }, [
-        {
-            id: 'myGroup',
-            label: 'My Settings',
-            variant: 'basic',
-            collapsed: false,
-            properties: [
-                prop.number('size', 'Size', 100, { min: 10, max: 500, step: 1 }),
-                prop.colorAlpha('color', 'Color', '#3B82F6FF'),
+        tab.content([
+            section.content([
+                prop.string('label', 'Label', 'Hello'),
                 prop.boolean('showLabel', 'Show Label', true),
-                prop.select('mode', 'Mode', 'circle', ['circle', 'square']),
                 prop.midiTrack('midiTrackId', 'MIDI Track'),
                 prop.audioTrack('audioTrackId', 'Audio Track'),
-                prop.font('fontFamily', 'Font', 'Inter'),
-                prop.string('label', 'Label', 'Hello'),
                 prop.file('imageFile', 'Image', { accept: 'image/*' }),
-            ],
-        },
+            ]),
+        ]),
+        tab.appearance([
+            section.appearance([
+                prop.number('size', 'Size', 100, { min: 10, max: 500, step: 1 }),
+                prop.colorAlpha('color', 'Color', '#3B82F6FF'),
+                prop.select('mode', 'Mode', 'circle', ['circle', 'square']),
+                prop.font('fontFamily', 'Font', 'Inter'),
+            ]),
+        ]),
     ]);
 }
 ```
 
-`insertElementGroups(base, overrides, pluginGroups)` inserts your groups between the base element's basic and advanced groups automatically.
+`insertElementGroups(base, overrides, pluginTabs)` prepends the base Transform tab automatically. For simple elements, use `tab.properties([...groups])`; for larger elements, split groups into `tab.content`, `tab.appearance`, `tab.grid`, `tab.animation`, `tab.advanced`, or `tab.custom(id, label, groups)`.
 
 Available `prop.*` factories:
 
-| Factory | Type | Notes |
-|---|---|---|
-| `prop.number(key, label, default, opts?)` | `number` | `opts`: `min`, `max`, `step` |
-| `prop.range(key, label, default, opts?)` | `range` | Same as number but renders as a slider |
-| `prop.boolean(key, label, default, opts?)` | `boolean` | Checkbox |
-| `prop.string(key, label, default, opts?)` | `string` | Plain text input |
-| `prop.colorAlpha(key, label, default, opts?)` | `colorAlpha` | 8-digit hex with alpha |
-| `prop.color(key, label, default, opts?)` | `color` | Opaque hex color |
-| `prop.select(key, label, default, choices, opts?)` | `select` | `choices`: strings or `{ value, label }` objects |
-| `prop.font(key, label, default, opts?)` | `font` | Google Fonts picker |
-| `prop.midiTrack(key, label, opts?)` | `timelineTrackRef` | MIDI track selector |
-| `prop.audioTrack(key, label, opts?)` | `timelineTrackRef` | Audio track selector |
-| `prop.file(key, label, opts?)` | `file` | File picker; `opts.accept` for MIME filter |
+| Factory                                            | Type               | Notes                                            |
+| -------------------------------------------------- | ------------------ | ------------------------------------------------ |
+| `prop.number(key, label, default, opts?)`          | `number`           | `opts`: `min`, `max`, `step`                     |
+| `prop.range(key, label, default, opts?)`           | `range`            | Same as number but renders as a slider           |
+| `prop.boolean(key, label, default, opts?)`         | `boolean`          | Checkbox                                         |
+| `prop.string(key, label, default, opts?)`          | `string`           | Plain text input                                 |
+| `prop.colorAlpha(key, label, default, opts?)`      | `colorAlpha`       | 8-digit hex with alpha                           |
+| `prop.color(key, label, default, opts?)`           | `color`            | Opaque hex color                                 |
+| `prop.select(key, label, default, choices, opts?)` | `select`           | `choices`: strings or `{ value, label }` objects |
+| `prop.font(key, label, default, opts?)`            | `font`             | Google Fonts picker                              |
+| `prop.midiTrack(key, label, opts?)`                | `timelineTrackRef` | MIDI track selector                              |
+| `prop.audioTrack(key, label, opts?)`               | `timelineTrackRef` | Audio track selector                             |
+| `prop.file(key, label, opts?)`                     | `file`             | File picker; `opts.accept` for MIME filter       |
 
 All factories accept an optional last `opts` argument with `description` and `visibleWhen` fields.
 
@@ -342,6 +321,7 @@ All factories accept an optional last `opts` argument with `description` and `vi
 ```
 
 **Common Property Types:**
+
 - `number`: Numeric input with min/max/step
 - `range`: Range slider
 - `boolean`: Checkbox
@@ -374,11 +354,11 @@ A property can be conditionally hidden based on the value of another property us
     default: 2,
     runtime: { transform: asNumber, defaultValue: 2 },
     // Only show when 'mode' is NOT 'minimal'
-    visibleWhen: [{ key: 'mode', falsy: true, value: 'minimal' }],
+    visibleWhen: [{ key: 'mode', notEquals: 'minimal' }],
 },
 ```
 
-Each entry in `visibleWhen` is an AND condition. Use `truthy: true` to show when the referenced property is true/non-empty, `falsy: true` to show when it is false/empty, or supply `value` to compare against a specific value.
+Each entry in `visibleWhen` is an AND condition. Use `equals` / `notEquals` for value comparisons, `truthy: true` to show when the referenced property is true/non-empty, or `falsy: true` to show when it is false/empty. Conditions may reference properties in another tab; the property panel evaluates visibility against the full element value set.
 
 ### Render Methods
 
@@ -390,10 +370,10 @@ protected override _buildRenderObjects(
     targetTime: number
 ): RenderObject[] {
     const props = this.getSchemaProps();
-    
+
     // Return empty if not visible
     if (!props.visible) return [];
-    
+
     // Build and return render objects
     return [
         new Rectangle(0, 0, props.width, props.height, props.color)
@@ -402,6 +382,7 @@ protected override _buildRenderObjects(
 ```
 
 **Available Render Objects:**
+
 - `Rectangle(x, y, width, height, color)` — solid filled rectangle
 - `Text(x, y, text, font, color, align, baseline)` — text string
 - `Line(x1, y1, x2, y2, color, lineWidth)` — straight line segment
@@ -423,7 +404,7 @@ protected override onPropertyChanged(
     newValue: unknown
 ): void {
     super.onPropertyChanged(key, oldValue, newValue);
-    
+
     if (key === 'myProperty') {
         // React to property change
     }
@@ -454,14 +435,15 @@ export class MyAudioElement extends SceneElement {
 
         const { api, status, missingCapabilities } = getPluginHostApi([...REQUIRED_CAPS]);
         if (!api || status !== 'ok') {
-            const message = status === 'unsupported-version'
-                ? 'Plugin API version unsupported'
-                : missingCapabilities.includes(PLUGIN_CAPABILITIES.audioFeaturesRead)
-                    ? 'Audio API unavailable (requires audio.features.read)'
-                    : 'Plugin host API unavailable';
+            const message =
+                status === 'unsupported-version'
+                    ? 'Plugin API version unsupported'
+                    : missingCapabilities.includes(PLUGIN_CAPABILITIES.audioFeaturesRead)
+                      ? 'Audio API unavailable (requires audio.features.read)'
+                      : 'Plugin host API unavailable';
             return [new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top')];
         }
-        
+
         const rmsData = api.audio.sampleFeatureAtTime({
             element: this,
             trackId: props.audioTrackId,
@@ -470,16 +452,17 @@ export class MyAudioElement extends SceneElement {
             samplingOptions: { smoothing: props.smoothing },
         });
         const volume = rmsData?.values?.[0] ?? 0;
-        
+
         // Use volume to drive visualization
         const size = 50 + volume * 200;
-        
+
         return [new Arc(0, 0, size, 0, Math.PI * 2, false, { fillColor: props.color })];
     }
 }
 ```
 
 **Available Audio Features:**
+
 - `rms`: Root mean square (volume)
 - `spectrum`: Frequency spectrum
 - `waveform`: Time-domain waveform
@@ -495,7 +478,7 @@ import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
 protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
     const props = this.getSchemaProps();
-    
+
     if (!props.midiTrackId) return [];
 
     const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
@@ -507,14 +490,14 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
                 : 'Plugin host API unavailable';
         return [new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top')];
     }
-    
+
     const EPS = 1e-3;
     const activeNotes = api.timeline.selectNotesInWindow({
         trackIds: [props.midiTrackId],
         startSec: targetTime - EPS,
         endSec: targetTime + EPS,
     });
-    
+
     // Render based on active notes
     return activeNotes.map((note, i) => {
         const y = (128 - note.note) * 5;
@@ -528,13 +511,13 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
 ```typescript
 protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
     const props = this.getSchemaProps();
-    
+
     // Use targetTime for animations (in seconds)
     const rotation = (targetTime * 45) % 360; // 45 deg/sec
     const phase = Math.sin(targetTime * Math.PI); // Oscillate
-    
+
     const size = 50 + phase * 25;
-    
+
     return [new Arc(0, 0, size, 0, Math.PI * 2, false, { fillColor: props.color })];
 }
 ```
@@ -567,6 +550,7 @@ import { asNumber, asBoolean, asTrimmedString } from '@mvmnt/plugin-sdk';
 ```
 
 **Built-in Transforms:**
+
 - `asNumber`: Convert to finite number
 - `asBoolean`: Convert to boolean
 - `asString`: Convert to string
@@ -607,33 +591,33 @@ Enable the developer overlay to inspect element properties:
 ### Debugging Tips
 
 **Console Logging:**
+
 ```typescript
 protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
     const props = this.getSchemaProps();
-    
+
     // Log property values
     console.log('[MyElement]', { targetTime, props });
-    
+
     return [...];
 }
 ```
 
 **Conditional Rendering:**
+
 ```typescript
 // Show debug info when a debug property is enabled
 if (props.showDebug) {
-    objects.push(
-        new Text(0, -20, `Time: ${targetTime.toFixed(2)}s`, 
-                 '12px monospace', '#00ff00', 'left', 'top')
-    );
+    objects.push(new Text(0, -20, `Time: ${targetTime.toFixed(2)}s`, '12px monospace', '#00ff00', 'left', 'top'));
 }
 ```
 
 **Property Validation:**
+
 ```typescript
 protected override onPropertyChanged(key: string, oldValue: unknown, newValue: unknown): void {
     super.onPropertyChanged(key, oldValue, newValue);
-    
+
     if (key === 'myProperty') {
         console.log(`[MyElement] ${key} changed:`, { oldValue, newValue });
     }
@@ -643,26 +627,31 @@ protected override onPropertyChanged(key: string, oldValue: unknown, newValue: u
 ### Common Issues
 
 **Element not appearing:**
+
 - Check `visible` property is true
 - Verify `_buildRenderObjects()` returns non-empty array
 - Ensure position is within canvas bounds
 
 **Properties not updating:**
+
 - Check runtime transform returns valid value
 - Verify default values in schema match runtime defaults
 - Clear browser cache if schema changes aren't reflected
 
 **Audio not working:**
+
 - Check `audioTrackId` is set and the track exists in the timeline
 - Verify `getPluginHostApi` returns `status === 'ok'` with `audioFeaturesRead` capability
 - Call `registerFeatureRequirements(this, [...])` in your element constructor for features you intend to sample (this pre-warms the audio cache)
 
 **MIDI not working:**
+
 - Check `midiTrackId` is set
 - Verify track exists in timeline
 - Confirm `getPluginHostApi` returns `status === 'ok'` with `timelineRead` capability
 
 **Performance issues:**
+
 - Limit render object count (use `maxObjects` check)
 - Avoid expensive calculations in render loop
 - Use caching for complex computations
@@ -682,6 +671,7 @@ npm run build-plugin
 ```
 
 This will:
+
 1. Validate `plugin.json` against the manifest schema
 2. Check for element type collisions with built-in elements
 3. Validate element classes have required methods
@@ -691,11 +681,13 @@ This will:
 ### Build Output
 
 The build process produces:
+
 - **Location:** `dist/{plugin-id}-{version}.mvmnt-plugin`
 - **Format:** ZIP archive with `.mvmnt-plugin` extension
 - **Size:** Typically 50-500 KB per element (minified and compressed)
 
 Example output:
+
 ```
 Building plugin: My Plugin v1.0.0
 Plugin ID: myplugin
@@ -722,6 +714,7 @@ Elements: 5
 ### Distribution Format
 
 The `.mvmnt-plugin` format is a ZIP archive containing:
+
 - `manifest.json`: Plugin metadata (generated from `plugin.json`)
 - `elements/*.js`: Bundled element code (minified ES modules)
 - `assets/`: Optional assets (images, fonts, etc.) if present
@@ -731,6 +724,7 @@ The `.mvmnt-plugin` format is a ZIP archive containing:
 The build process enforces several validation rules:
 
 **Manifest Validation:**
+
 - Required fields must be present (`id`, `name`, `version`, `apiVersion`, `elements`)
 - Plugin ID must be lowercase alphanumeric with dots/hyphens, minimum 3 characters
 - Version must follow semantic versioning (`1.0.0`, `2.1.3-beta`, etc.)
@@ -739,14 +733,16 @@ The build process enforces several validation rules:
 - Entry files must exist and have `.ts`, `.js`, or `.mjs` extension
 
 **Collision Detection:**
+
 - Element types must be unique within the plugin
 - Element types cannot conflict with built-in elements:
-  - `background`, `image`, `progressDisplay`, `textOverlay`, `timeDisplay`
-  - `timeUnitPianoRoll`, `movingNotesPianoRoll`, `notesPlayedTracker`
-  - `notesPlayingDisplay`, `chordEstimateDisplay`, `audioSpectrum`
-  - `audioVolumeMeter`, `audioWaveform`, `audioLockedOscilloscope`, `debug`
+    - `background`, `image`, `progressDisplay`, `textOverlay`, `timeDisplay`
+    - `timeUnitPianoRoll`, `movingNotesPianoRoll`, `notesPlayedTracker`
+    - `notesPlayingDisplay`, `chordEstimateDisplay`, `audioSpectrum`
+    - `audioVolumeMeter`, `audioWaveform`, `audioLockedOscilloscope`, `debug`
 
 **Element Class Validation:**
+
 - Must extend `SceneElement`
 - Must implement `static getConfigSchema()` method (or `static override getConfigSchema()`)
 - Must implement rendering via `_buildRenderObjects()` method
@@ -754,13 +750,14 @@ The build process enforces several validation rules:
 ### Build Configuration
 
 The build process uses esbuild with the following configuration:
+
 - **Format:** ES modules (ESM)
 - **Target:** ES2020
 - **Minification:** Enabled
 - **Source maps:** Disabled (for smaller bundle size)
 - **External dependencies:**
-  - `react`, `react-dom` (provided by host)
-  - `@core/*`, `@audio/*`, `@utils/*`, `@state/*`, `@types/*`, `@constants/*` (MVMNT APIs)
+    - `react`, `react-dom` (provided by host)
+    - `@core/*`, `@audio/*`, `@utils/*`, `@state/*`, `@types/*`, `@constants/*` (MVMNT APIs)
 
 ### Distributing Your Plugin
 
@@ -770,43 +767,94 @@ See [Runtime Plugin Loading](runtime-plugin-loading.md) for the full loading, ve
 
 ## Best Practices
 
+### Render Determinism
+
+`_buildRenderObjects()` **must be deterministic**: given the same `targetTime` and props, it must always return the same result, regardless of call order or how many times it has been called before.
+
+This matters because the renderer may call elements out of order during scrubbing, video export, or preview. Elements that accumulate state across calls will produce wrong output in those cases.
+
+**Do not** store animation state as instance fields:
+
+```typescript
+// ❌ Wrong — depends on call history
+private _noteOnTimes = new Map<number, number>();
+
+protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
+    for (const note of activeNotes) {
+        if (!this._noteOnTimes.has(note)) this._noteOnTimes.set(note, targetTime); // breaks on scrub
+    }
+}
+```
+
+**Do** derive all animation state from `targetTime` and note event data from the SDK:
+
+```typescript
+// ✅ Correct — deterministic from targetTime alone
+protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
+    const { api } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+
+    // Look back far enough to catch long notes and the full fade window
+    const notes = api.timeline.selectNotesInWindow({
+        trackIds: [trackId],
+        startSec: targetTime - lookbackSec,
+        endSec: targetTime + 0.05,
+    });
+
+    for (const n of notes) {
+        if (n.startTime <= targetTime && targetTime < n.endTime) {
+            // Note is active — animate from n.startTime
+            const elapsedMs = (targetTime - n.startTime) * 1000;
+            const animValue = 1 - Math.pow(Math.min(elapsedMs / ANIM_DURATION_MS, 1), 3);
+            // Apply animValue to scale/position...
+        } else if (n.endTime <= targetTime && n.endTime >= targetTime - fadeOutSec) {
+            // Note just ended — fade out based on n.endTime
+            const opacity = 1 - (targetTime - n.endTime) / fadeOutSec;
+        }
+    }
+}
+```
+
+For MIDI note range auto-detection, use `api.timeline.getNoteRange()` rather than accessing `midiCache` internals via `getStateSnapshot()`.
+
 ### Performance Considerations
 
 **Limit Render Objects:**
+
 ```typescript
 const MAX_OBJECTS = 1000;
 
 protected override _buildRenderObjects(...): RenderObject[] {
     const objects: RenderObject[] = [];
-    
+
     // Generate objects...
-    
+
     if (objects.length > MAX_OBJECTS) {
         console.warn(`[MyElement] Exceeded ${MAX_OBJECTS} objects, truncating`);
         return objects.slice(0, MAX_OBJECTS);
     }
-    
+
     return objects;
 }
 ```
 
 **Cache Expensive Calculations:**
+
 ```typescript
 private _cachedData: Map<number, any> = new Map();
 
 protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
     const frame = Math.floor(targetTime * 60); // Cache per frame at 60fps
-    
+
     if (!this._cachedData.has(frame)) {
         this._cachedData.set(frame, this._expensiveCalculation());
-        
+
         // Clean old cache entries
         if (this._cachedData.size > 120) { // Keep 2 seconds
             const oldestFrame = frame - 120;
             this._cachedData.delete(oldestFrame);
         }
     }
-    
+
     const data = this._cachedData.get(frame);
     // Use cached data...
 }
@@ -822,19 +870,20 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
 ### Error Handling
 
 **Graceful Degradation:**
+
 ```typescript
 protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
     const props = this.getSchemaProps();
-    
+
     try {
         if (!props.requiredProperty) {
             // Show helpful message instead of crashing
             return [
-                new Text(0, 0, 'Please configure required property', 
+                new Text(0, 0, 'Please configure required property',
                          '14px Inter, sans-serif', '#ef4444', 'left', 'top')
             ];
         }
-        
+
         // Normal rendering...
         return this._renderNormally(props, targetTime);
     } catch (error) {
@@ -851,6 +900,7 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
 ### Type Safety
 
 **Use proper typing:**
+
 ```typescript
 interface MyElementProps {
     width: number;
@@ -861,10 +911,10 @@ interface MyElementProps {
 
 protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
     const props = this.getSchemaProps() as MyElementProps;
-    
+
     // Now you have type safety
     const scaled = props.width * 2; // TypeScript knows width is a number
-    
+
     return [...];
 }
 ```
@@ -874,18 +924,21 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
 ### Element Not Appearing
 
 **Check visibility:**
+
 ```typescript
 const props = this.getSchemaProps();
 console.log('Visible?', props.visible);
 ```
 
 **Check render output:**
+
 ```typescript
 const objects = this._buildRenderObjects(config, targetTime);
 console.log('Render objects:', objects.length, objects);
 ```
 
 **Check position:**
+
 ```typescript
 // Element might be off-canvas
 console.log('Position:', { x: props.x, y: props.y });
@@ -897,6 +950,7 @@ console.log('Canvas size:', config.canvas);
 **Colors not showing:** Verify color format is 8-digit hex with alpha (`#RRGGBBAA`)
 
 **Objects in wrong position:**
+
 - Render objects use local coordinates (0,0 = element origin)
 - Element position is set via `x`/`y`/`offsetX`/`offsetY` properties
 
@@ -905,17 +959,18 @@ console.log('Canvas size:', config.canvas);
 ### Performance Problems
 
 **Profile render time:**
+
 ```typescript
 protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
     const startTime = performance.now();
-    
+
     const objects = this._buildRenderObjectsImpl(_config, targetTime);
-    
+
     const elapsed = performance.now() - startTime;
     if (elapsed > 16) { // More than one frame at 60fps
         console.warn(`[MyElement] Slow render: ${elapsed.toFixed(2)}ms`);
     }
-    
+
     return objects;
 }
 ```
@@ -930,7 +985,6 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
 
 - [Plugin Development Quickstart](plugin-quickstart.md)
 - [Plugin API v1](plugin-api-v1.md)
-- [Plugin API Migration Guide](plugin-api-migration-guide.md)
 - [Runtime Plugin Loading](runtime-plugin-loading.md)
 - [Plugin Manifest Schema](plugin-manifest.schema.json)
 - [Architecture Overview](ARCHITECTURE.md)

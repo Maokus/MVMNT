@@ -5,6 +5,7 @@ import {
     PLUGIN_CAPABILITIES,
     prop,
     insertElementGroups,
+    tab,
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
@@ -15,45 +16,61 @@ export class TrackerlikeMidiDisplayElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Trackerlike Midi Display',
-            description: 'A tracker-style MIDI display showing notes per beat in monospace text',
-            category: 'midipack1',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'midiSource',
-                label: 'MIDI Source',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.midiTrack('midiTrackId', 'MIDI Track', { description: 'The MIDI track to display notes from' }),
-                ],
+                name: 'Trackerlike Midi Display',
+                description: 'A tracker-style MIDI display showing notes per beat in monospace text',
             },
-            {
-                id: 'trackerLayout',
-                label: 'Layout',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.number('division', 'Division (rows per beat)', 1, { min: 1, max: 32, step: 1, description: '1 = quarter notes, 2 = 8th, 4 = 16th, etc.' }),
-                    prop.number('rowCount', 'Rows per page', 8, { min: 1, max: 64, step: 1 }),
-                    prop.number('columns', 'Note columns', 1, { min: 1, max: 8, step: 1, description: 'How many simultaneous notes to show per row' }),
-                    prop.boolean('showTrackName', 'Show Track Name', true),
-                ],
-            },
-            {
-                id: 'trackerAppearance',
-                label: 'Appearance',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.number('fontSize', 'Font Size', 16, { min: 8, max: 64, step: 1 }),
-                    prop.colorAlpha('textColor', 'Text Color', '#e2e8f0FF'),
-                    prop.colorAlpha('activeColor', 'Active Row Color', '#10B981FF'),
-                    prop.colorAlpha('headerColor', 'Header Color', '#94a3b8FF'),
-                ],
-            },
-        ]);
+            [
+                tab.content([
+                    {
+                        id: 'midiSource',
+                        label: 'MIDI Source',
+                        collapsed: false,
+                        properties: [
+                            prop.midiTrack('midiTrackId', 'MIDI Track', {
+                                description: 'The MIDI track to display notes from',
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'trackerLayout',
+                        label: 'Layout',
+                        collapsed: false,
+                        properties: [
+                            prop.number('division', 'Division (rows per beat)', 1, {
+                                min: 1,
+                                max: 32,
+                                step: 1,
+                                description: '1 = quarter notes, 2 = 8th, 4 = 16th, etc.',
+                            }),
+                            prop.number('rowCount', 'Rows per page', 8, { step: 1 }),
+                            prop.number('columns', 'Note columns', 1, {
+                                min: 1,
+                                max: 8,
+                                step: 1,
+                                description: 'How many simultaneous notes to show per row',
+                            }),
+                            prop.boolean('showTrackName', 'Show Track Name', true),
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    {
+                        id: 'trackerAppearance',
+                        label: 'Appearance',
+                        collapsed: false,
+                        properties: [
+                            prop.number('fontSize', 'Font Size', 16, { step: 1 }),
+                            prop.colorAlpha('textColor', 'Text Color', '#e2e8f0FF'),
+                            prop.colorAlpha('activeColor', 'Active Row Color', '#10B981FF'),
+                            prop.colorAlpha('headerColor', 'Header Color', '#94a3b8FF'),
+                        ],
+                    },
+                ]),
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {

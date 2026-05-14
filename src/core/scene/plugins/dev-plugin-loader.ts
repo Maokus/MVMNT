@@ -33,11 +33,7 @@ interface PluginManifest {
 
 interface PluginElementDefinition {
     type: string;
-    name: string;
-    category: string;
-    description?: string;
     entry: string;
-    capabilities?: string[];
 }
 
 interface LoadResult {
@@ -90,7 +86,7 @@ function validateManifest(manifest: any): manifest is PluginManifest {
     }
     
     for (const element of manifest.elements) {
-        if (!element.type || !element.name || !element.category || !element.entry) {
+        if (!element.type || !element.entry) {
             return false;
         }
     }
@@ -130,7 +126,8 @@ async function loadPluginManifest(pluginPath: string): Promise<PluginManifest | 
 async function loadElement(
     pluginPath: string,
     element: PluginElementDefinition,
-    pluginId: string
+    pluginId: string,
+    pluginName: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
         // Construct the module path
@@ -171,18 +168,17 @@ async function loadElement(
         
         // Register the element via the custom element path so pluginId is tracked
         // and conflicts with built-in types are caught correctly
-        sceneElementRegistry.registerCustomElement(element.type, ElementClass, {
+        const registryKey = sceneElementRegistry.registerCustomElement(element.type, ElementClass, {
             pluginId,
-            overrideCategory: element.category,
-            capabilities: element.capabilities,
+            overrideCategory: pluginName,
         });
 
         // Wire loadBundledAsset() to the Vite dev-server asset path for this element type.
-        registerElementAssetLoader(element.type, (assetPath) =>
+        registerElementAssetLoader(registryKey, (assetPath) =>
             Promise.resolve(`${pluginPath}/assets/${assetPath}`)
         );
 
-        debugLog(`[DevPluginLoader] Registered element: ${element.type} from plugin ${pluginId}`);
+        debugLog(`[DevPluginLoader] Registered element: ${registryKey} from plugin ${pluginId}`);
         
         return { success: true };
     } catch (error) {
@@ -228,7 +224,7 @@ async function loadPlugin(pluginPath: string): Promise<LoadResult | null> {
     
     // Load each element
     for (const element of manifest.elements) {
-        const result = await loadElement(pluginPath, element, manifest.id);
+        const result = await loadElement(pluginPath, element, manifest.id, manifest.name);
         
         if (result.success) {
             elementsLoaded++;

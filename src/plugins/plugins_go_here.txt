@@ -11,4 +11,7 @@ Workflow: write source in src/plugins/<name>/ → npm run build-plugin → find 
 
 Tracking
 --------
-- midipack1/  tracked in git (default pack, shipped in public/default-plugins/)
+
+Following plugins are tracked in git as examples. 
+- midipack1/  
+- patternspack1/ 

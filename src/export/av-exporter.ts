@@ -39,6 +39,7 @@ import {
     getEncodableAudioCodecs,
 } from 'mediabunny';
 import { ensureMp3EncoderRegistered } from './mp3-encoder-loader';
+import { ensureAacEncoderRegistered } from './aac-encoder-loader';
 
 // NOTE: MP3 encoder registration has been moved to a lazy path (`ensureMp3EncoderRegistered`) to avoid
 // loading the WASM + encoder code during initial app load. See `mp3-encoder-loader.ts`.
@@ -268,12 +269,12 @@ export class AVExporter {
                 onProgress(6, 'Preparing audio track...');
                 try {
                     // Resolve audio codec
-                    const defaultAudioCodec = resolvedContainer === 'webm' ? 'opus' : 'pcm-s16';
+                    const defaultAudioCodec = resolvedContainer === 'webm' ? 'opus' : 'aac';
                     let resolvedAudioCodec: any = !audioCodec || audioCodec === 'auto' ? defaultAudioCodec : audioCodec;
                     const preferOrder =
                         resolvedContainer === 'webm'
                             ? ['opus', 'vorbis', 'flac', 'pcm-s16', 'mp3']
-                            : ['pcm-s16', 'mp3', 'opus', 'vorbis', 'flac'];
+                            : ['aac', 'mp3', 'pcm-s16', 'opus', 'vorbis', 'flac'];
                     const resolvedSampleRate =
                         audioSampleRate === 'auto' ? mixedAudioBuffer.sampleRate : audioSampleRate;
                     const bitrateBps = typeof audioBitrate === 'number' && audioBitrate > 0 ? audioBitrate : 192_000; // sensible default
@@ -297,24 +298,29 @@ export class AVExporter {
                         try {
                             const encodable = await (getEncodableAudioCodecs?.(undefined, capabilityOptions) as any);
                             const sanitized = Array.isArray(encodable)
-                                ? encodable.filter(
-                                      (c): c is string => typeof c === 'string' && c.toLowerCase() !== 'aac'
-                                  )
+                                ? encodable.filter((c): c is string => typeof c === 'string')
                                 : [];
                             const match = preferOrder.find((c) => sanitized.includes(c));
                             if (match) resolvedAudioCodec = match;
-                            // If user explicitly requested mp3 or auto fallback includes it, attempt registration lazily
+                            // Lazily register encoders for codecs that need it
                             if (audioCodec === 'mp3' || encodable?.includes?.('mp3')) {
                                 await ensureMp3EncoderRegistered();
+                            }
+                            if (audioCodec === 'aac' || encodable?.includes?.('aac')) {
+                                await ensureAacEncoderRegistered();
                             }
                         } catch {
                             /* ignore */
                         }
                     }
-                    // If user explicitly selected mp3 (even if reported unsupported initially), attempt lazy registration before constructing source.
+                    // If user explicitly selected mp3 or aac, attempt lazy registration before constructing source.
                     if (audioCodec === 'mp3') {
                         await ensureMp3EncoderRegistered();
                         resolvedAudioCodec = 'mp3';
+                    }
+                    if (audioCodec === 'aac' || resolvedAudioCodec === 'aac') {
+                        await ensureAacEncoderRegistered();
+                        resolvedAudioCodec = 'aac';
                     }
                     // Choose sample rate
                     audioSource = new AudioBufferSource({

@@ -119,12 +119,6 @@ export function migrateChannel(channel: AutomationChannel): AutomationChannel {
     return {
         ...channel,
         keyframes: channel.keyframes.map((kf) => migrateKeyframe(kf, channel.interpolation)),
-        defaultInterpolation: channel.defaultInterpolation ?? {
-            mode: channel.interpolation === 'stepped' ? 'constant'
-                : channel.interpolation === 'linear' ? 'linear'
-                : 'bezier',
-            direction: 'auto',
-        },
     };
 }
 

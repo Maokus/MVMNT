@@ -5,10 +5,10 @@ import { registerSceneCommandListener } from '@state/scene';
 import { registerTimelineCommandListener } from '@state/timeline/timelineTelemetry';
 import {
     AudioDiagnosticsSection,
-} from './developerOverlay/AudioDiagnosticsSection';
-import { TelemetrySection, type TelemetryEvent, type TelemetryMetrics } from './developerOverlay/TelemetrySection';
-import { TransportSection } from './developerOverlay/TransportSection';
-import { UndoSection } from './developerOverlay/UndoSection';
+} from './AudioDiagnosticsSection';
+import { TelemetrySection, type TelemetryEvent, type TelemetryMetrics } from './TelemetrySection';
+import { TransportSection } from './TransportSection';
+import { UndoSection } from './UndoSection';
 
 const MAX_RECENT_COMMANDS = 5;
 

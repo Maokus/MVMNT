@@ -32,23 +32,27 @@ export function serializeStable(value: unknown): string {
                     throw new TypeError('Converting circular structure to JSON (stable)');
                 }
                 seen.add(v);
-                if (Array.isArray(v)) {
-                    const items = v.map((item) => {
-                        const enc = encode(item);
-                        return enc === undefined ? 'null' : enc; // JSON.stringify converts unsupported in arrays to null
-                    });
-                    return '[' + items.join(',') + ']';
-                }
-                // Plain object
-                const keys = Object.keys(v).sort();
-                const parts: string[] = [];
-                for (const k of keys) {
-                    const enc = encode(v[k]);
-                    if (enc !== undefined) {
-                        parts.push(JSON.stringify(k) + ':' + enc);
+                try {
+                    if (Array.isArray(v)) {
+                        const items = v.map((item) => {
+                            const enc = encode(item);
+                            return enc === undefined ? 'null' : enc; // JSON.stringify converts unsupported in arrays to null
+                        });
+                        return '[' + items.join(',') + ']';
                     }
+                    // Plain object
+                    const keys = Object.keys(v).sort();
+                    const parts: string[] = [];
+                    for (const k of keys) {
+                        const enc = encode(v[k]);
+                        if (enc !== undefined) {
+                            parts.push(JSON.stringify(k) + ':' + enc);
+                        }
+                    }
+                    return '{' + parts.join(',') + '}';
+                } finally {
+                    seen.delete(v);
                 }
-                return '{' + parts.join(',') + '}';
             default:
                 return 'null';
         }

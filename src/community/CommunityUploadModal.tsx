@@ -1,17 +1,19 @@
 import React, { useCallback, useState, useRef } from 'react';
 import { FaXmark, FaUpload } from 'react-icons/fa6';
 import type { User } from '@supabase/supabase-js';
-import { uploadItem, parsePluginManifest } from './communityApi';
+import { uploadItem, parsePluginManifest, setItemTags, findPluginUidConflict } from './communityApi';
+import CommunityTagInput from './CommunityTagInput';
 
 interface CommunityUploadModalProps {
   user: User;
+  canCreateTags?: boolean;
   onClose: () => void;
   onUploaded: () => void;
 }
 
 const ACCEPTED_FILE_TYPES = '.mvt,.mvmnt-plugin';
 
-const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClose, onUploaded }) => {
+const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, canCreateTags = false, onClose, onUploaded }) => {
   const [type, setType] = useState<'template' | 'plugin'>('template');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -20,6 +22,8 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
   const [mainFile, setMainFile] = useState<File | null>(null);
   const [pluginUid, setPluginUid] = useState<string | null>(null);
   const [pluginVersion, setPluginVersion] = useState<string | null>(null);
+  const [pluginUidConflict, setPluginUidConflict] = useState(false);
+  const [tags, setTags] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const thumbInputRef = useRef<HTMLInputElement>(null);
@@ -45,6 +49,7 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
     setMainFile(file);
     setPluginUid(null);
     setPluginVersion(null);
+    setPluginUidConflict(false);
 
     if (file) {
       if (file.name.endsWith('.mvmnt-plugin')) {
@@ -53,6 +58,8 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
         if (parsed) {
           setPluginUid(parsed.id);
           setPluginVersion(parsed.version);
+          const conflictId = await findPluginUidConflict(parsed.id);
+          setPluginUidConflict(conflictId !== null);
         }
       } else if (file.name.endsWith('.mvt')) {
         setType('template');
@@ -68,11 +75,14 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
     setUploading(true);
 
     try {
-      await uploadItem(
+      const itemId = await uploadItem(
         user.id, type, title, description, thumbnailFile, mainFile,
         pluginUid ?? undefined,
         pluginVersion ?? undefined,
       );
+      if (tags.length > 0) {
+        await setItemTags(itemId, tags);
+      }
       onUploaded();
       onClose();
     } catch (err: any) {
@@ -80,7 +90,7 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
     } finally {
       setUploading(false);
     }
-  }, [user.id, type, title, description, thumbnailFile, mainFile, pluginUid, pluginVersion, onUploaded, onClose]);
+  }, [user.id, type, title, description, thumbnailFile, mainFile, pluginUid, pluginVersion, tags, onUploaded, onClose]);
 
   const inputClass = "w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none";
 
@@ -199,10 +209,18 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
                 )}
               </div>
             )}
+            {pluginUidConflict && pluginUid && (
+              <p className="mt-1 text-xs text-red-400">
+                A plugin with ID <span className="font-mono">{pluginUid}</span> already exists in the community. Plugin IDs must be globally unique.
+              </p>
+            )}
             {type === 'plugin' && mainFile && !pluginUid && (
               <p className="mt-1 text-xs text-yellow-500">Could not read manifest — plugin_uid won't be set.</p>
             )}
           </div>
+
+          {/* Tags */}
+          <CommunityTagInput tags={tags} onChange={setTags} canCreateTags={canCreateTags} />
 
           {error && <p className="text-xs text-red-400">{error}</p>}
 
@@ -216,7 +234,7 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
             </button>
             <button
               type="submit"
-              disabled={uploading || !thumbnailFile || !mainFile || !title.trim()}
+              disabled={uploading || !thumbnailFile || !mainFile || !title.trim() || pluginUidConflict}
               className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"
             >
               <FaUpload className="text-[11px]" /> {uploading ? 'Uploading...' : 'Upload'}

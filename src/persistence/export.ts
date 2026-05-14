@@ -2,6 +2,7 @@ import { serializeStable } from './stable-stringify';
 import { encodeMidiToBinary } from '@core/midi/midi-encoder';
 import { useTimelineStore } from '@state/timelineStore';
 import { DocumentGateway } from './document-gateway';
+import { CURRENT_SCHEMA_VERSION, SCHEMA_TO_MIN_APP_VERSION } from './validate';
 import {
     collectAudioAssets,
     type AssetStorageMode,
@@ -9,6 +10,7 @@ import {
     type WaveformExportRecord,
 } from './audio-asset-export';
 import { collectFontAssets } from './font-asset-export';
+import { collectVisualAssets, type VisualAssetRecord } from './visual-asset-export';
 import pkg from '../../package.json';
 import { zipSync, strToU8 } from 'fflate';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
@@ -25,6 +27,17 @@ import {
     type SerializedAudioFeatureTrackDataRef,
 } from '@audio/features/audioFeatureAnalysis';
 import type { AudioFeatureCacheStatus } from '@audio/features/audioFeatureTypes';
+import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
+
+/** Converts an exact plugin version to a ^major.minor.0 semver range for scene exports.
+ *  e.g. "1.2.3" → "^1.2.0", so any compatible 1.x install >= 1.2.0 opens the scene without warnings. */
+function toPluginVersionRange(version: string): string {
+    const match = /^(\d+)\.(\d+)\./.exec(version);
+    if (!match) return version; // unknown format — leave as-is
+    return `^${match[1]}.${match[2]}.0`;
+}
+
+import type { PropertyBindingData } from '@bindings/property-bindings';
 
 export interface SceneMetadata {
     id: string;
@@ -42,6 +55,13 @@ export interface ScenePluginDependency {
     hash?: string;
     elementTypesUsed: string[];
     embedded: boolean;
+}
+
+/** A scene element as serialized in schema V6+. Properties are nested under the `properties` key. */
+export interface SceneSerializedElementV6 {
+    id: string;
+    type: string;
+    properties: Record<string, PropertyBindingData>;
 }
 
 interface SceneExportEnvelopeBase {
@@ -68,12 +88,18 @@ interface SceneExportEnvelopeBase {
     assets: {
         storage: AssetStorageMode;
         createdWith: string;
+        minAppVersion?: string;
         audio: { byId: Record<string, AudioAssetRecord> };
         waveforms?: { byAudioId: Record<string, WaveformExportRecord> };
         fonts?: { byId: Record<string, import('./font-asset-export').FontAssetRecord> };
+        visual?: { byId: Record<string, VisualAssetRecord> };
     };
     references?: {
         audioIdMap: Record<string, string>;
+    };
+    visualAssetRegistry?: {
+        assets: Record<string, { id: string; name: string; filename: string }>;
+        assetsOrder: string[];
     };
     compatibility?: { warnings: { message: string }[] };
 }
@@ -90,7 +116,24 @@ export interface SceneExportEnvelopeV5 extends SceneExportEnvelopeBase {
     schemaVersion: 5;
 }
 
-export type SceneExportEnvelope = SceneExportEnvelopeV2 | SceneExportEnvelopeV4 | SceneExportEnvelopeV5;
+export interface SceneExportEnvelopeV6 extends Omit<SceneExportEnvelopeBase, 'scene'> {
+    schemaVersion: 6;
+    scene: {
+        elements: Record<string, SceneSerializedElementV6>;
+        elementsOrder: string[];
+        sceneSettings?: any;
+        macros?: any;
+        fontAssets?: Record<string, any>;
+        fontLicensingAcknowledgedAt?: number;
+        automation?: any;
+    };
+}
+
+export type SceneExportEnvelope =
+    | SceneExportEnvelopeV2
+    | SceneExportEnvelopeV4
+    | SceneExportEnvelopeV5
+    | SceneExportEnvelopeV6;
 
 interface AudioFeatureCacheAssetReference {
     assetId: string;
@@ -116,7 +159,7 @@ interface ExportResultBase {
 export interface ExportSceneResultInline extends ExportResultBase {
     ok: true;
     mode: 'inline-json';
-    envelope: SceneExportEnvelopeV5;
+    envelope: SceneExportEnvelopeV6;
     json: string;
     blob?: Blob;
 }
@@ -124,7 +167,7 @@ export interface ExportSceneResultInline extends ExportResultBase {
 export interface ExportSceneResultZip extends ExportResultBase {
     ok: true;
     mode: 'zip-package';
-    envelope: SceneExportEnvelopeV5;
+    envelope: SceneExportEnvelopeV6;
     zip: Uint8Array<ArrayBuffer>;
     blob?: Blob;
 }
@@ -143,6 +186,23 @@ const DEFAULT_MAX_INLINE_ASSET_BYTES = 10 * 1024 * 1024; // 10 MB
 function buildCompatibilityWarnings(messages: string[]): { warnings: { message: string }[] } | undefined {
     if (!messages.length) return undefined;
     return { warnings: messages.map((message) => ({ message })) };
+}
+
+function buildVisualAssetRegistry(): SceneExportEnvelopeBase['visualAssetRegistry'] {
+    const registry = useVisualAssetRegistryStore.getState();
+    if (registry.assetsOrder.length === 0) return undefined;
+    const assets: Record<string, { id: string; name: string; filename: string }> = {};
+    const filteredOrder: string[] = [];
+    for (const id of registry.assetsOrder) {
+        const entry = registry.assets[id];
+        if (!entry) continue;
+        if (entry.origin === 'plugin') continue;
+        const filename = typeof entry.file === 'string' ? entry.name : entry.file.name;
+        assets[id] = { id, name: entry.name, filename };
+        filteredOrder.push(id);
+    }
+    if (filteredOrder.length === 0) return undefined;
+    return { assets, assetsOrder: filteredOrder };
 }
 
 function normalizeBlobPart(part: BlobPart): BlobPart {
@@ -200,7 +260,7 @@ function base64ToUint8Array(base64: string): Uint8Array {
 }
 
 async function collectPluginDependencies(
-    elements: Array<{ type?: string }> | undefined,
+    elements: Array<{ type?: string }> | Record<string, { type?: string }> | undefined,
     options: { embedPlugins: boolean; storage: AssetStorageMode }
 ): Promise<{
     dependencies: ScenePluginDependency[];
@@ -212,7 +272,8 @@ async function collectPluginDependencies(
     const pluginAssets = new Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>();
 
     const usedTypes = new Set<string>();
-    for (const el of elements ?? []) {
+    const elementIterable = Array.isArray(elements) ? elements : Object.values(elements ?? {});
+    for (const el of elementIterable) {
         if (el && typeof el.type === 'string') {
             usedTypes.add(el.type);
         }
@@ -281,7 +342,7 @@ async function collectPluginDependencies(
 
         dependencies.push({
             pluginId,
-            version: manifest?.version ?? 'unknown',
+            version: manifest?.version ? toPluginVersionRange(manifest.version) : 'unknown',
             hash,
             elementTypesUsed: Array.from(entry.elementTypesUsed).sort(),
             embedded,
@@ -345,7 +406,15 @@ function prepareMidiAssets(
         const assetRef = `assets/midi/${assetId}/${MIDI_ASSET_FILENAME}`;
         let midiBytes: Uint8Array;
         try {
-            const midiData = entry.midiData ?? { events: [], ccEvents: [], ticksPerQuarter: 480, tempo: 500000, duration: 0, timeSignature: { numerator: 4, denominator: 4, clocksPerClick: 24, thirtysecondNotesPerBeat: 8 }, trimmedTicks: 0 };
+            const midiData = entry.midiData ?? {
+                events: [],
+                ccEvents: [],
+                ticksPerQuarter: 480,
+                tempo: 500000,
+                duration: 0,
+                timeSignature: { numerator: 4, denominator: 4, clocksPerClick: 24, thirtysecondNotesPerBeat: 8 },
+                trimmedTicks: 0,
+            };
             midiBytes = encodeMidiToBinary(midiData);
         } catch (err) {
             console.warn('[exportScene] failed to encode MIDI to binary for', cacheId, err);
@@ -360,8 +429,8 @@ function prepareMidiAssets(
             typeof entry.ticksPerQuarter === 'number'
                 ? entry.ticksPerQuarter
                 : typeof entry.midiData?.ticksPerQuarter === 'number'
-                ? entry.midiData.ticksPerQuarter
-                : undefined;
+                  ? entry.midiData.ticksPerQuarter
+                  : undefined;
         const notesCount = Array.isArray(entry.notesRaw) ? entry.notesRaw.length : undefined;
         timelineMidiCache[cacheId] = {
             assetId,
@@ -380,7 +449,8 @@ function buildZip(
     fontAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
     waveformAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
     audioFeatureAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
-    pluginAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>
+    pluginAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
+    visualAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>
 ): Uint8Array<ArrayBuffer> {
     const files: Record<string, Uint8Array> = {};
     const docJson = serializeStable(envelope);
@@ -438,6 +508,11 @@ function buildZip(
     for (const [pluginId, payload] of pluginAssets.entries()) {
         const filename = payload.filename || `${pluginId}.mvmnt-plugin`;
         const path = `plugins/${filename}`;
+        files[path] = payload.bytes;
+    }
+    for (const [assetId, payload] of visualAssets.entries()) {
+        const safeName = payload.filename || `${assetId}.bin`;
+        const path = `assets/visual/${assetId}/${safeName}`;
         files[path] = payload.bytes;
     }
     return zipSync(files, { level: 6 }) as Uint8Array<ArrayBuffer>;
@@ -608,6 +683,7 @@ export async function exportScene(
         preflightWarnings.push(message);
     }
     const doc = DocumentGateway.build();
+    const docWarnings: string[] = (doc as any)._warnings ?? [];
     const state = useTimelineStore.getState();
     const metadataStore = (() => {
         try {
@@ -652,8 +728,9 @@ export async function exportScene(
     });
 
     const fontResult = await collectFontAssets();
+    const visualResult = await collectVisualAssets();
 
-    const warnings: string[] = [...preflightWarnings, ...collectResult.warnings];
+    const warnings: string[] = [...preflightWarnings, ...docWarnings, ...collectResult.warnings];
     if (collectResult.missingIds.length) {
         warnings.push(`Audio cache entries missing for: ${collectResult.missingIds.join(', ')}`);
     }
@@ -666,6 +743,9 @@ export async function exportScene(
     }
     if (fontResult.missing.length) {
         warnings.push(`Font binaries missing for: ${fontResult.missing.join(', ')}`);
+    }
+    if (visualResult.missing.length) {
+        warnings.push(`Visual asset bytes missing for: ${visualResult.missing.join(', ')}`);
     }
 
     const pluginResult = await collectPluginDependencies(doc.scene?.elements, {
@@ -690,6 +770,7 @@ export async function exportScene(
     const assetsSection: SceneExportEnvelopeV5['assets'] = {
         storage,
         createdWith: `mvmnt/${pkg.version ?? 'dev'}`,
+        minAppVersion: SCHEMA_TO_MIN_APP_VERSION[CURRENT_SCHEMA_VERSION],
         audio: { byId: collectResult.audioById },
     };
     if (collectResult.waveforms) {
@@ -698,16 +779,50 @@ export async function exportScene(
     if (Object.keys(fontResult.byId).length) {
         assetsSection.fonts = { byId: fontResult.byId };
     }
+    if (Object.keys(visualResult.byId).length) {
+        assetsSection.visual = { byId: visualResult.byId };
+    }
+
+    // Patch element bindings in-place: replace File objects with stable asset IDs
+    // so the envelope serialises correctly. This mutates the in-memory doc only.
+    if (visualResult.fileKeyToId.size > 0) {
+        const elements = doc.scene?.elements;
+        if (elements && typeof elements === 'object') {
+            for (const element of Object.values(elements) as any[]) {
+                if (!element || typeof element !== 'object') continue;
+                const props = element.properties;
+                if (!props || typeof props !== 'object') continue;
+                for (const [propKey, propData] of Object.entries(props) as [string, any][]) {
+                    if (propData?.type !== 'constant') continue;
+                    const value = propData.value;
+                    if (!(value instanceof File)) continue;
+                    const key = `${value.name}:${value.size}:${value.lastModified}`;
+                    const assetId = visualResult.fileKeyToId.get(key);
+                    if (assetId) {
+                        props[propKey] = { type: 'constant', value: assetId };
+                    }
+                }
+            }
+        }
+    }
 
     const midiAssets = prepareMidiAssets(doc.midiCache, storage);
     const featureAssets = prepareAudioFeatureCaches(doc.audioFeatureCaches, storage);
 
-    const envelope: SceneExportEnvelopeV5 = {
-        schemaVersion: 5,
+    const envelope: SceneExportEnvelopeV6 = {
+        schemaVersion: CURRENT_SCHEMA_VERSION,
         format: 'mvmnt.scene',
         metadata,
         plugins: pluginResult.dependencies.length ? pluginResult.dependencies : undefined,
-        scene: { ...doc.scene },
+        scene: {
+            elements: doc.scene?.elements ?? {},
+            elementsOrder: doc.scene?.elementsOrder ?? [],
+            sceneSettings: doc.scene?.sceneSettings,
+            macros: doc.scene?.macros,
+            fontAssets: doc.scene?.fontAssets,
+            fontLicensingAcknowledgedAt: doc.scene?.fontLicensingAcknowledgedAt,
+            automation: doc.scene?.automation,
+        },
         timeline: {
             timeline: doc.timeline,
             tracks: doc.tracks,
@@ -726,6 +841,7 @@ export async function exportScene(
         },
         assets: assetsSection,
         references: Object.keys(collectResult.audioIdMap).length ? { audioIdMap: collectResult.audioIdMap } : undefined,
+        visualAssetRegistry: buildVisualAssetRegistry(),
         compatibility: buildCompatibilityWarnings(warnings),
     };
 
@@ -741,15 +857,27 @@ export async function exportScene(
         };
     }
 
-    const zip = buildZip(
-        envelope,
-        collectResult.assetPayloads,
-        midiAssets.assetPayloads,
-        fontResult.assetPayloads,
-        collectResult.waveformAssetPayloads,
-        featureAssets.assetPayloads,
-        pluginResult.pluginAssets
-    );
+    let zip: Uint8Array<ArrayBuffer>;
+    try {
+        zip = buildZip(
+            envelope,
+            collectResult.assetPayloads,
+            midiAssets.assetPayloads,
+            fontResult.assetPayloads,
+            collectResult.waveformAssetPayloads,
+            featureAssets.assetPayloads,
+            pluginResult.pluginAssets,
+            visualResult.assetPayloads
+        );
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error('[exportScene] Failed to build zip:', err);
+        return {
+            ok: false,
+            errors: [{ message: `Export failed while packaging the file: ${message}` }],
+            warnings,
+        };
+    }
     return {
         ok: true,
         mode: 'zip-package',

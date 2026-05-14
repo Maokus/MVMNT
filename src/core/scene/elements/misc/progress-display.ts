@@ -1,15 +1,19 @@
 // Progress display element for showing playback progress with property bindings
-import { SceneElement, asNumber, type PropertyTransform } from '../base';
-import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
-import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
-import { parseFontSelection, ensureFontLoaded } from '@fonts/font-loader';
-import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
-
-const clampUnit: PropertyTransform<number, SceneElementInterface> = (value, element) => {
-    const numeric = asNumber(value, element);
-    if (numeric === undefined) return undefined;
-    return Math.max(0, Math.min(1, numeric));
-};
+import {
+    SceneElement,
+    asNumber,
+    type PropertyTransform,
+    type EnhancedConfigSchema,
+    type SceneElementInterface,
+    prop,
+    insertElementGroups,
+    parseFontSelection,
+    ensureFontLoaded,
+    propGroup,
+    colorSlotProps,
+    tab,
+} from '@mvmnt/plugin-sdk';
+import { Rectangle, type RenderObject, Text } from '@mvmnt/plugin-sdk/render';
 
 const clampNonNegative: PropertyTransform<number, SceneElementInterface> = (value, element) => {
     const numeric = asNumber(value, element);
@@ -40,43 +44,12 @@ export class ProgressDisplayElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Progress Display',
-            description: 'Playback progress bar and statistics',
-            category: 'Misc',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'progressBasics',
-                label: 'Progress & Stats',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Decide which UI elements to show and size the progress bar.',
-                properties: [
-                    prop.boolean('showBar', 'Show Progress Bar', true),
-                    prop.boolean('showStats', 'Show Statistics', true),
-                    {
-                        key: 'barWidth',
-                        type: 'number',
-                        label: 'Bar Width (px)',
-                        default: 400,
-                        min: 100,
-                        max: 1200,
-                        step: 5,
-                        visibleWhen: [{ key: 'showBar', truthy: true }],
-                        runtime: { transform: clampNonNegative, defaultValue: 400 },
-                    },
-                    {
-                        key: 'height',
-                        type: 'number',
-                        label: 'Bar Height (px)',
-                        default: 20,
-                        min: 10,
-                        max: 80,
-                        step: 5,
-                        visibleWhen: [{ key: 'showBar', truthy: true }],
-                        runtime: { transform: clampNonNegative, defaultValue: 20 },
-                    },
-                ],
+                name: 'Progress Display',
+                description: 'Playback progress bar and statistics',
+                category: 'Misc',
                 presets: [
                     {
                         id: 'fullPanel',
@@ -93,73 +66,6 @@ export class ProgressDisplayElement extends SceneElement {
                         label: 'Stats Overlay',
                         values: { showBar: false, showStats: true },
                     },
-                ],
-            },
-            {
-                id: 'progressAppearance',
-                label: 'Colors & Opacity',
-                variant: 'advanced',
-                collapsed: true,
-                description: 'Fine-tune bar and statistics styling.',
-                properties: [
-                    prop.color('barColor', 'Bar Color', '#cccccc', {
-                        visibleWhen: [{ key: 'showBar', truthy: true }],
-                    }),
-                    {
-                        key: 'barOpacity',
-                        type: 'number',
-                        label: 'Bar Opacity',
-                        default: 1,
-                        min: 0,
-                        max: 1,
-                        step: 0.05,
-                        visibleWhen: [{ key: 'showBar', truthy: true }],
-                        runtime: { transform: clampUnit, defaultValue: 1 },
-                    },
-                    prop.color('barBgColor', 'Bar Background Color', '#ffffff', {
-                        visibleWhen: [{ key: 'showBar', truthy: true }],
-                    }),
-                    {
-                        key: 'barBgOpacity',
-                        type: 'number',
-                        label: 'Bar Background Opacity',
-                        default: 0.1,
-                        min: 0,
-                        max: 1,
-                        step: 0.05,
-                        visibleWhen: [{ key: 'showBar', truthy: true }],
-                        runtime: { transform: clampUnit, defaultValue: 0.1 },
-                    },
-                    prop.color('borderColor', 'Border Color', '#ffffff', {
-                        visibleWhen: [{ key: 'showBar', truthy: true }],
-                    }),
-                    {
-                        key: 'borderOpacity',
-                        type: 'number',
-                        label: 'Border Opacity',
-                        default: 0.3,
-                        min: 0,
-                        max: 1,
-                        step: 0.05,
-                        visibleWhen: [{ key: 'showBar', truthy: true }],
-                        runtime: { transform: clampUnit, defaultValue: 0.3 },
-                    },
-                    prop.color('statsTextColor', 'Stats Text Color', '#cccccc', {
-                        visibleWhen: [{ key: 'showStats', truthy: true }],
-                    }),
-                    {
-                        key: 'statsTextOpacity',
-                        type: 'number',
-                        label: 'Stats Text Opacity',
-                        default: 1,
-                        min: 0,
-                        max: 1,
-                        step: 0.05,
-                        visibleWhen: [{ key: 'showStats', truthy: true }],
-                        runtime: { transform: clampUnit, defaultValue: 1 },
-                    },
-                ],
-                presets: [
                     {
                         id: 'glass',
                         label: 'Glass Overlay',
@@ -204,7 +110,76 @@ export class ProgressDisplayElement extends SceneElement {
                     },
                 ],
             },
-        ]);
+            [
+                tab.content([
+                    {
+                        id: 'progressBasics',
+                        label: 'Progress & Stats',
+                        collapsed: false,
+                        description: 'Decide which UI elements to show and size the progress bar.',
+                        properties: [
+                            prop.boolean('showBar', 'Show Progress Bar', true),
+                            prop.boolean('showStats', 'Show Statistics', true),
+                            prop.boolean('countDown', 'Count Down', false, {
+                                visibleWhen: [{ key: 'showStats', truthy: true }],
+                                description: 'When on, shows remaining time instead of current/total.',
+                            }),
+                            {
+                                key: 'barWidth',
+                                type: 'number',
+                                label: 'Bar Width (px)',
+                                default: 400,
+                                min: 100,
+                                max: 1200,
+                                step: 5,
+                                visibleWhen: [{ key: 'showBar', truthy: true }],
+                                runtime: { transform: clampNonNegative, defaultValue: 400 },
+                            },
+                            {
+                                key: 'height',
+                                type: 'number',
+                                label: 'Bar Height (px)',
+                                default: 20,
+                                min: 10,
+                                max: 80,
+                                step: 5,
+                                visibleWhen: [{ key: 'showBar', truthy: true }],
+                                runtime: { transform: clampNonNegative, defaultValue: 20 },
+                            },
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    {
+                        id: 'appearance',
+                        label: 'Colors',
+                        collapsed: true,
+                        description: 'Fine-tune bar and statistics styling.',
+                        properties: [
+                            ...colorSlotProps('bar', 'Bar', '#cccccc', {
+                                visibleWhen: [{ key: 'showBar', truthy: true }],
+                                step: 0.05,
+                            }),
+                            ...colorSlotProps('barBg', 'Bar Background', '#ffffff', {
+                                opacityDefault: 0.1,
+                                visibleWhen: [{ key: 'showBar', truthy: true }],
+                                step: 0.05,
+                            }),
+                            ...colorSlotProps('border', 'Border', '#ffffff', {
+                                opacityDefault: 0.3,
+                                visibleWhen: [{ key: 'showBar', truthy: true }],
+                                step: 0.05,
+                            }),
+                            ...colorSlotProps('statsText', 'Stats Text', '#cccccc', {
+                                visibleWhen: [{ key: 'showStats', truthy: true }],
+                                step: 0.05,
+                            }),
+                        ],
+                    },
+                    propGroup.typography(),
+                ]),
+            ]
+        );
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
@@ -297,34 +272,41 @@ export class ProgressDisplayElement extends SceneElement {
 
         // Statistics text
         if (showStats) {
-            const fontSize = 12;
-            let fontFamily = config.fontFamily || 'Arial';
-            let fontWeight = '400';
-            if (fontFamily && fontFamily.includes('|')) {
-                const parsed = parseFontSelection(fontFamily);
-                fontFamily = parsed.family || fontFamily;
-                fontWeight = parsed.weight || fontWeight;
-            }
+            const fontSize = props.fontSize ?? 12;
+            const fontSelection = props.fontFamily ?? 'Arial';
+            const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
+            const fontWeight = (weightPart || '400').toString();
             // Ensure chosen weight is available (especially for thin weights like 100)
             if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
             const font = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
             const statsTextColorRaw = props.statsTextColor ?? '#cccccc';
             const statsTextOpacity = props.statsTextOpacity ?? 1;
+            const textAlign = (props.textAlign ?? 'left') as CanvasTextAlign;
+            const letterSpacing = props.letterSpacing ?? 0;
+            const countDown = props.countDown ?? false;
+            const barWidth = props.barWidth ?? 400;
+            const textX = textAlign === 'right' ? barWidth : textAlign === 'center' ? barWidth / 2 : margin;
 
-            // Time progress
-            const currentTimeText = this._formatTime(Math.max(0, relTime));
-            const durationText = this._formatTime(totalDuration);
-            const timeText = `${currentTimeText} / ${durationText}`;
+            let timeText: string;
+            if (countDown) {
+                const remaining = Math.max(0, totalDuration - relTime);
+                timeText = this._formatTime(remaining);
+            } else {
+                const currentTimeText = this._formatTime(Math.max(0, relTime));
+                const durationText = this._formatTime(totalDuration);
+                timeText = `${currentTimeText} / ${durationText}`;
+            }
 
             const timeLabel = new Text(
-                margin,
+                textX,
                 textY,
                 timeText,
                 font,
                 this._hexToRgba(statsTextColorRaw, statsTextOpacity),
-                'left',
+                textAlign,
                 'top'
             );
+            timeLabel.letterSpacing = letterSpacing;
             renderObjects.push(timeLabel);
         }
 

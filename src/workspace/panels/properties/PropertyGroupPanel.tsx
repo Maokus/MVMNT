@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { PropertyGroup, PropertyDefinition } from '@core/types';
-import FormInput, { type FormInputChange } from '@workspace/form/inputs/FormInput';
+import FormInput, { type FormInputChange } from '@workspace/forms/inputs/FormInput';
 // @ts-ignore
 import { useMacros } from '@context/MacroContext';
 import { FaLink } from 'react-icons/fa';
@@ -9,6 +9,7 @@ import { hoveredPropertyRef } from './hoveredPropertyRef';
 
 type SupportedFormInputType =
     | 'text'
+    | 'longString'
     | 'number'
     | 'boolean'
     | 'color'
@@ -18,12 +19,16 @@ type SupportedFormInputType =
     | 'file'
     | 'font'
     | 'timelineTrackRef'
-    | 'audioAnalysisProfile';
+    | 'audioAnalysisProfile'
+    | 'assetRef';
 
 function resolveFormInputType(property: PropertyDefinition): SupportedFormInputType | null {
     const rawType = typeof property.type === 'string' ? property.type : undefined;
     if (rawType === 'string') {
         return 'text';
+    }
+    if (rawType === 'longString') {
+        return 'longString';
     }
     if (
         rawType === 'number' ||
@@ -34,7 +39,8 @@ function resolveFormInputType(property: PropertyDefinition): SupportedFormInputT
         rawType === 'range' ||
         rawType === 'font' ||
         rawType === 'timelineTrackRef' ||
-        rawType === 'audioAnalysisProfile'
+        rawType === 'audioAnalysisProfile' ||
+        rawType === 'assetRef'
     ) {
         return rawType as SupportedFormInputType;
     }
@@ -80,6 +86,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         return [
             'number',
             'string',
+            'longString',
             'boolean',
             'color',
             'colorAlpha',
@@ -407,7 +414,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
         return (
             <div
-                key={property.key}
+                key={`${elementId}:${property.key}`}
                 className={`ae-property-row${nested ? ' ae-property-row-nested' : ''}${isDelinked ? ' ae-property-delinked' : ''}`}
                 style={
                     nested

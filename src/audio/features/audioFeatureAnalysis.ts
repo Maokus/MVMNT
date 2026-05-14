@@ -20,10 +20,9 @@ import {
     type ChannelLayoutMeta,
 } from './audioFeatureTypes';
 import { normalizeHopTicks, quantizeHopTicks } from './hopQuantization';
-import { createPitchWaveformCalculator } from './calculators/pitchWaveformCalculator';
-import { createRmsCalculator } from './calculators/rmsCalculator';
+import { createPitchGuideCalculator } from './calculators/pitchGuideCalculator';
 import { createSpectrogramCalculator } from './calculators/spectrogramCalculator';
-import { createWaveformCalculator } from './calculators/waveformCalculator';
+import { createPeaksCalculator } from './calculators/peaksCalculator';
 import { createTempoMapper, type TempoMapper } from '@core/timing';
 import { getSharedTimingManager } from '@state/timelineStore';
 import type { TempoMapEntry } from '@state/timelineTypes';
@@ -406,7 +405,7 @@ function serializeTrack(track: AudioFeatureTrack): SerializedAudioFeatureTrack {
         channelLayout = {
             aliases: Array.isArray(track.channelLayout.aliases)
                 ? track.channelLayout.aliases.slice()
-                : track.channelLayout.aliases ?? null,
+                : (track.channelLayout.aliases ?? null),
             semantics: track.channelLayout.semantics,
         };
     }
@@ -476,7 +475,7 @@ function deserializeTrack(track: SerializedAudioFeatureTrack): AudioFeatureTrack
         metadata: track.metadata,
         analysisParams: track.analysisParams,
         channelAliases: track.channelAliases ?? null,
-        channelLayout: track.channelLayout === undefined ? undefined : track.channelLayout ?? null,
+        channelLayout: track.channelLayout === undefined ? undefined : (track.channelLayout ?? null),
         analysisProfileId: track.analysisProfileId ?? null,
         data: payload,
     };
@@ -574,23 +573,14 @@ function ensureCalculatorsRegistered(): AudioFeatureCalculator[] {
             serializeTrack,
             deserializeTrack,
         }),
-        createPitchWaveformCalculator({
+        createPitchGuideCalculator({
             createAnalysisYieldController,
             mixBufferToMono,
             cloneTempoProjection,
             serializeTrack,
             deserializeTrack,
-            inferChannelAliases,
         }),
-        createRmsCalculator({
-            createAnalysisYieldController,
-            mixBufferToMono,
-            cloneTempoProjection,
-            serializeTrack,
-            deserializeTrack,
-            inferChannelAliases,
-        }),
-        createWaveformCalculator({
+        createPeaksCalculator({
             createAnalysisYieldController,
             mixBufferToMono,
             cloneTempoProjection,

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Scaffold Script for Custom Elements
- * 
+ *
  * Creates a new custom element plugin with the following structure:
  * - src/plugins/{pluginName}/plugin.json
  * - src/plugins/{pluginName}/{elementType}.ts
- * 
+ *
  * Usage: npm run create-element
  */
 
@@ -20,52 +20,55 @@ const projectRoot = path.resolve(__dirname, '..');
 
 // Template mapping
 const TEMPLATES = {
+    'minimal': {
+        file: 'minimal.ts',
+        className: 'MinimalElement',
+        description: 'The simplest possible element — blank slate with a color and size property',
+    },
     'basic-shape': {
         file: 'basic-shape.ts',
         className: 'BasicShapeElement',
-        name: 'Basic Shape',
-        description: 'A customizable geometric shape',
-        category: 'Custom',
+        description: 'Renders a basic shape (e.g., rectangle or circle)',
     },
     'audio-reactive': {
         file: 'audio-reactive.ts',
         className: 'AudioReactiveElement',
-        name: 'Audio Reactive',
-        description: 'Shape that reacts to audio volume',
-        category: 'Custom',
+        description: 'Reacts to audio input (e.g., visualizes frequency spectrum or volume)',
     },
     'midi-notes': {
         file: 'midi-notes.ts',
         className: 'MidiNotesElement',
-        name: 'MIDI Notes',
-        description: 'Display currently playing MIDI notes',
-        category: 'Custom',
+        description: 'Visualizes MIDI notes (e.g., piano roll or falling notes)',
     },
     'text-display': {
         file: 'text-display.ts',
         className: 'TextDisplayElement',
-        name: 'Text Display',
-        description: 'Display customizable text',
-        category: 'Custom',
+        description: 'Displays customizable text (e.g., song title, artist, or custom messages)',
+    },
+    'image-simple': {
+        file: 'image-simple.ts',
+        className: 'SimpleImageElement',
+        description: 'Displays a static image or animated GIF from a file upload',
+    },
+    'image-atlas': {
+        file: 'image-atlas.ts',
+        className: 'AtlasImageElement',
+        description: 'Animates a Sparrow atlas with a bundled default (BOYFRIEND.png + BOYFRIEND.xml)',
+        assets: 'image-atlas',
+    },
+    'bundled-image': {
+        file: 'bundled-image.ts',
+        className: 'BundledImageElement',
+        description: 'Displays a bundled image or GIF with optional user override',
+        assets: 'bundled-image',
     },
 };
-
-const CATEGORIES = [
-    'shapes',
-    'effects',
-    'text',
-    'particles',
-    'audio-reactive',
-    'midi',
-    'utility',
-    'custom'
-];
 
 // Helper to prompt user input
 function prompt(question) {
     const rl = readline.createInterface({
         input: process.stdin,
-        output: process.stdout
+        output: process.stdout,
     });
 
     return new Promise((resolve) => {
@@ -89,7 +92,7 @@ function toKebabCase(str) {
 function toPascalCase(str) {
     return str
         .split('-')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join('');
 }
 
@@ -97,7 +100,7 @@ function toPascalCase(str) {
 function toTitleCase(str) {
     return str
         .split('-')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
 }
 
@@ -123,107 +126,100 @@ function validateElementType(type) {
     return null;
 }
 
-// Check if element type already exists
-function checkElementTypeUniqueness(elementType) {
+// Check if element type already exists within a specific plugin
+function checkElementTypeUniqueness(elementType, pluginId) {
     // Check built-in elements (simplified check)
     const builtInTypes = [
-        'background', 'image', 'progressDisplay', 'textOverlay', 'timeDisplay',
-        'timeUnitPianoRoll', 'movingNotesPianoRoll', 'notesPlayedTracker',
-        'notesPlayingDisplay', 'chordEstimateDisplay', 'audioSpectrum',
-        'audioVolumeMeter', 'audioWaveform', 'audioLockedOscilloscope', 'debug'
+        'background',
+        'image',
+        'progressDisplay',
+        'textOverlay',
+        'timeDisplay',
+        'timeUnitPianoRoll',
+        'movingNotesPianoRoll',
+        'notesPlayedTracker',
+        'notesPlayingDisplay',
+        'chordEstimateDisplay',
+        'audioSpectrum',
+        'audioVolumeMeter',
+        'audioWaveform',
+        'audioLockedOscilloscope',
+        'debug',
     ];
-    
+
     if (builtInTypes.includes(elementType)) {
         return `Element type "${elementType}" conflicts with a built-in element`;
     }
-    
-    // Check existing plugins
+
+    // Check within the specific plugin only (different plugins may share type names —
+    // the registry namespaces them as pluginId:elementType at load time)
+    if (!pluginId) return null;
+
     const pluginsDir = path.join(projectRoot, 'src/plugins');
-    if (!fs.existsSync(pluginsDir)) {
-        return null;
-    }
-    
-    const pluginDirs = fs.readdirSync(pluginsDir, { withFileTypes: true })
-        .filter(dirent => dirent.isDirectory());
-    
-    for (const dir of pluginDirs) {
-        const pluginJsonPath = path.join(pluginsDir, dir.name, 'plugin.json');
-        if (fs.existsSync(pluginJsonPath)) {
-            try {
-                const pluginJson = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
-                if (pluginJson.elements) {
-                    for (const element of pluginJson.elements) {
-                        if (element.type === elementType) {
-                            return `Element type "${elementType}" already exists in plugin "${pluginJson.name}"`;
-                        }
-                    }
-                }
-            } catch (error) {
-                console.warn(`Warning: Could not parse ${pluginJsonPath}`);
-            }
+    if (!fs.existsSync(pluginsDir)) return null;
+
+    const pluginDirName = pluginId.split('.').pop();
+    const pluginJsonPath = path.join(pluginsDir, pluginDirName, 'plugin.json');
+    if (!fs.existsSync(pluginJsonPath)) return null;
+
+    try {
+        const pluginJson = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
+        if (pluginJson.elements?.some((el) => el.type === elementType)) {
+            return `Element type "${elementType}" already exists in this plugin`;
         }
+    } catch (error) {
+        console.warn(`Warning: Could not parse ${pluginJsonPath}`);
     }
-    
+
     return null;
 }
 
 // Generate plugin.json
-function generatePluginJson(pluginId, pluginName, elementType, elementName, elementDescription, entryFile) {
+function generatePluginJson(pluginId, pluginName, elementType, entryFile) {
     return {
         id: pluginId,
         name: pluginName,
         version: '1.0.0',
         apiVersion: '^1.0.0',
-        description: `Custom plugin providing ${elementName}`,
+        description: `Custom plugin`,
         author: 'Your Name',
         elements: [
             {
                 type: elementType,
-                name: elementName,
-                category: pluginName, // Use plugin ID as category
-                description: elementDescription,
-                entry: entryFile
-            }
-        ]
+                entry: entryFile,
+            },
+        ],
     };
 }
 
 // Add element to existing plugin.json
-function addElementToPlugin(pluginJsonPath, elementType, elementName, elementDescription, entryFile) {
+function addElementToPlugin(pluginJsonPath, elementType, entryFile) {
     const pluginJson = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
-    
+
     // Check if element type already exists in this plugin
-    if (pluginJson.elements.some(el => el.type === elementType)) {
+    if (pluginJson.elements.some((el) => el.type === elementType)) {
         throw new Error(`Element type "${elementType}" already exists in this plugin`);
     }
-    
+
     // Add new element
     pluginJson.elements.push({
         type: elementType,
-        name: elementName,
-        category: pluginJson.name, // Use plugin ID as category
-        description: elementDescription,
-        entry: entryFile
+        entry: entryFile,
     });
-    
-    // Update description if it was auto-generated
-    if (pluginJson.elements.length > 1) {
-        pluginJson.description = `Custom plugin providing ${pluginJson.elements.length} elements`;
-    }
-    
+
     fs.writeFileSync(pluginJsonPath, JSON.stringify(pluginJson, null, 2));
     return pluginJson;
 }
 
 // Customize template content
-function customizeTemplate(templateContent, elementType, className, elementName, elementDescription, pluginId) {
+function customizeTemplate(templateContent, elementType, className, pluginId, elementName, elementDescription) {
     return templateContent
         .replace(/export class \w+Element/g, `export class ${className}`)
         .replace(/super\('[\w-]+'/g, `super('${elementType}'`)
         .replace(/constructor\(id: string = '\w+'/g, `constructor(id: string = '${elementType}'`)
-        .replace(/name: '[^']+'/g, `name: '${elementName}'`)
-        .replace(/description: '[^']+'/g, `description: '${elementDescription}'`)
-        .replace(/category: '[^']+'/g, `category: '${pluginId}'`);
+        .replace(/category: '[^']+'/g, `category: '${pluginId}'`)
+        .replace(/name: '[^']+'/, `name: '${elementName}'`)
+        .replace(/description: '[^']+'/, `description: '${elementDescription}'`);
 }
 
 async function main() {
@@ -231,16 +227,16 @@ async function main() {
     console.log('MVMNT Custom Element Scaffold');
     console.log('='.repeat(60));
     console.log();
-    
-    // Step 1: Get plugin name
-    let pluginId = await prompt('Plugin ID (e.g., myplugin): ');
+
+    // Step 1: Get plugin ID
+    let pluginId = await prompt('Plugin ID (e.g., myplugin or com.example.myplugin): ');
     let validationError = validatePluginName(pluginId);
     while (validationError) {
         console.error(`Error: ${validationError}`);
-        pluginId = await prompt('Plugin ID (e.g., myplugin): ');
+        pluginId = await prompt('Plugin ID (e.g., myplugin or com.example.myplugin): ');
         validationError = validatePluginName(pluginId);
     }
-    
+
     // Determine plugin directory and decide whether to prompt for plugin display name.
     const pluginsDir = path.join(projectRoot, 'src/plugins');
     const pluginDirName = pluginId.split('.').pop();
@@ -248,23 +244,25 @@ async function main() {
 
     let pluginName;
     if (fs.existsSync(pluginDir)) {
-        // If plugin folder exists, use its plugin.json name if present, otherwise derive a title-case name.
+        // If plugin folder exists, use its plugin.json name if present.
         const existingPluginJson = path.join(pluginDir, 'plugin.json');
         if (fs.existsSync(existingPluginJson)) {
             try {
                 const existing = JSON.parse(fs.readFileSync(existingPluginJson, 'utf8'));
-                pluginName = existing.name || toTitleCase(pluginDirName);
+                pluginName = existing.name;
             } catch (e) {
-                pluginName = toTitleCase(pluginDirName);
+                // will be derived from element ID below
             }
-        } else {
-            pluginName = toTitleCase(pluginDirName);
         }
-    } else {
-        pluginName = await prompt('Plugin Name (e.g., My Plugin): ') || toTitleCase(pluginDirName);
     }
-    
-    // Step 2: Get element type
+
+    // Prompt for plugin name only when creating a new plugin
+    if (!pluginName) {
+        const defaultPluginName = toTitleCase(pluginId.split('.').pop());
+        pluginName = (await prompt(`Plugin Name (e.g., My Plugin) [${defaultPluginName}]: `)) || defaultPluginName;
+    }
+
+    // Step 2: Get element ID
     let elementType = await prompt('Element ID (kebab-case, e.g., my-element): ');
     elementType = toKebabCase(elementType);
     validationError = validateElementType(elementType);
@@ -274,88 +272,88 @@ async function main() {
         elementType = toKebabCase(elementType);
         validationError = validateElementType(elementType);
     }
-    
-    // Check uniqueness
-    const uniquenessError = checkElementTypeUniqueness(elementType);
+
+    // Check uniqueness within plugin (different plugins may share type names —
+    // the registry namespaces them as pluginId:elementType at load time)
+    const uniquenessError = checkElementTypeUniqueness(elementType, pluginId);
     if (uniquenessError) {
         console.error(`Error: ${uniquenessError}`);
         process.exit(1);
     }
-    
-    const elementName = await prompt(`Element Display Name [${toTitleCase(elementType)}]: `) || toTitleCase(elementType);
-    const elementDescription = await prompt('Element Description: ') || `A custom ${elementName} element`;
-    
-    // Step 3: Choose template
+
+    // Step 3: Get element display name and description
+    const defaultElementName = toTitleCase(elementType);
+    const elementName =
+        (await prompt(`Element Display Name (e.g., My Element) [${defaultElementName}]: `)) || defaultElementName;
+    const elementDescription =
+        (await prompt('Element Description (e.g., A custom visualizer element): ')) ||
+        `A custom ${elementName.toLowerCase()} element`;
+
+    // Step 4: Choose template
     console.log('\nAvailable templates:');
-    Object.keys(TEMPLATES).forEach((key, index) => {
+    const templateKeys = Object.keys(TEMPLATES);
+    templateKeys.forEach((key, index) => {
         console.log(`  ${index + 1}. ${key} - ${TEMPLATES[key].description}`);
     });
-    
-    const templateChoice = await prompt('Choose template (1-4): ');
+
+    const templateChoice = await prompt(`Choose template (1-${templateKeys.length}): `);
     const templateIndex = parseInt(templateChoice) - 1;
-    const templateKeys = Object.keys(TEMPLATES);
-    
+
     if (templateIndex < 0 || templateIndex >= templateKeys.length) {
         console.error('Error: Invalid template choice');
         process.exit(1);
     }
-    
+
     const templateKey = templateKeys[templateIndex];
     const template = TEMPLATES[templateKey];
-    
-    // Step 4: Create files
+
+    // Step 5: Create files
     console.log('\n' + '='.repeat(60));
     console.log('Creating element...');
     console.log('='.repeat(60));
-    
+
     const pluginJsonPath = path.join(pluginDir, 'plugin.json');
     const entryFile = `${elementType}.ts`;
     const elementFile = path.join(pluginDir, entryFile);
-    
+
     // Create plugin directory if needed
     if (!fs.existsSync(pluginsDir)) {
         fs.mkdirSync(pluginsDir, { recursive: true });
         console.log(`✓ Created plugins directory`);
     }
-    
+
     const pluginExists = fs.existsSync(pluginDir);
     let pluginJson;
-    
+
     if (pluginExists) {
         // Add to existing plugin
         console.log(`Plugin already exists, adding element to existing plugin`);
-        
+
         if (!fs.existsSync(pluginJsonPath)) {
             console.error(`Error: Plugin directory exists but plugin.json is missing: ${pluginDir}`);
             process.exit(1);
         }
-        
+
         if (fs.existsSync(elementFile)) {
             console.error(`Error: Element file already exists: ${elementFile}`);
             process.exit(1);
         }
-        
-        pluginJson = addElementToPlugin(pluginJsonPath, elementType, elementName, elementDescription, entryFile);
+
+        pluginJson = addElementToPlugin(pluginJsonPath, elementType, entryFile);
         console.log(`✓ Updated plugin.json (now has ${pluginJson.elements.length} elements)`);
     } else {
         // Create new plugin
         fs.mkdirSync(pluginDir, { recursive: true });
+        fs.mkdirSync(pluginDir + '/assets', { recursive: true });
         console.log(`✓ Created plugin directory: ${path.relative(projectRoot, pluginDir)}`);
-        
+
         // Generate plugin.json
-        pluginJson = generatePluginJson(
-            pluginId,
-            pluginName,
-            elementType,
-            elementName,
-            elementDescription,
-            entryFile
-        );
-        
+        pluginJson = generatePluginJson(pluginId, pluginName, elementType, entryFile);
+
         fs.writeFileSync(pluginJsonPath, JSON.stringify(pluginJson, null, 2));
         console.log(`✓ Created plugin.json`);
     }
-    
+
     // Copy and customize template
     const templatePath = path.join(projectRoot, 'src/core/scene/elements/_templates', template.file);
     const templateContent = fs.readFileSync(templatePath, 'utf8');
@@ -364,18 +362,38 @@ async function main() {
         templateContent,
         elementType,
         className,
+        pluginId,
         elementName,
-        elementDescription,
-        pluginId
+        elementDescription
     );
-    
+
     fs.writeFileSync(elementFile, customizedContent);
     console.log(`✓ Created element file: ${path.relative(projectRoot, elementFile)}`);
-    
+
+    // Copy bundled template assets into the plugin's assets/ directory, if any.
+    if (template.assets) {
+        const templateAssetsDir = path.join(projectRoot, 'src/core/scene/elements/_templates/assets', template.assets);
+        if (fs.existsSync(templateAssetsDir)) {
+            const pluginAssetsDir = path.join(pluginDir, 'assets');
+            if (!fs.existsSync(pluginAssetsDir)) {
+                fs.mkdirSync(pluginAssetsDir, { recursive: true });
+            }
+            const assetFiles = fs.readdirSync(templateAssetsDir);
+            for (const assetFile of assetFiles) {
+                const src = path.join(templateAssetsDir, assetFile);
+                const dest = path.join(pluginAssetsDir, assetFile);
+                if (fs.statSync(src).isFile()) {
+                    fs.copyFileSync(src, dest);
+                    console.log(`✓ Copied bundled asset: assets/${assetFile}`);
+                }
+            }
+        }
+    }
+
     console.log('\n' + '='.repeat(60));
     console.log('Success!');
     console.log('='.repeat(60));
-    console.log(`\nElement "${elementName}" (${elementType}) added to plugin: ${pluginJson.name}`);
+    console.log(`\nElement "${elementType}" added to plugin: ${pluginJson.name}`);
     console.log(`Plugin location: ${path.relative(projectRoot, pluginDir)}`);
     console.log(`\nNext steps:`);
     console.log(`  1. Start the dev server: npm run dev`);
@@ -383,7 +401,7 @@ async function main() {
     console.log(`  3. Edit ${path.relative(projectRoot, elementFile)} to customize`);
     if (pluginJson.elements.length > 1) {
         console.log(`\nThis plugin now has ${pluginJson.elements.length} elements:`);
-        pluginJson.elements.forEach(el => console.log(`  - ${el.name} (${el.type})`));
+        pluginJson.elements.forEach((el) => console.log(`  - (${el.type})`));
     }
     console.log(`\nSee docs/creating-custom-elements.md for more information.`);
 }

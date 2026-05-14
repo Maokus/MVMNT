@@ -19,6 +19,7 @@
         "/^npx tsc --noEmit 2>&1 \\| head -30$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "npx tsc": true
     }
 }

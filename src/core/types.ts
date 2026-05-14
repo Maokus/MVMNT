@@ -198,6 +198,7 @@ export interface BaseSceneElementConfig {
 export interface ConfigSchemaProperty {
     type:
         | 'string'
+        | 'longString'
         | 'number'
         | 'boolean'
         | 'color'
@@ -208,7 +209,8 @@ export interface ConfigSchemaProperty {
         | 'file-midi'
         | 'file-image'
         | 'timelineTrackRef'
-        | 'audioAnalysisProfile';
+        | 'audioAnalysisProfile'
+        | 'assetRef';
     label: string;
     default: any;
     min?: number;
@@ -217,6 +219,7 @@ export interface ConfigSchemaProperty {
     options?: Array<{ value: any; label: string }>;
     accept?: string; // For file inputs
     description?: string;
+    allowedAssetTypes?: Array<'image' | 'gif' | 'sparrow'>; // For assetRef inputs
 }
 
 export interface ConfigSchema {
@@ -270,6 +273,7 @@ export interface PropertyDefinition {
     key: string;
     type:
         | 'string'
+        | 'longString'
         | 'number'
         | 'boolean'
         | 'color'
@@ -281,7 +285,8 @@ export interface PropertyDefinition {
         | 'file-image'
         | 'font'
         | 'timelineTrackRef'
-        | 'audioAnalysisProfile';
+        | 'audioAnalysisProfile'
+        | 'assetRef';
     label: string;
     default?: any;
     min?: number;
@@ -290,6 +295,7 @@ export interface PropertyDefinition {
     options?: Array<{ value: any; label: string }>;
     accept?: string; // For file inputs
     description?: string;
+    allowedAssetTypes?: Array<'image' | 'gif' | 'sparrow'>; // For assetRef inputs
     // UI hint: when type === 'timelineTrackRef', allow selecting multiple tracks
     // Optional filter for track kinds supported by this binding (defaults to MIDI only)
     allowedTrackTypes?: Array<'midi' | 'audio'>;
@@ -320,17 +326,32 @@ export interface PropertyGroup {
     id: string;
     label: string;
     collapsed: boolean;
-    variant?: 'basic' | 'advanced';
     description?: string;
     properties: PropertyDefinition[];
+    /** @deprecated Move presets to the top-level `presets` field on `EnhancedConfigSchema`. */
     presets?: PropertyGroupPreset[];
+}
+
+export interface PropertyTab {
+    id: string;
+    label: string;
+    groups: PropertyGroup[];
+}
+
+export interface ElementPreset {
+    id: string;
+    label: string;
+    description?: string;
+    thumbnail?: string;
+    values: Record<string, unknown>;
 }
 
 export interface EnhancedConfigSchema {
     name: string;
     description: string;
     category?: string;
-    groups: PropertyGroup[];
+    tabs: PropertyTab[];
+    presets?: ElementPreset[];
 }
 
 export interface SceneElementInterface {

@@ -5,6 +5,7 @@ export type TimelineCommandId =
     | 'timeline.addTrack'
     | 'timeline.removeTracks'
     | 'timeline.setTrackOffsetTicks'
+    | 'timeline.setMultipleTrackOffsetTicks'
     | 'timeline.setTrackProperties'
     | 'timeline.reorderTracks';
 

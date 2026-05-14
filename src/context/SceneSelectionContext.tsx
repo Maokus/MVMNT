@@ -10,8 +10,21 @@ import {
 } from '@state/scene';
 import type { SceneCommand, SceneCommandOptions } from '@state/scene';
 import { shallow } from 'zustand/shallow';
-import { makeChannelId, findKeyframeAtTick, createKeyframe, type AutomationValueType } from '@automation/types';
+import { makeChannelId, findKeyframeAtTick, createKeyframe, DEFAULT_SEGMENT_INTERPOLATION, type AutomationValueType } from '@automation/types';
 import { useTimelineStore } from '@state/timelineStore';
+import { useSelectionStore } from '@state/selectionStore';
+
+export interface TrackInputDef {
+    key: string;
+    label: string;
+    allowedTrackTypes?: Array<'midi' | 'audio'>;
+    allowMultiple?: boolean;
+}
+
+export interface TrackInputPopupData {
+    elementId: string;
+    trackInputs: TrackInputDef[];
+}
 
 interface SceneSelectionState {
     selectedElementId: string | null;
@@ -20,6 +33,7 @@ interface SceneSelectionState {
     propertyPanelRefresh: number; // increments to force property panel value refresh without full element identity change
     visualizer: any;
     elements: any[];
+    trackInputPopup: TrackInputPopupData | null;
 }
 
 interface SceneSelectionActions {
@@ -30,13 +44,14 @@ interface SceneSelectionActions {
         changes: { [key: string]: any },
         options?: Omit<SceneCommandOptions, 'source'>,
     ) => void;
-    addElement: (elementType: string) => void;
+    addElement: (elementType: string, initialConfig?: Record<string, unknown>) => void;
     incrementPropertyPanelRefresh: () => void;
     toggleElementVisibility: (elementId: string) => void;
     moveElement: (elementId: string, newIndex: number) => void;
     duplicateElement: (elementId: string) => void;
     deleteElement: (elementId: string) => void;
     updateElementId: (oldId: string, newId: string) => boolean;
+    dismissTrackInputPopup: () => void;
 }
 
 interface SceneSelectionContextType extends SceneSelectionState, SceneSelectionActions { }
@@ -93,6 +108,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     const { visualizer } = useVisualizer() as any;
     const [selectedElementSchema, setSelectedElementSchema] = useState<any>(null);
     const [propertyPanelRefresh, setPropertyPanelRefresh] = useState(0);
+    const [trackInputPopup, setTrackInputPopup] = useState<TrackInputPopupData | null>(null);
 
     const storeSelection = useSceneSelectionStore();
     const storeElements = useSceneElements();
@@ -145,7 +161,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
 
     const selectElement = useCallback((elementId: string | null) => {
         const normalized = elementId ?? null;
-        useSceneStore.getState().setInteractionState({ selectedElementIds: normalized ? [normalized] : [] });
+        useSelectionStore.getState().selectElements(normalized ? [normalized] : []);
     }, []);
 
     useEffect(() => {
@@ -240,8 +256,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                     const existingKf = findKeyframeAtTick(channel.keyframes, currentTick);
                     const easingId = existingKf?.easingId ?? 'linear';
                     const segmentInterpolation = existingKf?.segmentInterpolation
-                        ?? channel.defaultInterpolation
-                        ?? { mode: 'bezier' as const, direction: 'auto' as const };
+                        ?? DEFAULT_SEGMENT_INTERPOLATION;
                     const leftHandleType = existingKf?.leftHandleType ?? ('auto_clamped' as const);
                     const rightHandleType = existingKf?.rightHandleType ?? ('auto_clamped' as const);
                     dispatchSceneCommand(
@@ -310,21 +325,25 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     );
 
     const generateUniqueElementId = useCallback((elementType: string): string => {
-        const base = `${elementType}_${Math.random().toString(36).slice(2, 8)}`;
+        const schema = sceneElementRegistry.getSchema(elementType);
+        const baseName = (schema as any)?.name?.trim() || elementType;
         const store = useSceneStore.getState();
-        let candidate = base;
-        let attempt = 1;
-        while (store.elements[candidate]) {
-            candidate = `${base}_${attempt++}`;
+        let n = 1;
+        while (store.elements[`${baseName} ${n}`]) {
+            n++;
         }
-        return candidate;
+        return `${baseName} ${n}`;
     }, []);
 
     const addElement = useCallback(
-        (elementType: string) => {
+        (elementType: string, initialConfig?: Record<string, unknown>) => {
             const uniqueId = generateUniqueElementId(elementType);
+            const selectedId = useSelectionStore.getState().selectedElementIds[0] ?? null;
+            const currentOrder = useSceneStore.getState().order;
+            const selectedIndex = selectedId != null ? currentOrder.indexOf(selectedId) : -1;
+            const targetIndex = selectedIndex >= 0 ? selectedIndex + 1 : undefined;
             const created = runSceneCommand(
-                { type: 'addElement', elementType, elementId: uniqueId },
+                { type: 'addElement', elementType, elementId: uniqueId, config: initialConfig, targetIndex },
                 'SceneSelectionContext.addElement'
             );
             if (!created) return;
@@ -345,6 +364,27 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
             if (visualizer?.invalidateRender) visualizer.invalidateRender();
             setPropertyPanelRefresh((prev) => prev + 1);
             selectElement(uniqueId);
+
+            // Check if the new element has track input properties
+            const schema = sceneElementRegistry.getSchema(elementType) as any;
+            if (schema) {
+                const trackInputs: TrackInputDef[] = [];
+                for (const group of (schema.tabs?.flatMap((t: any) => t.groups) ?? [])) {
+                    for (const propDef of (group.properties ?? [])) {
+                        if (propDef.type === 'timelineTrackRef') {
+                            trackInputs.push({
+                                key: propDef.key,
+                                label: propDef.label,
+                                allowedTrackTypes: propDef.allowedTrackTypes,
+                                allowMultiple: propDef.allowMultiple,
+                            });
+                        }
+                    }
+                }
+                if (trackInputs.length > 0) {
+                    setTrackInputPopup({ elementId: uniqueId, trackInputs });
+                }
+            }
         },
         [generateUniqueElementId, runSceneCommand, visualizer, selectElement]
     );
@@ -408,7 +448,6 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
 
     const deleteElement = useCallback(
         (elementId: string) => {
-            if (!window.confirm(`Delete element "${elementId}"?`)) return;
             const ok = runSceneCommand(
                 { type: 'removeElement', elementId },
                 'SceneSelectionContext.deleteElement'
@@ -444,6 +483,10 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         [runSceneCommand, visualizer, selectedElementId, selectElement]
     );
 
+    const dismissTrackInputPopup = useCallback(() => {
+        setTrackInputPopup(null);
+    }, []);
+
     const contextValue: SceneSelectionContextType = {
         selectedElementId,
         selectedElement,
@@ -451,6 +494,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         propertyPanelRefresh,
         visualizer,
         elements: storeElements,
+        trackInputPopup,
         selectElement,
         clearSelection,
         updateElementConfig,
@@ -461,6 +505,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         duplicateElement,
         deleteElement,
         updateElementId,
+        dismissTrackInputPopup,
     };
 
     useEffect(() => {

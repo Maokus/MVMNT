@@ -18,11 +18,7 @@ import type { FeatureInput, FeatureDataResult } from '@audio/features/sceneApi';
  * Select notes in a specific time window
  * @returns Array of notes, or empty array if timeline API unavailable
  */
-export function selectNotes(
-    trackIds: string[],
-    startSec: number,
-    endSec: number
-): TimelineNoteEvent[] {
+export function selectNotes(trackIds: string[], startSec: number, endSec: number): TimelineNoteEvent[] {
     const { api } = getPluginHostApi();
     if (!api) {
         return [];
@@ -47,11 +43,7 @@ export function selectAllNotes(startSec: number, endSec: number): TimelineNoteEv
  * Omit all args to get every distinct note across all tracks and all time.
  * @returns Sorted array of unique note numbers, e.g. [36, 60, 64, 67]
  */
-export function selectDistinctNotes(args?: {
-    trackIds?: string[];
-    startSec?: number;
-    endSec?: number;
-}): number[] {
+export function selectDistinctNotes(args?: { trackIds?: string[]; startSec?: number; endSec?: number }): number[] {
     const { api } = getPluginHostApi();
     if (!api) {
         return [];
@@ -92,9 +84,11 @@ export function selectNotesByPitch(
  * Omit all args to check across all tracks and all time.
  * @returns { min, max } pitch range, or null if there are no notes
  */
-export function getNoteRange(
-    args?: { trackIds?: string[]; startSec?: number; endSec?: number }
-): { min: number; max: number } | null {
+export function getNoteRange(args?: {
+    trackIds?: string[];
+    startSec?: number;
+    endSec?: number;
+}): { min: number; max: number } | null {
     const { api } = getPluginHostApi();
     if (!api) {
         return null;
@@ -134,7 +128,12 @@ export function groupNotesByPitch(notes: TimelineNoteEvent[]): Map<number, Timel
 }
 
 /**
- * Sample an audio feature at a specific time
+ * Sample an audio feature at a specific time.
+ *
+ * @recommended Use this for simple one-shot sampling. For cases where you need explicit
+ * capability negotiation, use `getPluginHostApi([PLUGIN_CAPABILITIES.audioFeaturesRead])` and
+ * call `api.audio.sampleFeatureAtTime()` directly.
+ *
  * @returns Feature data, or null if audio API unavailable
  */
 export function sampleAudio(
@@ -157,7 +156,11 @@ export function sampleAudio(
 }
 
 /**
- * Sample an audio feature over a range
+ * Sample an audio feature over a range.
+ *
+ * @recommended Preferred over calling `sampleFeatureAtTime` in a loop. For explicit capability
+ * negotiation, use `getPluginHostApi([PLUGIN_CAPABILITIES.audioFeaturesRead])` instead.
+ *
  * @returns Array of feature samples, or empty array if audio API unavailable
  */
 export function sampleAudioRange(
@@ -288,10 +291,7 @@ export function selectCC(args: {
  * Check if sustain pedal (CC 64) is held at the given time
  * @returns true if pedal is down, false otherwise or if timeline API unavailable
  */
-export function getSustainState(args: {
-    trackIds?: string[];
-    timeSec: number;
-}): boolean {
+export function getSustainState(args: { trackIds?: string[]; timeSec: number }): boolean {
     const { api } = getPluginHostApi();
     if (!api) {
         return false;

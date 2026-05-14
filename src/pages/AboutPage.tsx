@@ -2,8 +2,6 @@ import React from 'react';
 // Using Tailwind component classes defined in tailwind.css
 import { Link } from 'react-router-dom';
 import "./aboutpage.css"
-import pain from '@assets/pain.png'
-import senile from '@assets/senile.png'
 
 /**
  * About / Getting Started page.

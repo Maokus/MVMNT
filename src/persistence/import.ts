@@ -20,6 +20,8 @@ import { ensureFontVariantsRegistered } from '@fonts/font-loader';
 import type { FontAsset } from '@state/scene/fonts';
 import { decodeSceneText, parseLegacyInlineScene, parseScenePackage, ScenePackageError } from './scene-package';
 import { isTestEnvironment } from '@utils/env';
+import { useVisualAssetRegistryStore, type ProjectAsset } from '@state/visualAssetRegistryStore';
+import { useSceneStore } from '@state/sceneStore';
 
 const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
@@ -51,6 +53,7 @@ interface ParsedArtifact {
     audioPayloads: Map<string, Uint8Array>;
     midiPayloads: Map<string, Uint8Array>;
     fontPayloads: Map<string, Uint8Array>;
+    visualPayloads: Map<string, Uint8Array>;
     waveformPayloads: Map<string, Map<string, Uint8Array>>;
     audioFeaturePayloads: Map<string, Map<string, Uint8Array>>;
     pluginPayloads: Map<string, Uint8Array>;
@@ -71,6 +74,7 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
                 audioPayloads: legacy.audioPayloads,
                 midiPayloads: legacy.midiPayloads,
                 fontPayloads: legacy.fontPayloads,
+                visualPayloads: legacy.visualPayloads,
                 waveformPayloads: legacy.waveformPayloads,
                 audioFeaturePayloads: legacy.audioFeaturePayloads,
                 pluginPayloads: legacy.pluginPayloads,
@@ -112,6 +116,7 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
                         audioPayloads: legacy.audioPayloads,
                         midiPayloads: legacy.midiPayloads,
                         fontPayloads: legacy.fontPayloads,
+                        visualPayloads: legacy.visualPayloads,
                         waveformPayloads: legacy.waveformPayloads,
                         audioFeaturePayloads: legacy.audioFeaturePayloads,
                         pluginPayloads: legacy.pluginPayloads,
@@ -131,15 +136,17 @@ async function assessPluginDependencies(
     pluginPayloads: Map<string, Uint8Array>
 ): Promise<{
     missing: ScenePluginDependency[];
+    versionAdvisory: ScenePluginDependency[];
     embeddedMissing: ScenePluginDependency[];
     warnings: string[];
 }> {
     const warnings: string[] = [];
     const missing: ScenePluginDependency[] = [];
+    const versionAdvisory: ScenePluginDependency[] = [];
     const embeddedMissing: ScenePluginDependency[] = [];
 
     if (!dependencies?.length) {
-        return { missing, embeddedMissing, warnings };
+        return { missing, versionAdvisory, embeddedMissing, warnings };
     }
 
     const installedPlugins = usePluginStore.getState().plugins;
@@ -148,12 +155,23 @@ async function assessPluginDependencies(
         if (!dep || !dep.pluginId) continue;
         const installed = installedPlugins[dep.pluginId];
         let versionOk = true;
+        let isAdvisory = false;
         if (installed && dep.version && dep.version !== 'unknown') {
             versionOk = satisfiesVersion(installed.manifest.version, dep.version);
             if (!versionOk) {
-                warnings.push(
-                    `Plugin ${dep.pluginId} version mismatch (requires ${dep.version}, found ${installed.manifest.version}).`
-                );
+                // Determine direction: extract the lower bound of the range and check if installed >= it.
+                const lowerBound = dep.version
+                    .replace(/^[\^~>=]+/, '')
+                    .trim()
+                    .split(' ')[0];
+                isAdvisory = satisfiesVersion(installed.manifest.version, `>=${lowerBound}`);
+                if (isAdvisory) {
+                    // Installed plugin is newer than what was used to create the scene — likely harmless.
+                } else {
+                    warnings.push(
+                        `Plugin ${dep.pluginId} version mismatch (requires ${dep.version}, found ${installed.manifest.version}).`
+                    );
+                }
             }
         }
 
@@ -173,15 +191,17 @@ async function assessPluginDependencies(
             }
         }
 
-        if (!installed || !versionOk || !hashOk) {
+        if (!installed || (!versionOk && !isAdvisory) || !hashOk) {
             missing.push(dep);
             if (dep.embedded && pluginPayloads.has(dep.pluginId)) {
                 embeddedMissing.push(dep);
             }
+        } else if (isAdvisory) {
+            versionAdvisory.push(dep);
         }
     }
 
-    return { missing, embeddedMissing, warnings };
+    return { missing, versionAdvisory, embeddedMissing, warnings };
 }
 
 async function installEmbeddedPlugins(
@@ -389,7 +409,10 @@ async function restoreMidiCache(
         }
         if (isMidiBinary(payload)) {
             try {
-                const buffer = payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength) as ArrayBuffer;
+                const buffer = payload.buffer.slice(
+                    payload.byteOffset,
+                    payload.byteOffset + payload.byteLength
+                ) as ArrayBuffer;
                 const midiData = await parseMIDIArrayBuffer(buffer);
                 restored[cacheId] = buildNotesFromMIDI(midiData);
             } catch (error) {
@@ -405,6 +428,165 @@ async function restoreMidiCache(
         }
     }
     return { cache: restored, warnings };
+}
+
+/**
+ * Restore visual assets from ZIP payloads.
+ *
+ * For each asset ID recorded in `envelope.assets.visual.byId`, reconstruct a
+ * File object from the ZIP bytes. Then scan all element property bindings in
+ * `doc.scene` for constant values that match a known asset ID and replace them
+ * with the reconstructed File. This runs before DocumentGateway.apply() so that
+ * the scene store receives File values it already understands at runtime.
+ */
+function restoreVisualAssets(
+    scene: any,
+    visualAssetsSection: { byId: Record<string, any> } | undefined,
+    visualPayloads: Map<string, Uint8Array>
+): { warnings: string[]; fileById: Map<string, File> } {
+    const warnings: string[] = [];
+    const fileById = new Map<string, File>();
+    if (!visualAssetsSection?.byId || typeof visualAssetsSection.byId !== 'object') return { warnings, fileById };
+
+    // Build a map of assetId → reconstructed File
+    for (const [assetId, record] of Object.entries(visualAssetsSection.byId)) {
+        if (!record || typeof record !== 'object') continue;
+        const bytes = visualPayloads.get(assetId);
+        if (!bytes) {
+            warnings.push(`Missing visual asset payload for ${assetId}`);
+            continue;
+        }
+        const mimeType = typeof record.mimeType === 'string' ? record.mimeType : 'application/octet-stream';
+        const originalFileName =
+            typeof record.originalFileName === 'string' ? record.originalFileName : `${assetId}.bin`;
+        try {
+            const file = new File(
+                [bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer],
+                originalFileName,
+                { type: mimeType }
+            );
+            fileById.set(assetId, file);
+        } catch {
+            warnings.push(`Failed to reconstruct File for visual asset ${assetId}`);
+        }
+    }
+
+    if (fileById.size === 0) return { warnings, fileById };
+
+    // Patch element property bindings: replace asset ID strings with File objects
+    // (for prop.file()-type elements; assetRef elements will be migrated back to IDs later)
+    const elements = scene?.elements;
+    if (!elements || typeof elements !== 'object') return { warnings, fileById };
+    for (const element of Object.values(elements) as any[]) {
+        if (!element || typeof element !== 'object') continue;
+        const props = element.properties;
+        if (!props || typeof props !== 'object') continue;
+        for (const [propKey, propData] of Object.entries(props) as [string, any][]) {
+            if (propData?.type !== 'constant') continue;
+            const value = propData.value;
+            if (typeof value !== 'string') continue;
+            const file = fileById.get(value);
+            if (file) {
+                props[propKey] = { type: 'constant', value: file };
+            }
+        }
+    }
+
+    return { warnings, fileById };
+}
+
+/** Populate the visual asset registry from imported files and optional metadata. */
+function hydrateVisualAssetRegistry(
+    fileById: Map<string, File>,
+    visualAssetsSection: { byId: Record<string, any> } | undefined,
+    registrySection:
+        | { assets: Record<string, { id: string; name: string; filename: string }>; assetsOrder: string[] }
+        | undefined
+): void {
+    if (fileById.size === 0) return;
+
+    const entries: ProjectAsset[] = [];
+    const orderedIds = registrySection?.assetsOrder?.length ? registrySection.assetsOrder : Array.from(fileById.keys());
+
+    for (const assetId of orderedIds) {
+        const file = fileById.get(assetId);
+        if (!file) continue;
+        const registryMeta = registrySection?.assets?.[assetId];
+        const visualMeta = visualAssetsSection?.byId?.[assetId];
+        const filename =
+            registryMeta?.name ??
+            (visualMeta?.originalFileName ? (visualMeta.originalFileName as string).replace(/\.[^.]+$/, '') : null) ??
+            assetId;
+        const type =
+            file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')
+                ? ('gif' as const)
+                : ('image' as const);
+        entries.push({ id: assetId, name: filename, file, type, origin: 'user', deletable: true, visibleInAssetManager: true });
+    }
+
+    // Include any IDs not in the ordered list
+    for (const [assetId, file] of fileById) {
+        if (orderedIds.includes(assetId)) continue;
+        const registryMeta = registrySection?.assets?.[assetId];
+        const visualMeta = visualAssetsSection?.byId?.[assetId];
+        const filename =
+            registryMeta?.name ??
+            (visualMeta?.originalFileName ? (visualMeta.originalFileName as string).replace(/\.[^.]+$/, '') : null) ??
+            assetId;
+        const type =
+            file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')
+                ? ('gif' as const)
+                : ('image' as const);
+        entries.push({ id: assetId, name: filename, file, type, origin: 'user', deletable: true, visibleInAssetManager: true });
+    }
+
+    useVisualAssetRegistryStore.getState()._hydrateFromImport(entries);
+}
+
+/**
+ * After DocumentGateway.apply(), convert any File objects in scene store bindings
+ * back to asset ID strings for assetRef-type properties. Uses the fileById reverse map
+ * so we can identify which File corresponds to which registry entry.
+ */
+function migrateStoreAssetRefBindings(fileById: Map<string, File>): void {
+    if (fileById.size === 0) return;
+
+    // Build File → assetId reverse lookup (same File instances as in the store bindings)
+    const fileToId = new Map<File, string>();
+    for (const [id, file] of fileById) {
+        fileToId.set(file, id);
+    }
+
+    const state = useSceneStore.getState();
+    const updates: Array<{ elementId: string; propKey: string; assetId: string }> = [];
+
+    for (const [elementId, elementBindings] of Object.entries(state.bindings.byElement)) {
+        if (!elementBindings) continue;
+        for (const [propKey, binding] of Object.entries(elementBindings)) {
+            if (!binding || (binding as any).type !== 'constant') continue;
+            const value = (binding as any).value;
+            if (!(value instanceof File)) continue;
+            const assetId = fileToId.get(value);
+            if (assetId) {
+                updates.push({ elementId, propKey, assetId });
+            }
+        }
+    }
+
+    if (updates.length === 0) return;
+
+    useSceneStore.setState((prev) => {
+        const nextByElement = { ...prev.bindings.byElement };
+        for (const { elementId, propKey, assetId } of updates) {
+            const elementBindings = nextByElement[elementId];
+            if (!elementBindings) continue;
+            nextByElement[elementId] = {
+                ...elementBindings,
+                [propKey]: { type: 'constant', value: assetId },
+            };
+        }
+        return { bindings: { ...prev.bindings, byElement: nextByElement } };
+    });
 }
 
 async function createAudioBufferFromAsset(record: any, bytes: Uint8Array): Promise<AudioBuffer> {
@@ -611,6 +793,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         audioPayloads,
         midiPayloads,
         fontPayloads,
+        visualPayloads,
         waveformPayloads,
         audioFeaturePayloads,
         pluginPayloads,
@@ -635,27 +818,58 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
             ? window.confirm('This scene includes embedded plugins needed for some elements. Install them now?')
             : false;
         if (shouldInstall) {
-            pluginWarnings.push(...(await installEmbeddedPlugins(dependencyAssessment.embeddedMissing, pluginPayloads)));
+            pluginWarnings.push(
+                ...(await installEmbeddedPlugins(dependencyAssessment.embeddedMissing, pluginPayloads))
+            );
         }
     }
 
     if (dependencyAssessment.missing.length) {
         const missingList = dependencyAssessment.missing.map((dep) => dep.pluginId).filter(Boolean);
         if (missingList.length) {
-            pluginWarnings.push(
-                `Missing plugins: ${missingList.join(', ')}. Some elements are shown as placeholders.`
-            );
+            pluginWarnings.push(`Missing plugins: ${missingList.join(', ')}. Some elements are shown as placeholders.`);
+        }
+    }
+
+    if (dependencyAssessment.versionAdvisory.length) {
+        for (const dep of dependencyAssessment.versionAdvisory) {
+            const installed = usePluginStore.getState().plugins[dep.pluginId];
+            if (installed) {
+                pluginWarnings.push(
+                    `This scene was made with plugin '${dep.pluginId}' ${dep.version}. You have v${installed.manifest.version} installed — it should work, but some details may differ.`
+                );
+            }
         }
     }
 
     const { doc, featureWarnings } = buildDocumentShape(envelope, audioFeaturePayloads);
     const midiRestoration = await restoreMidiCache(envelope?.timeline?.midiCache, midiPayloads);
     doc.midiCache = midiRestoration.cache;
+
+    const { warnings: visualWarnings, fileById } = restoreVisualAssets(
+        doc.scene,
+        envelope.assets?.visual,
+        visualPayloads
+    );
+
+    // Clear registry before applying (previous project's assets should not persist)
+    useVisualAssetRegistryStore.getState()._clear();
+
     DocumentGateway.apply(doc as any);
+
+    // Populate visual asset registry and migrate assetRef bindings from File → asset ID
+    hydrateVisualAssetRegistry(fileById, envelope.assets?.visual, (envelope as any).visualAssetRegistry);
+    migrateStoreAssetRefBindings(fileById);
 
     let hydrationWarnings: string[] = [];
     const fontWarnings: string[] = [];
-    if ((envelope.schemaVersion === 2 || envelope.schemaVersion === 4 || envelope.schemaVersion === 5) && envelope.assets) {
+    if (
+        (envelope.schemaVersion === 2 ||
+            envelope.schemaVersion === 4 ||
+            envelope.schemaVersion === 5 ||
+            envelope.schemaVersion === 6) &&
+        envelope.assets
+    ) {
         hydrationWarnings = await hydrateAudioAssets(envelope, audioPayloads, waveformPayloads);
     }
 
@@ -682,6 +896,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         ...validation.warnings.map((w) => ({ message: w.message })),
         ...midiRestoration.warnings.map((message) => ({ message })),
         ...featureWarnings.map((message) => ({ message })),
+        ...visualWarnings.map((message) => ({ message })),
         ...hydrationWarnings.map((message) => ({ message })),
         ...fontWarnings.map((message) => ({ message })),
         ...pluginWarnings.map((message) => ({ message })),

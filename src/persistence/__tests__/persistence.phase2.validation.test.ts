@@ -38,7 +38,7 @@ describe('Persistence validation extended', () => {
 
     it('detects duplicate element ids', async () => {
         const env = await makeValidEnvelope();
-        env.scene.elements = [{ id: 'x' }, { id: 'x' }];
+        env.scene.elementsOrder = ['x', 'x'];
         const r = validateSceneEnvelope(env);
         expect(r.ok).toBe(false);
         expect(r.errors.some((e) => e.code === 'ERR_DUP_ELEMENT_ID')).toBe(true);
@@ -93,5 +93,17 @@ describe('Persistence validation extended', () => {
         // Round-trip re-stringify stable
         const stable = serializeStable(env);
         expect(typeof stable).toBe('string');
+    });
+
+    it('allows repeated object references that are not circular', () => {
+        const shared = { mode: 'cubic', direction: 'ease_in_out' };
+        const value = {
+            first: shared,
+            second: shared,
+        };
+
+        expect(serializeStable(value)).toBe(
+            '{"first":{"direction":"ease_in_out","mode":"cubic"},"second":{"direction":"ease_in_out","mode":"cubic"}}'
+        );
     });
 });

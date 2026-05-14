@@ -41,6 +41,18 @@ const CommunityCard: React.FC<CommunityCardProps> = ({ item, onClick }) => {
             <span className="ml-auto truncate text-neutral-500">by {item.uploader_username}</span>
           )}
         </div>
+        {item.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {item.tags.slice(0, 3).map((tag) => (
+              <span key={tag} className="rounded bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-400">
+                {tag}
+              </span>
+            ))}
+            {item.tags.length > 3 && (
+              <span className="text-[10px] text-neutral-500">+{item.tags.length - 3}</span>
+            )}
+          </div>
+        )}
       </div>
     </button>
   );

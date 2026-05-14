@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { exportScene } from '@persistence/export';
 import { useTimelineStore } from '@state/timelineStore';
+import { useSelectionStore } from '@state/selectionStore';
 import type { ExportSceneResultInline } from '@persistence/export';
 
 async function exportInlineScene(): Promise<ExportSceneResultInline> {
@@ -19,8 +20,8 @@ describe('Persistence - selection omission & undo triggers', () => {
             ...s,
             tracks: {},
             tracksOrder: [],
-            selection: { selectedTrackIds: [] },
         }));
+        useSelectionStore.getState().clearSelection();
     });
 
     it('exported scene does not contain selection field', async () => {
@@ -35,7 +36,7 @@ describe('Persistence - selection omission & undo triggers', () => {
     it('exports omit transient selection state', async () => {
         const store = useTimelineStore.getState();
         const trackId = await store.addMidiTrack({ name: 'Selection Test' });
-        store.selectTracks([trackId]);
+        useSelectionStore.getState().selectTracks([trackId]);
         const result = await exportInlineScene();
         if (!result.ok) throw new Error('export failed or disabled');
         expect(result.json.includes('selectedTrackIds')).toBe(false);

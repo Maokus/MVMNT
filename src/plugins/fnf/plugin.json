@@ -1,0 +1,14 @@
+{
+  "id": "us.maok.fnf",
+  "name": "Fnf",
+  "version": "1.0.0",
+  "apiVersion": "^1.0.0",
+  "description": "Custom plugin",
+  "author": "Your Name",
+  "elements": [
+    {
+      "type": "boyfriend",
+      "entry": "boyfriend.ts"
+    }
+  ]
+}

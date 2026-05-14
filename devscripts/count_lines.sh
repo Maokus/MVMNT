@@ -10,7 +10,7 @@ if [ ! -d "$PROJECT_DIR" ]; then
 fi
 
 # File extensions to include (you can modify this list)
-INCLUDE_EXTENSIONS=("*.c" "*.cpp" "*.h" "*.hpp" "*.py" "*.js" "*.ts" "*.java" "*.rb" "*.go" "*.sh" "*.php")
+INCLUDE_EXTENSIONS=("*.c" "*.cpp" "*.h" "*.hpp" "*.py" "*.js" "*.jsx" "*.ts" "*.tsx" "*.java" "*.rb" "*.go" "*.sh" "*.php")
 
 # Directories to exclude (optional)
 EXCLUDE_DIRS=("node_modules" ".git" "vendor" "dist" "build")

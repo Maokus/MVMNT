@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ElementListItem from './ElementListItem';
 
 interface ElementListProps {
@@ -25,6 +25,13 @@ const ElementList: React.FC<ElementListProps> = ({
     const [draggingElementId, setDraggingElementId] = useState<string | null>(null);
     const [draggingHeight, setDraggingHeight] = useState<number | null>(null);
     const [dropIndex, setDropIndex] = useState<number | null>(null);
+    const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+    useEffect(() => {
+        if (selectedElementId) {
+            itemRefs.current.get(selectedElementId)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+    }, [selectedElementId]);
 
     const resetDragState = useCallback(() => {
         setDraggingElementId(null);
@@ -164,7 +171,13 @@ const ElementList: React.FC<ElementListProps> = ({
                 return (
                     <React.Fragment key={element.id}>
                         {renderInsertionLine(index)}
-                        <div className="relative">
+                        <div
+                            className="relative"
+                            ref={(node) => {
+                                if (node) itemRefs.current.set(element.id, node);
+                                else itemRefs.current.delete(element.id);
+                            }}
+                        >
                             <ElementListItem
                                 element={element}
                                 index={index}

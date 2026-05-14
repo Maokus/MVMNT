@@ -1,7 +1,5 @@
-import { SceneElement } from '../base';
-import { EnhancedConfigSchema } from '@core/types';
-import { EmptyRenderObject, Rectangle, RenderObject, Text } from '@core/render/render-objects';
-import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { SceneElement, type EnhancedConfigSchema, prop, insertElementGroups, tab } from '@mvmnt/plugin-sdk';
+import { EmptyRenderObject, Rectangle, type RenderObject, Text } from '@mvmnt/plugin-sdk/render';
 
 // Minimal DebugElement for testing/inheritance demonstration
 export class DebugElement extends SceneElement {
@@ -18,26 +16,28 @@ export class DebugElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'Debug',
-            description: 'Debugging information display',
-            category: 'Misc',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'debugSettings',
-                label: 'Debug Tools',
-                variant: 'basic',
-                collapsed: false,
-                description: 'Toggle helper visuals for layout debugging.',
-                properties: [
-                    prop.boolean('showDots', 'Show Alignment Dots', true),
-                ],
-                presets: [
-                    { id: 'dotsOn', label: 'Dots Visible', values: { showDots: true } },
-                    { id: 'dotsOff', label: 'Dots Hidden', values: { showDots: false } },
-                ],
+                name: 'Debug',
+                description: 'Debugging information display',
+                category: 'Misc',
             },
-        ]);
+            [
+                tab.properties([
+                    {
+                        id: 'debugSettings',
+                        label: 'Debug Tools',
+                        collapsed: false,
+                        description: 'Toggle helper visuals for layout debugging.',
+                        properties: [
+                            prop.boolean('showDots', 'Show Alignment Dots', true),
+                            prop.imageAsset('imageSource', 'Image input'),
+                        ],
+                    },
+                ]),
+            ]
+        );
     }
 
     /**
@@ -45,6 +45,7 @@ export class DebugElement extends SceneElement {
      * config.points: Array<{ x: number, y: number }>
      */
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
+        const props = this.getSchemaProps();
         const objects: RenderObject[] = [];
         const empty1 = new EmptyRenderObject();
         const rect1 = new Rectangle(0, 0, 50, 50, '#ff0000');
@@ -54,12 +55,13 @@ export class DebugElement extends SceneElement {
         const rect5 = new Rectangle(0, 0, 50, 50, '#ff00ff');
 
         rect2.setIncludeInLayoutBounds(false);
-        rect3.setScale(2, 1);
-        rect4.setRotation(45);
+        rect3.scaleX = 2;
+        rect3.scaleY = 1;
+        rect4.rotation = 45;
         rect4.x = 200;
         rect4.setIncludeInLayoutBounds(false);
 
-        rect5.setRotation(180);
+        rect5.rotation = 180;
         rect5.setIncludeInLayoutBounds(false);
 
         empty1.addChild(rect1);
@@ -69,6 +71,8 @@ export class DebugElement extends SceneElement {
         empty1.addChild(rect5);
         empty1.setIncludeInLayoutBounds(true);
         objects.push(rect1, rect2, rect3, rect4, rect5);
+
+        objects.push(new Text(0, 0, `${props.imageSource}`));
         return objects;
     }
 

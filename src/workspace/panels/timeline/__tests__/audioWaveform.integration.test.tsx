@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
-import TrackLanes from '../TrackLanes';
+import TrackLanes from '../tracks/TrackLanes';
 import { useTimelineStore } from '@state/timelineStore';
 
 // Mocks for jsdom environment
@@ -83,10 +83,9 @@ describe('AudioWaveform integration in TrackLanes', () => {
             audioFeatureCaches: {},
             audioFeatureCacheStatus: {},
             midiCache: {},
-            selection: { selectedTrackIds: [] },
             timeline: { id: 'tl1', name: 'Test', currentTick: 0, globalBpm: 120, beatsPerBar: 4 },
             timelineView: { startTick: 0, endTick: 800 },
-            transport: { state: 'idle', isPlaying: false, loopEnabled: false, rate: 1, quantize: 'bar', autoKeying: false },
+            transport: { state: 'idle', isPlaying: false, loopEnabled: false, rate: 1, quantize: 'bar', adaptiveSnap: false, autoKeying: false },
             rowHeight: 60,
         }, true);
     });

@@ -3,12 +3,41 @@ import { resolveTempoKeyframes } from '@core/timing/tempo-automation-resolver';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { serializeStable } from './stable-stringify';
 import { useSceneStore } from '@state/sceneStore';
+import type { SceneSerializedElement } from '@state/sceneStore';
 import { getMacroSnapshot, replaceMacrosFromSnapshot } from '@state/scene/macroSyncService';
 import { migrateSceneAudioSystemV5 } from './migrations/audioSystemV5';
 import { useSceneMetadataStore, type SceneMetadataState } from '@state/sceneMetadataStore';
 
 /** Fields stripped from sceneSettings when persisting (padding concepts removed). */
 const STRIP_SCENE_SETTINGS_KEYS = new Set(['prePadding', 'postPadding']);
+
+/**
+ * Normalizes elements from either V5 (flat array with spread properties) or
+ * V6 (Record keyed by ID + elementsOrder) into the internal V6 array format.
+ */
+function normalizeElements(scene: any): SceneSerializedElement[] {
+    if (Array.isArray(scene?.elements)) {
+        // V5 format: properties are spread on the element object
+        return (scene.elements as any[])
+            .filter((el: any) => el && typeof el === 'object')
+            .map((el: any) => {
+                const { id, type, index: _index, ...rest } = el;
+                return { id, type, properties: rest } as SceneSerializedElement;
+            });
+    }
+    if (
+        scene?.elementsOrder &&
+        scene?.elements &&
+        typeof scene.elements === 'object' &&
+        !Array.isArray(scene.elements)
+    ) {
+        // V6 format: Record + order array
+        return (scene.elementsOrder as string[])
+            .map((id: string) => scene.elements[id])
+            .filter(Boolean) as SceneSerializedElement[];
+    }
+    return [];
+}
 
 /**
  * Persistent document shape (public) – intentionally omits volatile playback & view state.
@@ -25,7 +54,7 @@ export interface PersistentDocumentV1 {
     midiCache: any;
     audioFeatureCaches?: Record<string, any>;
     audioFeatureCacheStatus?: Record<string, any>;
-    scene: { elements: any[]; sceneSettings?: any; macros?: any; fontAssets?: any; fontLicensingAcknowledgedAt?: number; automation?: any };
+    scene: { elements: Record<string, any>; elementsOrder?: string[]; sceneSettings?: any; macros?: any; fontAssets?: any; fontLicensingAcknowledgedAt?: number; automation?: any };
     metadata?: Partial<SceneMetadataState>;
 }
 
@@ -47,17 +76,23 @@ export const DocumentGateway = {
         const { currentTick: _dropTick, playheadAuthority: _dropAuth, ...timelineCore } = timeline || {};
 
         // Scene + macros (best effort)
-        let elements: any[] = [];
+        let elements: Record<string, any> = {};
+        let elementsOrder: string[] = [];
         let sceneSettings: any = undefined;
         let macros: any = undefined;
         let fontAssets: any = undefined;
         let fontLicensingAcknowledgedAt: number | undefined;
         let automation: any = undefined;
+        let elementWarnings: string[] | undefined;
 
         try {
             const snapshot = useSceneStore.getState().exportSceneDraft();
-            if (Array.isArray(snapshot.elements)) {
-                elements = snapshot.elements.map((el: any) => ({ ...el }));
+            elements = snapshot.elements ?? {};
+            elementsOrder = snapshot.elementsOrder ?? [];
+            if (snapshot.elementErrors?.length) {
+                elementWarnings = snapshot.elementErrors.map(
+                    (e) => `Element "${e.id}" (${e.type}) could not be exported: ${e.message}`
+                );
             }
             if (snapshot.sceneSettings) {
                 sceneSettings = { ...snapshot.sceneSettings };
@@ -104,6 +139,7 @@ export const DocumentGateway = {
             audioFeatureCacheStatus: state.audioFeatureCacheStatus,
             scene: {
                 elements,
+                elementsOrder,
                 sceneSettings,
                 macros,
                 fontAssets,
@@ -113,8 +149,17 @@ export const DocumentGateway = {
             metadata,
         };
 
-        if (!opts.includeEphemeral) return doc;
-        return Object.assign(doc, { __ephemeral: { currentTick: timeline?.currentTick, transport, timelineView } });
+        if (!opts.includeEphemeral) {
+            if (elementWarnings?.length) {
+                return Object.assign(doc, { _warnings: elementWarnings });
+            }
+            return doc;
+        }
+        const withEphemeral = Object.assign(doc, { __ephemeral: { currentTick: timeline?.currentTick, transport, timelineView } });
+        if (elementWarnings?.length) {
+            return Object.assign(withEphemeral, { _warnings: elementWarnings });
+        }
+        return withEphemeral;
     },
 
     /** Serialize (stable) */
@@ -182,7 +227,7 @@ export const DocumentGateway = {
 
         // Scene & macros (note: sceneSettings tempo/meter SHOULD NOT override timeline if timeline already specified).
         const rawSceneData = {
-            elements: Array.isArray(doc.scene?.elements) ? doc.scene.elements : [],
+            elements: normalizeElements(doc.scene),
             sceneSettings: doc.scene?.sceneSettings,
             macros: doc.scene?.macros,
             fontAssets: doc.scene?.fontAssets,

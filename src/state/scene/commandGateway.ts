@@ -20,12 +20,12 @@ import type {
     AutomationKeyframe,
     AutomationValueType,
 } from '@automation/types';
-import {
-    createChannel,
-    insertKeyframeSorted,
-    makeChannelId,
-    removeKeyframeAtTick,
-} from '@automation/types';
+import { createChannel, insertKeyframeSorted, makeChannelId, removeKeyframeAtTick } from '@automation/types';
+import { AutomationCurve } from '@automation/automation-curve';
+import { useTimelineStore } from '@state/timelineStore';
+import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import { SceneNameGenerator } from '@core/scene-name-generator';
+import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 
 export type SceneCommand =
     | {
@@ -131,7 +131,18 @@ export type SceneCommand =
           channelId: string;
           tick: number;
           /** Partial patch — only provided fields are updated. */
-          patch: Partial<Pick<AutomationKeyframe, 'value' | 'easingId' | 'segmentInterpolation' | 'leftHandle' | 'rightHandle' | 'leftHandleType' | 'rightHandleType'>>;
+          patch: Partial<
+              Pick<
+                  AutomationKeyframe,
+                  | 'value'
+                  | 'easingId'
+                  | 'segmentInterpolation'
+                  | 'leftHandle'
+                  | 'rightHandle'
+                  | 'leftHandleType'
+                  | 'rightHandleType'
+              >
+          >;
       }
     | {
           type: 'moveKeyframe';
@@ -248,7 +259,7 @@ function buildConfigFromBindings(bindings: ElementBindings): Record<string, unkn
 function captureSceneSnapshot(state: SceneStoreState): SceneImportPayload {
     const draft = state.exportSceneDraft();
     return {
-        elements: draft.elements,
+        elements: draft.elementsOrder.map((id) => draft.elements[id]).filter(Boolean),
         sceneSettings: draft.sceneSettings,
         macros: draft.macros ?? null,
     };
@@ -489,7 +500,8 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
             if (state.automation.channels[channelId]) return null;
             // Capture current binding so undo can restore it
             const currentBinding = state.bindings.byElement[command.elementId]?.[command.propertyKey];
-            const fallbackValue = currentBinding && currentBinding.type === 'constant' ? currentBinding.value : undefined;
+            const fallbackValue =
+                currentBinding && currentBinding.type === 'constant' ? currentBinding.value : undefined;
             const undoCommands: SceneCommand[] = [
                 {
                     type: 'disablePropertyAutomation',
@@ -718,11 +730,14 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
             store.updateElementId(command.currentId, command.nextId);
             break;
         case 'clearScene': {
-            const previousMacros = command.clearMacros === false ? getMacroSnapshot() ?? undefined : undefined;
+            const previousMacros = command.clearMacros === false ? (getMacroSnapshot() ?? undefined) : undefined;
             store.clearScene();
+            useVisualAssetRegistryStore.getState()._clear();
             if (command.clearMacros === false && previousMacros) {
                 store.replaceMacros(previousMacros);
             }
+            useSceneMetadataStore.getState().setName(SceneNameGenerator.generate());
+            useTimelineStore.setState({ playbackRange: undefined, playbackRangeUserDefined: false });
             break;
         }
         case 'resetSceneSettings':
@@ -755,7 +770,7 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
                 command.elementId,
                 command.propertyKey,
                 command.valueType,
-                command.interpolation ?? 'eased',
+                command.interpolation ?? 'eased'
             );
             if (command.initialKeyframes?.length) {
                 channel.keyframes = [...command.initialKeyframes];
@@ -776,9 +791,7 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
                 if (channel && channel.keyframes.length > 0) {
                     // Evaluate at current playhead tick so value "freezes" at what user sees
                     try {
-                        const { useTimelineStore } = require('@state/timelineStore');
                         const currentTick = useTimelineStore.getState().timeline.currentTick;
-                        const { AutomationCurve } = require('@automation/automation-curve');
                         const curve = new AutomationCurve(channel);
                         fallback = curve.evaluate(currentTick);
                     } catch {

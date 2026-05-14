@@ -1,7 +1,7 @@
 // Anchor adjustment & transform interaction utilities (moved from math/transforms)
 
 import { AnchorAdjustParams, ScaleComputationParams, ScaleResult } from '@math/transforms/types';
-import { applyRSK, clampSignedScale, clamp01, snapToGrid2D, sincos } from '@math/numeric';
+import { applyRSK, clampSignedScale, clamp01, snapToGrid2D, sincos } from '@math/transforms/numeric';
 
 export function computeAnchorAdjustment(mouseX: number, mouseY: number, p: AnchorAdjustParams, shiftKey: boolean) {
     const {

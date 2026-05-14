@@ -3,6 +3,17 @@ import { dispatchSceneCommand } from '@state/scene';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { exportScene, importScene } from '@persistence/index';
 import { extractSceneMetadataFromArtifact } from '@persistence/scene-package';
+import { LocalSaveService } from '@persistence/local-save-service';
+import type { ImportError } from '@persistence/import';
+
+function humanReadableImportError(error: ImportError): string {
+    switch (error.code) {
+        case 'ERR_SCHEMA_VERSION':
+            return "This file was created with a newer version of MVMNT and can't be opened here. Update MVMNT to the latest version and try again.";
+        default:
+            return error.message;
+    }
+}
 import { useUndo } from './UndoContext';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
@@ -23,6 +34,9 @@ interface UseMenuBarProps {
     sceneName: string;
     onSceneNameChange: (name: string) => void;
     onSceneRefresh?: () => void;
+    isDirty: boolean;
+    markSaveClean: () => void;
+    markDirty: () => void;
 }
 
 interface MenuBarActions {
@@ -37,6 +51,9 @@ export const useMenuBar = ({
     sceneName,
     onSceneNameChange,
     onSceneRefresh,
+    isDirty,
+    markSaveClean,
+    markDirty: _markDirty,
 }: UseMenuBarProps): MenuBarActions => {
     // Access undo (optional if provider disabled)
     let undo: ReturnType<typeof useUndo> | null = null;
@@ -53,6 +70,16 @@ export const useMenuBar = ({
             if (!res.ok) {
                 alert(res.errors?.map((e) => e.message).join('\n') || 'Export failed.');
                 return;
+            }
+            if (res.warnings?.length) {
+                const elementWarnings = res.warnings.filter((w) => w.includes('could not be exported'));
+                if (elementWarnings.length) {
+                    console.warn('[saveScene] Some elements were skipped during export:', elementWarnings);
+                    alert(
+                        `Scene exported with warnings — ${elementWarnings.length} element(s) could not be exported and were skipped:\n\n` +
+                            elementWarnings.join('\n')
+                    );
+                }
             }
             const safeName = nameToUse.replace(/[^a-zA-Z0-9]/g, '_') || 'scene';
             const { blob, mode } = res;
@@ -78,6 +105,10 @@ export const useMenuBar = ({
     };
 
     const loadScene = () => {
+        if (isDirty) {
+            const ok = window.confirm('Open a scene file?\n\nYou have unsaved changes that will be lost. Continue?');
+            if (!ok) return;
+        }
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         // Accept packaged .mvt exports, inline .json, and legacy .mvmntpkg files
@@ -95,7 +126,9 @@ export const useMenuBar = ({
                 const bytes = new Uint8Array(buffer);
                 const result = await importScene(bytes);
                 if (!result.ok) {
-                    alert('Import failed: ' + (result.errors.map((e) => e.message).join('\n') || 'Unknown error'));
+                    alert(
+                        'Import failed: ' + (result.errors.map(humanReadableImportError).join('\n') || 'Unknown error')
+                    );
                 } else {
                     const metadata = extractSceneMetadataFromArtifact(bytes);
                     if (metadata?.name?.trim()) {
@@ -107,7 +140,14 @@ export const useMenuBar = ({
                     }
                     undo?.reset();
                     if (onSceneRefresh) onSceneRefresh();
-                    console.log('Scene imported.');
+                    // Persist the loaded scene to IDB so it survives a page reload.
+                    const saveResult = await LocalSaveService.saveCurrentFile();
+                    if (saveResult.ok) {
+                        markSaveClean();
+                    } else {
+                        console.warn('[loadScene] IDB save after open failed:', saveResult.error);
+                    }
+                    console.log('Scene opened.');
                 }
             } catch (err) {
                 console.error('Load error:', err);
@@ -154,9 +194,13 @@ export const useMenuBar = ({
             return;
         }
 
+        if (isDirty) {
+            const ok = window.confirm('Create a new scene?\n\nYou have unsaved changes that will be lost. Continue?');
+            if (!ok) return;
+        }
+
         void (async () => {
             const newSceneName = SceneNameGenerator.generate();
-            onSceneNameChange(newSceneName);
 
             let resetSucceeded = false;
             try {
@@ -167,6 +211,10 @@ export const useMenuBar = ({
             if (!resetSucceeded) {
                 await loadDefaultScene('useMenuBar.createNewDefaultScene.fallback');
             }
+
+            // Set the generated name after the template has loaded so the
+            // template's embedded name does not overwrite the generated one.
+            onSceneNameChange(newSceneName);
 
             try {
                 const settings = useSceneStore.getState().settings;
@@ -181,6 +229,14 @@ export const useMenuBar = ({
 
             if (onSceneRefresh) {
                 onSceneRefresh();
+            }
+
+            // Persist the new blank scene to IDB so a page reload restores it.
+            const saveResult = await LocalSaveService.saveCurrentFile();
+            if (saveResult.ok) {
+                markSaveClean();
+            } else {
+                console.warn('[createNewDefaultScene] IDB save failed:', saveResult.error);
             }
 
             console.log(`New default scene created with name: ${newSceneName}`);

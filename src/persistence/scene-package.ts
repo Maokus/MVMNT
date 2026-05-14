@@ -9,6 +9,7 @@ export interface ScenePackageContents {
     audioPayloads: Map<string, Uint8Array>;
     midiPayloads: Map<string, Uint8Array>;
     fontPayloads: Map<string, Uint8Array>;
+    visualPayloads: Map<string, Uint8Array>;
     waveformPayloads: Map<string, Map<string, Uint8Array>>;
     audioFeaturePayloads: Map<string, Map<string, Uint8Array>>;
     pluginPayloads: Map<string, Uint8Array>;
@@ -42,6 +43,7 @@ function collectScenePayloads(archive: Record<string, Uint8Array>): {
     audio: Map<string, Uint8Array>;
     midi: Map<string, Uint8Array>;
     fonts: Map<string, Uint8Array>;
+    visual: Map<string, Uint8Array>;
     waveforms: Map<string, Map<string, Uint8Array>>;
     audioFeatures: Map<string, Map<string, Uint8Array>>;
     plugins: Map<string, Uint8Array>;
@@ -49,6 +51,7 @@ function collectScenePayloads(archive: Record<string, Uint8Array>): {
     const audioPayloads = new Map<string, Uint8Array>();
     const midiPayloads = new Map<string, Uint8Array>();
     const fontPayloads = new Map<string, Uint8Array>();
+    const visualPayloads = new Map<string, Uint8Array>();
     const waveformPayloads = new Map<string, Map<string, Uint8Array>>();
     const audioFeaturePayloads = new Map<string, Map<string, Uint8Array>>();
     const pluginPayloads = new Map<string, Uint8Array>();
@@ -76,6 +79,14 @@ function collectScenePayloads(archive: Record<string, Uint8Array>): {
                 const assetId = parts[2];
                 if (!fontPayloads.has(assetId)) {
                     fontPayloads.set(assetId, archive[path]);
+                }
+            }
+        } else if (path.startsWith('assets/visual/')) {
+            const parts = path.split('/');
+            if (parts.length >= 3) {
+                const assetId = parts[2];
+                if (!visualPayloads.has(assetId)) {
+                    visualPayloads.set(assetId, archive[path]);
                 }
             }
         } else if (path.startsWith('assets/waveforms/')) {
@@ -120,6 +131,7 @@ function collectScenePayloads(archive: Record<string, Uint8Array>): {
         audio: audioPayloads,
         midi: midiPayloads,
         fonts: fontPayloads,
+        visual: visualPayloads,
         waveforms: waveformPayloads,
         audioFeatures: audioFeaturePayloads,
         plugins: pluginPayloads,
@@ -150,6 +162,7 @@ export function parseScenePackage(bytes: Uint8Array): ScenePackageContents {
         audioPayloads: payloads.audio,
         midiPayloads: payloads.midi,
         fontPayloads: payloads.fonts,
+        visualPayloads: payloads.visual,
         waveformPayloads: payloads.waveforms,
         audioFeaturePayloads: payloads.audioFeatures,
         pluginPayloads: payloads.plugins,
@@ -167,6 +180,7 @@ export function parseLegacyInlineScene(jsonText: string): ScenePackageContents {
         audioPayloads: new Map(),
         midiPayloads: new Map(),
         fontPayloads: new Map(),
+        visualPayloads: new Map(),
         waveformPayloads: new Map(),
         audioFeaturePayloads: new Map(),
         pluginPayloads: new Map(),

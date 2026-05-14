@@ -1,23 +1,17 @@
 {
   "id": "patternspack1",
   "name": "Patterns Pack 1",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "apiVersion": "^1.0.0",
   "description": "Custom plugin providing 2 elements",
-  "author": "Your Name",
+  "author": "Maokus",
   "elements": [
     {
       "type": "checkers-pattern",
-      "name": "Checkers Pattern",
-      "category": "Patterns Pack 1",
-      "description": "A passive checkerboard pattern",
       "entry": "checkers-pattern.ts"
     },
     {
       "type": "particles-pattern",
-      "name": "Particles Pattern",
-      "category": "Patterns Pack 1",
-      "description": "Particles!!!",
       "entry": "particles-pattern.ts"
     }
   ]

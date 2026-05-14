@@ -8,6 +8,7 @@ import {
     type TimelinePatchRemoveTracksPayload,
     type TimelinePatchRestoreTracksPayload,
 } from '../patches';
+import { useSelectionStore } from '@state/selectionStore';
 
 export interface RemoveTracksCommandPayload {
     trackIds: string[];
@@ -28,7 +29,7 @@ export function createRemoveTracksCommand(
             },
         async execute(context: TimelineCommandContext): Promise<TimelineCommandExecuteResult<void>> {
             const state = context.getState();
-            const selectionBefore = state.selection.selectedTrackIds;
+            const selectionBefore = useSelectionStore.getState().selectedTrackIds;
             const restorePayload: TimelinePatchRestoreTracksPayload = {
                 tracks: [],
                 selection: selectionBefore,

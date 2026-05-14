@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { FaPlus } from 'react-icons/fa6';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { FaPlus, FaXmark } from 'react-icons/fa6';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import CommunityAuthBar from './CommunityAuthBar';
@@ -8,7 +8,13 @@ import CommunityGrid from './CommunityGrid';
 import CommunityDetailModal from './CommunityDetailModal';
 import CommunityUploadModal from './CommunityUploadModal';
 import CommunityEditModal from './CommunityEditModal';
-import { fetchItems, type CommunityItem, type SortBy, type FilterType } from './communityApi';
+import AdminTagPanel from './AdminTagPanel';
+import {
+  fetchItems, fetchItemById, fetchAllTags, getUserRole,
+  type CommunityItem, type CommunityTag, type SortBy, type FilterType, type UserRole,
+} from './communityApi';
+
+export const ITEM_ID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const SORT_OPTIONS: { value: SortBy; label: string }[] = [
   { value: 'newest', label: 'Newest' },
@@ -23,7 +29,11 @@ const FILTER_OPTIONS: { value: FilterType; label: string }[] = [
 ];
 
 const CommunityPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialIdRef = useRef(searchParams.get('id'));
+
   const [user, setUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<UserRole>('regular');
   const [items, setItems] = useState<CommunityItem[]>([]);
   const [sortBy, setSortBy] = useState<SortBy>('newest');
   const [filterType, setFilterType] = useState<FilterType>('all');
@@ -33,6 +43,13 @@ const CommunityPage: React.FC = () => {
   const [selectedItem, setSelectedItem] = useState<CommunityItem | null>(null);
   const [editItem, setEditItem] = useState<CommunityItem | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [allTags, setAllTags] = useState<CommunityTag[]>([]);
+  const [tagSearch, setTagSearch] = useState('');
+  const [showTagDropdown, setShowTagDropdown] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [deepLinkError, setDeepLinkError] = useState<string | null>(null);
 
   // Get initial session
   useEffect(() => {
@@ -41,10 +58,43 @@ const CommunityPage: React.FC = () => {
     });
   }, []);
 
+  // Handle ?id= deep link — runs once on mount
+  useEffect(() => {
+    const id = initialIdRef.current;
+    if (!id) return;
+    // Remove param from URL immediately so closing the modal doesn't re-trigger
+    setSearchParams({}, { replace: true });
+    if (!ITEM_ID_REGEX.test(id)) {
+      setDeepLinkError('Plugin not found');
+      return;
+    }
+    fetchItemById(id)
+      .then((item) => {
+        if (item) setSelectedItem(item);
+        else setDeepLinkError('Plugin not found');
+      })
+      .catch(() => setDeepLinkError('Plugin not found'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fetch user role whenever the user changes
+  useEffect(() => {
+    if (user) {
+      getUserRole(user.id).then(setUserRole).catch(() => setUserRole('regular'));
+    } else {
+      setUserRole('regular');
+    }
+  }, [user]);
+
+  // Load available tags
+  useEffect(() => {
+    fetchAllTags().then(setAllTags).catch(() => { });
+  }, []);
+
   const loadItems = useCallback(async (pageNum: number, append: boolean) => {
     setLoading(true);
     try {
-      const data = await fetchItems(sortBy, filterType, pageNum);
+      const data = await fetchItems(sortBy, filterType, pageNum, selectedTags.length > 0 ? selectedTags : undefined, searchQuery || undefined);
       if (append) {
         setItems((prev) => [...prev, ...data]);
       } else {
@@ -56,7 +106,7 @@ const CommunityPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [sortBy, filterType]);
+  }, [sortBy, filterType, selectedTags, searchQuery]);
 
   // Reload when sort/filter changes
   useEffect(() => {
@@ -71,10 +121,12 @@ const CommunityPage: React.FC = () => {
   };
 
   const handleItemChanged = useCallback(() => {
-    // Refresh the list
     setPage(0);
     loadItems(0, false);
+    fetchAllTags().then(setAllTags).catch(() => { });
   }, [loadItems]);
+
+  const canCreateTags = userRole === 'trusted' || userRole === 'admin';
 
   const selectClass = "rounded border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-200 focus:border-indigo-500 focus:outline-none cursor-pointer";
 
@@ -88,19 +140,39 @@ const CommunityPage: React.FC = () => {
             <p className="mt-2 text-neutral-400 text-sm">Browse and share templates & plugins</p>
           </div>
           <div className="flex flex-col items-end gap-3">
-            <Link to="/" className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium">
-              Back to Home
-            </Link>
+            <div className="flex gap-2">
+              <Link to="/" className="px-4 py-2 rounded bg-neutral-700 hover:bg-neutral-600 text-sm font-medium text-neutral-300">
+                Back to Home
+              </Link>
+              <Link to="/workspace" className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium text-white">
+                Back to Workspace
+              </Link>
+            </div>
             <CommunityAuthBar user={user} onAuthChange={setUser} />
           </div>
         </div>
+
+        {/* Deep link not-found banner */}
+        {deepLinkError && (
+          <div className="mb-6 flex items-center justify-between rounded-lg border border-red-700/50 bg-red-950/40 px-4 py-2.5 text-sm text-red-300">
+            <span>{deepLinkError}</span>
+            <button
+              onClick={() => setDeepLinkError(null)}
+              className="ml-3 text-red-400 hover:text-red-200"
+              aria-label="Dismiss"
+            >
+              <FaXmark />
+            </button>
+          </div>
+        )}
 
         {/* Experimental notice */}
         <div className="mb-6 rounded-lg border border-yellow-600/40 bg-yellow-900/20 px-4 py-3 text-sm text-yellow-200">
           <span className="font-semibold">Experimental feature.</span>{' '}
           The community hub runs on very limited server resources, which may cause long loading times and patchy availability.
           If you'd like to see the backend resources upgraded, consider{' '}
-          <Link to="/contribute" className="underline hover:text-yellow-100">contributing</Link>.
+          <Link to="/contribute" className="underline hover:text-yellow-100">contributing</Link>.{' '}
+          <span className="font-semibold text-red-300">Backend updates may cause data loss and file corruption — always keep backups of your projects.</span>
         </div>
 
         {/* Toolbar */}
@@ -130,6 +202,31 @@ const CommunityPage: React.FC = () => {
             ))}
           </div>
 
+          {/* Search */}
+          <form
+            onSubmit={(e) => { e.preventDefault(); setSearchQuery(searchInput); setPage(0); }}
+            className="flex gap-1"
+          >
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onBlur={() => { if (searchInput !== searchQuery) { setSearchQuery(searchInput); setPage(0); } }}
+              placeholder="Search..."
+              className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none w-40"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => { setSearchInput(''); setSearchQuery(''); setPage(0); }}
+                className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-400 hover:text-neutral-200"
+                aria-label="Clear search"
+              >
+                <FaXmark />
+              </button>
+            )}
+          </form>
+
           <div className="flex-1" />
 
           {user && (
@@ -141,6 +238,77 @@ const CommunityPage: React.FC = () => {
             </button>
           )}
         </div>
+
+        {/* Tag Filter */}
+        <div className="flex flex-wrap items-center gap-2 mb-6">
+          {selectedTags.map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1 rounded bg-indigo-900/50 border border-indigo-700/50 px-2 py-1 text-xs text-indigo-300"
+            >
+              {tag}
+              <button
+                onClick={() => setSelectedTags((prev) => prev.filter((t) => t !== tag))}
+                className="text-indigo-400 hover:text-white"
+                aria-label={`Remove tag filter ${tag}`}
+              >
+                <FaXmark className="text-[8px]" />
+              </button>
+            </span>
+          ))}
+          <div className="relative">
+            <input
+              type="text"
+              value={tagSearch}
+              onChange={(e) => {
+                setTagSearch(e.target.value.toLowerCase());
+                setShowTagDropdown(true);
+              }}
+              onFocus={() => setShowTagDropdown(true)}
+              onBlur={() => setTimeout(() => setShowTagDropdown(false), 150)}
+              placeholder="Filter by tag..."
+              className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none w-36"
+            />
+            {showTagDropdown && (
+              <div className="absolute z-10 mt-1 w-48 rounded border border-neutral-700 bg-neutral-900 shadow-lg max-h-48 overflow-y-auto">
+                {allTags
+                  .filter((t) => t.name.includes(tagSearch) && !selectedTags.includes(t.name))
+                  .slice(0, 10)
+                  .map((tag) => (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setSelectedTags((prev) => [...prev, tag.name]);
+                        setTagSearch('');
+                        setShowTagDropdown(false);
+                      }}
+                      className="w-full px-3 py-1.5 text-left text-xs text-neutral-300 hover:bg-indigo-600 hover:text-white"
+                    >
+                      {tag.name}
+                    </button>
+                  ))}
+                {allTags.filter((t) => t.name.includes(tagSearch) && !selectedTags.includes(t.name)).length === 0 && (
+                  <div className="px-3 py-2 text-xs text-neutral-500">No tags found</div>
+                )}
+              </div>
+            )}
+          </div>
+          {selectedTags.length > 0 && (
+            <button
+              onClick={() => setSelectedTags([])}
+              className="text-xs text-neutral-500 hover:text-neutral-300"
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+
+        {/* Admin tag management panel */}
+        {userRole === 'admin' && (
+          <AdminTagPanel onTagsChanged={handleItemChanged} />
+        )}
 
         {/* Grid */}
         <CommunityGrid items={items} loading={loading} onItemClick={setSelectedItem} />
@@ -162,6 +330,7 @@ const CommunityPage: React.FC = () => {
           <CommunityDetailModal
             item={selectedItem}
             user={user}
+            userRole={userRole}
             onClose={() => setSelectedItem(null)}
             onItemChanged={handleItemChanged}
             onEdit={user?.id === selectedItem.user_id ? () => setEditItem(selectedItem) : undefined}
@@ -173,6 +342,7 @@ const CommunityPage: React.FC = () => {
           <CommunityEditModal
             item={editItem}
             user={user}
+            canCreateTags={canCreateTags}
             onClose={() => setEditItem(null)}
             onSaved={() => {
               setEditItem(null);
@@ -186,6 +356,7 @@ const CommunityPage: React.FC = () => {
         {isUploadOpen && user && (
           <CommunityUploadModal
             user={user}
+            canCreateTags={canCreateTags}
             onClose={() => setIsUploadOpen(false)}
             onUploaded={handleItemChanged}
           />

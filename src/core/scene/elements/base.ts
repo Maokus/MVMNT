@@ -1,5 +1,6 @@
 // Enhanced Base SceneElement class with Property Binding System
 import { EnhancedConfigSchema, PropertyDefinition, SceneElementInterface } from '@core/types.js';
+import { prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { EmptyRenderObject, RenderObject } from '@core/render/render-objects';
 import {
     PropertyBinding,
@@ -18,6 +19,21 @@ import { debugLog } from '@utils/debug-log';
 import { isTestEnvironment } from '@utils/env';
 import { withRenderSafety, limitRenderObjects, DEFAULT_SAFETY_CONFIG } from '@core/scene/plugins/plugin-safety';
 import { loadBundledAssetForElement } from '@core/scene/plugins/bundled-asset-registry';
+import { BundledSprite, BundledSparrowHandle } from '@core/resources/bundled-sprite';
+import { VisualResourceHandle } from '@core/resources/visual-resource-handle';
+import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
+
+// Lazy reference to avoid circular dependency with scene-element-registry
+let _sceneElementRegistry: { getPluginId(type: string): string | undefined } | null = null;
+function getSceneElementRegistry() {
+    if (!_sceneElementRegistry) {
+        // Dynamically resolve at first use (after all modules have initialized)
+        import('@core/scene/registry/scene-element-registry').then((m) => {
+            _sceneElementRegistry = m.sceneElementRegistry;
+        });
+    }
+    return _sceneElementRegistry;
+}
 
 export type PropertyTransform<TValue, TElement = SceneElement> = (
     value: unknown,
@@ -120,6 +136,8 @@ export class SceneElement implements SceneElementInterface {
     private _macroUnsubscribe?: () => void;
     private _renderContext: PropertyBindingContext | null = null;
     private _keyframeBoundKeys: Set<string> = new Set();
+    /** Handles/sprites registered via factory methods; destroyed automatically in dispose(). */
+    private readonly _trackedVisualHandles: Array<{ destroy(): void }> = [];
 
     constructor(type: string, id: string | null = null, config: { [key: string]: any } = {}) {
         this.type = type;
@@ -218,10 +236,84 @@ export class SceneElement implements SceneElementInterface {
     }
 
     /**
+     * Create a managed handle for a bundled image asset.
+     * Call `handle.get()` each frame to receive `{ resource, status }` ready for
+     * `VisualMedia.setResource()`. Call `handle.destroy()` in `onDestroy()`.
+     */
+    protected bundledImage(filename: string): BundledSprite {
+        const sprite = new BundledSprite(filename, (f) => this._makeBundledLoader(f));
+        this._trackedVisualHandles.push(sprite);
+        return sprite;
+    }
+
+    /**
+     * Create a managed bundled-sprite helper for a plugin image asset.
+     * Call `sprite.build(x, y, w, h)` each frame to get a ready `VisualMedia`
+     * render object. Call `sprite.destroy()` in `onDestroy()`.
+     */
+    protected bundledSprite(filename: string): BundledSprite {
+        const sprite = new BundledSprite(filename, (f) => this._makeBundledLoader(f));
+        this._trackedVisualHandles.push(sprite);
+        return sprite;
+    }
+
+    /**
+     * Create a managed handle for a bundled Sparrow atlas (paired PNG + XML).
+     * Call `handle.get()` each frame to receive `{ resource, status }` ready for
+     * `VisualMedia.setResource()`. The atlas is automatically registered in the
+     * visual asset registry so it appears in the Asset Manager.
+     * Call `handle.destroy()` in `onDestroy()`.
+     */
+    protected bundledSparrow(pngFilename: string, xmlFilename: string, defaultFps?: number): BundledSparrowHandle {
+        const handle = new BundledSparrowHandle(
+            pngFilename,
+            xmlFilename,
+            (f) => this.loadBundledAsset(f),
+            (pngUrl, xmlUrl) => {
+                const registryId = `${this.type}:${pngFilename}`;
+                const basename = pngFilename.split('/').pop() ?? pngFilename;
+                const displayName = basename.replace(/\.[^.]+$/, '');
+                useVisualAssetRegistryStore.getState().addPluginSparrowEntry(registryId, displayName, pngUrl, xmlUrl);
+            },
+            defaultFps
+        );
+        this._trackedVisualHandles.push(handle);
+        return handle;
+    }
+
+    /**
+     * Create a `VisualResourceHandle` that is automatically destroyed when this
+     * element is disposed. Use instead of `new VisualResourceHandle()` so you
+     * don't need a manual `handle.destroy()` call in `onDestroy()`.
+     *
+     * @example
+     * private readonly _handle = this.visualHandle();
+     */
+    protected visualHandle(): VisualResourceHandle {
+        const handle = new VisualResourceHandle();
+        this._trackedVisualHandles.push(handle);
+        return handle;
+    }
+
+    private async _makeBundledLoader(filename: string): Promise<string> {
+        const url = await this.loadBundledAsset(filename);
+        const registryId = `${this.type}:${filename}`;
+        const basename = filename.split('/').pop() ?? filename;
+        const displayName = basename.replace(/\.[^.]+$/, '');
+        const type = /\.gif$/i.test(filename) ? ('gif' as const) : ('image' as const);
+        useVisualAssetRegistryStore.getState().addPluginEntry(registryId, displayName, url, type);
+        return url;
+    }
+
+    /**
      * Dispose element resources and detach listeners
      */
     dispose(): void {
         this.onDestroy();
+        const trackedVisualHandles = Array.isArray((this as any)._trackedVisualHandles)
+            ? (this as any)._trackedVisualHandles
+            : [];
+        for (const h of trackedVisualHandles) h.destroy();
         if (this._macroUnsubscribe) {
             this._macroUnsubscribe();
             this._macroUnsubscribe = undefined;
@@ -233,8 +325,8 @@ export class SceneElement implements SceneElementInterface {
      */
     private _initializeDefaultBindings(): void {
         const schema: EnhancedConfigSchema = (this.constructor as any).getConfigSchema();
-        if (schema && schema.groups) {
-            for (const group of schema.groups) {
+        if (schema && schema.tabs) {
+            for (const group of schema.tabs.flatMap((t) => t.groups)) {
                 for (const prop of group.properties as PropertyDefinition[]) {
                     if (prop && prop.key && prop.default !== undefined && prop.key !== 'id' && prop.key !== 'type') {
                         this.bindings.set(prop.key, new ConstantBinding(prop.default));
@@ -336,7 +428,7 @@ export class SceneElement implements SceneElementInterface {
         const descriptors: PropertyDescriptorMap<any> = {};
         try {
             const schema = typeof ctor.getConfigSchema === 'function' ? ctor.getConfigSchema() : null;
-            const groups = schema?.groups ?? [];
+            const groups = schema?.tabs.flatMap((t) => t.groups) ?? [];
             for (const group of groups) {
                 if (!group?.properties) continue;
                 for (const property of group.properties as PropertyDefinition[]) {
@@ -554,39 +646,30 @@ export class SceneElement implements SceneElementInterface {
             this._renderContext = null;
             return [];
         }
-        
+
         // Apply safety controls for plugin elements (lazy import to avoid circular dependency)
-        let pluginId: string | undefined;
-        try {
-            const { sceneElementRegistry } = require('@core/scene/registry/scene-element-registry');
-            pluginId = sceneElementRegistry.getPluginId(this.type);
-        } catch {
-            // If registry not available (e.g., during initialization), skip safety checks
-            pluginId = undefined;
-        }
-        
+        const pluginId = getSceneElementRegistry()?.getPluginId(this.type);
+
         let childRenderObjects: RenderObject[];
-        
+
         if (pluginId) {
             // This is a plugin element - apply safety controls
-            const result = withRenderSafety(
-                () => this._buildRenderObjects(config, targetTime),
-                DEFAULT_SAFETY_CONFIG,
-                { pluginId, elementType: this.type }
-            );
-            
+            const result = withRenderSafety(() => this._buildRenderObjects(config, targetTime), DEFAULT_SAFETY_CONFIG, {
+                pluginId,
+                elementType: this.type,
+            });
+
             if (result === null) {
                 // Render failed or timed out
                 this._renderContext = null;
                 return [];
             }
-            
+
             // Limit render object count
-            childRenderObjects = limitRenderObjects(
-                result,
-                DEFAULT_SAFETY_CONFIG,
-                { pluginId, elementType: this.type }
-            );
+            childRenderObjects = limitRenderObjects(result, DEFAULT_SAFETY_CONFIG, {
+                pluginId,
+                elementType: this.type,
+            });
         } else {
             // Built-in element - no safety wrapper needed
             childRenderObjects = this._buildRenderObjects(config, targetTime);
@@ -614,9 +697,10 @@ export class SceneElement implements SceneElementInterface {
 
         // Set anchor offset for proper rotation/scaling center
         containerObject.setAnchorOffset(anchorPixelX, anchorPixelY);
-        containerObject.setRotation(this.elementRotation);
-        containerObject.setSkew(this.elementSkewX, this.elementSkewY);
-        containerObject.setVisible(this.visible);
+        containerObject.rotation = this.elementRotation;
+        containerObject.skewX = this.elementSkewX;
+        containerObject.skewY = this.elementSkewY;
+        containerObject.visible = this.visible;
 
         // Add all child render objects to the container
         for (const childObj of childRenderObjects) {
@@ -779,216 +863,88 @@ export class SceneElement implements SceneElementInterface {
             name: 'Bound Base Element',
             description: 'Base scene element with property bindings',
             category: 'general',
-            groups: [
+            tabs: [
                 {
-                    id: 'basicVisibility',
-                    label: 'Visibility & Layer',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Control whether the element is visible and how it blends with other layers.',
-                    properties: [
+                    id: 'element',
+                    label: 'Element',
+                    groups: [
                         {
-                            key: 'visible',
-                            type: 'boolean',
-                            label: 'Visible',
-                            default: true,
-                            runtime: { transform: asBoolean, defaultValue: true },
+                            id: 'basicVisibility',
+                            label: 'Visibility & Layer',
+                            collapsed: false,
+                            description: 'Control whether the element is visible and how it blends with other layers.',
+                            properties: [
+                                prop.boolean('visible', 'Visible', true),
+                                prop.number('elementOpacity', 'Opacity (0–1)', 1, {
+                                    min: 0,
+                                    max: 1,
+                                    step: 0.01,
+                                    description: 'Element transparency (0 = transparent, 1 = opaque).',
+                                }),
+                                prop.number('zIndex', 'Layer Order', 0, {
+                                    min: 0,
+                                    max: 100,
+                                    step: 1,
+                                    description: 'Stacking order for overlapping layers (higher values appear on top).',
+                                }),
+                            ],
                         },
                         {
-                            key: 'elementOpacity',
-                            type: 'number',
-                            label: 'Opacity (0–1)',
-                            default: 1,
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
-                            description: 'Element transparency (0 = transparent, 1 = opaque).',
-                            runtime: { transform: asNumber, defaultValue: 1 },
+                            id: 'basicTransform',
+                            label: 'Position, Rotation & Scale',
+                            collapsed: false,
+                            description:
+                                'Set the element position and size adjustments relative to its default layout.',
+                            properties: [
+                                prop.number('offsetX', 'Offset X (px)', 0, {
+                                    step: 1,
+                                    description: 'Horizontal position offset in pixels.',
+                                }),
+                                prop.number('offsetY', 'Offset Y (px)', 0, {
+                                    step: 1,
+                                    description: 'Vertical position offset in pixels.',
+                                }),
+                                prop.number('elementRotation', 'Rotation', 0, {
+                                    step: 0.01,
+                                    description: 'Element rotation in radians.',
+                                }),
+                                prop.number('elementScaleX', 'Scale X (multiplier)', 1, {
+                                    step: 0.01,
+                                    description: 'Horizontal scaling factor.',
+                                }),
+                                prop.number('elementScaleY', 'Scale Y (multiplier)', 1, {
+                                    step: 0.01,
+                                    description: 'Vertical scaling factor.',
+                                }),
+                            ],
                         },
                         {
-                            key: 'zIndex',
-                            type: 'number',
-                            label: 'Layer Order',
-                            default: 0,
-                            min: 0,
-                            max: 100,
-                            step: 1,
-                            description: 'Stacking order for overlapping layers (higher values appear on top).',
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                    ],
-                    presets: [
-                        {
-                            id: 'fullyVisible',
-                            label: 'Fully Visible',
-                            values: { visible: true, elementOpacity: 1 },
-                        },
-                        {
-                            id: 'ghostedOverlay',
-                            label: 'Ghosted Overlay',
-                            values: { visible: true, elementOpacity: 0.4 },
-                        },
-                        {
-                            id: 'hiddenLayer',
-                            label: 'Hidden Layer',
-                            values: { visible: false, elementOpacity: 0 },
-                        },
-                    ],
-                },
-                {
-                    id: 'basicTransform',
-                    label: 'Position & Scale',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Set the element position and size adjustments relative to its default layout.',
-                    properties: [
-                        {
-                            key: 'offsetX',
-                            type: 'number',
-                            label: 'Offset X (px)',
-                            default: 0,
-                            min: -10000,
-                            max: 10000,
-                            step: 1,
-                            description: 'Horizontal position offset in pixels.',
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                        {
-                            key: 'offsetY',
-                            type: 'number',
-                            label: 'Offset Y (px)',
-                            default: 0,
-                            min: -10000,
-                            max: 10000,
-                            step: 1,
-                            description: 'Vertical position offset in pixels.',
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                        {
-                            key: 'elementScaleX',
-                            type: 'number',
-                            label: 'Scale X (multiplier)',
-                            default: 1,
-                            min: 0.01,
-                            max: 5,
-                            step: 0.01,
-                            description: 'Horizontal scaling factor.',
-                            runtime: { transform: asNumber, defaultValue: 1 },
-                        },
-                        {
-                            key: 'elementScaleY',
-                            type: 'number',
-                            label: 'Scale Y (multiplier)',
-                            default: 1,
-                            min: 0.01,
-                            max: 5,
-                            step: 0.01,
-                            description: 'Vertical scaling factor.',
-                            runtime: { transform: asNumber, defaultValue: 1 },
-                        },
-                    ],
-                    presets: [
-                        {
-                            id: 'centered',
-                            label: 'Centered (100%)',
-                            values: { offsetX: 0, offsetY: 0, elementScaleX: 1, elementScaleY: 1 },
-                        },
-                        {
-                            id: 'scaledUp',
-                            label: 'Scaled Up 150%',
-                            values: { elementScaleX: 1.5, elementScaleY: 1.5 },
-                        },
-                        {
-                            id: 'scaledDown',
-                            label: 'Scaled Down 75%',
-                            values: { elementScaleX: 0.75, elementScaleY: 0.75 },
-                        },
-                    ],
-                },
-                {
-                    id: 'advancedAnchor',
-                    label: 'Anchor & Rotation',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Advanced pivot, rotation, and skew controls.',
-                    properties: [
-                        {
-                            key: 'anchorX',
-                            type: 'number',
-                            label: 'Anchor X (0–1)',
-                            default: 0.5,
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
-                            description: 'Horizontal anchor point (0 = left, 1 = right).',
-                            runtime: { transform: asNumber, defaultValue: 0.5 },
-                        },
-                        {
-                            key: 'anchorY',
-                            type: 'number',
-                            label: 'Anchor Y (0–1)',
-                            default: 0.5,
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
-                            description: 'Vertical anchor point (0 = top, 1 = bottom).',
-                            runtime: { transform: asNumber, defaultValue: 0.5 },
-                        },
-                        {
-                            key: 'elementRotation',
-                            type: 'number',
-                            label: 'Rotation',
-                            default: 0,
-                            min: -Math.PI * 2,
-                            max: Math.PI * 2,
-                            step: 0.01,
-                            description: 'Element rotation in radians.',
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                        {
-                            key: 'elementSkewX',
-                            type: 'number',
-                            label: 'Skew X',
-                            default: 0,
-                            min: -Math.PI / 4,
-                            max: Math.PI / 4,
-                            step: 0.01,
-                            description: 'Horizontal skew in radians.',
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                        {
-                            key: 'elementSkewY',
-                            type: 'number',
-                            label: 'Skew Y',
-                            default: 0,
-                            min: -Math.PI / 4,
-                            max: Math.PI / 4,
-                            step: 0.01,
-                            description: 'Vertical skew in radians.',
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                    ],
-                    presets: [
-                        {
-                            id: 'centeredAnchor',
-                            label: 'Centered Anchor',
-                            values: {
-                                anchorX: 0.5,
-                                anchorY: 0.5,
-                                elementRotation: 0,
-                                elementSkewX: 0,
-                                elementSkewY: 0,
-                            },
-                        },
-                        {
-                            id: 'topLeftPivot',
-                            label: 'Top-Left Pivot',
-                            values: { anchorX: 0, anchorY: 0, elementRotation: 0, elementSkewX: 0, elementSkewY: 0 },
-                        },
-                        {
-                            id: 'rotated30',
-                            label: 'Rotate 30°',
-                            values: { elementRotation: 30 },
+                            id: 'advancedAnchor',
+                            label: 'Anchor & Skew',
+                            collapsed: true,
+                            description: 'Advanced pivot, rotation, and skew controls.',
+                            properties: [
+                                prop.number('anchorX', 'Anchor X (0–1)', 0.5, {
+                                    min: 0,
+                                    max: 1,
+                                    step: 0.01,
+                                    description: 'Horizontal anchor point (0 = left, 1 = right).',
+                                }),
+                                prop.number('anchorY', 'Anchor Y (0–1)', 0.5, {
+                                    min: 0,
+                                    max: 1,
+                                    step: 0.01,
+                                    description: 'Vertical anchor point (0 = top, 1 = bottom).',
+                                }),
+                                prop.number('elementSkewX', 'Skew X', 0, {
+                                    step: 0.01,
+                                    description: 'Horizontal skew in radians.',
+                                }),
+                                prop.number('elementSkewY', 'Skew Y', 0, {
+                                    step: 0.01,
+                                    description: 'Vertical skew in radians.',
+                                }),
+                            ],
                         },
                     ],
                 },

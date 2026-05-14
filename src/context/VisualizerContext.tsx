@@ -30,6 +30,7 @@ interface VisualizerContextValue {
     stepBackward: () => void;
     seekPercent: (percent: number) => void;
     exportSequence: (override?: Partial<ExportSettings>) => Promise<void>;
+    exportVideo: (override?: Partial<ExportSettings>) => Promise<void>;
     showProgressOverlay: boolean;
     progressData: ProgressData;
     closeProgress: () => void;
@@ -186,6 +187,14 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         const handler = () => visualizer.invalidateRender?.();
         window.addEventListener('font-loaded', handler as EventListener);
         return () => window.removeEventListener('font-loaded', handler as EventListener);
+    }, [visualizer]);
+
+    // Re-render canvas after undo/redo so restored elements appear immediately
+    useEffect(() => {
+        if (!visualizer) return;
+        const handler = () => visualizer.invalidateRender?.();
+        window.addEventListener('mvmnt-undo-applied', handler);
+        return () => window.removeEventListener('mvmnt-undo-applied', handler);
     }, [visualizer]);
 
     const tView = useTimelineStore((s) => s.timelineView);
@@ -382,8 +391,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         stepBackward,
         seekPercent,
         exportSequence,
-        // Expose video exporter via any cast to keep interface stable (could extend later)
-        // @ts-ignore
         exportVideo,
         showProgressOverlay,
         progressData,

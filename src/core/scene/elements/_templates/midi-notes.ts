@@ -4,9 +4,10 @@ import {
     SceneElement,
     prop,
     insertElementGroups,
+    tab,
     Rectangle,
     Text,
-    getPluginHostApi,
+    getRequiredPluginApi,
     PLUGIN_CAPABILITIES,
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
@@ -18,34 +19,40 @@ export class MidiNotesElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(super.getConfigSchema(), {
-            name: 'MIDI Notes',
-            description: 'Display currently playing MIDI notes',
-            category: 'Custom',
-        }, [
+        return insertElementGroups(
+            super.getConfigSchema(),
             {
-                id: 'midiSource',
-                label: 'MIDI Source',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.midiTrack('midiTrackId', 'MIDI Track', { description: 'MIDI track to display' }),
-                ],
+                name: 'MIDI Notes',
+                description: 'Display currently playing MIDI notes',
+                category: 'Custom',
             },
-            {
-                id: 'notesAppearance',
-                label: 'Appearance',
-                variant: 'basic',
-                collapsed: false,
-                properties: [
-                    prop.number('noteWidth', 'Note Width', 40, { min: 10, max: 200, step: 1 }),
-                    prop.number('noteHeight', 'Note Height', 100, { min: 20, max: 500, step: 1 }),
-                    prop.number('noteSpacing', 'Note Spacing', 8, { min: 0, max: 50, step: 1 }),
-                    prop.colorAlpha('noteColor', 'Note Color', '#10B981FF'),
-                    prop.boolean('showNoteNames', 'Show Note Names', true),
-                ],
-            },
-        ]);
+            [
+                tab.content([
+                    {
+                        id: 'midiSource',
+                        label: 'MIDI Source',
+                        collapsed: false,
+                        properties: [
+                            prop.midiTrack('midiTrackId', 'MIDI Track', { description: 'MIDI track to display' }),
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    {
+                        id: 'notesAppearance',
+                        label: 'Appearance',
+                        collapsed: false,
+                        properties: [
+                            prop.number('noteWidth', 'Note Width', 40, { min: 10, max: 200, step: 1 }),
+                            prop.number('noteHeight', 'Note Height', 100, { min: 20, max: 500, step: 1 }),
+                            prop.number('noteSpacing', 'Note Spacing', 8, { min: 0, max: 50, step: 1 }),
+                            prop.colorAlpha('noteColor', 'Note Color', '#10B981FF'),
+                            prop.boolean('showNoteNames', 'Show Note Names', true),
+                        ],
+                    },
+                ]),
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
@@ -57,27 +64,16 @@ export class MidiNotesElement extends SceneElement {
 
         if (!props.midiTrackId) {
             // Show message when no track selected
-            objects.push(
-                new Text(0, 0, 'Select a MIDI track', '14px Inter, sans-serif', '#94a3b8', 'left', 'top')
-            );
+            objects.push(new Text(0, 0, 'Select a MIDI track', '14px Inter, sans-serif', '#94a3b8', 'left', 'top'));
             return objects;
         }
 
         // Get MIDI data at current time from public host plugin API
         const EPS = 1e-3; // Small epsilon to get notes at current time
-        const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
+        if (!host.ok) return host.renderFallback();
 
-        if (!api || status !== 'ok') {
-            const message = status === 'unsupported-version'
-                ? 'Plugin API version unsupported'
-                : missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
-                    ? 'Timeline API unavailable (requires timeline.read)'
-                    : 'Plugin host API unavailable';
-            objects.push(new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top'));
-            return objects;
-        }
-
-        const activeNotes = api.timeline.selectNotesInWindow({
+        const activeNotes = host.api.timeline.selectNotesInWindow({
             trackIds: [props.midiTrackId],
             startSec: targetTime - EPS,
             endSec: targetTime + EPS,
@@ -85,9 +81,7 @@ export class MidiNotesElement extends SceneElement {
 
         if (activeNotes.length === 0) {
             // Show message when no notes playing
-            objects.push(
-                new Text(0, 0, 'No notes playing', '12px Inter, sans-serif', '#64748b', 'left', 'top')
-            );
+            objects.push(new Text(0, 0, 'No notes playing', '12px Inter, sans-serif', '#64748b', 'left', 'top'));
             return objects;
         }
 
@@ -100,7 +94,7 @@ export class MidiNotesElement extends SceneElement {
 
             // Draw note name if enabled
             if (props.showNoteNames) {
-                const noteName = api.utilities.midiNoteToName(noteData.note);
+                const noteName = host.api.utilities.midiNoteToName(noteData.note);
                 objects.push(
                     new Text(
                         x + props.noteWidth / 2,

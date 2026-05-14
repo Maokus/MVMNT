@@ -10,6 +10,7 @@ vi.mock('@state/timelineStore', () => ({
         getState: () => ({
             timeline: { currentTick: 48 },
         }),
+        subscribe: vi.fn(() => () => {}),
     },
     getSharedTimingManager: () => ({
         secondsToTicks: (seconds: number) => seconds * 96,
