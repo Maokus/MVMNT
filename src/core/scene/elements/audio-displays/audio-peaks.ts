@@ -380,9 +380,7 @@ export class AudioPeaksElement extends SceneElement {
             return pushMessage('Select an audio track');
         }
 
-        const host = getRequiredPluginApi(this, [
-            PLUGIN_CAPABILITIES.audioFeaturesRead,
-        ]) as RequiredPluginApiResult;
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioFeaturesRead]) as RequiredPluginApiResult;
 
         if (!host.ok) {
             return pushMessage('Audio not available');
@@ -390,7 +388,7 @@ export class AudioPeaksElement extends SceneElement {
 
         const startSeconds = targetTime - windowSeconds * startOffset;
         const endSeconds = startSeconds + windowSeconds;
-        const stepSec = Math.max(1 / 240, windowSeconds / Math.max(32, Math.round(width)));
+        const stepSec = Math.max(1 / 240, windowSeconds / Math.max(32, Math.min(Math.round(width), 400)));
 
         const samples = getFeatureDataRange(
             this,

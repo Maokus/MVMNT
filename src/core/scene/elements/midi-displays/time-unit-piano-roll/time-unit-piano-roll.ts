@@ -366,6 +366,41 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             }),
                         ],
                     },
+                    {
+                        id: 'rollLabel',
+                        label: 'Roll Label',
+                        collapsed: true,
+                        description: 'A title or annotation label overlaid on the piano roll.',
+                        properties: [
+                            prop.boolean('showRollLabel', 'Show Roll Label', false),
+                            prop.string('rollLabelText', 'Label Text', '', {
+                                visibleWhen: [{ key: 'showRollLabel', truthy: true }],
+                            }),
+                            prop.select(
+                                'rollLabelPosition',
+                                'Position',
+                                'top',
+                                [
+                                    { label: 'Top', value: 'top' },
+                                    { label: 'Top Left', value: 'top-left' },
+                                    { label: 'Left', value: 'left' },
+                                ],
+                                { visibleWhen: [{ key: 'showRollLabel', truthy: true }] }
+                            ),
+                            prop.font('rollLabelFontFamily', 'Font Family', 'Inter', {
+                                visibleWhen: [{ key: 'showRollLabel', truthy: true }],
+                            }),
+                            prop.number('rollLabelFontSize', 'Font Size (px)', 18, {
+                                min: 6,
+                                max: 128,
+                                step: 1,
+                                visibleWhen: [{ key: 'showRollLabel', truthy: true }],
+                            }),
+                            prop.color('rollLabelFontColor', 'Font Color', '#ffffff', {
+                                visibleWhen: [{ key: 'showRollLabel', truthy: true }],
+                            }),
+                        ],
+                    },
                 ]),
                 tab.appearance([propGroup.appearance()]),
             ]
@@ -437,10 +472,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         let maxNote: number;
         if (rawMinNote === -1 || rawMaxNote === -1) {
             const trackId = props.midiTrackId as string | undefined;
-            const range =
-                trackId && host.ok
-                    ? host.api.timeline.getNoteRange({ trackIds: [trackId] })
-                    : null;
+            const range = trackId && host.ok ? host.api.timeline.getNoteRange({ trackIds: [trackId] }) : null;
             minNote = rawMinNote === -1 ? (range?.min ?? 0) : rawMinNote;
             maxNote = rawMaxNote === -1 ? (range?.max ?? 127) : rawMaxNote;
         } else {
@@ -524,14 +556,13 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 const prevStart = currentWin.start - windowDurationApprox;
                 const queryStart = prevStart;
                 const queryEnd = currentWin.end + attackDuration;
-                const events =
-                    host.ok
-                        ? host.api.timeline.selectNotesInWindow({
-                              trackIds: effectiveTrackIds,
-                              startSec: queryStart,
-                              endSec: queryEnd,
-                          })
-                        : [];
+                const events = host.ok
+                    ? host.api.timeline.selectNotesInWindow({
+                          trackIds: effectiveTrackIds,
+                          startSec: queryStart,
+                          endSec: queryEnd,
+                      })
+                    : [];
                 sourceNotes = events.map((e) => ({
                     note: e.note,
                     channel: e.channel,
@@ -696,6 +727,44 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 (l as any).setIncludeInLayoutBounds?.(false);
             });
             renderObjects.push(...ph);
+        }
+
+        // Add roll label
+        const showRollLabel = props.showRollLabel as boolean;
+        if (showRollLabel) {
+            const rollLabelText = (props.rollLabelText as string) ?? '';
+            const rollLabelPosition = (props.rollLabelPosition as string) ?? 'top';
+            const rollLabelFontSelection = props.rollLabelFontFamily as string;
+            const { family: rollLabelFontFamily, weight: rollLabelFontWeightPart } =
+                parseFontSelection(rollLabelFontSelection);
+            const rollLabelFontWeight = (rollLabelFontWeightPart || '400').toString();
+            const rollLabelFontSize = props.rollLabelFontSize as number;
+            const rollLabelFontColor = props.rollLabelFontColor as string;
+            const effectivePianoWidth = showPiano ? pianoWidth : 0;
+
+            if (rollLabelFontFamily) ensureFontLoaded(rollLabelFontFamily, rollLabelFontWeight);
+            const font = `${rollLabelFontWeight} ${rollLabelFontSize}px ${rollLabelFontFamily}`;
+
+            let lbl: Text;
+            if (rollLabelPosition === 'top') {
+                lbl = new Text(
+                    effectivePianoWidth + effectiveRollWidth / 2,
+                    0,
+                    rollLabelText,
+                    font,
+                    rollLabelFontColor,
+                    'center',
+                    'bottom'
+                );
+            } else if (rollLabelPosition === 'top-left') {
+                lbl = new Text(effectivePianoWidth, 0, rollLabelText, font, rollLabelFontColor, 'left', 'bottom');
+            } else {
+                // 'left': vertical text at the left edge of the roll area, reads bottom-to-top
+                lbl = new Text(0, rollHeight / 2, rollLabelText, font, rollLabelFontColor, 'center', 'bottom');
+                lbl.rotation = -Math.PI / 2;
+            }
+            (lbl as any).setIncludeInLayoutBounds?.(false);
+            renderObjects.push(lbl);
         }
 
         return renderObjects;
