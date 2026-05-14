@@ -453,7 +453,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
 
         if (energy > 0) {
             if (method === 'musicpy') {
-                const result = detectChordMusicpy(midiNoteNumbers, bassPc, { preferBassRoot });
+                const result = detectChordMusicpy(midiNoteNumbers, bassPc, { rootPreference: preferBassRoot });
                 if (result) {
                     chord = result.chord;
                     rawMusicpy = result.raw;

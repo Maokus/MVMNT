@@ -217,7 +217,7 @@ describe('detectMusicpy — inversions', () => {
 describe('detectMusicpy — preferBassRoot option', () => {
     it('prefers bass as root when preferBassRoot=true', () => {
         // C F A = Fmaj/C — bass is C, but chord is F major
-        const r = detectMusicpy([C4, F4, A4], { preferBassRoot: true });
+        const r = detectMusicpy([C4, F4, A4], { rootPreference: true });
         expect(r).not.toBeNull();
         // Could be Fmaj/C (root=F, bass=C) or Dm (root=D)
         // Either way, it should be a valid chord
@@ -228,7 +228,7 @@ describe('detectMusicpy — preferBassRoot option', () => {
 describe('detectMusicpy — similarity fallback (omitted notes)', () => {
     it('[C4 Eb4 Bb4] (Cm7 omit 5) finds similarity match for m7', () => {
         // [3, 10] has no exact chord match; best similarity hit should be m7 [3, 7, 10]
-        const r = detectMusicpy([C4, Eb4, Bb4], { similarityThreshold: 0.5 });
+        const r = detectMusicpy([C4, Eb4, Bb4], { similarityRatio: 0.5 });
         expect(r).not.toBeNull();
         expect(r!.root).toBe(C);
         expect(r!.chordType).toBe('m7');

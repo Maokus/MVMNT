@@ -14,12 +14,14 @@ export type MusicpyChordResult = {
 };
 
 export type DetectOptions = {
-    preferBassRoot?: boolean; // default true
-    similarityThreshold?: number; // default 0.6
-    wholeDetect?: boolean; // try all voicing permutations, default false
-    polyChordFirst?: boolean; // default false
-    originalFirst?: boolean;
-    changeFromFirst?: boolean;
+    rootPreference?: boolean;       // prefer bass note as root when multiple hits; default false
+    similarityRatio?: number;       // minimum similarity score for fallback; default 0.6
+    originalFirstRatio?: number;    // minimum score for original-order early return; default 0.86
+    wholeDetect?: boolean;          // try all voicing permutations; default true
+    polyChordFirst?: boolean;       // try polychord before main detection; default false
+    originalFirst?: boolean;        // return original-order result early if score high enough; default true
+    changeFromFirst?: boolean;      // allow altered-chord early return before inversions; default true
+    sameNoteSpecial?: boolean;      // force similarity=1 when pitch-class sets match exactly; default false
 };
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -54,6 +56,20 @@ export function sequenceSimilarity(a: number[], b: number[]): number {
     return (2 * matches) / (a.length + b.length);
 }
 
+/**
+ * Compress entry.intervals into the same [1, 15] window that standardize() produces,
+ * so similarity comparisons are apples-to-apples.
+ */
+function compressedEntryIntervals(intervals: number[]): number[] {
+    const seen = new Set<number>();
+    for (const v of intervals) {
+        let c = v;
+        while (c > 15) c -= 12;
+        if (c > 0) seen.add(c);
+    }
+    return [...seen].sort((a, b) => a - b);
+}
+
 function makeResult(
     overrides: Partial<MusicpyChordResult> & Pick<MusicpyChordResult, 'root' | 'chordType' | 'confidence'>
 ): MusicpyChordResult {
@@ -68,6 +84,13 @@ function makeResult(
     };
 }
 
+/**
+ * Degree-aware omit/alteration detection.
+ *
+ * Both `actual` and `expected` should be in the same compressed [1, 15] space.
+ * Alteration labels are derived from the expected interval's degree name rather
+ * than the actual note's label — e.g. P5 (7) flattened gives "b5", not "#4".
+ */
 function computeOmitsAndAlterations(actual: number[], expected: number[]): { omits: string[]; alterations: string[] } {
     const omits: string[] = [];
     const alterations: string[] = [];
@@ -75,14 +98,23 @@ function computeOmitsAndAlterations(actual: number[], expected: number[]): { omi
 
     for (const exp of expected) {
         if (!actualSet.has(exp)) {
-            // Check if a note 1 semitone away is present (alteration)
-            if (actualSet.has(exp - 1) || actualSet.has(exp + 1)) {
-                const alt = actualSet.has(exp - 1) ? exp - 1 : exp + 1;
-                const label = SEMITONE_TO_DEGREE[alt] ?? String(alt);
-                alterations.push(label);
+            const expLabel = SEMITONE_TO_DEGREE[exp];
+            if (actualSet.has(exp - 1)) {
+                if (expLabel) {
+                    const numeric = expLabel.replace(/^[b#]+/, '');
+                    alterations.push('b' + numeric);
+                } else {
+                    alterations.push(SEMITONE_TO_DEGREE[exp - 1] ?? String(exp - 1));
+                }
+            } else if (actualSet.has(exp + 1)) {
+                if (expLabel) {
+                    const numeric = expLabel.replace(/^[b#]+/, '');
+                    alterations.push('#' + numeric);
+                } else {
+                    alterations.push(SEMITONE_TO_DEGREE[exp + 1] ?? String(exp + 1));
+                }
             } else {
-                const label = SEMITONE_TO_DEGREE[exp] ?? String(exp);
-                omits.push(label);
+                omits.push(expLabel ?? String(exp));
             }
         }
     }
@@ -96,10 +128,9 @@ function computeOmitsAndAlterations(actual: number[], expected: number[]): { omi
  */
 function computeInversion(rootPC: number, bassPC: number, intervals: number[]): number {
     const bassOffset = (bassPC - rootPC + 12) % 12;
-    // chord tones in ascending order from root: 0, intervals[0], intervals[1], ...
     const chordTones = [0, ...intervals];
     const idx = chordTones.indexOf(bassOffset);
-    return idx >= 0 ? idx : 1; // default to 1 if not found exactly (e.g. compressed interval)
+    return idx >= 0 ? idx : 1;
 }
 
 /**
@@ -110,7 +141,15 @@ function computeInversion(rootPC: number, bassPC: number, intervals: number[]): 
  * Returns an interval name result for 2 notes.
  */
 export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}): MusicpyChordResult | null {
-    const { preferBassRoot = true, similarityThreshold = 0.6, wholeDetect = false, polyChordFirst = false } = options;
+    const {
+        rootPreference = false,
+        similarityRatio = 0.6,
+        originalFirstRatio = 0.86,
+        wholeDetect = true,
+        polyChordFirst = false,
+        originalFirst = true,
+        changeFromFirst = true,
+    } = options;
 
     if (midiNotes.length === 0) return null;
 
@@ -134,14 +173,73 @@ export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}):
     const deduplicated = deduplicatePitchClasses(midiNotes);
     const bassPC = ((deduplicated[0] % 12) + 12) % 12;
 
-    // Pitch classes only (mod 12), keeping uniqueness from deduplicatePitchClasses
-    const pcs = deduplicated.map((n) => ((n % 12) + 12) % 12);
-
     // --- POLYCHORD FIRST ---
 
     if (polyChordFirst && deduplicated.length >= 5) {
         const poly = tryPolychord(deduplicated, options);
         if (poly) return poly;
+    }
+
+    // --- ORIGINAL ORDER EXACT CHECK (Phase 2) ---
+    // Separate early path for deduplicated[0] as root — gives confidence 1.0 regardless
+    // of originalFirst flag, matching Python musicpy's "if similarity == 1, return original order".
+
+    const origRootMidi = deduplicated[0];
+    const origRootPC = ((origRootMidi % 12) + 12) % 12;
+    const origIntervals = standardize(deduplicated, origRootMidi);
+    const origKey = intervalKey(origIntervals);
+
+    if (DETECT_MAP.has(origKey)) {
+        const chordType = DETECT_MAP.get(origKey)!;
+        const bassNote = origRootPC !== bassPC ? bassPC : null;
+        const inversion = bassNote !== null ? computeInversion(origRootPC, bassPC, origIntervals) : 0;
+        return makeResult({ root: origRootPC, chordType, inversion, bassNote, confidence: 1.0 });
+    }
+
+    // --- ORIGINAL ORDER SIMILARITY (Phase 2 + Phase 4) ---
+    // Before trying inversions, check if original order is a close enough match to return early.
+
+    if (originalFirst || changeFromFirst) {
+        let bestOrigScore = 0;
+        let bestOrigEntry: (typeof CHORD_TYPES)[0] | null = null;
+
+        for (const entry of CHORD_TYPES) {
+            const compExpected = compressedEntryIntervals(entry.intervals);
+            const score = sequenceSimilarity(origIntervals, compExpected);
+            if (score > bestOrigScore) {
+                bestOrigScore = score;
+                bestOrigEntry = entry;
+            }
+        }
+
+        if (bestOrigEntry && bestOrigScore >= originalFirstRatio) {
+            const compExpected = compressedEntryIntervals(bestOrigEntry.intervals);
+            const { omits, alterations } = computeOmitsAndAlterations(origIntervals, compExpected);
+            const bassNote = origRootPC !== bassPC ? bassPC : null;
+
+            // Phase 2: clean match (no alterations) — return immediately
+            if (originalFirst && alterations.length === 0) {
+                return makeResult({
+                    root: origRootPC,
+                    chordType: bestOrigEntry.name,
+                    bassNote,
+                    omits,
+                    confidence: bestOrigScore,
+                });
+            }
+
+            // Phase 4: altered match — only return early when changeFromFirst is enabled
+            if (changeFromFirst) {
+                return makeResult({
+                    root: origRootPC,
+                    chordType: bestOrigEntry.name,
+                    bassNote,
+                    omits,
+                    alterations,
+                    confidence: bestOrigScore,
+                });
+            }
+        }
     }
 
     // --- EXACT ROOT SEARCH ---
@@ -164,22 +262,18 @@ export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}):
     }
 
     if (wholeDetect && exactHits.length === 0) {
-        // Try all voicings (different root permutations) for the first midi note set
-        const rootMidi = deduplicated[0];
-        const baseIntervals = standardize(deduplicated, rootMidi);
-        const voicings = allVoicings(baseIntervals);
+        const voicings = allVoicings(origIntervals);
         for (const voicing of voicings) {
             const key = intervalKey(voicing);
             if (DETECT_MAP.has(key)) {
-                const rootPC = ((rootMidi % 12) + 12) % 12;
-                exactHits.push({ root: rootPC, chordType: DETECT_MAP.get(key)!, intervals: voicing });
+                exactHits.push({ root: origRootPC, chordType: DETECT_MAP.get(key)!, intervals: voicing });
             }
         }
     }
 
     if (exactHits.length > 0) {
         let chosen = exactHits[0];
-        if (preferBassRoot) {
+        if (rootPreference) {
             const bassMatch = exactHits.find((h) => h.root === bassPC);
             if (bassMatch) chosen = bassMatch;
         }
@@ -227,7 +321,7 @@ export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}):
 
     if (inversionHits.length > 0) {
         let chosen = inversionHits[0];
-        if (preferBassRoot) {
+        if (rootPreference) {
             const bassMatch = inversionHits.find((h) => h.root === bassPC);
             if (bassMatch) chosen = bassMatch;
         }
@@ -240,9 +334,8 @@ export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}):
         });
     }
 
-    // --- SIMILARITY FALLBACK ---
+    // --- SIMILARITY FALLBACK (Phase 6: compare against compressed expected intervals) ---
 
-    // Compute intervals from each possible root and pick the best similarity
     interface SimilarityCandidate {
         root: number;
         chordType: string;
@@ -258,21 +351,21 @@ export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}):
         const intervals = standardize(deduplicated, rootMidi);
 
         for (const entry of CHORD_TYPES) {
-            const score = sequenceSimilarity(intervals, entry.intervals);
-            if (score >= similarityThreshold) {
+            const compExpected = compressedEntryIntervals(entry.intervals);
+            const score = sequenceSimilarity(intervals, compExpected);
+            if (score >= similarityRatio) {
                 candidates.push({
                     root: rootPC,
                     chordType: entry.name,
                     score,
                     intervals,
-                    expectedIntervals: entry.intervals,
+                    expectedIntervals: compExpected,
                 });
             }
         }
     }
 
     if (candidates.length > 0) {
-        // Sort: prefer higher score, then fewer omits+alterations
         candidates.sort((a, b) => {
             if (b.score !== a.score) return b.score - a.score;
             const aExtra = computeOmitsAndAlterations(a.intervals, a.expectedIntervals);
@@ -285,7 +378,7 @@ export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}):
         const best = candidates[0];
         let chosen = best;
 
-        if (preferBassRoot) {
+        if (rootPreference) {
             const bassMatch = candidates.find((c) => c.root === bassPC && c.score >= best.score - 0.05);
             if (bassMatch) chosen = bassMatch;
         }
