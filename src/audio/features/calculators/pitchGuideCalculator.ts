@@ -6,11 +6,18 @@ import type {
 } from '../audioFeatureTypes';
 import type { SerializedAudioFeatureTrack } from '../audioFeatureAnalysis';
 
+// Strict YIN threshold for selecting clean pitch candidates
 const YIN_THRESHOLD = 0.12;
+// Wider limit: frames with bestCmnd below this are usable even if they miss the strict threshold
+const VOICED_CMND_LIMIT = 0.45;
+// RMS below this → silence; do not report pitch regardless of CMND
+const SILENCE_RMS_THRESHOLD = 0.001;
+
+// These match the oscilloscope UI defaults and bound the cache key
 const MIN_FREQUENCY = 50;
 const MAX_FREQUENCY = 2000;
-const SMOOTHING_RADIUS = 1; // neighbors on each side for median smoothing
-const OCTAVE_RATIO_UP = 1.6; // f0[i]/f0[i-1] above this → suspect octave jump up
+
+const OCTAVE_RATIO_UP = 1.6;
 const OCTAVE_RATIO_DOWN = 1 / OCTAVE_RATIO_UP;
 
 // Channel indices in the interleaved float32 payload (frame * 4 + CH_*)
@@ -22,32 +29,43 @@ const CH_ANCHOR_SEC = 3;
 
 interface YinResult {
     frequency: number;
-    confidence: number;
-    voiced: boolean;
+    bestCmnd: number;
 }
 
-const UNVOICED: YinResult = { frequency: 0, confidence: 0, voiced: false };
+const NULL_YIN: YinResult = { frequency: 0, bestCmnd: 1 };
+
+function preprocessWindow(samples: Float32Array, start: number, length: number): Float32Array {
+    const n = Math.min(length, samples.length - start);
+    if (n <= 0) return new Float32Array(0);
+    const buf = new Float32Array(n);
+    let sum = 0;
+    for (let i = 0; i < n; i++) sum += samples[start + i] ?? 0;
+    const mean = sum / n;
+    for (let i = 0; i < n; i++) {
+        const hann = n > 1 ? 0.5 * (1 - Math.cos((2 * Math.PI * i) / (n - 1))) : 1;
+        buf[i] = ((samples[start + i] ?? 0) - mean) * hann;
+    }
+    return buf;
+}
 
 function detectYin(
-    samples: Float32Array,
-    start: number,
-    length: number,
+    buf: Float32Array,
     sampleRate: number,
     minFrequency: number,
     maxFrequency: number
 ): YinResult {
-    const bounded = Math.min(length, samples.length - start);
-    if (bounded < 3) return UNVOICED;
+    const length = buf.length;
+    if (length < 3) return NULL_YIN;
 
-    const maxTau = Math.min(Math.floor(sampleRate / Math.max(1, minFrequency)), bounded - 1);
+    const maxTau = Math.min(Math.floor(sampleRate / Math.max(1, minFrequency)), length - 1);
     const minTau = Math.max(1, Math.floor(sampleRate / Math.max(1, maxFrequency)));
-    if (maxTau <= minTau) return UNVOICED;
+    if (maxTau <= minTau) return NULL_YIN;
 
     const diff = new Float32Array(maxTau + 1);
     for (let tau = 1; tau <= maxTau; tau++) {
         let sum = 0;
-        for (let i = 0; i < bounded - tau; i++) {
-            const delta = (samples[start + i] ?? 0) - (samples[start + i + tau] ?? 0);
+        for (let i = 0; i < length - tau; i++) {
+            const delta = (buf[i] ?? 0) - (buf[i + tau] ?? 0);
             sum += delta * delta;
         }
         diff[tau] = sum;
@@ -62,14 +80,12 @@ function detectYin(
 
     let bestTau = -1;
     let bestCmnd = Number.POSITIVE_INFINITY;
-    let voiced = false;
     for (let tau = minTau; tau <= maxTau; tau++) {
         const c = cmnd[tau] ?? 1;
         if (c < YIN_THRESHOLD) {
+            // Walk to local minimum then stop
             bestTau = tau;
             bestCmnd = c;
-            voiced = true;
-            // Walk to local minimum
             while (tau + 1 <= maxTau && (cmnd[tau + 1] ?? 1) <= (cmnd[tau] ?? 1)) {
                 tau++;
                 bestTau = tau;
@@ -83,7 +99,8 @@ function detectYin(
         }
     }
 
-    if (bestTau <= 0) return UNVOICED;
+    // No tau usable within the wider voiced limit
+    if (bestTau <= 0 || bestCmnd >= VOICED_CMND_LIMIT) return NULL_YIN;
 
     let refined = bestTau;
     if (bestTau > 1 && bestTau < maxTau) {
@@ -94,12 +111,11 @@ function detectYin(
         if (denom !== 0) refined = bestTau + (next - prev) / (2 * denom);
     }
 
-    if (!Number.isFinite(refined) || refined <= 0) return UNVOICED;
+    if (!Number.isFinite(refined) || refined <= 0) return NULL_YIN;
     const frequency = sampleRate / refined;
-    if (!Number.isFinite(frequency) || frequency < minFrequency || frequency > maxFrequency) return UNVOICED;
+    if (!Number.isFinite(frequency) || frequency < minFrequency || frequency > maxFrequency) return NULL_YIN;
 
-    const confidence = voiced ? Math.max(0, Math.min(1, 1 - bestCmnd / YIN_THRESHOLD)) : 0;
-    return { frequency, confidence, voiced };
+    return { frequency, bestCmnd };
 }
 
 function computeRms(samples: Float32Array, start: number, length: number): number {
@@ -176,37 +192,58 @@ export function createPitchGuideCalculator({
             const mono = await mixBufferToMono(audioBuffer, maybeYield);
             const sampleRate = audioBuffer.sampleRate || analysisParams.sampleRate || 44100;
             const { windowSize, hopSize } = analysisParams;
+            const minFrequency = MIN_FREQUENCY;
             const maxFrequency = Math.min(sampleRate / 2 - 1, MAX_FREQUENCY);
-            const frameYieldInterval = Math.max(1, Math.floor(frameCount / 16));
 
+            // Require at least 4 periods of minFrequency so bass notes get reliable CMND
+            const minYinSize = Math.ceil((sampleRate / minFrequency) * 4);
+            const yinWindowSize = Math.max(windowSize, minYinSize);
+
+            const frameYieldInterval = Math.max(1, Math.floor(frameCount / 16));
             const data = new Float32Array(frameCount * CHANNEL_COUNT);
 
             // Pass 1: per-frame pitch, confidence, RMS, anchor
             for (let frame = 0; frame < frameCount; frame++) {
                 const frameCenter = frame * hopSize + Math.floor(hopSize / 2);
-                const windowHalf = Math.floor(windowSize / 2);
-                const winStart = Math.max(0, frameCenter - windowHalf);
-                const winEnd = Math.min(mono.length, frameCenter + windowHalf);
-                const winLength = winEnd - winStart;
+
+                // RMS uses the standard analysis window (amplitude tracking)
+                const rmsHalf = Math.floor(windowSize / 2);
+                const rmsStart = Math.max(0, frameCenter - rmsHalf);
+                const rmsEnd = Math.min(mono.length, frameCenter + rmsHalf);
+                const rms = computeRms(mono, rmsStart, rmsEnd - rmsStart);
+
+                // YIN uses the extended window to ensure enough periods for bass
+                const yinHalf = Math.floor(yinWindowSize / 2);
+                const yinStart = Math.max(0, frameCenter - yinHalf);
+                const yinEnd = Math.min(mono.length, frameCenter + yinHalf);
 
                 const yin =
-                    winLength >= 3
-                        ? detectYin(mono, winStart, winLength, sampleRate, MIN_FREQUENCY, maxFrequency)
-                        : UNVOICED;
+                    yinEnd - yinStart >= 3
+                        ? detectYin(
+                              preprocessWindow(mono, yinStart, yinEnd - yinStart),
+                              sampleRate,
+                              minFrequency,
+                              maxFrequency
+                          )
+                        : NULL_YIN;
 
-                const rms = computeRms(mono, winStart, winLength);
+                // Silence detection is independent of CMND quality
+                const voiced = rms >= SILENCE_RMS_THRESHOLD && yin.frequency > 0;
+                const confidence = voiced
+                    ? Math.max(0, Math.min(1, (VOICED_CMND_LIMIT - yin.bestCmnd) / VOICED_CMND_LIMIT))
+                    : 0;
 
                 let anchorSec = frameCenter / sampleRate;
-                if (yin.voiced && yin.frequency > 0) {
-                    const zeroCross = findPositiveZeroCrossing(mono, frameCenter, winStart, winEnd);
+                if (voiced) {
+                    const zeroCross = findPositiveZeroCrossing(mono, frameCenter, rmsStart, rmsEnd);
                     if (zeroCross != null) {
                         anchorSec = zeroCross / sampleRate;
                     }
                 }
 
                 const offset = frame * CHANNEL_COUNT;
-                data[offset + CH_F0] = yin.frequency;
-                data[offset + CH_CONFIDENCE] = yin.confidence;
+                data[offset + CH_F0] = voiced ? yin.frequency : 0;
+                data[offset + CH_CONFIDENCE] = confidence;
                 data[offset + CH_RMS] = Math.min(1, rms);
                 data[offset + CH_ANCHOR_SEC] = anchorSec;
 
@@ -222,7 +259,7 @@ export function createPitchGuideCalculator({
                 const prev = data[(frame - 1) * CHANNEL_COUNT + CH_F0];
                 if (cur <= 0 || prev <= 0) continue;
                 const ratio = cur / prev;
-                if (ratio > OCTAVE_RATIO_UP && cur / 2 >= MIN_FREQUENCY) {
+                if (ratio > OCTAVE_RATIO_UP && cur / 2 >= minFrequency) {
                     data[frame * CHANNEL_COUNT + CH_F0] = cur / 2;
                 } else if (ratio < OCTAVE_RATIO_DOWN && cur * 2 <= maxFrequency) {
                     data[frame * CHANNEL_COUNT + CH_F0] = cur * 2;
@@ -237,14 +274,48 @@ export function createPitchGuideCalculator({
                     smoothedF0[frame] = 0;
                     continue;
                 }
-                const prev = frame > SMOOTHING_RADIUS - 1 ? data[(frame - 1) * CHANNEL_COUNT + CH_F0] : cur;
-                const next = frame < frameCount - SMOOTHING_RADIUS ? data[(frame + 1) * CHANNEL_COUNT + CH_F0] : cur;
+                const prev = frame > 0 ? data[(frame - 1) * CHANNEL_COUNT + CH_F0] : cur;
+                const next = frame < frameCount - 1 ? data[(frame + 1) * CHANNEL_COUNT + CH_F0] : cur;
                 smoothedF0[frame] = medianOf3(prev > 0 ? prev : cur, cur, next > 0 ? next : cur);
             }
             for (let frame = 0; frame < frameCount; frame++) {
                 if (data[frame * CHANNEL_COUNT + CH_F0] > 0) {
                     data[frame * CHANNEL_COUNT + CH_F0] = smoothedF0[frame];
                 }
+            }
+
+            // Pass 4: confidence smoothing ([0.25, 0.5, 0.25] weighted average)
+            // + small boost when neighboring voiced frames have stable, close pitch
+            const smoothedConf = new Float32Array(frameCount);
+            for (let frame = 0; frame < frameCount; frame++) {
+                const conf = data[frame * CHANNEL_COUNT + CH_CONFIDENCE];
+                if (conf <= 0) {
+                    smoothedConf[frame] = 0;
+                    continue;
+                }
+                const prevConf = frame > 0 ? data[(frame - 1) * CHANNEL_COUNT + CH_CONFIDENCE] : conf;
+                const nextConf =
+                    frame < frameCount - 1 ? data[(frame + 1) * CHANNEL_COUNT + CH_CONFIDENCE] : conf;
+                let smoothed = 0.25 * prevConf + 0.5 * conf + 0.25 * nextConf;
+
+                const f0 = data[frame * CHANNEL_COUNT + CH_F0];
+                if (f0 > 0) {
+                    const prevF0 = frame > 0 ? data[(frame - 1) * CHANNEL_COUNT + CH_F0] : 0;
+                    const nextF0 = frame < frameCount - 1 ? data[(frame + 1) * CHANNEL_COUNT + CH_F0] : 0;
+                    if (
+                        prevF0 > 0 &&
+                        nextF0 > 0 &&
+                        Math.abs(prevF0 / f0 - 1) < 0.05 &&
+                        Math.abs(nextF0 / f0 - 1) < 0.05
+                    ) {
+                        smoothed = Math.min(1, smoothed + 0.05);
+                    }
+                }
+
+                smoothedConf[frame] = Math.max(0, Math.min(1, smoothed));
+            }
+            for (let frame = 0; frame < frameCount; frame++) {
+                data[frame * CHANNEL_COUNT + CH_CONFIDENCE] = smoothedConf[frame];
             }
 
             await maybeYield();
@@ -265,8 +336,11 @@ export function createPitchGuideCalculator({
                     windowSize,
                     hopSize,
                     yinThreshold: YIN_THRESHOLD,
-                    minFrequency: MIN_FREQUENCY,
+                    voicedCmndLimit: VOICED_CMND_LIMIT,
+                    silenceRmsThreshold: SILENCE_RMS_THRESHOLD,
+                    minFrequency,
                     maxFrequency,
+                    yinWindowSize,
                     sampleRate,
                 },
                 channelAliases: ['f0', 'confidence', 'rms', 'anchorSec'],

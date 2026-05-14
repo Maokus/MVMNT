@@ -7,7 +7,12 @@ import { applyOpacity } from '@utils/color';
 import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
-import { computeChromaFromNotes, estimateChordPB, type EstimatedChord } from '@core/midi/music-theory/chord-estimator';
+import {
+    computeChromaFromNotes,
+    detectChordFromNotes,
+    estimateChordPB,
+    type EstimatedChord,
+} from '@core/midi/music-theory/chord-estimator';
 import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
 const clampWindowSeconds: PropertyTransform<number, SceneElementInterface> = (value, element) => {
@@ -313,7 +318,11 @@ export class ChordEstimateDisplayElement extends SceneElement {
             [];
         const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
         if (midiTrackId && host.ok) {
-            const notes = host.api.timeline.selectNotesInWindow({ trackIds: [midiTrackId], startSec: start, endSec: end });
+            const notes = host.api.timeline.selectNotesInWindow({
+                trackIds: [midiTrackId],
+                startSec: start,
+                endSec: end,
+            });
             for (const n of notes) {
                 noteEvents.push({
                     note: n.note,
@@ -326,17 +335,21 @@ export class ChordEstimateDisplayElement extends SceneElement {
         }
         const { chroma, bassPc } = computeChromaFromNotes(noteEvents, start, end);
 
-        // Estimate chord
+        // Musicpy-style exact interval detection, with PB template-matching as fallback
+        const detectionOptions = {
+            includeTriads,
+            includeDiminished,
+            includeAugmented,
+            includeSevenths,
+            preferBassRoot,
+        };
         let chord: EstimatedChord | undefined;
+        const midiNoteNumbers = noteEvents.map((n) => n.note);
         const energy = chroma.reduce((a, b) => a + b, 0);
         if (energy > 0) {
-            chord = estimateChordPB(chroma, bassPc, {
-                includeTriads,
-                includeDiminished,
-                includeAugmented,
-                includeSevenths,
-                preferBassRoot,
-            });
+            chord =
+                detectChordFromNotes(midiNoteNumbers, bassPc, detectionOptions) ??
+                estimateChordPB(chroma, bassPc, detectionOptions);
         }
 
         // Simple temporal smoothing to reduce flicker
@@ -483,6 +496,12 @@ export class ChordEstimateDisplayElement extends SceneElement {
                 break;
             case 'dim7':
                 qual = 'dim7';
+                break;
+            case 'sus2':
+                qual = 'sus2';
+                break;
+            case 'sus4':
+                qual = 'sus4';
                 break;
         }
         let label = `${root}${qual}`;

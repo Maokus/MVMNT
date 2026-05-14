@@ -52,6 +52,8 @@ const ChangelogPage: React.FC = () => {
                             'Notes Playing Display given two new display modes inspired by tn-shi and ableton push respectively',
                             'Notes Played Tracker given format string property for improved flexibility',
                             'Audio volume element has peak/rms modes, reference lines and improved styling',
+                            'Audio Locked Oscilloscope optimised for non-realtime environment',
+                            'Chord estimation algorithm rework'
                         ],
                         'Implemented custom element plugin system',
                         [

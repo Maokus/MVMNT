@@ -166,7 +166,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                                 key: 'confidenceThreshold',
                                 type: 'range',
                                 label: 'Confidence Threshold',
-                                default: 0.2,
+                                default: 0.3,
                                 min: 0,
                                 max: 1,
                                 step: 0.01,
@@ -175,7 +175,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                                         const numeric = asNumber(value, element);
                                         return numeric === undefined ? undefined : clamp(numeric, 0, 1);
                                     },
-                                    defaultValue: 0.2,
+                                    defaultValue: 0.3,
                                 },
                             },
                         ],
@@ -208,7 +208,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
         const blendMode = (props.blendMode ?? 'source-over') as GlobalCompositeOperation;
         const cycleCount = clamp(typeof props.cycleCount === 'number' ? Math.round(props.cycleCount) : 3, 1, 8);
         const confidenceThreshold = clamp(
-            typeof props.confidenceThreshold === 'number' ? props.confidenceThreshold : 0.2,
+            typeof props.confidenceThreshold === 'number' ? props.confidenceThreshold : 0.3,
             0,
             1
         );
@@ -266,6 +266,40 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
         const f0 = cv?.[0]?.[0] ?? 0;
         const confidence = cv?.[1]?.[0] ?? 0;
         const anchorSec = cv?.[3]?.[0] ?? targetTime;
+
+        objects.push(
+            new Text(
+                0,
+                -40,
+                `F0: ${f0.toFixed(1)} Hz`,
+                '12px Inter, sans-serif',
+                '#94a3b8',
+                'left',
+                'middle'
+            ).setIncludeInLayoutBounds(false)
+        );
+        objects.push(
+            new Text(
+                0,
+                -20,
+                `Confidence: ${confidence.toFixed(2)}`,
+                '12px Inter, sans-serif',
+                '#94a3b8',
+                'left',
+                'middle'
+            ).setIncludeInLayoutBounds(false)
+        );
+        objects.push(
+            new Text(
+                0,
+                0,
+                `Anchor: ${anchorSec.toFixed(2)} sec`,
+                '12px Inter, sans-serif',
+                '#94a3b8',
+                'left',
+                'middle'
+            ).setIncludeInLayoutBounds(false)
+        );
 
         // Scale opacity by confidence relative to threshold
         const confidenceRatio = confidenceThreshold > 0 ? confidence / confidenceThreshold : 1;

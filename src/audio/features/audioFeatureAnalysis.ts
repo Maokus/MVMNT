@@ -20,7 +20,6 @@ import {
     type ChannelLayoutMeta,
 } from './audioFeatureTypes';
 import { normalizeHopTicks, quantizeHopTicks } from './hopQuantization';
-import { createPitchWaveformCalculator } from './calculators/pitchWaveformCalculator';
 import { createPitchGuideCalculator } from './calculators/pitchGuideCalculator';
 import { createSpectrogramCalculator } from './calculators/spectrogramCalculator';
 import { createPeaksCalculator } from './calculators/peaksCalculator';
@@ -573,14 +572,6 @@ function ensureCalculatorsRegistered(): AudioFeatureCalculator[] {
             cloneTempoProjection,
             serializeTrack,
             deserializeTrack,
-        }),
-        createPitchWaveformCalculator({
-            createAnalysisYieldController,
-            mixBufferToMono,
-            cloneTempoProjection,
-            serializeTrack,
-            deserializeTrack,
-            inferChannelAliases,
         }),
         createPitchGuideCalculator({
             createAnalysisYieldController,
