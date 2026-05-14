@@ -47,16 +47,18 @@ Supported conditions:
 
 Never show color pickers for disabled features. Pair every feature toggle with `visibleWhen` on all dependent properties.
 
-## Naming
+## Properties
 
-- Main surface: `color`, `opacity`, `blendMode`
-- Named surfaces: `{surface}Color`, `{surface}Opacity`, `{surface}BlendMode`
-- Background: `background*`
-- Shadow: `shadow*`
-- Border: `border*`, plus `cornerRadius`
-- Stroke: `stroke*`
-- Dimensions: `width`, `height`
-- Domain sizes: descriptive keys, units in labels only, e.g. `windowSeconds` with `Window (seconds)`
+- Naming:
+    - Main surface: `color`, `opacity`, `blendMode`
+    - Named surfaces: `{surface}Color`, `{surface}Opacity`, `{surface}BlendMode`
+    - Background: `background*`
+    - Shadow: `shadow*`
+    - Border: `border*`, plus `cornerRadius`
+    - Stroke: `stroke*`
+    - Dimensions: `width`, `height`
+    - Domain sizes: descriptive keys, units in labels only, e.g. `windowSeconds` with `Window (seconds)`
+- Prefer to use prop factories where appropriate
 
 ## Collapsed defaults
 
@@ -71,6 +73,7 @@ Use `collapsed: true` for background, border, container, shadow, and anything la
 **Do not** store animation state as instance fields (e.g. note-on/off time maps). Doing so makes scrubbing, export, and non-sequential rendering produce incorrect results.
 
 **Do** derive all animation values from `targetTime` and event times fetched from the SDK:
+
 - Query notes in a lookback window via `api.timeline.selectNotesInWindow()`
 - Compute elapsed time as `targetTime - note.startTime` (for on-animations) or `targetTime - note.endTime` (for fade-out)
 - For note range auto-detection, use `api.timeline.getNoteRange()` — not `midiCache` internals

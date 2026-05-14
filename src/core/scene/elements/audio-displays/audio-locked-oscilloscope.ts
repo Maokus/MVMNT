@@ -99,34 +99,8 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                         properties: [
                             prop.number('width', 'Width (px)', 800, { step: 1 }),
                             prop.number('height', 'Height (px)', 300, { step: 1 }),
-                            {
-                                key: 'lineWidth',
-                                type: 'number',
-                                label: 'Line Width (px)',
-                                default: 2,
-                                step: 0.5,
-                                runtime: {
-                                    transform: (value, element) => {
-                                        const numeric = asNumber(value, element);
-                                        return numeric === undefined ? undefined : clamp(numeric, 0.5, 10);
-                                    },
-                                    defaultValue: 2,
-                                },
-                            },
-                            {
-                                key: 'cycleCount',
-                                type: 'number',
-                                label: 'Cycles',
-                                default: 3,
-                                step: 1,
-                                runtime: {
-                                    transform: (value, element) => {
-                                        const numeric = asNumber(value, element);
-                                        return numeric === undefined ? undefined : clamp(Math.round(numeric), 1, 8);
-                                    },
-                                    defaultValue: 3,
-                                },
-                            },
+                            prop.number('lineWidth', 'Line Width (px)', 2, { step: 0.5, min: 0 }),
+                            prop.number('cycleCount', 'Cycles', 3, { step: 1, min: 1, max: 8 }),
                         ],
                     },
                     {
@@ -134,50 +108,12 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                         label: 'Pitch Detection',
                         collapsed: true,
                         properties: [
-                            {
-                                key: 'minPitch',
-                                type: 'number',
-                                label: 'Min Pitch (Hz)',
-                                default: 50,
-                                step: 1,
-                                runtime: {
-                                    transform: (value, element) => {
-                                        const numeric = asNumber(value, element);
-                                        return numeric === undefined ? undefined : clamp(numeric, 20, 500);
-                                    },
-                                    defaultValue: 50,
-                                },
-                            },
-                            {
-                                key: 'maxPitch',
-                                type: 'number',
-                                label: 'Max Pitch (Hz)',
-                                default: 2000,
-                                step: 10,
-                                runtime: {
-                                    transform: (value, element) => {
-                                        const numeric = asNumber(value, element);
-                                        return numeric === undefined ? undefined : clamp(numeric, 100, 8000);
-                                    },
-                                    defaultValue: 2000,
-                                },
-                            },
-                            {
-                                key: 'confidenceThreshold',
-                                type: 'range',
-                                label: 'Confidence Threshold',
-                                default: 0.3,
+                            prop.range('confidenceThreshold', 'Confidence Threshold', 0.3, {
                                 min: 0,
                                 max: 1,
                                 step: 0.01,
-                                runtime: {
-                                    transform: (value, element) => {
-                                        const numeric = asNumber(value, element);
-                                        return numeric === undefined ? undefined : clamp(numeric, 0, 1);
-                                    },
-                                    defaultValue: 0.3,
-                                },
-                            },
+                            }),
+                            prop.boolean('showInfo', 'Show Info', false),
                         ],
                     },
                 ]),
@@ -266,150 +202,172 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
         const f0 = cv?.[0]?.[0] ?? 0;
         const confidence = cv?.[1]?.[0] ?? 0;
         const anchorSec = cv?.[3]?.[0] ?? targetTime;
+        const candidateF0 = cv?.[4]?.[0] ?? 0;
 
-        objects.push(
-            new Text(
-                0,
-                -40,
-                `F0: ${f0.toFixed(1)} Hz`,
-                '12px Inter, sans-serif',
-                '#94a3b8',
-                'left',
-                'middle'
-            ).setIncludeInLayoutBounds(false)
-        );
-        objects.push(
-            new Text(
-                0,
-                -20,
-                `Confidence: ${confidence.toFixed(2)}`,
-                '12px Inter, sans-serif',
-                '#94a3b8',
-                'left',
-                'middle'
-            ).setIncludeInLayoutBounds(false)
-        );
-        objects.push(
-            new Text(
-                0,
-                0,
-                `Anchor: ${anchorSec.toFixed(2)} sec`,
-                '12px Inter, sans-serif',
-                '#94a3b8',
-                'left',
-                'middle'
-            ).setIncludeInLayoutBounds(false)
-        );
-
-        // Scale opacity by confidence relative to threshold
-        const confidenceRatio = confidenceThreshold > 0 ? confidence / confidenceThreshold : 1;
-        const lineOpacity = clamp(userOpacity * confidenceRatio, 0, userOpacity);
-
-        const pushFlatLine = (opacityScale: number) => {
-            const fadedColor = applyOpacity(baseColor, lineOpacity * opacityScale);
-            const flat = new Poly(
-                [
-                    { x: 0, y: height / 2 },
-                    { x: width, y: height / 2 },
-                ],
-                null,
-                fadedColor,
-                props.lineWidth ?? 2,
-                { includeInLayoutBounds: false }
+        if (props.showInfo) {
+            objects.push(
+                new Text(
+                    0,
+                    0,
+                    `F0: ${f0.toFixed(1)} Hz`,
+                    '12px Inter, sans-serif',
+                    '#94a3b8',
+                    'left',
+                    'top'
+                ).setIncludeInLayoutBounds(false)
             );
-            flat.setClosed(false);
-            flat.blendMode = blendMode === 'source-over' ? null : blendMode;
-            objects.push(flat);
+            objects.push(
+                new Text(
+                    0,
+                    20,
+                    `Candidate F0: ${candidateF0.toFixed(1)} Hz`,
+                    '12px Inter, sans-serif',
+                    '#94a3b8',
+                    'left',
+                    'top'
+                )
+            );
+            objects.push(
+                new Text(
+                    0,
+                    40,
+                    `Confidence: ${confidence.toFixed(2)}`,
+                    '12px Inter, sans-serif',
+                    '#94a3b8',
+                    'left',
+                    'top'
+                ).setIncludeInLayoutBounds(false)
+            );
+            objects.push(
+                new Text(
+                    0,
+                    60,
+                    `Anchor: ${anchorSec.toFixed(2)} sec`,
+                    '12px Inter, sans-serif',
+                    '#94a3b8',
+                    'left',
+                    'top'
+                ).setIncludeInLayoutBounds(false)
+            );
+        }
+
+        // Opacity tiers — 20% floor ensures weak signals stay visible
+        const MIN_OPACITY_FLOOR = 0.2;
+        const normalized = confidenceThreshold > 0 ? confidence / confidenceThreshold : confidence > 0 ? 1 : 0.5;
+        const trustedLineOpacity = clamp(userOpacity * Math.max(MIN_OPACITY_FLOOR, normalized), 0, userOpacity);
+        const candidateLineOpacity = userOpacity * (MIN_OPACITY_FLOOR + 0.15);
+        const rawLineOpacity = userOpacity * (MIN_OPACITY_FLOOR + 0.1);
+
+        const makePoly = (points: { x: number; y: number }[], opacity: number) => {
+            const poly = new Poly(points, null, applyOpacity(baseColor, opacity), props.lineWidth ?? 2, {
+                includeInLayoutBounds: false,
+            });
+            poly.setClosed(false);
+            poly.blendMode = blendMode === 'source-over' ? null : blendMode;
+            return poly;
+        };
+
+        const pushFlatLine = (opacity: number) => {
+            objects.push(
+                makePoly(
+                    [
+                        { x: 0, y: height / 2 },
+                        { x: width, y: height / 2 },
+                    ],
+                    opacity
+                )
+            );
             return objects;
         };
 
-        if (!guideSample || f0 <= 0 || confidence < confidenceThreshold) {
-            return pushFlatLine(0.4);
-        }
+        // Choose between pitch-locked (trusted f0), soft pitch-locked (candidateF0), raw fallback
+        const activePitch = f0 > 0 ? f0 : candidateF0;
+        const activeOpacity = f0 > 0 ? trustedLineOpacity : candidateLineOpacity;
 
-        // Compute raw sample window
-        const periodSec = 1 / f0;
-        const desiredCycleSec = cycleCount * periodSec;
+        if (activePitch > 0) {
+            const periodSec = 1 / activePitch;
+            const desiredCycleSec = cycleCount * periodSec;
 
-        if (desiredCycleSec >= MAX_WINDOW_SEC) {
-            // Pitch too low for requested cycle count within the 8192-sample budget
-            return pushFlatLine(0.3);
-        }
+            if (desiredCycleSec < MAX_WINDOW_SEC) {
+                const availableMargin = Math.max(0, MAX_WINDOW_SEC - desiredCycleSec) / 2;
+                const triggerMarginSec = Math.min(periodSec * 0.5, availableMargin);
+                const windowStartSec = Math.max(0, anchorSec - triggerMarginSec);
+                const windowEndSec = anchorSec + desiredCycleSec + triggerMarginSec;
 
-        const availableMargin = Math.max(0, MAX_WINDOW_SEC - desiredCycleSec) / 2;
-        const triggerMarginSec = Math.min(periodSec * 0.5, availableMargin);
-        const windowStartSec = Math.max(0, anchorSec - triggerMarginSec);
-        const windowEndSec = anchorSec + desiredCycleSec + triggerMarginSec;
+                const rawSamples = host.api.audio.getRawSamples({
+                    trackId: props.audioTrackId,
+                    startSec: windowStartSec,
+                    endSec: windowEndSec,
+                    channel: 'mono',
+                });
 
-        const rawSamples = host.api.audio.getRawSamples({
-            trackId: props.audioTrackId,
-            startSec: windowStartSec,
-            endSec: windowEndSec,
-            channel: 'mono',
-        });
+                if (rawSamples && rawSamples.length >= 4) {
+                    const windowDurationSec = windowEndSec - windowStartSec;
+                    const sampleRate = rawSamples.length / windowDurationSec;
+                    const periodSamples = Math.max(2, Math.round(sampleRate / activePitch));
 
-        if (!rawSamples || rawSamples.length < 4) {
-            return pushMessage('Raw samples unavailable');
-        }
+                    const anchorSampleInWindow = Math.round((anchorSec - windowStartSec) * sampleRate);
+                    const anchorClamped = clamp(anchorSampleInWindow, 0, rawSamples.length - 1);
+                    const triggerSearchRadius = Math.max(1, Math.round(triggerMarginSec * sampleRate));
 
-        // Infer sample rate from returned sample count vs requested duration
-        const windowDurationSec = windowEndSec - windowStartSec;
-        const sampleRate = rawSamples.length / windowDurationSec;
-        const periodSamples = Math.max(2, Math.round(sampleRate / f0));
+                    let bestTrigger = anchorClamped;
+                    let bestScore = -Infinity;
+                    const searchStart = Math.max(0, anchorClamped - triggerSearchRadius);
+                    const searchEnd = Math.min(rawSamples.length - 2, anchorClamped + triggerSearchRadius);
 
-        // Locate anchor within the raw window
-        const anchorSampleInWindow = Math.round((anchorSec - windowStartSec) * sampleRate);
-        const anchorClamped = clamp(anchorSampleInWindow, 0, rawSamples.length - 1);
-        const triggerSearchRadius = Math.max(1, Math.round(triggerMarginSec * sampleRate));
+                    for (let i = searchStart; i <= searchEnd; i++) {
+                        const a = rawSamples[i] ?? 0;
+                        const b = rawSamples[i + 1] ?? 0;
+                        if (a <= 0 && b > 0) {
+                            const score = scoreTriggerCandidate(
+                                rawSamples,
+                                i + 1,
+                                anchorClamped,
+                                periodSamples,
+                                triggerSearchRadius
+                            );
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestTrigger = i + 1;
+                            }
+                        }
+                    }
 
-        // Score positive zero-crossings near anchor, pick the best trigger
-        let bestTrigger = anchorClamped;
-        let bestScore = -Infinity;
-        const searchStart = Math.max(0, anchorClamped - triggerSearchRadius);
-        const searchEnd = Math.min(rawSamples.length - 2, anchorClamped + triggerSearchRadius);
+                    const extractLen = cycleCount * periodSamples;
+                    const extractEnd = Math.min(rawSamples.length, bestTrigger + extractLen);
+                    const extracted = rawSamples.slice(bestTrigger, extractEnd);
 
-        for (let i = searchStart; i <= searchEnd; i++) {
-            const a = rawSamples[i] ?? 0;
-            const b = rawSamples[i + 1] ?? 0;
-            if (a <= 0 && b > 0) {
-                const score = scoreTriggerCandidate(
-                    rawSamples,
-                    i + 1,
-                    anchorClamped,
-                    periodSamples,
-                    triggerSearchRadius
-                );
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestTrigger = i + 1;
+                    if (extracted.length >= 2) {
+                        const displayValues = resampleLinear(extracted, Math.max(2, Math.round(width)));
+                        const points = buildPolylinePoints(displayValues, width, height);
+                        if (points.length >= 2) {
+                            objects.push(makePoly(points, activeOpacity));
+                            return objects;
+                        }
+                    }
                 }
             }
         }
 
-        // Extract cycleCount periods from trigger point
-        const extractLen = cycleCount * periodSamples;
-        const extractEnd = Math.min(rawSamples.length, bestTrigger + extractLen);
-        const extracted = rawSamples.slice(bestTrigger, extractEnd);
-
-        if (extracted.length < 2) {
-            return pushMessage('Waveform window too short');
-        }
-
-        const displayValues = resampleLinear(extracted, Math.max(2, Math.round(width)));
-        const points = buildPolylinePoints(displayValues, width, height);
-
-        if (points.length < 2) {
-            return pushMessage('Waveform too short');
-        }
-
-        const lineColor = applyOpacity(baseColor, lineOpacity);
-        const line = new Poly(points, null, lineColor, props.lineWidth ?? 2, {
-            includeInLayoutBounds: false,
+        // Raw waveform fallback: free-running 90 ms window centered on targetTime
+        const RAW_FALLBACK_SEC = 0.09;
+        const fallbackRaw = host.api.audio.getRawSamples({
+            trackId: props.audioTrackId,
+            startSec: Math.max(0, targetTime - RAW_FALLBACK_SEC / 2),
+            endSec: targetTime + RAW_FALLBACK_SEC / 2,
+            channel: 'mono',
         });
-        line.setClosed(false);
-        line.blendMode = blendMode === 'source-over' ? null : blendMode;
-        objects.push(line);
 
-        return objects;
+        if (fallbackRaw && fallbackRaw.length >= 4) {
+            const displayValues = resampleLinear(fallbackRaw, Math.max(2, Math.round(width)));
+            const points = buildPolylinePoints(displayValues, width, height);
+            if (points.length >= 2) {
+                objects.push(makePoly(points, rawLineOpacity));
+                return objects;
+            }
+        }
+
+        // Subtle flat line: no usable audio at all
+        return pushFlatLine(userOpacity * MIN_OPACITY_FLOOR * 0.5);
     }
 }

@@ -10,8 +10,15 @@ import type { SerializedAudioFeatureTrack } from '../audioFeatureAnalysis';
 const YIN_THRESHOLD = 0.12;
 // Wider limit: frames with bestCmnd below this are usable even if they miss the strict threshold
 const VOICED_CMND_LIMIT = 0.45;
+// Even wider limit: frames below this get a candidateF0 for visual use (not trusted pitch)
+const CANDIDATE_CMND_LIMIT = 0.70;
 // RMS below this → silence; do not report pitch regardless of CMND
 const SILENCE_RMS_THRESHOLD = 0.001;
+// Gap-filling parameters: fill short f0=0 gaps between nearby voiced frames
+const GAP_FILL_MAX_SEC = 0.150;
+const GAP_FILL_CONFIDENCE = 0.12;
+// Max pitch ratio between gap endpoints (~4 semitones); wider gaps are left unfilled
+const GAP_FILL_MAX_PITCH_RATIO = 1.26;
 
 // These match the oscilloscope UI defaults and bound the cache key
 const MIN_FREQUENCY = 50;
@@ -20,19 +27,21 @@ const MAX_FREQUENCY = 2000;
 const OCTAVE_RATIO_UP = 1.6;
 const OCTAVE_RATIO_DOWN = 1 / OCTAVE_RATIO_UP;
 
-// Channel indices in the interleaved float32 payload (frame * 4 + CH_*)
-const CHANNEL_COUNT = 4;
+// Channel indices in the interleaved float32 payload (frame * 5 + CH_*)
+const CHANNEL_COUNT = 5;
 const CH_F0 = 0;
 const CH_CONFIDENCE = 1;
 const CH_RMS = 2;
 const CH_ANCHOR_SEC = 3;
+const CH_CANDIDATE_F0 = 4;
 
 interface YinResult {
     frequency: number;
+    candidateFrequency: number;
     bestCmnd: number;
 }
 
-const NULL_YIN: YinResult = { frequency: 0, bestCmnd: 1 };
+const NULL_YIN: YinResult = { frequency: 0, candidateFrequency: 0, bestCmnd: 1 };
 
 function preprocessWindow(samples: Float32Array, start: number, length: number): Float32Array {
     const n = Math.min(length, samples.length - start);
@@ -99,23 +108,34 @@ function detectYin(
         }
     }
 
-    // No tau usable within the wider voiced limit
-    if (bestTau <= 0 || bestCmnd >= VOICED_CMND_LIMIT) return NULL_YIN;
-
-    let refined = bestTau;
-    if (bestTau > 1 && bestTau < maxTau) {
-        const prev = cmnd[bestTau - 1] ?? 1;
-        const curr = cmnd[bestTau] ?? 1;
-        const next = cmnd[bestTau + 1] ?? 1;
-        const denom = 2 * curr - prev - next;
-        if (denom !== 0) refined = bestTau + (next - prev) / (2 * denom);
+    // Compute refined frequency for bestTau (shared by voiced and candidate paths)
+    let refinedFrequency = 0;
+    if (bestTau > 0 && bestCmnd < CANDIDATE_CMND_LIMIT) {
+        let refined = bestTau;
+        if (bestTau > 1 && bestTau < maxTau) {
+            const prev = cmnd[bestTau - 1] ?? 1;
+            const curr = cmnd[bestTau] ?? 1;
+            const next = cmnd[bestTau + 1] ?? 1;
+            const denom = 2 * curr - prev - next;
+            if (denom !== 0) refined = bestTau + (next - prev) / (2 * denom);
+        }
+        if (Number.isFinite(refined) && refined > 0) {
+            const freq = sampleRate / refined;
+            if (Number.isFinite(freq) && freq >= minFrequency && freq <= maxFrequency) {
+                refinedFrequency = freq;
+            }
+        }
     }
 
-    if (!Number.isFinite(refined) || refined <= 0) return NULL_YIN;
-    const frequency = sampleRate / refined;
-    if (!Number.isFinite(frequency) || frequency < minFrequency || frequency > maxFrequency) return NULL_YIN;
+    // candidateFrequency: best-effort pitch, even when not cleanly voiced
+    const candidateFrequency = refinedFrequency;
 
-    return { frequency, bestCmnd };
+    // Strict voiced frequency: only when bestCmnd is within the tighter VOICED_CMND_LIMIT
+    if (bestTau <= 0 || bestCmnd >= VOICED_CMND_LIMIT || refinedFrequency === 0) {
+        return { frequency: 0, candidateFrequency, bestCmnd };
+    }
+
+    return { frequency: refinedFrequency, candidateFrequency, bestCmnd };
 }
 
 function computeRms(samples: Float32Array, start: number, length: number): number {
@@ -183,7 +203,7 @@ export function createPitchGuideCalculator({
 }: PitchGuideCalculatorDependencies): AudioFeatureCalculator {
     return {
         id: 'mvmnt.pitchGuide',
-        version: 1,
+        version: 2,
         featureKey: 'pitchGuide',
         label: 'Pitch Guide',
         async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
@@ -246,6 +266,7 @@ export function createPitchGuideCalculator({
                 data[offset + CH_CONFIDENCE] = confidence;
                 data[offset + CH_RMS] = Math.min(1, rms);
                 data[offset + CH_ANCHOR_SEC] = anchorSec;
+                data[offset + CH_CANDIDATE_F0] = rms >= SILENCE_RMS_THRESHOLD ? yin.candidateFrequency : 0;
 
                 if ((frame + 1) % frameYieldInterval === 0) {
                     await maybeYield();
@@ -263,6 +284,16 @@ export function createPitchGuideCalculator({
                     data[frame * CHANNEL_COUNT + CH_F0] = cur / 2;
                 } else if (ratio < OCTAVE_RATIO_DOWN && cur * 2 <= maxFrequency) {
                     data[frame * CHANNEL_COUNT + CH_F0] = cur * 2;
+                }
+                const curCand = data[frame * CHANNEL_COUNT + CH_CANDIDATE_F0];
+                const prevCand = data[(frame - 1) * CHANNEL_COUNT + CH_CANDIDATE_F0];
+                if (curCand > 0 && prevCand > 0) {
+                    const ratioC = curCand / prevCand;
+                    if (ratioC > OCTAVE_RATIO_UP && curCand / 2 >= minFrequency) {
+                        data[frame * CHANNEL_COUNT + CH_CANDIDATE_F0] = curCand / 2;
+                    } else if (ratioC < OCTAVE_RATIO_DOWN && curCand * 2 <= maxFrequency) {
+                        data[frame * CHANNEL_COUNT + CH_CANDIDATE_F0] = curCand * 2;
+                    }
                 }
             }
 
@@ -318,12 +349,46 @@ export function createPitchGuideCalculator({
                 data[frame * CHANNEL_COUNT + CH_CONFIDENCE] = smoothedConf[frame];
             }
 
+            // Pass 5: short-gap f0 filling (log-frequency interpolation)
+            {
+                const maxGapFrames = Math.max(1, Math.round(GAP_FILL_MAX_SEC / hopSeconds));
+                let gapStart = -1;
+                for (let frame = 0; frame <= frameCount; frame++) {
+                    const cur = frame < frameCount ? data[frame * CHANNEL_COUNT + CH_F0] : 0;
+                    if (cur > 0) {
+                        if (gapStart > 0) {
+                            const gapLen = frame - gapStart;
+                            if (gapLen <= maxGapFrames) {
+                                const prevF0 = data[(gapStart - 1) * CHANNEL_COUNT + CH_F0];
+                                const nextF0 = data[frame * CHANNEL_COUNT + CH_F0];
+                                const pitchRatio = Math.max(prevF0, nextF0) / Math.min(prevF0, nextF0);
+                                if (pitchRatio <= GAP_FILL_MAX_PITCH_RATIO) {
+                                    const logPrev = Math.log2(prevF0);
+                                    const logNext = Math.log2(nextF0);
+                                    for (let g = 0; g < gapLen; g++) {
+                                        const t = (g + 1) / (gapLen + 1);
+                                        const filled = Math.pow(2, logPrev + (logNext - logPrev) * t);
+                                        const gf = gapStart + g;
+                                        data[gf * CHANNEL_COUNT + CH_F0] = filled;
+                                        data[gf * CHANNEL_COUNT + CH_CONFIDENCE] = GAP_FILL_CONFIDENCE;
+                                        data[gf * CHANNEL_COUNT + CH_CANDIDATE_F0] = filled;
+                                    }
+                                }
+                            }
+                        }
+                        gapStart = -1;
+                    } else if (gapStart < 0 && frame > 0) {
+                        gapStart = frame;
+                    }
+                }
+            }
+
             await maybeYield();
 
             const track: AudioFeatureTrack = {
                 key: 'pitchGuide',
                 calculatorId: 'mvmnt.pitchGuide',
-                version: 1,
+                version: 2,
                 frameCount,
                 channels: CHANNEL_COUNT,
                 hopTicks,
@@ -343,8 +408,8 @@ export function createPitchGuideCalculator({
                     yinWindowSize,
                     sampleRate,
                 },
-                channelAliases: ['f0', 'confidence', 'rms', 'anchorSec'],
-                channelLayout: { aliases: ['f0', 'confidence', 'rms', 'anchorSec'] },
+                channelAliases: ['f0', 'confidence', 'rms', 'anchorSec', 'candidateF0'],
+                channelLayout: { aliases: ['f0', 'confidence', 'rms', 'anchorSec', 'candidateF0'] },
                 analysisProfileId: context.analysisProfileId,
             };
 

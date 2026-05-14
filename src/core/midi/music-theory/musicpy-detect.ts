@@ -15,14 +15,14 @@ export type MusicpyChordResult = {
 };
 
 export type DetectOptions = {
-    rootPreference?: boolean;       // prefer bass note as root when multiple hits; default false
-    similarityRatio?: number;       // minimum similarity score for fallback; default 0.6
-    originalFirstRatio?: number;    // minimum score for original-order early return; default 0.86
-    wholeDetect?: boolean;          // try all voicing permutations; default true
-    polyChordFirst?: boolean;       // try polychord before main detection; default false
-    originalFirst?: boolean;        // return original-order result early if score high enough; default true
-    changeFromFirst?: boolean;      // allow altered-chord early return before inversions; default true
-    sameNoteSpecial?: boolean;      // force similarity=1 when pitch-class sets match exactly; default false
+    rootPreference?: boolean; // prefer bass note as root when multiple hits; default false
+    similarityRatio?: number; // minimum similarity score for fallback; default 0.6
+    originalFirstRatio?: number; // minimum score for original-order early return; default 0.86
+    wholeDetect?: boolean; // try all voicing permutations; default true
+    polyChordFirst?: boolean; // try polychord before main detection; default false
+    originalFirst?: boolean; // return original-order result early if score high enough; default true
+    changeFromFirst?: boolean; // allow altered-chord early return before inversions; default true
+    sameNoteSpecial?: boolean; // force similarity=1 when pitch-class sets match exactly; default false
 };
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -99,13 +99,13 @@ function sameNotesOrdered(a: number[], b: number[]): boolean {
 function samePitchClassSet(a: number[], b: number[]): boolean {
     if (a.length !== b.length) return false;
     const setA = new Set(a);
-    return b.every(v => setA.has(v));
+    return b.every((v) => setA.has(v));
 }
 
 /** True if every note in actual is present in candidate. */
 function containsAllActualNotesInCandidate(actual: number[], candidate: number[]): boolean {
     const candSet = new Set(candidate);
-    return actual.every(n => candSet.has(n));
+    return actual.every((n) => candSet.has(n));
 }
 
 /**
@@ -144,9 +144,7 @@ function computeOmitsAndAlterations(actual: number[], candidate: number[]): { om
     // Case 1: actual ⊆ candidate → pure omission
     if (containsAllActualNotesInCandidate(actual, candidate)) {
         const actualSet = new Set(actual);
-        const omits = candidate
-            .filter(c => !actualSet.has(c))
-            .map(c => SEMITONE_TO_DEGREE[c] ?? String(c));
+        const omits = candidate.filter((c) => !actualSet.has(c)).map((c) => SEMITONE_TO_DEGREE[c] ?? String(c));
         return { omits, alterations: [] };
     }
 
@@ -200,9 +198,7 @@ function computeOmitsAndAlterations(actual: number[], candidate: number[]): { om
     }
 
     // Unmatched candidate notes are omitted
-    const omits = candidate
-        .filter((_, i) => !candUsed[i])
-        .map(c => SEMITONE_TO_DEGREE[c] ?? String(c));
+    const omits = candidate.filter((_, i) => !candUsed[i]).map((c) => SEMITONE_TO_DEGREE[c] ?? String(c));
 
     return { omits, alterations };
 }
@@ -442,9 +438,7 @@ export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}):
 
     const candidates: SimilarityCandidate[] = [];
     // Precompute input pitch-class set once for sameNoteSpecial scoring.
-    const inputPCsForSameNote = sameNoteSpecial
-        ? new Set(deduplicated.map(m => ((m % 12) + 12) % 12))
-        : null;
+    const inputPCsForSameNote = sameNoteSpecial ? new Set(deduplicated.map((m) => ((m % 12) + 12) % 12)) : null;
 
     for (const rootMidi of deduplicated) {
         const rootPC = ((rootMidi % 12) + 12) % 12;
@@ -523,12 +517,8 @@ function tryPolychord(sortedDeduplicated: number[], options: DetectOptions): Mus
     // 4–6 notes → single bass note (lower) + upper chord.
     // 7+ notes  → split into two halves, both detected as full chords.
     const splitHalf = n >= 7;
-    const lower = splitHalf
-        ? sortedDeduplicated.slice(0, Math.floor(n / 2))
-        : sortedDeduplicated.slice(0, 1);
-    const upper = splitHalf
-        ? sortedDeduplicated.slice(Math.floor(n / 2))
-        : sortedDeduplicated.slice(1);
+    const lower = splitHalf ? sortedDeduplicated.slice(0, Math.floor(n / 2)) : sortedDeduplicated.slice(0, 1);
+    const upper = splitHalf ? sortedDeduplicated.slice(Math.floor(n / 2)) : sortedDeduplicated.slice(1);
 
     const subOpts: DetectOptions = { ...options, polyChordFirst: false };
     const lowerResult = detectMusicpy(lower, subOpts);
