@@ -1,4 +1,4 @@
-import { CHORD_TYPES, DETECT_MAP, SEMITONE_TO_DEGREE } from './musicpy-chord-database';
+import { CHORD_TYPES, CHORD_SYMBOL, DETECT_MAP, SEMITONE_TO_DEGREE } from './musicpy-chord-database';
 import { deduplicatePitchClasses, standardize, intervalKey, allInversions, allVoicings } from './chord-normalise';
 
 export type MusicpyChordResult = {
@@ -133,6 +133,12 @@ function computeInversion(rootPC: number, bassPC: number, intervals: number[]): 
     return idx >= 0 ? idx : 1;
 }
 
+function pcsEqual(a: Set<number>, b: Set<number>): boolean {
+    if (a.size !== b.size) return false;
+    for (const v of a) if (!b.has(v)) return false;
+    return true;
+}
+
 /**
  * Detect a chord from a set of MIDI note numbers using the musicpy algorithm.
  *
@@ -149,6 +155,7 @@ export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}):
         polyChordFirst = false,
         originalFirst = true,
         changeFromFirst = true,
+        sameNoteSpecial = false,
     } = options;
 
     if (midiNotes.length === 0) return null;
@@ -175,7 +182,7 @@ export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}):
 
     // --- POLYCHORD FIRST ---
 
-    if (polyChordFirst && deduplicated.length >= 5) {
+    if (polyChordFirst && deduplicated.length >= 4) {
         const poly = tryPolychord(deduplicated, options);
         if (poly) return poly;
     }
@@ -194,6 +201,27 @@ export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}):
         const bassNote = origRootPC !== bassPC ? bassPC : null;
         const inversion = bassNote !== null ? computeInversion(origRootPC, bassPC, origIntervals) : 0;
         return makeResult({ root: origRootPC, chordType, inversion, bassNote, confidence: 1.0 });
+    }
+
+    // --- SAME NOTE SPECIAL (Phase 3) ---
+    // If the input pitch-class set equals a chord's pitch-class set exactly, return immediately
+    // with confidence 1.0 — no need for similarity scoring.
+
+    if (sameNoteSpecial) {
+        const inputPCs = new Set(deduplicated.map(m => ((m % 12) + 12) % 12));
+        for (const entry of CHORD_TYPES) {
+            for (const rootMidi of deduplicated) {
+                const rootPC = ((rootMidi % 12) + 12) % 12;
+                const chordPCs = new Set<number>([rootPC]);
+                for (const iv of entry.intervals) chordPCs.add((rootPC + iv) % 12);
+                if (pcsEqual(inputPCs, chordPCs)) {
+                    const compIntervals = compressedEntryIntervals(entry.intervals);
+                    const bassNote = rootPC !== bassPC ? bassPC : null;
+                    const inversion = bassNote !== null ? computeInversion(rootPC, bassPC, compIntervals) : 0;
+                    return makeResult({ root: rootPC, chordType: entry.name, inversion, bassNote, confidence: 1.0 });
+                }
+            }
+        }
     }
 
     // --- ORIGINAL ORDER SIMILARITY (Phase 2 + Phase 4) ---
@@ -399,7 +427,7 @@ export function detectMusicpy(midiNotes: number[], options: DetectOptions = {}):
 
     // --- POLYCHORD SPLIT ---
 
-    if (!polyChordFirst && deduplicated.length >= 5) {
+    if (!polyChordFirst && deduplicated.length >= 4) {
         const poly = tryPolychord(deduplicated, options);
         if (poly) return poly;
     }
@@ -411,35 +439,58 @@ function tryPolychord(deduplicated: number[], options: DetectOptions): MusicpyCh
     const n = deduplicated.length;
     const bassPC = ((deduplicated[0] % 12) + 12) % 12;
 
-    // Try all splits into lower/upper groups
-    for (let splitAt = 2; splitAt <= n - 2; splitAt++) {
-        const lower = deduplicated.slice(0, splitAt);
-        const upper = deduplicated.slice(splitAt);
+    // Split rule: 4–5 notes → lower = single bass note, upper = rest;
+    //             6+ notes  → lower = first floor(n/2) notes, upper = remaining.
+    const lower = n < 6 ? deduplicated.slice(0, 1) : deduplicated.slice(0, Math.floor(n / 2));
+    const upper = n < 6 ? deduplicated.slice(1) : deduplicated.slice(Math.floor(n / 2));
 
-        const lowerOpts: DetectOptions = { ...options, polyChordFirst: false };
-        const upperOpts: DetectOptions = { ...options, polyChordFirst: false };
+    const subOpts: DetectOptions = { ...options, polyChordFirst: false };
+    const lowerResult = detectMusicpy(lower, subOpts);
+    const upperResult = detectMusicpy(upper, subOpts);
 
-        const lowerResult = detectMusicpy(lower, lowerOpts);
-        const upperResult = detectMusicpy(upper, upperOpts);
-
-        if (
-            lowerResult &&
-            upperResult &&
-            lowerResult.confidence >= 0.9 &&
-            upperResult.confidence >= 0.9 &&
-            !lowerResult.isPolychord &&
-            !upperResult.isPolychord
-        ) {
-            return makeResult({
-                root: lowerResult.root,
-                chordType: `${upperResult.root}/${lowerResult.root}`,
-                isPolychord: true,
-                upperChord: upperResult,
-                bassNote: bassPC,
-                confidence: 0.7,
-            });
-        }
+    if (
+        lowerResult &&
+        upperResult &&
+        lowerResult.confidence >= 0.9 &&
+        upperResult.confidence >= 0.9 &&
+        !lowerResult.isPolychord &&
+        !upperResult.isPolychord
+    ) {
+        return makeResult({
+            root: lowerResult.root,
+            chordType: `${upperResult.root}/${lowerResult.root}`,
+            isPolychord: true,
+            upperChord: upperResult,
+            bassNote: bassPC,
+            confidence: 0.7,
+        });
     }
 
     return null;
+}
+
+/**
+ * Format a MusicpyChordResult into a musicpy-style chord name string.
+ *
+ * Examples: "C", "Am7", "C/E", "Cmaj7(omit 5)", "C7#9", "Em/C"
+ */
+export function formatResult(result: MusicpyChordResult): string {
+    if (result.isPolychord && result.upperChord) {
+        return `${formatResult(result.upperChord)}/${NOTE_NAMES[result.root]}`;
+    }
+
+    const rootName = NOTE_NAMES[result.root];
+
+    // Single-note or interval result — chordType is already the full label.
+    if (!(result.chordType in CHORD_SYMBOL)) {
+        const bassStr = result.bassNote !== null ? `/${NOTE_NAMES[result.bassNote]}` : '';
+        return result.chordType + bassStr;
+    }
+
+    const symbol = CHORD_SYMBOL[result.chordType];
+    const alts = result.alterations.join('');
+    const omitStr = result.omits.length > 0 ? `(omit ${result.omits.join(' ')})` : '';
+    const bassStr = result.bassNote !== null ? `/${NOTE_NAMES[result.bassNote]}` : '';
+
+    return `${rootName}${symbol}${alts}${omitStr}${bassStr}`;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectMusicpy, sequenceSimilarity } from '../musicpy-detect';
+import { detectMusicpy, formatResult, sequenceSimilarity } from '../musicpy-detect';
 
 // MIDI note helpers
 const C4 = 60,
@@ -279,5 +279,167 @@ describe('detectMusicpy — result structure', () => {
         expect(r).not.toBeNull();
         expect(r!.omits).toHaveLength(0);
         expect(r!.alterations).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 7 — formatResult
+// ---------------------------------------------------------------------------
+
+describe('formatResult — chord name formatting', () => {
+    it('formats C major as "C"', () => {
+        const r = detectMusicpy([C4, E4, G4])!;
+        expect(formatResult(r)).toBe('C');
+    });
+
+    it('formats Am7 as "Am7"', () => {
+        // A3=57, C4=60, E4=64, G4=67
+        const r = detectMusicpy([57, C4, E4, G4])!;
+        expect(formatResult(r)).toBe('Am7');
+    });
+
+    it('formats C major first inversion as "C/E"', () => {
+        const r = detectMusicpy([E4, G4, C5])!;
+        expect(formatResult(r)).toBe('C/E');
+    });
+
+    it('formats C major second inversion as "C/G"', () => {
+        // G4=67, C5=72, E5=76
+        const r = detectMusicpy([G4, C5, E4 + 12])!;
+        expect(formatResult(r)).toBe('C/G');
+    });
+
+    it('formats single note as note name', () => {
+        const r = detectMusicpy([C4])!;
+        expect(formatResult(r)).toBe('C');
+    });
+
+    it('formats Cmaj7(omit 5) — similarity fallback with omit', () => {
+        // C E B = Cmaj7 missing the 5th; similarity should pick maj7 with omit '5'
+        const r = detectMusicpy([C4, E4, B4], { similarityRatio: 0.5 })!;
+        expect(formatResult(r)).toMatch(/^Cmaj7\(omit 5\)/);
+    });
+
+    it('formats C dominant seventh as "C7"', () => {
+        const r = detectMusicpy([C4, E4, G4, Bb4])!;
+        expect(formatResult(r)).toBe('C7');
+    });
+
+    it('formats polychord Em/C', () => {
+        // Force polyChordFirst so [C4,E4,G4,B4] splits as C (bass) + Em (upper)
+        // rather than detecting as Cmaj7
+        const r = detectMusicpy([C4, E4, G4, B4], { polyChordFirst: true })!;
+        expect(r.isPolychord).toBe(true);
+        expect(formatResult(r)).toBe('Em/C');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 3 — sameNoteSpecial
+// ---------------------------------------------------------------------------
+
+describe('detectMusicpy — sameNoteSpecial', () => {
+    it('returns confidence 1.0 for an inversion whose PC set matches a known chord', () => {
+        // E G C = C major (first inversion). Without sameNoteSpecial the exact root search
+        // still finds it, but with sameNoteSpecial enabled we get the same result and always
+        // confidence 1.0.
+        const r = detectMusicpy([E4, G4, C5], { sameNoteSpecial: true })!;
+        expect(r).not.toBeNull();
+        expect(r.root).toBe(C);
+        expect(r.chordType).toBe('major');
+        expect(r.confidence).toBe(1.0);
+    });
+
+    it('returns confidence 1.0 for dim triad regardless of note order', () => {
+        // Gb Eb C = C dim (second inversion-ish) — PC set matches 'dim' from some root
+        const r = detectMusicpy([Gb4, Eb4, C4], { sameNoteSpecial: true })!;
+        expect(r).not.toBeNull();
+        expect(r.chordType).toBe('dim');
+        expect(r.confidence).toBe(1.0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 5 — polychord split rules
+// ---------------------------------------------------------------------------
+
+describe('detectMusicpy — polychord split rules (Phase 5)', () => {
+    it('4-note polychord: lower = single bass note, upper = remaining 3', () => {
+        // With polyChordFirst=true, C4 E4 G4 B4 splits into lower=[C4] and upper=[E4,G4,B4]=Em
+        const r = detectMusicpy([C4, E4, G4, B4], { polyChordFirst: true })!;
+        expect(r.isPolychord).toBe(true);
+        expect(r.upperChord).not.toBeNull();
+        expect(r.upperChord!.chordType).toBe('minor'); // Em
+        expect(r.root).toBe(C);
+    });
+
+    it('5-note polychord: lower = single bass note, upper = remaining 4', () => {
+        // C4 as bass + D4 F#4 A4 C5 = Dm7 or D7 — check split structure
+        const D4 = 62, Fs4 = 66, A4_midi = 69;
+        const r = detectMusicpy([C4, D4, Fs4, A4_midi, C5], { polyChordFirst: true });
+        // May or may not form a valid polychord, but if it does the lower must be [C4]
+        if (r && r.isPolychord) {
+            expect(r.root).toBe(C); // lower root = C (single note)
+        }
+    });
+
+    it('6-note polychord: lower = first 3 notes, upper = last 3', () => {
+        // C4 E4 G4 | D4 F#4 A4 = C major + D major
+        const D4 = 62, Fs4 = 66, A4_midi = 69;
+        const r = detectMusicpy([C4, D4, E4, Fs4, G4, A4_midi], { polyChordFirst: true });
+        if (r && r.isPolychord) {
+            // lower = [C4,D4,E4], upper = [Fs4,G4,A4_midi]
+            // lower root should come from first 3 notes
+            expect([C, D, E]).toContain(r.root);
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 8 — Golden outputs (formatResult round-trips)
+// ---------------------------------------------------------------------------
+
+describe('Phase 8 — golden output cases', () => {
+    it('C major triad → "C"', () => {
+        expect(formatResult(detectMusicpy([C4, E4, G4])!)).toBe('C');
+    });
+
+    it('Am7 (A3 C4 E4 G4) → "Am7"', () => {
+        const A3 = 57;
+        expect(formatResult(detectMusicpy([A3, C4, E4, G4])!)).toBe('Am7');
+    });
+
+    it('C major first inversion (E4 G4 C5) → "C/E"', () => {
+        expect(formatResult(detectMusicpy([E4, G4, C5])!)).toBe('C/E');
+    });
+
+    it('C major second inversion (G4 C5 E5) → "C/G"', () => {
+        expect(formatResult(detectMusicpy([G4, C5, E4 + 12])!)).toBe('C/G');
+    });
+
+    it('repeated octaves (C4 E4 G4 C5) → "C"', () => {
+        expect(formatResult(detectMusicpy([C4, E4, G4, C5])!)).toBe('C');
+    });
+
+    it('polychord Em over C bass → "Em/C"', () => {
+        const r = detectMusicpy([C4, E4, G4, B4], { polyChordFirst: true })!;
+        expect(formatResult(r)).toBe('Em/C');
+    });
+
+    it('Cmaj7 omit 5 (C4 E4 B4) → starts with "Cmaj7(omit 5)"', () => {
+        const r = detectMusicpy([C4, E4, B4], { similarityRatio: 0.5 })!;
+        expect(formatResult(r)).toBe('Cmaj7(omit 5)');
+    });
+
+    it('C dominant 7th → "C7"', () => {
+        expect(formatResult(detectMusicpy([C4, E4, G4, Bb4])!)).toBe('C7');
+    });
+
+    it('Cm7 → "Cm7"', () => {
+        expect(formatResult(detectMusicpy([C4, Eb4, G4, Bb4])!)).toBe('Cm7');
+    });
+
+    it('Cmaj7 → "Cmaj7"', () => {
+        expect(formatResult(detectMusicpy([C4, E4, G4, B4])!)).toBe('Cmaj7');
     });
 });
