@@ -1,6 +1,19 @@
 import { NoteEvent } from '@core/midi/note-event';
+import { detectMusicpy, type MusicpyChordResult, type DetectOptions } from './musicpy-detect';
 
-export type ChordQuality = 'maj' | 'min' | 'dim' | 'aug' | '7' | 'maj7' | 'min7' | 'm7b5' | 'dim7' | 'sus2' | 'sus4';
+export type ChordQuality =
+    | 'maj'
+    | 'min'
+    | 'dim'
+    | 'aug'
+    | '7'
+    | 'maj7'
+    | 'min7'
+    | 'm7b5'
+    | 'dim7'
+    | 'sus2'
+    | 'sus4'
+    | 'ext'; // extended chords (9th, 11th, 13th etc.) — musicpy path only
 
 // Interval lookup table: sorted semitone intervals from root → chord quality.
 // Intervals are computed mod-12 (within one octave) and sorted ascending.
@@ -206,3 +219,71 @@ export function detectChordFromNotes(
     if (!match) return undefined;
     return { root: match.root, quality: match.quality, bassPc, confidence: 1.0 };
 }
+
+// Maps musicpy canonical chord type names → nearest ChordQuality for compatibility.
+// Extended chords (9th/11th/13th) and exotic types map to 'ext'.
+const CHORD_TYPE_TO_QUALITY: Record<string, ChordQuality> = {
+    major: 'maj',
+    minor: 'min',
+    maj7: 'maj7',
+    m7: 'min7',
+    '7': '7',
+    dim: 'dim',
+    dim7: 'dim7',
+    'half-diminished7': 'm7b5',
+    aug: 'aug',
+    aug7: 'aug',
+    augmaj7: 'aug',
+    aug6: 'aug',
+    minormajor7: 'min7',
+    sus: 'sus4',
+    sus2: 'sus2',
+    '7sus4': 'sus4',
+    '7sus2': 'sus2',
+    maj7sus4: 'sus4',
+    maj7sus2: 'sus2',
+    add6: 'maj',
+    m6: 'min',
+    add2: 'maj',
+    add9: 'maj',
+    madd2: 'min',
+    madd9: 'min',
+    add4: 'maj',
+    madd4: 'min',
+    maj7b5: 'maj7',
+    '5': 'maj',
+    '5(+octave)': 'maj',
+    germansixth: '7',
+    frenchsixth: 'aug',
+    'dim(Maj7)': 'dim',
+};
+
+function mapChordTypeToQuality(chordType: string): ChordQuality {
+    return CHORD_TYPE_TO_QUALITY[chordType] ?? 'ext';
+}
+
+/**
+ * Musicpy full-algorithm chord detection.
+ * Returns both the EstimatedChord (for display element compatibility) and the raw
+ * MusicpyChordResult (for richer label rendering with inversions/omits/alterations).
+ */
+export function detectChordMusicpy(
+    midiNotes: number[],
+    bassPc: number | undefined,
+    options?: DetectOptions
+): { chord: EstimatedChord; raw: MusicpyChordResult } | undefined {
+    if (midiNotes.length === 0) return undefined;
+    const raw = detectMusicpy(midiNotes, options);
+    if (!raw) return undefined;
+    return {
+        chord: {
+            root: raw.root,
+            quality: mapChordTypeToQuality(raw.chordType),
+            bassPc: raw.bassNote ?? bassPc,
+            confidence: raw.confidence,
+        },
+        raw,
+    };
+}
+
+export type { MusicpyChordResult, DetectOptions };

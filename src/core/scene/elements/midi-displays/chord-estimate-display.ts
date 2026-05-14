@@ -10,8 +10,10 @@ import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import {
     computeChromaFromNotes,
     detectChordFromNotes,
+    detectChordMusicpy,
     estimateChordPB,
     type EstimatedChord,
+    type MusicpyChordResult,
 } from '@core/midi/music-theory/chord-estimator';
 import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
@@ -31,11 +33,14 @@ const clampSmoothingMs: PropertyTransform<number, SceneElementInterface> = (valu
     return numeric === undefined ? undefined : Math.max(0, numeric);
 };
 
+type DetectionMethod = 'musicpy' | 'template-match' | 'simple-interval';
+
 type ChordEstimateRuntimeProps = {
     visible: boolean;
     windowSeconds: number;
     windowFuturePercent: number;
     midiTrackId: string | null;
+    detectionMethod: DetectionMethod;
     includeTriads: boolean;
     includeDiminished: boolean;
     includeAugmented: boolean;
@@ -65,8 +70,76 @@ type ChordEstimateRuntimeProps = {
     backgroundCornerRadius?: number;
 };
 
+// Chord type name → display symbol (for musicpy label rendering).
+const CHORD_TYPE_SYMBOL: Record<string, string> = {
+    major: '',
+    minor: 'm',
+    maj7: 'maj7',
+    m7: 'm7',
+    '7': '7',
+    dim: '°',
+    dim7: '°7',
+    'half-diminished7': 'ø',
+    aug: '+',
+    aug7: '+7',
+    augmaj7: '+maj7',
+    aug6: '+6',
+    aug9: '+9',
+    augmaj9: '+maj9',
+    minormajor7: 'mMaj7',
+    minormajor9: 'mMaj9',
+    sus: 'sus4',
+    sus2: 'sus2',
+    '9': '9',
+    maj9: 'maj9',
+    m9: 'm9',
+    '11': '11',
+    maj11: 'maj11',
+    m11: 'm11',
+    '13': '13',
+    maj13: 'maj13',
+    m13: 'm13',
+    '7sus4': '7sus4',
+    '7sus2': '7sus2',
+    maj7sus4: 'maj7sus4',
+    maj7sus2: 'maj7sus2',
+    '9sus4': '9sus4',
+    '9sus2': '9sus2',
+    maj9sus4: 'maj9sus4',
+    '13sus4': '13sus4',
+    '13sus2': '13sus2',
+    maj13sus4: 'maj13sus4',
+    maj13sus2: 'maj13sus2',
+    add6: '6',
+    m6: 'm6',
+    add2: 'add2',
+    add9: 'add9',
+    madd2: 'madd2',
+    madd9: 'madd9',
+    add4: 'add4',
+    madd4: 'madd4',
+    '69': '6/9',
+    m69: 'm6/9',
+    '6sus4': '6sus4',
+    '6sus2': '6sus2',
+    maj7b5: 'maj7♭5',
+    'maj7#11': 'maj7♯11',
+    'maj9#11': 'maj9♯11',
+    'maj13#11': 'maj13♯11',
+    '13#11': '13♯11',
+    '5': '5',
+    '5(+octave)': '5',
+    germansixth: '(Ger6)',
+    frenchsixth: '(Fr6)',
+    'dim(Maj7)': '°Maj7',
+    fifth_9th: '(no3)add9',
+};
+
+const ROOT_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
 export class ChordEstimateDisplayElement extends SceneElement {
     private _lastChord?: EstimatedChord;
+    private _lastRawResult?: MusicpyChordResult;
     private _lastTime = -1;
 
     constructor(id: string = 'chordEstimateDisplay', config: { [key: string]: any } = {}) {
@@ -83,9 +156,22 @@ export class ChordEstimateDisplayElement extends SceneElement {
                 category: 'MIDI Displays',
                 presets: [
                     {
+                        id: 'musicpyFull',
+                        label: 'Musicpy Full',
+                        values: {
+                            detectionMethod: 'musicpy',
+                            preferBassRoot: true,
+                            showInversion: true,
+                            smoothingMs: 180,
+                            wholeDetect: false,
+                            polyChordFirst: false,
+                        },
+                    },
+                    {
                         id: 'bandDefault',
                         label: 'Band Default',
                         values: {
+                            detectionMethod: 'simple-interval',
                             includeTriads: true,
                             includeDiminished: true,
                             includeAugmented: false,
@@ -99,6 +185,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                         id: 'jazzExtended',
                         label: 'Jazz Extended',
                         values: {
+                            detectionMethod: 'musicpy',
                             includeTriads: true,
                             includeDiminished: true,
                             includeAugmented: true,
@@ -112,6 +199,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                         id: 'simpleTriads',
                         label: 'Simple Triads',
                         values: {
+                            detectionMethod: 'simple-interval',
                             includeTriads: true,
                             includeDiminished: false,
                             includeAugmented: false,
@@ -190,10 +278,23 @@ export class ChordEstimateDisplayElement extends SceneElement {
                         collapsed: false,
                         description: 'Refine which chord qualities are considered during detection.',
                         properties: [
-                            prop.boolean('includeTriads', 'Allow Triads (maj/min)', true),
-                            prop.boolean('includeDiminished', 'Allow Diminished', true),
-                            prop.boolean('includeAugmented', 'Allow Augmented', false),
-                            prop.boolean('includeSevenths', 'Allow 7ths', true),
+                            prop.select('detectionMethod', 'Detection Method', 'musicpy', [
+                                { value: 'musicpy', label: 'Musicpy Full' },
+                                { value: 'template-match', label: 'Template Match' },
+                                { value: 'simple-interval', label: 'Simple Interval' },
+                            ]),
+                            prop.boolean('includeTriads', 'Allow Triads (maj/min)', true, {
+                                visibleWhen: [{ key: 'detectionMethod', notEquals: 'musicpy' }],
+                            }),
+                            prop.boolean('includeDiminished', 'Allow Diminished', true, {
+                                visibleWhen: [{ key: 'detectionMethod', notEquals: 'musicpy' }],
+                            }),
+                            prop.boolean('includeAugmented', 'Allow Augmented', false, {
+                                visibleWhen: [{ key: 'detectionMethod', notEquals: 'musicpy' }],
+                            }),
+                            prop.boolean('includeSevenths', 'Allow 7ths', true, {
+                                visibleWhen: [{ key: 'detectionMethod', notEquals: 'musicpy' }],
+                            }),
                             prop.boolean('preferBassRoot', 'Prefer Root in Bass', true),
                             prop.boolean('showInversion', 'Show Inversion (slash)', true),
                             {
@@ -273,6 +374,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
             windowSeconds,
             windowFuturePercent,
             midiTrackId,
+            detectionMethod,
             includeTriads,
             includeDiminished,
             includeAugmented,
@@ -289,6 +391,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
             showChroma,
         } = props;
 
+        const method: DetectionMethod = detectionMethod ?? 'musicpy';
         const color = applyOpacity(rawColor ?? '#ffffff', props.opacity ?? 1);
         const justify = (props.textAlign ?? props.textJustification ?? 'left') as CanvasTextAlign;
 
@@ -335,7 +438,6 @@ export class ChordEstimateDisplayElement extends SceneElement {
         }
         const { chroma, bassPc } = computeChromaFromNotes(noteEvents, start, end);
 
-        // Musicpy-style exact interval detection, with PB template-matching as fallback
         const detectionOptions = {
             includeTriads,
             includeDiminished,
@@ -343,13 +445,26 @@ export class ChordEstimateDisplayElement extends SceneElement {
             includeSevenths,
             preferBassRoot,
         };
+
         let chord: EstimatedChord | undefined;
+        let rawMusicpy: MusicpyChordResult | undefined;
         const midiNoteNumbers = noteEvents.map((n) => n.note);
         const energy = chroma.reduce((a, b) => a + b, 0);
+
         if (energy > 0) {
-            chord =
-                detectChordFromNotes(midiNoteNumbers, bassPc, detectionOptions) ??
-                estimateChordPB(chroma, bassPc, detectionOptions);
+            if (method === 'musicpy') {
+                const result = detectChordMusicpy(midiNoteNumbers, bassPc, { preferBassRoot });
+                if (result) {
+                    chord = result.chord;
+                    rawMusicpy = result.raw;
+                }
+            } else if (method === 'template-match') {
+                chord = estimateChordPB(chroma, bassPc, detectionOptions);
+            } else {
+                chord =
+                    detectChordFromNotes(midiNoteNumbers, bassPc, detectionOptions) ??
+                    estimateChordPB(chroma, bassPc, detectionOptions);
+            }
         }
 
         // Simple temporal smoothing to reduce flicker
@@ -361,10 +476,12 @@ export class ChordEstimateDisplayElement extends SceneElement {
                     this._lastChord.confidence > 0.2 &&
                     chord.confidence < this._lastChord.confidence * 1.0
                 ) {
-                    chord = this._lastChord; // hold previous
+                    chord = this._lastChord;
+                    rawMusicpy = this._lastRawResult;
                 }
             }
             this._lastChord = chord;
+            this._lastRawResult = rawMusicpy;
             this._lastTime = t;
         }
 
@@ -379,7 +496,14 @@ export class ChordEstimateDisplayElement extends SceneElement {
         const fontDetails = `${fontWeight} ${detailsFontSize}px ${fontFamily || 'Inter'}, sans-serif`;
 
         let y = 0;
-        const label = chord ? this._formatChordLabel(chord, showInversion) : 'N.C.';
+        let label: string;
+        if (!chord) {
+            label = 'N.C.';
+        } else if (method === 'musicpy' && rawMusicpy) {
+            label = this._formatMusicpyChordLabel(rawMusicpy, showInversion);
+        } else {
+            label = this._formatChordLabel(chord, showInversion);
+        }
 
         // When a layout box is active, anchor text within it so alignment matches the visible box.
         // Always use layoutWidth for text positioning regardless of showBackground — the layout box
@@ -465,9 +589,32 @@ export class ChordEstimateDisplayElement extends SceneElement {
         return renderObjects;
     }
 
+    private _formatMusicpyChordLabel(raw: MusicpyChordResult, showInversion: boolean): string {
+        if (raw.isPolychord && raw.upperChord) {
+            const upper = this._formatMusicpyChordLabel(raw.upperChord, false);
+            const lowerRoot = ROOT_NAMES[raw.root];
+            const lowerSymbol = CHORD_TYPE_SYMBOL[raw.chordType] ?? raw.chordType;
+            return `${upper}/${lowerRoot}${lowerSymbol}`;
+        }
+
+        const root = ROOT_NAMES[raw.root];
+        const symbol = CHORD_TYPE_SYMBOL[raw.chordType] ?? raw.chordType;
+        let label = `${root}${symbol}`;
+
+        if (showInversion && raw.bassNote !== null) {
+            label += `/${ROOT_NAMES[raw.bassNote]}`;
+        }
+
+        const suffixes: string[] = [];
+        if (raw.omits.length > 0) suffixes.push(`omit${raw.omits.join(',')}`);
+        if (raw.alterations.length > 0) suffixes.push(raw.alterations.join(','));
+        if (suffixes.length > 0) label += `(${suffixes.join(' ')})`;
+
+        return label;
+    }
+
     private _formatChordLabel(ch: EstimatedChord, showInversion: boolean): string {
-        const rootNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const root = rootNames[ch.root];
+        const root = ROOT_NAMES[ch.root];
         let qual: string = '';
         switch (ch.quality) {
             case 'maj':
@@ -503,10 +650,13 @@ export class ChordEstimateDisplayElement extends SceneElement {
             case 'sus4':
                 qual = 'sus4';
                 break;
+            case 'ext':
+                qual = '';
+                break;
         }
         let label = `${root}${qual}`;
         if (showInversion && ch.bassPc !== undefined && ch.bassPc !== ch.root) {
-            label += `/${rootNames[ch.bassPc]}`;
+            label += `/${ROOT_NAMES[ch.bassPc]}`;
         }
         return label;
     }
