@@ -139,6 +139,11 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             }
             const notes = midiCacheEntry?.notesRaw || [];
             if (!notes.length) return { dataStartTick: 0, dataEndTick: 0 };
+            // Use pre-computed bounds when available (O(1) vs O(N) scan)
+            if (midiCacheEntry?.bounds) {
+                const { minTick, maxTick } = midiCacheEntry.bounds;
+                return { dataStartTick: Math.max(0, Math.round(minTick)), dataEndTick: Math.max(0, Math.round(maxTick)) };
+            }
             let minTick = Number.POSITIVE_INFINITY;
             let maxTick = 0;
             for (const note of notes) {
@@ -426,6 +431,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                                 visibleStartTick={localStartTick}
                                 visibleEndTick={localEndTick}
                                 height={clipHeight - 4}
+                                bounds={midiCacheEntry?.bounds}
                             />
                         )}
                         <div className="relative z-10 flex items-center gap-1">

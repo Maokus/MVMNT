@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FaChevronDown, FaChevronRight, FaTimes, FaChartLine, FaAngleLeft, FaAngleRight, FaSearch } from 'react-icons/fa';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
@@ -7,14 +7,36 @@ import { useAutomatedElementIds, useElementChannels, useAutomationExpanded, useC
 import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, AUTOMATION_SEARCH_HEIGHT } from '../constants';
 import { useCurveHeight } from '../context/curveHeightContext';
 import { useCurveRange, useCurveRangeControls } from '../context/curveRangeContext';
+import { computeAutoRange } from './automationCurveUtils';
 
 /** Range controls shown in the left-column spacer when the curve editor is open. */
 const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> = ({ channelId, curveHeight }) => {
     const { autoRange, manualMin, manualMax } = useCurveRange(channelId);
     const { setAutoRange, setManualRange, displayedRefs } = useCurveRangeControls();
+    const channel = useSceneStore(useCallback((s) => s.automation.channels[channelId], [channelId]));
+
+    // When in auto mode, compute the range directly from keyframes so the labels are
+    // correct immediately on first render (before the animation RAF has populated displayedRefs).
+    const { autoDisplayMin, autoDisplayMax } = useMemo(() => {
+        if (!channel) return { autoDisplayMin: manualMin, autoDisplayMax: manualMax };
+        const { minVal, maxVal } = computeAutoRange(channel);
+        return { autoDisplayMin: minVal, autoDisplayMax: maxVal };
+    }, [channel, manualMin, manualMax]);
 
     const [minText, setMinText] = useState(() => manualMin.toFixed(2));
     const [maxText, setMaxText] = useState(() => manualMax.toFixed(2));
+
+    // Track input focus so we don't overwrite text the user is actively editing.
+    const minFocusedRef = useRef(false);
+    const maxFocusedRef = useRef(false);
+
+    // Sync display text when manualMin/manualMax change from external sources (e.g. scroll panning).
+    useEffect(() => {
+        if (!minFocusedRef.current) setMinText(manualMin.toFixed(2));
+    }, [manualMin]);
+    useEffect(() => {
+        if (!maxFocusedRef.current) setMaxText(manualMax.toFixed(2));
+    }, [manualMax]);
 
     const commitMin = useCallback((text: string) => {
         const v = parseFloat(text);
@@ -38,17 +60,17 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
 
     const handleToggleAuto = useCallback(() => {
         if (autoRange) {
-            // switching to manual — seed from current animated values
+            // switching to manual — seed from current animated values if available, else from computed auto range
             const displayed = displayedRefs.current[channelId];
-            const seedMin = displayed?.min ?? manualMin;
-            const seedMax = displayed?.max ?? manualMax;
+            const seedMin = displayed?.min ?? autoDisplayMin;
+            const seedMax = displayed?.max ?? autoDisplayMax;
             setMinText(seedMin.toFixed(2));
             setMaxText(seedMax.toFixed(2));
             setManualRange(channelId, seedMin, seedMax);
         } else {
             setAutoRange(channelId, true);
         }
-    }, [autoRange, channelId, manualMin, manualMax, displayedRefs, setAutoRange, setManualRange]);
+    }, [autoRange, channelId, autoDisplayMin, autoDisplayMax, displayedRefs, setAutoRange, setManualRange]);
 
     // Sync display text when autoRange is re-enabled
     const prevAutoRange = React.useRef(autoRange);
@@ -86,12 +108,12 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
                     type="text"
                     style={inputStyle(autoRange)}
                     value={autoRange
-                        ? ((displayedRefs.current[channelId]?.min ?? manualMin).toFixed(2))
+                        ? autoDisplayMin.toFixed(2)
                         : minText}
                     readOnly={autoRange}
                     onChange={(e) => { if (!autoRange) setMinText(e.target.value); }}
-                    onFocus={(e) => { if (!autoRange) e.currentTarget.select(); }}
-                    onBlur={(e) => { if (!autoRange) commitMin(e.currentTarget.value); }}
+                    onFocus={(e) => { minFocusedRef.current = true; if (!autoRange) e.currentTarget.select(); }}
+                    onBlur={(e) => { minFocusedRef.current = false; if (!autoRange) commitMin(e.currentTarget.value); }}
                     onKeyDown={(e) => {
                         if (!autoRange && e.key === 'Enter') {
                             commitMin((e.target as HTMLInputElement).value);
@@ -105,12 +127,12 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
                     type="text"
                     style={inputStyle(autoRange)}
                     value={autoRange
-                        ? ((displayedRefs.current[channelId]?.max ?? manualMax).toFixed(2))
+                        ? autoDisplayMax.toFixed(2)
                         : maxText}
                     readOnly={autoRange}
                     onChange={(e) => { if (!autoRange) setMaxText(e.target.value); }}
-                    onFocus={(e) => { if (!autoRange) e.currentTarget.select(); }}
-                    onBlur={(e) => { if (!autoRange) commitMax(e.currentTarget.value); }}
+                    onFocus={(e) => { maxFocusedRef.current = true; if (!autoRange) e.currentTarget.select(); }}
+                    onBlur={(e) => { maxFocusedRef.current = false; if (!autoRange) commitMax(e.currentTarget.value); }}
                     onKeyDown={(e) => {
                         if (!autoRange && e.key === 'Enter') {
                             commitMax((e.target as HTMLInputElement).value);

@@ -108,3 +108,15 @@ export const ensureEightDigitHex = (value: string, fallback: string): string => 
     }
     return normalizeFallback(fallback);
 };
+
+/**
+ * Combine an opaque hex color with a separate opacity value into an 8-digit hex.
+ * The input `hexColor` may be 6- or 8-digit — any embedded alpha is stripped and
+ * replaced by `opacity`. Safe to call with legacy colorAlpha values.
+ */
+export const applyOpacity = (hexColor: string, opacity: number): string => {
+    const eight = toEightDigitHex(hexColor);
+    const hex6 = eight ? eight.slice(0, 7) : '#000000';
+    const alphaByte = Math.round(Math.max(0, Math.min(1, Number.isFinite(opacity) ? opacity : 1)) * 255);
+    return `${hex6}${alphaByte.toString(16).padStart(2, '0').toUpperCase()}`;
+};

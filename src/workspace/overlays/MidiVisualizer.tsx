@@ -30,6 +30,7 @@ import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useSceneStore } from '@state/sceneStore';
 import { clearStoredImportPayload, readStoredImportPayload } from '@utils/importPayloadStorage';
 import { LocalSaveService } from '@persistence/local-save-service';
+import { SceneNameGenerator } from '@core/scene-name-generator';
 import { TemplateLoadingOverlay } from '../../components/TemplateLoadingOverlay';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
 import { CacheDiagnosticsPopup } from '@workspace/components/CacheDiagnosticsPopup';
@@ -331,6 +332,7 @@ const MidiVisualizerInner: React.FC = () => {
     };
 
     const handleTimelineResizeDown = (e: React.PointerEvent<HTMLDivElement>) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
         timelineResizeRef.current = { startY: e.clientY, startHeight: timelineCollapsed ? 0 : timelineHeight };
     };
 
@@ -489,8 +491,10 @@ const MidiVisualizer: React.FC = () => {
 // Handles applying template/import based on navigation state or session storage
 const TemplateInitializer: React.FC = () => {
     const { visualizer } = useVisualizer() as any;
-    const { refreshSceneUI, markSaveClean } = useScene();
+    const { refreshSceneUI, markSaveClean, markDirty } = useScene();
     const setSceneAuthor = useSceneMetadataStore((state) => state.setAuthor);
+    const setSceneAttribution = useSceneMetadataStore((state) => state.setAttribution);
+    const setSceneName = useSceneMetadataStore((state) => state.setName);
     const undo = (() => { try { return useUndo(); } catch { return null; } })();
     const location = useLocation();
     const navigate = useNavigate();
@@ -560,13 +564,21 @@ const TemplateInitializer: React.FC = () => {
                                 console.warn('[Import] Failed:', msg);
                                 alert('Failed to load scene: ' + msg);
                             } else {
+                                // Build attribution from the imported scene's identity.
                                 const metadataStore = useSceneMetadataStore.getState();
-                                const currentAuthor = metadataStore.metadata?.author?.trim();
-                                if (!currentAuthor) {
-                                    setSceneAuthor('');
-                                }
+                                const importedName = metadataStore.metadata?.name?.trim() || 'Untitled';
+                                const importedAuthor = metadataStore.metadata?.author?.trim() || '';
+                                const attribution = importedAuthor
+                                    ? `Based on "${importedName}" by ${importedAuthor}`
+                                    : `Based on "${importedName}"`;
+
+                                setSceneName(SceneNameGenerator.generate());
+                                setSceneAuthor('');
+                                setSceneAttribution(attribution);
                                 undo?.reset();
                                 refreshSceneUI();
+                                // Don't persist to IDB — this is a new unsaved remix.
+                                markDirty();
                                 didChange = true;
                             }
                         } catch (e) {
@@ -611,6 +623,8 @@ const TemplateInitializer: React.FC = () => {
                         // No local save found (or corrupt) – load the default template.
                         const loaded = await loadDefaultScene('MidiVisualizer.TemplateInitializer.initialDefault');
                         if (loaded) {
+                            // Give the fresh scene a generated name (default template may have a generic one).
+                            useSceneMetadataStore.getState().setName(SceneNameGenerator.generate());
                             refreshSceneUI();
                             // Establish a clean baseline so the asterisk doesn't show immediately.
                             markSaveClean();
@@ -640,7 +654,10 @@ const TemplateInitializer: React.FC = () => {
         navigate,
         refreshSceneUI,
         markSaveClean,
+        markDirty,
         setSceneAuthor,
+        setSceneAttribution,
+        setSceneName,
         undo,
         startTemplateLoading,
         finishTemplateLoading,

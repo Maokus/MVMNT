@@ -15,6 +15,7 @@ import {
     SceneElement,
     prop,
     insertElementGroups,
+    tab,
     VisualMediaPlayback,
     resolveProjectAssetDescriptor,
 } from '@mvmnt/plugin-sdk';
@@ -30,8 +31,8 @@ export class AtlasImageElement extends SceneElement {
     // Handle for an optional user-selected sparrow atlas override.
     private readonly _atlasOverrideHandle = this.visualHandle();
     private readonly _playback = new VisualMediaPlayback();
-    private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
-    private readonly _bg = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
+    private readonly _media = new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' });
+    private readonly _bg = new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' });
     private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
 
     constructor(id: string = 'atlasImage', config: Record<string, unknown> = {}) {
@@ -47,19 +48,20 @@ export class AtlasImageElement extends SceneElement {
                 category: 'Custom',
             },
             [
-                {
-                    id: 'atlasSource',
-                    label: 'Atlas',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.sparrowAsset('atlas', 'Override Atlas', {
-                            description: 'Leave empty to use the bundled BOYFRIEND atlas.',
-                        }),
-                        prop.number('width', 'Display Width', 200, { step: 10 }),
-                        prop.number('height', 'Display Height', 200, { step: 10 }),
-                    ],
-                },
+                tab.properties([
+                    {
+                        id: 'atlasSource',
+                        label: 'Atlas',
+                        collapsed: false,
+                        properties: [
+                            prop.sparrowAsset('atlas', 'Override Atlas', {
+                                description: 'Leave empty to use the bundled BOYFRIEND atlas.',
+                            }),
+                            prop.number('width', 'Display Width', 200, { step: 10 }),
+                            prop.number('height', 'Display Height', 200, { step: 10 }),
+                        ],
+                    },
+                ]),
             ]
         );
     }

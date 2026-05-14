@@ -98,6 +98,61 @@ export function getFeatureData(
 }
 
 /**
+ * Sample audio feature data over a time range for the provided element.
+ *
+ * Resolves the descriptor and subscription controller once, then calls sampleFeatureFrame
+ * in a tight inner loop — more efficient than calling getFeatureData repeatedly when sampling
+ * many frames for the same element, track, and feature.
+ *
+ * @see getFeatureData for single-frame sampling
+ */
+export function getFeatureDataRange(
+    element: SceneFeatureElementRef | object,
+    trackId: string | null | undefined,
+    feature: FeatureInput,
+    startTime: number,
+    endTime: number,
+    stepSec: number,
+    samplingOptions?: AudioSamplingOptions | null
+): FeatureDataResult[] {
+    if (stepSec <= 0 || endTime < startTime) return [];
+
+    const builtDescriptor = buildDescriptor(feature);
+    const controller = getFeatureSubscriptionController(element);
+    const normalizedTrackId = controller.updateTrack(trackId);
+
+    if (!normalizedTrackId) {
+        controller.clear();
+        releaseFeatureSubscriptionController(element);
+        return [];
+    }
+
+    const descriptor = controller.resolveDescriptorForSampling(
+        builtDescriptor.descriptor,
+        builtDescriptor.descriptor.analysisProfileId ?? builtDescriptor.profile ?? null
+    );
+
+    const opts = samplingOptions ?? undefined;
+    const results: FeatureDataResult[] = [];
+    for (let t = startTime; t <= endTime; t += stepSec) {
+        const sample = sampleFeatureFrame(normalizedTrackId, descriptor, t, opts);
+        if (sample) {
+            results.push({
+                values: sample.values,
+                metadata: {
+                    descriptor,
+                    frame: sample,
+                    channels: Math.max(1, sample.channels || sample.channelValues?.length || 0),
+                    channelAliases: sample.channelAliases ?? sample.channelLayout?.aliases ?? null,
+                    channelLayout: sample.channelLayout ?? null,
+                },
+            });
+        }
+    }
+    return results;
+}
+
+/**
  * Synchronize a set of descriptors manually.
  *
  * Use this API when elements want to manage subscriptions explicitly (for example, swapping

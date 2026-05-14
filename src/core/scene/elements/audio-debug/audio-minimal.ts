@@ -1,6 +1,8 @@
 import { SceneElement, asTrimmedString } from '../base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
+import { insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
 import { getFeatureData } from '@audio/features/sceneApi';
 
@@ -33,35 +35,36 @@ export class AudioMinimalElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        return {
-            ...base,
-            name: 'Audio Minimal',
-            description: 'Minimal audio element for basic audio functionality testing',
-            category: 'Audio Debug',
-            groups: [
-                ...base.groups,
-                {
-                    id: 'audioMinimalBasics',
-                    label: 'Audio Minimal',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'audioTrackId',
-                            type: 'timelineTrackRef',
-                            label: 'Audio Track',
-                            default: null,
-                            allowedTrackTypes: ['audio'],
-                            runtime: {
-                                transform: (value, element) => asTrimmedString(value, element) ?? null,
-                                defaultValue: null,
+        return insertElementGroups(
+            super.getConfigSchema(),
+            {
+                name: 'Audio Minimal',
+                description: 'Minimal audio element for basic audio functionality testing',
+                category: 'Audio Debug',
+            },
+            [
+                tab.properties([
+                    {
+                        id: 'audioMinimalBasics',
+                        label: 'Audio Minimal',
+                        collapsed: false,
+                        properties: [
+                            {
+                                key: 'audioTrackId',
+                                type: 'timelineTrackRef',
+                                label: 'Audio Track',
+                                default: null,
+                                allowedTrackTypes: ['audio'],
+                                runtime: {
+                                    transform: (value, element) => asTrimmedString(value, element) ?? null,
+                                    defaultValue: null,
+                                },
                             },
-                        },
-                    ],
-                },
-            ],
-        };
+                        ],
+                    },
+                ]),
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: any, targetTime: number): RenderObject[] {
@@ -73,8 +76,8 @@ export class AudioMinimalElement extends SceneElement {
             sample?.channelValues && sample.channelValues.length
                 ? sample.channelValues
                 : result?.values?.length
-                ? [result.values]
-                : [];
+                  ? [result.values]
+                  : [];
         const aliases = result?.metadata?.channelAliases ?? sample?.channelAliases ?? null;
         const channelCount = channelValues.length;
 

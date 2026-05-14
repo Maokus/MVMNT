@@ -30,13 +30,7 @@ Follow the prompts. Your new file will appear at `src/plugins/<your-plugin>/<ele
 
 ```typescript
 // src/plugins/my-plugin/flash-box.ts
-import {
-    SceneElement,
-    prop,
-    insertElementGroups,
-    Rectangle,
-    type RenderObject,
-} from '@mvmnt/plugin-sdk';
+import { SceneElement, prop, tab, insertElementGroups, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk';
 
 export class FlashBoxElement extends SceneElement {
     constructor(id = 'flashBox', config: Record<string, unknown> = {}) {
@@ -48,16 +42,17 @@ export class FlashBoxElement extends SceneElement {
             super.getConfigSchema(),
             { name: 'Flash Box', description: 'A box that pulses with time', category: 'custom' },
             [
-                {
-                    id: 'appearance',
-                    label: 'Appearance',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.colorAlpha('boxColor', 'Color', '#3B82F6FF'),
-                        prop.number('size', 'Size', 100, { min: 10, max: 500, step: 1 }),
-                    ],
-                },
+                tab.content([
+                    {
+                        id: 'appearance',
+                        label: 'Appearance',
+                        collapsed: false,
+                        properties: [
+                            prop.colorAlpha('boxColor', 'Color', '#3B82F6FF'),
+                            prop.number('size', 'Size', 100, { min: 10, max: 500, step: 1 }),
+                        ],
+                    },
+                ]),
             ]
         );
     }
@@ -79,18 +74,18 @@ And the matching `plugin.json`:
 
 ```json
 {
-  "id": "com.example.my-plugin",
-  "name": "My Plugin",
-  "version": "1.0.0",
-  "apiVersion": "^1.0.0",
-  "description": "A minimal example plugin",
-  "author": "Your Name",
-  "elements": [
-    {
-      "type": "flash-box",
-      "entry": "flash-box.ts"
-    }
-  ]
+    "id": "com.example.my-plugin",
+    "name": "My Plugin",
+    "version": "1.0.0",
+    "apiVersion": "^1.0.0",
+    "description": "A minimal example plugin",
+    "author": "Your Name",
+    "elements": [
+        {
+            "type": "flash-box",
+            "entry": "flash-box.ts"
+        }
+    ]
 }
 ```
 
@@ -108,31 +103,33 @@ Changes you save to the `.ts` file hot-reload immediately — no restart needed.
 
 ## Step 3 — Add MIDI or Audio Reactivity
 
-Once the basics work, connect your element to the timeline. Import `getPluginHostApi` and ask for the capabilities you need:
+Once the basics work, connect your element to the timeline. Import `getRequiredPluginApi` and ask for the capabilities you need:
 
 ```typescript
 import {
     SceneElement,
-    getPluginHostApi,
+    getRequiredPluginApi,
     PLUGIN_CAPABILITIES,
     Rectangle,
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
 
 // In _buildRenderObjects:
-const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
-if (!api || status !== 'ok') return [];
+const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
+if (!host.ok) return host.renderFallback();
 
-const activeNotes = api.timeline.selectNotesInWindow({
+const activeNotes = host.api.timeline.selectNotesInWindow({
     trackIds: [props.midiTrackId],
     startSec: targetTime - 0.001,
     endSec: targetTime + 0.001,
 });
 
-return activeNotes.map((note, i) =>
-    new Rectangle(i * 20, 0, 18, (128 - note.note) * 2, props.color)
-);
+return activeNotes.map((note, i) => new Rectangle(i * 20, 0, 18, (128 - note.note) * 2, props.color));
 ```
+
+`getRequiredPluginApi` returns a discriminated union — `{ ok: true, api }` on success, `{ ok: false, renderFallback() }` on failure. Calling `renderFallback()` returns an empty array, so you can use it directly as your render fallback and TypeScript will narrow `api` to non-null after the guard.
+
+For the status-based pattern (explicit error discrimination) see [Plugin API v1](plugin-api-v1.md#access-patterns).
 
 See [Plugin API v1](plugin-api-v1.md) for the full API surface, and [Creating Custom Elements](creating-custom-elements.md) for a deep-dive on audio reactivity, property types, and advanced patterns.
 
@@ -148,12 +145,12 @@ This produces `dist/com.example.my-plugin-1.0.0.mvmnt-plugin` — a single file 
 
 ## Where to Go Next
 
-| Goal | Document |
-|---|---|
+| Goal                                                   | Document                                                |
+| ------------------------------------------------------ | ------------------------------------------------------- |
 | Full property type reference, lifecycle hooks, presets | [Creating Custom Elements](creating-custom-elements.md) |
-| Timeline, audio, timing, and MIDI utilities | [Plugin API v1 Reference](plugin-api-v1.md) |
-| Distributable bundle format and loading | [Runtime Plugin Loading](runtime-plugin-loading.md) |
-| `manifest.json` field reference | [Plugin Manifest Schema](plugin-manifest.schema.json) |
+| Timeline, audio, timing, and MIDI utilities            | [Plugin API v1 Reference](plugin-api-v1.md)             |
+| Distributable bundle format and loading                | [Runtime Plugin Loading](runtime-plugin-loading.md)     |
+| `manifest.json` field reference                        | [Plugin Manifest Schema](plugin-manifest.schema.json)   |
 
 ## Tips
 

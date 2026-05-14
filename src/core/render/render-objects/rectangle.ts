@@ -7,6 +7,8 @@ export class Rectangle extends RenderObject {
     strokeColor: string | null;
     strokeWidth: number;
     cornerRadius: number;
+    lineDash: number[];
+    lineDashOffset: number;
     shadowColor: string | null;
     shadowBlur: number;
     shadowOffsetX: number;
@@ -41,6 +43,8 @@ export class Rectangle extends RenderObject {
         this.strokeColor = strokeColor;
         this.strokeWidth = strokeWidth;
         this.cornerRadius = 0;
+        this.lineDash = [];
+        this.lineDashOffset = 0;
         this.shadowColor = null;
         this.shadowBlur = 0;
         this.shadowOffsetX = 0;
@@ -62,6 +66,10 @@ export class Rectangle extends RenderObject {
         if (this.cornerRadius > 0) this.#drawRoundedRect(ctx);
         else this.#drawRect(ctx);
 
+        if (this.lineDash.length > 0 && this.strokeColor && this.strokeWidth > 0) {
+            ctx.setLineDash([]);
+            ctx.lineDashOffset = 0;
+        }
         if (this.shadowColor && this.shadowBlur > 0) {
             ctx.shadowColor = 'transparent';
             ctx.shadowBlur = 0;
@@ -78,7 +86,13 @@ export class Rectangle extends RenderObject {
         if (this.strokeColor && this.strokeWidth > 0) {
             ctx.strokeStyle = this.strokeColor;
             ctx.lineWidth = this.strokeWidth;
-            ctx.strokeRect(0, 0, this.width, this.height);
+            if (this.lineDash.length > 0) {
+                ctx.setLineDash(this.lineDash);
+                ctx.lineDashOffset = this.lineDashOffset;
+            }
+            ctx.beginPath();
+            ctx.rect(0, 0, this.width, this.height);
+            ctx.stroke();
         }
     }
 
@@ -102,6 +116,10 @@ export class Rectangle extends RenderObject {
         if (this.strokeColor && this.strokeWidth > 0) {
             ctx.strokeStyle = this.strokeColor;
             ctx.lineWidth = this.strokeWidth;
+            if (this.lineDash.length > 0) {
+                ctx.setLineDash(this.lineDash);
+                ctx.lineDashOffset = this.lineDashOffset;
+            }
             ctx.stroke();
         }
     }

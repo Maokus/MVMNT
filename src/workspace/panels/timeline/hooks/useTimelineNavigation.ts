@@ -13,7 +13,9 @@ export function useTimelineNavigation() {
     const setTimelineViewTicks = useTimelineStore((s) => s.setTimelineViewTicks);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const lastSnapRef = useRef<QuantizeSetting>('bar');
-    useEffect(() => { if (quantize !== 'off') lastSnapRef.current = quantize; }, [quantize]);
+    useEffect(() => {
+        if (quantize !== 'off') lastSnapRef.current = quantize;
+    }, [quantize]);
 
     const fitAll = useCallback(() => {
         const state = useTimelineStore.getState();
@@ -30,7 +32,8 @@ export function useTimelineNavigation() {
 
         if (!selectedIds.length && !selectedKeyframes.length) return;
 
-        let minTick = Infinity, maxTick = -Infinity;
+        let minTick = Infinity,
+            maxTick = -Infinity;
 
         for (const id of selectedIds) {
             const track = state.tracks[id] as any;
@@ -101,10 +104,16 @@ export function useTimelineNavigation() {
                     break;
                 }
                 case '!':
-                    if (e.shiftKey) { fitAll(); e.preventDefault(); }
+                    if (e.shiftKey) {
+                        fitAll();
+                        e.preventDefault();
+                    }
                     break;
                 case '@':
-                    if (e.shiftKey) { zoomToSelection(); e.preventDefault(); }
+                    if (e.shiftKey) {
+                        zoomToSelection();
+                        e.preventDefault();
+                    }
                     break;
                 case 'f':
                 case 'F':
@@ -113,6 +122,7 @@ export function useTimelineNavigation() {
                     break;
                 case 's':
                 case 'S': {
+                    if (e.ctrlKey || e.metaKey) break; // reserved for save
                     const snapState = useTimelineStore.getState();
                     const q = snapState.transport.quantize;
                     snapState.setQuantize(q !== 'off' ? 'off' : lastSnapRef.current);
@@ -123,6 +133,9 @@ export function useTimelineNavigation() {
                 case 'ArrowLeft':
                 case 'ArrowRight': {
                     if (e.defaultPrevented || e.ctrlKey || e.metaKey) break;
+                    // Don't nudge playhead when elements are selected (arrow keys nudge the element instead)
+                    const sel = useSelectionStore.getState();
+                    if (sel.activeTarget === 'elements' && sel.selectedElementIds.length > 0) break;
                     const nudge = e.shiftKey
                         ? CANONICAL_PPQ * (state.timeline.beatsPerBar || 4) // 1 bar
                         : CANONICAL_PPQ; // 1 beat

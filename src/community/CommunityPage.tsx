@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { FaPlus, FaXmark } from 'react-icons/fa6';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
@@ -8,7 +8,13 @@ import CommunityGrid from './CommunityGrid';
 import CommunityDetailModal from './CommunityDetailModal';
 import CommunityUploadModal from './CommunityUploadModal';
 import CommunityEditModal from './CommunityEditModal';
-import { fetchItems, fetchAllTags, type CommunityItem, type CommunityTag, type SortBy, type FilterType } from './communityApi';
+import AdminTagPanel from './AdminTagPanel';
+import {
+  fetchItems, fetchItemById, fetchAllTags, getUserRole,
+  type CommunityItem, type CommunityTag, type SortBy, type FilterType, type UserRole,
+} from './communityApi';
+
+export const ITEM_ID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const SORT_OPTIONS: { value: SortBy; label: string }[] = [
   { value: 'newest', label: 'Newest' },
@@ -23,7 +29,11 @@ const FILTER_OPTIONS: { value: FilterType; label: string }[] = [
 ];
 
 const CommunityPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialIdRef = useRef(searchParams.get('id'));
+
   const [user, setUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<UserRole>('regular');
   const [items, setItems] = useState<CommunityItem[]>([]);
   const [sortBy, setSortBy] = useState<SortBy>('newest');
   const [filterType, setFilterType] = useState<FilterType>('all');
@@ -37,6 +47,9 @@ const CommunityPage: React.FC = () => {
   const [allTags, setAllTags] = useState<CommunityTag[]>([]);
   const [tagSearch, setTagSearch] = useState('');
   const [showTagDropdown, setShowTagDropdown] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [deepLinkError, setDeepLinkError] = useState<string | null>(null);
 
   // Get initial session
   useEffect(() => {
@@ -44,6 +57,34 @@ const CommunityPage: React.FC = () => {
       setUser(session?.user ?? null);
     });
   }, []);
+
+  // Handle ?id= deep link — runs once on mount
+  useEffect(() => {
+    const id = initialIdRef.current;
+    if (!id) return;
+    // Remove param from URL immediately so closing the modal doesn't re-trigger
+    setSearchParams({}, { replace: true });
+    if (!ITEM_ID_REGEX.test(id)) {
+      setDeepLinkError('Plugin not found');
+      return;
+    }
+    fetchItemById(id)
+      .then((item) => {
+        if (item) setSelectedItem(item);
+        else setDeepLinkError('Plugin not found');
+      })
+      .catch(() => setDeepLinkError('Plugin not found'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fetch user role whenever the user changes
+  useEffect(() => {
+    if (user) {
+      getUserRole(user.id).then(setUserRole).catch(() => setUserRole('regular'));
+    } else {
+      setUserRole('regular');
+    }
+  }, [user]);
 
   // Load available tags
   useEffect(() => {
@@ -53,7 +94,7 @@ const CommunityPage: React.FC = () => {
   const loadItems = useCallback(async (pageNum: number, append: boolean) => {
     setLoading(true);
     try {
-      const data = await fetchItems(sortBy, filterType, pageNum, selectedTags.length > 0 ? selectedTags : undefined);
+      const data = await fetchItems(sortBy, filterType, pageNum, selectedTags.length > 0 ? selectedTags : undefined, searchQuery || undefined);
       if (append) {
         setItems((prev) => [...prev, ...data]);
       } else {
@@ -65,7 +106,7 @@ const CommunityPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [sortBy, filterType, selectedTags]);
+  }, [sortBy, filterType, selectedTags, searchQuery]);
 
   // Reload when sort/filter changes
   useEffect(() => {
@@ -84,6 +125,8 @@ const CommunityPage: React.FC = () => {
     loadItems(0, false);
     fetchAllTags().then(setAllTags).catch(() => { });
   }, [loadItems]);
+
+  const canCreateTags = userRole === 'trusted' || userRole === 'admin';
 
   const selectClass = "rounded border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-200 focus:border-indigo-500 focus:outline-none cursor-pointer";
 
@@ -108,6 +151,20 @@ const CommunityPage: React.FC = () => {
             <CommunityAuthBar user={user} onAuthChange={setUser} />
           </div>
         </div>
+
+        {/* Deep link not-found banner */}
+        {deepLinkError && (
+          <div className="mb-6 flex items-center justify-between rounded-lg border border-red-700/50 bg-red-950/40 px-4 py-2.5 text-sm text-red-300">
+            <span>{deepLinkError}</span>
+            <button
+              onClick={() => setDeepLinkError(null)}
+              className="ml-3 text-red-400 hover:text-red-200"
+              aria-label="Dismiss"
+            >
+              <FaXmark />
+            </button>
+          </div>
+        )}
 
         {/* Experimental notice */}
         <div className="mb-6 rounded-lg border border-yellow-600/40 bg-yellow-900/20 px-4 py-3 text-sm text-yellow-200">
@@ -144,6 +201,31 @@ const CommunityPage: React.FC = () => {
               </button>
             ))}
           </div>
+
+          {/* Search */}
+          <form
+            onSubmit={(e) => { e.preventDefault(); setSearchQuery(searchInput); setPage(0); }}
+            className="flex gap-1"
+          >
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onBlur={() => { if (searchInput !== searchQuery) { setSearchQuery(searchInput); setPage(0); } }}
+              placeholder="Search..."
+              className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none w-40"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => { setSearchInput(''); setSearchQuery(''); setPage(0); }}
+                className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-400 hover:text-neutral-200"
+                aria-label="Clear search"
+              >
+                <FaXmark />
+              </button>
+            )}
+          </form>
 
           <div className="flex-1" />
 
@@ -223,6 +305,11 @@ const CommunityPage: React.FC = () => {
           )}
         </div>
 
+        {/* Admin tag management panel */}
+        {userRole === 'admin' && (
+          <AdminTagPanel onTagsChanged={handleItemChanged} />
+        )}
+
         {/* Grid */}
         <CommunityGrid items={items} loading={loading} onItemClick={setSelectedItem} />
 
@@ -243,6 +330,7 @@ const CommunityPage: React.FC = () => {
           <CommunityDetailModal
             item={selectedItem}
             user={user}
+            userRole={userRole}
             onClose={() => setSelectedItem(null)}
             onItemChanged={handleItemChanged}
             onEdit={user?.id === selectedItem.user_id ? () => setEditItem(selectedItem) : undefined}
@@ -254,6 +342,7 @@ const CommunityPage: React.FC = () => {
           <CommunityEditModal
             item={editItem}
             user={user}
+            canCreateTags={canCreateTags}
             onClose={() => setEditItem(null)}
             onSaved={() => {
               setEditItem(null);
@@ -267,6 +356,7 @@ const CommunityPage: React.FC = () => {
         {isUploadOpen && user && (
           <CommunityUploadModal
             user={user}
+            canCreateTags={canCreateTags}
             onClose={() => setIsUploadOpen(false)}
             onUploaded={handleItemChanged}
           />

@@ -18,6 +18,8 @@ interface SceneContextValue {
     isDirty: boolean;
     /** Signal that the current state matches the IndexedDB copy (called after save/load). */
     markSaveClean: () => void;
+    /** Explicitly mark the scene as dirty (called after loading a template/remix). */
+    markDirty: () => void;
     loadScene: () => void;
     clearScene: () => void;
     createNewDefaultScene: () => void;
@@ -33,7 +35,7 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
 
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
-    const { isDirty, markClean } = useDirtyTracking();
+    const { isDirty, markClean, markDirty } = useDirtyTracking();
 
     useEffect(() => {
         try {
@@ -64,7 +66,10 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         visualizer,
         sceneName,
         onSceneNameChange: updateSceneName,
-        onSceneRefresh: refreshSceneUI
+        onSceneRefresh: refreshSceneUI,
+        isDirty,
+        markSaveClean: markClean,
+        markDirty,
     });
 
     const { loadScene } = menuBarActions;
@@ -160,6 +165,7 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         exportAsFile: openExportModal,
         isDirty,
         markSaveClean,
+        markDirty,
         loadScene,
         clearScene: menuBarActions.clearScene,
         createNewDefaultScene: menuBarActions.createNewDefaultScene,

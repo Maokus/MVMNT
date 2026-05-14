@@ -9,6 +9,7 @@ import { hoveredPropertyRef } from './hoveredPropertyRef';
 
 type SupportedFormInputType =
     | 'text'
+    | 'longString'
     | 'number'
     | 'boolean'
     | 'color'
@@ -25,6 +26,9 @@ function resolveFormInputType(property: PropertyDefinition): SupportedFormInputT
     const rawType = typeof property.type === 'string' ? property.type : undefined;
     if (rawType === 'string') {
         return 'text';
+    }
+    if (rawType === 'longString') {
+        return 'longString';
     }
     if (
         rawType === 'number' ||
@@ -82,6 +86,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         return [
             'number',
             'string',
+            'longString',
             'boolean',
             'color',
             'colorAlpha',

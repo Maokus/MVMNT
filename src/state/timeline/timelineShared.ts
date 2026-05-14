@@ -17,7 +17,7 @@ export function getSharedTimingManager(): TimingManager {
 
 export const DEFAULT_TIMING_CONTEXT: TimelineTimingContext = createTimingContext(
     { globalBpm: 120, beatsPerBar: 4, masterTempoMap: undefined },
-    sharedTimingManager.ticksPerQuarter,
+    sharedTimingManager.ticksPerQuarter
 );
 
 export function createTimelineTimingContext(state: TimelineState): TimelineTimingContext {
@@ -27,7 +27,7 @@ export function createTimelineTimingContext(state: TimelineState): TimelineTimin
             beatsPerBar: state.timeline.beatsPerBar,
             masterTempoMap: state.timeline.masterTempoMap,
         },
-        sharedTimingManager.ticksPerQuarter,
+        sharedTimingManager.ticksPerQuarter
     );
 }
 
@@ -44,9 +44,14 @@ function computeContentEndTick(state: TimelineState): number {
             const cacheKey = t.midiSourceId ?? id;
             const cache = state.midiCache[cacheKey];
             if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
-            for (const n of cache.notesRaw) {
-                const endTick = n.endTick + t.offsetTicks;
+            if (cache.bounds) {
+                const endTick = cache.bounds.maxTick + t.offsetTicks;
                 if (endTick > max) max = endTick;
+            } else {
+                for (const n of cache.notesRaw) {
+                    const endTick = n.endTick + t.offsetTicks;
+                    if (endTick > max) max = endTick;
+                }
             }
         } else if (t.type === 'audio') {
             const cacheKey = t.audioSourceId ?? id;
@@ -77,9 +82,14 @@ function computeContentStartTick(state: TimelineState): number {
             const cacheKey = t.midiSourceId ?? id;
             const cache = state.midiCache[cacheKey];
             if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
-            for (const n of cache.notesRaw) {
-                const startTick = n.startTick + t.offsetTicks;
+            if (cache.bounds) {
+                const startTick = cache.bounds.minTick + t.offsetTicks;
                 if (startTick < min) min = startTick;
+            } else {
+                for (const n of cache.notesRaw) {
+                    const startTick = n.startTick + t.offsetTicks;
+                    if (startTick < min) min = startTick;
+                }
             }
         } else if (t.type === 'audio') {
             const cacheKey = t.audioSourceId ?? id;
@@ -102,9 +112,7 @@ function computeContentStartTick(state: TimelineState): number {
     return Math.max(0, min);
 }
 
-export function computeContentBoundsTicks(
-    state: TimelineState,
-): { start: number; end: number } | null {
+export function computeContentBoundsTicks(state: TimelineState): { start: number; end: number } | null {
     const end = computeContentEndTick(state);
     if (!isFinite(end) || end <= 0) return null;
     const start = computeContentStartTick(state);
@@ -113,7 +121,7 @@ export function computeContentBoundsTicks(
 
 export function autoAdjustSceneRangeIfNeeded(
     get: () => TimelineState,
-    set: (updater: (state: TimelineState) => Partial<TimelineState> | TimelineState) => void,
+    set: (updater: (state: TimelineState) => Partial<TimelineState> | TimelineState) => void
 ): void {
     const s = get();
     if (s.playbackRangeUserDefined) return;
@@ -121,8 +129,7 @@ export function autoAdjustSceneRangeIfNeeded(
     if (!bounds) return;
     const { start, end } = bounds;
     const current = s.playbackRange || {};
-    const same =
-        Math.abs((current.startTick ?? -1) - start) < 1 && Math.abs((current.endTick ?? -1) - end) < 1;
+    const same = Math.abs((current.startTick ?? -1) - start) < 1 && Math.abs((current.endTick ?? -1) - end) < 1;
     if (same) return;
     const oneBarBeats = s.timeline.beatsPerBar;
     const timing = createTimelineTimingContext(s);
@@ -142,7 +149,7 @@ export function autoAdjustSceneRangeIfNeeded(
 export function convertSecondsToTicks(seconds: number, tempoMap?: TempoMapEntry[]): number {
     const context = createTimingContext(
         { globalBpm: 120, beatsPerBar: 4, masterTempoMap: tempoMap },
-        sharedTimingManager.ticksPerQuarter,
+        sharedTimingManager.ticksPerQuarter
     );
     return Math.round(timingSecondsToTicks(context, seconds));
 }

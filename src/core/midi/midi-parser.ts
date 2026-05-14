@@ -298,7 +298,8 @@ export class MIDIParser {
                     nextOffset: offset + 1,
                 };
 
-            case 0xe0: { // Pitch Bend
+            case 0xe0: {
+                // Pitch Bend
                 if (offset + 1 >= dataView.byteLength) return null;
                 const lsb = dataView.getUint8(offset);
                 const msb = dataView.getUint8(offset + 1);
@@ -506,11 +507,7 @@ export class MIDIParser {
         // Extract CC events separately
         const rawCCEvents = allEvents.filter((event) => event.type === 'controlChange');
 
-        // Find the earliest note event to trim empty space at the beginning
-        let earliestNoteTime = 0;
-        if (noteEvents.length > 0) {
-            earliestNoteTime = Math.min(...noteEvents.map((e) => e.time));
-        }
+        const earliestNoteTime = 0;
 
         // Build tempo segments based on tempo events for accurate tick->seconds conversion
         const tempoEventsSorted = [...this.tempoEvents].sort((a, b) => a.tick - b.tick);
@@ -619,7 +616,7 @@ export class MIDIParser {
             const eventsForTrack = perTrackEvents.get(idx) ?? [];
             const noteOnCount = eventsForTrack.reduce(
                 (count, ev) => (ev.type === 'noteOn' && (ev.velocity ?? 0) > 0 ? count + 1 : count),
-                0,
+                0
             );
             const channels = Array.from(new Set(eventsForTrack.map((ev) => ev.channel ?? 0))).sort((a, b) => a - b);
             const summary: MIDITrackSummary = {

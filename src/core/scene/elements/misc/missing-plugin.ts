@@ -1,4 +1,11 @@
-import { SceneElement, asNumber, asTrimmedString, type EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
+import {
+    SceneElement,
+    asNumber,
+    asTrimmedString,
+    type EnhancedConfigSchema,
+    insertElementGroups,
+    tab,
+} from '@mvmnt/plugin-sdk';
 import { Rectangle, Text, type RenderObject } from '@mvmnt/plugin-sdk/render';
 
 export class MissingPluginElement extends SceneElement {
@@ -7,19 +14,17 @@ export class MissingPluginElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        return {
-            name: 'Missing Plugin Placeholder',
-            description: 'Placeholder shown when a plugin-backed element is unavailable.',
-            category: 'System',
-            groups: [
-                ...baseBasicGroups,
+        return insertElementGroups(
+            super.getConfigSchema(),
+            {
+                name: 'Missing Plugin Placeholder',
+                description: 'Placeholder shown when a plugin-backed element is unavailable.',
+                category: 'System',
+            },
+            [tab.properties([
                 {
                     id: 'placeholderStyle',
                     label: 'Placeholder Style',
-                    variant: 'basic',
                     collapsed: false,
                     properties: [
                         {
@@ -51,9 +56,8 @@ export class MissingPluginElement extends SceneElement {
                         },
                     ],
                 },
-                ...baseAdvancedGroups,
-            ],
-        };
+            ])]
+        );
     }
 
     protected _buildRenderObjects(_config: any, _targetTime: number): RenderObject[] {
@@ -81,7 +85,15 @@ export class MissingPluginElement extends SceneElement {
         background.setCornerRadius(8);
 
         const titleText = new Text(0, -12, title, '600 16px "Inter", sans-serif', '#ffd5db', 'center', 'middle');
-        const subtitleText = new Text(0, 16, subtitleParts || 'Install required plugin to restore this element.', '400 12px "Inter", sans-serif', '#f4b7c0', 'center', 'middle');
+        const subtitleText = new Text(
+            0,
+            16,
+            subtitleParts || 'Install required plugin to restore this element.',
+            '400 12px "Inter", sans-serif',
+            '#f4b7c0',
+            'center',
+            'middle'
+        );
 
         return [background, titleText, subtitleText];
     }

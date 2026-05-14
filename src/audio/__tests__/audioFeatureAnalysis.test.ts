@@ -39,7 +39,7 @@ function createSineBuffer(durationSeconds: number, sampleRate = 44100): AudioBuf
 }
 
 describe('audio feature analysis', () => {
-    it('produces spectrogram, rms, and waveform tracks with aligned metadata', async () => {
+    it('produces spectrogram and waveform tracks with aligned metadata', async () => {
         const buffer = createSineBuffer(0.25);
         const { cache } = await analyzeAudioBufferFeatures({
             audioSourceId: 'analysis-test',
@@ -49,10 +49,8 @@ describe('audio feature analysis', () => {
         });
         const defaultProfile = cache.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID;
         const spectrogramKey = buildFeatureTrackKey('spectrogram', defaultProfile);
-        const rmsKey = buildFeatureTrackKey('rms', defaultProfile);
         const waveformKey = buildFeatureTrackKey('waveform', defaultProfile);
         expect(cache.featureTracks[spectrogramKey]).toBeDefined();
-        expect(cache.featureTracks[rmsKey]).toBeDefined();
         expect(cache.featureTracks[waveformKey]).toBeDefined();
         expect(cache.analysisParams.calculatorVersions['mvmnt.spectrogram']).toBe(3);
         expect(cache.hopTicks).toBeGreaterThan(0);
@@ -105,13 +103,10 @@ describe('audio feature analysis', () => {
             analysisProfileId: requestedProfile,
         });
         const spectrogramKey = buildFeatureTrackKey('spectrogram', requestedProfile);
-        const rmsKey = buildFeatureTrackKey('rms', requestedProfile);
         const waveformKey = buildFeatureTrackKey('waveform', requestedProfile);
         const spectrogram = cache.featureTracks[spectrogramKey];
-        const rms = cache.featureTracks[rmsKey];
         const waveform = cache.featureTracks[waveformKey];
         expect(spectrogram?.analysisProfileId).toBe(requestedProfile);
-        expect(rms?.analysisProfileId).toBe(requestedProfile);
         expect(waveform?.analysisProfileId).toBe(requestedProfile);
         expect(cache.defaultAnalysisProfileId).toBe(requestedProfile);
         expect(Object.keys(cache.analysisProfiles ?? {})).toContain(requestedProfile);

@@ -114,7 +114,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
 
     const allProperties = useMemo<AutomatableProperty[]>(() => {
         const result: AutomatableProperty[] = [];
-        for (const group of schema.groups) {
+        for (const group of schema.tabs.flatMap((t) => t.groups)) {
             for (const prop of group.properties) {
                 if (resolveAutomationValueType(prop.type)) {
                     result.push({ key: prop.key, label: prop.label, groupLabel: group.label, type: prop.type, default: prop.default });

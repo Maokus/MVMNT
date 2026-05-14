@@ -7,6 +7,8 @@ export interface SceneMetadataState {
     name: string;
     description: string;
     author: string;
+    /** "Based on X by Y" set when remixing a template/community scene. Empty for original work. */
+    attribution: string;
     createdAt: string;
     modifiedAt: string;
 }
@@ -18,6 +20,7 @@ interface SceneMetadataStore {
     setId: (id: string) => void;
     setDescription: (description: string) => void;
     setAuthor: (author: string) => void;
+    setAttribution: (attribution: string) => void;
     hydrate: (metadata?: Partial<SceneMetadataState> | null) => void;
     touchModified: () => void;
 }
@@ -31,6 +34,7 @@ const createDefaultMetadata = (): SceneMetadataState => {
         name: SceneNameGenerator.generate(),
         description: '',
         author: '',
+        attribution: '',
         createdAt: now,
         modifiedAt: now,
     };
@@ -80,6 +84,9 @@ export const useSceneMetadataStore = createWithEqualityFn<SceneMetadataStore>((s
         setAuthor: (author) => {
             get().setMetadata({ author });
         },
+        setAttribution: (attribution) => {
+            set((state) => ({ metadata: { ...state.metadata, attribution } }));
+        },
         hydrate: (metadata) => {
             if (!metadata) return;
             const fallback = get().metadata;
@@ -88,6 +95,7 @@ export const useSceneMetadataStore = createWithEqualityFn<SceneMetadataStore>((s
                 name: metadata.name?.trim() || fallback.name,
                 description: metadata.description ?? fallback.description,
                 author: typeof metadata.author === 'string' ? metadata.author.trim() : fallback.author,
+                attribution: typeof metadata.attribution === 'string' ? metadata.attribution : '',
                 createdAt: metadata.createdAt || fallback.createdAt || nowIso(),
                 modifiedAt: metadata.modifiedAt || nowIso(),
             };

@@ -16,7 +16,8 @@ import {
     SceneElement,
     prop,
     insertElementGroups,
-    getPluginHostApi,
+    tab,
+    getRequiredPluginApi,
     PLUGIN_CAPABILITIES,
     Rectangle,
     Line,
@@ -40,36 +41,36 @@ export class FallingNotesElement extends SceneElement {
                 category: 'Examples',
             },
             [
-                {
-                    id: 'midiSource',
-                    label: 'MIDI Source',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.midiTrack('midiTrackId', 'MIDI Track', {
-                            description: 'Track whose notes to display',
-                        }),
-                        prop.number('lookaheadSec', 'Lookahead (sec)', 3, {
-                            min: 0.5,
-                            max: 10,
-                            step: 0.5,
-                            description: 'How many seconds ahead of now to show',
-                        }),
-                    ],
-                },
-                {
-                    id: 'layout',
-                    label: 'Layout',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.number('width', 'Width', 600, { step: 10 }),
-                        prop.number('height', 'Height', 300, { step: 10 }),
-                        prop.number('noteHeight', 'Note Height', 10, { min: 2, max: 60, step: 1 }),
-                        prop.colorAlpha('noteColor', 'Note Color', '#34D399FF'),
-                        prop.colorAlpha('nowLineColor', 'Now-Line Color', '#F87171FF'),
-                    ],
-                },
+                tab.properties([
+                    {
+                        id: 'midiSource',
+                        label: 'MIDI Source',
+                        collapsed: false,
+                        properties: [
+                            prop.midiTrack('midiTrackId', 'MIDI Track', {
+                                description: 'Track whose notes to display',
+                            }),
+                            prop.number('lookaheadSec', 'Lookahead (sec)', 3, {
+                                min: 0.5,
+                                max: 10,
+                                step: 0.5,
+                                description: 'How many seconds ahead of now to show',
+                            }),
+                        ],
+                    },
+                    {
+                        id: 'layout',
+                        label: 'Layout',
+                        collapsed: false,
+                        properties: [
+                            prop.number('width', 'Width', 600, { step: 10 }),
+                            prop.number('height', 'Height', 300, { step: 10 }),
+                            prop.number('noteHeight', 'Note Height', 10, { min: 2, max: 60, step: 1 }),
+                            prop.colorAlpha('noteColor', 'Note Color', '#34D399FF'),
+                            prop.colorAlpha('nowLineColor', 'Now-Line Color', '#F87171FF'),
+                        ],
+                    },
+                ]),
             ]
         );
     }
@@ -83,13 +84,8 @@ export class FallingNotesElement extends SceneElement {
         }
 
         // Request timeline read capability.
-        const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
-        if (!api || status !== 'ok') {
-            const message = missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
-                ? 'Timeline API unavailable (requires timeline.read)'
-                : 'Plugin host API unavailable';
-            return [new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top')];
-        }
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
+        if (!host.ok) return host.renderFallback();
 
         const w = props.width as number;
         const h = props.height as number;
@@ -101,7 +97,7 @@ export class FallingNotesElement extends SceneElement {
         // Query all notes visible in the lookahead window.
         // We include a small tail behind now (0.1 s) so notes that just fired
         // linger at the bottom momentarily rather than vanishing abruptly.
-        const notes: TimelineNoteEvent[] = api.timeline.selectNotesInWindow({
+        const notes: TimelineNoteEvent[] = host.api.timeline.selectNotesInWindow({
             trackIds: [props.midiTrackId],
             startSec: targetTime - 0.1,
             endSec: targetTime + lookahead,

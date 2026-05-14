@@ -25,3 +25,10 @@ export {
     UnsupportedVersionError,
     MissingCapabilityError,
 } from '@core/scene/plugins/plugin-errors';
+
+export {
+    getRequiredPluginApi,
+    type RequiredPluginApiResult,
+    type RequiredPluginApiOk,
+    type RequiredPluginApiFailure,
+} from '@core/scene/plugins/host-api/required-plugin-api';

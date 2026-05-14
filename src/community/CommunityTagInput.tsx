@@ -7,11 +7,38 @@ interface CommunityTagInputProps {
   tags: string[];
   onChange: (tags: string[]) => void;
   max?: number;
+  /** Trusted and admin users may create new tags; regular users can only use existing ones. */
+  canCreateTags?: boolean;
 }
 
 const TAG_REGEX = /^[a-z0-9][a-z0-9\-]{0,29}$/;
 
-const CommunityTagInput: React.FC<CommunityTagInputProps> = ({ tags, onChange, max = 5 }) => {
+function findSimilarTags(name: string, allTags: CommunityTag[]): string[] {
+  if (name.length < 3) return [];
+  const results: string[] = [];
+  for (const tag of allTags) {
+    if (tag.name === name) continue;
+    if (tag.name.includes(name) || name.includes(tag.name)) {
+      results.push(tag.name);
+      continue;
+    }
+    let common = 0;
+    const minLen = Math.min(tag.name.length, name.length);
+    for (let i = 0; i < minLen; i++) {
+      if (tag.name[i] === name[i]) common++;
+      else break;
+    }
+    if (common >= 4) results.push(tag.name);
+  }
+  return results.slice(0, 3);
+}
+
+const CommunityTagInput: React.FC<CommunityTagInputProps> = ({
+  tags,
+  onChange,
+  max = 5,
+  canCreateTags = false,
+}) => {
   const [input, setInput] = useState('');
   const [allTags, setAllTags] = useState<CommunityTag[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -39,10 +66,13 @@ const CommunityTagInput: React.FC<CommunityTagInputProps> = ({ tags, onChange, m
     .filter((t) => t.name.includes(normalized) && !tags.includes(t.name))
     .slice(0, 8);
 
-  const canCreateNew = normalized.length > 0
+  const canCreateNew = canCreateTags
+    && normalized.length > 0
     && TAG_REGEX.test(normalized)
     && !allTags.some((t) => t.name === normalized)
     && !tags.includes(normalized);
+
+  const similarTags = canCreateNew ? findSimilarTags(normalized, allTags) : [];
 
   const options = [
     ...suggestions.map((t) => ({ type: 'existing' as const, name: t.name })),
@@ -124,8 +154,17 @@ const CommunityTagInput: React.FC<CommunityTagInputProps> = ({ tags, onChange, m
         )}
       </div>
 
+      {!canCreateTags && !atMax && (
+        <p className="mt-1 text-[11px] text-neutral-500">Only existing tags can be used.</p>
+      )}
+
       {showDropdown && normalized.length > 0 && options.length > 0 && !atMax && (
         <div className="absolute z-10 mt-1 w-full rounded border border-neutral-700 bg-neutral-900 shadow-lg max-h-48 overflow-y-auto">
+          {canCreateNew && similarTags.length > 0 && (
+            <div className="px-3 py-1.5 text-xs text-yellow-400/80 bg-yellow-900/20 border-b border-neutral-700">
+              Similar tags exist: {similarTags.join(', ')}
+            </div>
+          )}
           {options.map((opt, i) => (
             <button
               key={opt.name + opt.type}

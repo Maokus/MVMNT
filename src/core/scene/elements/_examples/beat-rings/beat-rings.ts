@@ -8,18 +8,18 @@
 //   - Audio API: registerFeatureRequirements, sampleFeatureAtTime, 'rms' feature
 //   - Multiple render objects built in a single _buildRenderObjects() call
 //   - Arc options: strokeColor, strokeWidth, setGlobalAlpha()
-//   - Graceful degradation when the audio API is unavailable
+//   - getRequiredPluginApi for capability negotiation with clean ok/renderFallback pattern
 //
 // To use: run `npm run create-example`, pick "beat-rings", and choose a plugin ID.
 import {
     SceneElement,
     prop,
     insertElementGroups,
-    getPluginHostApi,
+    tab,
+    getRequiredPluginApi,
     PLUGIN_CAPABILITIES,
     registerFeatureRequirements,
     Arc,
-    Text,
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
@@ -42,39 +42,41 @@ export class BeatRingsElement extends SceneElement {
                 category: 'Examples',
             },
             [
-                {
-                    id: 'audio',
-                    label: 'Audio',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.audioTrack('audioTrackId', 'Audio Track', {
-                            description: 'Audio track to react to',
-                        }),
-                        prop.number('baseRadius', 'Base Radius', 60, {
-                            min: 10,
-                            max: 300,
-                            step: 1,
-                            description: 'Ring radius when audio is silent',
-                        }),
-                        prop.number('reactivity', 'Reactivity', 150, {
-                            min: 0,
-                            max: 500,
-                            step: 10,
-                            description: 'How much the radius grows with volume',
-                        }),
-                    ],
-                },
-                {
-                    id: 'appearance',
-                    label: 'Appearance',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.colorAlpha('ringColor', 'Ring Color', '#818CF8FF'),
-                        prop.number('strokeWidth', 'Stroke Width', 3, { min: 1, max: 20, step: 1 }),
-                    ],
-                },
+                tab.content([
+                    {
+                        id: 'audio',
+                        label: 'Audio',
+                        collapsed: false,
+                        properties: [
+                            prop.audioTrack('audioTrackId', 'Audio Track', {
+                                description: 'Audio track to react to',
+                            }),
+                            prop.number('baseRadius', 'Base Radius', 60, {
+                                min: 10,
+                                max: 300,
+                                step: 1,
+                                description: 'Ring radius when audio is silent',
+                            }),
+                            prop.number('reactivity', 'Reactivity', 150, {
+                                min: 0,
+                                max: 500,
+                                step: 10,
+                                description: 'How much the radius grows with volume',
+                            }),
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    {
+                        id: 'appearance',
+                        label: 'Appearance',
+                        collapsed: false,
+                        properties: [
+                            prop.colorAlpha('ringColor', 'Ring Color', '#818CF8FF'),
+                            prop.number('strokeWidth', 'Stroke Width', 3, { min: 1, max: 20, step: 1 }),
+                        ],
+                    },
+                ]),
             ]
         );
     }
@@ -84,19 +86,14 @@ export class BeatRingsElement extends SceneElement {
         if (!props.visible) return [];
 
         // Request the audioFeaturesRead capability.
-        // If unavailable, render a plain-text fallback instead of crashing.
-        const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.audioFeaturesRead]);
-        if (!api || status !== 'ok') {
-            const message = missingCapabilities.includes(PLUGIN_CAPABILITIES.audioFeaturesRead)
-                ? 'Audio API unavailable (requires audio.features.read)'
-                : 'Plugin host API unavailable';
-            return [new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top')];
-        }
+        // If unavailable, render nothing rather than crashing.
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioFeaturesRead]);
+        if (!host.ok) return host.renderFallback();
 
         // Helper: sample RMS at the given smoothing level.
         // Higher smoothing = slower reaction = "lag" / echo effect.
         const sampleRms = (smoothing: number): number =>
-            api.audio.sampleFeatureAtTime({
+            host.api.audio.sampleFeatureAtTime({
                 element: this,
                 trackId: props.audioTrackId,
                 feature: 'rms',

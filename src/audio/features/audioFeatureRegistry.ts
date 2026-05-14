@@ -18,14 +18,18 @@ function register(calculator: AudioFeatureCalculator): void {
         calculatorId: null,
         bandIndex: null,
     };
+    if (existing.calculatorId !== null && existing.calculatorId !== calculator.id) {
+        console.warn(
+            `[AudioFeatureRegistry] featureKey "${calculator.featureKey}" is already registered to calculator "${existing.calculatorId}". ` +
+                `Registering "${calculator.id}" will override it. Use distinct featureKeys to avoid ambiguity.`
+        );
+    }
     featureDefaults.set(calculator.featureKey, {
         calculatorId: calculator.id,
         bandIndex: existing.bandIndex,
     });
     try {
-        useTimelineStore
-            .getState()
-            .invalidateAudioFeatureCachesByCalculator(calculator.id, calculator.version);
+        useTimelineStore.getState().invalidateAudioFeatureCachesByCalculator(calculator.id, calculator.version);
     } catch {
         /* store may not be initialized yet */
     }

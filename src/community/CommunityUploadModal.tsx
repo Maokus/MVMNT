@@ -6,13 +6,14 @@ import CommunityTagInput from './CommunityTagInput';
 
 interface CommunityUploadModalProps {
   user: User;
+  canCreateTags?: boolean;
   onClose: () => void;
   onUploaded: () => void;
 }
 
 const ACCEPTED_FILE_TYPES = '.mvt,.mvmnt-plugin';
 
-const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClose, onUploaded }) => {
+const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, canCreateTags = false, onClose, onUploaded }) => {
   const [type, setType] = useState<'template' | 'plugin'>('template');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -219,7 +220,7 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
           </div>
 
           {/* Tags */}
-          <CommunityTagInput tags={tags} onChange={setTags} />
+          <CommunityTagInput tags={tags} onChange={setTags} canCreateTags={canCreateTags} />
 
           {error && <p className="text-xs text-red-400">{error}</p>}
 

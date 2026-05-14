@@ -5,6 +5,7 @@ import {
     SceneElement,
     prop,
     insertElementGroups,
+    tab,
     VisualMediaPlayback,
     resolveProjectAssetDescriptor,
 } from '@mvmnt/plugin-sdk';
@@ -16,7 +17,7 @@ export class SimpleImageElement extends SceneElement {
     // No onDestroy() override needed.
     private readonly _handle = this.visualHandle();
     private readonly _playback = new VisualMediaPlayback();
-    private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
+    private readonly _media = new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' });
     private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
 
     constructor(id: string = 'simpleImage', config: Record<string, unknown> = {}) {
@@ -32,23 +33,24 @@ export class SimpleImageElement extends SceneElement {
                 category: 'Custom',
             },
             [
-                {
-                    id: 'imageSource',
-                    label: 'Image',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.imageAsset('imageSource', 'Image'),
-                        prop.number('width', 'Width', 200, { step: 10 }),
-                        prop.number('height', 'Height', 200, { step: 10 }),
-                        prop.select('fitMode', 'Fit Mode', 'contain', [
-                            { value: 'contain', label: 'Contain' },
-                            { value: 'cover', label: 'Cover' },
-                            { value: 'fill', label: 'Fill' },
-                            { value: 'none', label: 'Original size' },
-                        ]),
-                    ],
-                },
+                tab.properties([
+                    {
+                        id: 'imageSource',
+                        label: 'Image',
+                        collapsed: false,
+                        properties: [
+                            prop.imageAsset('imageSource', 'Image'),
+                            prop.number('width', 'Width', 200, { step: 10 }),
+                            prop.number('height', 'Height', 200, { step: 10 }),
+                            prop.select('fitMode', 'Fit Mode', 'contain', [
+                                { value: 'contain', label: 'Contain' },
+                                { value: 'cover', label: 'Cover' },
+                                { value: 'fill', label: 'Fill' },
+                                { value: 'clip', label: 'Clip (native size)' },
+                            ]),
+                        ],
+                    },
+                ]),
             ]
         );
     }

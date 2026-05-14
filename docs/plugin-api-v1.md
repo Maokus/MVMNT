@@ -24,14 +24,14 @@ Plugin code should treat internal aliases (`@core/*`, `@audio/*`, `@state/*`, et
 - Work inside this repository (recommended for first-party elements).
 - Build your plugin against the repo as a peer and configure the same path aliases in your own `tsconfig.json`:
 
-  ```json
-  {
-    "paths": {
-      "@mvmnt/plugin-sdk": ["path/to/MVMNT/src/core/scene/plugins/plugin-sdk"],
-      "@mvmnt/plugin-sdk/*": ["path/to/MVMNT/src/core/scene/plugins/sdk/*"]
+    ```json
+    {
+        "paths": {
+            "@mvmnt/plugin-sdk": ["path/to/MVMNT/src/core/scene/plugins/plugin-sdk"],
+            "@mvmnt/plugin-sdk/*": ["path/to/MVMNT/src/core/scene/plugins/sdk/*"]
+        }
     }
-  }
-  ```
+    ```
 
 Do **not** attempt to `npm install @mvmnt/plugin-sdk` — no such package exists. The bundle produced by your build tool must not include the SDK source; the host injects it at load time.
 
@@ -45,27 +45,27 @@ import { selectNotes, clamp, remap, easings } from '@mvmnt/plugin-sdk';
 
 // Domain submodule — explicit and tree-shake friendly
 import { clamp, remap, easings, FloatCurve } from '@mvmnt/plugin-sdk/animation';
-import { selectNotes, timelineApi }           from '@mvmnt/plugin-sdk/timeline';
-import { audioApi, sampleAudio }              from '@mvmnt/plugin-sdk/audio';
-import { timingApi, beatsToSeconds }          from '@mvmnt/plugin-sdk/timing';
-import { Rectangle, BezierPath, Arc }         from '@mvmnt/plugin-sdk/render';
-import { SceneElement, prop }                 from '@mvmnt/plugin-sdk/scene';
+import { selectNotes, timelineApi } from '@mvmnt/plugin-sdk/timeline';
+import { audioApi, sampleAudio } from '@mvmnt/plugin-sdk/audio';
+import { timingApi, beatsToSeconds } from '@mvmnt/plugin-sdk/timing';
+import { Rectangle, BezierPath, Arc } from '@mvmnt/plugin-sdk/render';
+import { SceneElement, prop } from '@mvmnt/plugin-sdk/scene';
 import { getPluginHostApi, PLUGIN_CAPABILITIES, MissingCapabilityError } from '@mvmnt/plugin-sdk/api';
 import { withRenderSafety, limitRenderObjects } from '@mvmnt/plugin-sdk/safety';
-import { noteName, loadBundledAsset }         from '@mvmnt/plugin-sdk/utils';
+import { noteName, loadBundledAsset } from '@mvmnt/plugin-sdk/utils';
 ```
 
-| Submodule | Contents |
-|---|---|
+| Submodule   | Contents                                                                                             |
+| ----------- | ---------------------------------------------------------------------------------------------------- |
 | `animation` | `clamp`, `lerp`, `invLerp`, `remap`, `FloatCurve`, `EasingFn`, `easings` (31 named easing functions) |
-| `render` | `Rectangle`, `Text`, `Line`, `Image`, `Arc`, `BezierPath`, `Poly`, `GlowLayer`, `CompositeLayer`, … |
-| `scene` | `SceneElement`, property descriptors, `prop` factory, `insertElementGroups`, config schema types |
-| `api` | `PLUGIN_CAPABILITIES`, `getPluginHostApi`, `PluginApiError`, `MissingCapabilityError`, … |
-| `timeline` | `timelineApi`, `selectNotes`, `selectAllNotes`, `getMidiTracks`, `TimelineNoteEvent`, … |
-| `audio` | `audioApi`, `sampleAudio`, `registerFeatureRequirements`, `FeatureDataResult`, … |
-| `timing` | `timingApi`, `timeToBeats`, `beatsToSeconds`, `quantizeSettingToBeats`, … |
-| `safety` | `withRenderSafety`, `limitRenderObjects`, `checkCapability`, `PluginSafetyError` |
-| `utils` | `noteName`, `groupNotesByPitch`, `loadBundledAsset`, color helpers, font loader |
+| `render`    | `Rectangle`, `Text`, `Line`, `Image`, `Arc`, `BezierPath`, `Poly`, `GlowLayer`, `CompositeLayer`, …  |
+| `scene`     | `SceneElement`, property descriptors, `prop` factory, `insertElementGroups`, config schema types     |
+| `api`       | `PLUGIN_CAPABILITIES`, `getPluginHostApi`, `PluginApiError`, `MissingCapabilityError`, …             |
+| `timeline`  | `timelineApi`, `selectNotes`, `selectAllNotes`, `getMidiTracks`, `TimelineNoteEvent`, …              |
+| `audio`     | `audioApi`, `sampleAudio`, `registerFeatureRequirements`, `FeatureDataResult`, …                     |
+| `timing`    | `timingApi`, `timeToBeats`, `beatsToSeconds`, `quantizeSettingToBeats`, …                            |
+| `safety`    | `withRenderSafety`, `limitRenderObjects`, `checkCapability`, `PluginSafetyError`                     |
+| `utils`     | `noteName`, `groupNotesByPitch`, `loadBundledAsset`, color helpers, font loader                      |
 
 ## Capabilities
 
@@ -73,12 +73,28 @@ Exported constants:
 
 - `PLUGIN_CAPABILITIES.timelineRead` → `timeline.read`
 - `PLUGIN_CAPABILITIES.audioFeaturesRead` → `audio.features.read`
+- `PLUGIN_CAPABILITIES.audioRawRead` → `audio.raw.read`
 - `PLUGIN_CAPABILITIES.timingConversion` → `timing.conversion`
 - `PLUGIN_CAPABILITIES.midiUtils` → `midi.utils`
 
-`timingConversion` and `midiUtils` are always available. `timelineRead` and `audioFeaturesRead` are conditionally available depending on host resources.
+`timingConversion` and `midiUtils` are always available. `timelineRead`, `audioFeaturesRead`, and `audioRawRead` are conditionally available depending on host resources.
 
 ## Access Patterns
+
+### Required API (recommended for elements)
+
+`getRequiredPluginApi` returns a discriminated union keyed on `ok`. TypeScript narrows `api` to non-null after the guard, and the `renderFallback()` helper returns `[]` so you can use it inline:
+
+```ts
+import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+
+const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
+if (!host.ok) return host.renderFallback();
+
+const notes = host.api.timeline.selectNotesInWindow({ trackIds: [...], startSec, endSec });
+```
+
+The element reference (`this`) is required — it is used for future manifest-driven capability resolution.
 
 ### Status-Based (default)
 
@@ -93,12 +109,15 @@ const { api, status, missingCapabilities } = getPluginHostApi([
 ]);
 
 if (!api || status !== 'ok') {
-    const message = status === 'unsupported-version'
-        ? 'Plugin API version unsupported'
-        : missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
-            ? 'Timeline API unavailable (requires timeline.read)'
-            : 'Plugin host API unavailable';
-    return [/* render fallback message object(s) */];
+    const message =
+        status === 'unsupported-version'
+            ? 'Plugin API version unsupported'
+            : missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
+              ? 'Timeline API unavailable (requires timeline.read)'
+              : 'Plugin host API unavailable';
+    return [
+        /* render fallback message object(s) */
+    ];
 }
 
 const notes = api.timeline.selectNotesInWindow({
@@ -234,6 +253,41 @@ const rms = api.audio.sampleFeatureAtTime({
 const volume = rms?.values?.[0] ?? 0;
 ```
 
+For range windows (oscilloscope traces, waveform histories), prefer `sampleFeatureRange` over calling `sampleFeatureAtTime` in a loop — it resolves the descriptor and subscription controller once and is significantly faster:
+
+```ts
+const frames = host.api.audio.sampleFeatureRange({
+    element: this,
+    trackId: props.audioTrackId,
+    feature: 'waveform',
+    startTime: targetTime - windowSec * startOffset,
+    endTime: targetTime + windowSec * (1 - startOffset),
+    stepSec: windowSec / sampleCount,
+});
+const values = frames.map((f) => f.values?.[0] ?? 0);
+```
+
+### `audioRaw`
+
+Requires `audio.raw.read` capability. Use for short, sample-accurate time windows (oscilloscopes, waveform detail views) where the temporal quantisation of hop-aligned feature frames is unacceptable.
+
+- `getSampleRate({ trackId }): number | null`
+- `getRawSamples({ trackId, startSec, endSec, channel }): Float32Array | null`
+- `getRmsInWindow({ trackId, startSec, endSec }): [number, number] | null`
+
+`channel` accepts `'left'`, `'right'`, `'mono'`, or a channel index number.
+
+`getRawSamples` returns `null` if the track is not loaded, the window is invalid, or the sample count exceeds `MAX_RAW_SAMPLES` (8192). For longer windows switch to `sampleFeatureRange` with feature `'waveform'`.
+
+```ts
+const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioRawRead]);
+if (!host.ok) return host.renderFallback();
+
+const sampleRate = host.api.audioRaw.getSampleRate({ trackId });
+const left = host.api.audioRaw.getRawSamples({ trackId, startSec, endSec, channel: 'left' });
+const right = host.api.audioRaw.getRawSamples({ trackId, startSec, endSec, channel: 'right' }) ?? left;
+```
+
 ### `timing`
 
 Requires `timing.conversion` capability (always available).
@@ -286,22 +340,22 @@ Example — custom curve with easing:
 
 ```ts
 const curve = new FloatCurve([
-    [0,   0, easings.easeOutCubic],
+    [0, 0, easings.easeOutCubic],
     [0.6, 1],
-    [1,   0, easings.easeInQuad],
+    [1, 0, easings.easeInQuad],
 ]);
 const scale = curve.valAt(progress);
 ```
 
-### Property factories (`prop`, `insertElementGroups`)
+### Property factories (`prop`, `tab`, `section`, `propGroup`, `insertElementGroups`)
 
 See [Creating Custom Elements — Property Factory Helpers](creating-custom-elements.md#configuration-schema) for the full reference. Summary:
 
 ```ts
-import { prop, insertElementGroups } from '@mvmnt/plugin-sdk';
+import { prop, tab, section, propGroup, insertElementGroups } from '@mvmnt/plugin-sdk';
 ```
 
-`prop.*` factories build complete `PropertyDefinition` objects with the correct `runtime` transform pre-filled. `insertElementGroups` places your property groups between the base element's basic and advanced groups without boilerplate.
+`prop.*` factories build complete `PropertyDefinition` objects with the correct `runtime` transform pre-filled. `section.*` and `propGroup.*` build reusable property groups. `tab.*` groups those groups into the inspector tabs. `insertElementGroups` prepends the base Transform tab and appends your element-specific tabs without boilerplate.
 
 ### Asset loading (`loadBundledAsset`)
 

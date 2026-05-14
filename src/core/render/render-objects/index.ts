@@ -9,4 +9,10 @@ export { Arc } from './arc';
 export { GlowLayer } from './glow-layer';
 export { CompositeLayer } from './composite-layer';
 export { ClipLayer } from './clip-layer';
-export { VisualMedia } from './visual-media';
+export {
+    VisualMedia,
+    type FramePlacement,
+    type FramePlacementPreset,
+    type FramePlacementCustom,
+    type VisualMediaOptions,
+} from './visual-media';

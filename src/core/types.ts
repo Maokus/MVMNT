@@ -198,6 +198,7 @@ export interface BaseSceneElementConfig {
 export interface ConfigSchemaProperty {
     type:
         | 'string'
+        | 'longString'
         | 'number'
         | 'boolean'
         | 'color'
@@ -272,6 +273,7 @@ export interface PropertyDefinition {
     key: string;
     type:
         | 'string'
+        | 'longString'
         | 'number'
         | 'boolean'
         | 'color'
@@ -324,17 +326,32 @@ export interface PropertyGroup {
     id: string;
     label: string;
     collapsed: boolean;
-    variant?: 'basic' | 'advanced';
     description?: string;
     properties: PropertyDefinition[];
+    /** @deprecated Move presets to the top-level `presets` field on `EnhancedConfigSchema`. */
     presets?: PropertyGroupPreset[];
+}
+
+export interface PropertyTab {
+    id: string;
+    label: string;
+    groups: PropertyGroup[];
+}
+
+export interface ElementPreset {
+    id: string;
+    label: string;
+    description?: string;
+    thumbnail?: string;
+    values: Record<string, unknown>;
 }
 
 export interface EnhancedConfigSchema {
     name: string;
     description: string;
     category?: string;
-    groups: PropertyGroup[];
+    tabs: PropertyTab[];
+    presets?: ElementPreset[];
 }
 
 export interface SceneElementInterface {

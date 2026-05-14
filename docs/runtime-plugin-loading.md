@@ -16,10 +16,10 @@ fileInput.accept = '.mvmnt-plugin';
 fileInput.onchange = async (e) => {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (!file) return;
-    
+
     const buffer = await file.arrayBuffer();
     const result = await loadPlugin(buffer);
-    
+
     if (result.success) {
         console.log('Plugin loaded:', result.pluginId);
         console.log('Registered elements:', result.registeredTypes);
@@ -53,15 +53,15 @@ function PluginManager() {
     const plugins = usePluginStore(state => state.plugins);
     const enablePlugin = usePluginStore(state => state.enablePlugin);
     const disablePlugin = usePluginStore(state => state.disablePlugin);
-    
+
     return (
         <div>
             {Object.values(plugins).map(plugin => (
                 <div key={plugin.manifest.id}>
                     <h3>{plugin.manifest.name}</h3>
                     <p>{plugin.manifest.description}</p>
-                    <button onClick={() => 
-                        plugin.enabled 
+                    <button onClick={() =>
+                        plugin.enabled
                             ? disablePlugin(plugin.manifest.id)
                             : enablePlugin(plugin.manifest.id)
                     }>
@@ -99,7 +99,7 @@ console.log('Available element types:', types);
 
 // Get element info with metadata
 const elementInfo = sceneElementRegistry.getElementTypeInfo();
-elementInfo.forEach(info => {
+elementInfo.forEach((info) => {
     console.log(`${info.type}: ${info.name} (${info.category})`);
 });
 ```
@@ -109,11 +109,11 @@ elementInfo.forEach(info => {
 1. **User selects a `.mvmnt-plugin` file**
 2. **File is read as ArrayBuffer**
 3. **Plugin loader:**
-   - Unzips the bundle using fflate
-   - Reads and validates manifest.json
-   - Checks MVMNT version compatibility
-   - Loads and evaluates each element's bundled JS
-   - Registers elements in the scene element registry
+    - Unzips the bundle using fflate
+    - Reads and validates manifest.json
+    - Checks MVMNT version compatibility
+    - Loads and evaluates each element's bundled JS
+    - Registers elements in the scene element registry
 4. **Plugin state is saved to IndexedDB**
 5. **Elements are immediately available in the UI**
 
@@ -131,15 +131,16 @@ All errors are logged and stored in the plugin state for UI display.
 
 ## Version Compatibility
 
-Plugins specify a `mvmntVersion` range in their manifest:
+Plugins specify an `apiVersion` range in their manifest:
 
 ```json
 {
-  "mvmntVersion": "^0.14.0"
+    "apiVersion": "^1.0.0"
 }
 ```
 
 Supported range formats:
+
 - `^1.0.0` - Caret range (>=1.0.0 <2.0.0)
 - `~1.0.0` - Tilde range (>=1.0.0 <1.1.0)
 - `>=1.0.0` - Greater than or equal
@@ -153,6 +154,7 @@ See [version-check.ts](../src/core/scene/plugins/version-check.ts) for implement
 Plugins are automatically persisted to IndexedDB and reloaded on app startup via `loadAllPluginsFromStorage()` called in [src/app/index.tsx](../src/app/index.tsx).
 
 Failed plugins are disabled but remain in storage so users can:
+
 - See error messages
 - Update MVMNT version
 - Remove the plugin
@@ -173,5 +175,6 @@ These are used internally by the plugin loader but can also be used for advanced
 ## Testing
 
 See test files for usage examples:
+
 - [version-check.test.ts](../src/core/scene/plugins/__tests__/version-check.test.ts)
 - [registry-plugin-api.test.ts](../src/core/scene/registry/__tests__/registry-plugin-api.test.ts)

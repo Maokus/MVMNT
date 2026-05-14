@@ -73,7 +73,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
 
     // ── Range controls ────────────────────────────────────────────────────────
     const { autoRange, manualMin, manualMax } = useCurveRange(channel.id);
-    const { displayedRefs } = useCurveRangeControls();
+    const { setAutoRange, setManualRange, displayedRefs } = useCurveRangeControls();
 
     // ── Interpolation picker floating UI ──────────────────────────────────────
     const { refs: pickerRefs, floatingStyles: pickerFloatingStyles } = useFloating({
@@ -100,11 +100,9 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     );
     const { propertyStep, propertyMin, propertyMax } = useMemo(() => {
         if (!elementType) return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
-        const schema = sceneElementRegistry.getSchema(elementType) as
-            | (EnhancedConfigSchema & { groups?: EnhancedConfigSchema['groups'] })
-            | null;
-        if (!schema?.groups) return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
-        for (const group of schema.groups) {
+        const schema = sceneElementRegistry.getSchema(elementType) as EnhancedConfigSchema | null;
+        if (!schema?.tabs) return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
+        for (const group of schema.tabs.flatMap((t) => t.groups)) {
             const prop = group.properties?.find((p) => p.key === channel.propertyKey);
             if (prop) {
                 return {
@@ -127,10 +125,11 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
 
     // Target range: auto (with min span) or manual (with min span)
     const [targetMin, targetMax] = useMemo(() => {
+        if (channel.valueType === 'boolean') return [0, 1];
         const [autoMin, autoMax] = enforceMinSpan(autoMinVal, autoMaxVal, propertyStep);
         if (autoRange) return [autoMin, autoMax];
         return enforceMinSpan(manualMin, manualMax, propertyStep);
-    }, [autoRange, autoMinVal, autoMaxVal, manualMin, manualMax, propertyStep]);
+    }, [channel.valueType, autoRange, autoMinVal, autoMaxVal, manualMin, manualMax, propertyStep]);
 
     // Lerp toward target each animation frame (~150ms visual half-life at 60fps)
     const animMinRef = useRef(targetMin);
@@ -140,7 +139,8 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     const smoothAnimRef = useRef<number | null>(null);
 
     useEffect(() => {
-        const LERP = 0.12;
+        // Snap immediately in manual mode for responsive scroll panning; smooth lerp for auto-range transitions.
+        const LERP = autoRange ? 0.12 : 1;
         const SNAP_THRESHOLD = 1e-4;
 
         const animate = () => {
@@ -171,7 +171,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         return () => {
             if (smoothAnimRef.current !== null) cancelAnimationFrame(smoothAnimRef.current);
         };
-    }, [targetMin, targetMax, channel.id, displayedRefs]);
+    }, [targetMin, targetMax, autoRange, channel.id, displayedRefs]);
 
     const minVal = displayedMin;
     const maxVal = displayedMax;
@@ -212,8 +212,10 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
 
     // Grid ticks at "nice" round values derived from the current display range
     const gridTicks = useMemo(
-        () => generateYTicks(minVal, maxVal),
-        [minVal, maxVal],
+        () => channel.valueType === 'boolean'
+            ? [{ value: 0, label: '0' }, { value: 1, label: '1' }]
+            : generateYTicks(minVal, maxVal),
+        [channel.valueType, minVal, maxVal],
     );
 
     // ── Selection state ───────────────────────────────────────────────────────
@@ -255,6 +257,37 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         propertyMin,
         propertyMax,
     });
+
+    // ── Wheel scroll — pan value range ───────────────────────────────────────
+
+    // Use a ref for autoRange so the native listener below can always see the latest value
+    // without needing to be recreated on every autoRange change.
+    const autoRangeRef = useRef(autoRange);
+    autoRangeRef.current = autoRange;
+
+    const containerRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const onWheel = (e: WheelEvent) => {
+            // Stop propagation natively so the timeline's native wheel listener (attached to
+            // a parent DOM element) never sees this event.
+            e.stopPropagation();
+            e.preventDefault();
+            if (channel.valueType === 'boolean') return; // range is fixed 0-1 for boolean
+            const currentMin = animMinRef.current;
+            const currentMax = animMaxRef.current;
+            const rangeSpan = currentMax - currentMin;
+            const shift = (e.deltaY / 100) * rangeSpan * 0.3;
+            if (autoRangeRef.current) {
+                setAutoRange(channel.id, false);
+            }
+            setManualRange(channel.id, currentMin + shift, currentMax + shift);
+        };
+        el.addEventListener('wheel', onWheel, { passive: false });
+        return () => el.removeEventListener('wheel', onWheel);
+    }, [channel.id, setAutoRange, setManualRange]);
 
     // ── Resize handle ─────────────────────────────────────────────────────────
 
@@ -356,7 +389,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     // ── Render ────────────────────────────────────────────────────────────────
 
     return (
-        <div className="ae-curve-pane relative" style={{ height, width }}>
+        <div ref={containerRef} className="ae-curve-pane relative" style={{ height, width }}>
             <svg
                 ref={svgRef}
                 width={width}

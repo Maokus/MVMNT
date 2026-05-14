@@ -23,6 +23,18 @@ import { BundledSprite, BundledSparrowHandle } from '@core/resources/bundled-spr
 import { VisualResourceHandle } from '@core/resources/visual-resource-handle';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 
+// Lazy reference to avoid circular dependency with scene-element-registry
+let _sceneElementRegistry: { getPluginId(type: string): string | undefined } | null = null;
+function getSceneElementRegistry() {
+    if (!_sceneElementRegistry) {
+        // Dynamically resolve at first use (after all modules have initialized)
+        import('@core/scene/registry/scene-element-registry').then((m) => {
+            _sceneElementRegistry = m.sceneElementRegistry;
+        });
+    }
+    return _sceneElementRegistry;
+}
+
 export type PropertyTransform<TValue, TElement = SceneElement> = (
     value: unknown,
     element: TElement
@@ -298,7 +310,10 @@ export class SceneElement implements SceneElementInterface {
      */
     dispose(): void {
         this.onDestroy();
-        for (const h of this._trackedVisualHandles) h.destroy();
+        const trackedVisualHandles = Array.isArray((this as any)._trackedVisualHandles)
+            ? (this as any)._trackedVisualHandles
+            : [];
+        for (const h of trackedVisualHandles) h.destroy();
         if (this._macroUnsubscribe) {
             this._macroUnsubscribe();
             this._macroUnsubscribe = undefined;
@@ -310,8 +325,8 @@ export class SceneElement implements SceneElementInterface {
      */
     private _initializeDefaultBindings(): void {
         const schema: EnhancedConfigSchema = (this.constructor as any).getConfigSchema();
-        if (schema && schema.groups) {
-            for (const group of schema.groups) {
+        if (schema && schema.tabs) {
+            for (const group of schema.tabs.flatMap((t) => t.groups)) {
                 for (const prop of group.properties as PropertyDefinition[]) {
                     if (prop && prop.key && prop.default !== undefined && prop.key !== 'id' && prop.key !== 'type') {
                         this.bindings.set(prop.key, new ConstantBinding(prop.default));
@@ -413,7 +428,7 @@ export class SceneElement implements SceneElementInterface {
         const descriptors: PropertyDescriptorMap<any> = {};
         try {
             const schema = typeof ctor.getConfigSchema === 'function' ? ctor.getConfigSchema() : null;
-            const groups = schema?.groups ?? [];
+            const groups = schema?.tabs.flatMap((t) => t.groups) ?? [];
             for (const group of groups) {
                 if (!group?.properties) continue;
                 for (const property of group.properties as PropertyDefinition[]) {
@@ -633,14 +648,7 @@ export class SceneElement implements SceneElementInterface {
         }
 
         // Apply safety controls for plugin elements (lazy import to avoid circular dependency)
-        let pluginId: string | undefined;
-        try {
-            const { sceneElementRegistry } = require('@core/scene/registry/scene-element-registry');
-            pluginId = sceneElementRegistry.getPluginId(this.type);
-        } catch {
-            // If registry not available (e.g., during initialization), skip safety checks
-            pluginId = undefined;
-        }
+        const pluginId = getSceneElementRegistry()?.getPluginId(this.type);
 
         let childRenderObjects: RenderObject[];
 
@@ -855,85 +863,89 @@ export class SceneElement implements SceneElementInterface {
             name: 'Bound Base Element',
             description: 'Base scene element with property bindings',
             category: 'general',
-            groups: [
+            tabs: [
                 {
-                    id: 'basicVisibility',
-                    label: 'Visibility & Layer',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Control whether the element is visible and how it blends with other layers.',
-                    properties: [
-                        prop.boolean('visible', 'Visible', true),
-                        prop.number('elementOpacity', 'Opacity (0–1)', 1, {
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
-                            description: 'Element transparency (0 = transparent, 1 = opaque).',
-                        }),
-                        prop.number('zIndex', 'Layer Order', 0, {
-                            min: 0,
-                            max: 100,
-                            step: 1,
-                            description: 'Stacking order for overlapping layers (higher values appear on top).',
-                        }),
-                    ],
-                },
-                {
-                    id: 'basicTransform',
-                    label: 'Position, Rotation & Scale',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Set the element position and size adjustments relative to its default layout.',
-                    properties: [
-                        prop.number('offsetX', 'Offset X (px)', 0, {
-                            step: 1,
-                            description: 'Horizontal position offset in pixels.',
-                        }),
-                        prop.number('offsetY', 'Offset Y (px)', 0, {
-                            step: 1,
-                            description: 'Vertical position offset in pixels.',
-                        }),
-                        prop.number('elementRotation', 'Rotation', 0, {
-                            step: 0.01,
-                            description: 'Element rotation in radians.',
-                        }),
-                        prop.number('elementScaleX', 'Scale X (multiplier)', 1, {
-                            step: 0.01,
-                            description: 'Horizontal scaling factor.',
-                        }),
-                        prop.number('elementScaleY', 'Scale Y (multiplier)', 1, {
-                            step: 0.01,
-                            description: 'Vertical scaling factor.',
-                        }),
-                    ],
-                },
-                {
-                    id: 'advancedAnchor',
-                    label: 'Anchor & Skew',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Advanced pivot, rotation, and skew controls.',
-                    properties: [
-                        prop.number('anchorX', 'Anchor X (0–1)', 0.5, {
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
-                            description: 'Horizontal anchor point (0 = left, 1 = right).',
-                        }),
-                        prop.number('anchorY', 'Anchor Y (0–1)', 0.5, {
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
-                            description: 'Vertical anchor point (0 = top, 1 = bottom).',
-                        }),
-                        prop.number('elementSkewX', 'Skew X', 0, {
-                            step: 0.01,
-                            description: 'Horizontal skew in radians.',
-                        }),
-                        prop.number('elementSkewY', 'Skew Y', 0, {
-                            step: 0.01,
-                            description: 'Vertical skew in radians.',
-                        }),
+                    id: 'element',
+                    label: 'Element',
+                    groups: [
+                        {
+                            id: 'basicVisibility',
+                            label: 'Visibility & Layer',
+                            collapsed: false,
+                            description: 'Control whether the element is visible and how it blends with other layers.',
+                            properties: [
+                                prop.boolean('visible', 'Visible', true),
+                                prop.number('elementOpacity', 'Opacity (0–1)', 1, {
+                                    min: 0,
+                                    max: 1,
+                                    step: 0.01,
+                                    description: 'Element transparency (0 = transparent, 1 = opaque).',
+                                }),
+                                prop.number('zIndex', 'Layer Order', 0, {
+                                    min: 0,
+                                    max: 100,
+                                    step: 1,
+                                    description: 'Stacking order for overlapping layers (higher values appear on top).',
+                                }),
+                            ],
+                        },
+                        {
+                            id: 'basicTransform',
+                            label: 'Position, Rotation & Scale',
+                            collapsed: false,
+                            description:
+                                'Set the element position and size adjustments relative to its default layout.',
+                            properties: [
+                                prop.number('offsetX', 'Offset X (px)', 0, {
+                                    step: 1,
+                                    description: 'Horizontal position offset in pixels.',
+                                }),
+                                prop.number('offsetY', 'Offset Y (px)', 0, {
+                                    step: 1,
+                                    description: 'Vertical position offset in pixels.',
+                                }),
+                                prop.number('elementRotation', 'Rotation', 0, {
+                                    step: 0.01,
+                                    description: 'Element rotation in radians.',
+                                }),
+                                prop.number('elementScaleX', 'Scale X (multiplier)', 1, {
+                                    step: 0.01,
+                                    description: 'Horizontal scaling factor.',
+                                }),
+                                prop.number('elementScaleY', 'Scale Y (multiplier)', 1, {
+                                    step: 0.01,
+                                    description: 'Vertical scaling factor.',
+                                }),
+                            ],
+                        },
+                        {
+                            id: 'advancedAnchor',
+                            label: 'Anchor & Skew',
+                            collapsed: true,
+                            description: 'Advanced pivot, rotation, and skew controls.',
+                            properties: [
+                                prop.number('anchorX', 'Anchor X (0–1)', 0.5, {
+                                    min: 0,
+                                    max: 1,
+                                    step: 0.01,
+                                    description: 'Horizontal anchor point (0 = left, 1 = right).',
+                                }),
+                                prop.number('anchorY', 'Anchor Y (0–1)', 0.5, {
+                                    min: 0,
+                                    max: 1,
+                                    step: 0.01,
+                                    description: 'Vertical anchor point (0 = top, 1 = bottom).',
+                                }),
+                                prop.number('elementSkewX', 'Skew X', 0, {
+                                    step: 0.01,
+                                    description: 'Horizontal skew in radians.',
+                                }),
+                                prop.number('elementSkewY', 'Skew Y', 0, {
+                                    step: 0.01,
+                                    description: 'Vertical skew in radians.',
+                                }),
+                            ],
+                        },
                     ],
                 },
             ],

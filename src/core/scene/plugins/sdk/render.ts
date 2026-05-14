@@ -17,4 +17,8 @@ export {
     CompositeLayer,
     ClipLayer,
     VisualMedia,
+    type FramePlacement,
+    type FramePlacementPreset,
+    type FramePlacementCustom,
+    type VisualMediaOptions,
 } from '@core/render/render-objects';

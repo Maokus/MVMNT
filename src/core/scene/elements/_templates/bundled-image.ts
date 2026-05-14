@@ -12,6 +12,7 @@ import {
     SceneElement,
     prop,
     insertElementGroups,
+    tab,
     VisualMediaPlayback,
     resolveProjectAssetDescriptor,
 } from '@mvmnt/plugin-sdk';
@@ -25,7 +26,7 @@ export class BundledImageElement extends SceneElement {
     // Handle for an optional user-selected image override.
     private readonly _overrideHandle = this.visualHandle();
     private readonly _playback = new VisualMediaPlayback();
-    private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
+    private readonly _media = new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' });
     private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
 
     constructor(id: string = 'bundledImage', config: Record<string, unknown> = {}) {
@@ -41,25 +42,26 @@ export class BundledImageElement extends SceneElement {
                 category: 'Custom',
             },
             [
-                {
-                    id: 'imageSource',
-                    label: 'Image',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        prop.imageAsset('imageSource', 'Override Image', {
-                            description: 'Leave empty to use the bundled default.',
-                        }),
-                        prop.number('width', 'Width', 200, { step: 10 }),
-                        prop.number('height', 'Height', 200, { step: 10 }),
-                        prop.select('fitMode', 'Fit Mode', 'contain', [
-                            { value: 'contain', label: 'Contain' },
-                            { value: 'cover', label: 'Cover' },
-                            { value: 'fill', label: 'Fill' },
-                            { value: 'none', label: 'Original size' },
-                        ]),
-                    ],
-                },
+                tab.properties([
+                    {
+                        id: 'imageSource',
+                        label: 'Image',
+                        collapsed: false,
+                        properties: [
+                            prop.imageAsset('imageSource', 'Override Image', {
+                                description: 'Leave empty to use the bundled default.',
+                            }),
+                            prop.number('width', 'Width', 200, { step: 10 }),
+                            prop.number('height', 'Height', 200, { step: 10 }),
+                            prop.select('fitMode', 'Fit Mode', 'contain', [
+                                { value: 'contain', label: 'Contain' },
+                                { value: 'cover', label: 'Cover' },
+                                { value: 'fill', label: 'Fill' },
+                                { value: 'clip', label: 'Clip (native size)' },
+                            ]),
+                        ],
+                    },
+                ]),
             ]
         );
     }
@@ -70,7 +72,7 @@ export class BundledImageElement extends SceneElement {
 
         const w = (props.width as number) ?? 200;
         const h = (props.height as number) ?? 200;
-        const fitMode = (props.fitMode as 'contain' | 'cover' | 'fill' | 'none') ?? 'contain';
+        const fitMode = (props.fitMode as 'contain' | 'cover' | 'fill' | 'clip') ?? 'contain';
 
         this._layoutRect.width = w;
         this._layoutRect.height = h;

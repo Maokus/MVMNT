@@ -325,21 +325,25 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     );
 
     const generateUniqueElementId = useCallback((elementType: string): string => {
-        const base = `${elementType}_${Math.random().toString(36).slice(2, 8)}`;
+        const schema = sceneElementRegistry.getSchema(elementType);
+        const baseName = (schema as any)?.name?.trim() || elementType;
         const store = useSceneStore.getState();
-        let candidate = base;
-        let attempt = 1;
-        while (store.elements[candidate]) {
-            candidate = `${base}_${attempt++}`;
+        let n = 1;
+        while (store.elements[`${baseName} ${n}`]) {
+            n++;
         }
-        return candidate;
+        return `${baseName} ${n}`;
     }, []);
 
     const addElement = useCallback(
         (elementType: string, initialConfig?: Record<string, unknown>) => {
             const uniqueId = generateUniqueElementId(elementType);
+            const selectedId = useSelectionStore.getState().selectedElementIds[0] ?? null;
+            const currentOrder = useSceneStore.getState().order;
+            const selectedIndex = selectedId != null ? currentOrder.indexOf(selectedId) : -1;
+            const targetIndex = selectedIndex >= 0 ? selectedIndex + 1 : undefined;
             const created = runSceneCommand(
-                { type: 'addElement', elementType, elementId: uniqueId, config: initialConfig },
+                { type: 'addElement', elementType, elementId: uniqueId, config: initialConfig, targetIndex },
                 'SceneSelectionContext.addElement'
             );
             if (!created) return;
@@ -365,7 +369,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
             const schema = sceneElementRegistry.getSchema(elementType) as any;
             if (schema) {
                 const trackInputs: TrackInputDef[] = [];
-                for (const group of (schema.groups ?? [])) {
+                for (const group of (schema.tabs?.flatMap((t: any) => t.groups) ?? [])) {
                     for (const propDef of (group.properties ?? [])) {
                         if (propDef.type === 'timelineTrackRef') {
                             trackInputs.push({

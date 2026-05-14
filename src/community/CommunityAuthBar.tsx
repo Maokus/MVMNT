@@ -34,22 +34,27 @@ const CommunityAuthBar: React.FC<CommunityAuthBarProps> = ({ user, onAuthChange 
 
     try {
       if (mode === 'signin') {
-        // Resolve login input: treat as email if it contains @, otherwise look up by username
-        let resolvedEmail = loginInput.trim();
-        if (!resolvedEmail.includes('@')) {
-          const { data, error: rpcErr } = await supabase.rpc('get_email_by_username', {
-            p_username: resolvedEmail,
+        const input = loginInput.trim();
+        if (!input.includes('@')) {
+          // Resolve username → email via SECURITY DEFINER RPC (email never shown in UI)
+          const { data: email, error: lookupErr } = await supabase.rpc('get_email_by_username', {
+            p_username: input,
           });
-          if (rpcErr) throw rpcErr;
-          if (!data) throw new Error('No account found with that username.');
-          resolvedEmail = data as string;
-        }
-        const { error } = await supabase.auth.signInWithPassword({ email: resolvedEmail, password });
-        if (error) {
-          if (error.message.toLowerCase().includes('invalid login')) {
-            throw new Error('Incorrect username, email, or password.');
+          if (lookupErr || !email) {
+            throw new Error('Incorrect username or password.');
           }
-          throw error;
+          const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+          if (signInErr) {
+            throw new Error('Incorrect username or password.');
+          }
+        } else {
+          const { error } = await supabase.auth.signInWithPassword({ email: input, password });
+          if (error) {
+            if (error.message.toLowerCase().includes('invalid login')) {
+              throw new Error('Incorrect username, email, or password.');
+            }
+            throw error;
+          }
         }
       } else {
         if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {

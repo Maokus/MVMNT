@@ -20,6 +20,8 @@ export class Text extends RenderObject {
     strokeWidth: number;
     maxWidth: number | null;
     shadow: TextShadow | null;
+    /** Letter spacing in pixels. Applied via `ctx.letterSpacing` (Chrome 97+, supported in offscreen canvas). */
+    letterSpacing: number;
     static __measureCtx?: CanvasRenderingContext2D | null; // offscreen measure context cache
 
     constructor(
@@ -50,12 +52,14 @@ export class Text extends RenderObject {
         this.strokeWidth = 0;
         this.maxWidth = null;
         this.shadow = null;
+        this.letterSpacing = 0;
     }
 
     protected _renderSelf(ctx: CanvasRenderingContext2D): void {
         ctx.font = this.font;
         ctx.textAlign = this.align;
         ctx.textBaseline = this.baseline;
+        if (this.letterSpacing !== 0) (ctx as any).letterSpacing = this.letterSpacing + 'px';
         if (this.shadow) {
             ctx.shadowColor = this.shadow.color;
             ctx.shadowBlur = this.shadow.blur;
@@ -77,6 +81,7 @@ export class Text extends RenderObject {
             ctx.shadowOffsetX = 0;
             ctx.shadowOffsetY = 0;
         }
+        if (this.letterSpacing !== 0) (ctx as any).letterSpacing = '0px';
     }
 
     setText(text: string): this {
@@ -153,7 +158,9 @@ export class Text extends RenderObject {
         }
         const prevFont = ctx.font;
         ctx.font = this.font;
+        if (this.letterSpacing !== 0) (ctx as any).letterSpacing = this.letterSpacing + 'px';
         const metrics = ctx.measureText(this.text);
+        if (this.letterSpacing !== 0) (ctx as any).letterSpacing = '0px';
         ctx.font = prevFont;
         let width = metrics.width || 0;
         const ascent = metrics.actualBoundingBoxAscent ?? fontSize * 0.8;

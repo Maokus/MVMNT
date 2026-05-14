@@ -53,23 +53,13 @@ export function resolveLegacyEasing(id: string): EasingFn {
 // ─── Coordinate helpers ───────────────────────────────────────────────────────
 
 /** Map a value in [minVal, maxVal] to a pixel y-coordinate inside the pane. */
-export function valueToYCoord(
-    val: number,
-    minVal: number,
-    maxVal: number,
-    height: number,
-): number {
+export function valueToYCoord(val: number, minVal: number, maxVal: number, height: number): number {
     const t = (val - minVal) / (maxVal - minVal);
     return height - PADDING_Y - t * (height - PADDING_Y * 2);
 }
 
 /** Map a pixel y-coordinate back to a value in [frozenMin, frozenMax]. */
-export function yCoordToValue(
-    y: number,
-    frozenMin: number,
-    frozenMax: number,
-    height: number,
-): number {
+export function yCoordToValue(y: number, frozenMin: number, frozenMax: number, height: number): number {
     const t = (height - PADDING_Y - y) / (height - PADDING_Y * 2);
     return frozenMin + t * (frozenMax - frozenMin);
 }
@@ -83,7 +73,7 @@ export function yCoordToValue(
 export function computeAutoRange(
     channel: AutomationChannel,
     propertyMin?: number,
-    propertyMax?: number,
+    propertyMax?: number
 ): { minVal: number; maxVal: number } {
     if (channel.valueType === 'boolean' || channel.valueType === 'color') {
         return { minVal: 0, maxVal: 1 };
@@ -228,7 +218,7 @@ export function buildCurveSegments(
     channel: AutomationChannel,
     toX: (tick: number, width: number) => number,
     width: number,
-    valueToY: (val: number) => number,
+    valueToY: (val: number) => number
 ): CurveSegmentData[] {
     const kfs = channel.keyframes;
     if (kfs.length < 2) return [];
@@ -238,12 +228,12 @@ export function buildCurveSegments(
     for (let i = 0; i < kfs.length - 1; i++) {
         const a = kfs[i];
         const b = kfs[i + 1];
-        const aVal = typeof a.value === 'number' ? a.value : 0;
-        const bVal = typeof b.value === 'number' ? b.value : 0;
-        const interp = a.segmentInterpolation;
+        const aVal = typeof a.value === 'number' ? (a.value as number) : a.value ? 1 : 0;
+        const bVal = typeof b.value === 'number' ? (b.value as number) : b.value ? 1 : 0;
+        // Boolean channels always render as constant (stepped) regardless of stored interpolation
+        const interp = channel.valueType === 'boolean' ? { mode: 'constant' as const } : a.segmentInterpolation;
         const base = Math.max(4, Math.round(CURVE_SAMPLE_COUNT / Math.max(1, kfs.length - 1)));
-        const isComplexMode =
-            interp?.mode === 'elastic' || interp?.mode === 'bounce' || interp?.mode === 'back';
+        const isComplexMode = interp?.mode === 'elastic' || interp?.mode === 'bounce' || interp?.mode === 'back';
         const segSamples = isComplexMode ? Math.max(base, COMPLEX_MODE_MIN_SAMPLES) : base;
 
         const pts: string[] = [];
@@ -270,8 +260,10 @@ export function buildCurveSegments(
                 if (!rHandle || prevHandleType === 'auto' || prevHandleType === 'auto_clamped') {
                     const prevPrev = i > 0 ? kfs[i - 1] : null;
                     const computed = computeAutoHandles(
-                        prevPrev, a, b,
-                        prevHandleType === 'auto' ? 'auto' : 'auto_clamped',
+                        prevPrev,
+                        a,
+                        b,
+                        prevHandleType === 'auto' ? 'auto' : 'auto_clamped'
                     );
                     rHandle = computed.right;
                 } else if (prevHandleType === 'vector') {
@@ -282,8 +274,10 @@ export function buildCurveSegments(
                 if (!lHandle || nextHandleType === 'auto' || nextHandleType === 'auto_clamped') {
                     const nextNext = i + 2 < kfs.length ? kfs[i + 2] : null;
                     const computed = computeAutoHandles(
-                        a, b, nextNext,
-                        nextHandleType === 'auto' ? 'auto' : 'auto_clamped',
+                        a,
+                        b,
+                        nextNext,
+                        nextHandleType === 'auto' ? 'auto' : 'auto_clamped'
                     );
                     lHandle = computed.left;
                 } else if (nextHandleType === 'vector') {
@@ -335,7 +329,7 @@ export function buildHandleVisuals(
     keyframes: AutomationChannel['keyframes'],
     toX: (tick: number, width: number) => number,
     width: number,
-    valueToY: (val: number) => number,
+    valueToY: (val: number) => number
 ): HandleVisualData[] {
     const result: HandleVisualData[] = [];
 
@@ -363,9 +357,7 @@ export function buildHandleVisuals(
 
         if (showLeft) {
             if (!leftHandle || leftIsAuto) {
-                const computed = computeAutoHandles(
-                    prev, kf, next, leftType === 'auto' ? 'auto' : 'auto_clamped',
-                );
+                const computed = computeAutoHandles(prev, kf, next, leftType === 'auto' ? 'auto' : 'auto_clamped');
                 leftHandle = computed.left;
             } else if (leftType === 'vector' && prev) {
                 leftHandle = {
@@ -377,9 +369,7 @@ export function buildHandleVisuals(
 
         if (showRight) {
             if (!rightHandle || rightIsAuto) {
-                const computed = computeAutoHandles(
-                    prev, kf, next, rightType === 'auto' ? 'auto' : 'auto_clamped',
-                );
+                const computed = computeAutoHandles(prev, kf, next, rightType === 'auto' ? 'auto' : 'auto_clamped');
                 rightHandle = computed.right;
             } else if (rightType === 'vector' && next) {
                 rightHandle = {
@@ -421,7 +411,7 @@ export function buildHandlePatch(
     dv: number,
     side: 'left' | 'right',
     origType: HandleType,
-    frozenOppLength: number,
+    frozenOppLength: number
 ): Record<string, unknown> {
     const effectiveType = origType === 'aligned' ? 'aligned' : 'free';
     const patch: Record<string, unknown> =
