@@ -61,17 +61,19 @@ export class CollisionMidiDisplayElement extends SceneElement {
                         collapsed: false,
                         description: 'Filter which MIDI notes are displayed.',
                         properties: [
-                            prop.number('minNote', 'Min Note', 0, {
-                                min: 0,
+                            prop.number('minNote', 'Min Note', -1, {
+                                min: -1,
                                 max: 127,
                                 step: 1,
-                                description: 'Only display notes at or above this MIDI note number',
+                                description:
+                                    'Only display notes at or above this MIDI note number. -1 = auto-detect from the track.',
                             }),
-                            prop.number('maxNote', 'Max Note', 127, {
-                                min: 0,
+                            prop.number('maxNote', 'Max Note', -1, {
+                                min: -1,
                                 max: 127,
                                 step: 1,
-                                description: 'Only display notes at or below this MIDI note number',
+                                description:
+                                    'Only display notes at or below this MIDI note number. -1 = auto-detect from the track.',
                             }),
                         ],
                         presets: [
@@ -187,9 +189,34 @@ export class CollisionMidiDisplayElement extends SceneElement {
             labelFontFamily,
             labelFontSize,
             bounceDuration,
-            minNote,
-            maxNote,
         } = props;
+
+        // Resolve -1 (auto) to the track's actual note bounds from midiCache.
+        const timelineState = api.timeline.getStateSnapshot();
+        const rawMinNote = Math.floor(props.minNote as number);
+        const rawMaxNote = Math.floor(props.maxNote as number);
+        let minNote: number;
+        let maxNote: number;
+        if (rawMinNote === -1 || rawMaxNote === -1) {
+            const trackId = props.midiTrackId as string | undefined;
+            let autoMinNote = 0;
+            let autoMaxNote = 127;
+            if (trackId && timelineState) {
+                const track = timelineState.tracks[trackId];
+                const midiSourceId = (track as { midiSourceId?: string })?.midiSourceId;
+                const cacheKey = midiSourceId ?? trackId;
+                const bounds = (timelineState as any).midiCache?.[cacheKey]?.bounds;
+                if (bounds) {
+                    autoMinNote = bounds.minNote;
+                    autoMaxNote = bounds.maxNote;
+                }
+            }
+            minNote = rawMinNote === -1 ? autoMinNote : Math.max(0, Math.min(127, rawMinNote));
+            maxNote = rawMaxNote === -1 ? autoMaxNote : Math.max(0, Math.min(127, rawMaxNote));
+        } else {
+            minNote = Math.max(0, Math.min(127, rawMinNote));
+            maxNote = Math.max(0, Math.min(127, rawMaxNote));
+        }
 
         // Font pipeline — supports Google Fonts and custom assets via Family|weight token format
         const { family: fontFamily, weight: weightPart } = parseFontSelection(labelFontFamily ?? 'Inter');

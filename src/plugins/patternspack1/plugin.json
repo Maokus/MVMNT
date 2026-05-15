@@ -1,18 +1,18 @@
 {
-  "id": "patternspack1",
-  "name": "Patterns Pack 1",
-  "version": "1.0.1",
-  "apiVersion": "^1.0.0",
-  "description": "Custom plugin providing 2 elements",
-  "author": "Maokus",
-  "elements": [
-    {
-      "type": "checkers-pattern",
-      "entry": "checkers-pattern.ts"
-    },
-    {
-      "type": "particles-pattern",
-      "entry": "particles-pattern.ts"
-    }
-  ]
+    "id": "patternspack1",
+    "name": "Patterns Pack 1",
+    "version": "1.0.2",
+    "apiVersion": "^1.0.0",
+    "description": "Custom plugin providing 2 elements",
+    "author": "Maokus",
+    "elements": [
+        {
+            "type": "checkers-pattern",
+            "entry": "checkers-pattern.ts"
+        },
+        {
+            "type": "particles-pattern",
+            "entry": "particles-pattern.ts"
+        }
+    ]
 }

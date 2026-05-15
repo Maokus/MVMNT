@@ -39,14 +39,14 @@ export class TrackerlikeMidiDisplayElement extends SceneElement {
                         label: 'Layout',
                         collapsed: false,
                         properties: [
-                            prop.number('division', 'Division (rows per beat)', 1, {
+                            prop.number('division', 'Division (rows per beat)', 4, {
                                 min: 1,
                                 max: 32,
                                 step: 1,
                                 description: '1 = quarter notes, 2 = 8th, 4 = 16th, etc.',
                             }),
                             prop.number('rowCount', 'Rows per page', 8, { step: 1 }),
-                            prop.number('columns', 'Note columns', 1, {
+                            prop.number('columns', 'Note columns', 4, {
                                 min: 1,
                                 max: 8,
                                 step: 1,
