@@ -10,7 +10,7 @@ This directory implements the plugin host API and the public `@mvmnt/plugin-sdk`
 | `sdk/` | **Domain submodules.** Each file is independently importable via `@mvmnt/plugin-sdk/<domain>`. |
 | `sdk/animation.ts` | `clamp`, `lerp`, `invLerp`, `remap`, `FloatCurve`, `EasingFn`, `easings` (31 named functions). |
 | `sdk/render.ts` | All canvas render primitives (`Rectangle`, `Text`, `Arc`, `BezierPath`, …). |
-| `sdk/scene.ts` | `SceneElement`, property descriptors, `prop` factory, `insertElementGroups`. |
+| `sdk/scene.ts` | `SceneElement`, property descriptors, `prop` factory, `insertElementConfig`. |
 | `sdk/api.ts` | `PLUGIN_CAPABILITIES`, `getPluginHostApi`, error classes. |
 | `sdk/timeline.ts` | `timelineApi` proxy, timeline shortcuts, event types. |
 | `sdk/audio.ts` | `audioApi` proxy, audio shortcuts, feature types, `registerFeatureRequirements`. |

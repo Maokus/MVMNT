@@ -258,16 +258,16 @@ export function ticksToBeat(ticks: number): number {
     return api.timing.ticksToBeats(ticks);
 }
 
+const MIDI_NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
+
 /**
- * Get the name of a MIDI note (e.g., "C4", "A#3")
- * @returns Note name
+ * Get the name of a MIDI note (e.g., "C4", "A#3").
+ * Pure function — no host API or capability required.
  */
 export function noteName(noteNumber: number): string {
-    const { api } = getPluginHostApi();
-    if (!api) {
-        return 'C-1';
-    }
-    return api.utilities.midiNoteToName(noteNumber);
+    const name = MIDI_NOTE_NAMES[noteNumber % 12];
+    const octave = Math.floor(noteNumber / 12) - 1;
+    return `${name}${octave}`;
 }
 
 /**

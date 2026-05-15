@@ -6,7 +6,7 @@ import {
     type EnhancedConfigSchema,
     type SceneElementInterface,
     prop,
-    insertElementGroups,
+    insertElementConfig,
     parseFontSelection,
     ensureFontLoaded,
     propGroup,
@@ -44,7 +44,7 @@ export class ProgressDisplayElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Progress Display',

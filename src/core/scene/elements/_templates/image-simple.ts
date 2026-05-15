@@ -4,7 +4,7 @@
 import {
     SceneElement,
     prop,
-    insertElementGroups,
+    insertElementConfig,
     tab,
     VisualMediaPlayback,
     resolveProjectAssetDescriptor,
@@ -25,7 +25,7 @@ export class SimpleImageElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Simple Image',

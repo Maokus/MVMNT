@@ -4,7 +4,7 @@ import {
     getPluginHostApi,
     PLUGIN_CAPABILITIES,
     prop,
-    insertElementGroups,
+    insertElementConfig,
     tab,
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
@@ -16,7 +16,7 @@ export class TrackerlikeMidiDisplayElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Trackerlike Midi Display',

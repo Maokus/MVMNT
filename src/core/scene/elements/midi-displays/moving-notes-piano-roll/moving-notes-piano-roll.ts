@@ -7,7 +7,7 @@ import { normalizeColorAlphaValue, ensureEightDigitHex, applyOpacity } from '@ut
 import { MovingNotesAnimationController } from './animation-controller';
 import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { TimingManager } from '@core/timing';
-import { insertElementGroups, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { insertElementConfig, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 const DEFAULT_NOTE_COLOR = '#FF6B6B';
@@ -58,7 +58,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
             })
         );
 
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Moving Notes Piano Roll',

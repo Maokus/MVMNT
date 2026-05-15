@@ -4,7 +4,7 @@
 import {
     SceneElement,
     type EnhancedConfigSchema,
-    insertElementGroups,
+    insertElementConfig,
     prop,
     VisualMediaPlayback,
     propGroup,
@@ -26,7 +26,7 @@ export class ImageElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Image',

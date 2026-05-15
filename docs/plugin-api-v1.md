@@ -59,7 +59,7 @@ import { noteName, loadBundledAsset } from '@mvmnt/plugin-sdk/utils';
 | ----------- | ---------------------------------------------------------------------------------------------------- |
 | `animation` | `clamp`, `lerp`, `invLerp`, `remap`, `FloatCurve`, `EasingFn`, `easings` (31 named easing functions) |
 | `render`    | `Rectangle`, `Text`, `Line`, `Image`, `Arc`, `BezierPath`, `Poly`, `GlowLayer`, `CompositeLayer`, …  |
-| `scene`     | `SceneElement`, property descriptors, `prop` factory, `insertElementGroups`, config schema types     |
+| `scene`     | `SceneElement`, property descriptors, `prop` factory, `insertElementConfig`, config schema types     |
 | `api`       | `PLUGIN_CAPABILITIES`, `getPluginHostApi`, `PluginApiError`, `MissingCapabilityError`, …             |
 | `timeline`  | `timelineApi`, `selectNotes`, `selectAllNotes`, `getMidiTracks`, `TimelineNoteEvent`, …              |
 | `audio`     | `audioApi`, `sampleAudio`, `registerFeatureRequirements`, `FeatureDataResult`, …                     |
@@ -75,9 +75,8 @@ Exported constants:
 - `PLUGIN_CAPABILITIES.audioFeaturesRead` → `audio.features.read`
 - `PLUGIN_CAPABILITIES.audioRawRead` → `audio.raw.read`
 - `PLUGIN_CAPABILITIES.timingConversion` → `timing.conversion`
-- `PLUGIN_CAPABILITIES.midiUtils` → `midi.utils`
 
-`timingConversion` and `midiUtils` are always available. `timelineRead`, `audioFeaturesRead`, and `audioRawRead` are conditionally available depending on host resources.
+`timingConversion` is always available. `timelineRead`, `audioFeaturesRead`, and `audioRawRead` _should_ be available depending on host resources.
 
 ## Access Patterns
 
@@ -103,10 +102,7 @@ The default pattern returns a resolution object for explicit status handling:
 ```ts
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
-const { api, status, missingCapabilities } = getPluginHostApi([
-    PLUGIN_CAPABILITIES.timelineRead,
-    PLUGIN_CAPABILITIES.midiUtils,
-]);
+const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
 
 if (!api || status !== 'ok') {
     const message =
@@ -168,12 +164,11 @@ Available exception classes (all extend `PluginApiError`):
 Import specific API domains directly. These throw `MissingCapabilityError` if the capability is unavailable:
 
 ```ts
-import { timelineApi, audioApi, timingApi, utilitiesApi } from '@mvmnt/plugin-sdk';
+import { timelineApi, audioApi, timingApi } from '@mvmnt/plugin-sdk';
 
 const notes = timelineApi.selectNotesInWindow({...});
 const rms = audioApi.sampleFeatureAtTime({...});
 const beats = timingApi.secondsToBeats(10);
-const name = utilitiesApi.midiNoteToName(60);
 ```
 
 ### Shorthand Helpers
@@ -305,12 +300,20 @@ const beats = api.timing.secondsToBeats(targetTime) ?? 0;
 
 ### `utilities`
 
-Requires `midi.utils` capability (always available).
+MIDI note name utilities are available as plain SDK imports — no capability declaration required.
 
 - `midiNoteToName(noteNumber): string`
 
 ```ts
 const label = api.utilities.midiNoteToName(60); // C4
+```
+
+Or use the shorthand directly:
+
+```ts
+import { noteName } from '@mvmnt/plugin-sdk';
+
+const label = noteName(60); // 'C4'
 ```
 
 ## SDK Utilities
@@ -347,15 +350,15 @@ const curve = new FloatCurve([
 const scale = curve.valAt(progress);
 ```
 
-### Property factories (`prop`, `tab`, `section`, `propGroup`, `insertElementGroups`)
+### Property factories (`prop`, `tab`, `section`, `propGroup`, `insertElementConfig`)
 
 See [Creating Custom Elements — Property Factory Helpers](creating-custom-elements.md#configuration-schema) for the full reference. Summary:
 
 ```ts
-import { prop, tab, section, propGroup, insertElementGroups } from '@mvmnt/plugin-sdk';
+import { prop, tab, section, propGroup, insertElementConfig } from '@mvmnt/plugin-sdk';
 ```
 
-`prop.*` factories build complete `PropertyDefinition` objects with the correct `runtime` transform pre-filled. `section.*` and `propGroup.*` build reusable property groups. `tab.*` groups those groups into the inspector tabs. `insertElementGroups` prepends the base Transform tab and appends your element-specific tabs without boilerplate.
+`prop.*` factories build complete `PropertyDefinition` objects with the correct `runtime` transform pre-filled. `section.*` and `propGroup.*` build reusable property groups. `tab.*` groups those groups into the inspector tabs. `insertElementConfig` prepends the base Transform tab and appends your element-specific tabs without boilerplate.
 
 ### Asset loading (`loadBundledAsset`)
 
@@ -366,11 +369,9 @@ const url = await loadBundledAsset('assets/logo.png');
 // url is a blob: URL valid for the lifetime of the plugin
 ```
 
-In production bundles, `loadBundledAsset('path')` resolves a path from the plugin's `assets/` directory to a blob URL. In Vite dev mode, import assets directly instead:
+In production bundles, `loadBundledAsset('path')` resolves a path from the plugin's `assets/` directory to a blob URL.
 
-```ts
-import logoUrl from './assets/logo.png?url';
-```
+Typically, when developing scene elements, you would use `this.bundledImage('path')` which returns a `BundledSprite` and handles lots of annoying lifecycle management. See more in [Visual Asset Registry](./visual-asset-registry.md).
 
 ### Types
 
@@ -401,8 +402,8 @@ The map shape matches the keys of `PLUGIN_CAPABILITIES`:
 {
     timelineRead: boolean;
     audioFeaturesRead: boolean;
+    audioRawRead: boolean;
     timingConversion: boolean;
-    midiUtils: boolean;
 }
 ```
 

@@ -3,7 +3,7 @@ import {
     asNumber,
     asTrimmedString,
     type EnhancedConfigSchema,
-    insertElementGroups,
+    insertElementConfig,
     tab,
 } from '@mvmnt/plugin-sdk';
 import { Rectangle, Text, type RenderObject } from '@mvmnt/plugin-sdk/render';
@@ -14,7 +14,7 @@ export class MissingPluginElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Missing Plugin Placeholder',

@@ -8,7 +8,7 @@ import {
     parseFontSelection,
     ensureFontLoaded,
     prop,
-    insertElementGroups,
+    insertElementConfig,
     tab,
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
@@ -37,7 +37,7 @@ export class CollisionMidiDisplayElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Collision Midi Display',

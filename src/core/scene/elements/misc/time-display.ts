@@ -3,7 +3,7 @@ import {
     SceneElement,
     type EnhancedConfigSchema,
     prop,
-    insertElementGroups,
+    insertElementConfig,
     ensureFontLoaded,
     parseFontSelection,
     getRequiredPluginApi,
@@ -39,7 +39,7 @@ export class TimeDisplayElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Time Display',

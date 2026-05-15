@@ -11,7 +11,7 @@ import {
     type FeatureDataResult,
     type RequiredPluginApiResult,
 } from '@mvmnt/plugin-sdk';
-import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 const { descriptor: PEAKS_DESCRIPTOR } = createFeatureDescriptor({ feature: 'peaks' });
@@ -155,7 +155,7 @@ export class AudioPeaksElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Audio Peaks',

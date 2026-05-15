@@ -3,7 +3,7 @@
 import {
     SceneElement,
     prop,
-    insertElementGroups,
+    insertElementConfig,
     tab,
     Text,
     Rectangle,
@@ -19,7 +19,7 @@ export class TextDisplayElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Text Display',

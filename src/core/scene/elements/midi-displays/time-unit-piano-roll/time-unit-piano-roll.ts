@@ -10,7 +10,7 @@ import { TimingManager } from '@core/timing/timing-manager';
 import { getRequiredPluginApi, PLUGIN_CAPABILITIES, noteName } from '@mvmnt/plugin-sdk';
 import { debugLog } from '@utils/debug-log';
 import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
-import { insertElementGroups, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { insertElementConfig, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 const DEFAULT_ROLL_WIDTH = 800;
@@ -62,7 +62,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             })
         );
 
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Time Unit Piano Roll',

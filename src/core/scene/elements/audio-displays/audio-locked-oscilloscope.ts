@@ -5,7 +5,7 @@ import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { applyOpacity } from '@utils/color';
 import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
-import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 const { descriptor: PITCH_GUIDE_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchGuide' });
@@ -82,7 +82,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Audio Locked Oscilloscope',

@@ -1,7 +1,7 @@
 import {
     SceneElement,
     prop,
-    insertElementGroups,
+    insertElementConfig,
     tab,
     Rectangle,
     ClipLayer,
@@ -15,7 +15,7 @@ export class CheckersPatternElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Checkers Pattern',

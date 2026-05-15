@@ -77,7 +77,7 @@ All templates follow these patterns:
 1. **Class naming** — `{Name}Element extends SceneElement`
 2. **Constructor** — accepts `id` and `config` parameters
 3. **Type identifier** — kebab-case string passed to `super()`
-4. **Schema** — `insertElementGroups(super.getConfigSchema(), metadata, tabs)` with groups wrapped in `tab.properties`, `tab.content`, `tab.appearance`, or another tab helper
+4. **Schema** — `insertElementConfig(super.getConfigSchema(), metadata, tabs)` with groups wrapped in `tab.properties`, `tab.content`, `tab.appearance`, or another tab helper
 5. **Render method** — `_buildRenderObjects()` returns `RenderObject[]`
 6. **Handles** — use `this.visualHandle()`, `this.bundledSprite()`, etc. (not `new VisualResourceHandle()`)
 

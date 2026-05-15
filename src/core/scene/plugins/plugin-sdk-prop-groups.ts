@@ -65,10 +65,10 @@ interface BorderOpts {
 
 /**
  * Pre-built `PropertyGroup` factories for common design-system prop sets.
- * Each function returns a `PropertyGroup` ready to pass to `insertElementGroups`.
+ * Each function returns a `PropertyGroup` ready to pass to `insertElementConfig`.
  *
  * @example
- * return insertElementGroups(super.getConfigSchema(), { name: 'My Element' }, [
+ * return insertElementConfig(super.getConfigSchema(), { name: 'My Element' }, [
  *   propGroup.appearance({ blendMode: true }),
  *   propGroup.typography(),
  *   propGroup.shadow(),
@@ -343,7 +343,7 @@ export function colorSlotProps(
  * element-specific properties.
  *
  * @example
- * return insertElementGroups(super.getConfigSchema(), { name: 'My Element' }, [
+ * return insertElementConfig(super.getConfigSchema(), { name: 'My Element' }, [
  *   propGroup.audioSource(),
  *   section.content([
  *     prop.boolean('showTitle', 'Show Title', true),
@@ -417,11 +417,11 @@ export const section = {
 /**
  * Factory helpers for building `PropertyTab` objects.
  *
- * Use these to group `PropertyGroup[]` arrays into named tabs for `insertElementGroups`.
- * The Transform tab is always prepended by `insertElementGroups` — do not create it here.
+ * Use these to group `PropertyGroup[]` arrays into named tabs for `insertElementConfig`.
+ * The Transform tab is always prepended by `insertElementConfig` — do not create it here.
  *
  * @example
- * return insertElementGroups(super.getConfigSchema(), { name: 'Audio Spectrum' }, [
+ * return insertElementConfig(super.getConfigSchema(), { name: 'Audio Spectrum' }, [
  *   tab.content([propGroup.audioSource(), section.content([...])]),
  *   tab.appearance([section.appearance([...])]),
  * ]);

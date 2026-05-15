@@ -4,7 +4,7 @@ Use these rules when defining `getConfigSchema()` so inspector properties stay c
 
 ## Tabs
 
-Use `tab.*` from `plugin-sdk-prop-groups`. Do **not** create the Transform tab; `insertElementGroups` adds it automatically.
+Use `tab.*` from `plugin-sdk-prop-groups`. Do **not** create the Transform tab; `insertElementConfig` adds it automatically.
 
 - `tab.content()` — source, data, behaviour, general settings
 - `tab.appearance()` — colors, opacity, blend modes, typography, background, borders

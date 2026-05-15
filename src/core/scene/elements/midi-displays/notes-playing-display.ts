@@ -5,7 +5,7 @@ import { RenderObject, Text, Rectangle } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
-import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 import { applyOpacity } from '@utils/color';
 
@@ -15,7 +15,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Notes Playing Display',

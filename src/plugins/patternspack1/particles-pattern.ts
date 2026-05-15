@@ -1,4 +1,4 @@
-import { SceneElement, prop, insertElementGroups, tab, Rectangle, Arc, type RenderObject } from '@mvmnt/plugin-sdk';
+import { SceneElement, prop, insertElementConfig, tab, Rectangle, Arc, type RenderObject } from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 function seededRandom(seed: number): number {
@@ -17,7 +17,7 @@ export class ParticlesPatternElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Particles Pattern',

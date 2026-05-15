@@ -87,9 +87,8 @@ export type VisualMediaOptions = {
      * - `'cover'`   Scale to fill the box, preserving aspect. Overflowing pixels clipped.
      * - `'fill'`    Stretch to fill (distorts non-square images).
      * - `'clip'`    Native pixel size (1:1, no scaling). Use `framePlacement` to position.
-     * - `'none'`    @deprecated Alias for `'clip'`.
      */
-    fitMode?: 'contain' | 'cover' | 'fill' | 'clip' | 'none';
+    fitMode?: 'contain' | 'cover' | 'fill' | 'clip';
     preserveAspectRatio?: boolean;
     /** @deprecated Use `layoutBoundsMode: 'none'` instead. */
     includeInLayoutBounds?: boolean;
@@ -154,7 +153,6 @@ export type VisualMediaOptions = {
  * | 'clip'    | Draw at native pixel size (1:1, no scaling). Frame position inside the     |
  * |           | box is controlled by setFramePlacement (default: 'center'). The image      |
  * |           | is clipped to container edges if it overflows. Bounds = drawn region.      |
- * | 'none'    | @deprecated Alias for 'clip'.                                              |
  *
  * ## Key APIs
  *
@@ -166,7 +164,7 @@ export type VisualMediaOptions = {
 export class VisualMedia extends RenderObject {
     width: number;
     height: number;
-    fitMode: 'contain' | 'cover' | 'fill' | 'clip' | 'none';
+    fitMode: 'contain' | 'cover' | 'fill' | 'clip';
     preserveAspectRatio: boolean;
     /**
      * When true (or when `config.showDebug` is set), draws a debug overlay showing:
@@ -286,7 +284,7 @@ export class VisualMedia extends RenderObject {
         return this;
     }
 
-    setFitMode(mode: 'contain' | 'cover' | 'fill' | 'clip' | 'none'): this {
+    setFitMode(mode: 'contain' | 'cover' | 'fill' | 'clip'): this {
         this.fitMode = mode;
         return this;
     }
@@ -469,7 +467,7 @@ export class VisualMedia extends RenderObject {
                 scaleY: imgHeight > 0 ? drawHeight / imgHeight : 1,
             };
         } else {
-            // 'clip' (and deprecated 'none'): draw at native pixel size (1:1 scale).
+            // 'clip': draw at native pixel size (1:1 scale).
             // Place the frame using framePlacement (stored as content/frame anchor pairs):
             //   baseX = contentAnchorX * containerW − frameAnchorX * frameW
             // Canvas clipping (applied in _renderSelf) handles overflow.
@@ -565,9 +563,9 @@ export class VisualMedia extends RenderObject {
         const destX = baseX + trimX;
         const destY = baseY + trimY;
 
-        // 'cover' clips overflow; 'clip'/'none' clips because the frame origin can
+        // 'cover' clips overflow; 'clip' clips because the frame origin can
         // be negative when framePlacement places the frame partially outside the box.
-        const needsClip = this.fitMode === 'cover' || this.fitMode === 'clip' || this.fitMode === 'none';
+        const needsClip = this.fitMode === 'cover' || this.fitMode === 'clip';
         if (needsClip) {
             ctx.save();
             ctx.beginPath();
@@ -632,8 +630,8 @@ export class VisualMedia extends RenderObject {
         ctx.strokeRect(0.5, 0.5, this.width - 1, this.height - 1);
 
         if (params) {
-            // Full unclipped frame rect ('clip'/'none' mode, may extend outside container)
-            const isClipMode = this.fitMode === 'clip' || this.fitMode === 'none';
+            // Full unclipped frame rect ('clip' mode, may extend outside container)
+            const isClipMode = this.fitMode === 'clip';
             if (isClipMode && imgW !== undefined && imgH !== undefined) {
                 ctx.strokeStyle = 'rgba(180,100,255,0.6)';
                 ctx.lineWidth = 1;
@@ -715,7 +713,7 @@ export class VisualMedia extends RenderObject {
             return this._computeTransformedRectBounds(0, 0, this.width, this.height);
         }
 
-        // For 'contain' and 'clip'/'none', bounds track the actual drawn region, which
+        // For 'contain' and 'clip', bounds track the actual drawn region, which
         // depends on the image dimensions. Compute on demand from current state.
         const { imgW, imgH } = this.#currentImageDimensions();
         if (imgW && imgH) {

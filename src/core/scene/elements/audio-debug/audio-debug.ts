@@ -6,7 +6,7 @@ import { getFeatureData, type FeatureDataResult } from '@audio/features/sceneApi
 import type { ChannelLayoutMeta } from '@audio/features/audioFeatureTypes';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
 import { normalizeColorAlphaValue } from '../../../../utils/color';
-import { insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 interface FeatureOption {
@@ -309,7 +309,7 @@ export class AudioDebugElement extends SceneElement {
     static override getConfigSchema(): EnhancedConfigSchema {
         const featureOptions = resolveFeatureOptions();
         const defaultFeature = featureOptions[0]?.value ?? null;
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Audio Debug',

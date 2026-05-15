@@ -1,4 +1,4 @@
-import { SceneElement, type EnhancedConfigSchema, prop, insertElementGroups, propGroup, tab } from '@mvmnt/plugin-sdk';
+import { SceneElement, type EnhancedConfigSchema, prop, insertElementConfig, propGroup, tab } from '@mvmnt/plugin-sdk';
 import { Arc, Line, Poly, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import { applyOpacity } from '@utils/color';
 
@@ -18,7 +18,7 @@ export class BasicShapesElement extends SceneElement {
             return p;
         });
 
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Basic Shapes',

@@ -3,7 +3,7 @@
 _Last reviewed: May 2026_
 
 This guide walks through creating a scene element that uses a custom audio feature calculator —
-one that computes something the built-in spectrogram/RMS/waveform calculators don't provide.
+one that computes something the built-in calculators don't provide.
 
 By the end you will have:
 

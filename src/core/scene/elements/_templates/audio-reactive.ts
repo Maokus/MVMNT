@@ -3,7 +3,7 @@
 import {
     SceneElement,
     prop,
-    insertElementGroups,
+    insertElementConfig,
     tab,
     Rectangle,
     getRequiredPluginApi,
@@ -24,7 +24,7 @@ export class AudioReactiveElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Audio Reactive',

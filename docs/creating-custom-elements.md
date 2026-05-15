@@ -8,10 +8,10 @@ This guide explains how to create custom scene elements for MVMNT using the plug
 
 - [Overview](#overview)
 - [Public Plugin API (Required)](#public-plugin-api-required)
-- [Getting Started](#getting-started)
-- [Minimal Example Plugin](#minimal-example-plugin)
 - [Plugin Manifest Reference](#plugin-manifest-reference)
 - [Element API](#element-api)
+- [Reading MIDI and Audio Data](#reading-midi-and-audio-data)
+- [Layout Calculation](#layout-calculation)
 - [Common Bindings](#common-bindings)
 - [Categories and Organization](#categories-and-organization)
 - [Testing and Debugging](#testing-and-debugging)
@@ -21,7 +21,7 @@ This guide explains how to create custom scene elements for MVMNT using the plug
 
 ## Overview
 
-Custom elements extend MVMNT's visualization capabilities by providing new types of visual objects that can be added to scenes. Elements can react to audio, MIDI, or other data sources.
+Custom elements extend MVMNT's visualization capabilities by providing new types of visual elements that can be added to scenes. Elements can react to audio, MIDI, or other data sources.
 
 Key concepts:
 
@@ -36,109 +36,11 @@ Plugin-facing element code must use the stable host API from `@mvmnt/plugin-sdk`
 
 Do not import host internals (`@state/*`, `@selectors/*`, `@audio/features/sceneApi`) from plugin/template code.
 
-Use:
-
-- `getPluginHostApi(requiredCapabilities?)`
-- `PLUGIN_CAPABILITIES`
-
-See:
-
-- [Plugin API v1](plugin-api-v1.md)
+Use `getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead,...])` as documented in [Plugin API v1](plugin-api-v1.md).
 
 ## Getting Started
 
-Prerequisites:
-
-- Node.js 18+ installed
-- MVMNT development environment set up
-- Basic understanding of TypeScript and MVMNT's scene system
-
-### Quick Start
-
-1. **Create a new element** using the scaffold script:
-
-    ```bash
-    npm run create-element
-    ```
-
-2. **Follow the prompts** to specify element name, type, and category
-
-3. **Edit the generated file** in `src/plugins/{pluginName}/{elementType}.ts`
-
-4. **Test locally** - the element will automatically appear in the element picker
-
-5. **Build for distribution** (Phase 2):
-    ```bash
-    npm run build-plugin -- --plugin {pluginName}
-    ```
-
-## Minimal Example Plugin
-
-Here's a complete minimal plugin that renders a colored rectangle:
-
-```typescript
-// src/plugins/my-plugin/simple-box.ts
-import { SceneElement, prop, insertElementGroups, tab, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk';
-import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
-
-export class SimpleBoxElement extends SceneElement {
-    constructor(id: string = 'simpleBox', config: Record<string, unknown> = {}) {
-        super('simple-box', id, config);
-    }
-
-    static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
-            super.getConfigSchema(),
-            {
-                name: 'Simple Box',
-                description: 'A colored rectangle element',
-                category: 'Custom',
-            },
-            [
-                tab.properties([
-                    {
-                        id: 'boxAppearance',
-                        label: 'Box Appearance',
-                        collapsed: false,
-                        properties: [
-                            prop.number('boxWidth', 'Box Width', 100, { min: 10, max: 1000, step: 1 }),
-                            prop.number('boxHeight', 'Box Height', 100, { min: 10, max: 1000, step: 1 }),
-                            prop.colorAlpha('boxColor', 'Box Color', '#3B82F6FF'),
-                        ],
-                    },
-                ]),
-            ]
-        );
-    }
-
-    protected override _buildRenderObjects(_config: unknown, _targetTime: number): RenderObject[] {
-        const props = this.getSchemaProps();
-
-        if (!props.visible) return [];
-
-        return [new Rectangle(0, 0, props.boxWidth, props.boxHeight, props.boxColor)];
-    }
-}
-```
-
-**Corresponding plugin.json:**
-
-```json
-{
-    "id": "com.example.my-plugin",
-    "name": "My Plugin",
-    "version": "1.0.0",
-    "apiVersion": "^1.0.0",
-    "description": "Example custom elements",
-    "author": "Your Name",
-    "elements": [
-        {
-            "type": "simple-box",
-            "entry": "simple-box.ts"
-        }
-    ]
-}
-```
+See [Plugin Quickstart](./plugin-quickstart.md).
 
 ## Plugin Manifest Reference
 
@@ -161,24 +63,13 @@ See [plugin-manifest.schema.json](plugin-manifest.schema.json) for the complete 
 - `homepage`: Plugin homepage or repository URL
 - `license`: Plugin license identifier
 - `peerDependencies`: Other plugins required by this plugin
-- `assets`: Asset paths included in the bundle
 
 ### Element Definition Fields
 
 Each element in the `elements` array requires:
 
 - `type`: Unique element type identifier (kebab-case, e.g., `my-element`)
-- `name`: Display name for UI
-- `category`: One of: `shapes`, `effects`, `text`, `particles`, `audio-reactive`, `midi`, `utility`, `custom`
 - `entry`: Path to element TypeScript/JavaScript file
-
-Optional element fields:
-
-- `description`: Element description
-- `icon`: Path to icon asset
-- `thumbnail`: Path to thumbnail asset
-- `capabilities`: Required capabilities (`audio-analysis`, `midi-events`, `network`, `storage`)
-- `tags`: Searchable tags
 
 ## Element API
 
@@ -249,13 +140,13 @@ static override getConfigSchema(): EnhancedConfigSchema {
 
 **Property Factory Helpers (Recommended):**
 
-`@mvmnt/plugin-sdk` exports `prop`, `tab`, `section`, `propGroup`, and `insertElementGroups`. These reduce boilerplate by pre-filling the `runtime` transform, keeping the base Transform tab, and grouping your element settings into property-panel tabs:
+`@mvmnt/plugin-sdk` exports `prop`, `tab`, `section`, `propGroup`, and `insertElementConfig`. These reduce boilerplate by pre-filling the `runtime` transform, keeping the base Transform tab, and grouping your element settings into property-panel tabs:
 
 ```typescript
-import { prop, insertElementGroups, tab, section } from '@mvmnt/plugin-sdk';
+import { prop, insertElementConfig, tab, section } from '@mvmnt/plugin-sdk';
 
 static override getConfigSchema(): EnhancedConfigSchema {
-    return insertElementGroups(super.getConfigSchema(), {
+    return insertElementConfig(super.getConfigSchema(), {
         name: 'My Element',
         description: 'Element description',
         category: 'Custom',
@@ -281,7 +172,7 @@ static override getConfigSchema(): EnhancedConfigSchema {
 }
 ```
 
-`insertElementGroups(base, overrides, pluginTabs)` prepends the base Transform tab automatically. For simple elements, use `tab.properties([...groups])`; for larger elements, split groups into `tab.content`, `tab.appearance`, `tab.grid`, `tab.animation`, `tab.advanced`, or `tab.custom(id, label, groups)`.
+`insertElementConfig(base, overrides, pluginTabs)` prepends the base Transform tab automatically. For simple elements, use `tab.properties([...groups])`; for larger elements, split groups into `tab.content`, `tab.appearance`, `tab.grid`, `tab.animation`, `tab.advanced`, or `tab.custom(id, label, groups)`.
 
 Available `prop.*` factories:
 
@@ -416,16 +307,19 @@ protected override _subscribeToRequiredFeatures(): void {
 }
 ```
 
-## Common Bindings
+## Reading MIDI and Audio Data
 
-Elements can bind properties to various data sources for dynamic behavior.
+Elements can read various data from the system to visualize. Read the [Plugin API](./plugin-api-v1.md) for a full list of what can be accessed and how to access it.
 
-### Audio Analysis Bindings
+### Audio Analysis
 
-Example: Creating an audio-reactive element
+Use `getRequiredPluginApi` (recommended) for a clean discriminated-union guard:
 
 ```typescript
-import { getPluginHostApi, PLUGIN_CAPABILITIES, Arc } from '@mvmnt/plugin-sdk';
+import { getRequiredPluginApi, PLUGIN_CAPABILITIES, registerFeatureRequirements, Arc } from '@mvmnt/plugin-sdk';
+
+// Pre-warm the audio cache — call at module scope or in the constructor.
+registerFeatureRequirements('myAudioElement', [{ feature: 'spectrogram' }]);
 
 const REQUIRED_CAPS = [PLUGIN_CAPABILITIES.audioFeaturesRead] as const;
 
@@ -433,72 +327,94 @@ export class MyAudioElement extends SceneElement {
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
 
-        const { api, status, missingCapabilities } = getPluginHostApi([...REQUIRED_CAPS]);
-        if (!api || status !== 'ok') {
-            const message =
-                status === 'unsupported-version'
-                    ? 'Plugin API version unsupported'
-                    : missingCapabilities.includes(PLUGIN_CAPABILITIES.audioFeaturesRead)
-                      ? 'Audio API unavailable (requires audio.features.read)'
-                      : 'Plugin host API unavailable';
-            return [new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top')];
-        }
+        const host = getRequiredPluginApi(this, [...REQUIRED_CAPS]);
+        if (!host.ok) return host.renderFallback();
 
-        const rmsData = api.audio.sampleFeatureAtTime({
+        const sample = host.api.audio.sampleFeatureAtTime({
             element: this,
             trackId: props.audioTrackId,
-            feature: 'rms',
+            feature: 'spectrogram',
             time: targetTime,
-            samplingOptions: { smoothing: props.smoothing },
         });
-        const volume = rmsData?.values?.[0] ?? 0;
+        const magnitude = sample?.values?.[0] ?? 0;
 
-        // Use volume to drive visualization
-        const size = 50 + volume * 200;
-
+        const size = 50 + magnitude * 200;
         return [new Arc(0, 0, size, 0, Math.PI * 2, false, { fillColor: props.color })];
     }
 }
 ```
 
-**Available Audio Features:**
+**Available built-in audio features:**
 
-- `rms`: Root mean square (volume)
-- `spectrum`: Frequency spectrum
-- `waveform`: Time-domain waveform
-- `beat`: Beat detection
-- `onset`: Onset detection
+| Feature key     | Description                                           |
+| --------------- | ----------------------------------------------------- |
+| `spectrogram`   | Frequency-domain magnitude spectrum (FFT bins)        |
+| `waveform`      | Time-domain waveform samples                          |
+| `peaks`         | Per-frame peak amplitude                              |
+| `pitchGuide`    | Detected pitch, confidence, and RMS per frame         |
+| `pitchWaveform` | Pitch-aligned waveform for oscilloscope-style display |
+
+Custom calculators can add new feature keys. See the [Custom Calculator Quickstart](./audio-features/custom-calculator-quickstart.md) to define and register your own.
+
+### Reading Raw Audio (PCM)
+
+For sample-accurate time windows (e.g. oscilloscopes), use the `audioRawRead` capability instead of feature sampling:
+
+```typescript
+import { getRequiredPluginApi, PLUGIN_CAPABILITIES, Line } from '@mvmnt/plugin-sdk';
+
+export class OscilloscopeElement extends SceneElement {
+    protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
+        const props = this.getSchemaProps();
+
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioRawRead]);
+        if (!host.ok) return host.renderFallback();
+
+        const windowSec = 0.02; // 20 ms window
+        const samples = host.api.audioRaw.getRawSamples({
+            trackId: props.audioTrackId,
+            startSec: targetTime - windowSec / 2,
+            endSec: targetTime + windowSec / 2,
+            channel: 'mono',
+        });
+        if (!samples) return [];
+
+        const w = 400,
+            h = 100;
+        const objects: RenderObject[] = [];
+        for (let i = 1; i < samples.length; i++) {
+            const x1 = ((i - 1) / samples.length) * w;
+            const x2 = (i / samples.length) * w;
+            const y1 = h / 2 - samples[i - 1]! * (h / 2);
+            const y2 = h / 2 - samples[i]! * (h / 2);
+            objects.push(new Line(x1, y1, x2, y2, props.color, 1));
+        }
+        return objects;
+    }
+}
+```
+
+`getRawSamples` returns `null` if the window exceeds `MAX_RAW_SAMPLES` (8192 samples). For longer windows, use `sampleFeatureRange` with feature `'waveform'` instead.
 
 ### MIDI Event Bindings
 
-Example: Responding to MIDI notes
-
 ```typescript
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { getRequiredPluginApi, PLUGIN_CAPABILITIES, Rectangle } from '@mvmnt/plugin-sdk';
 
 protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
     const props = this.getSchemaProps();
-
     if (!props.midiTrackId) return [];
 
-    const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
-    if (!api || status !== 'ok') {
-        const message = status === 'unsupported-version'
-            ? 'Plugin API version unsupported'
-            : missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
-                ? 'Timeline API unavailable (requires timeline.read)'
-                : 'Plugin host API unavailable';
-        return [new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top')];
-    }
+    const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
+    if (!host.ok) return host.renderFallback();
 
     const EPS = 1e-3;
-    const activeNotes = api.timeline.selectNotesInWindow({
+    const activeNotes = host.api.timeline.selectNotesInWindow({
         trackIds: [props.midiTrackId],
         startSec: targetTime - EPS,
         endSec: targetTime + EPS,
     });
 
-    // Render based on active notes
     return activeNotes.map((note, i) => {
         const y = (128 - note.note) * 5;
         return new Rectangle(i * 20, y, 18, 4, props.noteColor);
@@ -521,6 +437,43 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
     return [new Arc(0, 0, size, 0, Math.PI * 2, false, { fillColor: props.color })];
 }
 ```
+
+### Layout Calculation
+
+The renderer uses each element's **layout bounds** to automatically size and position elements — for example, to fit an element to its parent container or to align a group.
+
+By default, every render object contributes to layout bounds. For elements with many render objects (notes, bars, particles), this causes the bounds to cover the full visual extent each frame, which may not be what you want.
+
+**Preferred pattern: a single transparent layout rectangle.**
+
+Declare one invisible `Rectangle` at a fixed, predictable size as the element's layout anchor. Set `includeInLayoutBounds: false` (or `layoutBoundsMode: 'none'`) on all other render objects so they don't contribute:
+
+```typescript
+import { Rectangle, VisualMedia } from '@mvmnt/plugin-sdk/render';
+
+protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
+    const props = this.getSchemaProps();
+    const W = 400, H = 200;
+
+    // ── Layout anchor ──────────────────────────────────────────────────────────
+    // A single transparent rectangle defines the element's layout bounds.
+    // All other render objects opt out of bounds calculation.
+    const layoutRect = new Rectangle(0, 0, W, H, '#00000000');
+
+    // ── Visual content ────────────────────────────────────────────────────────
+    const bars: Rectangle[] = [];
+    for (let i = 0; i < 32; i++) {
+        const h = Math.random() * H;
+        const bar = new Rectangle(i * (W / 32), H - h, W / 32 - 2, h, props.color);
+        bar.includeInLayoutBounds = false; // opt out
+        bars.push(bar);
+    }
+
+    return [layoutRect, ...bars];
+}
+```
+
+This keeps layout stable and predictable regardless of how many render objects you generate per frame. For `VisualMedia`, use `layoutBoundsMode: 'none'` in the constructor options instead of `includeInLayoutBounds = false`.
 
 ### Custom Bindings
 
@@ -558,16 +511,7 @@ import { asNumber, asBoolean, asTrimmedString } from '@mvmnt/plugin-sdk';
 
 ## Categories and Organization
 
-Elements are organized into categories in the UI. Available categories:
-
-- `shapes`: Basic geometric shapes
-- `effects`: Visual effects and filters
-- `text`: Text rendering elements
-- `particles`: Particle systems
-- `audio-reactive`: Audio-driven visualizations
-- `midi`: MIDI-driven elements
-- `utility`: Helper/utility elements
-- `custom`: Uncategorized custom elements
+Elements are organized into categories (like `midi`, `misc`, etc) in the UI. For plugin elements, the category is overwritten at plugin load time to the plugin name.
 
 ## Testing and Debugging
 
@@ -580,15 +524,9 @@ Custom elements in the `src/plugins/` directory are automatically loaded during 
 3. **Open app** and add your element to a scene
 4. **Edit code** - changes hot-reload automatically
 
-### Developer Overlay
-
-Enable the developer overlay to inspect element properties:
-
-1. Press **Ctrl+Shift+D** (or **Cmd+Shift+D** on Mac)
-2. Select an element in the scene
-3. View live property values and render stats
-
 ### Debugging Tips
+
+Console logging works but because we're building render objects every frame, it might get messy quick. I'd recommend just using your builtin browser debugger!
 
 **Console Logging:**
 
@@ -726,26 +664,28 @@ The build process enforces several validation rules:
 **Manifest Validation:**
 
 - Required fields must be present (`id`, `name`, `version`, `apiVersion`, `elements`)
-- Plugin ID must be lowercase alphanumeric with dots/hyphens, minimum 3 characters
+- `apiVersion` may be provided as `mvmntVersion` for backwards compatibility (deprecated)
+- Plugin ID must match `^[a-z0-9.-]+$` and be at least 3 characters
 - Version must follow semantic versioning (`1.0.0`, `2.1.3-beta`, etc.)
-- Each element must have `type`, `name`, `category`, and `entry` fields
-- Element types must be kebab-case starting with a letter
-- Entry files must exist and have `.ts`, `.js`, or `.mjs` extension
+- Each element must have `type` and `entry` fields
+- Element `type` must match `^[a-z][a-z0-9-]*$` (start with a letter, lowercase, hyphens allowed)
+- Element `type` must be unique within the plugin
+- Entry files must exist and have a `.ts`, `.js`, or `.mjs` extension
 
 **Collision Detection:**
 
-- Element types must be unique within the plugin
-- Element types cannot conflict with built-in elements:
-    - `background`, `image`, `progressDisplay`, `textOverlay`, `timeDisplay`
-    - `timeUnitPianoRoll`, `movingNotesPianoRoll`, `notesPlayedTracker`
-    - `notesPlayingDisplay`, `chordEstimateDisplay`, `audioSpectrum`
-    - `audioVolumeMeter`, `audioWaveform`, `audioLockedOscilloscope`, `debug`
+- Element types cannot conflict with built-in elements
 
 **Element Class Validation:**
 
 - Must extend `SceneElement`
-- Must implement `static getConfigSchema()` method (or `static override getConfigSchema()`)
-- Must implement rendering via `_buildRenderObjects()` method
+- Must implement `static getConfigSchema()` (with or without `override`)
+- Must implement `_buildRenderObjects()` or `render()` method
+
+**Import Validation:**
+
+- Importing `@state/*`, `@selectors/*`, `@persistence/*`, `@constants/*`, `@types/*`, `@app/*`, `@workspace/*`, `@context/*`, `@fonts/*`, `@assets/*`, `@export/*`, `@bindings/*`, `@math/*`, `@pages/*`, `@devtools/*`, or `@config/*` is a hard error
+- Importing `@core/*`, `@audio/*`, or `@utils/*` is a warning (legacy aliases — migrate to `@mvmnt/plugin-sdk`)
 
 ### Build Configuration
 

@@ -5,7 +5,7 @@
 import {
     SceneElement,
     prop,
-    insertElementGroups,
+    insertElementConfig,
     tab,
     Rectangle,
     Text,
@@ -99,7 +99,7 @@ export class CircularPianoRollElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Circular Piano Roll',

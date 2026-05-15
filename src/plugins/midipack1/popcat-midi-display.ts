@@ -5,7 +5,7 @@ import {
     parseFontSelection,
     ensureFontLoaded,
     prop,
-    insertElementGroups,
+    insertElementConfig,
     tab,
     VisualResourceHandle,
     resolveProjectAssetDescriptor,
@@ -61,7 +61,7 @@ export class PopcatMidiDisplayElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Popcat Midi Display',

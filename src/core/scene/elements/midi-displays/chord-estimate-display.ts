@@ -1,7 +1,7 @@
 // Chord Estimate Display: estimates current chord using a Pardo–Birmingham-inspired method
 import { SceneElement, asNumber, type PropertyTransform } from '../base';
 import { EnhancedConfigSchema, type SceneElementInterface } from '@core/types.js';
-import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 import { applyOpacity } from '@utils/color';
 import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
@@ -147,7 +147,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Chord Estimate Display',

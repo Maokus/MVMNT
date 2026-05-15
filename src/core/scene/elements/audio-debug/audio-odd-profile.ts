@@ -1,6 +1,6 @@
 import { EnhancedConfigSchema, RenderObject } from '@core/index';
 import { SceneElement, asTrimmedString } from '../base';
-import { insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 import { Rectangle, Text } from '@core/render/render-objects';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
@@ -42,7 +42,7 @@ export class AudioOddProfileElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Audio Odd Profile',

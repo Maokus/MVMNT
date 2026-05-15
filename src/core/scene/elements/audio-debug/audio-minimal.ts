@@ -1,7 +1,7 @@
 import { SceneElement, asTrimmedString } from '../base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
-import { insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
 import { getFeatureData } from '@audio/features/sceneApi';
@@ -35,7 +35,7 @@ export class AudioMinimalElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Audio Minimal',

@@ -1,5 +1,5 @@
 // Background element for rendering the main background with property bindings
-import { SceneElement, type EnhancedConfigSchema, insertElementGroups, propGroup, tab } from '@mvmnt/plugin-sdk';
+import { SceneElement, type EnhancedConfigSchema, insertElementConfig, propGroup, tab } from '@mvmnt/plugin-sdk';
 import { Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import { applyOpacity } from '@utils/color';
 
@@ -24,7 +24,7 @@ export class BackgroundElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Background',

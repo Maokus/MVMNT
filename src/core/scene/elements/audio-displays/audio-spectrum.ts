@@ -5,7 +5,7 @@ import type { FeatureDataResult } from '@audio/features/sceneApi';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { applyOpacity } from '@utils/color';
 import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
-import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 function clamp(value: number, min: number, max: number): number {
@@ -200,7 +200,7 @@ export class AudioSpectrumElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Audio Spectrum',

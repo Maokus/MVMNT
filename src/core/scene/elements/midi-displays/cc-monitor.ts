@@ -3,7 +3,7 @@ import type { EnhancedConfigSchema } from '@core/types.js';
 import { RenderObject, Text, Arc, Rectangle, Line } from '@core/render/render-objects';
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { getPluginHostApi, PLUGIN_CAPABILITIES, type PluginHostApi } from '@mvmnt/plugin-sdk';
-import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 import { applyOpacity } from '@utils/color';
 import type { TimelineCCEvent } from '@core/timing/types';
@@ -63,7 +63,7 @@ export class CCMonitorElement extends SceneElement {
             { key: 'singleCCDisplayMode', equals: 'opacity' },
         ];
 
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'CC Monitor',

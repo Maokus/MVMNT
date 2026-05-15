@@ -1,7 +1,7 @@
 // Template: Minimal Element
 // The simplest possible scene element — a good starting point for anything custom.
 // Renders a single colored rectangle. Replace the rendering logic with your own.
-import { SceneElement, prop, insertElementGroups, tab, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk';
+import { SceneElement, prop, insertElementConfig, tab, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class MinimalElement extends SceneElement {
@@ -10,7 +10,7 @@ export class MinimalElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'My Element',

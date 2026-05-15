@@ -1,6 +1,6 @@
 // Template: Basic Shape Element
 // A simple geometric shape that can be customized with color and size
-import { SceneElement, prop, insertElementGroups, tab, Rectangle, Arc, type RenderObject } from '@mvmnt/plugin-sdk';
+import { SceneElement, prop, insertElementConfig, tab, Rectangle, Arc, type RenderObject } from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class BasicShapeElement extends SceneElement {
@@ -9,7 +9,7 @@ export class BasicShapeElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Basic Shape',

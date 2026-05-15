@@ -50,10 +50,10 @@ Always use these factory methods instead of `new VisualResourceHandle()`, `new B
 ### 1. Declare the property
 
 ```typescript
-import { prop, insertElementGroups, tab } from '@mvmnt/plugin-sdk';
+import { prop, insertElementConfig, tab } from '@mvmnt/plugin-sdk';
 
 static override getConfigSchema() {
-    return insertElementGroups(super.getConfigSchema(), { name: 'My Element' }, [
+    return insertElementConfig(super.getConfigSchema(), { name: 'My Element' }, [
         tab.content([{
             id: 'imageSource',
             label: 'Image',
@@ -72,7 +72,7 @@ static override getConfigSchema() {
 import {
     SceneElement,
     prop,
-    insertElementGroups,
+    insertElementConfig,
     VisualMediaPlayback,
     resolveProjectAssetDescriptor,
 } from '@mvmnt/plugin-sdk';
@@ -249,12 +249,12 @@ private readonly _body = this.bundledSprite('characters/body.png');
 
 `VisualMedia.setFitMode()` accepts:
 
-| Value       | Behaviour                                                                                                                                                                                                                                                  |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `'contain'` | Scale to fit within the bounds, preserving aspect ratio. Empty bars (letterbox/pillarbox) appear when aspect ratios differ. Bounds reflect the scaled image rect, not the full container.                                                                  |
-| `'cover'`   | Scale to fill the bounds, preserving aspect ratio. Image overflows and is clipped. Bounds equal the full container.                                                                                                                                        |
-| `'fill'`    | Stretch to exactly fill the bounds. Distorts non-square images.                                                                                                                                                                                            |
-| `'none'`    | Draw at the image's native pixel size (1:1 scale, no scaling). Centered inside the container. If the image overflows it is clipped to the container edges; if smaller, empty space is visible around it. Bounds reflect the actual drawn (clipped) region. |
+| Value       | Behaviour                                                                                                                                                                                                                                                                                   |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `'contain'` | Scale to fit within the bounds, preserving aspect ratio. Empty bars (letterbox/pillarbox) appear when aspect ratios differ. Bounds reflect the scaled image rect, not the full container.                                                                                                   |
+| `'cover'`   | Scale to fill the bounds, preserving aspect ratio. Image overflows and is clipped. Bounds equal the full container.                                                                                                                                                                         |
+| `'fill'`    | Stretch to exactly fill the bounds. Distorts non-square images.                                                                                                                                                                                                                             |
+| `'clip'`    | Draw at the image's native pixel size (1:1 scale, no scaling). Centered inside the container by default. Use `setFramePlacement()` to control where the frame is positioned. If the image overflows it is clipped to the container edges. Bounds reflect the actual drawn (clipped) region. |
 
 ---
 

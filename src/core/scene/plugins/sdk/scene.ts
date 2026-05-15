@@ -16,7 +16,7 @@ export {
     type PropertySnapshot,
 } from '@core/scene/elements/base';
 
-export { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+export { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 export { propGroup, BLEND_MODE_CHOICES, colorSlotProps, section, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 export type {

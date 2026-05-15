@@ -3,7 +3,7 @@ import { Arc, Poly, Rectangle, type RenderObject } from '@core/render/render-obj
 import type { EnhancedConfigSchema } from '@core/types';
 import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
 import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
-import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 /** Maximum sample count that can be requested — must not exceed MAX_RAW_SAMPLES. */
@@ -276,7 +276,7 @@ export class AudioWaveformElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Audio Waveform',

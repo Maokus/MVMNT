@@ -2,7 +2,7 @@ import {
     SceneElement,
     type EnhancedConfigSchema,
     prop,
-    insertElementGroups,
+    insertElementConfig,
     ensureFontLoaded,
     parseFontSelection,
     propGroup,
@@ -47,7 +47,7 @@ export class TextOverlayElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Text',

@@ -329,7 +329,7 @@ export const prop = {
     },
 } as const;
 
-// ─── insertElementGroups ─────────────────────────────────────────────────────
+// ─── insertElementConfig ─────────────────────────────────────────────────────
 
 /**
  * Inserts plugin-specific property tabs into the base element schema.
@@ -340,7 +340,7 @@ export const prop = {
  * @param overrides    Fields to override on the base schema (`name`, `description`, `category`).
  * @param pluginTabs   The property tabs specific to this element.
  */
-export function insertElementGroups(
+export function insertElementConfig(
     base: EnhancedConfigSchema,
     overrides: Partial<Pick<EnhancedConfigSchema, 'name' | 'description' | 'category' | 'presets'>>,
     pluginTabs: PropertyTab[]

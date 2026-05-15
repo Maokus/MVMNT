@@ -30,7 +30,7 @@ Follow the prompts. Your new file will appear at `src/plugins/<your-plugin>/<ele
 
 ```typescript
 // src/plugins/my-plugin/flash-box.ts
-import { SceneElement, prop, tab, insertElementGroups, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk';
+import { SceneElement, prop, tab, insertElementConfig, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk';
 
 export class FlashBoxElement extends SceneElement {
     constructor(id = 'flashBox', config: Record<string, unknown> = {}) {
@@ -38,7 +38,7 @@ export class FlashBoxElement extends SceneElement {
     }
 
     static override getConfigSchema() {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             { name: 'Flash Box', description: 'A box that pulses with time', category: 'custom' },
             [
@@ -155,8 +155,7 @@ This produces `dist/com.example.my-plugin-1.0.0.mvmnt-plugin` — a single file 
 ## Tips
 
 - **Render objects use local coordinates.** `(0, 0)` is the element's own origin — the element's canvas position is controlled by its `x`/`y`/`offsetX`/`offsetY` properties separately.
-- **Colors are 8-digit hex** with alpha channel: `#RRGGBBAA`. Use the `colorAlpha` property type to let users pick them.
+- **Colors are 8-digit hex** with alpha channel: `#RRGGBBAA`. The `colorAlpha` property is available, but you may prefer to use `color` and a `range` opacity slider to help people who want to keyframe opacity independantly.
 - **`targetTime` is in seconds.** Use `api.timing.secondsToBeats(targetTime)` when you need beat-relative positioning.
-- **Keep render objects under ~1000 per frame.** For dense displays, use `limitRenderObjects` from the SDK.
 - **Graceful degradation.** Always guard `getPluginHostApi()` results — the host API may not be ready on the first few frames.
 - **Animation math is built in.** Use `clamp`, `remap`, `lerp`, `FloatCurve`, and the `easings` dictionary from `@mvmnt/plugin-sdk/animation` instead of reinventing interpolation helpers.

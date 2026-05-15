@@ -1,7 +1,7 @@
 import {
     SceneElement,
     prop,
-    insertElementGroups,
+    insertElementConfig,
     tab,
     resolveProjectAssetDescriptor,
     getPluginHostApi,
@@ -36,7 +36,7 @@ export class BoyfriendElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Boyfriend',

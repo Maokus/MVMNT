@@ -1,4 +1,4 @@
-import { SceneElement, type EnhancedConfigSchema, prop, insertElementGroups, tab } from '@mvmnt/plugin-sdk';
+import { SceneElement, type EnhancedConfigSchema, prop, insertElementConfig, tab } from '@mvmnt/plugin-sdk';
 import { EmptyRenderObject, Rectangle, type RenderObject, Text } from '@mvmnt/plugin-sdk/render';
 
 // Minimal DebugElement for testing/inheritance demonstration
@@ -16,7 +16,7 @@ export class DebugElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Debug',

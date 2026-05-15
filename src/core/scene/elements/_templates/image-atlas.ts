@@ -14,7 +14,7 @@
 import {
     SceneElement,
     prop,
-    insertElementGroups,
+    insertElementConfig,
     tab,
     VisualMediaPlayback,
     resolveProjectAssetDescriptor,
@@ -40,7 +40,7 @@ export class AtlasImageElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Atlas Image',

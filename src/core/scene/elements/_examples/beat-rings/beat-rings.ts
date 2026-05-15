@@ -14,7 +14,7 @@
 import {
     SceneElement,
     prop,
-    insertElementGroups,
+    insertElementConfig,
     tab,
     getRequiredPluginApi,
     PLUGIN_CAPABILITIES,
@@ -34,7 +34,7 @@ export class BeatRingsElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Beat Rings',

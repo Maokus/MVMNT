@@ -3,7 +3,7 @@ import { Rectangle, Text, Line, type RenderObject } from '@core/render/render-ob
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { applyOpacity } from '@utils/color';
 import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
-import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
 function clamp(value: number, min: number, max: number): number {
@@ -74,7 +74,7 @@ export class AudioVolumeMeterElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementGroups(
+        return insertElementConfig(
             super.getConfigSchema(),
             {
                 name: 'Audio Volume Meter',
