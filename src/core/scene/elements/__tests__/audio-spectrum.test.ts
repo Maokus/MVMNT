@@ -5,6 +5,7 @@ import * as pluginSdk from '@mvmnt/plugin-sdk';
 
 function makePluginApiResult(sampleFeatureAtTime: (args: unknown) => unknown) {
     return {
+        ok: true as const,
         api: {
             audio: {
                 sampleFeatureAtTime,
@@ -19,8 +20,6 @@ function makePluginApiResult(sampleFeatureAtTime: (args: unknown) => unknown) {
                 ticksToBeats: () => 0,
             },
         } as any,
-        status: 'ok' as const,
-        missingCapabilities: [],
     };
 }
 
@@ -39,7 +38,7 @@ describe('audio-spectrum element', () => {
 
     it('renders the configured number of spectrum bars using sampled data', () => {
         const values = [-80, -60, -40, -20];
-        vi.spyOn(pluginSdk, 'getPluginHostApi').mockReturnValue(
+        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(
             makePluginApiResult(() => ({
                 values,
                 metadata: {
@@ -104,9 +103,7 @@ describe('audio-spectrum element', () => {
                 channelLayout: null,
             },
         });
-        vi.spyOn(pluginSdk, 'getPluginHostApi').mockReturnValue(
-            makePluginApiResult(sampleFeatureAtTimeSpy)
-        );
+        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(makePluginApiResult(sampleFeatureAtTimeSpy));
 
         const element = new AudioSpectrumElement('spectrum', {
             audioTrackId: 'track-1',
@@ -131,9 +128,7 @@ describe('audio-spectrum element', () => {
     });
 
     it('shows a placeholder message when no data is available', () => {
-        vi.spyOn(pluginSdk, 'getPluginHostApi').mockReturnValue(
-            makePluginApiResult(() => null)
-        );
+        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(makePluginApiResult(() => null));
 
         const element = new AudioSpectrumElement('spectrum', {
             audioTrackId: 'track-1',

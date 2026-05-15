@@ -24,5 +24,6 @@ export const BUILTIN_ELEMENT_TYPES = [
     'audioVolumeMeter',
     'audioWaveform',
     'audioLockedOscilloscope',
+    'audioPeaks',
     'debug',
 ];

@@ -146,7 +146,7 @@ describe('scene command gateway', () => {
 
         expect(result.success).toBe(true);
         const binding = useSceneStore.getState().bindings.byElement['spectrum-1'].audioTrackId;
-        expect(binding).toEqual({ type: 'constant', value: '' });
+        expect(binding).toEqual({ type: 'constant', value: null });
     });
 
     it('routes macro commands through the gateway and keeps store/macros in sync', () => {

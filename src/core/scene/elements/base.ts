@@ -166,7 +166,7 @@ export class SceneElement implements SceneElementInterface {
                     if (binding instanceof MacroBinding && binding.getMacroId() === event.macroId) {
                         this._cacheValid.set(key, false);
                         this._invalidateBoundsCache();
-                        if (key === 'audioTrackId') {
+                        if (this._isAudioTrackRefProperty(key)) {
                             requiresFeatureResubscribe = true;
                         }
                     }
@@ -178,14 +178,15 @@ export class SceneElement implements SceneElementInterface {
                         this.bindings.set(key, new ConstantBinding(currentValue));
                         this._cacheValid.set(key, false);
                         this._invalidateBoundsCache();
-                        if (key === 'audioTrackId') {
+                        if (this._isAudioTrackRefProperty(key)) {
                             requiresFeatureResubscribe = true;
                         }
                     }
                 });
             } else if (event.type === 'macrosImported') {
                 // Imported snapshots may replace macro objects entirely; drop caches for macro-bound props.
-                const audioTrackBinding = this.bindings.get('audioTrackId');
+                const audioTrackKey = this._findAudioTrackRefKey();
+                const audioTrackBinding = this.bindings.get(audioTrackKey);
                 this.bindings.forEach((binding, key) => {
                     if (binding instanceof MacroBinding) {
                         this._cacheValid.set(key, false);
@@ -204,15 +205,47 @@ export class SceneElement implements SceneElementInterface {
     }
 
     protected onPropertyChanged(key: string, oldValue: unknown, newValue: unknown): void {
-        if (key === 'audioTrackId' && oldValue !== newValue) {
+        if (oldValue !== newValue && this._isAudioTrackRefProperty(key)) {
             this._subscribeToRequiredFeatures();
         }
     }
 
+    private _isAudioTrackRefProperty(key: string): boolean {
+        const schema = (this.constructor as any).getConfigSchema?.() as EnhancedConfigSchema | undefined;
+        for (const tab of schema?.tabs ?? []) {
+            for (const group of tab.groups ?? []) {
+                for (const p of (group.properties ?? []) as PropertyDefinition[]) {
+                    if (p?.key === key) {
+                        return p.type === 'timelineTrackRef';
+                    }
+                }
+            }
+        }
+        return key === 'audioTrackId';
+    }
+
+    private _findAudioTrackRefKey(): string {
+        const schema = (this.constructor as any).getConfigSchema?.() as EnhancedConfigSchema | undefined;
+        for (const tab of schema?.tabs ?? []) {
+            for (const group of tab.groups ?? []) {
+                for (const p of (group.properties ?? []) as PropertyDefinition[]) {
+                    if (p?.type === 'timelineTrackRef') {
+                        const allowed = (p as any).allowedTrackTypes as string[] | undefined;
+                        if (!allowed || allowed.includes('audio')) {
+                            return p.key;
+                        }
+                    }
+                }
+            }
+        }
+        return 'audioTrackId';
+    }
+
     protected _subscribeToRequiredFeatures(): void {
         const requirements = getFeatureRequirements(this.type);
-        const binding = this.bindings.get('audioTrackId');
-        const rawTrack = binding ? this.getProperty<string>('audioTrackId') : null;
+        const audioTrackKey = this._findAudioTrackRefKey();
+        const binding = this.bindings.get(audioTrackKey);
+        const rawTrack = binding ? this.getProperty<string>(audioTrackKey) : null;
         const controller = getFeatureSubscriptionController(this);
         controller.setStaticRequirements(requirements);
         controller.updateTrack(rawTrack);

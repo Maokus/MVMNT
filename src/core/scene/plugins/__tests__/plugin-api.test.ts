@@ -118,6 +118,18 @@ describe('plugin host api', () => {
                 channels: 1,
             },
         }));
+        const getFeatureDataRange: (...args: any[]) => any[] = vi.fn(
+            (_element, _trackId, _feature, startTime: number, endTime: number, stepSec: number) => {
+                const results: any[] = [];
+                for (let t = startTime; t <= endTime + 1e-9; t += stepSec) {
+                    results.push({
+                        values: [0.5],
+                        metadata: { descriptor: { featureKey: 'rms' }, frame: { values: [0.5] }, channels: 1 },
+                    });
+                }
+                return results;
+            }
+        );
 
         const { api, missingCapabilities } = createPluginHostApi({
             timelineStore,
@@ -125,6 +137,7 @@ describe('plugin host api', () => {
             selectTrackById,
             selectTracksByIds,
             getFeatureData,
+            getFeatureDataRange,
         });
 
         expect(api.apiVersion).toBe(PLUGIN_API_VERSION);
@@ -171,7 +184,9 @@ describe('plugin host api', () => {
         expect(api.timeline.getStateSnapshot()).toBeNull();
         expect(api.timeline.selectNotesInWindow({ trackIds: ['midi-1'], startSec: 0, endSec: 1 })).toEqual([]);
         expect(api.audio.sampleFeatureAtTime({ trackId: 'audio-1', feature: 'rms', time: 0 })).toBeNull();
-        expect(api.audio.sampleFeatureRange({ trackId: 'audio-1', feature: 'rms', startTime: 0, endTime: 1, stepSec: 0.5 })).toEqual([]);
+        expect(
+            api.audio.sampleFeatureRange({ trackId: 'audio-1', feature: 'rms', startTime: 0, endTime: 1, stepSec: 0.5 })
+        ).toEqual([]);
         expect(api.timing.secondsToTicks(1)).toBeNull();
         expect(warn).toHaveBeenCalledTimes(1);
         expect(target.MVMNT?.plugins).toBe(api);

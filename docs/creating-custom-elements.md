@@ -346,13 +346,11 @@ export class MyAudioElement extends SceneElement {
 
 **Available built-in audio features:**
 
-| Feature key     | Description                                           |
-| --------------- | ----------------------------------------------------- |
-| `spectrogram`   | Frequency-domain magnitude spectrum (FFT bins)        |
-| `waveform`      | Time-domain waveform samples                          |
-| `peaks`         | Per-frame peak amplitude                              |
-| `pitchGuide`    | Detected pitch, confidence, and RMS per frame         |
-| `pitchWaveform` | Pitch-aligned waveform for oscilloscope-style display |
+| Feature key   | Description                                    |
+| ------------- | ---------------------------------------------- |
+| `spectrogram` | Frequency-domain magnitude spectrum (FFT bins) |
+| `peaks`       | Per-frame peak amplitude                       |
+| `pitchGuide`  | Detected pitch, confidence, and RMS per frame  |
 
 Custom calculators can add new feature keys. See the [Custom Calculator Quickstart](./audio-features/custom-calculator-quickstart.md) to define and register your own.
 

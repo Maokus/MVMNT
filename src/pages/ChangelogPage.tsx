@@ -34,14 +34,6 @@ const ChangelogPage: React.FC = () => {
                             'Install plugins and open templates directly from the community tab',
                             'Search and filter by tags',
                         ],
-                        'Misc Improvements',
-                        [
-                            'Internally store MIDI as binary to reduce file sizes',
-                            'Improve timeline navigation (scroll in peace)',
-                            'Change color picker',
-                            'Modify persistence system (now uses indexeddb so you don\'t keep losing your progress on reload)',
-                            'MIDI Preview uses canvas rather than rendering thousands of divs',
-                        ],
                         'Full rework of inbuilt elements',
                         [
                             'Implement tabs for properties',
@@ -53,10 +45,19 @@ const ChangelogPage: React.FC = () => {
                             'Notes Played Tracker given format string property for improved flexibility',
                             'Audio volume element has peak/rms modes, reference lines and improved styling',
                             'Audio Locked Oscilloscope optimised for non-realtime environment',
-                            'Chord estimation algorithm rework'
+                            'Implement musicpy-like chord estimation algorithm. Its not perfect but I tried :('
+                        ],
+                        'Misc Improvements',
+                        [
+                            'Internally store MIDI as binary to reduce file sizes',
+                            'Improve timeline navigation (scroll in peace)',
+                            'Change color picker',
+                            'Modify persistence system (now uses indexeddb so you don\'t keep losing your progress on reload)',
+                            'MIDI Preview uses canvas rather than rendering thousands of divs',
                         ],
                         'Implemented custom element plugin system',
                         [
+                            'Write documentation and quickstart guides',
                             'Embed plugins into save files',
                             'Support midi cc in midi ingestion',
                             'Element property factories',
@@ -81,8 +82,7 @@ const ChangelogPage: React.FC = () => {
                         ],
                         'Bugfixes',
                         [
-                            'Allowed pre-time unit attack animations in TUPR',
-                            'Changed some angle measurement units to radians (this might break some files)'
+                            "Genuinely too many to count"
                         ],
                     ]} />
 

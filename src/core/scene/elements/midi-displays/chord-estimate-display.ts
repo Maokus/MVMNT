@@ -46,6 +46,7 @@ type ChordEstimateRuntimeProps = {
     includeAugmented: boolean;
     includeSevenths: boolean;
     preferBassRoot: boolean;
+    accidentalStyle?: 'sharps' | 'flats';
     showInversion: boolean;
     smoothingMs: number;
     fontFamily: string;
@@ -136,6 +137,7 @@ const CHORD_TYPE_SYMBOL: Record<string, string> = {
 };
 
 const ROOT_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const ROOT_NAMES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 export class ChordEstimateDisplayElement extends SceneElement {
     private _lastChord?: EstimatedChord;
@@ -297,6 +299,10 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             }),
                             prop.boolean('preferBassRoot', 'Prefer Root in Bass', true),
                             prop.boolean('showInversion', 'Show Inversion (slash)', true),
+                            prop.select('accidentalStyle', 'Accidental Style', 'sharps', [
+                                { value: 'sharps', label: 'Sharps (C#, D#…)' },
+                                { value: 'flats', label: 'Flats (Db, Eb…)' },
+                            ]),
                             {
                                 key: 'smoothingMs',
                                 type: 'number',
@@ -500,9 +506,9 @@ export class ChordEstimateDisplayElement extends SceneElement {
         if (!chord) {
             label = 'N.C.';
         } else if (method === 'musicpy' && rawMusicpy) {
-            label = this._formatMusicpyChordLabel(rawMusicpy, showInversion);
+            label = this._formatMusicpyChordLabel(rawMusicpy, showInversion, props.accidentalStyle ?? 'sharps');
         } else {
-            label = this._formatChordLabel(chord, showInversion);
+            label = this._formatChordLabel(chord, showInversion, props.accidentalStyle ?? 'sharps');
         }
 
         // When a layout box is active, anchor text within it so alignment matches the visible box.
@@ -535,7 +541,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                 },
             };
             const noteName = (midiNote: number): string => {
-                const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+                const names = props.accidentalStyle === 'flats' ? ROOT_NAMES_FLAT : ROOT_NAMES;
                 const octave = Math.floor(midiNote / 12) - 1;
                 const name = names[midiNote % 12];
                 return `${name}${octave}`;
@@ -589,20 +595,25 @@ export class ChordEstimateDisplayElement extends SceneElement {
         return renderObjects;
     }
 
-    private _formatMusicpyChordLabel(raw: MusicpyChordResult, showInversion: boolean): string {
+    private _formatMusicpyChordLabel(
+        raw: MusicpyChordResult,
+        showInversion: boolean,
+        accidentalStyle: 'sharps' | 'flats' = 'sharps'
+    ): string {
+        const rootNames = accidentalStyle === 'flats' ? ROOT_NAMES_FLAT : ROOT_NAMES;
         if (raw.isPolychord && raw.upperChord) {
-            const upper = this._formatMusicpyChordLabel(raw.upperChord, false);
-            const lowerRoot = ROOT_NAMES[raw.root];
+            const upper = this._formatMusicpyChordLabel(raw.upperChord, false, accidentalStyle);
+            const lowerRoot = rootNames[raw.root];
             const lowerSymbol = CHORD_TYPE_SYMBOL[raw.chordType] ?? raw.chordType;
             return `${upper}/${lowerRoot}${lowerSymbol}`;
         }
 
-        const root = ROOT_NAMES[raw.root];
+        const root = rootNames[raw.root];
         const symbol = CHORD_TYPE_SYMBOL[raw.chordType] ?? raw.chordType;
         let label = `${root}${symbol}`;
 
         if (showInversion && raw.bassNote !== null) {
-            label += `/${ROOT_NAMES[raw.bassNote]}`;
+            label += `/${rootNames[raw.bassNote]}`;
         }
 
         const suffixes: string[] = [];
@@ -613,8 +624,13 @@ export class ChordEstimateDisplayElement extends SceneElement {
         return label;
     }
 
-    private _formatChordLabel(ch: EstimatedChord, showInversion: boolean): string {
-        const root = ROOT_NAMES[ch.root];
+    private _formatChordLabel(
+        ch: EstimatedChord,
+        showInversion: boolean,
+        accidentalStyle: 'sharps' | 'flats' = 'sharps'
+    ): string {
+        const rootNames = accidentalStyle === 'flats' ? ROOT_NAMES_FLAT : ROOT_NAMES;
+        const root = rootNames[ch.root];
         let qual: string = '';
         switch (ch.quality) {
             case 'maj':
@@ -656,7 +672,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
         }
         let label = `${root}${qual}`;
         if (showInversion && ch.bassPc !== undefined && ch.bassPc !== ch.root) {
-            label += `/${ROOT_NAMES[ch.bassPc]}`;
+            label += `/${rootNames[ch.bassPc]}`;
         }
         return label;
     }

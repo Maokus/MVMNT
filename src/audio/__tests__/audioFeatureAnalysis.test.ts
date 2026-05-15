@@ -39,7 +39,7 @@ function createSineBuffer(durationSeconds: number, sampleRate = 44100): AudioBuf
 }
 
 describe('audio feature analysis', () => {
-    it('produces spectrogram and waveform tracks with aligned metadata', async () => {
+    it('produces spectrogram and peaks tracks with aligned metadata', async () => {
         const buffer = createSineBuffer(0.25);
         const { cache } = await analyzeAudioBufferFeatures({
             audioSourceId: 'analysis-test',
@@ -49,7 +49,7 @@ describe('audio feature analysis', () => {
         });
         const defaultProfile = cache.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID;
         const spectrogramKey = buildFeatureTrackKey('spectrogram', defaultProfile);
-        const waveformKey = buildFeatureTrackKey('waveform', defaultProfile);
+        const waveformKey = buildFeatureTrackKey('peaks', defaultProfile);
         expect(cache.featureTracks[spectrogramKey]).toBeDefined();
         expect(cache.featureTracks[waveformKey]).toBeDefined();
         expect(cache.analysisParams.calculatorVersions['mvmnt.spectrogram']).toBe(3);
@@ -67,18 +67,18 @@ describe('audio feature analysis', () => {
         expect(values.every((value) => value >= -80 && value <= 0)).toBe(true);
     });
 
-    it('aligns waveform hop ticks with hop seconds conversions', async () => {
+    it('aligns peaks hop ticks with hop seconds conversions', async () => {
         const buffer = createSineBuffer(0.3);
         const globalBpm = 128;
         const beatsPerBar = 4;
         const { cache } = await analyzeAudioBufferFeatures({
-            audioSourceId: 'waveform-hop',
+            audioSourceId: 'peaks-hop',
             audioBuffer: buffer,
             globalBpm,
             beatsPerBar,
         });
         const defaultProfile = cache.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID;
-        const waveformKey = buildFeatureTrackKey('waveform', defaultProfile);
+        const waveformKey = buildFeatureTrackKey('peaks', defaultProfile);
         const waveform = cache.featureTracks[waveformKey];
         expect(waveform).toBeDefined();
         if (!waveform) return;
@@ -103,7 +103,7 @@ describe('audio feature analysis', () => {
             analysisProfileId: requestedProfile,
         });
         const spectrogramKey = buildFeatureTrackKey('spectrogram', requestedProfile);
-        const waveformKey = buildFeatureTrackKey('waveform', requestedProfile);
+        const waveformKey = buildFeatureTrackKey('peaks', requestedProfile);
         const spectrogram = cache.featureTracks[spectrogramKey];
         const waveform = cache.featureTracks[waveformKey];
         expect(spectrogram?.analysisProfileId).toBe(requestedProfile);
@@ -125,7 +125,7 @@ describe('audio feature analysis', () => {
         });
         const cache = await handle.promise;
         const waveformKey = buildFeatureTrackKey(
-            'waveform',
+            'peaks',
             cache.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID
         );
         expect(cache.featureTracks[waveformKey]).toBeDefined();

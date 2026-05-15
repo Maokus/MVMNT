@@ -3,7 +3,6 @@ import { AudioVolumeMeterElement } from '@core/scene/elements/audio-displays/aud
 import { AudioWaveformElement, AudioLockedOscilloscopeElement } from '@core/scene/elements';
 import { AudioDebugElement } from '@core/scene/elements/audio-debug/audio-debug';
 import { Poly, Rectangle, Text } from '@core/render/render-objects';
-import * as featureUtils from '@audio/audioFeatureUtils';
 import * as timelineStore from '@state/timelineStore';
 import * as analysisIntents from '@audio/features/analysisIntents';
 import * as sceneApi from '@audio/features/sceneApi';
@@ -16,16 +15,19 @@ function makePluginApiResult(
         sampleFeatureRange?: (args: unknown) => unknown[];
         getRawSamples?: (args: unknown) => Float32Array | null;
         getRmsInWindow?: (args: unknown) => Float32Array | null;
+        getSampleRate?: (args: unknown) => number | null;
         secondsToTicks?: (s: number) => number | null;
     } = {}
 ) {
     return {
+        ok: true as const,
         api: {
             audio: {
                 sampleFeatureAtTime: overrides.sampleFeatureAtTime ?? (() => null),
                 sampleFeatureRange: overrides.sampleFeatureRange ?? (() => []),
                 getRawSamples: overrides.getRawSamples ?? (() => null),
                 getRmsInWindow: overrides.getRmsInWindow ?? (() => null),
+                getSampleRate: overrides.getSampleRate ?? (() => null),
             },
             timing: {
                 secondsToTicks: overrides.secondsToTicks ?? (() => null),
@@ -36,8 +38,6 @@ function makePluginApiResult(
                 ticksToBeats: () => 0,
             },
         } as any,
-        status: 'ok' as const,
-        missingCapabilities: [],
     };
 }
 
@@ -74,7 +74,7 @@ describe('simplified audio scene elements', () => {
     });
 
     it('scales the volume meter fill with the sampled RMS value', () => {
-        vi.spyOn(pluginSdk, 'getPluginHostApi')
+        vi.spyOn(pluginSdk, 'getRequiredPluginApi')
             .mockReturnValueOnce(makePluginApiResult({ getRmsInWindow: () => new Float32Array([0.25]) }))
             .mockReturnValueOnce(makePluginApiResult({ getRmsInWindow: () => new Float32Array([0.75]) }));
 
@@ -106,7 +106,7 @@ describe('simplified audio scene elements', () => {
     });
 
     it('respects channel mode for the volume meter', () => {
-        vi.spyOn(pluginSdk, 'getPluginHostApi').mockReturnValue(
+        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(
             makePluginApiResult({
                 getRmsInWindow: () => new Float32Array([0.1, 0.9]),
             })
@@ -141,7 +141,7 @@ describe('simplified audio scene elements', () => {
             },
         }));
 
-        vi.spyOn(pluginSdk, 'getPluginHostApi').mockReturnValue(
+        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(
             makePluginApiResult({
                 secondsToTicks: (s: number) => s * 480,
                 sampleFeatureRange: () => waveformSamples,
@@ -164,15 +164,20 @@ describe('simplified audio scene elements', () => {
     });
 
     it('renders a locked oscilloscope polyline using detected period length', () => {
-        vi.spyOn(featureUtils, 'sampleFeatureFrame').mockReturnValue({
-            frameIndex: 4,
-            fractionalIndex: 4,
-            hopTicks: 1,
-            format: 'waveform-periodic' as const,
-            values: [0, 0.5, 1, 0.5, 0, -0.5, -1, -0.5],
-            channelValues: [[0, 0.5, 1, 0.5, 0, -0.5, -1, -0.5]],
-            frameLength: 6,
-        } as any);
+        // Provide pitch guide data so the element uses the pitch-locked rendering path
+        const sineAtPeriod45 = new Float32Array(200);
+        for (let i = 0; i < 200; i++) sineAtPeriod45[i] = Math.sin((2 * Math.PI * i) / 45);
+
+        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(
+            makePluginApiResult({
+                // Return a pitch guide frame: [f0=440, confidence=0.9, _, anchorSec=2.5, candidateF0=0]
+                sampleFeatureAtTime: () => ({
+                    values: [440],
+                    metadata: { frame: { channelValues: [[440], [0.9], [0], [2.5], [0]] } },
+                }),
+                getRawSamples: () => sineAtPeriod45,
+            })
+        );
 
         const element = new AudioLockedOscilloscopeElement('locked', {
             audioTrackId: 'track-1',
