@@ -8,15 +8,11 @@
 
 MVMNT (pronounced _movement_) is a free and open source music visualization tool designed to create beautiful, modern, MIDI and audio-reactive graphics.
 
-For developers, it is a framework which handles lots of annoying tasks so that you can focus on making and sharing custom visualisations.
+For developers, it is a framework which handles the boilerplate so that you can focus on making and sharing custom visualisations.
 
-## Table of Contents
-
-- [MVMNT](#mvmnt)
-  - [Table of Contents](#table-of-contents)
-  - [Quick Start](#quick-start)
-  - [Making Plugins](#making-plugins)
-  - [License](#license)
+- [Quick Start](#quick-start)
+- [Making Plugins](#making-plugins)
+- [License](#license)
 
 ## Quick Start
 
@@ -31,7 +27,7 @@ npm run dev
 
 **Just want to make visualisations?** Read the [Plugin Development Quickstart](docs/plugin-quickstart.md).
 
-One goal of this project was making coding music visualisations easier. With MVMNT, you can write, build, and distribute your own scene elements using the same API that the built-in elements use.
+One main goal of this project was making coding music visualisations easier. With MVMNT, you can write, build, and distribute your own scene elements using the same API that the built-in elements use.
 
 Plugins are TypeScript classes that extend `SceneElement`. They (1) declare their configurable properties and (2) implement a `_buildRenderObjects()` method that passes `RenderObject`s to the renderer to draw.
 

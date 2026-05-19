@@ -2,22 +2,50 @@
 
 _Last Updated: 7 May 2026_
 
-This guide explains how to create custom scene elements for MVMNT using the plugin system.
+If you are new, it is recommended you first read the [Plugin Quickstart Guide](./plugin-quickstart.md).
 
-## Table of Contents
+This guide explains in greater depth and detail how to create custom scene elements for MVMNT using the plugin system.
 
-- [Overview](#overview)
-- [Public Plugin API (Required)](#public-plugin-api-required)
-- [Plugin Manifest Reference](#plugin-manifest-reference)
-- [Element API](#element-api)
-- [Reading MIDI and Audio Data](#reading-midi-and-audio-data)
-- [Layout Calculation](#layout-calculation)
-- [Common Bindings](#common-bindings)
-- [Categories and Organization](#categories-and-organization)
-- [Testing and Debugging](#testing-and-debugging)
-- [Packaging and Distribution](#packaging-and-distribution)
-- [Best Practices](#best-practices)
-- [Troubleshooting](#troubleshooting)
+- [Creating Custom Elements](#creating-custom-elements)
+    - [Overview](#overview)
+    - [Public Plugin API (Required)](#public-plugin-api-required)
+    - [Getting Started](#getting-started)
+    - [Plugin Manifest Reference](#plugin-manifest-reference)
+    - [Element API](#element-api)
+        - [Base Class](#base-class)
+        - [Configuration Schema](#configuration-schema)
+        - [Render Methods](#render-methods)
+        - [Lifecycle Hooks](#lifecycle-hooks)
+        - [Layout Calculation](#layout-calculation)
+        - [Custom Property Transforms](#custom-property-transforms)
+        - [Categories and Organization](#categories-and-organization)
+    - [Reading MIDI and Audio Data](#reading-midi-and-audio-data)
+        - [Reading Raw Audio (PCM)](#reading-raw-audio-pcm)
+        - [Reading MIDI Events](#reading-midi-events)
+        - [Reading Time Information](#reading-time-information)
+        - [Reading Cached Audio Features](#reading-cached-audio-features)
+    - [Testing and Debugging](#testing-and-debugging)
+        - [Local Development](#local-development)
+        - [Debugging Tips](#debugging-tips)
+        - [Common Issues](#common-issues)
+    - [Packaging and Distribution](#packaging-and-distribution)
+        - [Building a Plugin](#building-a-plugin)
+        - [Build Output](#build-output)
+        - [Distribution Format](#distribution-format)
+        - [Validation Rules](#validation-rules)
+        - [Build Configuration](#build-configuration)
+        - [Distributing Your Plugin](#distributing-your-plugin)
+    - [Best Practices](#best-practices)
+        - [Render Determinism](#render-determinism)
+        - [Performance Considerations](#performance-considerations)
+        - [Naming Conventions](#naming-conventions)
+        - [Error Handling](#error-handling)
+        - [Type Safety](#type-safety)
+    - [Troubleshooting](#troubleshooting)
+        - [Element Not Appearing](#element-not-appearing)
+        - [Render Issues](#render-issues)
+        - [Performance Problems](#performance-problems)
+    - [Related Documentation](#related-documentation)
 
 ## Overview
 
@@ -26,9 +54,9 @@ Custom elements extend MVMNT's visualization capabilities by providing new types
 Key concepts:
 
 - **Scene Elements**: Visual objects that render on the canvas (shapes, text, effects, etc.)
-- **Plugin System**: Bundles custom elements for distribution and runtime loading
-- **Property Bindings**: Dynamic property system supporting constants, macros, and data-driven values
 - **Render Objects**: Low-level primitives (Rectangle, Arc, Text, etc.) that define visual output
+- **Plugin**: Bundle of custom elements for distribution and runtime loading
+- **Property Bindings**: Dynamic property system supporting constants, macros, and data-driven values
 
 ## Public Plugin API (Required)
 
@@ -285,7 +313,80 @@ protected override _buildRenderObjects(
 - `GlowLayer(options?)` — composite layer that applies a glow effect to its children; add children via the layer's child list
 - `CompositeLayer(layerBlendMode?)` — composite layer that renders children with a custom canvas blend mode
 
+### Layout Calculation
+
+The renderer uses each element's **layout bounds** to automatically size and position elements — for example, to fit an element to its parent container or to align a group.
+
+By default, every render object contributes to layout bounds. For elements with many render objects (notes, bars, particles), this causes the bounds to cover the full visual extent each frame, which may not be what you want.
+
+**Preferred pattern: a single transparent layout rectangle.**
+
+Declare one invisible `Rectangle` at a fixed, predictable size as the element's layout anchor. Set `includeInLayoutBounds: false` (or `layoutBoundsMode: 'none'`) on all other render objects so they don't contribute:
+
+```typescript
+import { Rectangle, VisualMedia } from '@mvmnt/plugin-sdk/render';
+
+protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
+    const props = this.getSchemaProps();
+    const W = 400, H = 200;
+
+    // ── Layout anchor ──────────────────────────────────────────────────────────
+    // A single transparent rectangle defines the element's layout bounds.
+    // All other render objects opt out of bounds calculation.
+    const layoutRect = new Rectangle(0, 0, W, H, '#00000000');
+
+    // ── Visual content ────────────────────────────────────────────────────────
+    const bars: Rectangle[] = [];
+    for (let i = 0; i < 32; i++) {
+        const h = Math.random() * H;
+        const bar = new Rectangle(i * (W / 32), H - h, W / 32 - 2, h, props.color);
+        bar.includeInLayoutBounds = false; // opt out
+        bars.push(bar);
+    }
+
+    return [layoutRect, ...bars];
+}
+```
+
+This keeps layout stable and predictable regardless of how many render objects you generate per frame. For `VisualMedia`, use `layoutBoundsMode: 'none'` in the constructor options instead of `includeInLayoutBounds = false`.
+
+### Custom Property Transforms
+
+Elements can read any property with type transforms:
+
+```typescript
+import { asNumber, asBoolean, asTrimmedString } from '@mvmnt/plugin-sdk';
+
+// In getConfigSchema():
+{
+    key: 'myEnum',
+    type: 'select',
+    label: 'Mode',
+    default: 'circle',
+    options: [
+        { label: 'Circle', value: 'circle' },
+        { label: 'Square', value: 'square' },
+    ],
+    runtime: {
+        transform: (value) => {
+            const normalized = asTrimmedString(value)?.toLowerCase();
+            return normalized === 'square' ? 'square' : 'circle';
+        },
+        defaultValue: 'circle'
+    },
+}
+```
+
+**Built-in Transforms:**
+
+- `asNumber`: Convert to finite number
+- `asBoolean`: Convert to boolean
+- `asString`: Convert to string
+- `asTrimmedString`: Convert to trimmed non-empty string
+
 ### Lifecycle Hooks
+
+Not sure why you would need to change these but you can!
 
 ```typescript
 // Called when property value changes
@@ -303,15 +404,101 @@ protected override onPropertyChanged(
 
 // Override to customize feature subscriptions
 protected override _subscribeToRequiredFeatures(): void {
-    // Manage audio/MIDI feature subscriptions
+    // Manage audio feature subscriptions
 }
 ```
+
+### Categories and Organization
+
+Elements are organized into categories (like `midi`, `misc`, etc) in the UI. For plugin elements, the category is overwritten at plugin load time to the plugin name.
 
 ## Reading MIDI and Audio Data
 
 Elements can read various data from the system to visualize. Read the [Plugin API](./plugin-api-v1.md) for a full list of what can be accessed and how to access it.
 
-### Audio Analysis
+### Reading Raw Audio (PCM)
+
+For sample-accurate time windows (e.g. oscilloscopes), use the `audioRawRead` capability instead of feature sampling:
+
+```typescript
+import { getRequiredPluginApi, PLUGIN_CAPABILITIES, Line } from '@mvmnt/plugin-sdk';
+
+export class OscilloscopeElement extends SceneElement {
+    protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
+        const props = this.getSchemaProps();
+
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioRawRead]);
+        if (!host.ok) return host.renderFallback();
+
+        const windowSec = 0.02; // 20 ms window
+        const samples = host.api.audioRaw.getRawSamples({
+            trackId: props.audioTrackId,
+            startSec: targetTime - windowSec / 2,
+            endSec: targetTime + windowSec / 2,
+            channel: 'mono',
+        });
+        if (!samples) return [];
+
+        const w = 400,
+            h = 100;
+        const objects: RenderObject[] = [];
+        for (let i = 1; i < samples.length; i++) {
+            const x1 = ((i - 1) / samples.length) * w;
+            const x2 = (i / samples.length) * w;
+            const y1 = h / 2 - samples[i - 1]! * (h / 2);
+            const y2 = h / 2 - samples[i]! * (h / 2);
+            objects.push(new Line(x1, y1, x2, y2, props.color, 1));
+        }
+        return objects;
+    }
+}
+```
+
+`getRawSamples` returns `null` if the window exceeds `MAX_RAW_SAMPLES` (8192 samples). For longer windows, use `sampleFeatureRange` with feature `'waveform'` instead.
+
+### Reading MIDI Events
+
+```typescript
+import { getRequiredPluginApi, PLUGIN_CAPABILITIES, Rectangle } from '@mvmnt/plugin-sdk';
+
+protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
+    const props = this.getSchemaProps();
+    if (!props.midiTrackId) return [];
+
+    const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
+    if (!host.ok) return host.renderFallback();
+
+    const EPS = 1e-3;
+    const activeNotes = host.api.timeline.selectNotesInWindow({
+        trackIds: [props.midiTrackId],
+        startSec: targetTime - EPS,
+        endSec: targetTime + EPS,
+    });
+
+    return activeNotes.map((note, i) => {
+        const y = (128 - note.note) * 5;
+        return new Rectangle(i * 20, y, 18, 4, props.noteColor);
+    });
+}
+```
+
+### Reading Time Information
+
+```typescript
+protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
+    const props = this.getSchemaProps();
+
+    // Use targetTime for animations (in seconds)
+    const rotation = (targetTime * 45) % 360; // 45 deg/sec
+    const phase = Math.sin(targetTime * Math.PI); // Oscillate
+
+    const size = 50 + phase * 25;
+
+    return [new Arc(0, 0, size, 0, Math.PI * 2, false, { fillColor: props.color })];
+}
+```
+
+### Reading Cached Audio Features
 
 Use `getRequiredPluginApi` (recommended) for a clean discriminated-union guard:
 
@@ -354,163 +541,6 @@ export class MyAudioElement extends SceneElement {
 
 Custom calculators can add new feature keys. See the [Custom Calculator Quickstart](./audio-features/custom-calculator-quickstart.md) to define and register your own.
 
-### Reading Raw Audio (PCM)
-
-For sample-accurate time windows (e.g. oscilloscopes), use the `audioRawRead` capability instead of feature sampling:
-
-```typescript
-import { getRequiredPluginApi, PLUGIN_CAPABILITIES, Line } from '@mvmnt/plugin-sdk';
-
-export class OscilloscopeElement extends SceneElement {
-    protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
-        const props = this.getSchemaProps();
-
-        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioRawRead]);
-        if (!host.ok) return host.renderFallback();
-
-        const windowSec = 0.02; // 20 ms window
-        const samples = host.api.audioRaw.getRawSamples({
-            trackId: props.audioTrackId,
-            startSec: targetTime - windowSec / 2,
-            endSec: targetTime + windowSec / 2,
-            channel: 'mono',
-        });
-        if (!samples) return [];
-
-        const w = 400,
-            h = 100;
-        const objects: RenderObject[] = [];
-        for (let i = 1; i < samples.length; i++) {
-            const x1 = ((i - 1) / samples.length) * w;
-            const x2 = (i / samples.length) * w;
-            const y1 = h / 2 - samples[i - 1]! * (h / 2);
-            const y2 = h / 2 - samples[i]! * (h / 2);
-            objects.push(new Line(x1, y1, x2, y2, props.color, 1));
-        }
-        return objects;
-    }
-}
-```
-
-`getRawSamples` returns `null` if the window exceeds `MAX_RAW_SAMPLES` (8192 samples). For longer windows, use `sampleFeatureRange` with feature `'waveform'` instead.
-
-### MIDI Event Bindings
-
-```typescript
-import { getRequiredPluginApi, PLUGIN_CAPABILITIES, Rectangle } from '@mvmnt/plugin-sdk';
-
-protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
-    const props = this.getSchemaProps();
-    if (!props.midiTrackId) return [];
-
-    const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
-    if (!host.ok) return host.renderFallback();
-
-    const EPS = 1e-3;
-    const activeNotes = host.api.timeline.selectNotesInWindow({
-        trackIds: [props.midiTrackId],
-        startSec: targetTime - EPS,
-        endSec: targetTime + EPS,
-    });
-
-    return activeNotes.map((note, i) => {
-        const y = (128 - note.note) * 5;
-        return new Rectangle(i * 20, y, 18, 4, props.noteColor);
-    });
-}
-```
-
-### Time-based Bindings
-
-```typescript
-protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
-    const props = this.getSchemaProps();
-
-    // Use targetTime for animations (in seconds)
-    const rotation = (targetTime * 45) % 360; // 45 deg/sec
-    const phase = Math.sin(targetTime * Math.PI); // Oscillate
-
-    const size = 50 + phase * 25;
-
-    return [new Arc(0, 0, size, 0, Math.PI * 2, false, { fillColor: props.color })];
-}
-```
-
-### Layout Calculation
-
-The renderer uses each element's **layout bounds** to automatically size and position elements — for example, to fit an element to its parent container or to align a group.
-
-By default, every render object contributes to layout bounds. For elements with many render objects (notes, bars, particles), this causes the bounds to cover the full visual extent each frame, which may not be what you want.
-
-**Preferred pattern: a single transparent layout rectangle.**
-
-Declare one invisible `Rectangle` at a fixed, predictable size as the element's layout anchor. Set `includeInLayoutBounds: false` (or `layoutBoundsMode: 'none'`) on all other render objects so they don't contribute:
-
-```typescript
-import { Rectangle, VisualMedia } from '@mvmnt/plugin-sdk/render';
-
-protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
-    const props = this.getSchemaProps();
-    const W = 400, H = 200;
-
-    // ── Layout anchor ──────────────────────────────────────────────────────────
-    // A single transparent rectangle defines the element's layout bounds.
-    // All other render objects opt out of bounds calculation.
-    const layoutRect = new Rectangle(0, 0, W, H, '#00000000');
-
-    // ── Visual content ────────────────────────────────────────────────────────
-    const bars: Rectangle[] = [];
-    for (let i = 0; i < 32; i++) {
-        const h = Math.random() * H;
-        const bar = new Rectangle(i * (W / 32), H - h, W / 32 - 2, h, props.color);
-        bar.includeInLayoutBounds = false; // opt out
-        bars.push(bar);
-    }
-
-    return [layoutRect, ...bars];
-}
-```
-
-This keeps layout stable and predictable regardless of how many render objects you generate per frame. For `VisualMedia`, use `layoutBoundsMode: 'none'` in the constructor options instead of `includeInLayoutBounds = false`.
-
-### Custom Bindings
-
-Elements can read any property with type transforms:
-
-```typescript
-import { asNumber, asBoolean, asTrimmedString } from '@mvmnt/plugin-sdk';
-
-// In getConfigSchema():
-{
-    key: 'myEnum',
-    type: 'select',
-    label: 'Mode',
-    default: 'circle',
-    options: [
-        { label: 'Circle', value: 'circle' },
-        { label: 'Square', value: 'square' },
-    ],
-    runtime: {
-        transform: (value) => {
-            const normalized = asTrimmedString(value)?.toLowerCase();
-            return normalized === 'square' ? 'square' : 'circle';
-        },
-        defaultValue: 'circle'
-    },
-}
-```
-
-**Built-in Transforms:**
-
-- `asNumber`: Convert to finite number
-- `asBoolean`: Convert to boolean
-- `asString`: Convert to string
-- `asTrimmedString`: Convert to trimmed non-empty string
-
-## Categories and Organization
-
-Elements are organized into categories (like `midi`, `misc`, etc) in the UI. For plugin elements, the category is overwritten at plugin load time to the plugin name.
-
 ## Testing and Debugging
 
 ### Local Development
@@ -524,8 +554,6 @@ Custom elements in the `src/plugins/` directory are automatically loaded during 
 
 ### Debugging Tips
 
-Console logging works but because we're building render objects every frame, it might get messy quick. I'd recommend just using your builtin browser debugger!
-
 **Console Logging:**
 
 ```typescript
@@ -538,6 +566,8 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
     return [...];
 }
 ```
+
+Console logging works, but because we're building render objects every frame, it might get messy. I'd recommend just using your builtin browser debugger!
 
 **Conditional Rendering:**
 
@@ -926,4 +956,3 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
 - [Runtime Plugin Loading](runtime-plugin-loading.md)
 - [Plugin Manifest Schema](plugin-manifest.schema.json)
 - [Architecture Overview](ARCHITECTURE.md)
-- Scene System Documentation _(coming soon)_

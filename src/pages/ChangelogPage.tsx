@@ -19,71 +19,74 @@ const ChangelogPage: React.FC = () => {
 
                 <div className="space-y-10">
 
-                    <ChangelogEntry version="0.15.0" date="11-4-26" notes={[
-                        'Implemented automation system',
+                    <ChangelogEntry version="0.15.0" date="15-5-12" notes={[
+                        "AUTOMATION.",
                         [
-                            'Full visual curve editing and interpolation',
-                            'Added tempo automation',
-                            'i to add keyframe',
-                            'blender-style auto keying',
-                            'the timeline panel alone now has 7k lines of code. i hate it'
+                            "Full automation editor with easing & custom beziers.",
+                            "Tempo automation (finally!)",
+                            "Blender-like autokey",
+                            "Press I on properky to keyframe, or in preview to open keyframe menu (try typing: x, y, sx, sy, r, t)"
                         ],
-                        'Added community page',
+                        "Community page",
                         [
-                            'Browse and share templates and plugins',
-                            'Install plugins and open templates directly from the community tab',
-                            'Search and filter by tags',
+                            "Explore, install and share plugins in one place!",
+                            "Search and filter by tags",
+                            "I'm not going to talk about the boring authentication and database stuff but its there",
                         ],
-                        'Full rework of inbuilt elements',
+                        "Builtin content improvements",
                         [
-                            'Implement tabs for properties',
-                            'Audit builtin elements for property display and usage consistency and quality',
-                            'Add basic shapes element',
-                            'Add MIDI cc monitor element',
-                            'More note animations for TUPR/MNPR',
-                            'Notes Playing Display given two new display modes inspired by tn-shi and ableton push respectively',
-                            'Notes Played Tracker given format string property for improved flexibility',
-                            'Audio volume element has peak/rms modes, reference lines and improved styling',
-                            'Audio Locked Oscilloscope optimised for non-realtime environment',
-                            'Implement musicpy-like chord estimation algorithm. Its not perfect but I tried :('
+                            "New note animations",
+                            "Basic shapes element, MIDI CC monitor",
+                            "Notes Playing Display given two new display modes inspired by tn-shi and ableton push respectively",
+                            "Stabilise layout bounds",
+                            "Implemented musicpy-like algo for Chord Estimate Display",
+                            "Rework audio reactive elements for accuracy and flexibility",
+                            "Notes played tracker is formattable now"
                         ],
-                        'Misc Improvements',
+                        "Custom element system",
                         [
-                            'Internally store MIDI as binary to reduce file sizes',
-                            'Improve timeline navigation (scroll in peace)',
-                            'Change color picker',
-                            'Modify persistence system (now uses indexeddb so you don\'t keep losing your progress on reload)',
-                            'MIDI Preview uses canvas rather than rendering thousands of divs',
+                            "Implemented API (Data access, helpers, asset management, etc)",
+                            "Wrote documentation and quickstart guides. Shouldn't take more than 15 minutes to make a simple element.",
+                            "Added helper scripts for templates and compilation",
+                            "Version conflict management (elements specify compatible API versions, and the host will load the closest match available)",
                         ],
-                        'Implemented custom element plugin system',
+                        "General UX",
                         [
-                            'Write documentation and quickstart guides',
-                            'Embed plugins into save files',
-                            'Support midi cc in midi ingestion',
-                            'Element property factories',
-                            'Improve version conflict management',
-                            'Consolidated api',
-                            'DevEx quality of life scripts',
-                            'Make custom audio feature extraction possible',
+                            "Many, many changes but I'll only put the bigger ones here",
+                            "Browser, indexeddb based saving (no more infinite downloaded copies!)",
+                            "Implemented property tabs for better organisation of complex elements",
+                            "Remember opened property groups",
+                            "Edit metadata in export modal",
+                            "Make builtin element property taxonomy more consistent",
+                            "Remove easy mode",
+                            "Rework selection system for predictability (delete works as expected! wow!)",
+                            "Added multiline string prop",
                         ],
-                        'Added asset manager',
+                        "Timeline UX",
                         [
-                            'Good™️ file management',
-                            'Bundle assets with plugins',
-                            'Drag and drop image creation',
-                            'Support for sparrow atlases (like FNF!)',
-                            'Generalised image render object to VisualMedia'
+                            "The timeline panel alone has over 7k lines of code now. I hate it.",
+                            "Improved timeline navigation (scroll in peace!)",
+                            "Navigation shortcuts (shift 1, shift 2, +, -, arrows, ...)",
+                            "Adaptive snapping based on zoom (S to toggle)",
                         ],
-                        'Extended renderobject system',
+                        "Render Object improvements",
                         [
-                            'Support blend modes, filters and layers',
-                            'Improve glow logic',
-                            'Implemented origin calculations',
+                            "Support for blend modes, filters and layers",
+                            "Improved glow logic (offscreen rendering, separate glow pass to avoid per-shape compositing artifacts)",
+                            "Implemented origin calculations for more intuitive rotation and scaling",
                         ],
-                        'Bugfixes',
+                        "Image and asset management",
                         [
-                            "Genuinely too many to count"
+                            "Explicit lifecycle management",
+                            "Drag and drop image creation",
+                            "Support for sparrow atlases (like FNF!)",
+                            "Generalised image render object to VisualMedia for better flexibility and atlas support",
                         ],
+                        "Internals",
+                        [
+                            "Reduced compute load of MIDI Preview",
+                            "Allow elements to access raw audio data",
+                        ]
                     ]} />
 
                     <ChangelogEntry version="0.14.0" date="20-1-26" notes={[

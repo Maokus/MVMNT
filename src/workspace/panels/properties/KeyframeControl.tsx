@@ -90,7 +90,7 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                     },
                     { source: 'keyframe-control' },
                 );
-            } else if (hasKeyframeHere) {
+            } else if (hasKeyframeHere && !isDelinked) {
                 // Remove keyframe at current tick
                 dispatchSceneCommand(
                     {
@@ -110,7 +110,7 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                     },
                     { source: 'keyframe-control' },
                 );
-                // If property was delinked, clear the override to relink to automation
+                // If property was delinked (override shadowing automation), clear the override to relink
                 if (isDelinked) {
                     useSceneStore.getState().clearPropertyOverride(makeChannelId(elementId, propertyKey));
                 }
@@ -141,11 +141,11 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
 
     const title = !isAutomated
         ? 'Enable automation'
-        : hasKeyframeHere
+        : hasKeyframeHere && !isDelinked
             ? 'Remove keyframe at current tick'
             : 'Add keyframe at current tick';
 
-    const stateClass = !isAutomated ? 'inactive' : hasKeyframeHere ? 'active' : 'automated';
+    const stateClass = !isAutomated ? 'inactive' : (hasKeyframeHere && !isDelinked) ? 'active' : 'automated';
 
     return (
         <button
