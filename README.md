@@ -6,7 +6,7 @@
   </a>
 </p>
 
-MVMNT (pronounced _movement_) is a free and open source music visualization tool designed to create beautiful, modern, MIDI and audio-reactive graphics.
+MVMNT (pronounced _movement_) is a free and open source music visualisation software that uses DAW and animation tool inspired design to create a new and flexible way of creating music-reactive visuals.
 
 For developers, it is a framework which handles the boilerplate so that you can focus on making and sharing custom visualisations.
 

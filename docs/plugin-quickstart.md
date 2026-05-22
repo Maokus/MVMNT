@@ -1,13 +1,12 @@
 # Plugin Development Quickstart
 
-This guide gets you from zero to a working custom scene element in under 15 minutes.
+This guide gets you from zero to a working custom scene element in under 15 minutes!
 
 If you already have an element working and want to go deeper, see [Creating Custom Elements](creating-custom-elements.md) and the [Plugin API v1 Reference](plugin-api-v1.md).
 
 ## Prerequisites
 
-- Node.js 18+
-- [MVMNT repo](https://github.com/Maokus/MVMNT.git) cloned and `npm install` run
+- MVMNT installed and running! See [Installation](../README.md#quick-start).
 - Basic TypeScript knowledge
 
 ## What You're Building

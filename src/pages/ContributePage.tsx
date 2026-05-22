@@ -12,13 +12,78 @@ const ContributePage: React.FC = () => {
                         <h1 className="text-4xl font-extrabold tracking-tight text-white">Contribute</h1>
                         <p className="mt-3 text-neutral-400 leading-relaxed max-w-2xl">
                             MVMNT is a passion project developed and hosted entirely at my own expense.
-                            Every bit of support directly helps keep the app running, funds new features, and motivates continued development.
+                            Your support keeps the app running, builds new features, and motivates continued development.
                         </p>
                     </div>
                     <Link to="/" className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium shrink-0">Back to Home</Link>
                 </div>
 
                 <div className="space-y-8">
+
+                    {/* Spread the word */}
+                    <section>
+                        <h2 className="text-xl font-bold text-white mb-1">Spread the word</h2>
+                        <p className="text-neutral-400 text-sm mb-4">
+                            The best way to support MVMNT is to make something cool and share it with others!!
+                        </p>
+                        <div className="flex flex-wrap gap-3">
+                            <a
+                                href="https://github.com/Maokus/mvmnt"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
+                            >
+                                <FaGithub />
+                                Star on GitHub
+                            </a>
+                            <a
+                                href="https://youtube.com/@maokus"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
+                            >
+                                <FaYoutube className="text-[#FF0000]" />
+                                Subscribe on YouTube
+                            </a>
+                            <a
+                                href="https://x.com/maokaros"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
+                            >
+                                <FaXTwitter />
+                                Follow on X
+                            </a>
+                            <a
+                                href="https://maok.us/discord"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
+                            >
+                                <FaDiscord />
+                                Join Discord
+                            </a>
+                        </div>
+                    </section>
+
+                    {/* Beta testing */}
+                    <section>
+                        <h2 className="text-xl font-bold text-white mb-1">Beta testing</h2>
+                        <p className="text-neutral-400 text-sm mb-4">
+                            Beta testers help catch bugs early and shape the direction of new features.
+                            If you're interested in testing, drop me a dm on Discord.
+                        </p>
+                        <a
+                            href="https://maok.us/discord"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
+                        >
+                            <FaDiscord />
+                            Message on Discord
+                        </a>
+                    </section>
+
                     {/* Financial support */}
                     <section>
                         <h2 className="text-xl font-bold text-white mb-1">Financial support</h2>
@@ -48,70 +113,24 @@ const ContributePage: React.FC = () => {
                         </div>
                     </section>
 
-                    {/* Spread the word */}
+                    {/* Building Plugins */}
                     <section>
-                        <h2 className="text-xl font-bold text-white mb-1">Spread the word</h2>
+                        <h2 className="text-xl font-bold text-white mb-1">Building Plugins</h2>
                         <p className="text-neutral-400 text-sm mb-4">
-                            Sharing the project helps it grow and reach people who might find it useful.
-                            The best support you can give is to make something and share it!
-                        </p>
-                        <div className="flex flex-wrap gap-3">
-                            <a
-                                href="https://maok.us/discord"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
-                            >
-                                <FaDiscord />
-                                Join Discord
-                            </a>
-                            <a
-                                href="https://github.com/Maokus/mvmnt"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
-                            >
-                                <FaGithub />
-                                Star on GitHub
-                            </a>
-                            <a
-                                href="https://youtube.com/@maokus"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
-                            >
-                                <FaYoutube className="text-[#FF0000]" />
-                                Subscribe on YouTube
-                            </a>
-                            <a
-                                href="https://x.com/maokaros"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
-                            >
-                                <FaXTwitter />
-                                Follow on X
-                            </a>
-                        </div>
-                    </section>
-
-                    {/* Beta testing */}
-                    <section>
-                        <h2 className="text-xl font-bold text-white mb-1">Beta testing</h2>
-                        <p className="text-neutral-400 text-sm mb-4">
-                            Beta testers help catch bugs early and shape the direction of new features.
-                            If you're interested in joining, send me a message on Discord.
+                            It literally takes 15 minutes to build a plugin!! Please give it a try.
                         </p>
                         <a
-                            href="https://maok.us/discord"
+                            href="https://github.com/Maokus/MVMNT/blob/main/docs/plugin-quickstart.md"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
                         >
-                            <FaDiscord />
-                            Message on Discord
+                            <FaGithub />
+                            Read quickstart guide
                         </a>
                     </section>
+
+
                 </div>
 
                 <div className="mt-12">
