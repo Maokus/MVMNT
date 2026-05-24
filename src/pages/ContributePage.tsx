@@ -117,7 +117,7 @@ const ContributePage: React.FC = () => {
                     <section>
                         <h2 className="text-xl font-bold text-white mb-1">Building Plugins</h2>
                         <p className="text-neutral-400 text-sm mb-4">
-                            It literally takes 15 minutes to build a plugin!! Please give it a try.
+                            It literally takes 15 minutes to build a plugin!! Please give it a try, I worked hard on this :")
                         </p>
                         <a
                             href="https://github.com/Maokus/MVMNT/blob/main/docs/plugin-quickstart.md"

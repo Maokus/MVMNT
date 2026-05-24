@@ -49,17 +49,20 @@ export class VidilikePianoRollElement extends SceneElement {
                         properties: [
                             prop.number('rollWidth', 'Roll Width (px)', 1200, { step: 10 }),
                             prop.number('timeUnitBars', 'Time Window (bars)', 2, { min: 1, max: 8, step: 1 }),
-                            prop.number('minNote', 'Min MIDI Note', -1, {
-                                min: -1,
-                                max: 127,
-                                step: 1,
-                                description: 'Lowest note shown. Set to -1 to auto-detect from the track.',
+                            prop.boolean('autoRange', 'Auto Range', false, {
+                                description: 'Automatically detect min/max note from the track cache.',
                             }),
-                            prop.number('maxNote', 'Max MIDI Note', -1, {
-                                min: -1,
+                            prop.number('minNote', 'Min MIDI Note', 0, {
+                                min: 0,
                                 max: 127,
                                 step: 1,
-                                description: 'Highest note shown. Set to -1 to auto-detect from the track.',
+                                visibleWhen: [{ key: 'autoRange', notEquals: true }],
+                            }),
+                            prop.number('maxNote', 'Max MIDI Note', 127, {
+                                min: 0,
+                                max: 127,
+                                step: 1,
+                                visibleWhen: [{ key: 'autoRange', notEquals: true }],
                             }),
                             prop.number('noteHeight', 'Note Height (px)', 20, { step: 1 }),
                             prop.number('playheadPosition', 'Playhead Position (0–1)', 0.25, {
@@ -221,12 +224,13 @@ export class VidilikePianoRollElement extends SceneElement {
 
         const rollWidth = Math.max(100, (p.rollWidth as number) ?? 800);
 
-        // Auto-detect min/max from midiCache when set to -1
-        const rawMinNote = Math.floor((p.minNote as number) ?? -1);
-        const rawMaxNote = Math.floor((p.maxNote as number) ?? -1);
+        // Auto-detect min/max from midiCache when autoRange is enabled
+        const autoRange = (p.autoRange as boolean) ?? false;
+        const rawMinNote = Math.floor((p.minNote as number) ?? 0);
+        const rawMaxNote = Math.floor((p.maxNote as number) ?? 127);
         let minNote: number;
         let maxNote: number;
-        if (rawMinNote === -1 || rawMaxNote === -1) {
+        if (autoRange) {
             const trackId = p.midiTrackId as string | undefined;
             let autoMinNote = 21;
             let autoMaxNote = 108;
@@ -240,8 +244,8 @@ export class VidilikePianoRollElement extends SceneElement {
                     autoMaxNote = bounds.maxNote;
                 }
             }
-            minNote = rawMinNote === -1 ? autoMinNote : Math.max(0, Math.min(127, rawMinNote));
-            maxNote = rawMaxNote === -1 ? autoMaxNote : Math.max(0, Math.min(127, rawMaxNote));
+            minNote = autoMinNote;
+            maxNote = autoMaxNote;
         } else {
             minNote = Math.max(0, Math.min(127, rawMinNote));
             maxNote = Math.max(0, Math.min(127, rawMaxNote));

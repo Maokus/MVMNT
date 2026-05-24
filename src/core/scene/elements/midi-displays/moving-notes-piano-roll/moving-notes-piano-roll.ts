@@ -87,19 +87,22 @@ export class MovingNotesPianoRollElement extends SceneElement {
                                 description: 'Total height of the piano roll.',
                             }),
                             prop.number('timeUnitBars', 'Time Unit (bars)', 1, { min: 1, max: 8, step: 1 }),
-                            prop.number('minNote', 'Minimum MIDI Note', -1, {
-                                min: -1,
-                                max: 127,
-                                step: 1,
-                                description:
-                                    'Lowest MIDI note shown. Set to -1 to automatically use the lowest note in the track.',
+                            prop.boolean('autoRange', 'Auto Range', false, {
+                                description: 'Automatically detect min/max note from the track.',
                             }),
-                            prop.number('maxNote', 'Maximum MIDI Note', -1, {
-                                min: -1,
+                            prop.number('minNote', 'Minimum MIDI Note', 0, {
+                                min: 0,
                                 max: 127,
                                 step: 1,
-                                description:
-                                    'Highest MIDI note shown. Set to -1 to automatically use the highest note in the track.',
+                                description: 'Lowest MIDI note shown.',
+                                visibleWhen: [{ key: 'autoRange', notEquals: true }],
+                            }),
+                            prop.number('maxNote', 'Maximum MIDI Note', 127, {
+                                min: 0,
+                                max: 127,
+                                step: 1,
+                                description: 'Highest MIDI note shown.',
+                                visibleWhen: [{ key: 'autoRange', notEquals: true }],
                             }),
                         ],
                     },
@@ -269,27 +272,16 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
         const timelineState = host.ok ? host.api.timeline.getStateSnapshot() : null;
 
+        const autoRange = props.autoRange as boolean;
         const rawMinNote = props.minNote as number;
         const rawMaxNote = props.maxNote as number;
         let minNote: number;
         let maxNote: number;
-        if (rawMinNote === -1 || rawMaxNote === -1) {
+        if (autoRange) {
             const trackId = props.midiTrackId as string | undefined;
-            let autoMinNote = 0;
-            let autoMaxNote = 127;
-            if (trackId && host.ok && timelineState) {
-                const track = timelineState.tracks[trackId];
-                const midiSourceId = (track as { midiSourceId?: string })?.midiSourceId;
-                // Use midiSourceId as cache key (same fallback logic as timelineSelectors)
-                const cacheKey = midiSourceId ?? trackId;
-                const bounds = timelineState.midiCache[cacheKey]?.bounds;
-                if (bounds) {
-                    autoMinNote = bounds.minNote;
-                    autoMaxNote = bounds.maxNote;
-                }
-            }
-            minNote = rawMinNote === -1 ? autoMinNote : rawMinNote;
-            maxNote = rawMaxNote === -1 ? autoMaxNote : rawMaxNote;
+            const range = trackId && host.ok ? host.api.timeline.getNoteRange({ trackIds: [trackId] }) : null;
+            minNote = range?.min ?? 0;
+            maxNote = range?.max ?? 127;
         } else {
             minNote = rawMinNote;
             maxNote = rawMaxNote;

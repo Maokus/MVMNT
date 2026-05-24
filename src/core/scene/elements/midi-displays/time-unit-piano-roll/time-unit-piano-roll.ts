@@ -89,19 +89,22 @@ export class TimeUnitPianoRollElement extends SceneElement {
                                 description: 'Total height of the piano roll.',
                             }),
                             prop.number('timeUnitBars', 'Time Unit (bars)', 1, { min: 1, max: 8, step: 1 }),
-                            prop.number('minNote', 'Minimum MIDI Note', -1, {
-                                min: -1,
-                                max: 127,
-                                step: 1,
-                                description:
-                                    'Lowest MIDI note shown. Set to -1 to automatically use the lowest note in the track.',
+                            prop.boolean('autoRange', 'Auto Range', false, {
+                                description: 'Automatically detect min/max note from the track.',
                             }),
-                            prop.number('maxNote', 'Maximum MIDI Note', -1, {
-                                min: -1,
+                            prop.number('minNote', 'Minimum MIDI Note', 0, {
+                                min: 0,
                                 max: 127,
                                 step: 1,
-                                description:
-                                    'Highest MIDI note shown. Set to -1 to automatically use the highest note in the track.',
+                                description: 'Lowest MIDI note shown.',
+                                visibleWhen: [{ key: 'autoRange', notEquals: true }],
+                            }),
+                            prop.number('maxNote', 'Maximum MIDI Note', 127, {
+                                min: 0,
+                                max: 127,
+                                step: 1,
+                                description: 'Highest MIDI note shown.',
+                                visibleWhen: [{ key: 'autoRange', notEquals: true }],
                             }),
                         ],
                     },
@@ -191,8 +194,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         properties: [
                             prop.boolean('showPiano', 'Show Piano', false),
                             prop.number('pianoWidth', 'Piano Width (px)', 100, {
-                                min: 80,
-                                max: 300,
+                                min: 0,
                                 step: 10,
                                 visibleWhen: [{ key: 'showPiano', truthy: true }],
                             }),
@@ -466,15 +468,16 @@ export class TimeUnitPianoRollElement extends SceneElement {
         if (noteLabelFontFamily) ensureFontLoaded(noteLabelFontFamily, noteLabelFontWeight);
         if (beatLabelFontFamily) ensureFontLoaded(beatLabelFontFamily, beatLabelFontWeight);
 
+        const autoRange = props.autoRange as boolean;
         const rawMinNote = props.minNote as number;
         const rawMaxNote = props.maxNote as number;
         let minNote: number;
         let maxNote: number;
-        if (rawMinNote === -1 || rawMaxNote === -1) {
+        if (autoRange) {
             const trackId = props.midiTrackId as string | undefined;
             const range = trackId && host.ok ? host.api.timeline.getNoteRange({ trackIds: [trackId] }) : null;
-            minNote = rawMinNote === -1 ? (range?.min ?? 0) : rawMinNote;
-            maxNote = rawMaxNote === -1 ? (range?.max ?? 127) : rawMaxNote;
+            minNote = range?.min ?? 0;
+            maxNote = range?.max ?? 127;
         } else {
             minNote = rawMinNote;
             maxNote = rawMaxNote;
