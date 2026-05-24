@@ -582,7 +582,16 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                             <input
                                 type="text"
                                 value={macro.value}
-                                onChange={(e) => handleUpdateMacroValue(macro.name, e.target.value)}
+                                onChange={(e) => {
+                                    const pos = e.target.selectionStart;
+                                    const el = e.target;
+                                    handleUpdateMacroValue(macro.name, e.target.value);
+                                    requestAnimationFrame(() => {
+                                        if (el === document.activeElement) {
+                                            el.setSelectionRange(pos, pos);
+                                        }
+                                    });
+                                }}
                                 onKeyDown={handleKeyDown}
                             />
                         );

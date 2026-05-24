@@ -113,6 +113,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                                 max: 1,
                                 step: 0.01,
                             }),
+                            prop.boolean('disableConfidenceFade', 'Disable Confidence Fade', false),
                             prop.boolean('showInfo', 'Show Info', false),
                         ],
                     },
@@ -253,10 +254,13 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
 
         // Opacity tiers — 20% floor ensures weak signals stay visible
         const MIN_OPACITY_FLOOR = 0.2;
+        const disableConfidenceFade = props.disableConfidenceFade === true;
         const normalized = confidenceThreshold > 0 ? confidence / confidenceThreshold : confidence > 0 ? 1 : 0.5;
-        const trustedLineOpacity = clamp(userOpacity * Math.max(MIN_OPACITY_FLOOR, normalized), 0, userOpacity);
-        const candidateLineOpacity = userOpacity * (MIN_OPACITY_FLOOR + 0.15);
-        const rawLineOpacity = userOpacity * (MIN_OPACITY_FLOOR + 0.1);
+        const trustedLineOpacity = disableConfidenceFade
+            ? userOpacity
+            : clamp(userOpacity * Math.max(MIN_OPACITY_FLOOR, normalized), 0, userOpacity);
+        const candidateLineOpacity = disableConfidenceFade ? userOpacity : userOpacity * (MIN_OPACITY_FLOOR + 0.15);
+        const rawLineOpacity = disableConfidenceFade ? userOpacity : userOpacity * (MIN_OPACITY_FLOOR + 0.1);
 
         const makePoly = (points: { x: number; y: number }[], opacity: number) => {
             const poly = new Poly(points, null, applyOpacity(baseColor, opacity), props.lineWidth ?? 2, {
