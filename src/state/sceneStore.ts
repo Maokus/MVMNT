@@ -302,6 +302,7 @@ export interface SceneStoreActions {
     createMacro: (macroId: string, definition: SceneMacroDefinition) => void;
     updateMacroValue: (macroId: string, value: unknown) => void;
     renameMacro: (currentId: string, nextId: string) => void;
+    reorderMacros: (order: string[]) => void;
     deleteMacro: (macroId: string) => void;
     registerFontAsset: (asset: FontAsset) => void;
     updateFontAsset: (assetId: string, patch: Partial<Omit<FontAsset, 'id'>>) => void;
@@ -1457,6 +1458,28 @@ const createSceneStoreState = (
                     allIds: nextAllIds,
                     exportedAt: nextExportedAt,
                 },
+                runtimeMeta: markDirty(state, 'updateMacros'),
+            };
+        });
+    },
+
+    reorderMacros: (order) => {
+        set((state) => {
+            const existing = new Set(state.macros.allIds);
+            const seen = new Set<string>();
+            const next: string[] = [];
+            for (const id of order) {
+                if (existing.has(id) && !seen.has(id)) {
+                    seen.add(id);
+                    next.push(id);
+                }
+            }
+            for (const id of state.macros.allIds) {
+                if (!seen.has(id)) next.push(id);
+            }
+            return {
+                ...state,
+                macros: { ...state.macros, allIds: next },
                 runtimeMeta: markDirty(state, 'updateMacros'),
             };
         });

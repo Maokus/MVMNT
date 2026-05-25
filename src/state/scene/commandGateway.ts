@@ -97,6 +97,10 @@ export type SceneCommand =
           macroId: string;
       }
     | {
+          type: 'reorderMacros';
+          order: string[];
+      }
+    | {
           type: 'importMacros';
           payload: SceneSerializedMacros;
       }
@@ -468,6 +472,18 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
                 ],
             };
         }
+        case 'reorderMacros': {
+            const previousOrder = state.macros.allIds;
+            if (
+                previousOrder.length === command.order.length &&
+                previousOrder.every((id, i) => id === command.order[i])
+            )
+                return null;
+            return {
+                redo: [cloneCommand(command)],
+                undo: [{ type: 'reorderMacros', order: [...previousOrder] }],
+            };
+        }
         case 'deleteMacro': {
             const macro = state.macros.byId[command.macroId];
             if (!macro) return null;
@@ -760,6 +776,9 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
             break;
         case 'deleteMacro':
             store.deleteMacro(command.macroId);
+            break;
+        case 'reorderMacros':
+            store.reorderMacros(command.order);
             break;
         case 'importMacros':
             replaceMacrosFromSnapshot(command.payload);

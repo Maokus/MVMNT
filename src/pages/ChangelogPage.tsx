@@ -19,7 +19,7 @@ const ChangelogPage: React.FC = () => {
 
                 <div className="space-y-10">
 
-                    <ChangelogEntry version="0.15.0" date="15-5-12" notes={[
+                    <ChangelogEntry version="0.15.0" date="15-5-31" notes={[
                         "AUTOMATION.",
                         [
                             "Full automation editor with easing & custom beziers.",
@@ -30,7 +30,7 @@ const ChangelogPage: React.FC = () => {
                         "Community page",
                         [
                             "Explore, install and share plugins in one place!",
-                            "Search and filter by tags",
+                            "Search and filter by tags (only admins can make tags for now)",
                             "I'm not going to talk about the boring authentication and database stuff but its there",
                         ],
                         "Builtin content improvements",

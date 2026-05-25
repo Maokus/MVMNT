@@ -14,6 +14,7 @@ interface MacroContextValue {
     create: (name: string, type: MacroType, value: any, options?: any) => boolean;
     updateValue: (name: string, value: any) => boolean;
     rename: (currentId: string, nextId: string) => boolean;
+    reorder: (order: string[]) => boolean;
     delete: (name: string) => void;
     get: (name: string) => Macro | null;
     assignListener: (listener: (eventType: string, data: any) => void) => () => void;
@@ -81,6 +82,13 @@ export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         [runCommand]
     );
 
+    const reorder = useCallback(
+        (order: string[]) => {
+            return runCommand({ type: 'reorderMacros', order }, 'MacroContext.reorder');
+        },
+        [runCommand]
+    );
+
     const del = useCallback(
         (name: string) => {
             const success = runCommand({ type: 'deleteMacro', macroId: name }, 'MacroContext.delete');
@@ -103,7 +111,7 @@ export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     return (
         <MacroContext.Provider
-            value={{ macros, refresh, create, updateValue, rename, delete: del, get, assignListener }}
+            value={{ macros, refresh, create, updateValue, rename, reorder, delete: del, get, assignListener }}
         >
             {children}
         </MacroContext.Provider>

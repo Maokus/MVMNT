@@ -9,7 +9,8 @@ export type MacroType =
     | 'file-midi'
     | 'file-image'
     | 'font'
-    | 'timelineTrackRef';
+    | 'timelineTrackRef'
+    | 'assetRef';
 
 export interface MacroOptions {
     min?: number;
@@ -19,6 +20,7 @@ export interface MacroOptions {
     accept?: string;
     allowMultiple?: boolean;
     allowedTrackTypes?: Array<'midi' | 'audio'>;
+    allowedAssetTypes?: Array<'image' | 'gif' | 'sparrow'>;
     [key: string]: any;
 }
 

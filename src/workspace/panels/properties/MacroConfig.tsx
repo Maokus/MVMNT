@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { FaLink, FaTrash, FaPlus, FaPen } from 'react-icons/fa';
+import { FaLink, FaTrash, FaPlus, FaPen, FaGripVertical } from 'react-icons/fa';
 import { useMacros } from '@context/MacroContext';
 import FontInput from '@workspace/forms/inputs/FontInput';
 import TimelineTrackSelect from '@workspace/forms/inputs/TimelineTrackSelect';
 import { useNumberDrag } from '@workspace/forms/inputs/useNumberDrag';
 import ColorAlphaInput from '@workspace/forms/inputs/ColorAlphaInput';
+import AssetSelect from '@workspace/forms/inputs/AssetSelect';
 import { useMacroAssignments } from '@state/scene';
 
 interface MacroConfigProps {
@@ -25,7 +26,8 @@ interface Macro {
     | 'file-midi'
     | 'file-image'
     | 'font'
-    | 'timelineTrackRef';
+    | 'timelineTrackRef'
+    | 'assetRef';
     value: any;
     options: {
         min?: number;
@@ -92,7 +94,7 @@ const MacroNumberInput: React.FC<MacroNumberInputProps> = ({ macro, value, onCha
 };
 
 const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = true }) => {
-    const { macros: contextMacros, create, updateValue, rename, delete: deleteMacro, get, assignListener } = useMacros();
+    const { macros: contextMacros, create, updateValue, rename, reorder, delete: deleteMacro, get, assignListener } = useMacros();
     const storeAssignments = useMacroAssignments();
     const assignmentMap = useMemo(() => {
         const map = new Map<string, MacroAssignment[]>();
@@ -108,6 +110,8 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
     const [inputValues, setInputValues] = useState<{ [key: string]: string }>({});
     const [editingMacroId, setEditingMacroId] = useState<string | null>(null);
     const [macroNameDraft, setMacroNameDraft] = useState('');
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
     const nameInputRef = useRef<HTMLInputElement | null>(null);
     const [newMacro, setNewMacro] = useState({
         name: '',
@@ -347,6 +351,17 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
         setMacros(prev => prev.filter(m => m.name !== name));
     };
 
+    const handleDragEnd = () => {
+        if (draggedIndex !== null && dragOverIndex !== null && draggedIndex !== dragOverIndex) {
+            const newOrder = [...macros];
+            const [removed] = newOrder.splice(draggedIndex, 1);
+            newOrder.splice(dragOverIndex, 0, removed);
+            reorder(newOrder.map(m => m.name));
+        }
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+    };
+
     const handleShowAssignmentDialog = (macroName: string) => {
         const assignments = assignmentMap.get(macroName) ?? [];
         if (assignments.length === 0) {
@@ -559,6 +574,16 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             case 'timelineTrackRef': {
                 return renderTrackSelectControl(macro);
             }
+            case 'assetRef': {
+                return (
+                    <AssetSelect
+                        id={`macro-asset-${macro.name}`}
+                        value={typeof macro.value === 'string' ? macro.value : null}
+                        schema={{ allowedAssetTypes: macro.options?.allowedAssetTypes }}
+                        onChange={(val) => handleUpdateMacroValue(macro.name, val)}
+                    />
+                );
+            }
             default: // string
                 return (
                     (() => {
@@ -607,6 +632,12 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
         return (
             <div key={macro.name} className="macro-item" data-macro={macro.name}>
                 <div className="macro-control">
+                    <div
+                        className="flex-shrink-0 text-neutral-500 hover:text-neutral-300 cursor-grab active:cursor-grabbing px-0.5 self-center"
+                        title="Drag to reorder"
+                    >
+                        <FaGripVertical size={10} />
+                    </div>
                     <div className="macro-label">
                         {isEditingName ? (
                             <input
@@ -699,7 +730,19 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                         No macros defined. Create a macro to control multiple properties at once.
                     </div>
                 ) : (
-                    macros.map(renderMacroItem)
+                    macros.map((macro, index) => (
+                        <div
+                            key={macro.name}
+                            draggable
+                            onDragStart={() => setDraggedIndex(index)}
+                            onDragOver={(e) => { e.preventDefault(); setDragOverIndex(index); }}
+                            onDragEnd={handleDragEnd}
+                            style={{ opacity: draggedIndex === index ? 0.4 : 1 }}
+                            className={dragOverIndex === index && draggedIndex !== index ? 'border-t-2 border-t-blue-400' : ''}
+                        >
+                            {renderMacroItem(macro)}
+                        </div>
+                    ))
                 )}
             </div>
 

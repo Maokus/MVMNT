@@ -150,11 +150,12 @@ This produces `dist/com.example.my-plugin-1.0.0.mvmnt-plugin` — a single file 
 | Timeline, audio, timing, and MIDI utilities            | [Plugin API v1 Reference](plugin-api-v1.md)             |
 | Distributable bundle format and loading                | [Runtime Plugin Loading](runtime-plugin-loading.md)     |
 | `manifest.json` field reference                        | [Plugin Manifest Schema](plugin-manifest.schema.json)   |
+| Read built-in element code                             | src/core/scene/elements/\*                              |
 
 ## Tips
 
-- **Render objects use local coordinates.** `(0, 0)` is the element's own origin — the element's canvas position is controlled by its `x`/`y`/`offsetX`/`offsetY` properties separately.
+- **"ok but can it run doom"**: Yes but its not good practice. Please read [Render Determinism](creating-custom-elements.md#render-determinism)
+- **Render objects use local coordinates.** `(0, 0)` is the element's own origin.
 - **Colors are 8-digit hex** with alpha channel: `#RRGGBBAA`. The `colorAlpha` property is available, but you may prefer to use `color` and a `range` opacity slider to help people who want to keyframe opacity independantly.
 - **`targetTime` is in seconds.** Use `api.timing.secondsToBeats(targetTime)` when you need beat-relative positioning.
-- **Graceful degradation.** Always guard `getPluginHostApi()` results — the host API may not be ready on the first few frames.
 - **Animation math is built in.** Use `clamp`, `remap`, `lerp`, `FloatCurve`, and the `easings` dictionary from `@mvmnt/plugin-sdk/animation` instead of reinventing interpolation helpers.

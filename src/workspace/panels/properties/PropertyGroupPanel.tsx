@@ -94,6 +94,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             'file',
             'font',
             'timelineTrackRef',
+            'assetRef',
         ].includes(normalizedType);
     };
 
@@ -120,6 +121,9 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             return (macrosSource as any[]).filter(
                 (macro: any) => macro.type === 'colorAlpha' || macro.type === 'color',
             );
+        }
+        if (macroType === 'assetRef') {
+            return (macrosSource as any[]).filter((macro: any) => macro.type === 'assetRef');
         }
         return (macrosSource as any[]).filter((macro: any) => macro.type === macroType);
     };
@@ -168,6 +172,12 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                     options.allowedTrackTypes = ['midi'];
                 }
                 if (value == null) value = null;
+                break;
+            case 'assetRef':
+                if (Array.isArray(prop.allowedAssetTypes) && prop.allowedAssetTypes.length > 0) {
+                    options.allowedAssetTypes = [...prop.allowedAssetTypes];
+                }
+                if (typeof value !== 'string' || !value) value = null;
                 break;
             default:
                 if (value == null) value = '';
