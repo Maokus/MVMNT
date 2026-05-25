@@ -152,7 +152,7 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
                 title="Delete track"
                 aria-label="Delete track"
                 onClick={(e) => { e.stopPropagation(); removeTrack(trackId); }}
-                style={{ width: controlSize, height: controlSize }}
+                style={{ width: controlSize, height: pillHeight }}
             >
                 <FaTrash />
             </button>

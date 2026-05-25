@@ -260,6 +260,7 @@ export interface SceneSerializedElement {
 
 export interface SceneSerializedMacros {
     macros: Record<string, Macro>;
+    allIds?: string[];
     exportedAt?: number;
 }
 
@@ -687,22 +688,26 @@ function markDirty(prev: SceneStoreState, source: SceneMutationSource): SceneRun
 
 function buildMacroState(payload?: SceneSerializedMacros | null): SceneMacroState {
     if (!payload || !payload.macros) return { byId: {}, allIds: [], exportedAt: undefined };
-    const macroIds = Object.keys(payload.macros);
+    const knownIds = new Set(Object.keys(payload.macros));
+    // Use persisted allIds order when available, falling back to key order.
+    const allIds: string[] = Array.isArray(payload.allIds)
+        ? payload.allIds.filter((id) => knownIds.has(id))
+        : Object.keys(payload.macros);
     const byId: Record<string, Macro> = {};
-    for (const id of macroIds) {
+    for (const id of allIds) {
         const macro = payload.macros[id];
         byId[id] = {
             ...macro,
             options: cloneMacroOptions(macro?.options),
         };
     }
-    const hasMacros = macroIds.length > 0;
+    const hasMacros = allIds.length > 0;
     const exportedAt = hasMacros
         ? typeof payload.exportedAt === 'number'
             ? payload.exportedAt
             : Date.now()
         : undefined;
-    return { byId, allIds: macroIds, exportedAt };
+    return { byId, allIds, exportedAt };
 }
 
 function buildMacroPayload(state: SceneMacroState): SceneSerializedMacros | undefined {
@@ -712,7 +717,7 @@ function buildMacroPayload(state: SceneMacroState): SceneSerializedMacros | unde
         const macro = state.byId[id];
         if (macro) macros[id] = { ...macro };
     }
-    const payload: SceneSerializedMacros = { macros };
+    const payload: SceneSerializedMacros = { macros, allIds: [...state.allIds] };
     if (typeof state.exportedAt === 'number') payload.exportedAt = state.exportedAt;
     return payload;
 }
