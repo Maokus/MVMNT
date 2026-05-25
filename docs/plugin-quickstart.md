@@ -6,7 +6,7 @@ If you already have an element working and want to go deeper, see [Creating Cust
 
 ## Prerequisites
 
-- MVMNT installed and running! See [Installation](../README.md#quick-start).
+- MVMNT installed and running! See [Installation](../README.md#installation).
 - Basic TypeScript knowledge
 
 ## What You're Building
