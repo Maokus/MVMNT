@@ -345,6 +345,10 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                     let candidate = snapped + dir;
                     while (candidate >= 0 && isOccupiedByOther(candidate)) candidate += dir;
                     resolvedSnap = Math.max(0, candidate);
+                    // If clamping to 0 still lands on an occupied slot (e.g. bumping left into
+                    // tick 0 which another keyframe already occupies), stay put rather than
+                    // overwriting that keyframe.
+                    if (isOccupiedByOther(resolvedSnap)) resolvedSnap = drag.kfTick;
                 }
 
                 const delta = resolvedSnap - drag.baseTick;
@@ -364,12 +368,31 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                         },
                     );
 
-                    // Move peers by the same tick delta
+                    // Move peers by the same tick delta, with per-channel collision avoidance
+                    const dir = delta > 0 ? 1 : -1;
                     const updatedPeers = drag.peers.map((peer) => {
-                        const newPeerTick = snapTick(
+                        const rawPeerTick = snapTick(
                             Math.max(0, peer.baseTick + delta),
                             e.ctrlKey || e.metaKey,
                         );
+                        const peerChannelKfs =
+                            useSceneStore.getState().automation.channels[peer.channelId]?.keyframes ?? [];
+                        const isPeerOccupiedByOther = (t: number) =>
+                            peerChannelKfs.some(
+                                (kf) =>
+                                    Math.abs(kf.tick - t) < 0.5 &&
+                                    Math.abs(kf.tick - peer.curTick) >= 0.5,
+                            );
+                        let newPeerTick = rawPeerTick;
+                        if (isPeerOccupiedByOther(newPeerTick)) {
+                            let candidate = newPeerTick + dir;
+                            while (candidate >= 0 && isPeerOccupiedByOther(candidate))
+                                candidate += dir;
+                            newPeerTick = Math.max(0, candidate);
+                            // Same boundary guard as for the primary: if clamping still
+                            // lands on an occupied slot, stay put instead of overwriting.
+                            if (isPeerOccupiedByOther(newPeerTick)) newPeerTick = peer.curTick;
+                        }
                         if (newPeerTick !== peer.curTick) {
                             dispatchSceneCommand(
                                 {

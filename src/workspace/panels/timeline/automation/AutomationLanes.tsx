@@ -320,6 +320,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
                 e.stopPropagation();
                 const currentTick = useTimelineStore.getState().timeline.currentTick ?? 0;
                 const tickOffset = currentTick - clip.minTick;
+                const pasteKey = `paste-kf-${Date.now()}`;
                 for (const entry of clip.entries) {
                     for (const kf of entry.keyframes) {
                         const newTick = Math.max(0, Math.round(kf.tick + tickOffset));
@@ -329,7 +330,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
                                 channelId: entry.channelId,
                                 keyframe: { ...kf, tick: newTick },
                             },
-                            { source: 'automation-lane' },
+                            { source: 'automation-lane', mergeKey: pasteKey },
                         );
                     }
                 }
