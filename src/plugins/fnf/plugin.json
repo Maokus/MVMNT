@@ -9,6 +9,10 @@
     {
       "type": "boyfriend",
       "entry": "boyfriend.ts"
+    },
+    {
+      "type": "arrows",
+      "entry": "arrows.ts"
     }
   ]
 }

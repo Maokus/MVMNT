@@ -139,9 +139,7 @@ export class BoyfriendElement extends SceneElement {
             .setLayoutBoundsMode('none')
             .setDimensions(WIDTH, HEIGHT)
             .setOriginFraction(props.debugOriginX, props.debugOriginY)
-            .setFramePlacement('center-left');
-
-        this._media.showDebug = true;
+            .setFramePlacement('bottom-center');
 
         this._media.scaleX = props.scale;
         this._media.scaleY = props.scale;
