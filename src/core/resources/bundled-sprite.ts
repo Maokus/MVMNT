@@ -1,15 +1,17 @@
 /**
- * BundledSprite / BundledSparrowHandle — convenience wrappers for bundled plugin assets.
+ * BundledSprite / BundledSparrowHandle / BundledGridAtlasHandle — convenience
+ * wrappers for bundled plugin assets.
  *
- * Both classes resolve filenames to blob URLs asynchronously on first use and
- * manage a VisualResourceHandle internally. Both expose identical public APIs:
+ * All classes resolve filenames to blob URLs asynchronously on first use and
+ * manage a VisualResourceHandle internally. All expose identical public APIs:
  *   .get()  — returns ResourceHandleResult ready for VisualMedia.setResource()
  *   .build() — creates a new VisualMedia with resource already applied
  *   .destroy() — releases the held reference (safe to call multiple times)
  *
- * Instances created via SceneElement.bundledSprite() / .bundledSparrow() are
- * automatically destroyed when the element is disposed — no manual destroy() call
- * is needed unless you create them outside those factory methods.
+ * Instances created via SceneElement.bundledSprite() / .bundledSparrow() /
+ * .bundledGridAtlas() are automatically destroyed when the element is disposed —
+ * no manual destroy() call is needed unless you create them outside those
+ * factory methods.
  *
  * Load errors are surfaced as status:'error' rather than silently falling back to
  * idle/no-image. Check result.errorMessage for the cause.
@@ -17,12 +19,12 @@
 
 import { VisualResourceHandle, type ResourceHandleResult } from './visual-resource-handle';
 import { VisualMedia, type VisualMediaOptions } from '@core/render/render-objects/visual-media';
-import type { VisualSourceDescriptor } from './visual-source-descriptor';
+import type { AtlasLayout, VisualSourceDescriptor } from './visual-source-descriptor';
 
 // ─── Shared option types ─────────────────────────────────────────────────────
 
 /**
- * Options for BundledSprite.build() / BundledSparrowHandle.build().
+ * Options for BundledSprite.build() / BundledSparrowHandle.build() / BundledGridAtlasHandle.build().
  * All VisualMediaOptions are forwarded to the constructed VisualMedia instance.
  */
 export type BundledBuildOptions = VisualMediaOptions & {
@@ -188,6 +190,96 @@ export class BundledSparrowHandle {
 
     /**
      * Returns a new VisualMedia with the bundled Sparrow resource already set.
+     * Deterministic — derives entirely from current handle state + arguments.
+     * Safe to call every frame.
+     */
+    build(x: number, y: number, width: number, height: number, options?: BundledBuildOptions): VisualMedia {
+        const { resource, status } = this.get();
+        const vm = new VisualMedia(x, y, width, height, options);
+        vm.setResource(resource, status);
+        if (options?.animation !== undefined) vm.setAnimation(options.animation);
+        return vm;
+    }
+
+    /** Release the held reference. Safe to call multiple times. */
+    destroy(): void {
+        this._handle.destroy();
+    }
+}
+
+// ─── BundledGridAtlasHandle ───────────────────────────────────────────────────
+
+/**
+ * Manages a bundled grid-atlas asset: a single spritesheet image divided into a
+ * uniform grid of animation frames.
+ *
+ * Resolves the filename to a blob URL asynchronously on first use, then feeds a
+ * GridAtlasSourceDescriptor into a VisualResourceHandle. Load failures are
+ * surfaced as status:'error' rather than silently holding status:'idle'.
+ *
+ * Create via SceneElement.bundledGridAtlas() so the loader is wired automatically
+ * and the handle is auto-tracked for disposal.
+ *
+ * To freeze on a specific frame N, use `frameDurationMs: 1000` in the layout
+ * and call `setLocalTime(N)` — localTimeSec N maps directly to frame index N.
+ *
+ * @example
+ * class MyElement extends SceneElement {
+ *   // 4-column × 2-row grid; freeze on frame 2 by setting localTime = 2.
+ *   private readonly _sheet = this.bundledGridAtlas(
+ *     'sprites.png',
+ *     { columns: 4, rows: 2, frameDurationMs: 1000 }
+ *   );
+ *
+ *   protected override _buildRenderObjects(_cfg: unknown, _t: number) {
+ *     const { resource, status } = this._sheet.get();
+ *     this._media.setResource(resource, status).setAnimation(null).setLocalTime(2);
+ *     return [this._media];
+ *   }
+ * }
+ */
+export class BundledGridAtlasHandle {
+    private readonly _handle = new VisualResourceHandle();
+    private _url: string | null = null;
+    private _loading = false;
+    private _error: string | null = null;
+
+    constructor(
+        private readonly _filename: string,
+        private readonly _layout: AtlasLayout,
+        private readonly _loader: (filename: string) => Promise<string>
+    ) {}
+
+    /**
+     * Returns `{ resource, status }` ready to pass to `VisualMedia.setResource()`.
+     * Triggers the bundled asset load on the first call; safe to call every frame.
+     * When the loader fails, returns status:'error' with an errorMessage.
+     */
+    get(): ResourceHandleResult {
+        if (this._error) {
+            return { resource: null, status: 'error', errorMessage: this._error };
+        }
+        if (!this._url && !this._loading) {
+            this._loading = true;
+            this._loader(this._filename)
+                .then((url) => {
+                    this._url = url;
+                    this._loading = false;
+                })
+                .catch((err) => {
+                    this._error =
+                        err instanceof Error ? err.message : `Failed to load bundled asset: ${this._filename}`;
+                    this._loading = false;
+                });
+        }
+        const descriptor: VisualSourceDescriptor | null = this._url
+            ? { kind: 'grid-atlas', src: this._url, layout: this._layout }
+            : null;
+        return this._handle.update(descriptor);
+    }
+
+    /**
+     * Returns a new VisualMedia with the bundled grid-atlas resource already set.
      * Deterministic — derives entirely from current handle state + arguments.
      * Safe to call every frame.
      */

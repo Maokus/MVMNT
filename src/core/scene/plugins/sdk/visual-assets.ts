@@ -38,6 +38,11 @@ export {
     type ResourceHandleResult,
 } from '@core/resources/visual-resource-handle';
 
-export { BundledSprite, BundledSparrowHandle } from '@core/resources/bundled-sprite';
+export { BundledSprite, BundledSparrowHandle, BundledGridAtlasHandle } from '@core/resources/bundled-sprite';
 
 export { resolveProjectAssetDescriptor } from '@state/visualAssetRegistryStore';
+
+export {
+    getSparrowFrameInfo,
+    type SparrowFrameInfo,
+} from '@core/resources/sparrow-atlas-view';

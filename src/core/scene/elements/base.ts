@@ -19,7 +19,8 @@ import { debugLog } from '@utils/debug-log';
 import { isTestEnvironment } from '@utils/env';
 import { withRenderSafety, limitRenderObjects, DEFAULT_SAFETY_CONFIG } from '@core/scene/plugins/plugin-safety';
 import { loadBundledAssetForElement } from '@core/scene/plugins/bundled-asset-registry';
-import { BundledSprite, BundledSparrowHandle } from '@core/resources/bundled-sprite';
+import { BundledSprite, BundledSparrowHandle, BundledGridAtlasHandle } from '@core/resources/bundled-sprite';
+import type { AtlasLayout } from '@core/resources/visual-source-descriptor';
 import { VisualResourceHandle } from '@core/resources/visual-resource-handle';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 
@@ -316,6 +317,29 @@ export class SceneElement implements SceneElementInterface {
             },
             defaultFps
         );
+        this._trackedVisualHandles.push(handle);
+        return handle;
+    }
+
+    /**
+     * Create a managed handle for a bundled grid-atlas spritesheet.
+     *
+     * The sheet is divided into a uniform grid described by `layout`. Call
+     * `handle.get()` each frame to receive `{ resource, status }` ready for
+     * `VisualMedia.setResource()`. Use `setAnimation(null)` and `setLocalTime(N)`
+     * to freeze on a specific frame index N (with `frameDurationMs: 1000` in
+     * the layout, localTimeSec N maps directly to frame N).
+     *
+     * The handle is automatically destroyed when the element is disposed.
+     *
+     * @example
+     * private readonly _holds = this.bundledGridAtlas(
+     *   'hold_assets.png',
+     *   { columns: 4, rows: 2, frameDurationMs: 1000 }
+     * );
+     */
+    protected bundledGridAtlas(filename: string, layout: AtlasLayout): BundledGridAtlasHandle {
+        const handle = new BundledGridAtlasHandle(filename, layout, (f) => this.loadBundledAsset(f));
         this._trackedVisualHandles.push(handle);
         return handle;
     }

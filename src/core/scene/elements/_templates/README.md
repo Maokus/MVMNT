@@ -67,6 +67,15 @@ Animates a Sparrow-format atlas (PNG + XML) bundled with the plugin. Demonstrate
 - Optional user-overrideable atlas via `prop.sparrowAsset()`
 - Background sprite layer via `this.bundledSprite()`
 - `VisualMediaPlayback` with `resource?.animations` for atlas frame timing
+- `getSparrowFrameInfo(resource, animName)` to read logical frame dimensions and trim insets without hardcoding constants
+
+### `grid-atlas.ts` — Grid Spritesheet
+
+Displays a single frame from a bundled grid-layout spritesheet (no XML required). Demonstrates:
+
+- `this.bundledGridAtlas(filename, layout)` for uniform-grid spritesheets
+- `setAnimation(null)` + `setLocalTime(frameIndex)` to freeze on a specific frame
+- `frameDurationMs: 1000` layout trick so localTimeSec maps directly to frame index
 
 ---
 
