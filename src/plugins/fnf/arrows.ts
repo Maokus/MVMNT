@@ -6,6 +6,8 @@ import {
     getPluginHostApi,
     PLUGIN_CAPABILITIES,
     type TimelineNoteEvent,
+    type VisualResource,
+    type ResourceStatus,
 } from '@mvmnt/plugin-sdk';
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
@@ -14,14 +16,6 @@ import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 const LANE_DIRS = ['Left', 'Down', 'Up', 'Right'] as const;
 const SPLASH_COLORS = ['purple', 'blue', 'green', 'red'] as const;
 const HOLD_COVER_COLORS = ['Purple', 'Blue', 'Green', 'Red'] as const;
-
-// FNF-approximate RGBA hex colors for hold tail bodies
-const HOLD_TAIL_COLORS = [
-    '#C76DE1DD', // Left - purple
-    '#44D3EFDD', // Down - blue
-    '#53EF52DD', // Up - green
-    '#F96060DD', // Right - red
-] as const;
 
 const CONFIRM_FPS = 24;
 const CONFIRM_FRAMES = 4;
@@ -32,7 +26,7 @@ const HOLD_COVER_START_DURATION = 1 / CONFIRM_FPS;
 const HOLD_COVER_LOOP_DURATION = 4 / CONFIRM_FPS;
 
 const SPLASH_DURATION = 0.35; // seconds the splash plays after note hit
-const MAX_FALLING_NOTES = 24;
+const MAX_FALLING_NOTES = 40;
 const HOLD_NOTE_MIN_DURATION = 0.05; // shorter notes treated as taps
 
 // Strumline logical frame size in the noteStrumline atlas (approx, largest direction)
@@ -51,6 +45,15 @@ export class ArrowsElement extends SceneElement {
     private readonly _strumlineAtlas = this.bundledSparrow('noteStrumline.png', 'noteStrumline.xml');
     private readonly _notesAtlas = this.bundledSparrow('notes.png', 'notes.xml');
     private readonly _splashAtlas = this.bundledSparrow('noteSplashes.png', 'noteSplashes.xml');
+
+    // Hold tail atlas: 8 frames in a single row.
+    // Frame layout (left→right): left body, left cap, down body, down cap, up body, up cap, right body, right cap.
+    // All caps face upward.
+    private readonly _holdAtlas = this.bundledGridAtlas('NOTE_hold_assets.png', {
+        columns: 8,
+        rows: 1,
+        frameDurationMs: 1000,
+    });
 
     // Hold cover atlases: index matches lane (0=Purple/Left … 3=Red/Right)
     private readonly _holdCoverAtlases = [
@@ -80,6 +83,16 @@ export class ArrowsElement extends SceneElement {
     private readonly _notePool: VisualMedia[] = Array.from(
         { length: MAX_FALLING_NOTES },
         () => new VisualMedia(0, 0, NOTE_FRAME_W, NOTE_FRAME_W, { layoutBoundsMode: 'none' })
+    );
+
+    // Pooled hold tail bodies and caps (approaching notes + held notes per lane)
+    private readonly _holdBodies: VisualMedia[] = Array.from(
+        { length: MAX_FALLING_NOTES + 4 },
+        () => new VisualMedia(0, 0, 0, 0, { layoutBoundsMode: 'none' })
+    );
+    private readonly _holdCaps: VisualMedia[] = Array.from(
+        { length: MAX_FALLING_NOTES + 4 },
+        () => new VisualMedia(0, 0, 0, 0, { layoutBoundsMode: 'none' })
     );
 
     constructor(id: string = 'arrows', config: Record<string, unknown> = {}) {
@@ -159,7 +172,8 @@ export class ArrowsElement extends SceneElement {
         const laneHeld: (TimelineNoteEvent | null)[] = [null, null, null, null];
         const laneSplash: ({ note: TimelineNoteEvent; elapsed: number } | null)[] = [null, null, null, null];
         // Approaching notes only (startTime >= targetTime), plus tailEndY for hold notes
-        const fallingNotes: Array<{ note: TimelineNoteEvent; lane: number; headY: number; tailEndY: number | null }> = [];
+        const fallingNotes: Array<{ note: TimelineNoteEvent; lane: number; headY: number; tailEndY: number | null }> =
+            [];
 
         const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
         const trackId = props.midiTrackId as string | null;
@@ -193,9 +207,7 @@ export class ArrowsElement extends SceneElement {
                     const headY = _noteY(n.startTime, targetTime, hitY, scrollSpeed, downscroll);
                     if (headY > -laneSize && headY < H + laneSize) {
                         const isHold = n.endTime - n.startTime > HOLD_NOTE_MIN_DURATION;
-                        const tailEndY = isHold
-                            ? _noteY(n.endTime, targetTime, hitY, scrollSpeed, downscroll)
-                            : null;
+                        const tailEndY = isHold ? _noteY(n.endTime, targetTime, hitY, scrollSpeed, downscroll) : null;
                         fallingNotes.push({ note: n, lane, headY, tailEndY });
                     }
                 }
@@ -207,11 +219,28 @@ export class ArrowsElement extends SceneElement {
         const { resource: strumlineRes, status: strumlineStatus } = this._strumlineAtlas.get();
         const { resource: notesRes, status: notesStatus } = this._notesAtlas.get();
         const { resource: splashRes, status: splashStatus } = this._splashAtlas.get();
+        const { resource: holdRes, status: holdStatus } = this._holdAtlas.get();
+
+        let holdPoolIdx = 0;
 
         // ── Hold tails for approaching hold notes (drawn first = behind everything) ──
         for (const { lane, headY, tailEndY } of fallingNotes) {
             if (tailEndY === null) continue;
-            _drawHoldTail(objects, lane, laneSize, laneGap, tailW, headY, tailEndY);
+            _drawHoldTailSprite(
+                objects,
+                holdRes,
+                holdStatus,
+                lane,
+                laneSize,
+                laneGap,
+                tailW,
+                headY,
+                tailEndY,
+                downscroll,
+                this._holdBodies,
+                this._holdCaps,
+                holdPoolIdx++
+            );
         }
 
         // ── Hold tails for currently held notes (above approaching tails, below receptors) ──
@@ -222,7 +251,21 @@ export class ArrowsElement extends SceneElement {
             // Only draw while there is remaining tail above (upscroll) / below (downscroll) the strumline
             const tailRemains = downscroll ? tailEndY > hitY : tailEndY < hitY;
             if (tailRemains) {
-                _drawHoldTail(objects, i, laneSize, laneGap, tailW, hitY, tailEndY);
+                _drawHoldTailSprite(
+                    objects,
+                    holdRes,
+                    holdStatus,
+                    i,
+                    laneSize,
+                    laneGap,
+                    tailW,
+                    hitY,
+                    tailEndY,
+                    downscroll,
+                    this._holdBodies,
+                    this._holdCaps,
+                    holdPoolIdx++
+                );
             }
         }
 
@@ -320,7 +363,7 @@ export class ArrowsElement extends SceneElement {
                 .setFramePlacement('center');
             // Centre the cover on the receptor centre (hitY, laneX + laneSize/2)
             cover.x = laneX + laneSize / 2 - coverW / 2;
-            cover.y = hitY - coverH / 2;
+            cover.y = hitY - coverH / 2 + 40;
 
             objects.push(cover);
         }
@@ -360,40 +403,73 @@ export class ArrowsElement extends SceneElement {
 // Returns the canvas Y coordinate for a note at noteTime, given current targetTime.
 // hitY is the receptor centre Y. In upscroll approaching notes have y < hitY;
 // in downscroll they have y > hitY.
-function _noteY(
-    noteTime: number,
-    targetTime: number,
-    hitY: number,
-    scrollSpeed: number,
-    downscroll: boolean
-): number {
+function _noteY(noteTime: number, targetTime: number, hitY: number, scrollSpeed: number, downscroll: boolean): number {
     const offset = (noteTime - targetTime) * scrollSpeed;
     return downscroll ? hitY + offset : hitY - offset;
 }
 
-// Draws a solid hold-tail rectangle between two Y positions.
-// fromY / toY are both "centre" coordinates (same convention as _noteY).
-function _drawHoldTail(
+// Draws a hold tail using the NOTE_hold_assets sprite atlas.
+// fromY / toY are both centre coordinates (same convention as _noteY).
+// Frame layout per lane: body = lane*2, cap = lane*2+1. All caps face upward.
+// For downscroll the cap is flipped by setting scaleY=-1 with y at the bottom edge.
+function _drawHoldTailSprite(
     objects: RenderObject[],
+    holdRes: VisualResource | null,
+    holdStatus: ResourceStatus,
     lane: number,
     laneSize: number,
     laneGap: number,
     tailW: number,
     fromY: number,
-    toY: number
+    toY: number,
+    downscroll: boolean,
+    bodies: VisualMedia[],
+    caps: VisualMedia[],
+    poolIdx: number
 ): void {
     const topY = Math.min(fromY, toY);
-    const height = Math.abs(toY - fromY);
-    if (height <= 0) return;
+    const bottomY = Math.max(fromY, toY);
+    const totalH = bottomY - topY;
+    if (totalH <= 0 || poolIdx >= bodies.length) return;
 
+    const capH = tailW; // cap cell is square
+    const bodyH = Math.max(0, totalH - capH);
     const laneX = lane * (laneSize + laneGap);
-    const tail = new Rectangle(
-        laneX + (laneSize - tailW) / 2,
-        topY,
-        tailW,
-        height,
-        HOLD_TAIL_COLORS[lane]!
-    );
-    tail.includeInLayoutBounds = false;
-    objects.push(tail);
+    const x = laneX + (laneSize - tailW) / 2;
+    const bodyFrameIdx = lane * 2;
+    const capFrameIdx = lane * 2 + 1;
+
+    // Cap sits at the far end of the tail (top for upscroll, bottom for downscroll).
+    // Upscroll: cap faces up naturally. Downscroll: cap flipped via scaleY=-1,
+    // anchor at bottom edge so the sprite draws upward into the correct region.
+    const cap = caps[poolIdx]!;
+    cap.setResource(holdRes, holdStatus)
+        .setAnimation(null)
+        .setLocalTime(capFrameIdx)
+        .setFitMode('fill')
+        .setDimensions(tailW, capH);
+    cap.x = x;
+    if (downscroll) {
+        cap.y = bottomY - tailW; // anchor at bottom; scaleY=-1 draws it upward into [bottomY-capH, bottomY]
+        cap.scaleY = 1;
+    } else {
+        cap.y = topY + tailW;
+        cap.scaleY = -1;
+    }
+    cap.scaleX = 1;
+    objects.push(cap);
+
+    if (bodyH > 0) {
+        const body = bodies[poolIdx]!;
+        body.setResource(holdRes, holdStatus)
+            .setAnimation(null)
+            .setLocalTime(bodyFrameIdx)
+            .setFitMode('fill')
+            .setDimensions(tailW, bodyH);
+        body.x = x;
+        body.y = downscroll ? topY : topY + capH;
+        body.scaleX = 1;
+        body.scaleY = 1;
+        objects.push(body);
+    }
 }

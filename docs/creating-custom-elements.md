@@ -4,7 +4,7 @@ _Last Updated: 7 May 2026_
 
 If you are new, it is recommended you first read the [Plugin Quickstart Guide](./plugin-quickstart.md).
 
-This guide explains in greater depth and detail how to create custom scene elements for MVMNT using the plugin system.
+This is a massive textdump on how particular aspects of the plugin system work. It's useful for if your curious about how some part of the system works, or as reference for your coding agent.
 
 - [Creating Custom Elements](#creating-custom-elements)
     - [Overview](#overview)
@@ -16,7 +16,7 @@ This guide explains in greater depth and detail how to create custom scene eleme
         - [Configuration Schema](#configuration-schema)
         - [Render Methods](#render-methods)
         - [Lifecycle Hooks](#lifecycle-hooks)
-        - [Layout Calculation](#layout-calculation)
+        - [Layout Calculation](#layout-calculation)\*
         - [Custom Property Transforms](#custom-property-transforms)
         - [Categories and Organization](#categories-and-organization)
     - [Reading MIDI and Audio Data](#reading-midi-and-audio-data)
@@ -36,7 +36,7 @@ This guide explains in greater depth and detail how to create custom scene eleme
         - [Build Configuration](#build-configuration)
         - [Distributing Your Plugin](#distributing-your-plugin)
     - [Best Practices](#best-practices)
-        - [Render Determinism](#render-determinism)
+        - [Render Determinism](#render-determinism)\*
         - [Performance Considerations](#performance-considerations)
         - [Naming Conventions](#naming-conventions)
         - [Error Handling](#error-handling)

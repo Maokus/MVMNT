@@ -1,12 +1,4 @@
-import {
-    SceneElement,
-    prop,
-    insertElementConfig,
-    tab,
-    resolveProjectAssetDescriptor,
-    getPluginHostApi,
-    PLUGIN_CAPABILITIES,
-} from '@mvmnt/plugin-sdk';
+import { SceneElement, prop, insertElementConfig, tab, getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
@@ -27,7 +19,6 @@ const IDLE_DURATION_SEC = IDLE_FRAMES / IDLE_FPS; // ~0.583s
 
 export class BoyfriendElement extends SceneElement {
     private readonly _bundledAtlas = this.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml');
-    private readonly _atlasOverrideHandle = this.visualHandle();
     private readonly _media = new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' });
     private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
 
@@ -62,9 +53,6 @@ export class BoyfriendElement extends SceneElement {
                         label: 'Sprite',
                         collapsed: false,
                         properties: [
-                            prop.sparrowAsset('atlas', 'Override Atlas', {
-                                description: 'Leave empty to use the bundled BOYFRIEND atlas.',
-                            }),
                             prop.number('scale', 'Scale', 1, { min: 0, step: 0.1 }),
                             prop.number('debugOriginX', 'Debug Origin X', 0, { min: 0, max: 1, step: 0.1 }),
                             prop.number('debugOriginY', 'Debug Origin Y', 0, { min: 0, max: 1, step: 0.1 }),
@@ -125,11 +113,8 @@ export class BoyfriendElement extends SceneElement {
             localTime = ((targetTime % beatSec) / beatSec) * IDLE_DURATION_SEC;
         }
 
-        // Resolve atlas source (bundled default or user override).
-        const overrideId = props.atlas as string | null;
-        const { resource, status: resStatus } = overrideId
-            ? this._atlasOverrideHandle.update(resolveProjectAssetDescriptor(overrideId))
-            : this._bundledAtlas.get();
+        // Use bundled atlas.
+        const { resource, status: resStatus } = this._bundledAtlas.get();
 
         this._media
             .setResource(resource, resStatus)
