@@ -2,6 +2,10 @@ import { SceneElement, prop, insertElementConfig, tab, getPluginHostApi, PLUGIN_
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
+// Implemented these to test the sparrow and grid atlas loading systems.
+// System itself is still kind of janky but usable. If you know how to make it better
+// Message me on discord please 🙏 I have 0 experience with this sort of thing
+
 // FNF note lane: MIDI note % 4 → animation name
 // 0 = LEFT (purple), 1 = DOWN (blue), 2 = UP (green), 3 = RIGHT (red)
 const NOTE_ANIMATIONS: Record<number, string> = {

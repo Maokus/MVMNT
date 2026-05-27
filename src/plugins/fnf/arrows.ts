@@ -27,10 +27,10 @@ const HOLD_COVER_LOOP_DURATION = 4 / CONFIRM_FPS;
 
 const SPLASH_DURATION = 0.35; // seconds the splash plays after note hit
 const MAX_FALLING_NOTES = 40;
-const HOLD_NOTE_MIN_DURATION = 0.05; // shorter notes treated as taps
+const HOLD_NOTE_MIN_DURATION = 0.05; // fallback only; overridden by shortNoteThreshold prop
 
 // Strumline logical frame size in the noteStrumline atlas (approx, largest direction)
-// Used to scale the VisualMedia so 'clip'+'center' shows the full frame.
+// Used only for the initial VisualMedia pool dimensions; render uses laneSize×laneSize.
 const STRUMLINE_FRAME_W = 238;
 const STRUMLINE_FRAME_H = 236;
 
@@ -126,10 +126,16 @@ export class ArrowsElement extends SceneElement {
                         label: 'Layout',
                         collapsed: false,
                         properties: [
-                            prop.number('laneSize', 'Lane Size', 157, { min: 40, max: 400, step: 1 }),
-                            prop.number('laneGap', 'Lane Gap', 12, { min: 0, max: 100, step: 1 }),
+                            prop.number('laneSize', 'Lane Width', 180, { min: 0, step: 1 }),
+                            prop.number('laneGap', 'Lane Spacing', 180, { step: 1 }),
+                            prop.number('laneLength', 'Lane Length', 1000, { min: 0, step: 10 }),
                             prop.number('hitPosition', 'Hit Position', 0.85, { min: 0, max: 1, step: 0.01 }),
-                            prop.number('scrollSpeed', 'Scroll Speed (px/s)', 400, { min: 50, max: 2000, step: 10 }),
+                            prop.number('scrollSpeed', 'Scroll Speed (px/s)', 1000, { step: 10 }),
+                            prop.number('shortNoteThreshold', 'Short Note Threshold (s)', 0.45, {
+                                min: 0,
+                                max: 2,
+                                step: 0.01,
+                            }),
                             prop.boolean('downscroll', 'Downscroll', false),
                         ],
                     },
@@ -143,13 +149,15 @@ export class ArrowsElement extends SceneElement {
         if (!props.visible) return [];
 
         const laneSize = props.laneSize as number;
-        const laneGap = props.laneGap as number;
+        const laneGap = props.laneGap as number; // centre-to-centre lane spacing
+        const laneLength = props.laneLength as number;
         const hitFraction = props.hitPosition as number;
         const scrollSpeed = props.scrollSpeed as number;
         const downscroll = props.downscroll as boolean;
+        const shortNoteThreshold = (props.shortNoteThreshold as number | undefined) ?? HOLD_NOTE_MIN_DURATION;
 
-        const W = 4 * laneSize + 3 * laneGap;
-        const H = W * 1.4;
+        const W = 3 * laneGap + laneSize;
+        const H = laneLength;
 
         // hitY is the visual centre-Y of the strumline receptor row
         const hitY = hitFraction * H;
@@ -157,10 +165,11 @@ export class ArrowsElement extends SceneElement {
         this._layoutRect.width = W;
         this._layoutRect.height = H;
 
-        // Sprite display sizes, scaled from reference frame dimensions
-        const scale = laneSize / NOTE_FRAME_W; // NOTE_FRAME_W is our reference
-        const strumW = STRUMLINE_FRAME_W * scale;
-        const strumH = STRUMLINE_FRAME_H * scale;
+        // Sprite display sizes scaled from reference frame dimensions.
+        // Receptors use laneSize×laneSize so they never overflow into adjacent lanes.
+        const scale = laneSize / NOTE_FRAME_W;
+        const strumW = laneSize;
+        const strumH = laneSize;
         const coverW = HOLD_COVER_FRAME_W * scale;
         const coverH = HOLD_COVER_FRAME_H * scale;
         const tailW = laneSize * 0.55;
@@ -206,7 +215,7 @@ export class ArrowsElement extends SceneElement {
                 if (n.startTime >= targetTime) {
                     const headY = _noteY(n.startTime, targetTime, hitY, scrollSpeed, downscroll);
                     if (headY > -laneSize && headY < H + laneSize) {
-                        const isHold = n.endTime - n.startTime > HOLD_NOTE_MIN_DURATION;
+                        const isHold = n.endTime - n.startTime > shortNoteThreshold;
                         const tailEndY = isHold ? _noteY(n.endTime, targetTime, hitY, scrollSpeed, downscroll) : null;
                         fallingNotes.push({ note: n, lane, headY, tailEndY });
                     }
@@ -231,8 +240,8 @@ export class ArrowsElement extends SceneElement {
                 holdRes,
                 holdStatus,
                 lane,
+                lane * laneGap,
                 laneSize,
-                laneGap,
                 tailW,
                 headY,
                 tailEndY,
@@ -246,7 +255,7 @@ export class ArrowsElement extends SceneElement {
         // ── Hold tails for currently held notes (above approaching tails, below receptors) ──
         for (let i = 0; i < 4; i++) {
             const held = laneHeld[i];
-            if (!held || held.endTime - held.startTime <= HOLD_NOTE_MIN_DURATION) continue;
+            if (!held || held.endTime - held.startTime <= shortNoteThreshold) continue;
             const tailEndY = _noteY(held.endTime, targetTime, hitY, scrollSpeed, downscroll);
             // Only draw while there is remaining tail above (upscroll) / below (downscroll) the strumline
             const tailRemains = downscroll ? tailEndY > hitY : tailEndY < hitY;
@@ -256,8 +265,8 @@ export class ArrowsElement extends SceneElement {
                     holdRes,
                     holdStatus,
                     i,
+                    i * laneGap,
                     laneSize,
-                    laneGap,
                     tailW,
                     hitY,
                     tailEndY,
@@ -273,7 +282,7 @@ export class ArrowsElement extends SceneElement {
         for (let i = 0; i < 4; i++) {
             const dir = LANE_DIRS[i]!;
             const held = laneHeld[i];
-            const laneX = i * (laneSize + laneGap);
+            const laneX = i * laneGap;
 
             let animName: string;
             let localTime: number;
@@ -302,7 +311,7 @@ export class ArrowsElement extends SceneElement {
                 // 'center' placement aligns the logical Sparrow frame to the VisualMedia
                 // centre, so the trimmed sprite content renders without offset or clipping.
                 .setFramePlacement('center');
-            receptor.x = laneX + laneSize / 2 - strumW / 2;
+            receptor.x = laneX;
             receptor.y = hitY - strumH / 2;
 
             objects.push(receptor);
@@ -313,7 +322,7 @@ export class ArrowsElement extends SceneElement {
         for (const { note, lane, headY } of fallingNotes) {
             if (poolIdx >= MAX_FALLING_NOTES) break;
             const dir = LANE_DIRS[lane]!;
-            const laneX = lane * (laneSize + laneGap);
+            const laneX = lane * laneGap;
             const sprite = this._notePool[poolIdx++]!;
 
             sprite
@@ -323,7 +332,7 @@ export class ArrowsElement extends SceneElement {
                 .setFitMode('clip')
                 .setDimensions(laneSize, laneSize)
                 .setFramePlacement('center');
-            sprite.x = laneX + laneSize / 2 - laneSize / 2; // = laneX
+            sprite.x = laneX;
             sprite.y = headY - laneSize / 2;
             sprite.opacity = 1;
 
@@ -335,7 +344,7 @@ export class ArrowsElement extends SceneElement {
         // ── Hold cover overlays (on top of receptors while holding) ─────────────────
         for (let i = 0; i < 4; i++) {
             const held = laneHeld[i];
-            if (!held || held.endTime - held.startTime <= HOLD_NOTE_MIN_DURATION) continue;
+            if (!held || held.endTime - held.startTime <= shortNoteThreshold) continue;
 
             const elapsed = targetTime - held.startTime;
             const colorName = HOLD_COVER_COLORS[i]!;
@@ -352,7 +361,7 @@ export class ArrowsElement extends SceneElement {
                 localTime = (elapsed - HOLD_COVER_START_DURATION) % HOLD_COVER_LOOP_DURATION;
             }
 
-            const laneX = i * (laneSize + laneGap);
+            const laneX = i * laneGap;
             const cover = this._holdCovers[i]!;
             cover
                 .setResource(coverRes, coverStatus)
@@ -379,7 +388,7 @@ export class ArrowsElement extends SceneElement {
             const animName = `note impact ${variant} ${color}`;
 
             const splashSize = laneSize * 1.65;
-            const laneX = i * (laneSize + laneGap);
+            const laneX = i * laneGap;
 
             const splash = this._splashes[i]!;
             splash
@@ -417,8 +426,8 @@ function _drawHoldTailSprite(
     holdRes: VisualResource | null,
     holdStatus: ResourceStatus,
     lane: number,
+    laneX: number,
     laneSize: number,
-    laneGap: number,
     tailW: number,
     fromY: number,
     toY: number,
@@ -434,7 +443,6 @@ function _drawHoldTailSprite(
 
     const capH = tailW; // cap cell is square
     const bodyH = Math.max(0, totalH - capH);
-    const laneX = lane * (laneSize + laneGap);
     const x = laneX + (laneSize - tailW) / 2;
     const bodyFrameIdx = lane * 2;
     const capFrameIdx = lane * 2 + 1;
