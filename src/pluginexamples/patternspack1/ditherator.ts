@@ -130,9 +130,9 @@ export class DitheratorElement extends SceneElement {
                         label: 'Grid',
                         collapsed: false,
                         properties: [
-                            prop.number('cols', 'Columns', 24, { min: 1, max: 200, step: 1 }),
-                            prop.number('rows', 'Rows', 24, { min: 1, max: 200, step: 1 }),
-                            prop.number('cellSize', 'Cell Size (px)', 20, { min: 1, max: 100, step: 1 }),
+                            prop.number('cols', 'Columns', 80, { min: 1, max: 200, step: 1 }),
+                            prop.number('rows', 'Rows', 80, { min: 1, max: 200, step: 1 }),
+                            prop.number('cellSize', 'Cell Size (px)', 18, { min: 1, max: 100, step: 1 }),
                             prop.number('cellGap', 'Cell Gap (px)', 0, { min: 0, max: 50, step: 1 }),
                         ],
                     },
@@ -147,26 +147,26 @@ export class DitheratorElement extends SceneElement {
                                 step: 0.01,
                                 description: 'Drives animation by moving through the 3rd noise dimension.',
                             }),
-                            prop.number('threshold', 'Threshold', 1.0, {
+                            prop.number('threshold', 'Threshold', 1.3, {
                                 min: 0,
                                 max: 2,
                                 step: 0.01,
                                 description:
                                     'Combined (texture + dither) must exceed this to show a cell. Lower = more cells.',
                             }),
-                            prop.number('evolMotion', 'Evol Motion', 0, {
+                            prop.number('evolMotion', 'Evol Spd', 0.1, {
                                 min: -10,
                                 max: 10,
                                 step: 0.001,
                                 description: 'Adds currentTime × this value to Evolution, producing automatic drift.',
                             }),
-                            prop.select('baseTexture', 'Base Texture', 'sine', [
+                            prop.select('baseTexture', 'Base Texture', 'perlin', [
                                 { value: 'sine', label: 'Diagonal Sine' },
                                 { value: 'radialSine', label: 'Radial Sine' },
                                 { value: 'gradient', label: 'Horizontal Gradient' },
                                 { value: 'perlin', label: 'Perlin Noise' },
                             ]),
-                            prop.number('textureStrength', 'Texture Strength', 1, {
+                            prop.number('textureStrength', 'Base Strength', 1.5, {
                                 min: 0,
                                 max: 4,
                                 step: 0.01,
@@ -177,11 +177,11 @@ export class DitheratorElement extends SceneElement {
                                 { value: 'random', label: 'Random' },
                                 { value: 'none', label: 'None' },
                             ]),
-                            prop.number('textureStrength', 'Texture Strength', 1, {
+                            prop.number('bayerStrength', 'Dither Strength', 0.5, {
                                 min: 0,
                                 max: 4,
                                 step: 0.01,
-                                description: 'Multiplier applied to the base texture before threshold comparison.',
+                                description: 'Multiplier applied to the dither pattern before threshold comparison.',
                             }),
                         ],
                     },
@@ -202,11 +202,17 @@ export class DitheratorElement extends SceneElement {
                                 step: 0.01,
                                 description: 'Offsets the texture UV vertically.',
                             }),
-                            prop.number('texScale', 'Scale', 1, {
+                            prop.number('texScale', 'Scale', 0.3, {
                                 min: 0.01,
                                 max: 20,
                                 step: 0.01,
                                 description: 'Scales the texture UV (zoom).',
+                            }),
+                            prop.number('texRotate', 'Rotate', 0, {
+                                min: -180,
+                                max: 180,
+                                step: 0.1,
+                                description: 'Rotates the texture UV around the grid centre (degrees).',
                             }),
                         ],
                     },
@@ -216,6 +222,27 @@ export class DitheratorElement extends SceneElement {
                         label: 'Appearance',
                         collapsed: false,
                         properties: [prop.colorAlpha('cellColor', 'Cell Color', '#FFFFFFFF')],
+                    },
+                    {
+                        id: 'secondaryThreshold',
+                        label: 'Secondary Threshold',
+                        collapsed: false,
+                        properties: [
+                            prop.boolean('secondaryThresholdEnabled', 'Enable Secondary Threshold', false),
+                            prop.number('secondaryThreshold', 'Secondary Threshold', 0.5, {
+                                min: 0,
+                                max: 2,
+                                step: 0.01,
+                                description:
+                                    'Cells with combined value above this but at or below the primary threshold use the secondary appearance.',
+                            }),
+                            prop.number('secondaryCellGap', 'Secondary Cell Gap (px)', 0, {
+                                min: 0,
+                                max: 50,
+                                step: 1,
+                            }),
+                            prop.colorAlpha('secondaryCellColor', 'Secondary Cell Color', '#FFFFFF88'),
+                        ],
                     },
                 ]),
             ]
@@ -234,12 +261,18 @@ export class DitheratorElement extends SceneElement {
         const texTranslateX = p.texTranslateX as number;
         const texTranslateY = p.texTranslateY as number;
         const texScale = Math.max(0.001, p.texScale as number);
+        const texRotateRad = (p.texRotate as number) * (Math.PI / 180);
         const textureStrength = p.textureStrength as number;
         const bayerStrength = p.bayerStrength as number;
         const evolution = (p.evolution as number) / 100 + targetTime * (p.evolMotion as number);
         const cellColor = p.cellColor as string;
         const baseTextureName = p.baseTexture as string;
         const ditherPatternName = p.ditherPattern as string;
+
+        const secondaryEnabled = p.secondaryThresholdEnabled as boolean;
+        const secondaryThreshold = p.secondaryThreshold as number;
+        const secondaryCellGap = Math.max(0, p.secondaryCellGap as number);
+        const secondaryCellColor = p.secondaryCellColor as string;
 
         const getBase: TextureFn =
             baseTextureName === 'gradient'
@@ -259,23 +292,44 @@ export class DitheratorElement extends SceneElement {
         const oy = -totalH / 2;
 
         const [r, g, b, a] = parseHexRGBA(cellColor);
+        const [sr, sg, sb, sa] = secondaryEnabled ? parseHexRGBA(secondaryCellColor) : [0, 0, 0, 0];
+
+        const cosR = Math.cos(texRotateRad);
+        const sinR = Math.sin(texRotateRad);
+
         const pixels = new Uint8ClampedArray(cols * rows * 4);
+        const secondaryPixels = secondaryEnabled ? new Uint8ClampedArray(cols * rows * 4) : null;
 
         for (let row = 0; row < rows; row++) {
             for (let col = 0; col < cols; col++) {
-                const u = ((col + 0.5) / cols) * texScale + texTranslateX;
-                const v = ((row + 0.5) / rows) * texScale + texTranslateY;
+                const uNorm = (col + 0.5) / cols - 0.5;
+                const vNorm = (row + 0.5) / rows - 0.5;
+                const uRot = uNorm * cosR - vNorm * sinR;
+                const vRot = uNorm * sinR + vNorm * cosR;
+                const u = uRot * texScale + texTranslateX;
+                const v = vRot * texScale + texTranslateY;
                 const base = getBase(u, v, evolution);
                 const dither = getDither(col, row);
-                if (base * textureStrength + dither * bayerStrength <= threshold) continue;
+                const combined = base * textureStrength + dither * bayerStrength;
                 const idx = (row * cols + col) * 4;
-                pixels[idx] = r;
-                pixels[idx + 1] = g;
-                pixels[idx + 2] = b;
-                pixels[idx + 3] = a;
+                if (combined > threshold) {
+                    pixels[idx] = r;
+                    pixels[idx + 1] = g;
+                    pixels[idx + 2] = b;
+                    pixels[idx + 3] = a;
+                } else if (secondaryPixels && combined > secondaryThreshold) {
+                    secondaryPixels[idx] = sr;
+                    secondaryPixels[idx + 1] = sg;
+                    secondaryPixels[idx + 2] = sb;
+                    secondaryPixels[idx + 3] = sa;
+                }
             }
         }
 
-        return [new PixelGrid(ox, oy, cols, rows, cellSize, pixels, { cellGap })];
+        const result: RenderObject[] = [new PixelGrid(ox, oy, cols, rows, cellSize, pixels, { cellGap })];
+        if (secondaryPixels) {
+            result.push(new PixelGrid(ox, oy, cols, rows, cellSize, secondaryPixels, { cellGap: secondaryCellGap }));
+        }
+        return result;
     }
 }
