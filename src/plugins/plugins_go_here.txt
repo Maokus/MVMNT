@@ -15,3 +15,4 @@ Tracking
 Following plugins are tracked in git as examples. 
 - midipack1/  
 - patternspack1/ 
+- fnf/
