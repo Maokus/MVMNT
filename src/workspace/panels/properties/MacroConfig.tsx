@@ -113,6 +113,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
     const nameInputRef = useRef<HTMLInputElement | null>(null);
+    const stringMacroComposingRef = useRef(false);
     const [newMacro, setNewMacro] = useState({
         name: '',
         type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'colorAlpha' | 'select' | 'file' | 'font' | 'timelineTrackRef',
@@ -608,14 +609,13 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                                 type="text"
                                 value={macro.value}
                                 onChange={(e) => {
-                                    const pos = e.target.selectionStart;
-                                    const el = e.target;
+                                    if (stringMacroComposingRef.current) return;
                                     handleUpdateMacroValue(macro.name, e.target.value);
-                                    requestAnimationFrame(() => {
-                                        if (el === document.activeElement) {
-                                            el.setSelectionRange(pos, pos);
-                                        }
-                                    });
+                                }}
+                                onCompositionStart={() => { stringMacroComposingRef.current = true; }}
+                                onCompositionEnd={(e) => {
+                                    stringMacroComposingRef.current = false;
+                                    handleUpdateMacroValue(macro.name, (e.target as HTMLInputElement).value);
                                 }}
                                 onKeyDown={handleKeyDown}
                             />
