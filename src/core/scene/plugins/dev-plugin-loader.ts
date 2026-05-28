@@ -1,15 +1,15 @@
 /**
  * Development Plugin Loader
- * 
+ *
  * Loads custom element plugins from the src/plugins/ directory during development.
  * This provides a preview of the Phase 3 runtime loading system.
- * 
+ *
  * Features:
  * - Scans src/plugins/ directory for plugin.json files
  * - Dynamically imports element modules
  * - Registers elements using the central registry
  * - Logs errors without crashing the app
- * 
+ *
  * @module dev-plugin-loader
  */
 
@@ -64,33 +64,33 @@ function validateManifest(manifest: any): manifest is PluginManifest {
     if (!manifest || typeof manifest !== 'object') {
         return false;
     }
-    
+
     if (typeof manifest.id !== 'string' || manifest.id.length < 3) {
         return false;
     }
-    
+
     if (typeof manifest.name !== 'string' || manifest.name.length === 0) {
         return false;
     }
-    
+
     if (typeof manifest.version !== 'string') {
         return false;
     }
-    
+
     if (typeof manifest.apiVersion !== 'string' && typeof manifest.mvmntVersion !== 'string') {
         return false;
     }
-    
+
     if (!Array.isArray(manifest.elements) || manifest.elements.length === 0) {
         return false;
     }
-    
+
     for (const element of manifest.elements) {
         if (!element.type || !element.entry) {
             return false;
         }
     }
-    
+
     return true;
 }
 
@@ -101,18 +101,18 @@ async function loadPluginManifest(pluginPath: string): Promise<PluginManifest | 
     try {
         const manifestUrl = `${pluginPath}/plugin.json`;
         const response = await fetch(manifestUrl);
-        
+
         if (!response.ok) {
             return null;
         }
-        
+
         const manifest = await response.json();
-        
+
         if (!validateManifest(manifest)) {
             console.error(`[DevPluginLoader] Invalid manifest structure in ${pluginPath}`);
             return null;
         }
-        
+
         return manifest;
     } catch (error) {
         // Plugin doesn't exist or can't be loaded - this is expected for many potential paths
@@ -133,39 +133,35 @@ async function loadElement(
         // Construct the module path
         // In dev mode, import .ts files directly (Vite transpiles on-the-fly)
         // In production (for bundled .mvmnt-plugin files), use .js
-        const entryFile = isDevEnvironment() 
-            ? element.entry 
-            : element.entry.replace('.ts', '.js');
+        const entryFile = isDevEnvironment() ? element.entry : element.entry.replace('.ts', '.js');
         const modulePath = `${pluginPath}/${entryFile}`;
-        
+
         debugLog(`[DevPluginLoader] Importing element module: ${modulePath}`);
-        
+
         // Dynamically import the element module
         const module = await import(/* @vite-ignore */ modulePath);
-        
+
         // Find the exported element class
         // Try common export patterns
-        const elementKey = Object.keys(module).find(key => key.endsWith('Element'));
-        const ElementClass = 
-            module.default || 
-            (elementKey ? module[elementKey] : null) ||
-            module[Object.keys(module)[0]];
-        
+        const elementKey = Object.keys(module).find((key) => key.endsWith('Element'));
+        const ElementClass =
+            module.default || (elementKey ? module[elementKey] : null) || module[Object.keys(module)[0]];
+
         if (!ElementClass) {
             return {
                 success: false,
-                error: `No element class found in ${element.entry}`
+                error: `No element class found in ${element.entry}`,
             };
         }
-        
+
         // Check if it has the required getConfigSchema method
         if (typeof ElementClass.getConfigSchema !== 'function') {
             return {
                 success: false,
-                error: `Element class missing getConfigSchema() method`
+                error: `Element class missing getConfigSchema() method`,
             };
         }
-        
+
         // Register the element via the custom element path so pluginId is tracked
         // and conflicts with built-in types are caught correctly
         const registryKey = sceneElementRegistry.registerCustomElement(element.type, ElementClass, {
@@ -174,19 +170,17 @@ async function loadElement(
         });
 
         // Wire loadBundledAsset() to the Vite dev-server asset path for this element type.
-        registerElementAssetLoader(registryKey, (assetPath) =>
-            Promise.resolve(`${pluginPath}/assets/${assetPath}`)
-        );
+        registerElementAssetLoader(registryKey, (assetPath) => Promise.resolve(`${pluginPath}/assets/${assetPath}`));
 
         debugLog(`[DevPluginLoader] Registered element: ${registryKey} from plugin ${pluginId}`);
-        
+
         return { success: true };
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(`[DevPluginLoader] Failed to load element ${element.type}:`, error);
         return {
             success: false,
-            error: errorMessage
+            error: errorMessage,
         };
     }
 }
@@ -206,7 +200,7 @@ async function loadPlugin(pluginPath: string): Promise<LoadResult | null> {
     if (versionRange && !satisfiesVersion(PLUGIN_API_VERSION, versionRange)) {
         console.error(
             `[DevPluginLoader] Plugin '${manifest.id}' requires API version ${versionRange}, ` +
-            `but current API version is ${PLUGIN_API_VERSION}. Plugin will not be loaded.`
+                `but current API version is ${PLUGIN_API_VERSION}. Plugin will not be loaded.`
         );
         return {
             success: false,
@@ -221,62 +215,62 @@ async function loadPlugin(pluginPath: string): Promise<LoadResult | null> {
 
     const errors: string[] = [];
     let elementsLoaded = 0;
-    
+
     // Load each element
     for (const element of manifest.elements) {
         const result = await loadElement(pluginPath, element, manifest.id, manifest.name);
-        
+
         if (result.success) {
             elementsLoaded++;
         } else if (result.error) {
             errors.push(`${element.type}: ${result.error}`);
         }
     }
-    
+
     return {
         success: elementsLoaded > 0,
         pluginId: manifest.id,
         pluginName: manifest.name,
         elementsLoaded,
-        errors
+        errors,
     };
 }
 
 /**
  * Discover available plugins by scanning the src/plugins directory
- * 
+ *
  * Uses Vite's import.meta.glob to discover all plugin.json files at build time.
  */
 async function discoverPlugins(): Promise<string[]> {
     const discoveredPlugins: string[] = [];
-    
+
     try {
         // Use Vite's import.meta.glob to discover all plugin.json files
         // This works at build time and is safe for both dev and production
         const pluginManifests = import.meta.glob('/src/plugins/*/plugin.json', { eager: false });
-        
+        const exampleManifests = import.meta.glob('/src/pluginexamples/*/plugin.json', { eager: false });
+
+        const allManifests = __INCLUDE_EXAMPLES__ ? { ...pluginManifests, ...exampleManifests } : pluginManifests;
+
         // Extract plugin paths from the manifest paths
-        for (const manifestPath of Object.keys(pluginManifests)) {
-            // Extract plugin directory name from path like "/src/plugins/myplugin/plugin.json"
-            const match = manifestPath.match(/\/src\/plugins\/([\w.-]+)\/plugin\.json$/);
+        for (const manifestPath of Object.keys(allManifests)) {
+            const match = manifestPath.match(/^(\/src\/(?:plugins|pluginexamples)\/[\w.-]+)\/plugin\.json$/);
             if (match) {
-                const pluginId = match[1];
-                const pluginPath = `${PLUGIN_BASE_PATH}/${pluginId}`;
-                discoveredPlugins.push(pluginPath);
+                discoveredPlugins.push(match[1]);
             }
         }
-        
+
         debugLog(`[DevPluginLoader] Discovered ${discoveredPlugins.length} plugin(s)`);
     } catch (error) {
         console.error('[DevPluginLoader] Error discovering plugins:', error);
     }
-    
+
     return discoveredPlugins;
 }
 
 /**
  * Load all dev plugins
- * 
+ *
  * This is the main entry point for loading development plugins.
  * Call this during app initialization to load custom elements.
  */
@@ -285,45 +279,45 @@ export async function loadDevPlugins(): Promise<void> {
         debugLog('[DevPluginLoader] Not in dev environment, skipping plugin loading');
         return;
     }
-    
+
     console.log('[DevPluginLoader] Initializing development plugin loader...');
-    
+
     try {
         const pluginPaths = await discoverPlugins();
-        
+
         if (pluginPaths.length === 0) {
             debugLog('[DevPluginLoader] No plugins discovered');
             return;
         }
-        
+
         const results: LoadResult[] = [];
-        
+
         for (const pluginPath of pluginPaths) {
             const result = await loadPlugin(pluginPath);
             if (result) {
                 results.push(result);
             }
         }
-        
+
         // Log summary
-        const successful = results.filter(r => r.success);
-        const failed = results.filter(r => !r.success);
-        
+        const successful = results.filter((r) => r.success);
+        const failed = results.filter((r) => !r.success);
+
         if (successful.length > 0) {
             console.log(`[DevPluginLoader] Successfully loaded ${successful.length} plugin(s):`);
-            successful.forEach(r => {
+            successful.forEach((r) => {
                 console.log(`  ✓ ${r.pluginName}: ${r.elementsLoaded} element(s)`);
             });
         }
-        
+
         if (failed.length > 0) {
             console.warn(`[DevPluginLoader] Failed to load ${failed.length} plugin(s):`);
-            failed.forEach(r => {
+            failed.forEach((r) => {
                 console.warn(`  ✗ ${r.pluginName}`);
-                r.errors.forEach(err => console.warn(`    - ${err}`));
+                r.errors.forEach((err) => console.warn(`    - ${err}`));
             });
         }
-        
+
         if (successful.length === 0 && failed.length === 0) {
             debugLog('[DevPluginLoader] No plugins found');
         }
@@ -334,7 +328,7 @@ export async function loadDevPlugins(): Promise<void> {
 
 /**
  * Manually load a specific plugin by path
- * 
+ *
  * Useful for testing or explicit plugin loading
  */
 export async function loadDevPlugin(pluginId: string): Promise<LoadResult | null> {
@@ -342,7 +336,7 @@ export async function loadDevPlugin(pluginId: string): Promise<LoadResult | null
         console.warn('[DevPluginLoader] Not in dev environment');
         return null;
     }
-    
+
     const pluginPath = `${PLUGIN_BASE_PATH}/${pluginId.split('.').pop()}`;
     return await loadPlugin(pluginPath);
 }

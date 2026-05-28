@@ -52,6 +52,7 @@
     },
     "scripts": {
         "dev": "vite",
+        "dev:examples": "vite --mode examples",
         "previewprod": "npm run build -- --base /; npx serve build -s -l 5001",
         "start": "vite",
         "build": "vite build",
