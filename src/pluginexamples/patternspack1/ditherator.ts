@@ -1,5 +1,5 @@
 import { SceneElement, prop, insertElementConfig, tab, type RenderObject } from '@mvmnt/plugin-sdk';
-import { Rectangle } from '@mvmnt/plugin-sdk/render';
+import { PixelGrid } from '@mvmnt/plugin-sdk/render';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 // ── Bayer 4×4 ordered dither matrix, values normalised to [0, 1) ─────────────
@@ -32,13 +32,13 @@ function valueNoise3D(x: number, y: number, z: number): number {
     const xf = fade(x - xi);
     const yf = fade(y - yi);
     const zf = fade(z - zi);
-    const a000 = hash3(xi,     yi,     zi    );
-    const a100 = hash3(xi + 1, yi,     zi    );
-    const a010 = hash3(xi,     yi + 1, zi    );
-    const a110 = hash3(xi + 1, yi + 1, zi    );
-    const a001 = hash3(xi,     yi,     zi + 1);
-    const a101 = hash3(xi + 1, yi,     zi + 1);
-    const a011 = hash3(xi,     yi + 1, zi + 1);
+    const a000 = hash3(xi, yi, zi);
+    const a100 = hash3(xi + 1, yi, zi);
+    const a010 = hash3(xi, yi + 1, zi);
+    const a110 = hash3(xi + 1, yi + 1, zi);
+    const a001 = hash3(xi, yi, zi + 1);
+    const a101 = hash3(xi + 1, yi, zi + 1);
+    const a011 = hash3(xi, yi + 1, zi + 1);
     const a111 = hash3(xi + 1, yi + 1, zi + 1);
     const x0 = a000 + (a100 - a000) * xf;
     const x1 = a010 + (a110 - a010) * xf;
@@ -71,9 +71,9 @@ function horizontalGradient(u: number, _v: number, _evolution: number): number {
 function perlinNoiseTexture(u: number, v: number, evolution: number): number {
     const scale = 4;
     const evo = evolution * 3;
-    let value = valueNoise3D(u * scale,     v * scale,     evo    ) * 0.5;
-    value     += valueNoise3D(u * scale * 2, v * scale * 2, evo * 2) * 0.3;
-    value     += valueNoise3D(u * scale * 4, v * scale * 4, evo * 4) * 0.2;
+    let value = valueNoise3D(u * scale, v * scale, evo) * 0.5;
+    value += valueNoise3D(u * scale * 2, v * scale * 2, evo * 2) * 0.3;
+    value += valueNoise3D(u * scale * 4, v * scale * 4, evo * 4) * 0.2;
     return Math.min(1, Math.max(0, value));
 }
 
@@ -91,6 +91,21 @@ function noDither(_col: number, _row: number): number {
 
 function randomDither(col: number, row: number): number {
     return hash3(col * 2753, row * 4999, 0);
+}
+
+// ── CSS #RRGGBBAA → [r, g, b, a] ─────────────────────────────────────────────
+
+function parseHexRGBA(hex: string): [number, number, number, number] {
+    const c = hex.replace('#', '');
+    if (c.length === 8) {
+        return [
+            parseInt(c.slice(0, 2), 16),
+            parseInt(c.slice(2, 4), 16),
+            parseInt(c.slice(4, 6), 16),
+            parseInt(c.slice(6, 8), 16),
+        ];
+    }
+    return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16), 255];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -122,6 +137,55 @@ export class DitheratorElement extends SceneElement {
                         ],
                     },
                     {
+                        id: 'visibility',
+                        label: 'Visibility',
+                        collapsed: false,
+                        properties: [
+                            prop.number('evolution', 'Evolution', 0, {
+                                min: 0,
+                                max: 100,
+                                step: 0.01,
+                                description: 'Drives animation by moving through the 3rd noise dimension.',
+                            }),
+                            prop.number('threshold', 'Threshold', 1.0, {
+                                min: 0,
+                                max: 2,
+                                step: 0.01,
+                                description:
+                                    'Combined (texture + dither) must exceed this to show a cell. Lower = more cells.',
+                            }),
+                            prop.number('evolMotion', 'Evol Motion', 0, {
+                                min: -10,
+                                max: 10,
+                                step: 0.001,
+                                description: 'Adds currentTime × this value to Evolution, producing automatic drift.',
+                            }),
+                            prop.select('baseTexture', 'Base Texture', 'sine', [
+                                { value: 'sine', label: 'Diagonal Sine' },
+                                { value: 'radialSine', label: 'Radial Sine' },
+                                { value: 'gradient', label: 'Horizontal Gradient' },
+                                { value: 'perlin', label: 'Perlin Noise' },
+                            ]),
+                            prop.number('textureStrength', 'Texture Strength', 1, {
+                                min: 0,
+                                max: 4,
+                                step: 0.01,
+                                description: 'Multiplier applied to the base texture before threshold comparison.',
+                            }),
+                            prop.select('ditherPattern', 'Dither Pattern', 'bayer4', [
+                                { value: 'bayer4', label: 'Bayer 4×4' },
+                                { value: 'random', label: 'Random' },
+                                { value: 'none', label: 'None' },
+                            ]),
+                            prop.number('textureStrength', 'Texture Strength', 1, {
+                                min: 0,
+                                max: 4,
+                                step: 0.01,
+                                description: 'Multiplier applied to the base texture before threshold comparison.',
+                            }),
+                        ],
+                    },
+                    {
                         id: 'transform',
                         label: 'Texture Transform',
                         collapsed: false,
@@ -146,55 +210,7 @@ export class DitheratorElement extends SceneElement {
                             }),
                         ],
                     },
-                    {
-                        id: 'visibility',
-                        label: 'Visibility',
-                        collapsed: false,
-                        properties: [
-                            prop.number('threshold', 'Threshold', 1.0, {
-                                min: 0,
-                                max: 2,
-                                step: 0.01,
-                                description:
-                                    'Combined (texture + dither) must exceed this to show a cell. Lower = more cells.',
-                            }),
-                            prop.number('textureStrength', 'Texture Strength', 1, {
-                                min: 0,
-                                max: 4,
-                                step: 0.01,
-                                description: 'Multiplier applied to the base texture before threshold comparison.',
-                            }),
-                            prop.number('bayerStrength', 'Bayer Strength', 1, {
-                                min: 0,
-                                max: 4,
-                                step: 0.01,
-                                description: 'Multiplier applied to the dither pattern before threshold comparison.',
-                            }),
-                            prop.number('evolution', 'Evolution', 0, {
-                                min: 0,
-                                max: 100,
-                                step: 0.01,
-                                description: 'Drives animation by moving through the 3rd noise dimension.',
-                            }),
-                            prop.number('evolMotion', 'Evol Motion', 0, {
-                                min: -10,
-                                max: 10,
-                                step: 0.001,
-                                description: 'Adds currentTime × this value to Evolution, producing automatic drift.',
-                            }),
-                            prop.select('baseTexture', 'Base Texture', 'sine', [
-                                { value: 'sine', label: 'Diagonal Sine' },
-                                { value: 'radialSine', label: 'Radial Sine' },
-                                { value: 'gradient', label: 'Horizontal Gradient' },
-                                { value: 'perlin', label: 'Perlin Noise' },
-                            ]),
-                            prop.select('ditherPattern', 'Dither Pattern', 'bayer4', [
-                                { value: 'bayer4', label: 'Bayer 4×4' },
-                                { value: 'random', label: 'Random' },
-                                { value: 'none', label: 'None' },
-                            ]),
-                        ],
-                    },
+
                     {
                         id: 'appearance',
                         label: 'Appearance',
@@ -210,19 +226,19 @@ export class DitheratorElement extends SceneElement {
         const p = this.getSchemaProps();
         if (!p.visible) return [];
 
-        const cols           = Math.max(1, Math.round(p.cols as number));
-        const rows           = Math.max(1, Math.round(p.rows as number));
-        const cellSize       = Math.max(1, p.cellSize as number);
-        const cellGap        = Math.max(0, p.cellGap as number);
-        const threshold      = p.threshold as number;
-        const texTranslateX  = p.texTranslateX as number;
-        const texTranslateY  = p.texTranslateY as number;
-        const texScale       = Math.max(0.001, p.texScale as number);
+        const cols = Math.max(1, Math.round(p.cols as number));
+        const rows = Math.max(1, Math.round(p.rows as number));
+        const cellSize = Math.max(1, p.cellSize as number);
+        const cellGap = Math.max(0, p.cellGap as number);
+        const threshold = p.threshold as number;
+        const texTranslateX = p.texTranslateX as number;
+        const texTranslateY = p.texTranslateY as number;
+        const texScale = Math.max(0.001, p.texScale as number);
         const textureStrength = p.textureStrength as number;
-        const bayerStrength  = p.bayerStrength as number;
-        const evolution      = (p.evolution as number) / 100 + targetTime * (p.evolMotion as number);
-        const cellColor      = p.cellColor as string;
-        const baseTextureName   = p.baseTexture as string;
+        const bayerStrength = p.bayerStrength as number;
+        const evolution = (p.evolution as number) / 100 + targetTime * (p.evolMotion as number);
+        const cellColor = p.cellColor as string;
+        const baseTextureName = p.baseTexture as string;
         const ditherPatternName = p.ditherPattern as string;
 
         const getBase: TextureFn =
@@ -242,33 +258,24 @@ export class DitheratorElement extends SceneElement {
         const ox = -totalW / 2;
         const oy = -totalH / 2;
 
-        const drawSize   = Math.max(1, cellSize - cellGap);
-        const drawOffset = cellGap / 2;
-
-        const objects: RenderObject[] = [];
+        const [r, g, b, a] = parseHexRGBA(cellColor);
+        const pixels = new Uint8ClampedArray(cols * rows * 4);
 
         for (let row = 0; row < rows; row++) {
             for (let col = 0; col < cols; col++) {
                 const u = ((col + 0.5) / cols) * texScale + texTranslateX;
                 const v = ((row + 0.5) / rows) * texScale + texTranslateY;
-                const base   = getBase(u, v, evolution);
+                const base = getBase(u, v, evolution);
                 const dither = getDither(col, row);
                 if (base * textureStrength + dither * bayerStrength <= threshold) continue;
-                objects.push(
-                    new Rectangle(
-                        ox + col * cellSize + drawOffset,
-                        oy + row * cellSize + drawOffset,
-                        drawSize,
-                        drawSize,
-                        cellColor
-                    )
-                );
+                const idx = (row * cols + col) * 4;
+                pixels[idx] = r;
+                pixels[idx + 1] = g;
+                pixels[idx + 2] = b;
+                pixels[idx + 3] = a;
             }
         }
 
-        // Invisible layout sentinel so the element has correct bounds
-        objects.push(new Rectangle(ox, oy, totalW, totalH, null, null, 0));
-
-        return objects;
+        return [new PixelGrid(ox, oy, cols, rows, cellSize, pixels, { cellGap })];
     }
 }

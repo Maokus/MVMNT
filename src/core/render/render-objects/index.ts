@@ -16,3 +16,4 @@ export {
     type FramePlacementCustom,
     type VisualMediaOptions,
 } from './visual-media';
+export { PixelGrid } from './pixel-grid';

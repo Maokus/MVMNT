@@ -21,4 +21,5 @@ export {
     type FramePlacementPreset,
     type FramePlacementCustom,
     type VisualMediaOptions,
+    PixelGrid,
 } from '@core/render/render-objects';
