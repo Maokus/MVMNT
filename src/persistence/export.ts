@@ -454,7 +454,7 @@ function buildZip(
 ): Uint8Array<ArrayBuffer> {
     const files: Record<string, Uint8Array> = {};
     const docJson = serializeStable(envelope);
-    files['document.json'] = strToU8(docJson, true);
+    files['document.json'] = strToU8(docJson);
     if (typeof iconDataUrl === 'string') {
         let iconBytes: Uint8Array | null = null;
         if (iconDataUrl.startsWith('data:')) {
@@ -652,7 +652,7 @@ function prepareAudioFeatureCaches(
                 }
                 const payloadJson = serializeStable(metadata);
                 assetPayloads.set(`${assetId}/${AUDIO_FEATURE_ASSET_FILENAME}`, {
-                    bytes: strToU8(payloadJson, true),
+                    bytes: strToU8(payloadJson),
                     filename: AUDIO_FEATURE_ASSET_FILENAME,
                     mimeType: 'application/json',
                 });

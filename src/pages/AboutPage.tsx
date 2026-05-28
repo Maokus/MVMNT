@@ -45,6 +45,8 @@ const AboutPage: React.FC = () => {
                             <ul>
                                 <li>wolfboy_777</li>
                                 <li>geniway</li>
+                                <li>gbl08ma</li>
+                                <li>djickson</li>
                             </ul>
                         </section>
                     </div>

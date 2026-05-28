@@ -29,14 +29,7 @@ export class ScenePackageError extends Error {
 }
 
 export function decodeSceneText(data: Uint8Array): string {
-    if (typeof TextDecoder !== 'undefined') {
-        return new TextDecoder().decode(data);
-    }
-    let result = '';
-    for (let i = 0; i < data.length; i++) {
-        result += String.fromCharCode(data[i]);
-    }
-    return result;
+    return new TextDecoder().decode(data);
 }
 
 function collectScenePayloads(archive: Record<string, Uint8Array>): {
@@ -192,9 +185,9 @@ export function parseLegacyInlineScene(jsonText: string): ScenePackageContents {
     };
 }
 
-export function extractSceneMetadataFromArtifact(data: Uint8Array | string):
-    | { name?: string; author?: string; description?: string }
-    | undefined {
+export function extractSceneMetadataFromArtifact(
+    data: Uint8Array | string
+): { name?: string; author?: string; description?: string } | undefined {
     try {
         if (typeof data === 'string') {
             const legacy = parseLegacyInlineScene(data);
