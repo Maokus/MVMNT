@@ -20,11 +20,10 @@ const ChangelogPage: React.FC = () => {
                 <div className="space-y-10">
 
                     <ChangelogEntry version="0.15.1" date="15-5-28" notes={[
-                        "Bugfixes", [
-                            "Fixed a bug where japanese characters broke save/load system",
-
-                        ]
-                    ]}
+                        "fixed a bug where japanese characters broke save/load system",
+                        "updated supporters in about page",
+                        "moved example plugins out of the plugin directory",
+                    ]} />
 
                     <ChangelogEntry version="0.15.0" date="15-5-27" notes={[
                         "AUTOMATION.",
