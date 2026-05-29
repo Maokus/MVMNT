@@ -176,34 +176,50 @@ export class TimeDisplayElement extends SceneElement {
         const labelFont = `${fontWeight} ${baseFontSize * 0.8}px ${fontFamily}, sans-serif`;
 
         // Time display (minutes:seconds:milliseconds)
-        const minLabel = new Text(x + baseFontSize * 2, timeY, minText, font, textColor, 'right', 'bottom');
-        const secLabel = new Text(x + baseFontSize * 3.8, timeY, secText, font, textColor, 'right', 'bottom');
-        const msLabel = new Text(x + baseFontSize * 6, timeY, msText, font, textColor, 'right', 'bottom');
+        const minLabel = new Text(x + baseFontSize * 2, timeY, minText, font, {
+            color: textColor,
+            align: 'right',
+            baseline: 'bottom',
+        });
+        const secLabel = new Text(x + baseFontSize * 3.8, timeY, secText, font, {
+            color: textColor,
+            align: 'right',
+            baseline: 'bottom',
+        });
+        const msLabel = new Text(x + baseFontSize * 6, timeY, msText, font, {
+            color: textColor,
+            align: 'right',
+            baseline: 'bottom',
+        });
 
         // Bar:beat:tick display
-        const barLabel = new Text(x + baseFontSize * 2, beatY, barText, font, textColor, 'right', 'bottom');
-        const beatLabel = new Text(x + baseFontSize * 3.8, beatY, beatText, font, textColor, 'right', 'bottom');
-        const tickLabel = new Text(x + baseFontSize * 6, beatY, tickText, font, textColor, 'right', 'bottom');
+        const barLabel = new Text(x + baseFontSize * 2, beatY, barText, font, {
+            color: textColor,
+            align: 'right',
+            baseline: 'bottom',
+        });
+        const beatLabel = new Text(x + baseFontSize * 3.8, beatY, beatText, font, {
+            color: textColor,
+            align: 'right',
+            baseline: 'bottom',
+        });
+        const tickLabel = new Text(x + baseFontSize * 6, beatY, tickText, font, {
+            color: textColor,
+            align: 'right',
+            baseline: 'bottom',
+        });
 
         // Labels
-        const timeLabel = new Text(
-            x + baseFontSize * 6,
-            timeY - baseFontSize,
-            'time',
-            labelFont,
-            textSecondaryColor,
-            'right',
-            'bottom'
-        );
-        const beatLabelText = new Text(
-            x + baseFontSize * 6,
-            beatY - baseFontSize,
-            'beat',
-            labelFont,
-            textSecondaryColor,
-            'right',
-            'bottom'
-        );
+        const timeLabel = new Text(x + baseFontSize * 6, timeY - baseFontSize, 'time', labelFont, {
+            color: textSecondaryColor,
+            align: 'right',
+            baseline: 'bottom',
+        });
+        const beatLabelText = new Text(x + baseFontSize * 6, beatY - baseFontSize, 'beat', labelFont, {
+            color: textSecondaryColor,
+            align: 'right',
+            baseline: 'bottom',
+        });
 
         renderObjects.push(minLabel, secLabel, msLabel, barLabel, beatLabel, tickLabel, timeLabel, beatLabelText);
 
@@ -215,40 +231,24 @@ export class TimeDisplayElement extends SceneElement {
             const tickBarX = x + baseFontSize * 6 - tickBarWidth;
             const tickBarY = beatY + baseFontSize * 0.1;
 
-            const tickBarBg = new Rectangle(
-                tickBarX,
-                tickBarY,
-                tickBarWidth,
-                4,
-                this.getColorWithOpacity(textSecondaryColor, 0.2)
-            );
-            const tickBar = new Rectangle(
-                tickBarX,
-                tickBarY,
-                tickBarWidth * tickProgress,
-                4,
-                this.getColorWithOpacity(textSecondaryColor, 0.6)
-            );
+            const tickBarBg = new Rectangle(tickBarX, tickBarY, tickBarWidth, 4, {
+                fillColor: this.getColorWithOpacity(textSecondaryColor, 0.2),
+            });
+            const tickBar = new Rectangle(tickBarX, tickBarY, tickBarWidth * tickProgress, 4, {
+                fillColor: this.getColorWithOpacity(textSecondaryColor, 0.6),
+            });
 
             const beatProgress = Math.max(0, Math.min(1, (barBeatTick.beat - 1) / this.timingManager.beatsPerBar));
             const beatBarWidth = baseFontSize * 1;
             const beatBarX = x + baseFontSize * 3.8 - beatBarWidth;
             const beatBarY = beatY + baseFontSize * 0.1;
 
-            const beatBarBg = new Rectangle(
-                beatBarX,
-                beatBarY,
-                beatBarWidth,
-                4,
-                this.getColorWithOpacity(textSecondaryColor, 0.2)
-            );
-            const beatBar = new Rectangle(
-                beatBarX,
-                beatBarY,
-                beatBarWidth * beatProgress,
-                4,
-                this.getColorWithOpacity(textSecondaryColor, 0.6)
-            );
+            const beatBarBg = new Rectangle(beatBarX, beatBarY, beatBarWidth, 4, {
+                fillColor: this.getColorWithOpacity(textSecondaryColor, 0.2),
+            });
+            const beatBar = new Rectangle(beatBarX, beatBarY, beatBarWidth * beatProgress, 4, {
+                fillColor: this.getColorWithOpacity(textSecondaryColor, 0.6),
+            });
 
             renderObjects.push(tickBarBg, tickBar, beatBarBg, beatBar);
         }
@@ -267,7 +267,7 @@ export class TimeDisplayElement extends SceneElement {
                 contentTop - paddingY,
                 baseFontSize * 6 + paddingX * 2,
                 contentBottom - contentTop + paddingY * 2,
-                bgColor
+                { fillColor: bgColor }
             );
             bg.cornerRadius = props.backgroundCornerRadius ?? 4;
             renderObjects.unshift(bg);

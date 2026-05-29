@@ -55,17 +55,17 @@ import { withRenderSafety, limitRenderObjects } from '@mvmnt/plugin-sdk/safety';
 import { noteName, loadBundledAsset } from '@mvmnt/plugin-sdk/utils';
 ```
 
-| Submodule   | Contents                                                                                             |
-| ----------- | ---------------------------------------------------------------------------------------------------- |
-| `animation` | `clamp`, `lerp`, `invLerp`, `remap`, `FloatCurve`, `EasingFn`, `easings` (31 named easing functions) |
-| `render`    | `Rectangle`, `Text`, `Line`, `Image`, `Arc`, `BezierPath`, `Poly`, `GlowLayer`, `CompositeLayer`, …  |
-| `scene`     | `SceneElement`, property descriptors, `prop` factory, `insertElementConfig`, config schema types     |
-| `api`       | `PLUGIN_CAPABILITIES`, `getPluginHostApi`, `PluginApiError`, `MissingCapabilityError`, …             |
-| `timeline`  | `timelineApi`, `selectNotes`, `selectAllNotes`, `getMidiTracks`, `TimelineNoteEvent`, …              |
-| `audio`     | `audioApi`, `sampleAudio`, `registerFeatureRequirements`, `FeatureDataResult`, …                     |
-| `timing`    | `timingApi`, `timeToBeats`, `beatsToSeconds`, `quantizeSettingToBeats`, …                            |
-| `safety`    | `withRenderSafety`, `limitRenderObjects`, `checkCapability`, `PluginSafetyError`                     |
-| `utils`     | `noteName`, `groupNotesByPitch`, `loadBundledAsset`, color helpers, font loader                      |
+| Submodule   | Contents                                                                                                                                                                                                                                                                                               |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `animation` | `clamp`, `lerp`, `invLerp`, `remap`, `FloatCurve`, `EasingFn`, `easings` (31 named easing functions)                                                                                                                                                                                                   |
+| `render`    | `Rectangle`, `Text`, `Line`, `Image`, `Arc`, `BezierPath`, `Poly`, `GlowLayer`, `CompositeLayer`, … — all shapes accept an options object at construction (`{ fillColor, strokeColor, strokeWidth, … }`) and expose chainable setters (`setFill`, `setStroke`, `setOpacity`, `setLayoutParticipation`) |
+| `scene`     | `SceneElement`, property descriptors, `prop` factory, `insertElementConfig`, config schema types                                                                                                                                                                                                       |
+| `api`       | `PLUGIN_CAPABILITIES`, `getPluginHostApi`, `PluginApiError`, `MissingCapabilityError`, …                                                                                                                                                                                                               |
+| `timeline`  | `timelineApi`, `selectNotes`, `selectAllNotes`, `getMidiTracks`, `TimelineNoteEvent`, …                                                                                                                                                                                                                |
+| `audio`     | `audioApi`, `sampleAudio`, `registerFeatureRequirements`, `FeatureDataResult`, …                                                                                                                                                                                                                       |
+| `timing`    | `timingApi`, `timeToBeats`, `beatsToSeconds`, `quantizeSettingToBeats`, …                                                                                                                                                                                                                              |
+| `safety`    | `withRenderSafety`, `limitRenderObjects`, `checkCapability`, `PluginSafetyError`                                                                                                                                                                                                                       |
+| `utils`     | `noteName`, `groupNotesByPitch`, `loadBundledAsset`, color helpers, font loader                                                                                                                                                                                                                        |
 
 ## Capabilities
 

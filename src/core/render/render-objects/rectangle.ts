@@ -1,6 +1,22 @@
 import { BoxRenderObject } from './box';
-import { type RenderConfig, type Bounds } from './base';
+import { type RenderConfig, type Bounds, type LayoutParticipation } from './base';
 import { applyShadow, clearShadow, applyDash, clearDash } from './style-helpers';
+
+export interface RectangleOptions {
+    fillColor?: string | null;
+    strokeColor?: string | null;
+    strokeWidth?: number;
+    cornerRadius?: number;
+    lineDash?: number[];
+    lineDashOffset?: number;
+    shadowColor?: string | null;
+    shadowBlur?: number;
+    shadowOffsetX?: number;
+    shadowOffsetY?: number;
+    layoutParticipation?: LayoutParticipation;
+    /** @deprecated Use layoutParticipation. */
+    includeInLayoutBounds?: boolean;
+}
 
 export class Rectangle extends BoxRenderObject {
     fillColor: string | null;
@@ -13,15 +29,19 @@ export class Rectangle extends BoxRenderObject {
     shadowBlur: number;
     shadowOffsetX: number;
     shadowOffsetY: number;
+
+    constructor(x: number, y: number, width: number, height: number, options?: RectangleOptions);
+    /** @deprecated Pass style properties via the options object. */
+    constructor(x: number, y: number, width: number, height: number, fillColor: string | null, strokeColor?: string | null, strokeWidth?: number, options?: RectangleOptions);
     constructor(
         x: number,
         y: number,
         width: number,
         height: number,
-        fillColor: string | null = '#FFFFFF',
-        strokeColor: string | null = null,
-        strokeWidth = 1,
-        options?: { includeInLayoutBounds?: boolean }
+        fillColorOrOptions?: string | null | RectangleOptions,
+        strokeColor?: string | null,
+        strokeWidth?: number,
+        options?: RectangleOptions
     ) {
         const maxPosition = 1_000_000;
         const maxSize = 1_000_000;
@@ -34,17 +54,19 @@ export class Rectangle extends BoxRenderObject {
                 `Rectangle constructor: Extreme values clamped - original: (${x}, ${y}, ${width}, ${height}), clamped: (${clampedX}, ${clampedY}, ${clampedWidth}, ${clampedHeight})`
             );
         }
-        super(clampedX, clampedY, clampedWidth, clampedHeight, options);
-        this.fillColor = fillColor;
-        this.strokeColor = strokeColor;
-        this.strokeWidth = strokeWidth;
-        this.cornerRadius = 0;
-        this.lineDash = [];
-        this.lineDashOffset = 0;
-        this.shadowColor = null;
-        this.shadowBlur = 0;
-        this.shadowOffsetX = 0;
-        this.shadowOffsetY = 0;
+        const isOpts = fillColorOrOptions !== null && typeof fillColorOrOptions === 'object';
+        const opts: RectangleOptions = isOpts ? (fillColorOrOptions as RectangleOptions) : (options ?? {});
+        super(clampedX, clampedY, clampedWidth, clampedHeight, opts);
+        this.fillColor = isOpts ? (opts.fillColor ?? '#FFFFFF') : ((fillColorOrOptions as string | null | undefined) ?? '#FFFFFF');
+        this.strokeColor = isOpts ? (opts.strokeColor ?? null) : (strokeColor ?? null);
+        this.strokeWidth = isOpts ? (opts.strokeWidth ?? 1) : (strokeWidth ?? 1);
+        this.cornerRadius = opts.cornerRadius ?? 0;
+        this.lineDash = opts.lineDash ?? [];
+        this.lineDashOffset = opts.lineDashOffset ?? 0;
+        this.shadowColor = opts.shadowColor ?? null;
+        this.shadowBlur = opts.shadowBlur ?? 0;
+        this.shadowOffsetX = opts.shadowOffsetX ?? 0;
+        this.shadowOffsetY = opts.shadowOffsetY ?? 0;
     }
 
     protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _currentTime: number): void {

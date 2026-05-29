@@ -269,7 +269,11 @@ export class BasicShapesElement extends SceneElement {
                 const lineCap = (props.lineCap ?? 'butt') as CanvasLineCap;
                 const dashLength = props.dashLength ?? 0;
                 const dashGap = props.dashGap ?? 4;
-                const rect = new Rectangle(-w / 2, -h / 2, w, h, effectiveFill, effectiveStroke, strokeWidth);
+                const rect = new Rectangle(-w / 2, -h / 2, w, h, {
+                    fillColor: effectiveFill,
+                    strokeColor: effectiveStroke,
+                    strokeWidth,
+                });
                 rect.cornerRadius = cr;
                 if (dashLength > 0) {
                     rect.lineDash = [dashLength, dashGap];
@@ -369,15 +373,9 @@ export class BasicShapesElement extends SceneElement {
         ro.setIncludeInLayoutBounds(false);
 
         // Create invisible layout element to stabilize bounds
-        const layoutRect = new Rectangle(
-            -layoutBounds.w / 2,
-            -layoutBounds.h / 2,
-            layoutBounds.w,
-            layoutBounds.h,
-            null,
-            null,
-            0
-        );
+        const layoutRect = new Rectangle(-layoutBounds.w / 2, -layoutBounds.h / 2, layoutBounds.w, layoutBounds.h, {
+            fillColor: null,
+        });
         (layoutRect as any).isLayoutElement = true;
 
         return [layoutRect, ro];

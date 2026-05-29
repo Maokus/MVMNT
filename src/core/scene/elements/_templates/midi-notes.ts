@@ -90,7 +90,7 @@ export class MidiNotesElement extends SceneElement {
             const x = index * (props.noteWidth + props.noteSpacing);
 
             // Draw note bar
-            objects.push(new Rectangle(x, 0, props.noteWidth, props.noteHeight, props.noteColor));
+            objects.push(new Rectangle(x, 0, props.noteWidth, props.noteHeight, { fillColor: props.noteColor }));
 
             // Draw note name if enabled
             if (props.showNoteNames) {

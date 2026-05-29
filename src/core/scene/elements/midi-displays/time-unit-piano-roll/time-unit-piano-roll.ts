@@ -504,7 +504,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
         // Add an invisible rectangle that establishes the layout bounds to roughly cover the content area
         // This prevents jitter when other decorative elements toggle or animations change.
-        const layoutBoundsRect = new Rectangle(0, 0, totalWidth, totalHeight, null, null, 0);
+        const layoutBoundsRect = new Rectangle(0, 0, totalWidth, totalHeight, { fillColor: null });
         (layoutBoundsRect as any).setIncludeInLayoutBounds?.(true);
         // No fill/stroke, so it's not drawn, but it contributes to layout bounds via getBounds().
         renderObjects.push(layoutBoundsRect);
@@ -516,20 +516,16 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 const pc = n % 12;
                 const isBlack = pc === 1 || pc === 3 || pc === 6 || pc === 8 || pc === 10;
                 const col = isBlack ? blackKeyColor : whiteKeyColor;
-                const key = new Rectangle(0, y, pianoWidth, noteHeight, col, null, 0);
+                const key = new Rectangle(0, y, pianoWidth, noteHeight, { fillColor: col });
                 key.opacity = pianoOpacity;
                 renderObjects.push(key);
             }
             if ((pianoRightBorderWidth || 0) > 0) {
                 renderObjects.push(
-                    new Line(
-                        pianoWidth,
-                        0,
-                        pianoWidth,
-                        (maxNote - minNote + 1) * noteHeight,
-                        pianoRightBorderColor,
-                        pianoRightBorderWidth
-                    )
+                    new Line(pianoWidth, 0, pianoWidth, (maxNote - minNote + 1) * noteHeight, {
+                        color: pianoRightBorderColor,
+                        lineWidth: pianoRightBorderWidth,
+                    })
                 );
             }
         }
@@ -750,20 +746,23 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
             let lbl: Text;
             if (rollLabelPosition === 'top') {
-                lbl = new Text(
-                    effectivePianoWidth + effectiveRollWidth / 2,
-                    0,
-                    rollLabelText,
-                    font,
-                    rollLabelFontColor,
-                    'center',
-                    'bottom'
-                );
+                lbl = new Text(effectivePianoWidth + effectiveRollWidth / 2, 0, rollLabelText, font, {
+                    color: rollLabelFontColor,
+                    align: 'center',
+                    baseline: 'bottom',
+                });
             } else if (rollLabelPosition === 'top-left') {
-                lbl = new Text(effectivePianoWidth, 0, rollLabelText, font, rollLabelFontColor, 'left', 'bottom');
+                lbl = new Text(effectivePianoWidth, 0, rollLabelText, font, {
+                    color: rollLabelFontColor,
+                    baseline: 'bottom',
+                });
             } else {
                 // 'left': vertical text at the left edge of the roll area, reads bottom-to-top
-                lbl = new Text(0, rollHeight / 2, rollLabelText, font, rollLabelFontColor, 'center', 'bottom');
+                lbl = new Text(0, rollHeight / 2, rollLabelText, font, {
+                    color: rollLabelFontColor,
+                    align: 'center',
+                    baseline: 'bottom',
+                });
                 lbl.rotation = -Math.PI / 2;
             }
             (lbl as any).setIncludeInLayoutBounds?.(false);
@@ -789,7 +788,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         // draw line at each note boundary
         for (let i = 0; i <= maxNote - minNote; i++) {
             const y = i * noteHeight;
-            const ln = new Line(x1, y, x2, y, '#333333', 1);
+            const ln = new Line(x1, y, x2, y, { color: '#333333', lineWidth: 1 });
             (ln as any).setIncludeInLayoutBounds?.(false);
             lines.push(ln);
         }
@@ -814,7 +813,10 @@ export class TimeUnitPianoRollElement extends SceneElement {
             const rel = (b.time - windowStart) / duration;
             const x = pianoWidth + rel * rollWidth;
             const isBar = !!b.isBarStart;
-            const ln = new Line(x, 0, x, totalHeight, isBar ? '#666666' : '#444444', isBar ? 2 : 1);
+            const ln = new Line(x, 0, x, totalHeight, {
+                color: isBar ? '#666666' : '#444444',
+                lineWidth: isBar ? 2 : 1,
+            });
             (ln as any).setIncludeInLayoutBounds?.(false);
             lines.push(ln);
         }
@@ -835,7 +837,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
         for (let note = minNote; note <= maxNote; note++) {
             const y = totalHeight - (note - minNote + 0.5) * noteHeight;
             const noteLabel = noteName(note);
-            const label = new Text(pianoWidth - 10, y, noteLabel, '10px Arial', '#ffffff', 'right', 'middle');
+            const label = new Text(pianoWidth - 10, y, noteLabel, '10px Arial', {
+                color: '#ffffff',
+                align: 'right',
+                baseline: 'middle',
+            });
             (label as any).setIncludeInLayoutBounds?.(false);
             labels.push(label);
         }
@@ -860,7 +866,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             const rel = (b.time - windowStart) / duration;
             const x = pianoWidth + rel * rollWidth;
             const bar = b.barNumber;
-            const label = new Text(x + 5, -5, `Bar ${bar}`, '12px Arial', '#ffffff', 'left', 'bottom');
+            const label = new Text(x + 5, -5, `Bar ${bar}`, '12px Arial', { color: '#ffffff', baseline: 'bottom' });
             (label as any).setIncludeInLayoutBounds?.(false);
             labels.push(label);
         }
@@ -896,7 +902,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             playheadObjects.push(playhead);
         } else {
             // Fallback to regular line
-            const playhead = new Line(playheadX, 0, playheadX, totalHeight, playheadColor, lineWidth);
+            const playhead = new Line(playheadX, 0, playheadX, totalHeight, { color: playheadColor, lineWidth });
             playheadObjects.push(playhead);
         }
 

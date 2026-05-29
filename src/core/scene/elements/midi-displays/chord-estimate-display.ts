@@ -403,7 +403,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
 
         const layoutWidth = (props as any).layoutWidth ?? 400;
         const layoutHeight = (props as any).layoutHeight ?? 100;
-        const layoutRect = new Rectangle(0, 0, layoutWidth, layoutHeight, null, null, 0);
+        const layoutRect = new Rectangle(0, 0, layoutWidth, layoutHeight, { fillColor: null });
         layoutRect.setIncludeInLayoutBounds(true);
 
         const renderObjects: RenderObject[] = [layoutRect];
@@ -568,13 +568,9 @@ export class ChordEstimateDisplayElement extends SceneElement {
             else if (justify === 'right' || justify === 'end') startX = textX - totalWidth;
             for (let i = 0; i < names.length; i++) {
                 const rectX = startX + i * spacing;
-                const rect = new Rectangle(
-                    rectX,
-                    y,
-                    rectWidth,
-                    20,
-                    applyOpacity(chromaColorRaw, chroma[i] * chromaOpacityScale)
-                );
+                const rect = new Rectangle(rectX, y, rectWidth, 20, {
+                    fillColor: applyOpacity(chromaColorRaw, chroma[i] * chromaOpacityScale),
+                });
                 rect.setIncludeInLayoutBounds(false);
                 renderObjects.push(rect);
             }
@@ -586,7 +582,9 @@ export class ChordEstimateDisplayElement extends SceneElement {
             const paddingY = props.backgroundPaddingY ?? 4;
             const bgColor = applyOpacity(props.backgroundColor ?? '#000000', props.backgroundOpacity ?? 0.8);
             const bgHeight = y + paddingY * 2;
-            const bg = new Rectangle(-paddingX, -paddingY, layoutWidth + paddingX * 2, bgHeight, bgColor);
+            const bg = new Rectangle(-paddingX, -paddingY, layoutWidth + paddingX * 2, bgHeight, {
+                fillColor: bgColor,
+            });
             if (props.backgroundCornerRadius) bg.cornerRadius = props.backgroundCornerRadius;
             bg.setIncludeInLayoutBounds(false);
             renderObjects.splice(1, 0, bg);

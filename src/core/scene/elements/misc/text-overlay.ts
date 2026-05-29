@@ -130,13 +130,9 @@ export class TextOverlayElement extends SceneElement {
                     : textAlign === 'right'
                       ? -maxLineWidth - paddingX
                       : -paddingX;
-            const bg = new Rectangle(
-                bgX,
-                startY - paddingY,
-                maxLineWidth + paddingX * 2,
-                totalHeight + paddingY * 2,
-                bgColor
-            );
+            const bg = new Rectangle(bgX, startY - paddingY, maxLineWidth + paddingX * 2, totalHeight + paddingY * 2, {
+                fillColor: bgColor,
+            });
             bg.cornerRadius = props.backgroundCornerRadius ?? 4;
             renderObjects.unshift(bg);
         }

@@ -313,20 +313,16 @@ export class MovingNotesPianoRollElement extends SceneElement {
                 const isBlack =
                     pitchClass === 1 || pitchClass === 3 || pitchClass === 6 || pitchClass === 8 || pitchClass === 10;
                 const col = isBlack ? blackKeyColor : whiteKeyColor;
-                const key = new Rectangle(0, y, pianoWidth, noteHeight, col, null, 0);
+                const key = new Rectangle(0, y, pianoWidth, noteHeight, { fillColor: col });
                 key.opacity = pianoOpacity;
                 renderObjects.push(key);
             }
             // Right border to separate piano from roll area
             if ((pianoRightBorderWidth || 0) > 0) {
-                const border = new Line(
-                    pianoWidth,
-                    0,
-                    pianoWidth,
-                    (maxNote - minNote + 1) * noteHeight,
-                    pianoRightBorderColor as string,
-                    pianoRightBorderWidth
-                );
+                const border = new Line(pianoWidth, 0, pianoWidth, (maxNote - minNote + 1) * noteHeight, {
+                    color: pianoRightBorderColor as string,
+                    lineWidth: pianoRightBorderWidth,
+                });
                 renderObjects.push(border);
             }
         }
@@ -400,7 +396,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
         // Add a non-drawing rectangle to establish layout bounds for the content area
         {
             const totalHeight = (maxNote - minNote + 1) * noteHeight;
-            const layoutRect = new Rectangle(0, 0, effectivePianoWidth + rollWidth, totalHeight, null, null, 0);
+            const layoutRect = new Rectangle(0, 0, effectivePianoWidth + rollWidth, totalHeight, { fillColor: null });
             (layoutRect as any).setIncludeInLayoutBounds?.(true);
             renderObjects.push(layoutRect);
         }
@@ -439,7 +435,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const x = Math.max(minX, Math.min(maxX, unclamped));
         const playhead = Line.createPlayhead
             ? Line.createPlayhead(x, 0, totalHeight, playheadColor, lineWidth)
-            : new Line(x, 0, x, totalHeight, playheadColor, lineWidth);
+            : new Line(x, 0, x, totalHeight, { color: playheadColor, lineWidth });
         return [playhead];
     }
 

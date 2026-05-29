@@ -107,7 +107,7 @@ export class MovingNotesAnimationController {
             const color = channelColors[channel % channelColors.length];
 
             if (!animationEnabled) {
-                const rect = new Rectangle(x, y, width, noteHeight, color);
+                const rect = new Rectangle(x, y, width, noteHeight, { fillColor: color });
                 (rect as any).setIncludeInLayoutBounds?.(false);
                 renderObjects.push(rect);
                 continue;

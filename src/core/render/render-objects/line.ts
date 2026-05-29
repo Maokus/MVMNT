@@ -1,7 +1,22 @@
-import { RenderObject, RenderConfig, Bounds } from './base';
+import { RenderObject, RenderConfig, Bounds, type LayoutParticipation } from './base';
 import { applyShadow, clearShadow, applyDash, clearDash } from './style-helpers';
 
 type LineCap = CanvasLineCap; // 'butt' | 'round' | 'square'
+
+export interface LineOptions {
+    color?: string;
+    lineWidth?: number;
+    lineCap?: LineCap;
+    lineDash?: number[];
+    lineDashOffset?: number;
+    shadowColor?: string | null;
+    shadowBlur?: number;
+    shadowOffsetX?: number;
+    shadowOffsetY?: number;
+    layoutParticipation?: LayoutParticipation;
+    /** @deprecated Use layoutParticipation. */
+    includeInLayoutBounds?: boolean;
+}
 
 export class Line extends RenderObject {
     deltaX: number;
@@ -16,27 +31,32 @@ export class Line extends RenderObject {
     shadowOffsetX: number;
     shadowOffsetY: number;
 
+    constructor(x1: number, y1: number, x2: number, y2: number, options?: LineOptions);
+    /** @deprecated Pass style properties via the options object. */
+    constructor(x1: number, y1: number, x2: number, y2: number, color: string, lineWidth?: number, options?: LineOptions);
     constructor(
         x1: number,
         y1: number,
         x2: number,
         y2: number,
-        color = '#FFFFFF',
-        lineWidth = 1,
-        options?: { includeInLayoutBounds?: boolean }
+        colorOrOptions?: string | LineOptions,
+        lineWidth?: number,
+        options?: LineOptions
     ) {
-        super(x1, y1, 1, 1, 1, options);
+        const isOpts = typeof colorOrOptions === 'object' && colorOrOptions !== null;
+        const opts: LineOptions = isOpts ? (colorOrOptions as LineOptions) : (options ?? {});
+        super(x1, y1, 1, 1, 1, opts);
         this.deltaX = x2 - x1;
         this.deltaY = y2 - y1;
-        this.color = color;
-        this.lineWidth = lineWidth;
-        this.lineCap = 'butt';
-        this.lineDash = [];
-        this.lineDashOffset = 0;
-        this.shadowColor = null;
-        this.shadowBlur = 0;
-        this.shadowOffsetX = 0;
-        this.shadowOffsetY = 0;
+        this.color = isOpts ? (opts.color ?? '#FFFFFF') : ((colorOrOptions as string | undefined) ?? '#FFFFFF');
+        this.lineWidth = isOpts ? (opts.lineWidth ?? 1) : (lineWidth ?? 1);
+        this.lineCap = opts.lineCap ?? 'butt';
+        this.lineDash = opts.lineDash ?? [];
+        this.lineDashOffset = opts.lineDashOffset ?? 0;
+        this.shadowColor = opts.shadowColor ?? null;
+        this.shadowBlur = opts.shadowBlur ?? 0;
+        this.shadowOffsetX = opts.shadowOffsetX ?? 0;
+        this.shadowOffsetY = opts.shadowOffsetY ?? 0;
     }
 
     protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _time: number): void {
@@ -108,10 +128,10 @@ export class Line extends RenderObject {
     }
 
     static createVerticalLine(x: number, y1: number, y2: number, color = '#FFFFFF', lineWidth = 1): Line {
-        return new Line(x, y1, x, y2, color, lineWidth);
+        return new Line(x, y1, x, y2, { color, lineWidth });
     }
     static createHorizontalLine(x1: number, x2: number, y: number, color = '#FFFFFF', lineWidth = 1): Line {
-        return new Line(x1, y, x2, y, color, lineWidth);
+        return new Line(x1, y, x2, y, { color, lineWidth });
     }
     static createGridLine(
         x1: number,
@@ -121,9 +141,9 @@ export class Line extends RenderObject {
         color = 'rgba(255, 255, 255, 0.1)',
         lineWidth = 1
     ): Line {
-        return new Line(x1, y1, x2, y2, color, lineWidth);
+        return new Line(x1, y1, x2, y2, { color, lineWidth });
     }
     static createPlayhead(x: number, y1: number, y2: number, color = '#FF0000', lineWidth = 2): Line {
-        return new Line(x, y1, x, y2, color, lineWidth);
+        return new Line(x, y1, x, y2, { color, lineWidth });
     }
 }

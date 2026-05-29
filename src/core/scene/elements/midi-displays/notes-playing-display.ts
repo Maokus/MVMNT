@@ -326,7 +326,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
 
         const justification = (props.textAlign ?? props.textJustification ?? 'left') as CanvasTextAlign;
         const layoutX = justification === 'center' ? -layoutWidth / 2 : justification === 'right' ? -layoutWidth : 0;
-        const layoutRect = new Rectangle(layoutX, 0, layoutWidth, layoutHeight, null, null, 0);
+        const layoutRect = new Rectangle(layoutX, 0, layoutWidth, layoutHeight, { fillColor: null });
         layoutRect.setIncludeInLayoutBounds(true);
         renderObjects.push(layoutRect);
 
@@ -375,7 +375,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
                     const cx = x + cellWidth / 2;
                     const cy = y + cellHeight / 2;
 
-                    const cell = new Rectangle(cx, cy, cellWidth, cellHeight, fillColor, strokeColor, strokeWidth);
+                    const cell = new Rectangle(cx, cy, cellWidth, cellHeight, { fillColor, strokeColor, strokeWidth });
                     cell.cornerRadius = cornerRadius;
                     cell.setIncludeInLayoutBounds?.(false);
                     cell.opacity = noteOpacity;
@@ -387,8 +387,11 @@ export class NotesPlayingDisplayElement extends SceneElement {
                     renderObjects.push(cell);
 
                     const label = noteLabel(cellNote);
-                    const text = new Text(cx, cy, label, font, textColor, 'center', 'middle', {
-                        includeInLayoutBounds: false,
+                    const text = new Text(cx, cy, label, font, {
+                        color: textColor,
+                        align: 'center',
+                        baseline: 'middle',
+                        layoutParticipation: 'exclude',
                     });
                     text.opacity = noteOpacity;
                     text.scaleX = noteScale;
@@ -420,9 +423,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
                 if (!isActive && !fading) continue;
 
                 const x = layoutX + i * spacing;
-                const text = new Text(x, 0, noteNames[i], font, textColor, 'left', 'top', {
-                    includeInLayoutBounds: false,
-                });
+                const text = new Text(x, 0, noteNames[i], font, { color: textColor, layoutParticipation: 'exclude' });
                 if (!isActive && fading) {
                     text.opacity = fading.opacity;
                     text.scaleX = fading.scale;
@@ -447,7 +448,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
                 -paddingY,
                 layoutWidth + paddingX * 2,
                 layoutHeight + paddingY * 2,
-                bgColor
+                { fillColor: bgColor }
             );
             if (props.backgroundCornerRadius) bg.cornerRadius = props.backgroundCornerRadius;
             bg.setIncludeInLayoutBounds?.(false);

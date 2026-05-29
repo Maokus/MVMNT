@@ -39,6 +39,6 @@ export class MinimalElement extends SceneElement {
         if (!props.visible) return [];
 
         const half = (props.size as number) / 2;
-        return [new Rectangle(-half, -half, props.size, props.size, props.color)];
+        return [new Rectangle(-half, -half, props.size, props.size, { fillColor: props.color })];
     }
 }

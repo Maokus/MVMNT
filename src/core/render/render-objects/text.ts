@@ -1,4 +1,4 @@
-import { RenderObject, RenderConfig, Bounds } from './base';
+import { RenderObject, RenderConfig, Bounds, type LayoutParticipation } from './base';
 
 type TextAlign = CanvasTextAlign; // 'left' | 'right' | 'center' | 'start' | 'end'
 type TextBaseline = CanvasTextBaseline; // 'top' | 'hanging' | 'middle' | 'alphabetic' | 'ideographic' | 'bottom'
@@ -8,6 +8,20 @@ interface TextShadow {
     blur: number;
     offsetX: number;
     offsetY: number;
+}
+
+export interface TextOptions {
+    color?: string;
+    align?: TextAlign;
+    baseline?: TextBaseline;
+    strokeColor?: string | null;
+    strokeWidth?: number;
+    maxWidth?: number | null;
+    letterSpacing?: number;
+    shadow?: TextShadow | null;
+    layoutParticipation?: LayoutParticipation;
+    /** @deprecated Use layoutParticipation. */
+    includeInLayoutBounds?: boolean;
 }
 
 export class Text extends RenderObject {
@@ -24,15 +38,18 @@ export class Text extends RenderObject {
     letterSpacing: number;
     static __measureCtx?: CanvasRenderingContext2D | null; // offscreen measure context cache
 
+    constructor(x: number, y: number, text: string, font?: string, options?: TextOptions);
+    /** @deprecated Pass style properties via the options object. */
+    constructor(x: number, y: number, text: string, font: string, color: string, align?: TextAlign, baseline?: TextBaseline, options?: TextOptions);
     constructor(
         x: number,
         y: number,
         text: string,
         font = '16px Arial',
-        color = '#FFFFFF',
-        align: TextAlign = 'left',
-        baseline: TextBaseline = 'top',
-        options?: { includeInLayoutBounds?: boolean }
+        colorOrOptions?: string | TextOptions,
+        align?: TextAlign,
+        baseline?: TextBaseline,
+        options?: TextOptions
     ) {
         const maxPosition = 1_000_000;
         const clampedX = Math.max(-maxPosition, Math.min(maxPosition, x));
@@ -42,17 +59,19 @@ export class Text extends RenderObject {
                 `Text constructor: Extreme position values clamped - original: (${x}, ${y}), clamped: (${clampedX}, ${clampedY})`
             );
         }
-        super(clampedX, clampedY, 1, 1, 1, options);
+        const isOpts = typeof colorOrOptions === 'object' && colorOrOptions !== null;
+        const opts: TextOptions = isOpts ? (colorOrOptions as TextOptions) : (options ?? {});
+        super(clampedX, clampedY, 1, 1, 1, opts);
         this.text = text;
         this.font = font;
-        this.color = color;
-        this.align = align;
-        this.baseline = baseline;
-        this.strokeColor = null;
-        this.strokeWidth = 0;
-        this.maxWidth = null;
-        this.shadow = null;
-        this.letterSpacing = 0;
+        this.color = isOpts ? (opts.color ?? '#FFFFFF') : ((colorOrOptions as string | undefined) ?? '#FFFFFF');
+        this.align = isOpts ? (opts.align ?? 'left') : (align ?? 'left');
+        this.baseline = isOpts ? (opts.baseline ?? 'top') : (baseline ?? 'top');
+        this.strokeColor = opts.strokeColor ?? null;
+        this.strokeWidth = opts.strokeWidth ?? 0;
+        this.maxWidth = opts.maxWidth ?? null;
+        this.shadow = opts.shadow ?? null;
+        this.letterSpacing = opts.letterSpacing ?? 0;
     }
 
     protected _renderSelf(ctx: CanvasRenderingContext2D): void {

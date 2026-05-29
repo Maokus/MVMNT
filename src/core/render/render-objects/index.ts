@@ -1,9 +1,9 @@
 export { RenderObject, type LayoutParticipation } from './base';
 export { BoxRenderObject } from './box';
 export { EmptyRenderObject } from './empty';
-export { Rectangle } from './rectangle';
-export { Text } from './text';
-export { Line } from './line';
+export { Rectangle, type RectangleOptions } from './rectangle';
+export { Text, type TextOptions } from './text';
+export { Line, type LineOptions } from './line';
 export { Poly } from './poly';
 export { BezierPath } from './bezier';
 export { Arc } from './arc';

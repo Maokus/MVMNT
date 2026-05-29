@@ -10,7 +10,7 @@ export class PressAnimation extends BaseNoteAnimation {
     render(ctx: AnimationContext): RenderObject[] {
         const { x, y, width, height, color, progress, phase, block } = ctx;
 
-        let rect = new Rectangle(x, y, width, height, color);
+        let rect = new Rectangle(x, y, width, height, { fillColor: color });
 
         switch (phase) {
             case 'attack': {

@@ -96,7 +96,7 @@ export class AudioAdhocProfileElement extends SceneElement {
         const overridesHash = descriptor?.profileOverridesHash ?? null;
 
         if (!result || !channelValues.length) {
-            return [new Rectangle(0, 0, 200, 200, '#ff0000')];
+            return [new Rectangle(0, 0, 200, 200, { fillColor: '#ff0000' })];
         }
 
         const objects: RenderObject[] = [];

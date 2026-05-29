@@ -68,13 +68,9 @@ export class BasicShapeElement extends SceneElement {
             objects.push(new Arc(0, 0, props.shapeSize, 0, Math.PI * 2));
         } else {
             objects.push(
-                new Rectangle(
-                    -props.shapeSize / 2,
-                    -props.shapeSize / 2,
-                    props.shapeSize,
-                    props.shapeSize,
-                    props.shapeColor
-                )
+                new Rectangle(-props.shapeSize / 2, -props.shapeSize / 2, props.shapeSize, props.shapeSize, {
+                    fillColor: props.shapeColor,
+                })
             );
         }
 

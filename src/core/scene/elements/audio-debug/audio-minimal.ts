@@ -82,7 +82,7 @@ export class AudioMinimalElement extends SceneElement {
         const channelCount = channelValues.length;
 
         if (!result || channelCount === 0) {
-            return [new Rectangle(0, 0, 200, 200, '#ff0000')];
+            return [new Rectangle(0, 0, 200, 200, { fillColor: '#ff0000' })];
         }
 
         const objects: RenderObject[] = [];

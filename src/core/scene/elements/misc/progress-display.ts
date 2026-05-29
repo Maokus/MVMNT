@@ -223,23 +223,15 @@ export class ProgressDisplayElement extends SceneElement {
             const barWidth = props.barWidth ?? 400;
 
             // Progress bar background
-            const progressBg = new Rectangle(
-                margin,
-                barY,
-                barWidth,
-                barHeight,
-                this._hexToRgba(barBgColor, barBgOpacity)
-            );
+            const progressBg = new Rectangle(margin, barY, barWidth, barHeight, {
+                fillColor: this._hexToRgba(barBgColor, barBgOpacity),
+            });
             renderObjects.push(progressBg);
 
             // Progress bar fill
-            const progressFill = new Rectangle(
-                margin,
-                barY,
-                barWidth * progress,
-                barHeight,
-                this._hexToRgba(barColor, barOpacity)
-            );
+            const progressFill = new Rectangle(margin, barY, barWidth * progress, barHeight, {
+                fillColor: this._hexToRgba(barColor, barOpacity),
+            });
             renderObjects.push(progressFill);
 
             // Border (create as a thin rectangle outline)
@@ -247,25 +239,17 @@ export class ProgressDisplayElement extends SceneElement {
             const borderColor = this._hexToRgba(borderColorRaw, borderOpacity);
 
             // Top border
-            const topBorder = new Rectangle(margin, barY, barWidth, borderWidth, borderColor);
+            const topBorder = new Rectangle(margin, barY, barWidth, borderWidth, { fillColor: borderColor });
             // Bottom border
-            const bottomBorder = new Rectangle(
-                margin,
-                barY + barHeight - borderWidth,
-                barWidth,
-                borderWidth,
-                borderColor
-            );
+            const bottomBorder = new Rectangle(margin, barY + barHeight - borderWidth, barWidth, borderWidth, {
+                fillColor: borderColor,
+            });
             // Left border
-            const leftBorder = new Rectangle(margin, barY, borderWidth, barHeight, borderColor);
+            const leftBorder = new Rectangle(margin, barY, borderWidth, barHeight, { fillColor: borderColor });
             // Right border
-            const rightBorder = new Rectangle(
-                margin + barWidth - borderWidth,
-                barY,
-                borderWidth,
-                barHeight,
-                borderColor
-            );
+            const rightBorder = new Rectangle(margin + barWidth - borderWidth, barY, borderWidth, barHeight, {
+                fillColor: borderColor,
+            });
 
             renderObjects.push(topBorder, bottomBorder, leftBorder, rightBorder);
         }

@@ -9,4 +9,4 @@
  * Plugins declare a semver range in their manifest `apiVersion` field (e.g. "^1.0.0").
  * The loader rejects plugins whose range does not satisfy this constant.
  */
-export const PLUGIN_API_VERSION = '1.0.0';
+export const PLUGIN_API_VERSION = '1.1.0';

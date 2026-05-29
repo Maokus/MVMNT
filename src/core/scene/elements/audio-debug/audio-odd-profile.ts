@@ -88,7 +88,7 @@ export class AudioOddProfileElement extends SceneElement {
         const aliases = result?.metadata?.channelAliases ?? sample?.channelAliases ?? null;
 
         if (!result || !channelValues.length) {
-            return [new Rectangle(0, 0, 200, 200, '#ff0000')];
+            return [new Rectangle(0, 0, 200, 200, { fillColor: '#ff0000' })];
         }
 
         const objects: RenderObject[] = [];

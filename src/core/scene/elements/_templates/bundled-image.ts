@@ -27,7 +27,7 @@ export class BundledImageElement extends SceneElement {
     private readonly _overrideHandle = this.visualHandle();
     private readonly _playback = new VisualMediaPlayback();
     private readonly _media = new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' });
-    private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
+    private readonly _layoutRect = new Rectangle(0, 0, 200, 200, { fillColor: null });
 
     constructor(id: string = 'bundledImage', config: Record<string, unknown> = {}) {
         super('bundled-image', id, config);

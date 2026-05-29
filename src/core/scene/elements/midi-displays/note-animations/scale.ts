@@ -11,7 +11,7 @@ export class ScaleAnimation extends BaseNoteAnimation {
         const { x, y, width, height, color, progress, phase } = ctx;
         const p = Math.max(0, Math.min(1, progress));
 
-        let rect = new Rectangle(x, y, width, height, color);
+        let rect = new Rectangle(x, y, width, height, { fillColor: color });
         switch (phase) {
             case 'attack':
                 // Slightly smaller preview scaling up to 90%
@@ -39,7 +39,7 @@ export class ScaleAnimation extends BaseNoteAnimation {
         const h = Math.max(1, height * rect.scaleY);
         const ox = (width - w) / 2;
         const oy = (height - h) / 2;
-        let rect2 = new Rectangle(x + ox, y + oy, w, h, color);
+        let rect2 = new Rectangle(x + ox, y + oy, w, h, { fillColor: color });
         rect2.opacity = rect.opacity;
         return this.markNonLayout([rect2]);
     }

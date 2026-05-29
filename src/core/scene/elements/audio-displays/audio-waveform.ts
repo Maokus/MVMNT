@@ -254,7 +254,7 @@ function renderWaveformBars(points: { x: number; y: number }[], options: RenderW
         const delta = y - centerY;
         const rectHeight = Math.max(1, Math.abs(delta));
         const rectY = delta < 0 ? y : centerY;
-        const rect = new Rectangle(x - barWidth / 2, rectY, barWidth, rectHeight, options.color);
+        const rect = new Rectangle(x - barWidth / 2, rectY, barWidth, rectHeight, { fillColor: options.color });
         options.objects.push(rect);
     });
 }
@@ -570,13 +570,12 @@ export class AudioWaveformElement extends SceneElement {
 
         const objects: RenderObject[] = [];
         objects.push(
-            new Rectangle(
-                0,
-                0,
-                width,
-                height,
-                applyOpacity(props.backgroundColor ?? DEFAULT_BACKGROUND_COLOR, props.backgroundOpacity ?? 0)
-            )
+            new Rectangle(0, 0, width, height, {
+                fillColor: applyOpacity(
+                    props.backgroundColor ?? DEFAULT_BACKGROUND_COLOR,
+                    props.backgroundOpacity ?? 0
+                ),
+            })
         );
 
         const pushFlatLine = () => {

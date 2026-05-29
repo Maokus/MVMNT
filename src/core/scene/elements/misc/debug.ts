@@ -48,11 +48,11 @@ export class DebugElement extends SceneElement {
         const props = this.getSchemaProps();
         const objects: RenderObject[] = [];
         const empty1 = new EmptyRenderObject();
-        const rect1 = new Rectangle(0, 0, 50, 50, '#ff0000');
-        const rect2 = new Rectangle(50, 50, 50, 50, '#00ff00');
-        const rect3 = new Rectangle(100, 100, 50, 50, '#0000ff');
-        const rect4 = new Rectangle(150, 150, 50, 50, '#ffff00');
-        const rect5 = new Rectangle(0, 0, 50, 50, '#ff00ff');
+        const rect1 = new Rectangle(0, 0, 50, 50, { fillColor: '#ff0000' });
+        const rect2 = new Rectangle(50, 50, 50, 50, { fillColor: '#00ff00' });
+        const rect3 = new Rectangle(100, 100, 50, 50, { fillColor: '#0000ff' });
+        const rect4 = new Rectangle(150, 150, 50, 50, { fillColor: '#ffff00' });
+        const rect5 = new Rectangle(0, 0, 50, 50, { fillColor: '#ff00ff' });
 
         rect2.setIncludeInLayoutBounds(false);
         rect3.scaleX = 2;

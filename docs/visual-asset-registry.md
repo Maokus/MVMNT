@@ -79,7 +79,7 @@ import {
 import { VisualMedia, type RenderObject } from '@mvmnt/plugin-sdk/render';
 
 export class MyImageElement extends SceneElement {
-    private readonly _media = new VisualMedia(0, 0, 200, 200, { includeInLayoutBounds: false });
+    private readonly _media = new VisualMedia(0, 0, 200, 200).setLayoutParticipation('exclude');
     private readonly _playback = new VisualMediaPlayback();
     // visualHandle() creates a VisualResourceHandle and auto-destroys it on dispose().
     private readonly _handle = this.visualHandle();

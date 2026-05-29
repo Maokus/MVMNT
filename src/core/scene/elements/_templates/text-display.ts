@@ -108,7 +108,7 @@ export class TextDisplayElement extends SceneElement {
                 bgY = -textHeight - props.backgroundPadding;
             }
 
-            objects.push(new Rectangle(bgX, bgY, bgWidth, bgHeight, props.backgroundColor));
+            objects.push(new Rectangle(bgX, bgY, bgWidth, bgHeight, { fillColor: props.backgroundColor }));
         }
 
         // Render text
@@ -119,7 +119,13 @@ export class TextDisplayElement extends SceneElement {
         if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const font = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
 
-        objects.push(new Text(0, 0, props.textContent, font, props.textColor, props.textAlign, props.textBaseline));
+        objects.push(
+            new Text(0, 0, props.textContent, font, {
+                color: props.textColor,
+                align: props.textAlign,
+                baseline: props.textBaseline,
+            })
+        );
 
         return objects;
     }

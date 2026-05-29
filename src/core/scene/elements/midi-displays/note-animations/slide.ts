@@ -10,7 +10,7 @@ export class SlideAnimation extends BaseNoteAnimation {
         const p = Math.max(0, Math.min(1, progress));
         let alpha = 0.8;
         let dx = 0;
-        let rectangle = new Rectangle(x, y, width, height, color);
+        let rectangle = new Rectangle(x, y, width, height, { fillColor: color });
         switch (phase) {
             case 'attack':
                 dx = width * (1 - easingFunctions.easeOutExpo(p));

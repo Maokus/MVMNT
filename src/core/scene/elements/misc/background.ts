@@ -45,6 +45,6 @@ export class BackgroundElement extends SceneElement {
             props.color ?? props.backgroundColor ?? '#1a1a1a',
             props.opacity ?? props.backgroundOpacity ?? 1
         );
-        return [new Rectangle(0, 0, canvas.width, canvas.height, fill)];
+        return [new Rectangle(0, 0, canvas.width, canvas.height, { fillColor: fill })];
     }
 }

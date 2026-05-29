@@ -219,7 +219,7 @@ export class CCMonitorElement extends SceneElement {
             layoutHeight = fontSize + lineSpacing + 4;
         }
 
-        const layoutRect = new Rectangle(0, 0, layoutWidth, layoutHeight, null, null, 0);
+        const layoutRect = new Rectangle(0, 0, layoutWidth, layoutHeight, { fillColor: null });
         layoutRect.setIncludeInLayoutBounds(true);
 
         const trackId = (props.midiTrackId as string | null) ?? null;
@@ -295,7 +295,7 @@ export class CCMonitorElement extends SceneElement {
         }
 
         if (events.length === 0) {
-            return [new Text(0, 0, 'CC Monitor — no recent events', font, applyAlpha(textColor, 0.4), 'left', 'top')];
+            return [new Text(0, 0, 'CC Monitor — no recent events', font, { color: applyAlpha(textColor, 0.4) })];
         }
 
         // Newest first, capped at maxMessages
@@ -309,7 +309,7 @@ export class CCMonitorElement extends SceneElement {
             const alpha = Math.max(0, 1 - age / fadeDuration);
             const color = applyAlpha(textColor, alpha);
             const label = `${ccLabel(event.controller)}: ${event.value}`;
-            return new Text(0, i * (fontSize + lineSpacing), label, font, color, 'left', 'top');
+            return new Text(0, i * (fontSize + lineSpacing), label, font, { color });
         });
     }
 
@@ -345,7 +345,7 @@ export class CCMonitorElement extends SceneElement {
 
         if (displayMode === 'text') {
             const label = `${ccLabel(controller)}: ${ccValue}`;
-            return [new Text(0, 0, label, font, textColor, 'left', 'top')];
+            return [new Text(0, 0, label, font, { color: textColor })];
         }
 
         if (displayMode === 'knob') {
@@ -364,7 +364,7 @@ export class CCMonitorElement extends SceneElement {
             const w = (props.opacityRectWidth as number) ?? 120;
             const h = (props.opacityRectHeight as number) ?? 120;
             const color = (props.opacityRectColor as string) ?? '#ffffff';
-            const rect = new Rectangle(0, 0, w, h, color, null, 0);
+            const rect = new Rectangle(0, 0, w, h, { fillColor: color });
             rect.setOpacity(ccValue / 127);
             return [rect];
         }
@@ -411,7 +411,7 @@ export class CCMonitorElement extends SceneElement {
         const pointerLen = knobRadius * 0.65;
         const px = Math.cos(indicatorAngle) * pointerLen;
         const py = Math.sin(indicatorAngle) * pointerLen;
-        const pointer = new Line(0, 0, px, py, valueColor, Math.max(1, trackWidth * 0.75));
+        const pointer = new Line(0, 0, px, py, { color: valueColor, lineWidth: Math.max(1, trackWidth * 0.75) });
         pointer.lineCap = 'round';
         results.push(pointer);
 
@@ -446,7 +446,7 @@ export class CCMonitorElement extends SceneElement {
 
         const label = sustained ? 'SUSTAIN  ON' : 'SUSTAIN  OFF';
         const color = sustained ? '#ffffff' : applyAlpha(textColor, 0.4);
-        return [new Text(0, 0, label, font, color, 'left', 'top')];
+        return [new Text(0, 0, label, font, { color })];
     }
 
     override dispose(): void {

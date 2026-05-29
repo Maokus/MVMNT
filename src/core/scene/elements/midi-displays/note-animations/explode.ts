@@ -86,15 +86,11 @@ export class ExplodeAnimation extends BaseNoteAnimation {
 
                 burst.y += height / 2;
                 renderObjs.push(burst);
-                let skeleton = new Rectangle(
-                    x,
-                    y,
-                    af.lerp(0, width, easingFunctions.easeOutExpo(progress)),
-                    height,
-                    'rgba(0,0,0,0)',
-                    color,
-                    2
-                );
+                let skeleton = new Rectangle(x, y, af.lerp(0, width, easingFunctions.easeOutExpo(progress)), height, {
+                    fillColor: 'rgba(0,0,0,0)',
+                    strokeColor: color,
+                    strokeWidth: 2,
+                });
                 skeleton.opacity = 1;
 
                 renderObjs.push(skeleton);
@@ -102,16 +98,24 @@ export class ExplodeAnimation extends BaseNoteAnimation {
                 return this.markNonLayout(renderObjs);
             }
             case 'sustain':
-                let skeleton = new Rectangle(x, y, width, height, 'rgba(0,0,0,0)', color, 2);
+                let skeleton = new Rectangle(x, y, width, height, {
+                    fillColor: 'rgba(0,0,0,0)',
+                    strokeColor: color,
+                    strokeWidth: 2,
+                });
                 skeleton.opacity = 1;
                 return this.markNonLayout([skeleton]);
             case 'release': {
-                let skeleton = new Rectangle(x, y, width, height, 'rgba(0,0,0,0)', color, 2);
+                let skeleton = new Rectangle(x, y, width, height, {
+                    fillColor: 'rgba(0,0,0,0)',
+                    strokeColor: color,
+                    strokeWidth: 2,
+                });
                 skeleton.opacity = af.lerp(1, 0, progress);
                 return this.markNonLayout([skeleton]);
             }
             default:
-                return this.markNonLayout([new Rectangle(x, y, width, height, color)]);
+                return this.markNonLayout([new Rectangle(x, y, width, height, { fillColor: color })]);
         }
     }
 }

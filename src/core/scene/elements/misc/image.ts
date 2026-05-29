@@ -111,7 +111,7 @@ export class ImageElement extends SceneElement {
         }
 
         if (!this._layoutRect) {
-            this._layoutRect = new Rectangle(0, 0, props.width, props.height, null, null);
+            this._layoutRect = new Rectangle(0, 0, props.width, props.height, { fillColor: null });
         } else {
             this._layoutRect.width = props.width;
             this._layoutRect.height = props.height;
@@ -149,15 +149,11 @@ export class ImageElement extends SceneElement {
         const showBorder = props.showBorder ?? false;
         const borderWidth = props.borderWidth ?? 0;
         if (showBorder && borderWidth > 0) {
-            const borderRect = new Rectangle(
-                0,
-                0,
-                props.width,
-                props.height,
-                null,
-                props.borderColor ?? '#ffffff',
-                borderWidth
-            );
+            const borderRect = new Rectangle(0, 0, props.width, props.height, {
+                fillColor: null,
+                strokeColor: props.borderColor ?? '#ffffff',
+                strokeWidth: borderWidth,
+            });
             borderRect.cornerRadius = props.cornerRadius ?? 0;
             result.push(borderRect);
         }

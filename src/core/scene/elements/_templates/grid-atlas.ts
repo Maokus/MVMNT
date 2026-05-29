@@ -26,7 +26,7 @@ export class GridAtlasElement extends SceneElement {
         frameDurationMs: 1000,
     });
     private readonly _media = new VisualMedia(0, 0, 128, 128, { layoutBoundsMode: 'none' });
-    private readonly _layoutRect = new Rectangle(0, 0, 128, 128, null, null);
+    private readonly _layoutRect = new Rectangle(0, 0, 128, 128, { fillColor: null });
 
     constructor(id: string = 'gridAtlas', config: Record<string, unknown> = {}) {
         super('grid-atlas', id, config);

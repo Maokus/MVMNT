@@ -176,26 +176,20 @@ export class AudioVolumeMeterElement extends SceneElement {
         const objects: RenderObject[] = [];
 
         objects.push(
-            new Rectangle(
-                0,
-                0,
-                width,
-                height,
-                applyOpacity(props.backgroundColor ?? DEFAULT_BACKGROUND_COLOR, props.backgroundOpacity ?? 0)
-            )
+            new Rectangle(0, 0, width, height, {
+                fillColor: applyOpacity(
+                    props.backgroundColor ?? DEFAULT_BACKGROUND_COLOR,
+                    props.backgroundOpacity ?? 0
+                ),
+            })
         );
 
         if (!props.audioTrackId) {
             objects.push(
-                new Text(
-                    8,
-                    height / 2,
-                    'Select an audio track',
-                    '12px Inter, sans-serif',
-                    '#94a3b8',
-                    'left',
-                    'middle'
-                ).setIncludeInLayoutBounds(false)
+                new Text(8, height / 2, 'Select an audio track', '12px Inter, sans-serif', {
+                    color: '#94a3b8',
+                    baseline: 'middle',
+                }).setIncludeInLayoutBounds(false)
             );
             return objects;
         }
@@ -276,15 +270,10 @@ export class AudioVolumeMeterElement extends SceneElement {
                 const dbLabel = Number.isFinite(rawDb) ? `${clampedDb.toFixed(1)} dB` : '-∞ dB';
                 const labelY = height + 16;
                 objects.push(
-                    new Text(
-                        0,
-                        labelY,
-                        dbLabel,
-                        '12px Inter, sans-serif',
-                        '#e2e8f0',
-                        'left',
-                        'middle'
-                    ).setIncludeInLayoutBounds(false)
+                    new Text(0, labelY, dbLabel, '12px Inter, sans-serif', {
+                        color: '#e2e8f0',
+                        baseline: 'middle',
+                    }).setIncludeInLayoutBounds(false)
                 );
             }
         }
@@ -370,26 +359,16 @@ export class AudioVolumeMeterElement extends SceneElement {
             // L / R channel labels inside bars
             const labelFont = '10px Inter, sans-serif';
             objects.push(
-                new Text(
-                    xL + barW / 2,
-                    8,
-                    'L',
-                    labelFont,
-                    'rgba(255,255,255,0.5)',
-                    'center',
-                    'top'
-                ).setIncludeInLayoutBounds(false)
+                new Text(xL + barW / 2, 8, 'L', labelFont, {
+                    color: 'rgba(255,255,255,0.5)',
+                    align: 'center',
+                }).setIncludeInLayoutBounds(false)
             );
             objects.push(
-                new Text(
-                    xR + barW / 2,
-                    8,
-                    'R',
-                    labelFont,
-                    'rgba(255,255,255,0.5)',
-                    'center',
-                    'top'
-                ).setIncludeInLayoutBounds(false)
+                new Text(xR + barW / 2, 8, 'R', labelFont, {
+                    color: 'rgba(255,255,255,0.5)',
+                    align: 'center',
+                }).setIncludeInLayoutBounds(false)
             );
 
             if (props.showValue) {
@@ -398,20 +377,17 @@ export class AudioVolumeMeterElement extends SceneElement {
                 const labelL = Number.isFinite(rawDbL) ? `L: ${clampedDbL.toFixed(1)}` : 'L: -∞';
                 const labelR = Number.isFinite(rawDbR) ? `R: ${clampedDbR.toFixed(1)}` : 'R: -∞';
                 objects.push(
-                    new Text(xL, labelY, labelL, labelFont2, '#e2e8f0', 'left', 'middle').setIncludeInLayoutBounds(
-                        false
-                    )
+                    new Text(xL, labelY, labelL, labelFont2, {
+                        color: '#e2e8f0',
+                        baseline: 'middle',
+                    }).setIncludeInLayoutBounds(false)
                 );
                 objects.push(
-                    new Text(
-                        xR + barW,
-                        labelY,
-                        labelR,
-                        labelFont2,
-                        '#e2e8f0',
-                        'right',
-                        'middle'
-                    ).setIncludeInLayoutBounds(false)
+                    new Text(xR + barW, labelY, labelR, labelFont2, {
+                        color: '#e2e8f0',
+                        align: 'right',
+                        baseline: 'middle',
+                    }).setIncludeInLayoutBounds(false)
                 );
             }
         } else {
@@ -451,26 +427,16 @@ export class AudioVolumeMeterElement extends SceneElement {
 
             const labelFont = '10px Inter, sans-serif';
             objects.push(
-                new Text(
-                    4,
-                    yL + barH / 2,
-                    'L',
-                    labelFont,
-                    'rgba(255,255,255,0.5)',
-                    'left',
-                    'middle'
-                ).setIncludeInLayoutBounds(false)
+                new Text(4, yL + barH / 2, 'L', labelFont, {
+                    color: 'rgba(255,255,255,0.5)',
+                    baseline: 'middle',
+                }).setIncludeInLayoutBounds(false)
             );
             objects.push(
-                new Text(
-                    4,
-                    yR + barH / 2,
-                    'R',
-                    labelFont,
-                    'rgba(255,255,255,0.5)',
-                    'left',
-                    'middle'
-                ).setIncludeInLayoutBounds(false)
+                new Text(4, yR + barH / 2, 'R', labelFont, {
+                    color: 'rgba(255,255,255,0.5)',
+                    baseline: 'middle',
+                }).setIncludeInLayoutBounds(false)
             );
 
             if (props.showValue) {
@@ -478,26 +444,16 @@ export class AudioVolumeMeterElement extends SceneElement {
                 const labelL = Number.isFinite(rawDbL) ? `${clampedDbL.toFixed(1)} dB` : '-∞ dB';
                 const labelR = Number.isFinite(rawDbR) ? `${clampedDbR.toFixed(1)} dB` : '-∞ dB';
                 objects.push(
-                    new Text(
-                        width + 4,
-                        yL + barH / 2,
-                        labelL,
-                        labelFont2,
-                        '#e2e8f0',
-                        'left',
-                        'middle'
-                    ).setIncludeInLayoutBounds(false)
+                    new Text(width + 4, yL + barH / 2, labelL, labelFont2, {
+                        color: '#e2e8f0',
+                        baseline: 'middle',
+                    }).setIncludeInLayoutBounds(false)
                 );
                 objects.push(
-                    new Text(
-                        width + 4,
-                        yR + barH / 2,
-                        labelR,
-                        labelFont2,
-                        '#e2e8f0',
-                        'left',
-                        'middle'
-                    ).setIncludeInLayoutBounds(false)
+                    new Text(width + 4, yR + barH / 2, labelR, labelFont2, {
+                        color: '#e2e8f0',
+                        baseline: 'middle',
+                    }).setIncludeInLayoutBounds(false)
                 );
             }
         }
@@ -531,31 +487,27 @@ export class AudioVolumeMeterElement extends SceneElement {
 
             if (isVertical) {
                 const lineY = height - refNorm * height;
-                objects.push(new Line(0, lineY, width, lineY, lineColor, 1).setIncludeInLayoutBounds(false));
                 objects.push(
-                    new Text(
-                        width + 4,
-                        lineY,
-                        label,
-                        labelFont,
-                        REF_LABEL_COLOR,
-                        'left',
-                        'middle'
-                    ).setIncludeInLayoutBounds(false)
+                    new Line(0, lineY, width, lineY, { color: lineColor, lineWidth: 1 }).setIncludeInLayoutBounds(false)
+                );
+                objects.push(
+                    new Text(width + 4, lineY, label, labelFont, {
+                        color: REF_LABEL_COLOR,
+                        baseline: 'middle',
+                    }).setIncludeInLayoutBounds(false)
                 );
             } else {
                 const lineX = refNorm * width;
-                objects.push(new Line(lineX, 0, lineX, height, lineColor, 1).setIncludeInLayoutBounds(false));
                 objects.push(
-                    new Text(
-                        lineX,
-                        height + 4,
-                        label,
-                        labelFont,
-                        REF_LABEL_COLOR,
-                        'center',
-                        'top'
-                    ).setIncludeInLayoutBounds(false)
+                    new Line(lineX, 0, lineX, height, { color: lineColor, lineWidth: 1 }).setIncludeInLayoutBounds(
+                        false
+                    )
+                );
+                objects.push(
+                    new Text(lineX, height + 4, label, labelFont, {
+                        color: REF_LABEL_COLOR,
+                        align: 'center',
+                    }).setIncludeInLayoutBounds(false)
                 );
             }
         }
@@ -587,7 +539,9 @@ export class AudioVolumeMeterElement extends SceneElement {
             const refNorm = dbToNormalized(refDb, minDb, maxDb);
             const lineColor = refDb >= -3 ? REF_LINE_COLOR_CLIP : REF_LINE_COLOR;
             const lineX = x + refNorm * w;
-            objects.push(new Line(lineX, y, lineX, y + h, lineColor, 1).setIncludeInLayoutBounds(false));
+            objects.push(
+                new Line(lineX, y, lineX, y + h, { color: lineColor, lineWidth: 1 }).setIncludeInLayoutBounds(false)
+            );
         }
     }
 
@@ -613,9 +567,13 @@ export class AudioVolumeMeterElement extends SceneElement {
     ) {
         if (isVertical) {
             const fillH = normalized * h;
-            objects.push(new Rectangle(x, y + h - fillH, w, fillH, meterColor).setIncludeInLayoutBounds(false));
+            objects.push(
+                new Rectangle(x, y + h - fillH, w, fillH, { fillColor: meterColor }).setIncludeInLayoutBounds(false)
+            );
         } else {
-            objects.push(new Rectangle(x, y, normalized * w, h, meterColor).setIncludeInLayoutBounds(false));
+            objects.push(
+                new Rectangle(x, y, normalized * w, h, { fillColor: meterColor }).setIncludeInLayoutBounds(false)
+            );
         }
     }
 
@@ -645,10 +603,20 @@ export class AudioVolumeMeterElement extends SceneElement {
         const peakNorm = dbToNormalized(peakClamped, minDb, maxDb);
         if (isVertical) {
             const peakY = y + h - peakNorm * h;
-            objects.push(new Line(x, peakY, x + w, peakY, DEFAULT_PEAK_HOLD_COLOR, 2).setIncludeInLayoutBounds(false));
+            objects.push(
+                new Line(x, peakY, x + w, peakY, {
+                    color: DEFAULT_PEAK_HOLD_COLOR,
+                    lineWidth: 2,
+                }).setIncludeInLayoutBounds(false)
+            );
         } else {
             const peakX = x + peakNorm * w;
-            objects.push(new Line(peakX, y, peakX, y + h, DEFAULT_PEAK_HOLD_COLOR, 2).setIncludeInLayoutBounds(false));
+            objects.push(
+                new Line(peakX, y, peakX, y + h, {
+                    color: DEFAULT_PEAK_HOLD_COLOR,
+                    lineWidth: 2,
+                }).setIncludeInLayoutBounds(false)
+            );
         }
     }
 }

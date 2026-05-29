@@ -20,7 +20,7 @@ export class DebugAnimation extends BaseNoteAnimation {
                 return [new Text(x, y, `release ${info}`)];
             }
             default:
-                return [new Rectangle(x, y, width, height, color)];
+                return [new Rectangle(x, y, width, height, { fillColor: color })];
         }
     }
 }

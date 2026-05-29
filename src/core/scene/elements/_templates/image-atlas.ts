@@ -33,7 +33,7 @@ export class AtlasImageElement extends SceneElement {
     private readonly _playback = new VisualMediaPlayback();
     private readonly _media = new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' });
     private readonly _bg = new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' });
-    private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
+    private readonly _layoutRect = new Rectangle(0, 0, 200, 200, { fillColor: null });
 
     constructor(id: string = 'atlasImage', config: Record<string, unknown> = {}) {
         super('atlas-image', id, config);

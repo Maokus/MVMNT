@@ -100,7 +100,7 @@ export class AudioReactiveElement extends SceneElement {
         const size = props.baseSize + volume * props.reactivityScale;
 
         const half = size / 2;
-        objects.push(new Rectangle(-half, -half, size, size, props.shapeColor));
+        objects.push(new Rectangle(-half, -half, size, size, { fillColor: props.shapeColor }));
 
         return objects;
     }

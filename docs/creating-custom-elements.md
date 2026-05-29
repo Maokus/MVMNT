@@ -295,16 +295,16 @@ protected override _buildRenderObjects(
 
     // Build and return render objects
     return [
-        new Rectangle(0, 0, props.width, props.height, props.color)
+        new Rectangle(0, 0, props.width, props.height, { fillColor: props.color })
     ];
 }
 ```
 
 **Available Render Objects:**
 
-- `Rectangle(x, y, width, height, color)` — solid filled rectangle
+- `Rectangle(x, y, width, height, options?)` — solid filled rectangle; pass `{ fillColor, strokeColor, strokeWidth, cornerRadius }` in options, or chain `.setFill(color)` / `.setStroke(color, width)` after construction
 - `Text(x, y, text, font, color, align, baseline)` — text string
-- `Line(x1, y1, x2, y2, color, lineWidth)` — straight line segment
+- `Line(x1, y1, x2, y2, options?)` — straight line segment; pass `{ color, lineWidth }` in options, or chain `.setStroke(color, width)` after construction
 - `Image(x, y, width, height, imageData)` — bitmap image
 - `Arc(x, y, radius, startAngle?, endAngle?, anticlockwise?, options?)` — arc or filled circle; options accept `fillColor`, `strokeColor`, `strokeWidth`
 - `Poly(points, fillColor?, strokeColor?, strokeWidth?)` — closed or open polygon
@@ -333,14 +333,14 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
     // ── Layout anchor ──────────────────────────────────────────────────────────
     // A single transparent rectangle defines the element's layout bounds.
     // All other render objects opt out of bounds calculation.
-    const layoutRect = new Rectangle(0, 0, W, H, '#00000000');
+    const layoutRect = new Rectangle(0, 0, W, H, { fillColor: '#00000000' });
 
     // ── Visual content ────────────────────────────────────────────────────────
     const bars: Rectangle[] = [];
     for (let i = 0; i < 32; i++) {
         const h = Math.random() * H;
-        const bar = new Rectangle(i * (W / 32), H - h, W / 32 - 2, h, props.color);
-        bar.includeInLayoutBounds = false; // opt out
+        const bar = new Rectangle(i * (W / 32), H - h, W / 32 - 2, h, { fillColor: props.color })
+            .setLayoutParticipation('exclude');
         bars.push(bar);
     }
 
@@ -348,7 +348,7 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
 }
 ```
 
-This keeps layout stable and predictable regardless of how many render objects you generate per frame. For `VisualMedia`, use `layoutBoundsMode: 'none'` in the constructor options instead of `includeInLayoutBounds = false`.
+This keeps layout stable and predictable regardless of how many render objects you generate per frame. For `VisualMedia`, use `.setLayoutParticipation('exclude')` instead of `includeInLayoutBounds`. The `setSelfBoundsMode('drawn' | 'container')` setter controls how `VisualMedia` measures its own visual bounds independently of layout participation.
 
 ### Custom Property Transforms
 
@@ -447,7 +447,7 @@ export class OscilloscopeElement extends SceneElement {
             const x2 = (i / samples.length) * w;
             const y1 = h / 2 - samples[i - 1]! * (h / 2);
             const y2 = h / 2 - samples[i]! * (h / 2);
-            objects.push(new Line(x1, y1, x2, y2, props.color, 1));
+            objects.push(new Line(x1, y1, x2, y2, { color: props.color, lineWidth: 1 }));
         }
         return objects;
     }
@@ -477,7 +477,7 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
 
     return activeNotes.map((note, i) => {
         const y = (128 - note.note) * 5;
-        return new Rectangle(i * 20, y, 18, 4, props.noteColor);
+        return new Rectangle(i * 20, y, 18, 4, { fillColor: props.noteColor });
     });
 }
 ```
@@ -858,7 +858,7 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
         console.error('[MyElement] Render error:', error);
         // Return error indicator
         return [
-            new Rectangle(0, 0, 100, 100, '#ff000040'),
+            new Rectangle(0, 0, 100, 100, { fillColor: '#ff000040' }),
             new Text(50, 50, '⚠️', '32px sans-serif', '#ffffff', 'center', 'middle')
         ];
     }

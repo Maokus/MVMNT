@@ -532,7 +532,11 @@ export class AudioDebugElement extends SceneElement {
         }
 
         const totalHeight = Math.max(1, lines.length) * lineHeight + padding * 2;
-        objects.push(new Rectangle(0, 0, panelWidth, totalHeight, props.backgroundColor ?? 'rgba(15, 23, 42, 0.55)'));
+        objects.push(
+            new Rectangle(0, 0, panelWidth, totalHeight, {
+                fillColor: props.backgroundColor ?? 'rgba(15, 23, 42, 0.55)',
+            })
+        );
 
         lines.forEach((line, index) => {
             const x = padding;

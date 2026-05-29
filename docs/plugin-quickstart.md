@@ -64,7 +64,7 @@ export class FlashBoxElement extends SceneElement {
         const pulse = 0.8 + 0.2 * Math.sin(targetTime * Math.PI * 2);
         const s = props.size * pulse;
 
-        return [new Rectangle(-s / 2, -s / 2, s, s, props.boxColor)];
+        return [new Rectangle(-s / 2, -s / 2, s, s, { fillColor: props.boxColor })];
     }
 }
 ```
@@ -123,7 +123,7 @@ const activeNotes = host.api.timeline.selectNotesInWindow({
     endSec: targetTime + 0.001,
 });
 
-return activeNotes.map((note, i) => new Rectangle(i * 20, 0, 18, (128 - note.note) * 2, props.color));
+return activeNotes.map((note, i) => new Rectangle(i * 20, 0, 18, (128 - note.note) * 2, { fillColor: props.color }));
 ```
 
 `getRequiredPluginApi` returns a discriminated union — `{ ok: true, api }` on success, `{ ok: false, renderFallback() }` on failure. Calling `renderFallback()` returns an empty array, so you can use it directly as your render fallback and TypeScript will narrow `api` to non-null after the guard.

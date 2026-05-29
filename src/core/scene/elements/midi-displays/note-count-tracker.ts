@@ -102,7 +102,7 @@ export class NoteCountTrackerElement extends SceneElement {
                     : host.missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
                       ? 'Timeline API unavailable (requires timeline.read)'
                       : 'Plugin host API unavailable';
-            renderObjects.push(new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top'));
+            renderObjects.push(new Text(0, 0, message, '12px Inter, sans-serif', { color: '#64748b' }));
             return renderObjects;
         }
         if (trackId && host.ok) {
@@ -212,15 +212,13 @@ export class NoteCountTrackerElement extends SceneElement {
         const justification = (props.textAlign ?? props.textJustification ?? 'left') as CanvasTextAlign;
         const layoutX = justification === 'center' ? -layoutWidth / 2 : justification === 'right' ? -layoutWidth : 0;
 
-        const layoutRect = new Rectangle(layoutX, 0, layoutWidth, layoutHeight, null, null, 0);
+        const layoutRect = new Rectangle(layoutX, 0, layoutWidth, layoutHeight, { fillColor: null });
         layoutRect.setIncludeInLayoutBounds(true);
         renderObjects.push(layoutRect);
 
         displayLines.forEach((line, index) => {
             const y = index * (fontSize + lineSpacing);
-            const textObj = new Text(0, y, line, font, color, justification, 'top', {
-                includeInLayoutBounds: false,
-            });
+            const textObj = new Text(0, y, line, font, { color, align: justification, layoutParticipation: 'exclude' });
             renderObjects.push(textObj);
         });
 
@@ -230,7 +228,7 @@ export class NoteCountTrackerElement extends SceneElement {
             const bgColor = applyOpacity(props.backgroundColor ?? '#000000', props.backgroundOpacity ?? 0.8);
             const bgWidth = layoutWidth + paddingX * 2;
             const bgHeight = layoutHeight + paddingY * 2;
-            const bg = new Rectangle(layoutX - paddingX, -paddingY, bgWidth, bgHeight, bgColor);
+            const bg = new Rectangle(layoutX - paddingX, -paddingY, bgWidth, bgHeight, { fillColor: bgColor });
             if (props.backgroundCornerRadius) bg.cornerRadius = props.backgroundCornerRadius;
             bg.setIncludeInLayoutBounds?.(false);
             renderObjects.unshift(bg);

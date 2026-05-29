@@ -321,13 +321,12 @@ export class AudioSpectrumElement extends SceneElement {
 
         const objects: RenderObject[] = [];
         objects.push(
-            new Rectangle(
-                0,
-                0,
-                props.width,
-                props.height,
-                applyOpacity(props.backgroundColor ?? DEFAULT_BACKGROUND_COLOR, props.backgroundOpacity ?? 0)
-            )
+            new Rectangle(0, 0, props.width, props.height, {
+                fillColor: applyOpacity(
+                    props.backgroundColor ?? DEFAULT_BACKGROUND_COLOR,
+                    props.backgroundOpacity ?? 0
+                ),
+            })
         );
 
         const pushMessage = (message: string) => {
@@ -398,7 +397,7 @@ export class AudioSpectrumElement extends SceneElement {
                 const x = binLeft(index) + gap * 0.5;
                 const barHeight = ratio * props.height;
                 const y = peakY(ratio);
-                const rect = new Rectangle(x, y, barWidth, barHeight, drawColor);
+                const rect = new Rectangle(x, y, barWidth, barHeight, { fillColor: drawColor });
                 if (blendMode !== 'source-over') rect.blendMode = blendMode;
                 objects.push(rect);
             });

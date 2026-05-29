@@ -362,17 +362,18 @@ export class AudioPeaksElement extends SceneElement {
 
         const objects: RenderObject[] = [];
         objects.push(
-            new Rectangle(
-                0,
-                0,
-                width,
-                height,
-                applyOpacity(props.backgroundColor ?? DEFAULT_BACKGROUND_COLOR, props.backgroundOpacity ?? 0)
-            )
+            new Rectangle(0, 0, width, height, {
+                fillColor: applyOpacity(
+                    props.backgroundColor ?? DEFAULT_BACKGROUND_COLOR,
+                    props.backgroundOpacity ?? 0
+                ),
+            })
         );
 
         const pushMessage = (message: string) => {
-            objects.push(new Text(8, height / 2, message, '12px Inter, sans-serif', '#94a3b8', 'left', 'middle'));
+            objects.push(
+                new Text(8, height / 2, message, '12px Inter, sans-serif', { color: '#94a3b8', baseline: 'middle' })
+            );
             return objects;
         };
 

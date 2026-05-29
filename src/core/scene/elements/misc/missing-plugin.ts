@@ -21,42 +21,44 @@ export class MissingPluginElement extends SceneElement {
                 description: 'Placeholder shown when a plugin-backed element is unavailable.',
                 category: 'System',
             },
-            [tab.properties([
-                {
-                    id: 'placeholderStyle',
-                    label: 'Placeholder Style',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'width',
-                            type: 'number',
-                            label: 'Width (px)',
-                            default: 260,
-                            min: 40,
-                            max: 2000,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 260 },
-                        },
-                        {
-                            key: 'height',
-                            type: 'number',
-                            label: 'Height (px)',
-                            default: 140,
-                            min: 40,
-                            max: 2000,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 140 },
-                        },
-                        {
-                            key: 'label',
-                            type: 'string',
-                            label: 'Label Override',
-                            default: '',
-                            runtime: { transform: asTrimmedString, defaultValue: '' },
-                        },
-                    ],
-                },
-            ])]
+            [
+                tab.properties([
+                    {
+                        id: 'placeholderStyle',
+                        label: 'Placeholder Style',
+                        collapsed: false,
+                        properties: [
+                            {
+                                key: 'width',
+                                type: 'number',
+                                label: 'Width (px)',
+                                default: 260,
+                                min: 40,
+                                max: 2000,
+                                step: 1,
+                                runtime: { transform: asNumber, defaultValue: 260 },
+                            },
+                            {
+                                key: 'height',
+                                type: 'number',
+                                label: 'Height (px)',
+                                default: 140,
+                                min: 40,
+                                max: 2000,
+                                step: 1,
+                                runtime: { transform: asNumber, defaultValue: 140 },
+                            },
+                            {
+                                key: 'label',
+                                type: 'string',
+                                label: 'Label Override',
+                                default: '',
+                                runtime: { transform: asTrimmedString, defaultValue: '' },
+                            },
+                        ],
+                    },
+                ]),
+            ]
         );
     }
 
@@ -81,18 +83,24 @@ export class MissingPluginElement extends SceneElement {
             .filter(Boolean)
             .join(' | ');
 
-        const background = new Rectangle(-width / 2, -height / 2, width, height, 'rgba(70,16,24,0.8)', '#ff6478', 2);
+        const background = new Rectangle(-width / 2, -height / 2, width, height, {
+            fillColor: 'rgba(70,16,24,0.8)',
+            strokeColor: '#ff6478',
+            strokeWidth: 2,
+        });
         background.setCornerRadius(8);
 
-        const titleText = new Text(0, -12, title, '600 16px "Inter", sans-serif', '#ffd5db', 'center', 'middle');
+        const titleText = new Text(0, -12, title, '600 16px "Inter", sans-serif', {
+            color: '#ffd5db',
+            align: 'center',
+            baseline: 'middle',
+        });
         const subtitleText = new Text(
             0,
             16,
             subtitleParts || 'Install required plugin to restore this element.',
             '400 12px "Inter", sans-serif',
-            '#f4b7c0',
-            'center',
-            'middle'
+            { color: '#f4b7c0', align: 'center', baseline: 'middle' }
         );
 
         return [background, titleText, subtitleText];

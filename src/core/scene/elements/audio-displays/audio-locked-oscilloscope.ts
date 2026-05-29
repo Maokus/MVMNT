@@ -155,26 +155,20 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
 
         const objects: RenderObject[] = [];
         objects.push(
-            new Rectangle(
-                0,
-                0,
-                width,
-                height,
-                applyOpacity(props.backgroundColor ?? DEFAULT_BACKGROUND_COLOR, props.backgroundOpacity ?? 0)
-            )
+            new Rectangle(0, 0, width, height, {
+                fillColor: applyOpacity(
+                    props.backgroundColor ?? DEFAULT_BACKGROUND_COLOR,
+                    props.backgroundOpacity ?? 0
+                ),
+            })
         );
 
         const pushMessage = (msg: string) => {
             objects.push(
-                new Text(
-                    8,
-                    height / 2,
-                    msg,
-                    '12px Inter, sans-serif',
-                    '#94a3b8',
-                    'left',
-                    'middle'
-                ).setIncludeInLayoutBounds(false)
+                new Text(8, height / 2, msg, '12px Inter, sans-serif', {
+                    color: '#94a3b8',
+                    baseline: 'middle',
+                }).setIncludeInLayoutBounds(false)
             );
             return objects;
         };
@@ -207,48 +201,24 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
 
         if (props.showInfo) {
             objects.push(
-                new Text(
-                    0,
-                    0,
-                    `F0: ${f0.toFixed(1)} Hz`,
-                    '12px Inter, sans-serif',
-                    '#94a3b8',
-                    'left',
-                    'top'
-                ).setIncludeInLayoutBounds(false)
+                new Text(0, 0, `F0: ${f0.toFixed(1)} Hz`, '12px Inter, sans-serif', {
+                    color: '#94a3b8',
+                }).setIncludeInLayoutBounds(false)
             );
             objects.push(
-                new Text(
-                    0,
-                    20,
-                    `Candidate F0: ${candidateF0.toFixed(1)} Hz`,
-                    '12px Inter, sans-serif',
-                    '#94a3b8',
-                    'left',
-                    'top'
-                )
+                new Text(0, 20, `Candidate F0: ${candidateF0.toFixed(1)} Hz`, '12px Inter, sans-serif', {
+                    color: '#94a3b8',
+                })
             );
             objects.push(
-                new Text(
-                    0,
-                    40,
-                    `Confidence: ${confidence.toFixed(2)}`,
-                    '12px Inter, sans-serif',
-                    '#94a3b8',
-                    'left',
-                    'top'
-                ).setIncludeInLayoutBounds(false)
+                new Text(0, 40, `Confidence: ${confidence.toFixed(2)}`, '12px Inter, sans-serif', {
+                    color: '#94a3b8',
+                }).setIncludeInLayoutBounds(false)
             );
             objects.push(
-                new Text(
-                    0,
-                    60,
-                    `Anchor: ${anchorSec.toFixed(2)} sec`,
-                    '12px Inter, sans-serif',
-                    '#94a3b8',
-                    'left',
-                    'top'
-                ).setIncludeInLayoutBounds(false)
+                new Text(0, 60, `Anchor: ${anchorSec.toFixed(2)} sec`, '12px Inter, sans-serif', {
+                    color: '#94a3b8',
+                }).setIncludeInLayoutBounds(false)
             );
         }
 
