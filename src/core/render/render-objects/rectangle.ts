@@ -57,7 +57,9 @@ export class Rectangle extends BoxRenderObject {
         const isOpts = fillColorOrOptions !== null && typeof fillColorOrOptions === 'object';
         const opts: RectangleOptions = isOpts ? (fillColorOrOptions as RectangleOptions) : (options ?? {});
         super(clampedX, clampedY, clampedWidth, clampedHeight, opts);
-        this.fillColor = isOpts ? (opts.fillColor ?? '#FFFFFF') : ((fillColorOrOptions as string | null | undefined) ?? '#FFFFFF');
+        this.fillColor = isOpts
+            ? (opts.fillColor !== undefined ? opts.fillColor : '#FFFFFF')
+            : (fillColorOrOptions !== undefined ? (fillColorOrOptions as string | null) : '#FFFFFF');
         this.strokeColor = isOpts ? (opts.strokeColor ?? null) : (strokeColor ?? null);
         this.strokeWidth = isOpts ? (opts.strokeWidth ?? 1) : (strokeWidth ?? 1);
         this.cornerRadius = opts.cornerRadius ?? 0;

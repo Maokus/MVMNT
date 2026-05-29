@@ -98,6 +98,28 @@ export class EmptyRenderObject extends RenderObject {
         /* no-op */
     }
 
+    override getVisualBounds(): Bounds {
+        if (this.baseBounds) {
+            return this._getSelfBounds();
+        }
+        return super.getVisualBounds();
+    }
+
+    protected override _getLayoutBoundsRecursive(
+        parentPolicy: 'force-include' | 'force-exclude' | 'respect'
+    ): Bounds | null {
+        if (!this.baseBounds) {
+            return super._getLayoutBoundsRecursive(parentPolicy);
+        }
+        if (parentPolicy === 'force-exclude') {
+            return null;
+        }
+        if (parentPolicy === 'force-include' || this.layoutParticipation !== 'exclude') {
+            return this._getSelfBounds();
+        }
+        return null;
+    }
+
     renderAnchorVisualization(
         ctx: CanvasRenderingContext2D,
         visualBounds: Bounds,
@@ -158,11 +180,24 @@ export class EmptyRenderObject extends RenderObject {
             return { x: this.x, y: this.y, width: 0, height: 0 };
         }
         this._resolveOriginFractions();
-        return this._computeTransformedRectBounds(
-            this.baseBounds.x,
-            this.baseBounds.y,
-            this.baseBounds.width,
-            this.baseBounds.height
-        );
+        const { x, y, width, height } = this.baseBounds;
+        const worldCorners = [
+            this._transformPoint(x, y),
+            this._transformPoint(x + width, y),
+            this._transformPoint(x + width, y + height),
+            this._transformPoint(x, y + height),
+        ];
+        this._worldCorners = worldCorners;
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        for (const point of worldCorners) {
+            minX = Math.min(minX, point.x);
+            minY = Math.min(minY, point.y);
+            maxX = Math.max(maxX, point.x);
+            maxY = Math.max(maxY, point.y);
+        }
+        return { x: minX, y: minY, width: Math.max(0, maxX - minX), height: Math.max(0, maxY - minY) };
     }
 }
