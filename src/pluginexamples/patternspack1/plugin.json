@@ -13,10 +13,6 @@
         {
             "type": "particles-pattern",
             "entry": "particles-pattern.ts"
-        },
-        {
-            "type": "ditherator",
-            "entry": "ditherator.ts"
         }
     ]
 }
