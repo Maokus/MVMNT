@@ -1,8 +1,8 @@
-import { RenderObject, RenderConfig, Bounds } from './base';
+import { BoxRenderObject } from './box';
+import { type RenderConfig, type Bounds } from './base';
+import { applyShadow, clearShadow, applyDash, clearDash } from './style-helpers';
 
-export class Rectangle extends RenderObject {
-    width: number;
-    height: number;
+export class Rectangle extends BoxRenderObject {
     fillColor: string | null;
     strokeColor: string | null;
     strokeWidth: number;
@@ -36,9 +36,7 @@ export class Rectangle extends RenderObject {
                 `Rectangle constructor: Extreme values clamped - original: (${x}, ${y}, ${width}, ${height}), clamped: (${clampedX}, ${clampedY}, ${clampedWidth}, ${clampedHeight})`
             );
         }
-        super(clampedX, clampedY, 1, 1, 1, options);
-        this.width = clampedWidth;
-        this.height = clampedHeight;
+        super(clampedX, clampedY, clampedWidth, clampedHeight, options);
         this.fillColor = fillColor;
         this.strokeColor = strokeColor;
         this.strokeWidth = strokeWidth;
@@ -54,26 +52,13 @@ export class Rectangle extends RenderObject {
 
     protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _currentTime: number): void {
         if (this.globalAlpha !== 1) ctx.globalAlpha *= this.globalAlpha;
-        if (this.shadowColor && this.shadowBlur > 0) {
-            ctx.shadowColor = this.shadowColor;
-            ctx.shadowBlur = this.shadowBlur;
-            ctx.shadowOffsetX = this.shadowOffsetX;
-            ctx.shadowOffsetY = this.shadowOffsetY;
-        }
+        applyShadow(ctx, this);
 
         if (this.cornerRadius > 0) this.#drawRoundedRect(ctx);
         else this.#drawRect(ctx);
 
-        if (this.lineDash.length > 0 && this.strokeColor && this.strokeWidth > 0) {
-            ctx.setLineDash([]);
-            ctx.lineDashOffset = 0;
-        }
-        if (this.shadowColor && this.shadowBlur > 0) {
-            ctx.shadowColor = 'transparent';
-            ctx.shadowBlur = 0;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
-        }
+        clearDash(ctx, this);
+        clearShadow(ctx, this);
     }
 
     #drawRect(ctx: CanvasRenderingContext2D): void {
@@ -84,10 +69,7 @@ export class Rectangle extends RenderObject {
         if (this.strokeColor && this.strokeWidth > 0) {
             ctx.strokeStyle = this.strokeColor;
             ctx.lineWidth = this.strokeWidth;
-            if (this.lineDash.length > 0) {
-                ctx.setLineDash(this.lineDash);
-                ctx.lineDashOffset = this.lineDashOffset;
-            }
+            applyDash(ctx, this);
             ctx.beginPath();
             ctx.rect(0, 0, this.width, this.height);
             ctx.stroke();
@@ -114,19 +96,11 @@ export class Rectangle extends RenderObject {
         if (this.strokeColor && this.strokeWidth > 0) {
             ctx.strokeStyle = this.strokeColor;
             ctx.lineWidth = this.strokeWidth;
-            if (this.lineDash.length > 0) {
-                ctx.setLineDash(this.lineDash);
-                ctx.lineDashOffset = this.lineDashOffset;
-            }
+            applyDash(ctx, this);
             ctx.stroke();
         }
     }
 
-    setSize(width: number, height: number): this {
-        this.width = Math.max(0, width);
-        this.height = Math.max(0, height);
-        return this;
-    }
     setFillColor(color: string | null): this {
         this.fillColor = color;
         return this;
@@ -152,7 +126,7 @@ export class Rectangle extends RenderObject {
         return this;
     }
 
-    protected _getSelfBounds(): Bounds {
+    protected override _getSelfBounds(): Bounds {
         // Local rect is at (0,0) with width/height; pad for stroke if any
         let lx = 0,
             ly = 0,

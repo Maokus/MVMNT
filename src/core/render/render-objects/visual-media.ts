@@ -1,4 +1,6 @@
-import { RenderObject, type RenderConfig, type Bounds } from './base';
+import { BoxRenderObject } from './box';
+import { type RenderConfig, type Bounds } from './base';
+import { applyShadow, clearShadow } from './style-helpers';
 import { type VisualResource, type ResourceStatus, getFrameAtTime } from '@core/resources/visual-resource';
 
 // ─── Frame placement ─────────────────────────────────────────────────────────
@@ -161,9 +163,7 @@ export type VisualMediaOptions = {
  * - `setLayoutBoundsMode(mode)` — 'drawn' | 'container' | 'none'.
  * - `showDebug = true`          — overlays container, drawn region, origin, and frame anchor.
  */
-export class VisualMedia extends RenderObject {
-    width: number;
-    height: number;
+export class VisualMedia extends BoxRenderObject {
     fitMode: 'contain' | 'cover' | 'fill' | 'clip';
     preserveAspectRatio: boolean;
     /**
@@ -201,9 +201,7 @@ export class VisualMedia extends RenderObject {
     private _layoutBoundsMode: 'container' | 'drawn' | 'none' = 'drawn';
 
     constructor(x: number, y: number, width: number, height: number, options: VisualMediaOptions = {}) {
-        super(x, y, 1, 1, 1);
-        this.width = width;
-        this.height = height;
+        super(x, y, width, height);
         this.fitMode = options.fitMode ?? 'contain';
         this.preserveAspectRatio = options.preserveAspectRatio ?? true;
         this.showDebug = options.showDebug ?? false;
@@ -233,19 +231,8 @@ export class VisualMedia extends RenderObject {
         const ox = options.originX ?? options.pivotFractionX;
         const oy = options.originY ?? options.pivotFractionY;
         if (ox !== undefined || oy !== undefined) {
-            super.setOriginFraction(ox ?? 0, oy ?? 0);
-            this._reapplyPivotFraction(width, height);
+            this.setOriginFraction(ox ?? 0, oy ?? 0);
         }
-    }
-
-    /**
-     * Override so that setOriginFraction() immediately recomputes pivotX/Y from
-     * the current dimensions, in addition to storing the fractions.
-     */
-    override setOriginFraction(x: number, y: number): this {
-        super.setOriginFraction(x, y);
-        this._reapplyPivotFraction(this.width, this.height);
-        return this;
     }
 
     /** @deprecated Use setOriginFraction instead. */
@@ -290,10 +277,7 @@ export class VisualMedia extends RenderObject {
     }
 
     setDimensions(width: number, height: number): this {
-        this.width = width;
-        this.height = height;
-        this._reapplyPivotFraction(width, height);
-        return this;
+        return this.setSize(width, height);
     }
 
     setPreserveAspectRatio(val: boolean): this {
@@ -547,13 +531,7 @@ export class VisualMedia extends RenderObject {
         const params = this.#calculateDrawParams(imgW, imgH);
         const { baseX, baseY, scaleX, scaleY } = params;
 
-        const hasShadow = !!(this.shadowColor && this.shadowBlur > 0);
-        if (hasShadow) {
-            ctx.shadowColor = this.shadowColor!;
-            ctx.shadowBlur = this.shadowBlur;
-            ctx.shadowOffsetX = this.shadowOffsetX;
-            ctx.shadowOffsetY = this.shadowOffsetY;
-        }
+        applyShadow(ctx, this);
 
         // Sparrow trimOffset adjusts for where the visible pixels sit within the
         // logical frame. It is frame-reconstruction data only and does not interact
@@ -595,12 +573,7 @@ export class VisualMedia extends RenderObject {
 
         if (needsClip) ctx.restore();
 
-        if (hasShadow) {
-            ctx.shadowColor = 'transparent';
-            ctx.shadowBlur = 0;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
-        }
+        clearShadow(ctx, this);
 
         if (debug) this.#drawDebugOverlay(ctx, params, imgW, imgH);
     }

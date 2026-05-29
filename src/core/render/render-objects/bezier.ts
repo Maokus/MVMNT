@@ -1,4 +1,5 @@
 import { RenderObject, type RenderConfig, type Bounds } from './base';
+import { applyShadow, clearShadow, applyDash, clearDash } from './style-helpers';
 
 export type BezierPathCommand =
     | { type: 'moveTo'; x: number; y: number }
@@ -44,6 +45,7 @@ export class BezierPath extends RenderObject {
     lineCap: CanvasLineCap;
     miterLimit: number;
     lineDash: number[];
+    lineDashOffset: number;
     shadowColor: string | null;
     shadowBlur: number;
     shadowOffsetX: number;
@@ -72,6 +74,7 @@ export class BezierPath extends RenderObject {
         this.lineCap = 'butt';
         this.miterLimit = 10;
         this.lineDash = [];
+        this.lineDashOffset = 0;
         this.shadowColor = null;
         this.shadowBlur = 0;
         this.shadowOffsetX = 0;
@@ -145,8 +148,9 @@ export class BezierPath extends RenderObject {
         return this;
     }
 
-    setLineDash(dash: number[]): this {
+    setLineDash(dash: number[], offset = 0): this {
         this.lineDash = dash ? [...dash] : [];
+        this.lineDashOffset = offset;
         return this;
     }
 
@@ -172,12 +176,7 @@ export class BezierPath extends RenderObject {
         if (!this.commands.length) return;
         const originalAlpha = ctx.globalAlpha;
         if (this.globalAlpha !== 1) ctx.globalAlpha = originalAlpha * this.globalAlpha;
-        if (this.shadowColor && this.shadowBlur > 0) {
-            ctx.shadowColor = this.shadowColor;
-            ctx.shadowBlur = this.shadowBlur;
-            ctx.shadowOffsetX = this.shadowOffsetX;
-            ctx.shadowOffsetY = this.shadowOffsetY;
-        }
+        applyShadow(ctx, this);
         const hasStroke = !!(this.strokeColor && this.strokeWidth > 0);
         if (hasStroke) {
             ctx.lineWidth = this.strokeWidth;
@@ -186,7 +185,7 @@ export class BezierPath extends RenderObject {
             ctx.lineCap = this.lineCap;
             ctx.miterLimit = this.miterLimit;
         }
-        if (this.lineDash.length && hasStroke) ctx.setLineDash(this.lineDash);
+        if (hasStroke) applyDash(ctx, this);
 
         ctx.beginPath();
         let current: Point = { x: 0, y: 0 };
@@ -226,13 +225,8 @@ export class BezierPath extends RenderObject {
         }
         if (hasStroke) ctx.stroke();
 
-        if (this.lineDash.length && hasStroke) ctx.setLineDash([]);
-        if (this.shadowColor && this.shadowBlur > 0) {
-            ctx.shadowColor = 'transparent';
-            ctx.shadowBlur = 0;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
-        }
+        if (hasStroke) clearDash(ctx, this);
+        clearShadow(ctx, this);
         if (this.globalAlpha !== 1) ctx.globalAlpha = originalAlpha;
     }
 

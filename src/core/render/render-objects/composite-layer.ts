@@ -47,20 +47,12 @@ export class CompositeLayer extends EmptyRenderObject {
 
         // Apply this layer's own spatial transform to the offscreen context,
         // mirroring the anchor-pivot logic in EmptyRenderObject.render.
-        offCtx.translate(this.x, this.y);
-        if (this.rotation !== 0 || this.scaleX !== 1 || this.scaleY !== 1 || this.skewX !== 0 || this.skewY !== 0) {
-            offCtx.translate(this.anchorOffsetX, this.anchorOffsetY);
-            if (this.rotation !== 0) offCtx.rotate(this.rotation);
-            if (this.scaleX !== 1 || this.scaleY !== 1) offCtx.scale(this.scaleX, this.scaleY);
-            if (this.skewX !== 0 || this.skewY !== 0) {
-                offCtx.transform(1, Math.tan(this.skewY), Math.tan(this.skewX), 1, 0, 0);
-            }
-            offCtx.translate(-this.anchorOffsetX, -this.anchorOffsetY);
-        }
+        this._applyLayerTransform(offCtx as unknown as CanvasRenderingContext2D);
 
         // Render children into the isolated buffer at full opacity.
         // Layer opacity is applied when compositing the buffer onto the main canvas.
-        for (const child of this.getChildren()) child.render(offCtx as unknown as CanvasRenderingContext2D, config, currentTime);
+        for (const child of this.getChildren())
+            child.render(offCtx as unknown as CanvasRenderingContext2D, config, currentTime);
 
         // Composite the isolated layer onto the main canvas.
         // Reset the transform so drawImage maps 1:1 to canvas pixels.

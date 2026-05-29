@@ -173,6 +173,29 @@ export abstract class RenderObject {
         this.filter = filter;
         return this;
     }
+    setPosition(x: number, y: number): this {
+        this.x = x;
+        this.y = y;
+        return this;
+    }
+    setScale(x: number, y = x): this {
+        this.scaleX = x;
+        this.scaleY = y;
+        return this;
+    }
+    setRotation(radians: number): this {
+        this.rotation = radians;
+        return this;
+    }
+    setSkew(x: number, y: number): this {
+        this.skewX = x;
+        this.skewY = y;
+        return this;
+    }
+    setVisible(v: boolean): this {
+        this.visible = v;
+        return this;
+    }
     addChild(child: (RenderObject & { [key: string]: any }) | null | undefined): this {
         if (child && !this.children.includes(child)) this.children.push(child as RenderObject);
         return this;

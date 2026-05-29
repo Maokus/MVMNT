@@ -36,24 +36,7 @@ export class EmptyRenderObject extends RenderObject {
     render(ctx: CanvasRenderingContext2D, config: RenderConfig, currentTime: number): void {
         if (!this.visible || this.opacity <= 0) return;
         ctx.save();
-        ctx.translate(this.x, this.y);
-        if (this.rotation !== 0 || this.scaleX !== 1 || this.scaleY !== 1 || this.skewX !== 0 || this.skewY !== 0) {
-            ctx.translate(this.anchorOffsetX, this.anchorOffsetY);
-            if (this.rotation !== 0) ctx.rotate(this.rotation);
-            if (this.scaleX !== 1 || this.scaleY !== 1) ctx.scale(this.scaleX, this.scaleY);
-            if (this.skewX !== 0 || this.skewY !== 0) {
-                const transform: [number, number, number, number, number, number] = [
-                    1,
-                    Math.tan(this.skewY),
-                    Math.tan(this.skewX),
-                    1,
-                    0,
-                    0,
-                ];
-                ctx.transform(...transform);
-            }
-            ctx.translate(-this.anchorOffsetX, -this.anchorOffsetY);
-        }
+        this._applyLayerTransform(ctx);
         if (this.opacity !== 1) ctx.globalAlpha *= this.opacity;
         if (this.blendMode) ctx.globalCompositeOperation = this.blendMode;
         if (this.filter) ctx.filter = this.filter;
@@ -68,6 +51,19 @@ export class EmptyRenderObject extends RenderObject {
             );
         }
         ctx.restore();
+    }
+
+    protected _applyLayerTransform(ctx: CanvasRenderingContext2D): void {
+        ctx.translate(this.x, this.y);
+        if (this.rotation !== 0 || this.scaleX !== 1 || this.scaleY !== 1 || this.skewX !== 0 || this.skewY !== 0) {
+            ctx.translate(this.anchorOffsetX, this.anchorOffsetY);
+            if (this.rotation !== 0) ctx.rotate(this.rotation);
+            if (this.scaleX !== 1 || this.scaleY !== 1) ctx.scale(this.scaleX, this.scaleY);
+            if (this.skewX !== 0 || this.skewY !== 0) {
+                ctx.transform(1, Math.tan(this.skewY), Math.tan(this.skewX), 1, 0, 0);
+            }
+            ctx.translate(-this.anchorOffsetX, -this.anchorOffsetY);
+        }
     }
 
     // intentionally empty

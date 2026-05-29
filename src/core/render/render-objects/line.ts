@@ -1,4 +1,5 @@
 import { RenderObject, RenderConfig, Bounds } from './base';
+import { applyShadow, clearShadow, applyDash, clearDash } from './style-helpers';
 
 type LineCap = CanvasLineCap; // 'butt' | 'round' | 'square'
 
@@ -39,33 +40,17 @@ export class Line extends RenderObject {
     }
 
     protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _time: number): void {
-        if (this.shadowColor && this.shadowBlur > 0) {
-            ctx.shadowColor = this.shadowColor;
-            ctx.shadowBlur = this.shadowBlur;
-            ctx.shadowOffsetX = this.shadowOffsetX;
-            ctx.shadowOffsetY = this.shadowOffsetY;
-        }
+        applyShadow(ctx, this);
         ctx.strokeStyle = this.color;
         ctx.lineWidth = this.lineWidth;
         ctx.lineCap = this.lineCap;
-        if (this.lineDash.length > 0) {
-            ctx.setLineDash(this.lineDash);
-            ctx.lineDashOffset = this.lineDashOffset;
-        }
+        applyDash(ctx, this);
         ctx.beginPath();
         ctx.moveTo(0, 0);
         ctx.lineTo(this.deltaX, this.deltaY);
         ctx.stroke();
-        if (this.lineDash.length > 0) {
-            ctx.setLineDash([]);
-            ctx.lineDashOffset = 0;
-        }
-        if (this.shadowColor && this.shadowBlur > 0) {
-            ctx.shadowColor = 'transparent';
-            ctx.shadowBlur = 0;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
-        }
+        clearDash(ctx, this);
+        clearShadow(ctx, this);
     }
 
     setEndPoint(x2: number, y2: number): this {

@@ -1,4 +1,5 @@
 import { RenderObject, type RenderConfig, type Bounds } from './base';
+import { applyShadow, clearShadow, applyDash, clearDash } from './style-helpers';
 
 const TAU = Math.PI * 2;
 
@@ -119,12 +120,7 @@ export class Arc extends RenderObject {
 
         const originalAlpha = ctx.globalAlpha;
         if (this.globalAlpha !== 1) ctx.globalAlpha = originalAlpha * this.globalAlpha;
-        if (this.shadowColor && this.shadowBlur > 0) {
-            ctx.shadowColor = this.shadowColor;
-            ctx.shadowBlur = this.shadowBlur;
-            ctx.shadowOffsetX = this.shadowOffsetX;
-            ctx.shadowOffsetY = this.shadowOffsetY;
-        }
+        applyShadow(ctx, this);
 
         const hasStroke = !!(this.strokeColor && this.strokeWidth > 0);
         if (hasStroke) {
@@ -132,10 +128,7 @@ export class Arc extends RenderObject {
             ctx.lineWidth = this.strokeWidth;
             ctx.lineCap = this.lineCap;
         }
-        if (this.lineDash.length && hasStroke) {
-            ctx.setLineDash(this.lineDash);
-            ctx.lineDashOffset = this.lineDashOffset;
-        }
+        if (hasStroke) applyDash(ctx, this);
 
         ctx.beginPath();
         if (this.arcFillStyle === 'sector') {
@@ -153,16 +146,8 @@ export class Arc extends RenderObject {
         }
         if (hasStroke) ctx.stroke();
 
-        if (this.lineDash.length && hasStroke) {
-            ctx.setLineDash([]);
-            ctx.lineDashOffset = 0;
-        }
-        if (this.shadowColor && this.shadowBlur > 0) {
-            ctx.shadowColor = 'transparent';
-            ctx.shadowBlur = 0;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
-        }
+        if (hasStroke) clearDash(ctx, this);
+        clearShadow(ctx, this);
         if (this.globalAlpha !== 1) ctx.globalAlpha = originalAlpha;
     }
 

@@ -26,17 +26,7 @@ export class ClipLayer extends EmptyRenderObject {
         if (!this.visible || this.opacity <= 0) return;
 
         ctx.save();
-        ctx.translate(this.x, this.y);
-
-        if (this.rotation !== 0 || this.scaleX !== 1 || this.scaleY !== 1 || this.skewX !== 0 || this.skewY !== 0) {
-            ctx.translate(this.anchorOffsetX, this.anchorOffsetY);
-            if (this.rotation !== 0) ctx.rotate(this.rotation);
-            if (this.scaleX !== 1 || this.scaleY !== 1) ctx.scale(this.scaleX, this.scaleY);
-            if (this.skewX !== 0 || this.skewY !== 0) {
-                ctx.transform(1, Math.tan(this.skewY), Math.tan(this.skewX), 1, 0, 0);
-            }
-            ctx.translate(-this.anchorOffsetX, -this.anchorOffsetY);
-        }
+        this._applyLayerTransform(ctx);
 
         if (this.opacity !== 1) ctx.globalAlpha *= this.opacity;
         if (this.blendMode) ctx.globalCompositeOperation = this.blendMode;

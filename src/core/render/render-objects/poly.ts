@@ -1,4 +1,5 @@
 import { RenderObject, RenderConfig, Bounds } from './base';
+import { applyShadow, clearShadow, applyDash, clearDash } from './style-helpers';
 
 interface Point {
     x: number;
@@ -121,46 +122,31 @@ export class Poly extends RenderObject {
         if (this.points.length < 2) return;
         const originalAlpha = ctx.globalAlpha;
         if (this.globalAlpha !== 1) ctx.globalAlpha = originalAlpha * this.globalAlpha;
-        if (this.shadowColor && this.shadowBlur > 0) {
-            ctx.shadowColor = this.shadowColor;
-            ctx.shadowBlur = this.shadowBlur;
-            ctx.shadowOffsetX = this.shadowOffsetX;
-            ctx.shadowOffsetY = this.shadowOffsetY;
-        }
+        applyShadow(ctx, this);
         ctx.beginPath();
         const first = this.points[0];
         ctx.moveTo(first.x, first.y);
         for (let i = 1; i < this.points.length; i++) ctx.lineTo(this.points[i].x, this.points[i].y);
         if (this.closed) ctx.closePath();
-        if (this.strokeColor && this.strokeWidth > 0) {
+        const hasStroke = !!(this.strokeColor && this.strokeWidth > 0);
+        if (hasStroke) {
             ctx.lineWidth = this.strokeWidth;
-            ctx.strokeStyle = this.strokeColor;
+            ctx.strokeStyle = this.strokeColor as string;
             ctx.lineJoin = this.lineJoin;
             ctx.lineCap = this.lineCap;
             ctx.miterLimit = this.miterLimit;
-            if (this.lineDash.length) {
-                ctx.setLineDash(this.lineDash);
-                ctx.lineDashOffset = this.lineDashOffset;
-            }
+            applyDash(ctx, this);
         }
         const doFill = this.closed && this.fillColor;
         if (doFill) {
             ctx.fillStyle = this.fillColor as string;
-            if (this.strokeColor && this.strokeWidth > 0) {
+            if (hasStroke) {
                 ctx.fill();
                 ctx.stroke();
             } else ctx.fill();
-        } else if (this.strokeColor && this.strokeWidth > 0) ctx.stroke();
-        if (this.lineDash.length) {
-            ctx.setLineDash([]);
-            ctx.lineDashOffset = 0;
-        }
-        if (this.shadowColor && this.shadowBlur > 0) {
-            ctx.shadowColor = 'transparent';
-            ctx.shadowBlur = 0;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
-        }
+        } else if (hasStroke) ctx.stroke();
+        if (hasStroke) clearDash(ctx, this);
+        clearShadow(ctx, this);
         if (this.globalAlpha !== 1) ctx.globalAlpha = originalAlpha;
     }
 

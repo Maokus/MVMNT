@@ -1,4 +1,5 @@
-import { RenderObject, RenderConfig, Bounds } from './base';
+import { BoxRenderObject } from './box';
+import { type RenderConfig } from './base';
 
 /**
  * Renders a rectangular grid of colored cells using OffscreenCanvas + putImageData,
@@ -15,14 +16,12 @@ import { RenderObject, RenderConfig, Bounds } from './base';
  * To avoid per-frame OffscreenCanvas reallocation, cache the PixelGrid instance on
  * the SceneElement and call updatePixels() each frame instead of creating a new object.
  */
-export class PixelGrid extends RenderObject {
+export class PixelGrid extends BoxRenderObject {
     readonly cols: number;
     readonly rows: number;
     readonly cellSize: number;
     readonly cellGap: number;
 
-    private _totalW: number;
-    private _totalH: number;
     private _offscreen: OffscreenCanvas;
 
     constructor(
@@ -34,13 +33,16 @@ export class PixelGrid extends RenderObject {
         pixels: Uint8ClampedArray,
         options?: { cellGap?: number; includeInLayoutBounds?: boolean }
     ) {
-        super(x, y, 1, 1, 1, { includeInLayoutBounds: options?.includeInLayoutBounds });
-        this.cols = Math.max(1, Math.round(cols));
-        this.rows = Math.max(1, Math.round(rows));
-        this.cellSize = Math.max(1, cellSize);
+        const clampedCols = Math.max(1, Math.round(cols));
+        const clampedRows = Math.max(1, Math.round(rows));
+        const clampedCellSize = Math.max(1, cellSize);
+        super(x, y, clampedCols * clampedCellSize, clampedRows * clampedCellSize, {
+            includeInLayoutBounds: options?.includeInLayoutBounds,
+        });
+        this.cols = clampedCols;
+        this.rows = clampedRows;
+        this.cellSize = clampedCellSize;
         this.cellGap = Math.max(0, options?.cellGap ?? 0);
-        this._totalW = this.cols * this.cellSize;
-        this._totalH = this.rows * this.cellSize;
         this._offscreen = this._buildOffscreen(pixels);
     }
 
@@ -69,8 +71,8 @@ export class PixelGrid extends RenderObject {
     private _buildGappedOffscreen(pixels: Uint8ClampedArray): OffscreenCanvas {
         const drawSize = Math.max(1, this.cellSize - this.cellGap);
         const gapOff = Math.floor(this.cellGap / 2);
-        const offW = this._totalW;
-        const offH = this._totalH;
+        const offW = this.width;
+        const offH = this.height;
 
         const off = new OffscreenCanvas(offW, offH);
         const offCtx = off.getContext('2d')!;
@@ -109,11 +111,7 @@ export class PixelGrid extends RenderObject {
     protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _currentTime: number): void {
         const prevSmoothing = ctx.imageSmoothingEnabled;
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(this._offscreen, 0, 0, this._totalW, this._totalH);
+        ctx.drawImage(this._offscreen, 0, 0, this.width, this.height);
         ctx.imageSmoothingEnabled = prevSmoothing;
-    }
-
-    protected _getSelfBounds(): Bounds {
-        return this._computeTransformedRectBounds(0, 0, this._totalW, this._totalH);
     }
 }

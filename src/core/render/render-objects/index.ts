@@ -1,4 +1,5 @@
 export { RenderObject } from './base';
+export { BoxRenderObject } from './box';
 export { EmptyRenderObject } from './empty';
 export { Rectangle } from './rectangle';
 export { Text } from './text';
@@ -17,3 +18,4 @@ export {
     type VisualMediaOptions,
 } from './visual-media';
 export { PixelGrid } from './pixel-grid';
+export { applyShadow, clearShadow, applyDash, clearDash, applyStroke, applyFill } from './style-helpers';
