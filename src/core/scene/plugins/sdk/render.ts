@@ -6,6 +6,7 @@
 
 export {
     RenderObject,
+    BoxRenderObject,
     EmptyRenderObject,
     Rectangle,
     Text,
@@ -23,3 +24,4 @@ export {
     type VisualMediaOptions,
     PixelGrid,
 } from '@core/render/render-objects';
+export type { RenderConfig } from '@core/render/render-objects/base';
