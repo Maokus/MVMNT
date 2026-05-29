@@ -126,7 +126,7 @@ export class BezierPath extends RenderObject {
 
     setStroke(color: string | null, width = this.strokeWidth): this {
         this.strokeColor = color;
-        this.strokeWidth = width;
+        this.strokeWidth = Math.max(0, width);
         return this;
     }
 
@@ -276,10 +276,14 @@ export class BezierPath extends RenderObject {
                     break;
                 }
                 case 'quadraticCurveTo': {
-                    const bounds = BezierPath.#quadraticBounds(current, { x: command.cpx, y: command.cpy }, {
-                        x: command.x,
-                        y: command.y,
-                    });
+                    const bounds = BezierPath.#quadraticBounds(
+                        current,
+                        { x: command.cpx, y: command.cpy },
+                        {
+                            x: command.x,
+                            y: command.y,
+                        }
+                    );
                     extendBounds(bounds);
                     current = { x: command.x, y: command.y };
                     break;
@@ -319,7 +323,11 @@ export class BezierPath extends RenderObject {
         return this._computeTransformedRectBounds(minX, minY, Math.max(0, maxX - minX), Math.max(0, maxY - minY));
     }
 
-    static #quadraticBounds(p0: Point, p1: Point, p2: Point): { minX: number; minY: number; maxX: number; maxY: number } {
+    static #quadraticBounds(
+        p0: Point,
+        p1: Point,
+        p2: Point
+    ): { minX: number; minY: number; maxX: number; maxY: number } {
         const minX = Math.min(p0.x, p2.x);
         const minY = Math.min(p0.y, p2.y);
         const maxX = Math.max(p0.x, p2.x);
@@ -384,12 +392,7 @@ export class BezierPath extends RenderObject {
 
     static #cubicAt(p0: number, p1: number, p2: number, p3: number, t: number): number {
         const inv = 1 - t;
-        return (
-            inv * inv * inv * p0 +
-            3 * inv * inv * t * p1 +
-            3 * inv * t * t * p2 +
-            t * t * t * p3
-        );
+        return inv * inv * inv * p0 + 3 * inv * inv * t * p1 + 3 * inv * t * t * p2 + t * t * t * p3;
     }
 
     static #cubicExtrema(p0: number, p1: number, p2: number, p3: number): number[] {

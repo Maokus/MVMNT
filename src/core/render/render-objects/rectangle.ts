@@ -53,15 +53,13 @@ export class Rectangle extends RenderObject {
     }
 
     protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _currentTime: number): void {
-        const originalAlpha = ctx.globalAlpha;
-        ctx.globalAlpha = originalAlpha * this.opacity;
+        if (this.globalAlpha !== 1) ctx.globalAlpha *= this.globalAlpha;
         if (this.shadowColor && this.shadowBlur > 0) {
             ctx.shadowColor = this.shadowColor;
             ctx.shadowBlur = this.shadowBlur;
             ctx.shadowOffsetX = this.shadowOffsetX;
             ctx.shadowOffsetY = this.shadowOffsetY;
         }
-        if (this.globalAlpha !== 1) ctx.globalAlpha *= this.globalAlpha;
 
         if (this.cornerRadius > 0) this.#drawRoundedRect(ctx);
         else this.#drawRect(ctx);
@@ -125,8 +123,8 @@ export class Rectangle extends RenderObject {
     }
 
     setSize(width: number, height: number): this {
-        this.width = width;
-        this.height = height;
+        this.width = Math.max(0, width);
+        this.height = Math.max(0, height);
         return this;
     }
     setFillColor(color: string | null): this {
@@ -135,7 +133,7 @@ export class Rectangle extends RenderObject {
     }
     setStroke(color: string | null, width = 1): this {
         this.strokeColor = color;
-        this.strokeWidth = width;
+        this.strokeWidth = Math.max(0, width);
         return this;
     }
     setCornerRadius(radius: number): this {

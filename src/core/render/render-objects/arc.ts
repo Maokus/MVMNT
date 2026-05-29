@@ -80,7 +80,7 @@ export class Arc extends RenderObject {
 
     setStroke(color: string | null, width = this.strokeWidth): this {
         this.strokeColor = color;
-        this.strokeWidth = width;
+        this.strokeWidth = Math.max(0, width);
         return this;
     }
 

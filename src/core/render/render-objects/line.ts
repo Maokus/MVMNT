@@ -89,7 +89,7 @@ export class Line extends RenderObject {
         return this;
     }
     setLineWidth(width: number): this {
-        this.lineWidth = width;
+        this.lineWidth = Math.max(0, width);
         return this;
     }
     setLineCap(cap: LineCap): this {

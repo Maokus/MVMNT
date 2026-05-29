@@ -103,7 +103,7 @@ export class Text extends RenderObject {
     }
     setStroke(color: string | null, width: number): this {
         this.strokeColor = color;
-        this.strokeWidth = width;
+        this.strokeWidth = Math.max(0, width);
         return this;
     }
     setMaxWidth(width: number | null): this {
