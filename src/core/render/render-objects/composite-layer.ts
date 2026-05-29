@@ -1,4 +1,4 @@
-import { RenderConfig } from './base';
+import { RenderConfig, type LayoutParticipation } from './base';
 import { EmptyRenderObject } from './empty';
 
 /**
@@ -23,9 +23,10 @@ import { EmptyRenderObject } from './empty';
 export class CompositeLayer extends EmptyRenderObject {
     layerBlendMode: GlobalCompositeOperation;
 
-    constructor(layerBlendMode: GlobalCompositeOperation = 'source-over') {
+    constructor(layerBlendMode: GlobalCompositeOperation = 'source-over', options?: { layoutParticipation?: LayoutParticipation }) {
         super();
         this.layerBlendMode = layerBlendMode;
+        if (options?.layoutParticipation !== undefined) this.layoutParticipation = options.layoutParticipation;
     }
 
     render(ctx: CanvasRenderingContext2D, config: RenderConfig, currentTime: number): void {

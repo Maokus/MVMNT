@@ -1,4 +1,4 @@
-import { RenderConfig } from './base';
+import { RenderConfig, type LayoutParticipation } from './base';
 import { EmptyRenderObject } from './empty';
 
 /**
@@ -16,10 +16,11 @@ export class ClipLayer extends EmptyRenderObject {
     clipWidth: number;
     clipHeight: number;
 
-    constructor(clipWidth: number, clipHeight: number) {
+    constructor(clipWidth: number, clipHeight: number, options?: { layoutParticipation?: LayoutParticipation }) {
         super();
         this.clipWidth = clipWidth;
         this.clipHeight = clipHeight;
+        if (options?.layoutParticipation !== undefined) this.layoutParticipation = options.layoutParticipation;
     }
 
     render(ctx: CanvasRenderingContext2D, config: RenderConfig, currentTime: number): void {

@@ -1,9 +1,18 @@
-import { RenderObject, RenderConfig, Bounds } from './base';
+import { RenderObject, RenderConfig, Bounds, type LayoutParticipation } from './base';
 import { applyShadow, clearShadow, applyDash, clearDash } from './style-helpers';
 
 interface Point {
     x: number;
     y: number;
+}
+
+export interface PolyOptions {
+    fillColor?: string | null;
+    strokeColor?: string | null;
+    strokeWidth?: number;
+    layoutParticipation?: LayoutParticipation;
+    /** @deprecated compatibility only. Use layoutParticipation. */
+    includeInLayoutBounds?: boolean;
 }
 
 export class Poly extends RenderObject {
@@ -22,18 +31,38 @@ export class Poly extends RenderObject {
     shadowOffsetX: number;
     shadowOffsetY: number;
 
+    constructor(points?: unknown, options?: PolyOptions);
+    /** @deprecated Use Poly(points, options) instead. */
+    constructor(
+        points: unknown,
+        fillColor: string | null,
+        strokeColor: string | null,
+        strokeWidth: number,
+        options?: { layoutParticipation?: LayoutParticipation; includeInLayoutBounds?: boolean }
+    );
     constructor(
         points: unknown = [],
-        fillColor: string | null = null,
-        strokeColor: string | null = '#FFFFFF',
-        strokeWidth = 1,
-        options?: { includeInLayoutBounds?: boolean }
+        fillColorOrOptions?: string | null | PolyOptions,
+        strokeColor?: string | null,
+        strokeWidth?: number,
+        legacyOptions?: { layoutParticipation?: LayoutParticipation; includeInLayoutBounds?: boolean }
     ) {
-        super(0, 0, 1, 1, 1, options);
+        let opts: PolyOptions;
+        if (typeof fillColorOrOptions === 'string' || fillColorOrOptions === null) {
+            opts = {
+                fillColor: fillColorOrOptions,
+                strokeColor: strokeColor ?? '#FFFFFF',
+                strokeWidth: strokeWidth ?? 1,
+                ...legacyOptions,
+            };
+        } else {
+            opts = fillColorOrOptions ?? {};
+        }
+        super(0, 0, 1, 1, 1, opts);
         this.points = this.#normalizePoints(points);
-        this.fillColor = fillColor;
-        this.strokeColor = strokeColor;
-        this.strokeWidth = strokeWidth;
+        this.fillColor = opts.fillColor ?? null;
+        this.strokeColor = opts.strokeColor ?? '#FFFFFF';
+        this.strokeWidth = opts.strokeWidth ?? 1;
         this.closed = true;
         this.lineJoin = 'miter';
         this.lineCap = 'butt';

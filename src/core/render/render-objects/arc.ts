@@ -1,7 +1,20 @@
-import { RenderObject, type RenderConfig, type Bounds } from './base';
+import { RenderObject, type RenderConfig, type Bounds, type LayoutParticipation } from './base';
 import { applyShadow, clearShadow, applyDash, clearDash } from './style-helpers';
 
 const TAU = Math.PI * 2;
+
+export interface ArcOptions {
+    startAngle?: number;
+    endAngle?: number;
+    anticlockwise?: boolean;
+    fillColor?: string | null;
+    strokeColor?: string | null;
+    strokeWidth?: number;
+    fillRule?: CanvasFillRule;
+    layoutParticipation?: LayoutParticipation;
+    /** @deprecated compatibility only. Use layoutParticipation. */
+    includeInLayoutBounds?: boolean;
+}
 
 export class Arc extends RenderObject {
     radius: number;
@@ -21,29 +34,45 @@ export class Arc extends RenderObject {
     fillRule: CanvasFillRule;
     arcFillStyle: 'segment' | 'sector';
 
+    constructor(x: number, y: number, radius: number, options?: ArcOptions);
+    /** @deprecated Use Arc(x, y, radius, options) instead. */
     constructor(
         x: number,
         y: number,
         radius: number,
-        startAngle = 0,
-        endAngle = TAU,
-        anticlockwise = false,
-        options?: {
-            fillColor?: string | null;
-            strokeColor?: string | null;
-            strokeWidth?: number;
-            fillRule?: CanvasFillRule;
-            includeInLayoutBounds?: boolean;
-        }
+        startAngle: number,
+        endAngle?: number,
+        anticlockwise?: boolean,
+        options?: { fillColor?: string | null; strokeColor?: string | null; strokeWidth?: number; fillRule?: CanvasFillRule; layoutParticipation?: LayoutParticipation; includeInLayoutBounds?: boolean }
+    );
+    constructor(
+        x: number,
+        y: number,
+        radius: number,
+        startAngleOrOptions?: number | ArcOptions,
+        endAngle?: number,
+        anticlockwise?: boolean,
+        legacyOptions?: { fillColor?: string | null; strokeColor?: string | null; strokeWidth?: number; fillRule?: CanvasFillRule; layoutParticipation?: LayoutParticipation; includeInLayoutBounds?: boolean }
     ) {
-        super(x, y, 1, 1, 1, { includeInLayoutBounds: options?.includeInLayoutBounds });
+        let opts: ArcOptions;
+        if (typeof startAngleOrOptions === 'number') {
+            opts = {
+                startAngle: startAngleOrOptions,
+                endAngle: endAngle ?? TAU,
+                anticlockwise: anticlockwise ?? false,
+                ...legacyOptions,
+            };
+        } else {
+            opts = startAngleOrOptions ?? {};
+        }
+        super(x, y, 1, 1, 1, opts);
         this.radius = Math.max(0, radius);
-        this.startAngle = startAngle;
-        this.endAngle = endAngle;
-        this.anticlockwise = anticlockwise;
-        this.fillColor = options?.fillColor ?? null;
-        this.strokeColor = options?.strokeColor ?? '#FFFFFF';
-        this.strokeWidth = options?.strokeWidth ?? 1;
+        this.startAngle = opts.startAngle ?? 0;
+        this.endAngle = opts.endAngle ?? TAU;
+        this.anticlockwise = opts.anticlockwise ?? false;
+        this.fillColor = opts.fillColor ?? null;
+        this.strokeColor = opts.strokeColor ?? '#FFFFFF';
+        this.strokeWidth = opts.strokeWidth ?? 1;
         this.lineCap = 'butt';
         this.lineDash = [];
         this.lineDashOffset = 0;
@@ -51,7 +80,7 @@ export class Arc extends RenderObject {
         this.shadowBlur = 0;
         this.shadowOffsetX = 0;
         this.shadowOffsetY = 0;
-        this.fillRule = options?.fillRule ?? 'nonzero';
+        this.fillRule = opts.fillRule ?? 'nonzero';
         this.arcFillStyle = 'segment';
     }
 
