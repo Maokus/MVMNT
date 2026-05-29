@@ -1,5 +1,5 @@
 import { BoxRenderObject } from './box';
-import { type RenderConfig, type Bounds } from './base';
+import { type RenderConfig, type Bounds, type LayoutParticipation } from './base';
 import { applyShadow, clearShadow } from './style-helpers';
 import { type VisualResource, type ResourceStatus, getFrameAtTime } from '@core/resources/visual-resource';
 
@@ -60,6 +60,13 @@ const PRESET_VALUES: Record<FramePlacementPreset, [number, number, number, numbe
     'bottom-center': [0.5, 1, 0.5, 1],
     'bottom-right': [1, 1, 1, 1],
 };
+
+/**
+ * Controls how VisualMedia computes its own bounding rect (independent of layout participation).
+ * - 'drawn'     Bounds = actually drawn / scaled image region (default).
+ * - 'container' Bounds = full container rect (width × height).
+ */
+export type SelfBoundsMode = 'drawn' | 'container';
 
 // ─── VisualMediaOptions ───────────────────────────────────────────────────────
 
@@ -198,7 +205,7 @@ export class VisualMedia extends BoxRenderObject {
     private _frameAnchorX: number = 0.5;
     private _frameAnchorY: number = 0.5;
 
-    private _layoutBoundsMode: 'container' | 'drawn' | 'none' = 'drawn';
+    selfBoundsMode: SelfBoundsMode = 'drawn';
 
     constructor(x: number, y: number, width: number, height: number, options: VisualMediaOptions = {}) {
         super(x, y, width, height);
@@ -342,21 +349,35 @@ export class VisualMedia extends BoxRenderObject {
         return this;
     }
 
+    /** Set which rect VisualMedia uses for its own bounding contribution. */
+    setSelfBoundsMode(mode: SelfBoundsMode): this {
+        this.selfBoundsMode = mode;
+        return this;
+    }
+
     /**
+     * @deprecated Use setSelfBoundsMode() + setLayoutParticipation() instead.
      * Set the layout bounds policy:
      * - `'drawn'`     Layout bounds track the actual drawn/scaled image region (default).
      * - `'container'` Layout bounds equal the full container rect.
      * - `'none'`      Excluded from layout bounds entirely.
      */
     setLayoutBoundsMode(mode: 'container' | 'drawn' | 'none'): this {
-        this._layoutBoundsMode = mode;
-        this.includeInLayoutBounds = mode === 'none' ? false : undefined;
+        if (mode === 'none') {
+            this.layoutParticipation = 'exclude';
+        } else {
+            if (this.layoutParticipation === 'exclude') this.layoutParticipation = 'auto';
+            this.selfBoundsMode = mode;
+        }
         return this;
     }
 
     override setIncludeInLayoutBounds(include: boolean | undefined): this {
-        if (include === false) return this.setLayoutBoundsMode('none');
-        if (this._layoutBoundsMode === 'none') this._layoutBoundsMode = 'drawn';
+        if (include === false) {
+            this.layoutParticipation = 'exclude';
+            return this;
+        }
+        if (this.layoutParticipation === 'exclude') this.layoutParticipation = 'auto';
         super.setIncludeInLayoutBounds(include);
         return this;
     }
@@ -676,11 +697,11 @@ export class VisualMedia extends BoxRenderObject {
     }
 
     protected _getSelfBounds(): Bounds {
-        if (this._layoutBoundsMode === 'container') {
+        if (this.selfBoundsMode === 'container') {
             return this._computeTransformedRectBounds(0, 0, this.width, this.height);
         }
 
-        // 'drawn' (default) and 'none' — visual bounds still track the drawn region
+        // 'drawn' (default) — visual bounds track the drawn region
         // even when excluded from layout bounds.
         if (this.fitMode === 'cover' || this.fitMode === 'fill' || !this.preserveAspectRatio) {
             return this._computeTransformedRectBounds(0, 0, this.width, this.height);

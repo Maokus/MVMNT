@@ -1,5 +1,4 @@
 import { RenderObject, RenderConfig, Bounds } from './base';
-import { applyRSK } from '@math/transforms/numeric';
 
 interface AnchorVisualizationData {
     layoutBounds: Bounds;
@@ -9,32 +8,63 @@ interface AnchorVisualizationData {
 }
 
 export class EmptyRenderObject extends RenderObject {
-    anchorOffsetX: number;
-    anchorOffsetY: number;
     anchorVisualizationData?: AnchorVisualizationData;
     baseBounds?: Bounds; // injected externally
-    anchorFraction?: { x: number; y: number };
     _worldCorners?: { x: number; y: number }[];
 
     constructor(x = 0, y = 0, scaleX = 1, scaleY = 1, opacity = 1, options?: { includeInLayoutBounds?: boolean }) {
-        super(x, y, scaleX, scaleY, opacity, { includeInLayoutBounds: options?.includeInLayoutBounds ?? false });
-        this.anchorOffsetX = 0;
-        this.anchorOffsetY = 0;
-        // Default remains: an empty container shouldn't affect layout bounds unless opted-in
+        super(x, y, scaleX, scaleY, opacity);
+        // Default: empty containers are excluded from layout bounds unless opted-in.
+        this.layoutParticipation = options?.includeInLayoutBounds === true ? 'include' : 'exclude';
     }
 
-    setAnchorOffset(anchorOffsetX: number, anchorOffsetY: number): this {
-        this.anchorOffsetX = anchorOffsetX;
-        this.anchorOffsetY = anchorOffsetY;
+    /** @deprecated Use setOriginFraction() */
+    setAnchorOffset(ax: number, ay: number): this {
+        this.pivotX = ax;
+        this.pivotY = ay;
         return this;
     }
+
+    /** @deprecated Use layoutParticipation + pivotX/Y directly */
+    get anchorOffsetX(): number { return this.pivotX; }
+    /** @deprecated Use layoutParticipation + pivotX/Y directly */
+    set anchorOffsetX(v: number) { this.pivotX = v; }
+    /** @deprecated Use layoutParticipation + pivotX/Y directly */
+    get anchorOffsetY(): number { return this.pivotY; }
+    /** @deprecated Use layoutParticipation + pivotY directly */
+    set anchorOffsetY(v: number) { this.pivotY = v; }
+
+    /** @deprecated Use setOriginFraction() */
+    get anchorFraction(): { x: number; y: number } | undefined {
+        if (this._pivotFractionX === null) return undefined;
+        return { x: this._pivotFractionX, y: this._pivotFractionY ?? 0 };
+    }
+    /** @deprecated Use setOriginFraction() */
+    set anchorFraction(v: { x: number; y: number } | undefined) {
+        if (v) { this._pivotFractionX = v.x; this._pivotFractionY = v.y; }
+        else { this._pivotFractionX = null; this._pivotFractionY = null; }
+    }
+
     setAnchorVisualizationData(layoutBounds: Bounds, visualBounds: Bounds, anchorX: number, anchorY: number): this {
         this.anchorVisualizationData = { layoutBounds, visualBounds, anchorX, anchorY };
         return this;
     }
 
+    /** Resolve lazy origin fractions using baseBounds when available. */
+    private _resolveOriginFractions(): void {
+        if (this.baseBounds) {
+            if (this._pivotFractionX !== null) {
+                this.pivotX = this.baseBounds.x + this._pivotFractionX * this.baseBounds.width;
+            }
+            if (this._pivotFractionY !== null) {
+                this.pivotY = this.baseBounds.y + this._pivotFractionY * this.baseBounds.height;
+            }
+        }
+    }
+
     render(ctx: CanvasRenderingContext2D, config: RenderConfig, currentTime: number): void {
         if (!this.visible || this.opacity <= 0) return;
+        this._resolveOriginFractions();
         ctx.save();
         this._applyLayerTransform(ctx);
         if (this.opacity !== 1) ctx.globalAlpha *= this.opacity;
@@ -55,15 +85,12 @@ export class EmptyRenderObject extends RenderObject {
 
     protected _applyLayerTransform(ctx: CanvasRenderingContext2D): void {
         ctx.translate(this.x, this.y);
-        if (this.rotation !== 0 || this.scaleX !== 1 || this.scaleY !== 1 || this.skewX !== 0 || this.skewY !== 0) {
-            ctx.translate(this.anchorOffsetX, this.anchorOffsetY);
-            if (this.rotation !== 0) ctx.rotate(this.rotation);
-            if (this.scaleX !== 1 || this.scaleY !== 1) ctx.scale(this.scaleX, this.scaleY);
-            if (this.skewX !== 0 || this.skewY !== 0) {
-                ctx.transform(1, Math.tan(this.skewY), Math.tan(this.skewX), 1, 0, 0);
-            }
-            ctx.translate(-this.anchorOffsetX, -this.anchorOffsetY);
+        if (this.rotation !== 0) ctx.rotate(this.rotation);
+        if (this.scaleX !== 1 || this.scaleY !== 1) ctx.scale(this.scaleX, this.scaleY);
+        if (this.skewX !== 0 || this.skewY !== 0) {
+            ctx.transform(1, Math.tan(this.skewY), Math.tan(this.skewX), 1, 0, 0);
         }
+        if (this.pivotX !== 0 || this.pivotY !== 0) ctx.translate(-this.pivotX, -this.pivotY);
     }
 
     // intentionally empty
@@ -127,49 +154,15 @@ export class EmptyRenderObject extends RenderObject {
     }
 
     protected _getSelfBounds(): Bounds {
-        const metaBase = this.baseBounds;
-        if (!metaBase) {
-            // No intrinsic size
+        if (!this.baseBounds) {
             return { x: this.x, y: this.y, width: 0, height: 0 };
         }
-        const b = metaBase;
-        const anchorFrac = this.anchorFraction || { x: 0.5, y: 0.5 };
-        const anchorX = b.x + b.width * anchorFrac.x;
-        const anchorY = b.y + b.height * anchorFrac.y;
-
-        // Transform a point by rotating/skewing/scaling about the anchor, then translating by this.x/this.y
-        const txPoint = (px: number, py: number) => {
-            const dx = px - anchorX;
-            const dy = py - anchorY;
-            const v = applyRSK(
-                dx,
-                dy,
-                this.rotation || 0,
-                this.skewX || 0,
-                this.skewY || 0,
-                this.scaleX || 1,
-                this.scaleY || 1
-            );
-            return { x: anchorX + this.x + v.x, y: anchorY + this.y + v.y };
-        };
-
-        const worldCorners = [
-            txPoint(b.x, b.y),
-            txPoint(b.x + b.width, b.y),
-            txPoint(b.x + b.width, b.y + b.height),
-            txPoint(b.x, b.y + b.height),
-        ];
-        let minX = Infinity,
-            minY = Infinity,
-            maxX = -Infinity,
-            maxY = -Infinity;
-        for (const p of worldCorners) {
-            minX = Math.min(minX, p.x);
-            minY = Math.min(minY, p.y);
-            maxX = Math.max(maxX, p.x);
-            maxY = Math.max(maxY, p.y);
-        }
-        this._worldCorners = worldCorners;
-        return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+        this._resolveOriginFractions();
+        return this._computeTransformedRectBounds(
+            this.baseBounds.x,
+            this.baseBounds.y,
+            this.baseBounds.width,
+            this.baseBounds.height
+        );
     }
 }

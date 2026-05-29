@@ -1,4 +1,4 @@
-export { RenderObject } from './base';
+export { RenderObject, type LayoutParticipation } from './base';
 export { BoxRenderObject } from './box';
 export { EmptyRenderObject } from './empty';
 export { Rectangle } from './rectangle';
@@ -16,6 +16,7 @@ export {
     type FramePlacementPreset,
     type FramePlacementCustom,
     type VisualMediaOptions,
+    type SelfBoundsMode,
 } from './visual-media';
 export { PixelGrid } from './pixel-grid';
 export { applyShadow, clearShadow, applyDash, clearDash, applyStroke, applyFill } from './style-helpers';

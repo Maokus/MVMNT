@@ -125,8 +125,7 @@ function getSchemaIndex(ctor: any): Map<string, PropertyDefinition> {
         const schema = ctor.getConfigSchema?.() as EnhancedConfigSchema | undefined;
         for (const tab of schema?.tabs ?? [])
             for (const group of tab.groups ?? [])
-                for (const p of (group.properties ?? []) as PropertyDefinition[])
-                    if (p?.key) map.set(p.key, p);
+                for (const p of (group.properties ?? []) as PropertyDefinition[]) if (p?.key) map.set(p.key, p);
         _schemaIndex.set(ctor, map);
     }
     return _schemaIndex.get(ctor)!;
@@ -746,24 +745,22 @@ export class SceneElement implements SceneElementInterface {
         // Calculate the layout and visual bounding boxes and anchor point for transformation
         const layoutBounds = this._getCachedSceneElementBounds(childRenderObjects, targetTime, 'layout');
         const visualBounds = this._getCachedSceneElementBounds(childRenderObjects, targetTime, 'visual');
-        const anchorPixelX = layoutBounds.x + layoutBounds.width * this.anchorX;
-        const anchorPixelY = layoutBounds.y + layoutBounds.height * this.anchorY;
 
-        // Create an empty render object that will contain all child objects
+        // Create an empty render object that will contain all child objects.
+        // setOriginFraction stores the anchor fractions lazily; EmptyRenderObject resolves
+        // them to pixel pivotX/Y from baseBounds at render/bounds time.
         const containerObject = new EmptyRenderObject(
-            this.offsetX - anchorPixelX,
-            this.offsetY - anchorPixelY,
+            this.offsetX,
+            this.offsetY,
             this.elementScaleX,
             this.elementScaleY,
             this.elementOpacity
         );
-
-        // Set anchor offset for proper rotation/scaling center
-        containerObject.setAnchorOffset(anchorPixelX, anchorPixelY);
-        containerObject.rotation = this.elementRotation;
-        containerObject.skewX = this.elementSkewX;
-        containerObject.skewY = this.elementSkewY;
-        containerObject.visible = this.visible;
+        containerObject
+            .setRotation(this.elementRotation)
+            .setSkew(this.elementSkewX, this.elementSkewY)
+            .setVisible(this.visible)
+            .setOriginFraction(this.anchorX, this.anchorY);
 
         // Add all child render objects to the container
         for (const childObj of childRenderObjects) {
@@ -773,10 +770,9 @@ export class SceneElement implements SceneElementInterface {
             }
         }
 
-        // Store the untransformed aggregate bounds for later transform math (selection, handles)
-        // (Consumers can compute oriented bounding boxes using element transform parameters.)
+        // Store the untransformed aggregate bounds for later transform math (selection, handles).
+        // baseBounds must be set before render/bounds queries so _resolveOriginFractions works.
         (containerObject as any).baseBounds = { ...layoutBounds };
-        (containerObject as any).anchorFraction = { x: this.anchorX, y: this.anchorY };
         (containerObject as any).elementTransform = {
             offsetX: this.offsetX,
             offsetY: this.offsetY,

@@ -1,4 +1,13 @@
 // Base RenderObject class for modular rendering system (TypeScript version)
+
+/**
+ * Controls whether this object and its descendants contribute to layout bounds.
+ * - 'auto'    Include self; respect each child's own policy (default).
+ * - 'include' Force-include self and all descendants.
+ * - 'exclude' Force-exclude self and all descendants.
+ */
+export type LayoutParticipation = 'auto' | 'include' | 'exclude';
+
 export interface RenderConfig {
     canvas?: HTMLCanvasElement; // Many callers provide canvas for sizing logic
     showAnchorPoints?: boolean;
@@ -37,13 +46,8 @@ export abstract class RenderObject {
     protected _pivotFractionX: number | null = null;
     protected _pivotFractionY: number | null = null;
     children: RenderObject[]; // public to satisfy RenderObjectInterface
-    /**
-     * Controls contribution to layout bounds.
-     * - true: include this object and all descendants in layout bounds
-     * - false: exclude this object and all descendants from layout bounds
-     * - undefined: include this object; respect each child's own includeInLayoutBounds
-     */
-    includeInLayoutBounds: boolean | undefined;
+    /** Controls whether this object and descendants contribute to layout bounds. Default: 'auto'. */
+    layoutParticipation: LayoutParticipation;
     /** Optional Canvas 2D composite operation applied within this object's save/restore scope. */
     blendMode: GlobalCompositeOperation | null;
     /** Optional CSS filter string (e.g. 'blur(8px)') applied within this object's save/restore scope. */
@@ -55,7 +59,13 @@ export abstract class RenderObject {
         scaleX = 1,
         scaleY = 1,
         opacity = 1,
-        options?: { includeInLayoutBounds?: boolean | undefined; pivotX?: number; pivotY?: number }
+        options?: {
+            layoutParticipation?: LayoutParticipation;
+            /** @deprecated Use layoutParticipation instead. */
+            includeInLayoutBounds?: boolean | undefined;
+            pivotX?: number;
+            pivotY?: number;
+        }
     ) {
         this.x = x;
         this.y = y;
@@ -69,8 +79,15 @@ export abstract class RenderObject {
         this.pivotX = options?.pivotX ?? 0;
         this.pivotY = options?.pivotY ?? 0;
         this.children = []; // Array of child render objects
-        // Default undefined => include self, respect children
-        this.includeInLayoutBounds = options?.includeInLayoutBounds;
+        if (options?.layoutParticipation !== undefined) {
+            this.layoutParticipation = options.layoutParticipation;
+        } else if (options?.includeInLayoutBounds === true) {
+            this.layoutParticipation = 'include';
+        } else if (options?.includeInLayoutBounds === false) {
+            this.layoutParticipation = 'exclude';
+        } else {
+            this.layoutParticipation = 'auto';
+        }
         this.blendMode = null;
         this.filter = null;
     }
@@ -176,10 +193,25 @@ export abstract class RenderObject {
         return this.setOpacity(alpha);
     }
 
-    /** Control if this object contributes to layout bounds (visual bounds always include all). */
-    setIncludeInLayoutBounds(include: boolean | undefined): this {
-        this.includeInLayoutBounds = include;
+    /** Control layout participation for this object and its descendants. */
+    setLayoutParticipation(p: LayoutParticipation): this {
+        this.layoutParticipation = p;
         return this;
+    }
+    /** @deprecated Use setLayoutParticipation() */
+    setIncludeInLayoutBounds(include: boolean | undefined): this {
+        this.layoutParticipation = include === true ? 'include' : include === false ? 'exclude' : 'auto';
+        return this;
+    }
+    /** @deprecated Use layoutParticipation */
+    get includeInLayoutBounds(): boolean | undefined {
+        if (this.layoutParticipation === 'include') return true;
+        if (this.layoutParticipation === 'exclude') return false;
+        return undefined;
+    }
+    /** @deprecated Use layoutParticipation */
+    set includeInLayoutBounds(v: boolean | undefined) {
+        this.layoutParticipation = v === true ? 'include' : v === false ? 'exclude' : 'auto';
     }
     /** Set the Canvas 2D composite operation for this object's render scope. */
     setBlendMode(mode: GlobalCompositeOperation | null): this {
@@ -252,14 +284,14 @@ export abstract class RenderObject {
     }
 
     /**
-     * Layout bounds honoring includeInLayoutBounds semantics.
+     * Layout bounds honoring layoutParticipation semantics.
      * Returns null if excluded by policy.
      */
     getLayoutBounds(): Bounds | null {
         const policy: 'force-include' | 'force-exclude' | 'respect' =
-            this.includeInLayoutBounds === true
+            this.layoutParticipation === 'include'
                 ? 'force-include'
-                : this.includeInLayoutBounds === false
+                : this.layoutParticipation === 'exclude'
                   ? 'force-exclude'
                   : 'respect';
         return this._getLayoutBoundsRecursive(policy);
@@ -286,14 +318,14 @@ export abstract class RenderObject {
         const childPolicy: 'force-include' | 'force-exclude' | 'respect' =
             parentPolicy === 'force-include'
                 ? 'force-include'
-                : this.includeInLayoutBounds === true
+                : this.layoutParticipation === 'include'
                   ? 'force-include'
-                  : this.includeInLayoutBounds === false
+                  : this.layoutParticipation === 'exclude'
                     ? 'force-exclude'
                     : 'respect';
 
         // Determine whether to include self at this level
-        const includeSelf = parentPolicy === 'force-include' || this.includeInLayoutBounds !== false;
+        const includeSelf = parentPolicy === 'force-include' || this.layoutParticipation !== 'exclude';
 
         let union: Bounds | null = includeSelf ? this._getSelfBounds() : null;
 
