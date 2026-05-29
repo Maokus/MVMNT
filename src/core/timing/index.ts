@@ -1,9 +1,0 @@
-export * from './types';
-export * from './tempo-utils';
-// Barrel exports for the timing subsystem
-
-export { TimingManager } from './timing-manager';
-export type { TimeSignature, TimingConfig } from './timing-manager';
-export * from './time-domain';
-export * from './tempo-mapper';
-export { resolveTempoKeyframes } from './tempo-automation-resolver';
