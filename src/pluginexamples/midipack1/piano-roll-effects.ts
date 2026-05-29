@@ -126,7 +126,7 @@ export function drawDiamondMarker(
 ): RenderObject[] {
     const s = (size / 2) * scale;
     const d = new Poly([cx, cy - s, cx + s, cy, cx, cy + s, cx - s, cy], withAlpha(color, alpha), null, 0);
-    (d as any).setIncludeInLayoutBounds?.(false);
+    d.setLayoutParticipation('exclude');
     return [d];
 }
 
@@ -140,7 +140,7 @@ export function drawHeartMarker(
 ): RenderObject[] {
     const fontSize = Math.max(10, Math.round(size * scale));
     const t = new Text(cx, cy, '❤', `bold ${fontSize}px sans-serif`, withAlpha(color, alpha), 'center', 'middle');
-    (t as any).setIncludeInLayoutBounds?.(false);
+    t.setLayoutParticipation('exclude');
     return [t];
 }
 
@@ -155,7 +155,7 @@ export function drawTextMarker(
 ): RenderObject[] {
     const fontSize = Math.max(10, Math.round(size * 0.8 * scale));
     const t = new Text(cx, cy, label, `bold ${fontSize}px sans-serif`, withAlpha(color, alpha), 'center', 'middle');
-    (t as any).setIncludeInLayoutBounds?.(false);
+    t.setLayoutParticipation('exclude');
     return [t];
 }
 
@@ -184,7 +184,7 @@ export function drawCircleRipple(
         strokeColor: withAlpha(color, alpha),
         strokeWidth,
     });
-    (ring as any).setIncludeInLayoutBounds?.(false);
+    ring.setLayoutParticipation('exclude');
     return [ring];
 }
 
@@ -240,7 +240,7 @@ export function drawTriangleBurstRipple(
         tip.lineTo(bx - px * halfBase, by - py * halfBase);
         tip.lineTo(cx + cos * outerTip, cy + sin * outerTip);
         tip.closePath();
-        (tip as any).setIncludeInLayoutBounds?.(false);
+        tip.setLayoutParticipation('exclude');
         out.push(tip);
     }
     return out;
@@ -277,7 +277,7 @@ export function drawLineBurstRipple(
             rayColor,
             strokeWidth
         );
-        (line as any).setIncludeInLayoutBounds?.(false);
+        line.setLayoutParticipation('exclude');
         out.push(line);
     }
     return out;

@@ -77,7 +77,7 @@ function drawPolarGrid(
             strokeColor: color,
             strokeWidth: 0.5,
         });
-        (separator as any).setIncludeInLayoutBounds?.(false);
+        separator.setLayoutParticipation('exclude');
         objects.push(separator);
     }
 }
@@ -410,7 +410,7 @@ export class CircularPianoRollElement extends SceneElement {
                     strokeColor: ringColor,
                     strokeWidth: ringWidth,
                 });
-                (bg as any).setIncludeInLayoutBounds?.(false);
+                bg.setLayoutParticipation('exclude');
                 objects.push(bg);
             }
 
@@ -450,7 +450,7 @@ export class CircularPianoRollElement extends SceneElement {
                             strokeColor: noteStrokeColor,
                             strokeWidth: arcStrokeWidth,
                         });
-                        (arc as any).setIncludeInLayoutBounds?.(false);
+                        arc.setLayoutParticipation('exclude');
                         objects.push(arc);
                     }
                 }
@@ -487,7 +487,7 @@ export class CircularPianoRollElement extends SceneElement {
                     triggerColor,
                     2
                 );
-                (ind as any).setIncludeInLayoutBounds?.(false);
+                ind.setLayoutParticipation('exclude');
                 objects.push(ind);
             }
         }
@@ -515,7 +515,7 @@ export class CircularPianoRollElement extends SceneElement {
                     strokeColor: ringColor,
                     strokeWidth: radialSpan,
                 });
-                (bg as any).setIncludeInLayoutBounds?.(false);
+                bg.setLayoutParticipation('exclude');
                 objects.push(bg);
             }
 
@@ -580,7 +580,7 @@ export class CircularPianoRollElement extends SceneElement {
                             strokeColor: noteStrokeColor,
                             strokeWidth: arcStrokeWidth,
                         });
-                        (arc as any).setIncludeInLayoutBounds?.(false);
+                        arc.setLayoutParticipation('exclude');
                         objects.push(arc);
                     }
                 }
@@ -611,7 +611,7 @@ export class CircularPianoRollElement extends SceneElement {
             // Trigger radial line
             if (showTriggerIndicator) {
                 const ind = new Line(triggerInnerX, triggerInnerY, triggerX, triggerY, triggerColor, 2);
-                (ind as any).setIncludeInLayoutBounds?.(false);
+                ind.setLayoutParticipation('exclude');
                 objects.push(ind);
             }
         }
@@ -619,7 +619,7 @@ export class CircularPianoRollElement extends SceneElement {
         // ── Layout sentinel ──────────────────────────────────────────────────
         const d = ringRadius + ringWidth / 2 + triggerIndicatorLength + 10;
         const layoutSentinel = new Rectangle(-d, -d, d * 2, d * 2, null, null, 0);
-        (layoutSentinel as any).setIncludeInLayoutBounds?.(true);
+        layoutSentinel.setLayoutParticipation('include');
 
         if (bloomRadius > 0) {
             const glow = new GlowLayer({ glowBlur: bloomRadius });

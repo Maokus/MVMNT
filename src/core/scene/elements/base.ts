@@ -748,7 +748,7 @@ export class SceneElement implements SceneElementInterface {
 
         // Create an empty render object that will contain all child objects.
         // setOriginFraction stores the anchor fractions lazily; EmptyRenderObject resolves
-        // them to pixel pivotX/Y from baseBounds at render/bounds time.
+        // them to pixel originX/Y from baseBounds at render/bounds time.
         const containerObject = new EmptyRenderObject(
             this.offsetX,
             this.offsetY,

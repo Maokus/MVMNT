@@ -161,7 +161,7 @@ export class ParticlesPatternElement extends SceneElement {
             const arc = new Arc(-w / 2 + px, -h / 2 + py, radius, 0, Math.PI * 2, false, {
                 fillColor: hexColor,
                 strokeColor: null,
-                includeInLayoutBounds: false,
+                layoutParticipation: 'exclude',
             });
             arc.opacity = opacity;
             objects.push(arc);

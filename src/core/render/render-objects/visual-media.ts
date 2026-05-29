@@ -650,7 +650,7 @@ export class VisualMedia extends BoxRenderObject {
         this.#drawCrosshair(ctx, cax, cay, 8, 'rgba(255,160,0,0.9)');
 
         // Origin (transform origin) — yellow diamond
-        this.#drawDiamond(ctx, this.pivotX, this.pivotY, 6, 'rgba(255,230,0,0.95)');
+        this.#drawDiamond(ctx, this.originX, this.originY, 6, 'rgba(255,230,0,0.95)');
 
         ctx.restore();
     }

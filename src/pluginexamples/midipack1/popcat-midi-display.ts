@@ -230,7 +230,7 @@ export class PopcatMidiDisplayElement extends SceneElement {
         const activeStatus = userActiveSrc ? userActiveStatus : bundledActiveStatus;
 
         const makeVisualMedia = (x: number, y: number, w: number, h: number, isActive: boolean): VisualMedia => {
-            const vm = new VisualMedia(x, y, w, h, { fitMode: 'contain', layoutBoundsMode: 'none' });
+            const vm = new VisualMedia(x, y, w, h, { fitMode: 'contain' }).setLayoutParticipation('exclude');
             vm.setResource(isActive ? activeResource : idleResource, isActive ? activeStatus : idleStatus);
             return vm;
         };

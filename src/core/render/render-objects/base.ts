@@ -40,11 +40,11 @@ export abstract class RenderObject {
      * Rotation and scale happen around this point.
      * (0, 0) = top-left (default). For a 200×200 object, (100, 100) = center.
      */
-    pivotX: number;
-    pivotY: number;
-    /** Stored pivot fractions (0–1) for dimension-aware subclasses. null = not set. */
-    protected _pivotFractionX: number | null = null;
-    protected _pivotFractionY: number | null = null;
+    originX: number;
+    originY: number;
+    /** Stored origin fractions (0–1) for dimension-aware subclasses. null = not set. */
+    protected _originFractionX: number | null = null;
+    protected _originFractionY: number | null = null;
     children: RenderObject[]; // public to satisfy RenderObjectInterface
     /** Controls whether this object and descendants contribute to layout bounds. Default: 'auto'. */
     layoutParticipation: LayoutParticipation;
@@ -63,8 +63,8 @@ export abstract class RenderObject {
             layoutParticipation?: LayoutParticipation;
             /** @deprecated Use layoutParticipation instead. */
             includeInLayoutBounds?: boolean | undefined;
-            pivotX?: number;
-            pivotY?: number;
+            originX?: number;
+            originY?: number;
         }
     ) {
         this.x = x;
@@ -76,8 +76,8 @@ export abstract class RenderObject {
         this.opacity = opacity;
         this.visible = true;
         this.rotation = 0; // Rotation in radians
-        this.pivotX = options?.pivotX ?? 0;
-        this.pivotY = options?.pivotY ?? 0;
+        this.originX = options?.originX ?? 0;
+        this.originY = options?.originY ?? 0;
         this.children = []; // Array of child render objects
         if (options?.layoutParticipation !== undefined) {
             this.layoutParticipation = options.layoutParticipation;
@@ -95,10 +95,13 @@ export abstract class RenderObject {
     /**
      * Set the local-space transform origin in pixels.
      * The object's world position maps to this point; rotation and scale happen around it.
+     * Clears any stored origin fractions.
      */
     setOrigin(x: number, y: number): this {
-        this.pivotX = x;
-        this.pivotY = y;
+        this.originX = x;
+        this.originY = y;
+        this._originFractionX = null;
+        this._originFractionY = null;
         return this;
     }
 
@@ -110,12 +113,12 @@ export abstract class RenderObject {
      * Example: (0.5, 1) = bottom-center of the box is its world position and rotation axis.
      *
      * Note: this base implementation only stores the fractions; it does NOT update
-     * pivotX/Y because the base class has no width/height. Subclasses with known
+     * originX/Y because the base class has no width/height. Subclasses with known
      * dimensions should override this to also call _reapplyPivotFraction immediately.
      */
     setOriginFraction(x: number, y: number): this {
-        this._pivotFractionX = x;
-        this._pivotFractionY = y;
+        this._originFractionX = x;
+        this._originFractionY = y;
         return this;
     }
 
@@ -129,10 +132,10 @@ export abstract class RenderObject {
         return this.setOriginFraction(x, y);
     }
 
-    /** Recompute pivotX/Y from stored fractions for the given dimensions. */
+    /** Recompute originX/Y from stored fractions for the given dimensions. */
     protected _reapplyPivotFraction(width: number, height: number): void {
-        if (this._pivotFractionX !== null) this.pivotX = this._pivotFractionX * width;
-        if (this._pivotFractionY !== null) this.pivotY = this._pivotFractionY * height;
+        if (this._originFractionX !== null) this.originX = this._originFractionX * width;
+        if (this._originFractionY !== null) this.originY = this._originFractionY * height;
     }
 
     /** Main render method that handles transformations and delegates to _renderSelf */
@@ -157,8 +160,8 @@ export abstract class RenderObject {
             ctx.transform(...transform);
         }
 
-        // Apply pivot: shift content so pivotX/pivotY in local space aligns with (x, y) in world.
-        if (this.pivotX !== 0 || this.pivotY !== 0) ctx.translate(-this.pivotX, -this.pivotY);
+        // Apply origin: shift content so originX/originY in local space aligns with (x, y) in world.
+        if (this.originX !== 0 || this.originY !== 0) ctx.translate(-this.originX, -this.originY);
 
         if (this.opacity !== 1) ctx.globalAlpha *= this.opacity;
 
@@ -339,7 +342,7 @@ export abstract class RenderObject {
 
     /**
      * Compute the world transform matrix matching the render() order:
-     * M = T(x,y) * R(rotation) * S(scaleX,scaleY) * K(skewX,skewY) * T(-pivotX,-pivotY)
+     * M = T(x,y) * R(rotation) * S(scaleX,scaleY) * K(skewX,skewY) * T(-originX,-originY)
      */
     protected _getWorldTransformMatrix(): { a: number; b: number; c: number; d: number; e: number; f: number } {
         const sin = Math.sin(this.rotation || 0);
@@ -348,8 +351,8 @@ export abstract class RenderObject {
         const ky = Math.tan(this.skewY || 0);
         const sx = this.scaleX || 1;
         const sy = this.scaleY || 1;
-        const px = this.pivotX || 0;
-        const py = this.pivotY || 0;
+        const px = this.originX || 0;
+        const py = this.originY || 0;
         // helpers
         const multiply = (m1: any, m2: any) => ({
             a: m1.a * m2.a + m1.c * m2.b,

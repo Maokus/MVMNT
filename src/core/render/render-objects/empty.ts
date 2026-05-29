@@ -20,29 +20,29 @@ export class EmptyRenderObject extends RenderObject {
 
     /** @deprecated Use setOriginFraction() */
     setAnchorOffset(ax: number, ay: number): this {
-        this.pivotX = ax;
-        this.pivotY = ay;
+        this.originX = ax;
+        this.originY = ay;
         return this;
     }
 
-    /** @deprecated Use layoutParticipation + pivotX/Y directly */
-    get anchorOffsetX(): number { return this.pivotX; }
-    /** @deprecated Use layoutParticipation + pivotX/Y directly */
-    set anchorOffsetX(v: number) { this.pivotX = v; }
-    /** @deprecated Use layoutParticipation + pivotX/Y directly */
-    get anchorOffsetY(): number { return this.pivotY; }
-    /** @deprecated Use layoutParticipation + pivotY directly */
-    set anchorOffsetY(v: number) { this.pivotY = v; }
+    /** @deprecated Use layoutParticipation + originX/Y directly */
+    get anchorOffsetX(): number { return this.originX; }
+    /** @deprecated Use layoutParticipation + originX/Y directly */
+    set anchorOffsetX(v: number) { this.originX = v; }
+    /** @deprecated Use layoutParticipation + originX/Y directly */
+    get anchorOffsetY(): number { return this.originY; }
+    /** @deprecated Use layoutParticipation + originY directly */
+    set anchorOffsetY(v: number) { this.originY = v; }
 
     /** @deprecated Use setOriginFraction() */
     get anchorFraction(): { x: number; y: number } | undefined {
-        if (this._pivotFractionX === null) return undefined;
-        return { x: this._pivotFractionX, y: this._pivotFractionY ?? 0 };
+        if (this._originFractionX === null) return undefined;
+        return { x: this._originFractionX, y: this._originFractionY ?? 0 };
     }
     /** @deprecated Use setOriginFraction() */
     set anchorFraction(v: { x: number; y: number } | undefined) {
-        if (v) { this._pivotFractionX = v.x; this._pivotFractionY = v.y; }
-        else { this._pivotFractionX = null; this._pivotFractionY = null; }
+        if (v) { this._originFractionX = v.x; this._originFractionY = v.y; }
+        else { this._originFractionX = null; this._originFractionY = null; }
     }
 
     setAnchorVisualizationData(layoutBounds: Bounds, visualBounds: Bounds, anchorX: number, anchorY: number): this {
@@ -53,11 +53,11 @@ export class EmptyRenderObject extends RenderObject {
     /** Resolve lazy origin fractions using baseBounds when available. */
     private _resolveOriginFractions(): void {
         if (this.baseBounds) {
-            if (this._pivotFractionX !== null) {
-                this.pivotX = this.baseBounds.x + this._pivotFractionX * this.baseBounds.width;
+            if (this._originFractionX !== null) {
+                this.originX = this.baseBounds.x + this._originFractionX * this.baseBounds.width;
             }
-            if (this._pivotFractionY !== null) {
-                this.pivotY = this.baseBounds.y + this._pivotFractionY * this.baseBounds.height;
+            if (this._originFractionY !== null) {
+                this.originY = this.baseBounds.y + this._originFractionY * this.baseBounds.height;
             }
         }
     }
@@ -90,7 +90,7 @@ export class EmptyRenderObject extends RenderObject {
         if (this.skewX !== 0 || this.skewY !== 0) {
             ctx.transform(1, Math.tan(this.skewY), Math.tan(this.skewX), 1, 0, 0);
         }
-        if (this.pivotX !== 0 || this.pivotY !== 0) ctx.translate(-this.pivotX, -this.pivotY);
+        if (this.originX !== 0 || this.originY !== 0) ctx.translate(-this.originX, -this.originY);
     }
 
     // intentionally empty

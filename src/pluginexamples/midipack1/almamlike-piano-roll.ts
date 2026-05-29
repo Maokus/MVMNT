@@ -365,7 +365,7 @@ export class VidilikePianoRollElement extends SceneElement {
                 const [sx2] = applyShake(drawRight, rawY);
                 const rect = new Rectangle(sx, sy, sx2 - sx, rectH * zoomScale, noteColor);
                 if (noteCornerRadius > 0) (rect as any).setCornerRadius?.(noteCornerRadius);
-                (rect as any).setIncludeInLayoutBounds?.(false);
+                rect.setLayoutParticipation('exclude');
                 objects.push(rect);
             }
 
@@ -396,14 +396,14 @@ export class VidilikePianoRollElement extends SceneElement {
         // ── Assemble final output ───────────────────────────────────────────
         const totalHeight = totalNotes * noteHeight;
         const layoutSentinel = new Rectangle(0, 0, rollWidth, totalHeight, null, null, 0);
-        (layoutSentinel as any).setIncludeInLayoutBounds?.(true);
+        layoutSentinel.setLayoutParticipation('include');
 
         // Build playhead separately so it always stays sharp (not bloomed)
         const decorations: RenderObject[] = [];
         if (showPlayhead) {
             const [phX] = applyShake(playheadX, 0);
             const ph = new Line(phX, 0, phX, totalHeight, playheadColor, playheadLineWidth);
-            (ph as any).setIncludeInLayoutBounds?.(false);
+            ph.setLayoutParticipation('exclude');
             decorations.push(ph);
         }
 

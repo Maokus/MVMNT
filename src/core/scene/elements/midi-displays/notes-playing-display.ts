@@ -382,8 +382,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
                     cell.scaleX = noteScale;
                     cell.scaleY = noteScale;
                     // Pivot at centre so scale/opacity animate from the cell's centre
-                    cell.pivotX = cellWidth / 2;
-                    cell.pivotY = cellHeight / 2;
+                    cell.setOrigin(cellWidth / 2, cellHeight / 2);
                     renderObjects.push(cell);
 
                     const label = noteLabel(cellNote);
@@ -393,11 +392,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
                         baseline: 'middle',
                         layoutParticipation: 'exclude',
                     });
-                    text.opacity = noteOpacity;
-                    text.scaleX = noteScale;
-                    text.scaleY = noteScale;
-                    text.pivotX = 0;
-                    text.pivotY = 0;
+                    text.setOpacity(noteOpacity).setScale(noteScale, noteScale).setOrigin(0, 0);
                     renderObjects.push(text);
                 }
             }

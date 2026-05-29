@@ -23,7 +23,7 @@ const IDLE_DURATION_SEC = IDLE_FRAMES / IDLE_FPS; // ~0.583s
 
 export class BoyfriendElement extends SceneElement {
     private readonly _bundledAtlas = this.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml');
-    private readonly _media = new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' });
+    private readonly _media = new VisualMedia(0, 0, 200, 200);
     private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
 
     constructor(id: string = 'boyfriend', config: Record<string, unknown> = {}) {
@@ -74,10 +74,7 @@ export class BoyfriendElement extends SceneElement {
 
         if (!props.visible) return [];
 
-        this._layoutRect.width = WIDTH;
-        this._layoutRect.height = HEIGHT;
-        this._layoutRect.pivotX = 0;
-        this._layoutRect.pivotY = 0;
+        this._layoutRect.setOrigin(0, 0).setSize(WIDTH, HEIGHT);
 
         // Resolve timeline API for note queries and BPM.
         const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
@@ -125,13 +122,11 @@ export class BoyfriendElement extends SceneElement {
             .setAnimation(animationName)
             .setLocalTime(localTime)
             .setFitMode('clip')
-            .setLayoutBoundsMode('none')
+            .setLayoutParticipation('exclude')
             .setDimensions(WIDTH, HEIGHT)
             .setOriginFraction(props.debugOriginX, props.debugOriginY)
-            .setFramePlacement('bottom-center');
-
-        this._media.scaleX = props.scale;
-        this._media.scaleY = props.scale;
+            .setFramePlacement('bottom-center')
+            .setScale(props.scale);
 
         return [this._layoutRect, this._media];
     }

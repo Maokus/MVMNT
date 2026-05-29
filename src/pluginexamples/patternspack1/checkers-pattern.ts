@@ -99,7 +99,7 @@ export class CheckersPatternElement extends SceneElement {
 
         // Layout anchor — invisible rectangle that defines the element's bounds
         const layoutRect = new Rectangle(0, 0, w, h, null, null, 0);
-        layoutRect.setIncludeInLayoutBounds(true);
+        layoutRect.setLayoutParticipation('include');
 
         // Pan offset at current time, wrapped to one 2-square period
         const dist = _targetTime * speed;
@@ -113,7 +113,7 @@ export class CheckersPatternElement extends SceneElement {
         const rows = Math.ceil(h / squareH) + 3;
 
         const clip = new ClipLayer(w, h);
-        clip.setIncludeInLayoutBounds(false);
+        clip.setLayoutParticipation('exclude');
 
         for (let row = -1; row < rows; row++) {
             for (let col = -1; col < cols; col++) {
@@ -128,7 +128,7 @@ export class CheckersPatternElement extends SceneElement {
                     color,
                     null,
                     0,
-                    { includeInLayoutBounds: false }
+                    { layoutParticipation: 'exclude' }
                 );
                 clip.addChild(tile);
             }

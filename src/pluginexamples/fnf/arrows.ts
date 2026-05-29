@@ -66,33 +66,27 @@ export class ArrowsElement extends SceneElement {
     private readonly _layoutRect = new Rectangle(0, 0, 680, 600, '#00000000');
 
     // One VisualMedia per lane for each sprite layer
-    private readonly _receptors: VisualMedia[] = Array.from(
-        { length: 4 },
-        () => new VisualMedia(0, 0, STRUMLINE_FRAME_W, STRUMLINE_FRAME_H, { layoutBoundsMode: 'none' })
+    private readonly _receptors: VisualMedia[] = Array.from({ length: 4 }, () =>
+        new VisualMedia(0, 0, STRUMLINE_FRAME_W, STRUMLINE_FRAME_H).setLayoutParticipation('exclude')
     );
-    private readonly _holdCovers: VisualMedia[] = Array.from(
-        { length: 4 },
-        () => new VisualMedia(0, 0, HOLD_COVER_FRAME_W, HOLD_COVER_FRAME_H, { layoutBoundsMode: 'none' })
+    private readonly _holdCovers: VisualMedia[] = Array.from({ length: 4 }, () =>
+        new VisualMedia(0, 0, HOLD_COVER_FRAME_W, HOLD_COVER_FRAME_H).setLayoutParticipation('exclude')
     );
-    private readonly _splashes: VisualMedia[] = Array.from(
-        { length: 4 },
-        () => new VisualMedia(0, 0, 260, 298, { layoutBoundsMode: 'none' })
+    private readonly _splashes: VisualMedia[] = Array.from({ length: 4 }, () =>
+        new VisualMedia(0, 0, 260, 298).setLayoutParticipation('exclude')
     );
 
     // Pooled note head sprites for falling arrows
-    private readonly _notePool: VisualMedia[] = Array.from(
-        { length: MAX_FALLING_NOTES },
-        () => new VisualMedia(0, 0, NOTE_FRAME_W, NOTE_FRAME_W, { layoutBoundsMode: 'none' })
+    private readonly _notePool: VisualMedia[] = Array.from({ length: MAX_FALLING_NOTES }, () =>
+        new VisualMedia(0, 0, NOTE_FRAME_W, NOTE_FRAME_W).setLayoutParticipation('exclude')
     );
 
     // Pooled hold tail bodies and caps (approaching notes + held notes per lane)
-    private readonly _holdBodies: VisualMedia[] = Array.from(
-        { length: MAX_FALLING_NOTES + 4 },
-        () => new VisualMedia(0, 0, 0, 0, { layoutBoundsMode: 'none' })
+    private readonly _holdBodies: VisualMedia[] = Array.from({ length: MAX_FALLING_NOTES + 4 }, () =>
+        new VisualMedia(0, 0, 0, 0).setLayoutParticipation('exclude')
     );
-    private readonly _holdCaps: VisualMedia[] = Array.from(
-        { length: MAX_FALLING_NOTES + 4 },
-        () => new VisualMedia(0, 0, 0, 0, { layoutBoundsMode: 'none' })
+    private readonly _holdCaps: VisualMedia[] = Array.from({ length: MAX_FALLING_NOTES + 4 }, () =>
+        new VisualMedia(0, 0, 0, 0).setLayoutParticipation('exclude')
     );
 
     constructor(id: string = 'arrows', config: Record<string, unknown> = {}) {
