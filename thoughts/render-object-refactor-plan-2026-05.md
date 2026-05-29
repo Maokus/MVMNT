@@ -1,6 +1,6 @@
 # Render Object Refactor Plan
 
-Status: tasks 2, 3, 5, 6 complete  
+Status: tasks 1, 2, 3, 5, 6 complete  
 Date: 2026-05-29
 
 ---
@@ -168,9 +168,14 @@ RenderObject (abstract)
 
 ---
 
-## Task 4 — Unify bounds modes around layoutBoundsMode
+## Task 4 — Unify bounds modes: separate layout participation from self geometry
 
-**Goal:** replace the confusing tri-state `includeInLayoutBounds: boolean | undefined` with an explicit enum-style field that VisualMedia's three-way logic can also slot into.
+**Goal:** replace the confusing tri-state `includeInLayoutBounds: boolean | undefined` with an explicit enum on the base class, while keeping VisualMedia's geometry-selection logic as a separate, VisualMedia-specific field. These are two distinct concerns:
+
+- **Layout participation policy** — should this object/subtree contribute to layout bounds at all?
+- **Self geometry mode** — when contributing, how does this object measure its own bounding rect?
+
+The original proposal conflated these by adding `'drawn'` and `'container'` to a base-class type. That forces `RenderObject` to know about VisualMedia-specific draw-region concepts; other classes would silently treat unknown values as `'auto'`. Keeping them separate prevents that leakage.
 
 ### Current state
 
@@ -178,51 +183,69 @@ RenderObject (abstract)
     - `true` = force-include self and all descendants
     - `false` = force-exclude self and all descendants
     - `undefined` = include self, respect each child's own flag
-- `VisualMedia` has a separate `layoutBoundsMode: 'drawn' | 'container' | 'none'` field that overrides the above inside `_getSelfBounds`
+- `VisualMedia._layoutBoundsMode: 'drawn' | 'container' | 'none'`
+    - `'drawn'` (default): bounds = actually drawn/scaled image region
+    - `'container'`: bounds = full container rect
+    - `'none'`: excluded from layout bounds
 
-### Proposed unified field
+### Concept 1 — Layout participation policy on `RenderObject`
 
 ```typescript
-type LayoutBoundsMode = 'auto' | 'include' | 'exclude' | 'drawn' | 'container';
-layoutBoundsMode: LayoutBoundsMode; // default: 'auto'
+type LayoutParticipation = 'auto' | 'include' | 'exclude';
+layoutParticipation: LayoutParticipation; // default: 'auto'
 ```
 
-| Value         | Meaning                                                         |
-| ------------- | --------------------------------------------------------------- |
-| `'auto'`      | Include self; respect each child's own policy (was `undefined`) |
-| `'include'`   | Force-include self and all descendants (was `true`)             |
-| `'exclude'`   | Force-exclude self and all descendants (was `false`)            |
-| `'drawn'`     | VisualMedia: bounds = actually drawn region                     |
-| `'container'` | VisualMedia: bounds = full container rect                       |
+| Value       | Meaning                                                     |
+| ----------- | ----------------------------------------------------------- |
+| `'auto'`    | Include self; respect each child's own policy (was `undefined`) |
+| `'include'` | Force-include self and all descendants (was `true`)         |
+| `'exclude'` | Force-exclude self and all descendants (was `false`)        |
 
-`'drawn'` and `'container'` only make sense on `VisualMedia`; other classes treat them the same as `'auto'`.
+`VisualMedia`'s `'none'` value maps directly to `'exclude'` here.
+
+### Concept 2 — Self geometry mode on `VisualMedia` only
+
+```typescript
+type SelfBoundsMode = 'drawn' | 'container';
+selfBoundsMode: SelfBoundsMode; // default: 'drawn'
+```
+
+| Value         | Meaning                                      |
+| ------------- | -------------------------------------------- |
+| `'drawn'`     | Bounds = actually drawn/scaled image region  |
+| `'container'` | Bounds = full container rect                 |
+
+Setter: `setSelfBoundsMode(mode: SelfBoundsMode): this`. This is purely a geometry concern; it has no effect on whether the object participates in layout (that's `layoutParticipation`).
 
 ### Backward compatibility
 
-`includeInLayoutBounds` is a public field set directly by element `_buildRenderObjects` implementations. A simple field removal would silently break all those call sites at runtime. Instead:
-
-- Keep `includeInLayoutBounds` as a deprecated property with a getter/setter that maps to/from `layoutBoundsMode`:
+**On `RenderObject`:**
+- Keep `includeInLayoutBounds` as a deprecated property getter/setter mapping to/from `layoutParticipation`:
     ```typescript
-    /** @deprecated Use layoutBoundsMode */
+    /** @deprecated Use layoutParticipation */
     get includeInLayoutBounds(): boolean | undefined {
-        if (this.layoutBoundsMode === 'include') return true;
-        if (this.layoutBoundsMode === 'exclude') return false;
+        if (this.layoutParticipation === 'include') return true;
+        if (this.layoutParticipation === 'exclude') return false;
         return undefined;
     }
     set includeInLayoutBounds(v: boolean | undefined) {
-        this.layoutBoundsMode = v === true ? 'include' : v === false ? 'exclude' : 'auto';
+        this.layoutParticipation = v === true ? 'include' : v === false ? 'exclude' : 'auto';
     }
     ```
-- Migrate all internal usages before removing the shim.
-- `setIncludeInLayoutBounds(bool)` similarly becomes a deprecated wrapper around `setLayoutBoundsMode`.
+- `setIncludeInLayoutBounds(v)` becomes a deprecated wrapper around `setLayoutParticipation`.
+
+**On `VisualMedia`:**
+- Old `setLayoutBoundsMode('none')` maps to `this.layoutParticipation = 'exclude'`
+- Old `setLayoutBoundsMode('drawn' | 'container')` maps to `this.selfBoundsMode`
+- Keep deprecated `setLayoutBoundsMode(mode)` as a wrapper during transition.
 
 ### Migration steps
 
-1. Add `layoutBoundsMode: LayoutBoundsMode = 'auto'` to `RenderObject`.
-2. In `_getLayoutBoundsRecursive`, map `layoutBoundsMode` to the existing tri-state policy logic.
-3. Replace `includeInLayoutBounds` reads/writes with `layoutBoundsMode`. Deprecate `setIncludeInLayoutBounds`.
-4. Remove `VisualMedia`'s separate `layoutBoundsMode` field; fold into base.
-5. Update `EmptyRenderObject` constructor which currently hard-codes `includeInLayoutBounds: false` → `layoutBoundsMode: 'exclude'`.
+1. Add `layoutParticipation: LayoutParticipation = 'auto'` to `RenderObject`.
+2. In `_getLayoutBoundsRecursive`, replace `includeInLayoutBounds` reads with `layoutParticipation`.
+3. Deprecate `includeInLayoutBounds` and `setIncludeInLayoutBounds`; keep as shims.
+4. On `VisualMedia`: add `selfBoundsMode: SelfBoundsMode = 'drawn'`; replace `_layoutBoundsMode` field with `selfBoundsMode` + `layoutParticipation`; deprecate `setLayoutBoundsMode`.
+5. Update `EmptyRenderObject` constructor which currently hard-codes `includeInLayoutBounds: false` → `layoutParticipation: 'exclude'`.
 
 ---
 

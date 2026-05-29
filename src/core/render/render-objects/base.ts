@@ -158,6 +158,24 @@ export abstract class RenderObject {
     /** Abstract method for subclasses to implement their specific drawing logic */
     protected abstract _renderSelf(ctx: CanvasRenderingContext2D, config: RenderConfig, currentTime: number): void;
 
+    setOpacity(alpha: number): this {
+        this.opacity = Math.max(0, Math.min(1, alpha));
+        return this;
+    }
+
+    /** @deprecated Use opacity directly or setOpacity(). */
+    get globalAlpha(): number {
+        return this.opacity;
+    }
+    /** @deprecated Use opacity directly or setOpacity(). */
+    set globalAlpha(v: number) {
+        this.opacity = v;
+    }
+    /** @deprecated Use setOpacity(). */
+    setGlobalAlpha(alpha: number): this {
+        return this.setOpacity(alpha);
+    }
+
     /** Control if this object contributes to layout bounds (visual bounds always include all). */
     setIncludeInLayoutBounds(include: boolean | undefined): this {
         this.includeInLayoutBounds = include;

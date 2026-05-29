@@ -339,7 +339,7 @@ export class CollisionMidiDisplayElement extends SceneElement {
                 sqY -= offset;
             }
             const sq = new Rectangle(sqX, sqY, sqSize, sqSize, effectiveSquareColor);
-            sq.setGlobalAlpha(squareAlpha);
+            sq.setOpacity(squareAlpha);
             objects.push(sq);
 
             // --- Circle ---
@@ -347,7 +347,7 @@ export class CollisionMidiDisplayElement extends SceneElement {
                 fillColor: circleColor,
                 strokeColor: 'transparent',
             });
-            arc.setGlobalAlpha(circleAlpha);
+            arc.setOpacity(circleAlpha);
             objects.push(arc);
 
             // --- Note name label ---

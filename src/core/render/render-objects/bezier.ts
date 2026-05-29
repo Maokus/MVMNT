@@ -50,7 +50,6 @@ export class BezierPath extends RenderObject {
     shadowBlur: number;
     shadowOffsetX: number;
     shadowOffsetY: number;
-    globalAlpha: number;
     fillRule: CanvasFillRule;
 
     constructor(
@@ -79,7 +78,6 @@ export class BezierPath extends RenderObject {
         this.shadowBlur = 0;
         this.shadowOffsetX = 0;
         this.shadowOffsetY = 0;
-        this.globalAlpha = 1;
         this.fillRule = options?.fillRule ?? 'nonzero';
     }
 
@@ -122,9 +120,13 @@ export class BezierPath extends RenderObject {
         return this;
     }
 
-    setFillColor(color: string | null): this {
+    setFill(color: string | null): this {
         this.fillColor = color;
         return this;
+    }
+    /** @deprecated Use setFill(). */
+    setFillColor(color: string | null): this {
+        return this.setFill(color);
     }
 
     setStroke(color: string | null, width = this.strokeWidth): this {
@@ -162,11 +164,6 @@ export class BezierPath extends RenderObject {
         return this;
     }
 
-    setGlobalAlpha(alpha: number): this {
-        this.globalAlpha = Math.max(0, Math.min(1, alpha));
-        return this;
-    }
-
     setFillRule(rule: CanvasFillRule): this {
         this.fillRule = rule;
         return this;
@@ -174,8 +171,6 @@ export class BezierPath extends RenderObject {
 
     protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _time: number): void {
         if (!this.commands.length) return;
-        const originalAlpha = ctx.globalAlpha;
-        if (this.globalAlpha !== 1) ctx.globalAlpha = originalAlpha * this.globalAlpha;
         applyShadow(ctx, this);
         const hasStroke = !!(this.strokeColor && this.strokeWidth > 0);
         if (hasStroke) {
@@ -227,7 +222,6 @@ export class BezierPath extends RenderObject {
 
         if (hasStroke) clearDash(ctx, this);
         clearShadow(ctx, this);
-        if (this.globalAlpha !== 1) ctx.globalAlpha = originalAlpha;
     }
 
     protected _getSelfBounds(): Bounds {

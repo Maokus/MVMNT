@@ -249,7 +249,16 @@ export class CCMonitorElement extends SceneElement {
                 lineSpacing,
             });
         } else if (mode === 'singleCC') {
-            contentObjects = this._buildSingleCC({ props, targetTime, api, status, trackId, font, textColor, fontSize });
+            contentObjects = this._buildSingleCC({
+                props,
+                targetTime,
+                api,
+                status,
+                trackId,
+                font,
+                textColor,
+                fontSize,
+            });
         } else if (mode === 'sustainPedal') {
             contentObjects = this._buildSustainPedal({ props, targetTime, api, status, trackId, font, textColor });
         }
@@ -356,7 +365,7 @@ export class CCMonitorElement extends SceneElement {
             const h = (props.opacityRectHeight as number) ?? 120;
             const color = (props.opacityRectColor as string) ?? '#ffffff';
             const rect = new Rectangle(0, 0, w, h, color, null, 0);
-            rect.globalAlpha = ccValue / 127;
+            rect.setOpacity(ccValue / 127);
             return [rect];
         }
 

@@ -13,8 +13,6 @@ export class Rectangle extends BoxRenderObject {
     shadowBlur: number;
     shadowOffsetX: number;
     shadowOffsetY: number;
-    globalAlpha: number;
-
     constructor(
         x: number,
         y: number,
@@ -47,11 +45,9 @@ export class Rectangle extends BoxRenderObject {
         this.shadowBlur = 0;
         this.shadowOffsetX = 0;
         this.shadowOffsetY = 0;
-        this.globalAlpha = 1;
     }
 
     protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _currentTime: number): void {
-        if (this.globalAlpha !== 1) ctx.globalAlpha *= this.globalAlpha;
         applyShadow(ctx, this);
 
         if (this.cornerRadius > 0) this.#drawRoundedRect(ctx);
@@ -101,9 +97,13 @@ export class Rectangle extends BoxRenderObject {
         }
     }
 
-    setFillColor(color: string | null): this {
+    setFill(color: string | null): this {
         this.fillColor = color;
         return this;
+    }
+    /** @deprecated Use setFill(). */
+    setFillColor(color: string | null): this {
+        return this.setFill(color);
     }
     setStroke(color: string | null, width = 1): this {
         this.strokeColor = color;
@@ -121,11 +121,6 @@ export class Rectangle extends BoxRenderObject {
         this.shadowOffsetY = offsetY;
         return this;
     }
-    setGlobalAlpha(alpha: number): this {
-        this.globalAlpha = Math.max(0, Math.min(1, alpha));
-        return this;
-    }
-
     protected override _getSelfBounds(): Bounds {
         // Local rect is at (0,0) with width/height; pad for stroke if any
         let lx = 0,

@@ -21,7 +21,6 @@ export class Poly extends RenderObject {
     shadowBlur: number;
     shadowOffsetX: number;
     shadowOffsetY: number;
-    globalAlpha: number;
 
     constructor(
         points: unknown = [],
@@ -45,7 +44,6 @@ export class Poly extends RenderObject {
         this.shadowBlur = 0;
         this.shadowOffsetX = 0;
         this.shadowOffsetY = 0;
-        this.globalAlpha = 1;
     }
 
     #normalizePoints(raw: unknown): Point[] {
@@ -77,9 +75,13 @@ export class Poly extends RenderObject {
         this.points = [];
         return this;
     }
-    setFillColor(color: string | null): this {
+    setFill(color: string | null): this {
         this.fillColor = color;
         return this;
+    }
+    /** @deprecated Use setFill(). */
+    setFillColor(color: string | null): this {
+        return this.setFill(color);
     }
     setStroke(color: string | null, width = this.strokeWidth): this {
         this.strokeColor = color;
@@ -113,15 +115,8 @@ export class Poly extends RenderObject {
         this.shadowOffsetY = offsetY;
         return this;
     }
-    setGlobalAlpha(alpha: number): this {
-        this.globalAlpha = Math.max(0, Math.min(1, alpha));
-        return this;
-    }
-
     protected _renderSelf(ctx: CanvasRenderingContext2D): void {
         if (this.points.length < 2) return;
-        const originalAlpha = ctx.globalAlpha;
-        if (this.globalAlpha !== 1) ctx.globalAlpha = originalAlpha * this.globalAlpha;
         applyShadow(ctx, this);
         ctx.beginPath();
         const first = this.points[0];
@@ -147,7 +142,6 @@ export class Poly extends RenderObject {
         } else if (hasStroke) ctx.stroke();
         if (hasStroke) clearDash(ctx, this);
         clearShadow(ctx, this);
-        if (this.globalAlpha !== 1) ctx.globalAlpha = originalAlpha;
     }
 
     protected _getSelfBounds(): Bounds {

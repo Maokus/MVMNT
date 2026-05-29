@@ -18,7 +18,6 @@ export class Arc extends RenderObject {
     shadowBlur: number;
     shadowOffsetX: number;
     shadowOffsetY: number;
-    globalAlpha: number;
     fillRule: CanvasFillRule;
     arcFillStyle: 'segment' | 'sector';
 
@@ -52,7 +51,6 @@ export class Arc extends RenderObject {
         this.shadowBlur = 0;
         this.shadowOffsetX = 0;
         this.shadowOffsetY = 0;
-        this.globalAlpha = 1;
         this.fillRule = options?.fillRule ?? 'nonzero';
         this.arcFillStyle = 'segment';
     }
@@ -74,9 +72,13 @@ export class Arc extends RenderObject {
         return this;
     }
 
-    setFillColor(color: string | null): this {
+    setFill(color: string | null): this {
         this.fillColor = color;
         return this;
+    }
+    /** @deprecated Use setFill(). */
+    setFillColor(color: string | null): this {
+        return this.setFill(color);
     }
 
     setStroke(color: string | null, width = this.strokeWidth): this {
@@ -103,11 +105,6 @@ export class Arc extends RenderObject {
         return this;
     }
 
-    setGlobalAlpha(alpha: number): this {
-        this.globalAlpha = Math.max(0, Math.min(1, alpha));
-        return this;
-    }
-
     setFillRule(rule: CanvasFillRule): this {
         this.fillRule = rule;
         return this;
@@ -118,8 +115,6 @@ export class Arc extends RenderObject {
         const sweep = this.#sweepMagnitude();
         if (sweep <= 0) return;
 
-        const originalAlpha = ctx.globalAlpha;
-        if (this.globalAlpha !== 1) ctx.globalAlpha = originalAlpha * this.globalAlpha;
         applyShadow(ctx, this);
 
         const hasStroke = !!(this.strokeColor && this.strokeWidth > 0);
@@ -148,7 +143,6 @@ export class Arc extends RenderObject {
 
         if (hasStroke) clearDash(ctx, this);
         clearShadow(ctx, this);
-        if (this.globalAlpha !== 1) ctx.globalAlpha = originalAlpha;
     }
 
     protected _getSelfBounds(): Bounds {

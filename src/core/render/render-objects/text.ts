@@ -96,6 +96,9 @@ export class Text extends RenderObject {
         this.color = color;
         return this;
     }
+    setFill(color: string): this {
+        return this.setColor(color);
+    }
     setAlignment(align: TextAlign, baseline: TextBaseline = this.baseline): this {
         this.align = align;
         this.baseline = baseline;

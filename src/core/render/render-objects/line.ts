@@ -73,6 +73,9 @@ export class Line extends RenderObject {
         this.color = color;
         return this;
     }
+    setStroke(color: string, width = this.lineWidth): this {
+        return this.setColor(color).setLineWidth(width);
+    }
     setLineWidth(width: number): this {
         this.lineWidth = Math.max(0, width);
         return this;
