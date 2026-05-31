@@ -219,8 +219,10 @@ export class CCMonitorElement extends SceneElement {
             layoutHeight = fontSize + lineSpacing + 4;
         }
 
-        const layoutRect = new Rectangle(0, 0, layoutWidth, layoutHeight, { fillColor: null });
-        layoutRect.setIncludeInLayoutBounds(true);
+        const layoutRect = new Rectangle(0, 0, layoutWidth, layoutHeight, {
+            fillColor: null,
+            layoutParticipation: 'exclude',
+        });
 
         const trackId = (props.midiTrackId as string | null) ?? null;
         const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);

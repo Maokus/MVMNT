@@ -128,6 +128,14 @@
                 "lastModified": 1700000000000
             }
         },
+        "allIds": [
+            "macro.color.primary",
+            "macro.fontSize",
+            "macro.color.background",
+            "macro.select.theme",
+            "macro.asset.cover",
+            "macro.midi.track"
+        ],
         "exportedAt": 1700000000000
     }
 }

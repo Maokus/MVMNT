@@ -11,7 +11,7 @@ This directory implements the plugin host API and the public `@mvmnt/plugin-sdk`
 | `sdk/animation.ts` | `clamp`, `lerp`, `invLerp`, `remap`, `FloatCurve`, `EasingFn`, `easings` (31 named functions). |
 | `sdk/render.ts` | All canvas render primitives (`Rectangle`, `Text`, `Arc`, `BezierPath`, …). |
 | `sdk/scene.ts` | `SceneElement`, property descriptors, `prop` factory, `insertElementConfig`. |
-| `sdk/api.ts` | `PLUGIN_CAPABILITIES`, `getPluginHostApi`, error classes. |
+| `sdk/api.ts` | `PLUGIN_CAPABILITIES`, `getPluginHostApi`, `getRequiredPluginApi`, error classes. |
 | `sdk/timeline.ts` | `timelineApi` proxy, timeline shortcuts, event types. |
 | `sdk/audio.ts` | `audioApi` proxy, audio shortcuts, feature types, `registerFeatureRequirements`. |
 | `sdk/timing.ts` | `timingApi` proxy, timing shortcuts, quantize helpers, tempo utils. |
@@ -27,25 +27,29 @@ This directory implements the plugin host API and the public `@mvmnt/plugin-sdk`
 
 ## Capabilities
 
-Four capabilities are defined in `PLUGIN_CAPABILITIES` (in `host-api/plugin-api.ts`):
+Six capabilities are defined in `PLUGIN_CAPABILITIES` (in `host-api/plugin-api.ts`):
 
 - `timelineRead` — timeline / note data (conditionally available)
 - `audioFeaturesRead` — audio feature sampling (conditionally available)
+- `audioRawRead` — sample-accurate raw audio data (conditionally available)
 - `timingConversion` — seconds ↔ beats ↔ ticks (always available)
 - `midiUtils` — MIDI note utilities (always available)
+- `audioCalculatorsRegister` — register custom audio calculators (always available)
 
 See `docs/plugin-api-v1.md` for the full API surface, access patterns, and error handling reference.
 
 ## Standard Access Pattern (scene elements)
 
 ```typescript
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
-const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
-if (api && status === 'ok') {
-    const notes = api.timeline.selectNotesInWindow({ trackIds: [...], startSec, endSec });
-}
+const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
+if (!host.ok) return host.renderFallback();
+
+const notes = host.api.timeline.selectNotesInWindow({ trackIds: [...], startSec, endSec });
 ```
+
+The element reference (`this`) is required — it is used for future manifest-driven capability resolution. `renderFallback()` returns `[]` so it can be used inline as a return value.
 
 ## Adding a New Capability (checklist)
 
