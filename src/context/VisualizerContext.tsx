@@ -286,6 +286,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 filename: settings.filename,
                 maxFrames,
                 _startFrame: startFrame,
+                transparent: settings.transparentBackground ?? false,
                 onProgress: (progress: number, text: string = 'Generating images...') => setProgressData({ progress, text }),
             });
         } catch (e) {

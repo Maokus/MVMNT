@@ -20,4 +20,5 @@ export interface FormState {
     audioSampleRate: 'auto' | 44100 | 48000;
     audioChannels: 1 | 2;
     filename: string;
+    transparentBackground: boolean;
 }

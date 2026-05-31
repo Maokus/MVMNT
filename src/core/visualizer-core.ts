@@ -44,6 +44,7 @@ export class MIDIVisualizerCore {
     // Explicit user-defined playback window (start/end in seconds). When set, replaces any scene-duration concept.
     private _playRangeStartSec: number | null = null;
     private _playRangeEndSec: number | null = null;
+    private _transparentMode = false;
     constructor(canvas: HTMLCanvasElement, timingManager: any = null) {
         if (!canvas) throw new Error('Canvas element is required');
         this.canvas = canvas;
@@ -355,12 +356,16 @@ export class MIDIVisualizerCore {
             playRangeEndSec: e ?? this.getCurrentDuration(),
             isPlaying: this.isPlaying,
             backgroundColor: '#000000',
+            transparent: this._transparentMode ?? false,
             showAnchorPoints: this.debugSettings.showAnchorPoints,
             ...themeColors,
         };
     }
     getPlayRange(): { startSec: number | null; endSec: number | null } {
         return { startSec: this._playRangeStartSec, endSec: this._playRangeEndSec };
+    }
+    setTransparentMode(transparent: boolean) {
+        this._transparentMode = transparent;
     }
     setInteractionState(partial: any) {
         if (!this._interactionState) return;

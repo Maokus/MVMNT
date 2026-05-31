@@ -9,11 +9,15 @@ export interface RenderObject {
 
 export class ModularRenderer {
     render(ctx: CanvasRenderingContext2D, renderObjects: RenderObject[], config: any, currentTime: number) {
-        const first = renderObjects[0];
-        const hasExplicitBg =
-            first && typeof first.fillColor !== 'undefined' && first.fillColor === config.backgroundColor;
-        if (!renderObjects.length || !hasExplicitBg) {
-            this.clearCanvas(ctx, config.canvas.width, config.canvas.height, config.backgroundColor);
+        if (config.transparent) {
+            ctx.clearRect(0, 0, config.canvas.width, config.canvas.height);
+        } else {
+            const first = renderObjects[0];
+            const hasExplicitBg =
+                first && typeof first.fillColor !== 'undefined' && first.fillColor === config.backgroundColor;
+            if (!renderObjects.length || !hasExplicitBg) {
+                this.clearCanvas(ctx, config.canvas.width, config.canvas.height, config.backgroundColor);
+            }
         }
         for (const ro of renderObjects) {
             try {

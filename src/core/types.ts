@@ -159,6 +159,7 @@ export interface VisualizerConfig {
     height: number;
     backgroundColor: string;
     scenes: SceneElementConfig[];
+    transparent?: boolean;
 }
 
 export interface AnimationConfig {

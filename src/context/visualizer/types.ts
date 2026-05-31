@@ -17,6 +17,7 @@ export interface ExportSettings {
     audioBitrate?: number;
     audioSampleRate?: 'auto' | 44100 | 48000;
     audioChannels?: 1 | 2;
+    transparentBackground?: boolean;
 }
 
 export interface DebugSettings {

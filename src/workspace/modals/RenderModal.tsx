@@ -136,6 +136,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             audioSampleRate: form.audioSampleRate,
             audioChannels: form.audioChannels,
             container: form.container,
+            transparentBackground: form.format === 'png' ? form.transparentBackground : false,
         };
         const overrides: Partial<ExportSettings> =
             resolvedVideoBitrate != null
@@ -208,6 +209,17 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                 <option value="webm">WebM (.webm)</option>
                             </select>
                         </FormField>
+                    )}
+
+                    {form.format === 'png' && (
+                        <label className="flex items-center gap-2 col-span-2 select-none">
+                            <input
+                                type="checkbox"
+                                checked={form.transparentBackground}
+                                onChange={e => updateForm({ transparentBackground: e.target.checked })}
+                            />
+                            <span>Transparent background</span>
+                        </label>
                     )}
 
                     <FormField label="Frame Rate">

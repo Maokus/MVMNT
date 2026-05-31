@@ -4,7 +4,7 @@ import type { FormState, FpsMode, VideoContainer, VideoBitrateSetting } from './
 export function deriveInitialFormState(
     exportSettings: ExportSettings,
     exportKind: ExportKind,
-    sceneName: string,
+    sceneName: string
 ): FormState {
     const initialFps = exportSettings.fps || 60;
     const initialFpsMode: FpsMode =
@@ -12,9 +12,7 @@ export function deriveInitialFormState(
     const initialContainer: VideoContainer = exportSettings.container === 'webm' ? 'webm' : 'mp4';
     const initialFormat = exportKind === 'png' ? 'png' : ('video' as const);
     const persistedAudioCodec =
-        exportSettings.audioCodec && exportSettings.audioCodec !== 'aac'
-            ? exportSettings.audioCodec
-            : undefined;
+        exportSettings.audioCodec && exportSettings.audioCodec !== 'aac' ? exportSettings.audioCodec : undefined;
     const initialQualityPreset = (exportSettings.qualityPreset || 'high') as Exclude<VideoBitrateSetting, 'manual'>;
     const initialVideoBitrateSetting: VideoBitrateSetting =
         exportSettings.videoBitrateMode === 'manual' ? 'manual' : initialQualityPreset;
@@ -36,5 +34,6 @@ export function deriveInitialFormState(
         audioSampleRate: exportSettings.audioSampleRate || 'auto',
         audioChannels: exportSettings.audioChannels === 1 ? 1 : 2,
         filename: sceneName || '',
+        transparentBackground: exportSettings.transparentBackground ?? false,
     };
 }

@@ -29,6 +29,7 @@ interface GenerateSequenceOptions {
     maxFrames?: number | null;
     onProgress?: (progress: number, text?: string) => void;
     onComplete?: (blob: Blob) => void;
+    transparent?: boolean;
     // Internal/advanced options (not exposed in UI yet)
     _startFrame?: number; // used for partial exports
     deterministicTiming?: boolean; // snapshot tempo map at start (default true)
@@ -55,6 +56,7 @@ export class ImageSequenceGenerator {
             maxFrames = null, // null = unlimited (full duration)
             onProgress = () => {},
             onComplete = () => {},
+            transparent = false,
             _startFrame = 0,
             deterministicTiming = true,
         } = options;
@@ -100,7 +102,15 @@ export class ImageSequenceGenerator {
 
             // Step 1: Render all frames to PNG images (80% of progress)
             console.log('Rendering frames to PNG images...');
-            await this.renderFramesToPNG(duration, fps, limitedFrames, onProgress, _startFrame, deterministicTiming);
+            await this.renderFramesToPNG(
+                duration,
+                fps,
+                limitedFrames,
+                onProgress,
+                _startFrame,
+                deterministicTiming,
+                transparent
+            );
 
             // Step 2: Create ZIP file with all images (20% of progress)
             console.log('Creating ZIP file...');
@@ -136,7 +146,8 @@ export class ImageSequenceGenerator {
         totalFrames: number,
         onProgress: (progress: number, text?: string) => void,
         startFrame: number = 0,
-        deterministicTiming: boolean = true
+        deterministicTiming: boolean = true,
+        transparent: boolean = false
     ): Promise<void> {
         const prePadding = 0; // padding removed
         const playRangeStart = (() => {
@@ -165,30 +176,35 @@ export class ImageSequenceGenerator {
         });
 
         console.log('Rendering frames to PNG...');
-        for (let frame = 0; frame < totalFrames; frame++) {
-            const currentTime = clock.timeForFrame(frame);
+        if (transparent) this.visualizer.setTransparentMode?.(true);
+        try {
+            for (let frame = 0; frame < totalFrames; frame++) {
+                const currentTime = clock.timeForFrame(frame);
 
-            // Use the stateless rendering method from the visualizer
-            this.visualizer.renderAtTime(currentTime);
+                // Use the stateless rendering method from the visualizer
+                this.visualizer.renderAtTime(currentTime);
 
-            // Convert canvas to PNG blob
-            const blob = await this.canvasToPngBlob();
+                // Convert canvas to PNG blob
+                const blob = await this.canvasToPngBlob();
 
-            // Store the blob with frame information
-            this.imageBlobs.push({
-                blob: blob,
-                frameNumber: frame,
-                filename: `frame_${String(frame).padStart(5, '0')}.png`,
-            });
+                // Store the blob with frame information
+                this.imageBlobs.push({
+                    blob: blob,
+                    frameNumber: frame,
+                    filename: `frame_${String(frame).padStart(5, '0')}.png`,
+                });
 
-            // Update progress for frame rendering (80% of total progress)
-            const renderProgress = (frame / totalFrames) * 80;
-            onProgress(renderProgress);
+                // Update progress for frame rendering (80% of total progress)
+                const renderProgress = (frame / totalFrames) * 80;
+                onProgress(renderProgress);
 
-            // Small delay to prevent UI blocking
-            if (frame % 10 === 0) {
-                await new Promise((resolve) => setTimeout(resolve, 1));
+                // Small delay to prevent UI blocking
+                if (frame % 10 === 0) {
+                    await new Promise((resolve) => setTimeout(resolve, 1));
+                }
             }
+        } finally {
+            if (transparent) this.visualizer.setTransparentMode?.(false);
         }
 
         console.log(`Rendered ${totalFrames} PNG frames`);
