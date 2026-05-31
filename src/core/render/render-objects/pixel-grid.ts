@@ -29,21 +29,11 @@ export class PixelGrid extends BoxRenderObject {
     private _offCtx: OffscreenCanvasRenderingContext2D;
     private _imgData: ImageData;
 
-    constructor(
-        x: number,
-        y: number,
-        cols: number,
-        rows: number,
-        cellSize: number,
-        options: PixelGridOptions = {}
-    ) {
+    constructor(x: number, y: number, cols: number, rows: number, cellSize: number, options: PixelGridOptions = {}) {
         const clampedCols = Math.max(1, Math.round(cols));
         const clampedRows = Math.max(1, Math.round(rows));
         const clampedCellSize = Math.max(1, Math.round(cellSize));
-        super(x, y, clampedCols * clampedCellSize, clampedRows * clampedCellSize, {
-            layoutParticipation: options.layoutParticipation,
-            includeInLayoutBounds: options.includeInLayoutBounds,
-        });
+        super(x, y, clampedCols * clampedCellSize, clampedRows * clampedCellSize, options);
         this.cols = clampedCols;
         this.rows = clampedRows;
         if (options.originX !== undefined) this.originX = options.originX;

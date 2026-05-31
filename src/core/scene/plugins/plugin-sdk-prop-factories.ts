@@ -7,6 +7,28 @@ import type {
     PropertyVisibilityCondition,
 } from '@core/types';
 
+// ─── Blend mode choices ──────────────────────────────────────────────────────
+
+/** Canonical 16-entry blend mode list for use with `prop.select` or `prop.blendMode`. `source-over` (Normal) is first. */
+export const BLEND_MODE_CHOICES = [
+    { value: 'source-over', label: 'Normal' },
+    { value: 'screen', label: 'Screen' },
+    { value: 'multiply', label: 'Multiply' },
+    { value: 'overlay', label: 'Overlay' },
+    { value: 'darken', label: 'Darken' },
+    { value: 'lighten', label: 'Lighten' },
+    { value: 'color-dodge', label: 'Color Dodge' },
+    { value: 'color-burn', label: 'Color Burn' },
+    { value: 'hard-light', label: 'Hard Light' },
+    { value: 'soft-light', label: 'Soft Light' },
+    { value: 'difference', label: 'Difference' },
+    { value: 'exclusion', label: 'Exclusion' },
+    { value: 'hue', label: 'Hue' },
+    { value: 'saturation', label: 'Saturation' },
+    { value: 'color', label: 'Color' },
+    { value: 'luminosity', label: 'Luminosity' },
+] as const;
+
 // ─── Shared option types ────────────────────────────────────────────────────
 
 interface CommonOpts {
@@ -326,6 +348,27 @@ export const prop = {
                 },
             ];
         },
+    },
+
+    /**
+     * A blend mode selector pre-populated with all 16 standard canvas composite operations.
+     * Defaults to `'source-over'` (Normal).
+     *
+     * @param key   Property key (default: `'blendMode'`).
+     * @param label Property label (default: `'Blend Mode'`).
+     * @param opts  Optional visibility conditions and description override.
+     */
+    blendMode(key = 'blendMode', label = 'Blend Mode', opts?: CommonOpts): PropertyDefinition {
+        return {
+            key,
+            type: 'select',
+            label,
+            default: 'source-over',
+            options: normalizeChoices(BLEND_MODE_CHOICES as unknown as SelectChoice[]),
+            description: opts?.description ?? 'Canvas composite blending operation.',
+            ...(opts?.visibleWhen && { visibleWhen: opts.visibleWhen }),
+            runtime: { transform: asTrimmedString, defaultValue: 'source-over' },
+        };
     },
 } as const;
 

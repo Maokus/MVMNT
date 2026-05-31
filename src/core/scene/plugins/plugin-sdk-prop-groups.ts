@@ -1,27 +1,9 @@
 import type { PropertyDefinition, PropertyGroup, PropertyTab, PropertyVisibilityCondition } from '@core/types';
-import { prop } from './plugin-sdk-prop-factories';
+import { prop, BLEND_MODE_CHOICES } from './plugin-sdk-prop-factories';
 
 // ─── Blend mode choices ──────────────────────────────────────────────────────
 
-/** Canonical 16-entry blend mode list for use with `prop.select`. `source-over` (Normal) is first. */
-export const BLEND_MODE_CHOICES = [
-    { value: 'source-over', label: 'Normal' },
-    { value: 'screen', label: 'Screen' },
-    { value: 'multiply', label: 'Multiply' },
-    { value: 'overlay', label: 'Overlay' },
-    { value: 'darken', label: 'Darken' },
-    { value: 'lighten', label: 'Lighten' },
-    { value: 'color-dodge', label: 'Color Dodge' },
-    { value: 'color-burn', label: 'Color Burn' },
-    { value: 'hard-light', label: 'Hard Light' },
-    { value: 'soft-light', label: 'Soft Light' },
-    { value: 'difference', label: 'Difference' },
-    { value: 'exclusion', label: 'Exclusion' },
-    { value: 'hue', label: 'Hue' },
-    { value: 'saturation', label: 'Saturation' },
-    { value: 'color', label: 'Color' },
-    { value: 'luminosity', label: 'Luminosity' },
-] as const;
+export { BLEND_MODE_CHOICES };
 
 // ─── Option types ────────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 {
     "name": "mvmnt",
-    "version": "0.15.1",
+    "version": "0.15.2",
     "description": "A React-based Music Visualization application for creating social media videos from MIDI files",
     "private": true,
     "type": "module",

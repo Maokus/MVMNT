@@ -4,26 +4,26 @@ This directory implements the plugin host API and the public `@mvmnt/plugin-sdk`
 
 ## Key Files
 
-| File | Role |
-|------|------|
-| `plugin-sdk.ts` | **Top-level barrel.** Re-exports everything from `sdk/` submodules; the sole target of the `@mvmnt/plugin-sdk` alias. |
-| `sdk/` | **Domain submodules.** Each file is independently importable via `@mvmnt/plugin-sdk/<domain>`. |
-| `sdk/animation.ts` | `clamp`, `lerp`, `invLerp`, `remap`, `FloatCurve`, `EasingFn`, `easings` (31 named functions). |
-| `sdk/render.ts` | All canvas render primitives (`Rectangle`, `Text`, `Arc`, `BezierPath`, …). |
-| `sdk/scene.ts` | `SceneElement`, property descriptors, `prop` factory, `insertElementConfig`. |
-| `sdk/api.ts` | `PLUGIN_CAPABILITIES`, `getPluginHostApi`, `getRequiredPluginApi`, error classes. |
-| `sdk/timeline.ts` | `timelineApi` proxy, timeline shortcuts, event types. |
-| `sdk/audio.ts` | `audioApi` proxy, audio shortcuts, feature types, `registerFeatureRequirements`. |
-| `sdk/timing.ts` | `timingApi` proxy, timing shortcuts, quantize helpers, tempo utils. |
-| `sdk/safety.ts` | `withRenderSafety`, `limitRenderObjects`, `checkCapability`. |
-| `sdk/utils.ts` | MIDI utils, color helpers, font loader, `loadBundledAsset`. |
-| `host-api/plugin-api.ts` | Defines `PLUGIN_CAPABILITIES`, all host API interfaces, and `createPluginHostApi()` / `installPluginHostApi()`. |
-| `host-api/get-plugin-host-api.ts` | Runtime accessor used by the SDK; resolves the host API from `globalThis.MVMNT.plugins`. |
-| `plugin-sdk-capabilities.ts` | Direct capability proxy objects (`timelineApi`, `audioApi`, `timingApi`, `utilitiesApi`). |
-| `plugin-sdk-shortcuts.ts` | Shorthand helpers (`selectNotes`, `sampleAudio`, `timeToBeats`, `noteName`, …). |
-| `plugin-safety.ts` | `withRenderSafety`, `limitRenderObjects`, `checkCapability`, and related safety utilities. |
-| `plugin-loader.ts` | Runtime plugin loader; emits warnings for legacy `@core/` requires. |
-| `version-check.ts` | Semver compatibility check between plugin and host API versions. |
+| File                              | Role                                                                                                                  |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `plugin-sdk.ts`                   | **Top-level barrel.** Re-exports everything from `sdk/` submodules; the sole target of the `@mvmnt/plugin-sdk` alias. |
+| `sdk/`                            | **Domain submodules.** Each file is independently importable via `@mvmnt/plugin-sdk/<domain>`.                        |
+| `sdk/animation.ts`                | `clamp`, `lerp`, `invLerp`, `remap`, `FloatCurve`, `EasingFn`, `easings` (31 named functions).                        |
+| `sdk/render.ts`                   | All canvas render primitives (`Rectangle`, `Text`, `Arc`, `BezierPath`, …).                                           |
+| `sdk/scene.ts`                    | `SceneElement`, property descriptors, `prop` factory, `insertElementConfig`.                                          |
+| `sdk/api.ts`                      | `PLUGIN_CAPABILITIES`, `getPluginHostApi`, `getRequiredPluginApi`, error classes.                                     |
+| `sdk/timeline.ts`                 | `timelineApi` proxy, timeline shortcuts, event types.                                                                 |
+| `sdk/audio.ts`                    | `audioApi` proxy, audio shortcuts, feature types, `registerFeatureRequirements`.                                      |
+| `sdk/timing.ts`                   | `timingApi` proxy, timing shortcuts, quantize helpers, tempo utils.                                                   |
+| `sdk/safety.ts`                   | `withRenderSafety`, `limitRenderObjects`, `checkCapability`.                                                          |
+| `sdk/utils.ts`                    | MIDI utils, color helpers, font loader, `loadBundledAsset`.                                                           |
+| `host-api/plugin-api.ts`          | Defines `PLUGIN_CAPABILITIES`, all host API interfaces, and `createPluginHostApi()` / `installPluginHostApi()`.       |
+| `host-api/get-plugin-host-api.ts` | Runtime accessor used by the SDK; resolves the host API from `globalThis.MVMNT.plugins`.                              |
+| `plugin-sdk-capabilities.ts`      | Direct capability proxy objects (`timelineApi`, `audioApi`, `timingApi`, `utilitiesApi`).                             |
+| `plugin-sdk-shortcuts.ts`         | Shorthand helpers (`selectNotes`, `sampleAudio`, `timeToBeats`, `noteName`, …).                                       |
+| `plugin-safety.ts`                | `withRenderSafety`, `limitRenderObjects`, `checkCapability`, and related safety utilities.                            |
+| `plugin-loader.ts`                | Runtime plugin loader; emits warnings for legacy `@core/` requires.                                                   |
+| `version-check.ts`                | Semver compatibility check between plugin and host API versions.                                                      |
 
 ## Capabilities
 
