@@ -1,5 +1,14 @@
 import { BoxRenderObject } from './box';
-import { type RenderConfig } from './base';
+import { type RenderConfig, type LayoutParticipation } from './base';
+
+export interface PixelGridOptions {
+    pixels?: Uint8ClampedArray;
+    layoutParticipation?: LayoutParticipation;
+    /** @deprecated Use layoutParticipation. */
+    includeInLayoutBounds?: boolean;
+    originX?: number;
+    originY?: number;
+}
 
 /**
  * Renders a rectangular grid of colored cells using OffscreenCanvas + putImageData,
@@ -15,7 +24,6 @@ import { type RenderConfig } from './base';
 export class PixelGrid extends BoxRenderObject {
     readonly cols: number;
     readonly rows: number;
-    readonly cellSize: number;
 
     private _offscreen: OffscreenCanvas;
     private _offCtx: OffscreenCanvasRenderingContext2D;
@@ -27,30 +35,33 @@ export class PixelGrid extends BoxRenderObject {
         cols: number,
         rows: number,
         cellSize: number,
-        pixels: Uint8ClampedArray,
-        options?: { includeInLayoutBounds?: boolean }
+        options: PixelGridOptions = {}
     ) {
         const clampedCols = Math.max(1, Math.round(cols));
         const clampedRows = Math.max(1, Math.round(rows));
         const clampedCellSize = Math.max(1, Math.round(cellSize));
         super(x, y, clampedCols * clampedCellSize, clampedRows * clampedCellSize, {
-            includeInLayoutBounds: options?.includeInLayoutBounds,
+            layoutParticipation: options.layoutParticipation,
+            includeInLayoutBounds: options.includeInLayoutBounds,
         });
         this.cols = clampedCols;
         this.rows = clampedRows;
-        this.cellSize = clampedCellSize;
-
-        const expected = clampedCols * clampedRows * 4;
-        if (pixels.length !== expected) {
-            throw new RangeError(
-                `PixelGrid: pixels.length (${pixels.length}) must equal cols × rows × 4 (${expected})`
-            );
-        }
+        if (options.originX !== undefined) this.originX = options.originX;
+        if (options.originY !== undefined) this.originY = options.originY;
 
         this._offscreen = new OffscreenCanvas(clampedCols, clampedRows);
         this._offCtx = this._offscreen.getContext('2d')!;
         this._imgData = new ImageData(clampedCols, clampedRows);
-        this.updatePixels(pixels);
+
+        if (options.pixels) {
+            const expected = clampedCols * clampedRows * 4;
+            if (options.pixels.length !== expected) {
+                throw new RangeError(
+                    `PixelGrid: pixels.length (${options.pixels.length}) must equal cols × rows × 4 (${expected})`
+                );
+            }
+            this.updatePixels(options.pixels);
+        }
     }
 
     updatePixels(pixels: Uint8ClampedArray): void {
@@ -58,10 +69,20 @@ export class PixelGrid extends BoxRenderObject {
         this._offCtx.putImageData(this._imgData, 0, 0);
     }
 
-    protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _currentTime: number): void {
-        const prevSmoothing = ctx.imageSmoothingEnabled;
+    drawTo(
+        ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+        dx = 0,
+        dy = 0,
+        dw = this.width,
+        dh = this.height
+    ): void {
+        const prev = ctx.imageSmoothingEnabled;
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(this._offscreen, 0, 0, this.width, this.height);
-        ctx.imageSmoothingEnabled = prevSmoothing;
+        ctx.drawImage(this._offscreen, dx, dy, dw, dh);
+        ctx.imageSmoothingEnabled = prev;
+    }
+
+    protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _currentTime: number): void {
+        this.drawTo(ctx, 0, 0, this.width, this.height);
     }
 }

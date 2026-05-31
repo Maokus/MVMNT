@@ -19,6 +19,12 @@ const ChangelogPage: React.FC = () => {
 
                 <div className="space-y-10">
 
+                    <ChangelogEntry version="0.15.2" date="15-6-1" notes={[
+                        "Fixed bug which made japanese impossible to type into macros",
+                        "Improved renderobject constructor consistency (all take options object, deprecated old constructors)",
+                        "Added pixelgrid render object for easier drawing of pixel-art stuff"
+                    ]} />
+
                     <ChangelogEntry version="0.15.1" date="15-5-28" notes={[
                         "fixed a bug where japanese characters broke save/load system",
                         "updated supporters in about page",

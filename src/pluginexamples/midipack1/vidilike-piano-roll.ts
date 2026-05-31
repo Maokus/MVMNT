@@ -204,11 +204,23 @@ export class VidilikePianoRollElement extends SceneElement {
         // ── Timeline API ────────────────────────────────────────────────────
         const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
         if (!api || status !== 'ok') {
-            objects.push(new Text(0, 0, 'Timeline API unavailable', '12px sans-serif', '#64748b', 'left', 'top'));
+            objects.push(
+                new Text(0, 0, 'Timeline API unavailable', '12px sans-serif', {
+                    color: '#64748b',
+                    align: 'left',
+                    baseline: 'top',
+                })
+            );
             return objects;
         }
         if (!p.midiTrackId) {
-            objects.push(new Text(0, 0, 'Select a MIDI track', '14px sans-serif', '#94a3b8', 'left', 'top'));
+            objects.push(
+                new Text(0, 0, 'Select a MIDI track', '14px sans-serif', {
+                    color: '#94a3b8',
+                    align: 'left',
+                    baseline: 'top',
+                })
+            );
             return objects;
         }
 
