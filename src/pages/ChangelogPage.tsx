@@ -22,7 +22,10 @@ const ChangelogPage: React.FC = () => {
                     <ChangelogEntry version="0.15.2" date="15-6-1" notes={[
                         "Fixed bug which made japanese impossible to type into macros",
                         "Improved renderobject constructor consistency (all take options object, deprecated old constructors)",
-                        "Added pixelgrid render object for easier drawing of pixel-art stuff"
+                        "Added pixelgrid render object for easier drawing of pixel-art stuff",
+                        "Implemented transparent png export",
+                        "Bumped API version",
+                        "Made some new plugins! (check out community page <3)"
                     ]} />
 
                     <ChangelogEntry version="0.15.1" date="15-5-28" notes={[
