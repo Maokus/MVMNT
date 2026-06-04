@@ -19,6 +19,11 @@ const ChangelogPage: React.FC = () => {
 
                 <div className="space-y-10">
 
+                    <ChangelogEntry version="0.15.3" date="15-6-2" notes={[
+                        "Fix bug which made \"incompatble with this version of MVMNT\" appear in the community page even if untrue.",
+
+                    ]} />
+
                     <ChangelogEntry version="0.15.2" date="15-6-1" notes={[
                         "Fixed bug which made japanese impossible to type into macros",
                         "Improved renderobject constructor consistency (all take options object, deprecated old constructors)",

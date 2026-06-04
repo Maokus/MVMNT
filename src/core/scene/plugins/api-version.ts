@@ -10,3 +10,5 @@
  * The loader rejects plugins whose range does not satisfy this constant.
  */
 export const PLUGIN_API_VERSION = '1.1.0';
+
+export default PLUGIN_API_VERSION;

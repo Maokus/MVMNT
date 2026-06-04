@@ -18,7 +18,6 @@ export { satisfiesVersion } from './version-check';
 export {
     createPluginHostApi,
     installPluginHostApi,
-    PLUGIN_API_VERSION,
     PLUGIN_CAPABILITIES,
     type PluginHostApi,
     type PluginHostCapability,
@@ -28,3 +27,4 @@ export {
     type PluginHostApiResolution,
     type PluginHostApiStatus,
 } from './host-api/get-plugin-host-api';
+export { PLUGIN_API_VERSION } from './api-version';

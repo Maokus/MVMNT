@@ -20,7 +20,7 @@ const projectRoot = path.resolve(__dirname, '..');
 
 // Template mapping
 const TEMPLATES = {
-    'minimal': {
+    minimal: {
         file: 'minimal.ts',
         className: 'MinimalElement',
         description: 'The simplest possible element — blank slate with a color and size property',
@@ -180,7 +180,7 @@ function generatePluginJson(pluginId, pluginName, elementType, entryFile) {
         id: pluginId,
         name: pluginName,
         version: '1.0.0',
-        apiVersion: '^1.0.0',
+        apiVersion: `^1.1.0`,
         description: `Custom plugin`,
         author: 'Your Name',
         elements: [

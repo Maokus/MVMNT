@@ -5,12 +5,13 @@
  */
 
 export {
-    PLUGIN_API_VERSION,
     PLUGIN_CAPABILITIES,
     type PluginHostApi,
     type PluginHostCapability,
     type PluginCapabilityMap,
 } from '@core/scene/plugins/host-api/plugin-api';
+
+export { PLUGIN_API_VERSION } from '@core/scene/plugins/api-version';
 
 export {
     getPluginHostApi,
