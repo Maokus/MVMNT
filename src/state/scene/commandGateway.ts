@@ -292,20 +292,46 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
             if (!element) return null;
             const bindings = state.bindings.byElement[command.elementId] ?? {};
             const index = state.order.indexOf(command.elementId);
-            const config = buildConfigFromBindings(bindings);
+
+            // Separate keyframe bindings from the rest — channels are deleted along with the element
+            // and must be restored explicitly via enablePropertyAutomation after re-adding the element.
+            const nonKeyframeBindings: ElementBindings = {};
+            const channelsToRestore: AutomationChannel[] = [];
+            for (const [key, binding] of Object.entries(bindings)) {
+                if (binding.type === 'keyframes') {
+                    const channel = state.automation.channels[binding.channelId];
+                    if (channel) channelsToRestore.push(channel);
+                } else {
+                    nonKeyframeBindings[key] = binding;
+                }
+            }
+
+            const config = buildConfigFromBindings(nonKeyframeBindings);
+            const undoCommands: SceneCommand[] = [
+                {
+                    type: 'addElement',
+                    elementType: element.type,
+                    elementId: element.id,
+                    config,
+                    targetIndex: index,
+                    createdAt: element.createdAt,
+                    createdBy: element.createdBy,
+                },
+                ...channelsToRestore.map(
+                    (channel): SceneCommand => ({
+                        type: 'enablePropertyAutomation',
+                        elementId: channel.elementId,
+                        propertyKey: channel.propertyKey,
+                        valueType: channel.valueType,
+                        interpolation: channel.interpolation,
+                        initialKeyframes: channel.keyframes.map((kf) => ({ ...kf })),
+                    })
+                ),
+            ];
+
             return {
                 redo: [cloneCommand(command)],
-                undo: [
-                    {
-                        type: 'addElement',
-                        elementType: element.type,
-                        elementId: element.id,
-                        config,
-                        targetIndex: index,
-                        createdAt: element.createdAt,
-                        createdBy: element.createdBy,
-                    },
-                ],
+                undo: undoCommands,
             };
         }
         case 'updateElementConfig': {
