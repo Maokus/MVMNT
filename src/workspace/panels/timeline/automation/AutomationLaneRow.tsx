@@ -260,8 +260,10 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
         (e: React.PointerEvent, kf: AutomationKeyframe) => {
             if (e.button !== 0) return;
             e.stopPropagation();
-            // Capture on the <g> so pointermove/up are delivered here and bubble to SVG
-            (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
+            e.preventDefault();
+            // Capture on the SVG (not the <g>) so pointer capture survives React re-renders
+            // that replace the <g> node when kf.tick changes during drag.
+            svgRef.current?.setPointerCapture(e.pointerId);
 
             // Update store selection
             let newSelected: Array<{ channelId: string; tick: number }>;
@@ -317,6 +319,11 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     // -----------------------------------------------------------------------
     const handlePointerMove = useCallback(
         (e: React.PointerEvent<SVGSVGElement>) => {
+            // If no button is held, drag state is stale (pointerup was missed). Clear and bail.
+            if (e.buttons === 0) {
+                if (draggingRef.current) setDragging(null);
+                return;
+            }
             if (!svgRef.current) return;
             const rect = svgRef.current.getBoundingClientRect();
             const svgX = e.clientX - rect.left;
@@ -436,7 +443,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             if (drag) {
                 try {
                     // Release capture (may already be auto-released after pointerup)
-                    (e.currentTarget as SVGElement).releasePointerCapture(e.pointerId);
+                    svgRef.current?.releasePointerCapture(e.pointerId);
                 } catch { /* ignore */ }
 
                 // Commit transient moves as permanent history entries
@@ -526,7 +533,11 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             if (draggingRef.current) setDragging(null);
         };
         window.addEventListener('pointercancel', cleanup);
-        return () => window.removeEventListener('pointercancel', cleanup);
+        window.addEventListener('pointerup', cleanup);
+        return () => {
+            window.removeEventListener('pointercancel', cleanup);
+            window.removeEventListener('pointerup', cleanup);
+        };
     }, [dragging !== null, setDragging]);
 
     // -----------------------------------------------------------------------

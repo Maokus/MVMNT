@@ -87,23 +87,18 @@ export function useAutomationCurveDrag({
         (e: React.PointerEvent, tick: number, value: number) => {
             if (e.button !== 0) return;
             e.stopPropagation();
+            e.preventDefault();
             (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
             useSelectionStore.getState().selectElements([channel.elementId]);
 
             const existing = useSelectionStore.getState().selectedKeyframes;
-            const clickedIsSelected = existing.some(
-                (k) => k.channelId === channel.id && Math.abs(k.tick - tick) < 0.5,
-            );
+            const clickedIsSelected = existing.some((k) => k.channelId === channel.id && Math.abs(k.tick - tick) < 0.5);
 
             let newSelected: Array<{ channelId: string; tick: number }>;
             if (e.shiftKey) {
-                const idx = existing.findIndex(
-                    (k) => k.channelId === channel.id && Math.abs(k.tick - tick) < 0.5,
-                );
+                const idx = existing.findIndex((k) => k.channelId === channel.id && Math.abs(k.tick - tick) < 0.5);
                 newSelected =
-                    idx >= 0
-                        ? existing.filter((_, i) => i !== idx)
-                        : [...existing, { channelId: channel.id, tick }];
+                    idx >= 0 ? existing.filter((_, i) => i !== idx) : [...existing, { channelId: channel.id, tick }];
             } else if (clickedIsSelected) {
                 newSelected = existing;
             } else {
@@ -120,7 +115,7 @@ export function useAutomationCurveDrag({
                 frozenMaxVal: maxVal,
             });
         },
-        [minVal, maxVal, channel.elementId, channel.id],
+        [minVal, maxVal, channel.elementId, channel.id]
     );
 
     // ── Bezier handle drag ───────────────────────────────────────────────────
@@ -129,6 +124,7 @@ export function useAutomationCurveDrag({
         (e: React.PointerEvent, tick: number, side: 'left' | 'right') => {
             if (e.button !== 0) return;
             e.stopPropagation();
+            e.preventDefault();
             (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
 
             const kf = channel.keyframes.find((k) => Math.abs(k.tick - tick) < 0.5);
@@ -146,17 +142,13 @@ export function useAutomationCurveDrag({
                 const next = kfIdx < channel.keyframes.length - 1 ? channel.keyframes[kfIdx + 1] : null;
                 const oppHandle = side === 'left' ? kf.rightHandle : kf.leftHandle;
                 const oppType =
-                    side === 'left'
-                        ? (kf.rightHandleType ?? 'auto_clamped')
-                        : (kf.leftHandleType ?? 'auto_clamped');
+                    side === 'left' ? (kf.rightHandleType ?? 'auto_clamped') : (kf.leftHandleType ?? 'auto_clamped');
                 let oppDt: number, oppDv: number;
                 if (oppHandle && !(oppType === 'auto' || oppType === 'auto_clamped')) {
                     oppDt = oppHandle.dt;
                     oppDv = oppHandle.dv;
                 } else {
-                    const computed = computeAutoHandles(
-                        prev, kf, next, oppType === 'auto' ? 'auto' : 'auto_clamped',
-                    );
+                    const computed = computeAutoHandles(prev, kf, next, oppType === 'auto' ? 'auto' : 'auto_clamped');
                     const eff = side === 'left' ? computed.right : computed.left;
                     oppDt = eff.dt;
                     oppDv = eff.dv;
@@ -175,7 +167,7 @@ export function useAutomationCurveDrag({
                 startMouseY: e.clientY,
             });
         },
-        [minVal, maxVal, channel],
+        [minVal, maxVal, channel]
     );
 
     // ── Shared pointer move ──────────────────────────────────────────────────
@@ -204,13 +196,26 @@ export function useAutomationCurveDrag({
                 if (newTick !== curTick) {
                     dispatchSceneCommand(
                         { type: 'moveKeyframe', channelId: channel.id, fromTick: curTick, toTick: newTick },
-                        { source: 'curve-editor', mergeKey: `curve-drag-move:${channel.id}:${dragging.baseTick}`, transient: true },
+                        {
+                            source: 'curve-editor',
+                            mergeKey: `curve-drag-move:${channel.id}:${dragging.baseTick}`,
+                            transient: true,
+                        }
                     );
                     liveTickRef.current = newTick;
                 }
                 dispatchSceneCommand(
-                    { type: 'updateKeyframe', channelId: channel.id, tick: liveTickRef.current, patch: { value: newVal } },
-                    { source: 'curve-editor', mergeKey: `curve-drag-val:${channel.id}:${dragging.baseTick}`, transient: true },
+                    {
+                        type: 'updateKeyframe',
+                        channelId: channel.id,
+                        tick: liveTickRef.current,
+                        patch: { value: newVal },
+                    },
+                    {
+                        source: 'curve-editor',
+                        mergeKey: `curve-drag-val:${channel.id}:${dragging.baseTick}`,
+                        transient: true,
+                    }
                 );
                 return;
             }
@@ -233,21 +238,42 @@ export function useAutomationCurveDrag({
                     const pixelDx = Math.abs(mouseX - kfX);
                     const pixelDy = Math.abs(mouseY - kfY);
                     const snapHorizontal =
-                        pixelDy === 0
-                            ? Math.abs(startX - kfX) >= Math.abs(startY - kfY)
-                            : pixelDx >= pixelDy;
+                        pixelDy === 0 ? Math.abs(startX - kfX) >= Math.abs(startY - kfY) : pixelDx >= pixelDy;
                     if (snapHorizontal) dv = 0;
                     else dt = 0;
                 }
 
-                const patch = buildHandlePatch(dt, dv, handleDrag.side, handleDrag.origType, handleDrag.frozenOppLength);
+                const patch = buildHandlePatch(
+                    dt,
+                    dv,
+                    handleDrag.side,
+                    handleDrag.origType,
+                    handleDrag.frozenOppLength
+                );
                 dispatchSceneCommand(
                     { type: 'updateKeyframe', channelId: channel.id, tick: handleDrag.tick, patch: patch as any },
-                    { source: 'curve-editor', mergeKey: `handle-drag:${channel.id}:${handleDrag.tick}:${handleDrag.side}`, transient: true },
+                    {
+                        source: 'curve-editor',
+                        mergeKey: `handle-drag:${channel.id}:${handleDrag.tick}:${handleDrag.side}`,
+                        transient: true,
+                    }
                 );
             }
         },
-        [dragging, handleDrag, channel, width, height, toTick, toX, valueToY, snapTick, propertyMin, propertyMax, svgRef],
+        [
+            dragging,
+            handleDrag,
+            channel,
+            width,
+            height,
+            toTick,
+            toX,
+            valueToY,
+            snapTick,
+            propertyMin,
+            propertyMax,
+            svgRef,
+        ]
     );
 
     // ── Shared pointer up ────────────────────────────────────────────────────
@@ -258,7 +284,11 @@ export function useAutomationCurveDrag({
             const rect = svgRef.current.getBoundingClientRect();
 
             if (dragging) {
-                try { (e.currentTarget as SVGElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+                try {
+                    (e.currentTarget as SVGElement).releasePointerCapture(e.pointerId);
+                } catch {
+                    /* ignore */
+                }
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
                 const newTick = Math.max(0, snapTick(toTick(x, width), e.ctrlKey || e.metaKey));
@@ -270,20 +300,37 @@ export function useAutomationCurveDrag({
                 if (newTick !== curTick) {
                     dispatchSceneCommand(
                         { type: 'moveKeyframe', channelId: channel.id, fromTick: curTick, toTick: newTick },
-                        { source: 'curve-editor', mergeKey: `curve-drag-move:${channel.id}:${dragging.baseTick}`, transient: false },
+                        {
+                            source: 'curve-editor',
+                            mergeKey: `curve-drag-move:${channel.id}:${dragging.baseTick}`,
+                            transient: false,
+                        }
                     );
                     liveTickRef.current = newTick;
                 }
                 dispatchSceneCommand(
-                    { type: 'updateKeyframe', channelId: channel.id, tick: liveTickRef.current, patch: { value: newVal } },
-                    { source: 'curve-editor', mergeKey: `curve-drag-val:${channel.id}:${dragging.baseTick}`, transient: false },
+                    {
+                        type: 'updateKeyframe',
+                        channelId: channel.id,
+                        tick: liveTickRef.current,
+                        patch: { value: newVal },
+                    },
+                    {
+                        source: 'curve-editor',
+                        mergeKey: `curve-drag-val:${channel.id}:${dragging.baseTick}`,
+                        transient: false,
+                    }
                 );
                 setDragging(null);
                 return;
             }
 
             if (handleDrag) {
-                try { (e.currentTarget as SVGElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+                try {
+                    (e.currentTarget as SVGElement).releasePointerCapture(e.pointerId);
+                } catch {
+                    /* ignore */
+                }
                 const mouseX = e.clientX - rect.left;
                 const mouseY = e.clientY - rect.top;
                 const kf = channel.keyframes.find((k) => Math.abs(k.tick - handleDrag.tick) < 0.5);
@@ -300,23 +347,44 @@ export function useAutomationCurveDrag({
                         const pixelDx = Math.abs(mouseX - kfX);
                         const pixelDy = Math.abs(mouseY - kfY);
                         const snapHorizontal =
-                            pixelDy === 0
-                                ? Math.abs(startX - kfX) >= Math.abs(startY - kfY)
-                                : pixelDx >= pixelDy;
+                            pixelDy === 0 ? Math.abs(startX - kfX) >= Math.abs(startY - kfY) : pixelDx >= pixelDy;
                         if (snapHorizontal) dv = 0;
                         else dt = 0;
                     }
 
-                    const patch = buildHandlePatch(dt, dv, handleDrag.side, handleDrag.origType, handleDrag.frozenOppLength);
+                    const patch = buildHandlePatch(
+                        dt,
+                        dv,
+                        handleDrag.side,
+                        handleDrag.origType,
+                        handleDrag.frozenOppLength
+                    );
                     dispatchSceneCommand(
                         { type: 'updateKeyframe', channelId: channel.id, tick: handleDrag.tick, patch: patch as any },
-                        { source: 'curve-editor', mergeKey: `handle-drag:${channel.id}:${handleDrag.tick}:${handleDrag.side}`, transient: false },
+                        {
+                            source: 'curve-editor',
+                            mergeKey: `handle-drag:${channel.id}:${handleDrag.tick}:${handleDrag.side}`,
+                            transient: false,
+                        }
                     );
                 }
                 setHandleDrag(null);
             }
         },
-        [dragging, handleDrag, channel, width, height, toTick, toX, valueToY, snapTick, propertyMin, propertyMax, svgRef],
+        [
+            dragging,
+            handleDrag,
+            channel,
+            width,
+            height,
+            toTick,
+            toX,
+            valueToY,
+            snapTick,
+            propertyMin,
+            propertyMax,
+            svgRef,
+        ]
     );
 
     // ── Pointer cancel (browser gesture interrupt, e.g. scroll on touch) ───────

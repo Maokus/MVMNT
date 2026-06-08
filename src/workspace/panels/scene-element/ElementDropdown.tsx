@@ -48,6 +48,7 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
     const [openCategory, setOpenCategory] = useState<string | null>(null);
     const [submenuTop, setSubmenuTop] = useState(0);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const innerWrapperRef = useRef<HTMLDivElement>(null);
     const closeTimeoutRef = useRef<number | null>(null);
 
     useEffect(() => {
@@ -84,12 +85,16 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
     const handleCategoryEnter = (category: string, event: React.MouseEvent<HTMLButtonElement>) => {
         clearCloseTimeout();
         setOpenCategory(category);
-        setSubmenuTop(event.currentTarget.offsetTop);
+        const buttonRect = event.currentTarget.getBoundingClientRect();
+        const wrapperRect = innerWrapperRef.current?.getBoundingClientRect();
+        setSubmenuTop(wrapperRect ? buttonRect.top - wrapperRect.top : event.currentTarget.offsetTop);
     };
 
     const handleCategoryFocus = (category: string, event: React.FocusEvent<HTMLButtonElement>) => {
         setOpenCategory(category);
-        setSubmenuTop(event.currentTarget.offsetTop);
+        const buttonRect = event.currentTarget.getBoundingClientRect();
+        const wrapperRect = innerWrapperRef.current?.getBoundingClientRect();
+        setSubmenuTop(wrapperRect ? buttonRect.top - wrapperRect.top : event.currentTarget.offsetTop);
     };
 
     const handleItemClick = (elementType: string) => {
@@ -114,7 +119,7 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
             onMouseLeave={scheduleClose}
             onMouseEnter={clearCloseTimeout}
         >
-            <div className="relative flex items-start">
+            <div ref={innerWrapperRef} className="relative flex items-start">
                 <div className="flex max-h-[320px] min-w-[200px] flex-col overflow-y-auto border-r border-control2 bg-menubar">
                     {categoryEntries.map(({ category }) => (
                         <button
@@ -123,8 +128,8 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
                             onMouseEnter={(event) => handleCategoryEnter(category, event)}
                             onFocus={(event) => handleCategoryFocus(category, event)}
                             className={`flex items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors ${openCategory === category
-                                    ? 'bg-neutral-800/80 text-white'
-                                    : 'text-neutral-300 hover:bg-neutral-800/70 hover:text-white'
+                                ? 'bg-neutral-800/80 text-white'
+                                : 'text-neutral-300 hover:bg-neutral-800/70 hover:text-white'
                                 }`}
                         >
                             <FaChevronLeft className="text-xs opacity-70" />
