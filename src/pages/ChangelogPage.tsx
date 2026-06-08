@@ -20,7 +20,15 @@ const ChangelogPage: React.FC = () => {
                 <div className="space-y-10">
 
                     <ChangelogEntry version="0.15.3" date="15-6-2" notes={[
-                        "Fix bug which made \"incompatble with this version of MVMNT\" appear in the community page even if untrue.",
+                        "Bugfixes",
+                        [
+                            "\"Incompatble with this version of MVMNT\" appear in the community page even if untrue.",
+                            "Keyframe no drag and sticky drag (default browser behaviour interference)",
+                            "Ctrl Z would not restore automation",
+                            "Add menu submenu position incorrect on long plugin list",
+                        ],
+                        "Cleaned up some timeline panel code and made tracks fixed-height",
+
 
                     ]} />
 
