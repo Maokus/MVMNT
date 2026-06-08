@@ -8,13 +8,14 @@ import TrackLanes from './tracks/TrackLanes';
 import TimelineRuler from './TimelineRuler';
 import { useVisualizer } from '@context/VisualizerContext';
 import { beatsToSeconds } from '@core/timing/tempo-utils';
-import { FaPlus, FaCircle } from 'react-icons/fa';
+import { FaCircle } from 'react-icons/fa';
 import { MidiImportModeModal } from '@workspace/modals/MidiImportModeModal';
 import { MidiTempoImportModal } from '@workspace/modals/MidiTempoImportModal';
 import { CurveHeightProvider } from './context/curveHeightContext';
 import { CurveRangeProvider } from './context/curveRangeContext';
 import TimeIndicator from './header/TimeIndicator';
 import HeaderRightControls from './header/HeaderRightControls';
+import TrackImportButtons from './header/TrackImportButtons';
 import { useImportModals } from './hooks/useImportModals';
 import { useMidiImport } from './hooks/useMidiImport';
 import { useAudioImport } from './hooks/useAudioImport';
@@ -90,31 +91,12 @@ const TimelinePanel: React.FC = () => {
                 <div className="timeline-header relative z-30 grid flex-none grid-cols-3 items-center border-b border-neutral-800 bg-neutral-900/40 px-2 py-1">
                     {/* Left: Add track buttons + time indicator */}
                     <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2">
-                            <label className="px-2 py-1 border border-neutral-700 rounded cursor-pointer text-xs font-medium bg-neutral-900/50 hover:bg-neutral-800/60 flex items-center gap-1">
-                                <FaPlus className="text-neutral-300" />
-                                <span>MIDI</span>
-                                <input
-                                    ref={fileRef}
-                                    type="file"
-                                    accept=".mid,.midi"
-                                    multiple
-                                    className="hidden"
-                                    onChange={handleAddFile}
-                                />
-                            </label>
-                            <label className="px-2 py-1 border border-emerald-700 rounded cursor-pointer text-xs font-medium bg-emerald-900/40 hover:bg-emerald-800/60 flex items-center gap-1" title="Add Audio Track (wav/mp3/ogg)">
-                                <FaPlus className="text-emerald-300" />
-                                <span>Audio</span>
-                                <input
-                                    ref={audioFileRef}
-                                    type="file"
-                                    accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a"
-                                    className="hidden"
-                                    onChange={handleAddAudio}
-                                />
-                            </label>
-                        </div>
+                        <TrackImportButtons
+                            fileRef={fileRef}
+                            audioFileRef={audioFileRef}
+                            onAddFile={handleAddFile}
+                            onAddAudio={handleAddAudio}
+                        />
                         <TimeIndicator />
                     </div>
                     {/* Center: Auto-keying toggle + transport controls */}

@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { FaTrash, FaGripVertical } from 'react-icons/fa';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
+import { computeTrackRowSizing } from './trackRowSizing';
 
 interface TrackEditorRowProps {
     trackId: string;
@@ -32,10 +33,7 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
         setEditingName(false);
     };
 
-    const controlSize = Math.max(14, Math.min(24, Math.round(rowHeight - 6)));
-    const pillHeight = Math.max(12, Math.min(20, Math.round(rowHeight - 8)));
-    const baseFontSize = Math.max(10, Math.min(13, rowHeight / 2.2));
-    const smallFontSize = Math.max(9, Math.min(11, rowHeight / 2.6));
+    const { controlSize, pillHeight, baseFontSize, smallFontSize } = computeTrackRowSizing(rowHeight);
 
     return (
         <div
