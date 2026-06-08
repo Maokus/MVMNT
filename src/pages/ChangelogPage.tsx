@@ -19,7 +19,7 @@ const ChangelogPage: React.FC = () => {
 
                 <div className="space-y-10">
 
-                    <ChangelogEntry version="0.15.3" date="15-6-2" notes={[
+                    <ChangelogEntry version="0.15.3" date="15-6-8" notes={[
                         "Bugfixes",
                         [
                             "\"Incompatble with this version of MVMNT\" appear in the community page even if untrue.",

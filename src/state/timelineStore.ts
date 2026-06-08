@@ -1606,6 +1606,20 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 });
 
 export const useTimelineStore = createWithEqualityFn<TimelineState>(storeImpl);
+(window as any).timelineStore = useTimelineStore;
+
+export const devZustand = (store: any, name: string) => {
+    let _window = window as any;
+    if (process.env.NODE_ENV === 'development') {
+        _window.store = _window.store || {};
+        _window.store.getters = _window.store.getters || {};
+        _window.store.getters[name] = () => store.getState();
+        _window.store.setters = _window.store.setters || {};
+        _window.store.setters[name] = (state: any) => store.setState(state);
+    }
+};
+
+devZustand(useTimelineStore, 'timeline');
 
 // Convenience shallow selector hook re-export (optional for consumers)
 export const useTimelineStoreShallow = <T>(selector: (s: TimelineState) => T) => useTimelineStore(selector, shallow);
