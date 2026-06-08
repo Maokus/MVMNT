@@ -484,7 +484,7 @@ function createInitialTimelineSlice(): Pick<
         timelineView: { startTick: 0, endTick: Math.round(beatsToTicks(DEFAULT_TIMING_CONTEXT, 120)) },
         playbackRange: undefined,
         playbackRangeUserDefined: false,
-        rowHeight: 30,
+        rowHeight: 64,
         hybridCacheRollout: {
             adapterEnabled: true,
             fallbackLog: [],

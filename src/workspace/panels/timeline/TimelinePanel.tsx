@@ -19,7 +19,6 @@ import { useImportModals } from './hooks/useImportModals';
 import { useMidiImport } from './hooks/useMidiImport';
 import { useAudioImport } from './hooks/useAudioImport';
 import { useFileDrop } from './hooks/useFileDrop';
-import { useRowHeightSync } from './hooks/useRowHeightSync';
 import { useTimelineNavigation } from './hooks/useTimelineNavigation';
 import { useTimelinePointerControls } from './hooks/useTimelinePointerControls';
 import { useAutoFollow } from './hooks/useAutoFollow';
@@ -48,9 +47,6 @@ const TimelinePanel: React.FC = () => {
     // Drag-and-drop overlay
     const { isDragActive, onPanelDragEnter, onPanelDragOver, onPanelDragLeave, onPanelDrop, onPanelDropCapture } =
         useFileDrop({ importMidiFile, importAudioFile });
-
-    // Layout
-    const { timelineBodyRef } = useRowHeightSync({ activeTab, trackIds });
 
     // View navigation and keyboard shortcuts
     const { fitAll, zoomToSelection, centerOnPlayhead } = useTimelineNavigation();
@@ -147,7 +143,7 @@ const TimelinePanel: React.FC = () => {
                         />
                     </div>
                 </div>
-                <div ref={timelineBodyRef} className="timeline-body flex flex-1 items-stretch gap-0 overflow-hidden">
+                <div className="timeline-body flex flex-1 items-stretch gap-0 overflow-hidden">
                     <CurveHeightProvider>
                         <CurveRangeProvider>
                             <div className="h-full w-full overflow-y-auto overflow-x-hidden">
@@ -160,7 +156,7 @@ const TimelinePanel: React.FC = () => {
                                             <TimelineRuler />
                                         </div>
                                         <div
-                                            className="relative flex-1"
+                                            className="relative"
                                             ref={lanesScrollRef}
                                             style={{ touchAction: 'none' }}
                                             onPointerDown={onRightPointerDown}
