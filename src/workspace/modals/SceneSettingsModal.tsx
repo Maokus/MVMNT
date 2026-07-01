@@ -4,9 +4,30 @@ import { useVisualizer } from '@context/VisualizerContext';
 import { useTimelineStore } from '@state/timelineStore';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import { useSceneStore } from '@state/sceneStore';
 import SceneFontManager from '../scene-settings/SceneFontManager';
 import SceneAnalysisCachesTab from '../scene-settings/SceneAnalysisCachesTab';
 import ScenePluginsTab from '../scene-settings/ScenePluginsTab';
+
+type ResizeScalingMode = 'scale' | 'reposition' | 'none';
+
+const SCALING_MODE_OPTIONS: Array<{ id: ResizeScalingMode; label: string; description: string }> = [
+    {
+        id: 'scale',
+        label: 'Scale All',
+        description: 'Proportionally scale element positions and sizes',
+    },
+    {
+        id: 'reposition',
+        label: 'Reposition',
+        description: 'Shift positions proportionally, keep sizes unchanged',
+    },
+    {
+        id: 'none',
+        label: 'No Change',
+        description: 'Leave all element values unchanged',
+    },
+];
 
 interface SceneSettingsModalProps {
     onClose: () => void;
@@ -44,6 +65,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
     const [localWidth, setLocalWidth] = useState<string>(() => String(exportSettings.width));
     const [localHeight, setLocalHeight] = useState<string>(() => String(exportSettings.height));
     const [localFps, setLocalFps] = useState<string>(() => String(exportSettings.fps));
+    const [scalingMode, setScalingMode] = useState<ResizeScalingMode>('reposition');
     const [localStartBars, setLocalStartBars] = useState<string>(() => String(startBars ?? 0));
     const [localEndBars, setLocalEndBars] = useState<string>(() => String(endBars ?? 0));
     const [localSceneName, setLocalSceneName] = useState<string>(() => metadata.name);
@@ -73,6 +95,44 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
         const raw = key === 'width' ? localWidth : key === 'height' ? localHeight : localFps;
         const fallback = (exportSettings as any)[key];
         const next = clampPositiveInt(parseInt(raw, 10), fallback);
+
+        if ((key === 'width' || key === 'height') && scalingMode !== 'none' && next !== fallback) {
+            const oldWidth = exportSettings.width;
+            const oldHeight = exportSettings.height;
+            const newWidth = key === 'width' ? next : oldWidth;
+            const newHeight = key === 'height' ? next : oldHeight;
+            const wRatio = newWidth / oldWidth;
+            const hRatio = newHeight / oldHeight;
+
+            const { bindings: { byElement }, order, updateBindings } = useSceneStore.getState();
+            for (const elementId of order) {
+                const elBindings = byElement[elementId];
+                if (!elBindings) continue;
+
+                const patch: Record<string, { type: 'constant'; value: number }> = {};
+                const tryScale = (propKey: string, multiplier: number) => {
+                    const binding = elBindings[propKey];
+                    if (binding?.type === 'constant' && typeof binding.value === 'number') {
+                        const newVal = binding.value * multiplier;
+                        if (newVal !== binding.value) {
+                            patch[propKey] = { type: 'constant', value: newVal };
+                        }
+                    }
+                };
+
+                tryScale('offsetX', wRatio);
+                tryScale('offsetY', hRatio);
+                if (scalingMode === 'scale') {
+                    tryScale('elementScaleX', wRatio);
+                    tryScale('elementScaleY', hRatio);
+                }
+
+                if (Object.keys(patch).length > 0) {
+                    updateBindings(elementId, patch);
+                }
+            }
+        }
+
         setExportSettings((prev: any) => ({ ...prev, [key]: next }));
         if (key === 'width') setLocalWidth(String(next));
         if (key === 'height') setLocalHeight(String(next));
@@ -176,8 +236,8 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                             type="button"
                             onClick={() => setActiveTab(tab.id)}
                             className={`rounded px-3 py-1 text-[12px] transition-colors ${activeTab === tab.id
-                                    ? 'bg-sky-600/20 text-sky-200'
-                                    : 'text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-100'
+                                ? 'bg-sky-600/20 text-sky-200'
+                                : 'text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-100'
                                 }`}
                         >
                             {tab.label}
@@ -242,6 +302,28 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                         className="number-input w-full"
                                     />
                                 </label>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[12px] text-neutral-400">Resize Scaling Mode</span>
+                                <div className="flex gap-1">
+                                    {SCALING_MODE_OPTIONS.map((opt) => (
+                                        <button
+                                            key={opt.id}
+                                            type="button"
+                                            title={opt.description}
+                                            onClick={() => setScalingMode(opt.id)}
+                                            className={`rounded px-3 py-1 text-[12px] transition-colors ${scalingMode === opt.id
+                                                    ? 'bg-sky-600/30 text-sky-200 ring-1 ring-sky-500/50'
+                                                    : 'text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-100'
+                                                }`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                <span className="text-[11px] text-neutral-500">
+                                    {SCALING_MODE_OPTIONS.find((o) => o.id === scalingMode)?.description}
+                                </span>
                             </div>
                             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                                 <label className="flex flex-col gap-1 text-[12px]">

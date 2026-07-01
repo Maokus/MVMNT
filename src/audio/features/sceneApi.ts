@@ -134,7 +134,9 @@ export function getFeatureDataRange(
 
     const opts = samplingOptions ?? undefined;
     const results: FeatureDataResult[] = [];
-    for (let t = startTime; t <= endTime; t += stepSec) {
+    const nSteps = Math.round((endTime - startTime) / stepSec);
+    for (let i = 0; i <= nSteps; i++) {
+        const t = startTime + i * stepSec;
         const sample = sampleFeatureFrame(normalizedTrackId, descriptor, t, opts);
         if (sample) {
             results.push({
