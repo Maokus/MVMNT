@@ -170,11 +170,16 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
         setDotDrag({ primaryBaseTick: tick, primaryCurTick: tick, sessionId: `${Date.now()}-${Math.random()}`, offsetX, moves });
     }, [channels, toX, width, setDotDrag]);
 
+    // Empty-space click in the SVG bubbles to the outer AutomationLanes cross-lane marquee.
+    // Diamond pointer down stops propagation to initiate drag instead.
+
     const handleHeaderPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
         if (e.buttons === 0) {
             if (dotDragRef.current) setDotDrag(null);
             return;
         }
+
+        // --- diamond drag ---
         const drag = dotDragRef.current;
         if (!drag) return;
         const rect = headerRef.current?.getBoundingClientRect();
@@ -188,7 +193,6 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
         const currentChannelsData = useSceneStore.getState().automation.channels;
         const dir = snapped > drag.primaryBaseTick ? 1 : -1;
 
-        // Resolve primary tick: find tick where no channel at the primary has a conflict
         const primaryMoves = drag.moves.filter((m) => Math.abs(m.baseTick - drag.primaryBaseTick) < 0.5);
         const isAnyPrimaryOccupied = (t: number) =>
             primaryMoves.some((m) => {
@@ -234,7 +238,6 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
             return { ...move, curTick: newTick };
         });
 
-        // Update selection store so expanded lane rows reflect live positions
         useSelectionStore.getState().selectKeyframes(
             updatedMoves.map((m) => ({ channelId: m.channelId, tick: m.curTick })),
         );
@@ -243,9 +246,11 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
     }, [toTick, width, snapTick, setDotDrag]);
 
     const handleHeaderPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        try { headerRef.current?.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+
+        // --- diamond drag commit ---
         const drag = dotDragRef.current;
         if (!drag) return;
-        try { headerRef.current?.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
         if (drag.primaryCurTick !== drag.primaryBaseTick) {
             for (const move of drag.moves) {
                 if (move.curTick !== move.baseTick) {
@@ -279,11 +284,12 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
             {/* Element header with SVG diamond indicators */}
             <div
                 ref={headerRef}
+                data-element-id={elementId}
                 className="relative border-b border-neutral-800"
                 style={{ height: AUTOMATION_HEADER_HEIGHT }}
                 onPointerMove={handleHeaderPointerMove}
                 onPointerUp={handleHeaderPointerUp}
-                onPointerCancel={() => setDotDrag(null)}
+                onPointerCancel={() => { setDotDrag(null); }}
             >
                 <svg
                     width={width}
@@ -395,9 +401,20 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
             const maxAbsY = containerRect.top + Math.max(sb.startY, sb.endY);
             const minTick = toTick(minX, width);
             const maxTick = toTick(maxX, width);
-            const laneEls = containerRef.current.querySelectorAll<HTMLElement>('[data-channel-id]');
-            const enclosed: Array<{ channelId: string; tick: number }> = [];
             const channels = useSceneStore.getState().automation.channels;
+            const enclosed: Array<{ channelId: string; tick: number }> = [];
+            const addedKeys = new Set<string>();
+
+            const addKf = (channelId: string, tick: number) => {
+                const key = `${channelId}:${tick}`;
+                if (!addedKeys.has(key)) {
+                    addedKeys.add(key);
+                    enclosed.push({ channelId, tick });
+                }
+            };
+
+            // Individual channel lane rows
+            const laneEls = containerRef.current.querySelectorAll<HTMLElement>('[data-channel-id]');
             for (const el of laneEls) {
                 const elRect = el.getBoundingClientRect();
                 if (elRect.bottom < minAbsY || elRect.top > maxAbsY) continue;
@@ -406,14 +423,31 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
                 if (!ch) continue;
                 for (const kf of ch.keyframes) {
                     if (kf.tick >= minTick - 0.5 && kf.tick <= maxTick + 0.5) {
-                        enclosed.push({ channelId, tick: kf.tick });
+                        addKf(channelId, kf.tick);
                     }
                 }
             }
+
+            // Element header rows (diamond indicators) — include all channels for the element
+            const headerEls = containerRef.current.querySelectorAll<HTMLElement>('[data-element-id]');
+            for (const el of headerEls) {
+                const elRect = el.getBoundingClientRect();
+                if (elRect.bottom < minAbsY || elRect.top > maxAbsY) continue;
+                const elementId = el.dataset.elementId!;
+                for (const ch of Object.values(channels)) {
+                    if (ch.elementId !== elementId) continue;
+                    for (const kf of ch.keyframes) {
+                        if (kf.tick >= minTick - 0.5 && kf.tick <= maxTick + 0.5) {
+                            addKf(ch.id, kf.tick);
+                        }
+                    }
+                }
+            }
+
             if (sb.shiftKey) {
-                const selectedChannelIds = new Set(enclosed.map((k) => k.channelId));
+                const enclosedKeys = new Set(enclosed.map((k) => `${k.channelId}:${k.tick}`));
                 const others = useSelectionStore.getState().selectedKeyframes.filter(
-                    (k) => !selectedChannelIds.has(k.channelId),
+                    (k) => !enclosedKeys.has(`${k.channelId}:${k.tick}`),
                 );
                 useSelectionStore.getState().selectKeyframes([...others, ...enclosed]);
             } else {
