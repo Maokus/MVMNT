@@ -22,6 +22,7 @@ import { decodeSceneText, parseLegacyInlineScene, parseScenePackage, ScenePackag
 import { isTestEnvironment } from '@utils/env';
 import { useVisualAssetRegistryStore, type ProjectAsset } from '@state/visualAssetRegistryStore';
 import { useSceneStore } from '@state/sceneStore';
+import { migrateSceneRotationUnitsV7 } from './migrations/rotationUnitsV7';
 
 const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
@@ -798,7 +799,8 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         audioFeaturePayloads,
         pluginPayloads,
     } = parsed;
-    const validation = validateSceneEnvelope(envelope);
+    const migratedEnvelope = migrateSceneRotationUnitsV7(envelope);
+    const validation = validateSceneEnvelope(migratedEnvelope);
     if (!validation.ok) {
         return {
             ok: false,
@@ -808,7 +810,9 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
     }
 
     const pluginWarnings: string[] = [];
-    const dependencies = Array.isArray(envelope?.plugins) ? (envelope.plugins as ScenePluginDependency[]) : [];
+    const dependencies = Array.isArray(migratedEnvelope?.plugins)
+        ? (migratedEnvelope.plugins as ScenePluginDependency[])
+        : [];
     const dependencyAssessment = await assessPluginDependencies(dependencies, pluginPayloads);
     pluginWarnings.push(...dependencyAssessment.warnings);
 
@@ -842,13 +846,13 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         }
     }
 
-    const { doc, featureWarnings } = buildDocumentShape(envelope, audioFeaturePayloads);
-    const midiRestoration = await restoreMidiCache(envelope?.timeline?.midiCache, midiPayloads);
+    const { doc, featureWarnings } = buildDocumentShape(migratedEnvelope, audioFeaturePayloads);
+    const midiRestoration = await restoreMidiCache(migratedEnvelope?.timeline?.midiCache, midiPayloads);
     doc.midiCache = midiRestoration.cache;
 
     const { warnings: visualWarnings, fileById } = restoreVisualAssets(
         doc.scene,
-        envelope.assets?.visual,
+        migratedEnvelope.assets?.visual,
         visualPayloads
     );
 
@@ -858,23 +862,24 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
     DocumentGateway.apply(doc as any);
 
     // Populate visual asset registry and migrate assetRef bindings from File → asset ID
-    hydrateVisualAssetRegistry(fileById, envelope.assets?.visual, (envelope as any).visualAssetRegistry);
+    hydrateVisualAssetRegistry(fileById, migratedEnvelope.assets?.visual, (migratedEnvelope as any).visualAssetRegistry);
     migrateStoreAssetRefBindings(fileById);
 
     let hydrationWarnings: string[] = [];
     const fontWarnings: string[] = [];
     if (
-        (envelope.schemaVersion === 2 ||
-            envelope.schemaVersion === 4 ||
-            envelope.schemaVersion === 5 ||
-            envelope.schemaVersion === 6) &&
-        envelope.assets
+        (migratedEnvelope.schemaVersion === 2 ||
+            migratedEnvelope.schemaVersion === 4 ||
+            migratedEnvelope.schemaVersion === 5 ||
+            migratedEnvelope.schemaVersion === 6 ||
+            migratedEnvelope.schemaVersion === 7) &&
+        migratedEnvelope.assets
     ) {
-        hydrationWarnings = await hydrateAudioAssets(envelope, audioPayloads, waveformPayloads);
+        hydrationWarnings = await hydrateAudioAssets(migratedEnvelope, audioPayloads, waveformPayloads);
     }
 
-    if (envelope.scene?.fontAssets && typeof envelope.scene.fontAssets === 'object') {
-        const fontAssets = envelope.scene.fontAssets as Record<string, FontAsset>;
+    if (migratedEnvelope.scene?.fontAssets && typeof migratedEnvelope.scene.fontAssets === 'object') {
+        const fontAssets = migratedEnvelope.scene.fontAssets as Record<string, FontAsset>;
         for (const asset of Object.values(fontAssets)) {
             if (!asset || !asset.id) continue;
             const payload = fontPayloads.get(asset.id);

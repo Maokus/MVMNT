@@ -24,6 +24,7 @@ const ChangelogPage: React.FC = () => {
                             "allow empty text keyframe",
                             "Constant interpolation now flips on tick rather than one tick after, so you can see the value of the keyframe at its tick."
                         ],
+                        "Changed most rotation units back to degrees from radians",
                         "New rescale/reposition change resolution behaviour",
                         "Blender dope-sheet like selection behaviour for header keyframes",
                     ]} />

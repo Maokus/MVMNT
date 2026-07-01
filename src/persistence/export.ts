@@ -129,11 +129,16 @@ export interface SceneExportEnvelopeV6 extends Omit<SceneExportEnvelopeBase, 'sc
     };
 }
 
+export interface SceneExportEnvelopeV7 extends Omit<SceneExportEnvelopeV6, 'schemaVersion'> {
+    schemaVersion: 7;
+}
+
 export type SceneExportEnvelope =
     | SceneExportEnvelopeV2
     | SceneExportEnvelopeV4
     | SceneExportEnvelopeV5
-    | SceneExportEnvelopeV6;
+    | SceneExportEnvelopeV6
+    | SceneExportEnvelopeV7;
 
 interface AudioFeatureCacheAssetReference {
     assetId: string;
@@ -159,7 +164,7 @@ interface ExportResultBase {
 export interface ExportSceneResultInline extends ExportResultBase {
     ok: true;
     mode: 'inline-json';
-    envelope: SceneExportEnvelopeV6;
+    envelope: SceneExportEnvelopeV7;
     json: string;
     blob?: Blob;
 }
@@ -167,7 +172,7 @@ export interface ExportSceneResultInline extends ExportResultBase {
 export interface ExportSceneResultZip extends ExportResultBase {
     ok: true;
     mode: 'zip-package';
-    envelope: SceneExportEnvelopeV6;
+    envelope: SceneExportEnvelopeV7;
     zip: Uint8Array<ArrayBuffer>;
     blob?: Blob;
 }
@@ -809,7 +814,7 @@ export async function exportScene(
     const midiAssets = prepareMidiAssets(doc.midiCache, storage);
     const featureAssets = prepareAudioFeatureCaches(doc.audioFeatureCaches, storage);
 
-    const envelope: SceneExportEnvelopeV6 = {
+    const envelope: SceneExportEnvelopeV7 = {
         schemaVersion: CURRENT_SCHEMA_VERSION,
         format: 'mvmnt.scene',
         metadata,

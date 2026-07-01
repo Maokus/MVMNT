@@ -134,6 +134,9 @@ function getSchemaIndex(ctor: any): Map<string, PropertyDefinition> {
 const hasOwn = (object: unknown, key: PropertyKey): boolean =>
     typeof object === 'object' && object !== null ? Object.prototype.hasOwnProperty.call(object, key) : false;
 
+const degreesToRadians = (degrees: number): number => (degrees * Math.PI) / 180;
+const radiansToDegrees = (radians: number): number => (radians * 180) / Math.PI;
+
 export class SceneElement implements SceneElementInterface {
     public type: string;
     public id: string | null;
@@ -756,8 +759,10 @@ export class SceneElement implements SceneElementInterface {
             this.elementScaleY,
             this.elementOpacity
         );
+        const elementRotationRadians = degreesToRadians(this.elementRotation);
+
         containerObject
-            .setRotation(this.elementRotation)
+            .setRotation(elementRotationRadians)
             .setSkew(this.elementSkewX, this.elementSkewY)
             .setVisible(this.visible)
             .setOriginFraction(this.anchorX, this.anchorY);
@@ -778,7 +783,7 @@ export class SceneElement implements SceneElementInterface {
             offsetY: this.offsetY,
             scaleX: this.elementScaleX,
             scaleY: this.elementScaleY,
-            rotation: this.elementRotation,
+            rotation: elementRotationRadians,
             skewX: this.elementSkewX,
             skewY: this.elementSkewY,
         };
@@ -963,9 +968,9 @@ export class SceneElement implements SceneElementInterface {
                                     step: 1,
                                     description: 'Vertical position offset in pixels.',
                                 }),
-                                prop.number('elementRotation', 'Rotation', 0, {
-                                    step: 0.01,
-                                    description: 'Element rotation in radians.',
+                                prop.number('elementRotation', 'Rotation (°)', 0, {
+                                    step: 1,
+                                    description: 'Element rotation in degrees.',
                                 }),
                                 prop.number('elementScaleX', 'Scale X (multiplier)', 1, {
                                     step: 0.01,
@@ -1188,7 +1193,7 @@ export class SceneElement implements SceneElementInterface {
     }
 
     setElementRotationRadians(rotation: number): this {
-        this.setProperty('elementRotation', rotation);
+        this.setProperty('elementRotation', radiansToDegrees(rotation));
         return this;
     }
 

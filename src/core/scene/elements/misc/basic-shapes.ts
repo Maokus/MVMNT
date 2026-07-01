@@ -4,6 +4,8 @@ import { applyOpacity } from '@utils/color';
 
 type ShapeType = 'rectangle' | 'circle' | 'triangle' | 'line';
 
+const degreesToRadians = (degrees: number): number => (degrees * Math.PI) / 180;
+
 export class BasicShapesElement extends SceneElement {
     constructor(id: string = 'basicShapes', config: { [key: string]: any } = {}) {
         super('basicShapes', id, config);
@@ -120,18 +122,18 @@ export class BasicShapesElement extends SceneElement {
                                     { key: 'shapeType', notEquals: 'line' },
                                 ],
                             }),
-                            prop.number('startAngle', 'Start Angle (rad)', 0, {
+                            prop.number('startAngle', 'Start Angle (°)', 0, {
                                 min: 0,
-                                max: 6.28,
-                                step: 0.01,
-                                description: 'Arc start angle in radians (0 = right, π/2 = down).',
+                                max: 360,
+                                step: 1,
+                                description: 'Arc start angle in degrees (0 = right, 90 = down).',
                                 visibleWhen: [{ key: 'shapeType', equals: 'circle' }],
                             }),
-                            prop.number('endAngle', 'End Angle (rad)', 6.28, {
+                            prop.number('endAngle', 'End Angle (°)', 360, {
                                 min: 0,
-                                max: 6.28,
-                                step: 0.01,
-                                description: 'Arc end angle in radians (2π ≈ 6.28 = full circle).',
+                                max: 360,
+                                step: 1,
+                                description: 'Arc end angle in degrees (360 = full circle).',
                                 visibleWhen: [{ key: 'shapeType', equals: 'circle' }],
                             }),
                             prop.boolean('anticlockwise', 'Anticlockwise', false, {
@@ -286,8 +288,8 @@ export class BasicShapesElement extends SceneElement {
             case 'circle': {
                 const r = Math.max(1, props.radius ?? 100);
                 layoutBounds = { w: r * 2, h: r * 2 };
-                const startAngle = props.startAngle ?? 0;
-                const endAngle = props.endAngle ?? Math.PI * 2;
+                const startAngle = degreesToRadians(props.startAngle ?? 0);
+                const endAngle = degreesToRadians(props.endAngle ?? 360);
                 const anticlockwise = props.anticlockwise ?? false;
                 const lineCap = (props.lineCap ?? 'butt') as CanvasLineCap;
                 const dashLength = props.dashLength ?? 0;

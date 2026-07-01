@@ -23,6 +23,9 @@ import { useSceneStore } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 
+const degreesToRadians = (degrees: number): number => (degrees * Math.PI) / 180;
+const radiansToDegrees = (radians: number): number => (radians * 180) / Math.PI;
+
 // Types kept broad (any) to avoid tight coupling with visualizer internal shapes.
 export interface InteractionDeps {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -118,7 +121,7 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
         origHeight: rec?.bounds?.height ?? 0,
         origScaleX: el?.getProperty('elementScaleX') ?? el?.getProperty('globalScaleX') ?? 1,
         origScaleY: el?.getProperty('elementScaleY') ?? el?.getProperty('globalScaleY') ?? 1,
-        origRotation: el?.getProperty('elementRotation') ?? 0,
+        origRotation: degreesToRadians(el?.getProperty('elementRotation') ?? 0),
         origSkewX: el?.getProperty('elementSkewX') ?? 0,
         origSkewY: el?.getProperty('elementSkewY') ?? 0,
         origAnchorX: el?.getProperty('anchorX') ?? 0.5,
@@ -164,7 +167,7 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
             startY: y,
             origOffsetX: hit.element?.offsetX || 0,
             origOffsetY: hit.element?.offsetY || 0,
-            origRotation: hit.element?.elementRotation || 0,
+            origRotation: degreesToRadians(hit.element?.elementRotation || 0),
             origSkewX: hit.element?.elementSkewX || 0,
             origSkewY: hit.element?.elementSkewY || 0,
             bounds: hit.bounds ? { ...hit.bounds } : null,
@@ -326,7 +329,7 @@ function updateRotateDrag(
 ) {
     if (!meta.bounds) return [];
     const newRotationRad = computeRotation(x, y, meta, shiftKey);
-    applyDragUpdate(meta, elId, { elementRotation: newRotationRad }, deps);
+    applyDragUpdate(meta, elId, { elementRotation: radiansToDegrees(newRotationRad) }, deps);
     return [];
 }
 
