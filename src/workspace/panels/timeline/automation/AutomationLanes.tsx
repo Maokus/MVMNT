@@ -10,6 +10,7 @@ import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 import { useTickScale } from '../hooks/useTickScale';
+import { useSnapTicks } from '../hooks/useSnapTicks';
 import { useAutomatedElementIds, useElementChannels, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { copySelectedKeyframes, getKeyframeSelClipboard } from '@automation/clipboard';
@@ -18,6 +19,25 @@ import { useCurveHeight } from '../context/curveHeightContext';
 import AutomationLaneRow from './AutomationLaneRow';
 import AutomationCurvePane from './AutomationCurvePane';
 import type { AutomationChannel } from '@automation/types';
+
+interface KfMove {
+    channelId: string;
+    baseTick: number;
+    curTick: number;
+}
+
+interface DotDragState {
+    /** Original tick of the diamond that was grabbed. */
+    primaryBaseTick: number;
+    /** Current live tick of the primary (drives collision avoidance + display). */
+    primaryCurTick: number;
+    sessionId: string;
+    offsetX: number;
+    /** All selected kfs to move, including those at the primary tick. */
+    moves: KfMove[];
+}
+
+const HEADER_DIAMOND_SIZE = 6;
 
 /** Minimum pixel movement before a drag is treated as a selection box. */
 const SEL_DRAG_THRESHOLD = 4;
@@ -74,7 +94,170 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
     const channels = useElementChannels(elementId);
     const element = useSceneStore(useCallback((s) => s.elements[elementId], [elementId]));
     const searchQuery = useSceneStore((s) => s.interaction.automationSearchQuery);
-    const { toX } = useTickScale();
+    const { toX, toTick } = useTickScale();
+    const snapTick = useSnapTicks();
+
+    // Track selection state to drive diamond visuals
+    const selectedKeyframes = useSelectionStore((s) => s.selectedKeyframes);
+
+    const headerRef = useRef<HTMLDivElement>(null);
+    const [dotDrag, _setDotDrag] = useState<DotDragState | null>(null);
+    const dotDragRef = useRef<DotDragState | null>(null);
+    const setDotDrag = useCallback((next: DotDragState | null) => {
+        dotDragRef.current = next;
+        _setDotDrag(next);
+    }, []);
+
+    // Selection state per tick: 'none' | 'partial' | 'full'
+    const getTickSelectionState = useCallback((tick: number): 'none' | 'partial' | 'full' => {
+        const channelsAtTick = channels.filter((ch) =>
+            ch.keyframes.some((kf) => Math.abs(kf.tick - tick) < 0.5),
+        );
+        if (channelsAtTick.length === 0) return 'none';
+        const selectedCount = channelsAtTick.filter((ch) =>
+            selectedKeyframes.some((k) => k.channelId === ch.id && Math.abs(k.tick - tick) < 0.5),
+        ).length;
+        if (selectedCount === 0) return 'none';
+        return selectedCount === channelsAtTick.length ? 'full' : 'partial';
+    }, [channels, selectedKeyframes]);
+
+    const handleDiamondPointerDown = useCallback((e: React.PointerEvent<SVGElement>, tick: number) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        e.preventDefault();
+
+        const kfsAtTick = channels
+            .filter((ch) => ch.keyframes.some((kf) => Math.abs(kf.tick - tick) < 0.5))
+            .map((ch) => ({ channelId: ch.id, tick }));
+
+        const existing = useSelectionStore.getState().selectedKeyframes;
+        const allAtTickSelected = kfsAtTick.every((k) =>
+            existing.some((e) => e.channelId === k.channelId && Math.abs(e.tick - k.tick) < 0.5),
+        );
+
+        let newSelected: Array<{ channelId: string; tick: number }>;
+        if (e.shiftKey) {
+            if (allAtTickSelected) {
+                newSelected = existing.filter(
+                    (e) => !kfsAtTick.some((k) => k.channelId === e.channelId && Math.abs(k.tick - e.tick) < 0.5),
+                );
+            } else {
+                const toAdd = kfsAtTick.filter(
+                    (k) => !existing.some((e) => e.channelId === k.channelId && Math.abs(e.tick - k.tick) < 0.5),
+                );
+                newSelected = [...existing, ...toAdd];
+            }
+        } else if (allAtTickSelected) {
+            // Keep full selection intact for drag
+            newSelected = existing;
+        } else {
+            newSelected = kfsAtTick;
+        }
+
+        useSelectionStore.getState().selectKeyframes(newSelected);
+
+        const rect = headerRef.current?.getBoundingClientRect();
+        const dotX = rect ? toX(tick, width) : 0;
+        const offsetX = rect ? (e.clientX - rect.left) - dotX : 0;
+        headerRef.current?.setPointerCapture(e.pointerId);
+
+        const moves: KfMove[] = newSelected.map((k) => ({
+            channelId: k.channelId,
+            baseTick: k.tick,
+            curTick: k.tick,
+        }));
+
+        setDotDrag({ primaryBaseTick: tick, primaryCurTick: tick, sessionId: `${Date.now()}-${Math.random()}`, offsetX, moves });
+    }, [channels, toX, width, setDotDrag]);
+
+    const handleHeaderPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        if (e.buttons === 0) {
+            if (dotDragRef.current) setDotDrag(null);
+            return;
+        }
+        const drag = dotDragRef.current;
+        if (!drag) return;
+        const rect = headerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        const pixelX = (e.clientX - rect.left) - drag.offsetX;
+        const candTick = toTick(pixelX, width);
+        const snapped = snapTick(candTick, e.ctrlKey || e.metaKey);
+        if (snapped === drag.primaryCurTick) return;
+
+        const currentChannelsData = useSceneStore.getState().automation.channels;
+        const dir = snapped > drag.primaryBaseTick ? 1 : -1;
+
+        // Resolve primary tick: find tick where no channel at the primary has a conflict
+        const primaryMoves = drag.moves.filter((m) => Math.abs(m.baseTick - drag.primaryBaseTick) < 0.5);
+        const isAnyPrimaryOccupied = (t: number) =>
+            primaryMoves.some((m) => {
+                const chData = currentChannelsData[m.channelId];
+                return chData?.keyframes.some(
+                    (kf) => Math.abs(kf.tick - t) < 0.5 && Math.abs(kf.tick - m.curTick) >= 0.5,
+                );
+            });
+        let resolvedPrimaryTick = snapped;
+        if (isAnyPrimaryOccupied(resolvedPrimaryTick)) {
+            let candidate = resolvedPrimaryTick + dir;
+            while (candidate >= 0 && isAnyPrimaryOccupied(candidate)) candidate += dir;
+            resolvedPrimaryTick = Math.max(0, candidate);
+            if (isAnyPrimaryOccupied(resolvedPrimaryTick)) resolvedPrimaryTick = drag.primaryCurTick;
+        }
+        if (resolvedPrimaryTick === drag.primaryCurTick) return;
+
+        const delta = resolvedPrimaryTick - drag.primaryBaseTick;
+
+        const updatedMoves = drag.moves.map((move) => {
+            const rawTick = snapTick(Math.max(0, move.baseTick + delta), e.ctrlKey || e.metaKey);
+            const chData = currentChannelsData[move.channelId];
+            if (!chData) return move;
+
+            const isOccupied = (t: number) =>
+                chData.keyframes.some(
+                    (kf) => Math.abs(kf.tick - t) < 0.5 && Math.abs(kf.tick - move.curTick) >= 0.5,
+                );
+            let newTick = rawTick;
+            if (isOccupied(newTick)) {
+                let candidate = newTick + dir;
+                while (candidate >= 0 && isOccupied(candidate)) candidate += dir;
+                newTick = Math.max(0, candidate);
+                if (isOccupied(newTick)) newTick = move.curTick;
+            }
+
+            if (newTick !== move.curTick) {
+                dispatchSceneCommand(
+                    { type: 'moveKeyframe', channelId: move.channelId, fromTick: move.curTick, toTick: newTick },
+                    { source: 'track-lane-dot', mergeKey: `dot-move:${drag.sessionId}`, transient: true },
+                );
+            }
+            return { ...move, curTick: newTick };
+        });
+
+        // Update selection store so expanded lane rows reflect live positions
+        useSelectionStore.getState().selectKeyframes(
+            updatedMoves.map((m) => ({ channelId: m.channelId, tick: m.curTick })),
+        );
+
+        setDotDrag({ ...drag, primaryCurTick: resolvedPrimaryTick, moves: updatedMoves });
+    }, [toTick, width, snapTick, setDotDrag]);
+
+    const handleHeaderPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        const drag = dotDragRef.current;
+        if (!drag) return;
+        try { headerRef.current?.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+        if (drag.primaryCurTick !== drag.primaryBaseTick) {
+            for (const move of drag.moves) {
+                if (move.curTick !== move.baseTick) {
+                    dispatchSceneCommand(
+                        { type: 'moveKeyframe', channelId: move.channelId, fromTick: move.curTick, toTick: move.curTick },
+                        { source: 'track-lane-dot', mergeKey: `dot-move:${drag.sessionId}`, transient: false },
+                    );
+                }
+            }
+        }
+        setDotDrag(null);
+    }, [setDotDrag]);
 
     if (!element || channels.length === 0) return null;
 
@@ -87,27 +270,65 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
 
     const isExpanded = lowerQuery ? true : expanded;
 
-    // Collect unique keyframe ticks across all channels for the dot indicators
     const kfTicks = Array.from(new Set(channels.flatMap((ch) => ch.keyframes.map((kf) => kf.tick))));
+    const cy = AUTOMATION_HEADER_HEIGHT / 2;
+    const s = HEADER_DIAMOND_SIZE;
 
     return (
         <>
-            {/* Element header spacer with keyframe dot indicators */}
+            {/* Element header with SVG diamond indicators */}
             <div
+                ref={headerRef}
                 className="relative border-b border-neutral-800"
                 style={{ height: AUTOMATION_HEADER_HEIGHT }}
+                onPointerMove={handleHeaderPointerMove}
+                onPointerUp={handleHeaderPointerUp}
+                onPointerCancel={() => setDotDrag(null)}
             >
-                {kfTicks.map((tick) => {
-                    const x = toX(tick, width);
-                    if (x < 0 || x > width) return null;
-                    return (
-                        <div
-                            key={tick}
-                            className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-neutral-400 pointer-events-none"
-                            style={{ left: x, width: 4, height: 4 }}
-                        />
-                    );
-                })}
+                <svg
+                    width={width}
+                    height={AUTOMATION_HEADER_HEIGHT}
+                    style={{ display: 'block', overflow: 'visible' }}
+                >
+                    {kfTicks.map((tick) => {
+                        const x = toX(tick, width);
+                        if (x < -s || x > width + s) return null;
+                        const selState = getTickSelectionState(tick);
+                        const isDragging = dotDrag !== null && Math.abs(tick - dotDrag.primaryCurTick) < 0.5
+                            && dotDrag.moves.some((m) => Math.abs(m.baseTick - tick) < 0.5);
+                        const fill =
+                            selState === 'full' ? '#ffffff' :
+                            selState === 'partial' ? 'rgba(255,255,255,0.45)' :
+                            'rgba(96,165,250,0.55)';
+                        const stroke =
+                            selState === 'none' ? 'rgba(96,165,250,0.5)' : '#60a5fa';
+                        const strokeWidth = selState === 'none' ? 1 : 1.5;
+                        const size = selState !== 'none' || isDragging ? s + 1 : s;
+                        return (
+                            <g
+                                key={tick}
+                                style={{ cursor: dotDrag ? 'grabbing' : 'grab' }}
+                                onPointerDown={(e) => handleDiamondPointerDown(e, tick)}
+                            >
+                                <path
+                                    d={`M${x},${cy - size} L${x - size},${cy} L${x},${cy + size} L${x + size},${cy} Z`}
+                                    fill={fill}
+                                    stroke={stroke}
+                                    strokeWidth={strokeWidth}
+                                    strokeLinejoin="round"
+                                />
+                                {/* Larger hit area */}
+                                <rect
+                                    x={x - s - 4}
+                                    y={cy - s - 4}
+                                    width={s * 2 + 8}
+                                    height={s * 2 + 8}
+                                    fill="transparent"
+                                />
+                            </g>
+                        );
+                    })}
+                </svg>
             </div>
 
             {/* Channel lane rows (when expanded) */}

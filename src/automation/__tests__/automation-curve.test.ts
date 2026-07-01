@@ -2,10 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { AutomationCurve } from '../automation-curve';
 import type { AutomationChannel, AutomationKeyframe } from '../types';
 
-function makeChannel(
-    keyframes: AutomationKeyframe[],
-    opts: Partial<AutomationChannel> = {},
-): AutomationChannel {
+function makeChannel(keyframes: AutomationKeyframe[], opts: Partial<AutomationChannel> = {}): AutomationChannel {
     return {
         id: 'test.prop',
         elementId: 'test',
@@ -40,34 +37,26 @@ describe('AutomationCurve', () => {
 
     describe('linear numeric interpolation', () => {
         it('interpolates between two keyframes', () => {
-            const curve = new AutomationCurve(
-                makeChannel([kf(0, 0), kf(100, 100)], { interpolation: 'linear' }),
-            );
+            const curve = new AutomationCurve(makeChannel([kf(0, 0), kf(100, 100)], { interpolation: 'linear' }));
             expect(curve.evaluate(0)).toBe(0);
             expect(curve.evaluate(50)).toBe(50);
             expect(curve.evaluate(100)).toBe(100);
         });
 
         it('holds first value before first keyframe', () => {
-            const curve = new AutomationCurve(
-                makeChannel([kf(100, 10), kf(200, 20)]),
-            );
+            const curve = new AutomationCurve(makeChannel([kf(100, 10), kf(200, 20)]));
             expect(curve.evaluate(0)).toBe(10);
             expect(curve.evaluate(50)).toBe(10);
         });
 
         it('holds last value after last keyframe', () => {
-            const curve = new AutomationCurve(
-                makeChannel([kf(0, 0), kf(100, 50)]),
-            );
+            const curve = new AutomationCurve(makeChannel([kf(0, 0), kf(100, 50)]));
             expect(curve.evaluate(200)).toBe(50);
             expect(curve.evaluate(1000)).toBe(50);
         });
 
         it('interpolates across multiple segments', () => {
-            const curve = new AutomationCurve(
-                makeChannel([kf(0, 0), kf(100, 100), kf(200, 0)]),
-            );
+            const curve = new AutomationCurve(makeChannel([kf(0, 0), kf(100, 100), kf(200, 0)]));
             expect(curve.evaluate(50)).toBe(50);
             expect(curve.evaluate(100)).toBe(100);
             expect(curve.evaluate(150)).toBe(50);
@@ -78,7 +67,7 @@ describe('AutomationCurve', () => {
     describe('stepped interpolation', () => {
         it('holds previous keyframe value until next tick', () => {
             const curve = new AutomationCurve(
-                makeChannel([kf(0, 10), kf(100, 20), kf(200, 30)], { interpolation: 'stepped' }),
+                makeChannel([kf(0, 10), kf(100, 20), kf(200, 30)], { interpolation: 'stepped' })
             );
             expect(curve.evaluate(0)).toBe(10);
             expect(curve.evaluate(50)).toBe(10);
@@ -87,12 +76,23 @@ describe('AutomationCurve', () => {
             expect(curve.evaluate(150)).toBe(20);
             expect(curve.evaluate(200)).toBe(30);
         });
+
+        it('snaps to keyframe when tick is fractionally below due to float conversion', () => {
+            // Simulates secondsToTicks returning 99.9999 instead of exactly 100.
+            // Without tolerance, findSegmentIndex would return kf[0] (prevIdx=0) and
+            // stepped mode would return 10 (old hold value) instead of 20 (new value).
+            const curve = new AutomationCurve(
+                makeChannel([kf(0, 10), kf(100, 20), kf(200, 30)], { interpolation: 'stepped' })
+            );
+            expect(curve.evaluate(99.9999)).toBe(20);
+            expect(curve.evaluate(199.9999)).toBe(30);
+        });
     });
 
     describe('eased interpolation', () => {
         it('applies per-keyframe easing (easeInQuad makes progress slower at start)', () => {
             const curve = new AutomationCurve(
-                makeChannel([kf(0, 0, 'easeInQuad'), kf(100, 100)], { interpolation: 'eased' }),
+                makeChannel([kf(0, 0, 'easeInQuad'), kf(100, 100)], { interpolation: 'eased' })
             );
             // easeInQuad(0.5) = 0.25, so at tick 50 the value should be 25
             expect(curve.evaluate(50)).toBeCloseTo(25, 1);
@@ -102,7 +102,7 @@ describe('AutomationCurve', () => {
 
         it('falls back to linear for unknown easing ID', () => {
             const curve = new AutomationCurve(
-                makeChannel([kf(0, 0, 'nonexistentEasing'), kf(100, 100)], { interpolation: 'eased' }),
+                makeChannel([kf(0, 0, 'nonexistentEasing'), kf(100, 100)], { interpolation: 'eased' })
             );
             expect(curve.evaluate(50)).toBeCloseTo(50, 1);
         });
@@ -114,7 +114,7 @@ describe('AutomationCurve', () => {
                 makeChannel([kf(0, false), kf(100, true)], {
                     interpolation: 'linear',
                     valueType: 'boolean',
-                }),
+                })
             );
             expect(curve.evaluate(0)).toBe(false);
             expect(curve.evaluate(50)).toBe(false);
@@ -129,7 +129,7 @@ describe('AutomationCurve', () => {
                 makeChannel([kf(0, '#000000'), kf(100, '#ffffff')], {
                     interpolation: 'linear',
                     valueType: 'color',
-                }),
+                })
             );
             expect(curve.evaluate(0)).toBe('#000000');
             // At midpoint each channel should be 128 (0x80)

@@ -38,15 +38,27 @@ function resolveEasing(easingId: string): EasingFn {
     return fn ?? easings.linear;
 }
 
-/** Binary search: find the index of the last keyframe with tick <= targetTick. */
+/**
+ * Binary search: find the index of the last keyframe with tick <= targetTick.
+ *
+ * A small tolerance is added so that ticks produced by floating-point
+ * seconds→ticks conversion that land fractionally before an integer keyframe
+ * tick are still attributed to that keyframe.  This is critical for constant
+ * (stepped) segments: without it, a tick of 99.9999 would return the segment
+ * *before* the keyframe at 100, producing the old held value rather than the
+ * keyframe's new value.  For smooth (linear/bezier) segments the sub-tick
+ * error is imperceptible, so the snap is harmless there too.
+ */
+const TICK_SNAP = 0.5;
 function findSegmentIndex(keyframes: readonly AutomationKeyframe[], targetTick: number): number {
+    const snapped = targetTick + TICK_SNAP;
     let lo = 0;
     let hi = keyframes.length - 1;
     let result = -1;
 
     while (lo <= hi) {
         const mid = (lo + hi) >>> 1;
-        if (keyframes[mid].tick <= targetTick) {
+        if (keyframes[mid].tick <= snapped) {
             result = mid;
             lo = mid + 1;
         } else {
@@ -113,7 +125,7 @@ export class AutomationCurve {
         prevIdx: number,
         localT: number,
         prev: AutomationKeyframe,
-        next: AutomationKeyframe,
+        next: AutomationKeyframe
     ): unknown {
         const interp = prev.segmentInterpolation!;
         const { mode, direction, params } = interp;
@@ -149,7 +161,7 @@ export class AutomationCurve {
         prevIdx: number,
         localT: number,
         prev: AutomationKeyframe,
-        next: AutomationKeyframe,
+        next: AutomationKeyframe
     ): unknown {
         const kfs = this.keyframes;
 
@@ -163,13 +175,23 @@ export class AutomationCurve {
         // Auto-compute handles when needed
         if (!prevRightHandle || prevHandleType === 'auto' || prevHandleType === 'auto_clamped') {
             const prevPrev = prevIdx > 0 ? kfs[prevIdx - 1] : null;
-            const computed = computeAutoHandles(prevPrev, prev, next, prevHandleType === 'auto' ? 'auto' : 'auto_clamped');
+            const computed = computeAutoHandles(
+                prevPrev,
+                prev,
+                next,
+                prevHandleType === 'auto' ? 'auto' : 'auto_clamped'
+            );
             prevRightHandle = computed.right;
         }
 
         if (!nextLeftHandle || nextHandleType === 'auto' || nextHandleType === 'auto_clamped') {
             const nextNext = prevIdx + 2 < kfs.length ? kfs[prevIdx + 2] : null;
-            const computed = computeAutoHandles(prev, next, nextNext, nextHandleType === 'auto' ? 'auto' : 'auto_clamped');
+            const computed = computeAutoHandles(
+                prev,
+                next,
+                nextNext,
+                nextHandleType === 'auto' ? 'auto' : 'auto_clamped'
+            );
             nextLeftHandle = computed.left;
         }
 
@@ -183,9 +205,7 @@ export class AutomationCurve {
             if (span <= 0) return next.value;
 
             // Evaluate bezier for the t-mapping only
-            const bezierT = evaluateSegmentBezier(
-                localT, prev.tick, 0, prevRightHandle, next.tick, 1, nextLeftHandle,
-            );
+            const bezierT = evaluateSegmentBezier(localT, prev.tick, 0, prevRightHandle, next.tick, 1, nextLeftHandle);
             return lerpColor(prev.value as string, next.value as string, Math.max(0, Math.min(1, bezierT)));
         }
 
@@ -193,9 +213,7 @@ export class AutomationCurve {
         const prevVal = typeof prev.value === 'number' ? prev.value : 0;
         const nextVal = typeof next.value === 'number' ? next.value : 0;
 
-        return evaluateSegmentBezier(
-            localT, prev.tick, prevVal, prevRightHandle, next.tick, nextVal, nextLeftHandle,
-        );
+        return evaluateSegmentBezier(localT, prev.tick, prevVal, prevRightHandle, next.tick, nextVal, nextLeftHandle);
     }
 
     /** Legacy evaluation path: channel-level interpolation mode + per-keyframe easingId. */
@@ -204,10 +222,7 @@ export class AutomationCurve {
         if (this.interpolation === 'stepped') return prev.value;
 
         // Apply easing
-        const easedT =
-            this.interpolation === 'eased'
-                ? resolveEasing(prev.easingId)(localT)
-                : localT;
+        const easedT = this.interpolation === 'eased' ? resolveEasing(prev.easingId)(localT) : localT;
 
         return this.interpolateValue(easedT, prev, next);
     }

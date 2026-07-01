@@ -18,8 +18,17 @@ const ChangelogPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-10">
+                    <ChangelogEntry version="0.15.4" date="1-7-26" notes={[
+                        "Bugfixes",
+                        [
+                            "allow empty text keyframe",
+                            "Constant interpolation now flips on tick rather than one tick after, so you can see the value of the keyframe at its tick."
+                        ],
+                        "New rescale/reposition change resolution behaviour",
+                        "Blender dope-sheet like selection behaviour for header keyframes",
+                    ]} />
 
-                    <ChangelogEntry version="0.15.3" date="15-6-8" notes={[
+                    <ChangelogEntry version="0.15.3" date="15-6-26" notes={[
                         "Bugfixes",
                         [
                             "\"Incompatble with this version of MVMNT\" appear in the community page even if untrue.",
@@ -32,7 +41,7 @@ const ChangelogPage: React.FC = () => {
 
                     ]} />
 
-                    <ChangelogEntry version="0.15.2" date="15-6-1" notes={[
+                    <ChangelogEntry version="0.15.2" date="15-6-26" notes={[
                         "Fixed bug which made japanese impossible to type into macros",
                         "Improved renderobject constructor consistency (all take options object, deprecated old constructors)",
                         "Added pixelgrid render object for easier drawing of pixel-art stuff",
@@ -41,13 +50,13 @@ const ChangelogPage: React.FC = () => {
                         "Made some new plugins! (check out community page <3)"
                     ]} />
 
-                    <ChangelogEntry version="0.15.1" date="15-5-28" notes={[
+                    <ChangelogEntry version="0.15.1" date="15-5-26" notes={[
                         "fixed a bug where japanese characters broke save/load system",
                         "updated supporters in about page",
                         "moved example plugins out of the plugin directory",
                     ]} />
 
-                    <ChangelogEntry version="0.15.0" date="15-5-27" notes={[
+                    <ChangelogEntry version="0.15.0" date="15-5-26" notes={[
                         "AUTOMATION.",
                         [
                             "Full automation editor with easing & custom beziers.",
