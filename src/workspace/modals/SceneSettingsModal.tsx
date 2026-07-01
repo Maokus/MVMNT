@@ -5,6 +5,7 @@ import { useTimelineStore } from '@state/timelineStore';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useSceneStore } from '@state/sceneStore';
+import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import SceneFontManager from '../scene-settings/SceneFontManager';
 import SceneAnalysisCachesTab from '../scene-settings/SceneAnalysisCachesTab';
 import ScenePluginsTab from '../scene-settings/ScenePluginsTab';
@@ -15,12 +16,12 @@ const SCALING_MODE_OPTIONS: Array<{ id: ResizeScalingMode; label: string; descri
     {
         id: 'scale',
         label: 'Scale All',
-        description: 'Proportionally scale element positions and sizes',
+        description: 'Proportionally scale element positions, sizes, and keyframe values',
     },
     {
         id: 'reposition',
         label: 'Reposition',
-        description: 'Shift positions proportionally, keep sizes unchanged',
+        description: 'Shift positions proportionally (corner-snap for static, proportional for animated), keep sizes unchanged',
     },
     {
         id: 'none',
@@ -91,52 +92,156 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
         return () => window.removeEventListener('keydown', handler);
     }, [onClose]);
 
-    const commitSceneSetting = (key: 'width' | 'height' | 'fps') => {
-        const raw = key === 'width' ? localWidth : key === 'height' ? localHeight : localFps;
-        const fallback = (exportSettings as any)[key];
-        const next = clampPositiveInt(parseInt(raw, 10), fallback);
+    // Pending (normalised but not yet applied) dimensions
+    const pendingWidth = useMemo(
+        () => clampPositiveInt(parseInt(localWidth, 10), exportSettings.width),
+        [localWidth, exportSettings.width],
+    );
+    const pendingHeight = useMemo(
+        () => clampPositiveInt(parseInt(localHeight, 10), exportSettings.height),
+        [localHeight, exportSettings.height],
+    );
+    const hasResizeChanges =
+        pendingWidth !== exportSettings.width || pendingHeight !== exportSettings.height;
 
-        if ((key === 'width' || key === 'height') && scalingMode !== 'none' && next !== fallback) {
-            const oldWidth = exportSettings.width;
-            const oldHeight = exportSettings.height;
-            const newWidth = key === 'width' ? next : oldWidth;
-            const newHeight = key === 'height' ? next : oldHeight;
-            const wRatio = newWidth / oldWidth;
-            const hRatio = newHeight / oldHeight;
+    // Normalise width/height inputs on blur/Enter without committing the resize
+    const normalizeWidth = () => setLocalWidth(String(pendingWidth));
+    const normalizeHeight = () => setLocalHeight(String(pendingHeight));
 
-            const { bindings: { byElement }, order, updateBindings } = useSceneStore.getState();
+    const applyResize = () => {
+        const newWidth = pendingWidth;
+        const newHeight = pendingHeight;
+        const oldWidth = exportSettings.width;
+        const oldHeight = exportSettings.height;
+
+        if (newWidth === oldWidth && newHeight === oldHeight) return;
+
+        const mergeKey = `resize-elements-${Date.now()}`;
+        const { bindings: { byElement }, order, automation } = useSceneStore.getState();
+        const wRatio = newWidth / oldWidth;
+        const hRatio = newHeight / oldHeight;
+        const dw = newWidth - oldWidth;
+        const dh = newHeight - oldHeight;
+
+        if (scalingMode !== 'none') {
+            const refPoints =
+                scalingMode === 'reposition'
+                    ? [
+                        { x: 0, y: 0, dx: 0, dy: 0 },
+                        { x: oldWidth, y: 0, dx: dw, dy: 0 },
+                        { x: 0, y: oldHeight, dx: 0, dy: dh },
+                        { x: oldWidth, y: oldHeight, dx: dw, dy: dh },
+                        { x: oldWidth / 2, y: oldHeight / 2, dx: dw / 2, dy: dh / 2 },
+                    ]
+                    : null;
+
             for (const elementId of order) {
                 const elBindings = byElement[elementId];
                 if (!elBindings) continue;
 
-                const patch: Record<string, { type: 'constant'; value: number }> = {};
-                const tryScale = (propKey: string, multiplier: number) => {
-                    const binding = elBindings[propKey];
-                    if (binding?.type === 'constant' && typeof binding.value === 'number') {
-                        const newVal = binding.value * multiplier;
-                        if (newVal !== binding.value) {
-                            patch[propKey] = { type: 'constant', value: newVal };
-                        }
-                    }
-                };
+                // ── Constant bindings ──────────────────────────────────────────────
+                const patch: Record<string, number> = {};
 
-                tryScale('offsetX', wRatio);
-                tryScale('offsetY', hRatio);
-                if (scalingMode === 'scale') {
-                    tryScale('elementScaleX', wRatio);
-                    tryScale('elementScaleY', hRatio);
+                if (scalingMode === 'reposition') {
+                    const oxB = elBindings['offsetX'];
+                    const oyB = elBindings['offsetY'];
+                    if (
+                        oxB?.type === 'constant' && typeof oxB.value === 'number' &&
+                        oyB?.type === 'constant' && typeof oyB.value === 'number'
+                    ) {
+                        const ox = oxB.value;
+                        const oy = oyB.value;
+                        let minDist = Infinity;
+                        let bestDx = 0;
+                        let bestDy = 0;
+                        for (const ref of refPoints!) {
+                            const d = Math.hypot(ox - ref.x, oy - ref.y);
+                            if (d < minDist) { minDist = d; bestDx = ref.dx; bestDy = ref.dy; }
+                        }
+                        if (bestDx !== 0) patch['offsetX'] = ox + bestDx;
+                        if (bestDy !== 0) patch['offsetY'] = oy + bestDy;
+                    }
+                } else {
+                    // scale mode – positions and sizes
+                    const oxB = elBindings['offsetX'];
+                    const oyB = elBindings['offsetY'];
+                    if (oxB?.type === 'constant' && typeof oxB.value === 'number') {
+                        const newOx = oxB.value * wRatio;
+                        if (newOx !== oxB.value) patch['offsetX'] = newOx;
+                    }
+                    if (oyB?.type === 'constant' && typeof oyB.value === 'number') {
+                        const newOy = oyB.value * hRatio;
+                        if (newOy !== oyB.value) patch['offsetY'] = newOy;
+                    }
+                    const sxB = elBindings['elementScaleX'];
+                    const syB = elBindings['elementScaleY'];
+                    if (sxB?.type === 'constant' && typeof sxB.value === 'number') {
+                        const newSx = sxB.value * wRatio;
+                        if (newSx !== sxB.value) patch['elementScaleX'] = newSx;
+                    }
+                    if (syB?.type === 'constant' && typeof syB.value === 'number') {
+                        const newSy = syB.value * hRatio;
+                        if (newSy !== syB.value) patch['elementScaleY'] = newSy;
+                    }
                 }
 
                 if (Object.keys(patch).length > 0) {
-                    updateBindings(elementId, patch);
+                    dispatchSceneCommand(
+                        { type: 'updateElementConfig', elementId, patch },
+                        { mergeKey },
+                    );
+                }
+
+                // ── Keyframe bindings ──────────────────────────────────────────────
+                // Reposition mode: proportionally shift animated positions (same formula
+                // as scale for keyframes; discrete corner-snapping only applies to static values).
+                // Scale mode: scale positions AND sizes.
+                const kfProps: Array<{ propKey: string; ratio: number }> = [];
+                if (scalingMode === 'scale') {
+                    kfProps.push(
+                        { propKey: 'offsetX', ratio: wRatio },
+                        { propKey: 'offsetY', ratio: hRatio },
+                        { propKey: 'elementScaleX', ratio: wRatio },
+                        { propKey: 'elementScaleY', ratio: hRatio },
+                    );
+                } else {
+                    // reposition: only shift positions, not sizes
+                    kfProps.push(
+                        { propKey: 'offsetX', ratio: wRatio },
+                        { propKey: 'offsetY', ratio: hRatio },
+                    );
+                }
+
+                for (const { propKey, ratio } of kfProps) {
+                    const binding = elBindings[propKey];
+                    if (binding?.type !== 'keyframes') continue;
+                    const channel = automation.channels[binding.channelId];
+                    if (!channel || channel.keyframes.length === 0) continue;
+                    const newKeyframes = channel.keyframes.map((kf) => ({
+                        ...kf,
+                        value: typeof kf.value === 'number' ? kf.value * ratio : kf.value,
+                    }));
+                    dispatchSceneCommand(
+                        { type: 'batchUpdateKeyframes', channelId: channel.id, keyframes: newKeyframes },
+                        { mergeKey },
+                    );
                 }
             }
         }
 
-        setExportSettings((prev: any) => ({ ...prev, [key]: next }));
-        if (key === 'width') setLocalWidth(String(next));
-        if (key === 'height') setLocalHeight(String(next));
-        if (key === 'fps') setLocalFps(String(next));
+        dispatchSceneCommand(
+            { type: 'updateSceneSettings', patch: { width: newWidth, height: newHeight } },
+            { mergeKey },
+        );
+        setExportSettings((prev: any) => ({ ...prev, width: newWidth, height: newHeight }));
+        setLocalWidth(String(newWidth));
+        setLocalHeight(String(newHeight));
+    };
+
+    const commitFps = () => {
+        const next = clampPositiveInt(parseInt(localFps, 10), exportSettings.fps);
+        setExportSettings((prev: any) => ({ ...prev, fps: next }));
+        setLocalFps(String(next));
     };
 
     const commitSceneName = () => {
@@ -247,7 +352,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                 <div className="flex-1 overflow-y-auto pr-1">
                     {activeTab === 'general' && (
                         <div className="flex flex-col gap-5">
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                                 <label className="flex flex-col gap-1 text-[12px]">
                                     Width
                                     <input
@@ -256,10 +361,10 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                         max={8192}
                                         value={localWidth}
                                         onChange={(e) => setLocalWidth(e.target.value)}
-                                        onBlur={() => commitSceneSetting('width')}
+                                        onBlur={normalizeWidth}
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter') {
-                                                commitSceneSetting('width');
+                                                normalizeWidth();
                                                 (e.currentTarget as HTMLInputElement).blur();
                                             }
                                         }}
@@ -274,10 +379,10 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                         max={8192}
                                         value={localHeight}
                                         onChange={(e) => setLocalHeight(e.target.value)}
-                                        onBlur={() => commitSceneSetting('height')}
+                                        onBlur={normalizeHeight}
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter') {
-                                                commitSceneSetting('height');
+                                                normalizeHeight();
                                                 (e.currentTarget as HTMLInputElement).blur();
                                             }
                                         }}
@@ -292,38 +397,49 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                         max={240}
                                         value={localFps}
                                         onChange={(e) => setLocalFps(e.target.value)}
-                                        onBlur={() => commitSceneSetting('fps')}
+                                        onBlur={commitFps}
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter') {
-                                                commitSceneSetting('fps');
+                                                commitFps();
                                                 (e.currentTarget as HTMLInputElement).blur();
                                             }
                                         }}
                                         className="number-input w-full"
                                     />
                                 </label>
+                                <label className="flex flex-col gap-1 text-[12px]">
+                                    Scaling Mode
+                                    <select
+                                        value={scalingMode}
+                                        onChange={(e) => setScalingMode(e.target.value as ResizeScalingMode)}
+                                        className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-[5px] text-[12px] text-neutral-100 focus:border-sky-500 focus:outline-none"
+                                    >
+                                        {SCALING_MODE_OPTIONS.map((opt) => (
+                                            <option key={opt.id} value={opt.id}>
+                                                {opt.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
                             </div>
-                            <div className="flex flex-col gap-1">
-                                <span className="text-[12px] text-neutral-400">Resize Scaling Mode</span>
-                                <div className="flex gap-1">
-                                    {SCALING_MODE_OPTIONS.map((opt) => (
-                                        <button
-                                            key={opt.id}
-                                            type="button"
-                                            title={opt.description}
-                                            onClick={() => setScalingMode(opt.id)}
-                                            className={`rounded px-3 py-1 text-[12px] transition-colors ${scalingMode === opt.id
-                                                    ? 'bg-sky-600/30 text-sky-200 ring-1 ring-sky-500/50'
-                                                    : 'text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-100'
-                                                }`}
-                                        >
-                                            {opt.label}
-                                        </button>
-                                    ))}
-                                </div>
-                                <span className="text-[11px] text-neutral-500">
-                                    {SCALING_MODE_OPTIONS.find((o) => o.id === scalingMode)?.description}
-                                </span>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    type="button"
+                                    disabled={!hasResizeChanges}
+                                    onClick={applyResize}
+                                    className={`rounded px-4 py-1.5 text-[12px] font-medium transition-colors ${hasResizeChanges
+                                            ? 'bg-sky-600 text-white hover:bg-sky-500'
+                                            : 'cursor-not-allowed bg-neutral-700/50 text-neutral-500'
+                                        }`}
+                                >
+                                    Apply Resize
+                                </button>
+                                {hasResizeChanges && (
+                                    <span className="text-[11px] text-neutral-400">
+                                        {pendingWidth} × {pendingHeight} —{' '}
+                                        {SCALING_MODE_OPTIONS.find((o) => o.id === scalingMode)?.description}
+                                    </span>
+                                )}
                             </div>
                             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                                 <label className="flex flex-col gap-1 text-[12px]">
