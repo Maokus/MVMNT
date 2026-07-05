@@ -103,6 +103,7 @@ export type TimelineState = {
         rate: number; // playback rate factor (inactive until wired to visualizer/worker)
         quantize: QuantizeSetting; // snap denomination for transport interactions
         adaptiveSnap: boolean; // when true, snap denominator and grid lines adapt to zoom level
+        arbitrarySnapN: number; // denominator N for 'arbitrary' snap mode (snap to 1/N of a bar)
         autoKeying: boolean; // when true, property changes automatically create keyframes
     };
     // UI view window in ticks
@@ -162,6 +163,7 @@ export type TimelineState = {
     scrubTick: (tick: number) => void;
     setRate: (rate: number) => void;
     setQuantize: (q: QuantizeSetting) => void;
+    setArbitrarySnapN: (n: number) => void;
     setAdaptiveSnap: (v: boolean) => void;
     setAutoKeying: (v: boolean) => void;
     setLoopEnabled: (enabled: boolean) => void;
@@ -475,6 +477,7 @@ function createInitialTimelineSlice(): Pick<
             // Quantize enabled by default (bar snapping)
             quantize: 'bar',
             adaptiveSnap: true,
+            arbitrarySnapN: 8,
             autoKeying: false,
             loopStartTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 2)),
             loopEndTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 5)),
@@ -895,9 +898,26 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     setQuantize(q: QuantizeSetting) {
-        const allowed: QuantizeSetting[] = ['off', 'bar', 'quarter', 'eighth', 'sixteenth', 'thirty-second'];
+        const allowed: QuantizeSetting[] = [
+            'off',
+            'bar',
+            'quarter',
+            'quarter-triplet',
+            'eighth',
+            'eighth-triplet',
+            'sixteenth',
+            'sixteenth-triplet',
+            'thirty-second',
+            'sixty-fourth',
+            'arbitrary',
+        ];
         const next = allowed.includes(q) ? q : 'off';
         set((s: TimelineState) => ({ transport: { ...s.transport, quantize: next } }));
+    },
+
+    setArbitrarySnapN(n: number) {
+        const safe = Number.isFinite(n) && n >= 1 ? Math.round(n) : 8;
+        set((s: TimelineState) => ({ transport: { ...s.transport, arbitrarySnapN: safe } }));
     },
 
     setAdaptiveSnap(v: boolean) {

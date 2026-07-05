@@ -40,6 +40,8 @@ const HeaderRightControls: React.FC<{
     const setQuantize = useTimelineStore((s) => s.setQuantize);
     const adaptiveSnap = useTimelineStore((s) => s.transport.adaptiveSnap);
     const setAdaptiveSnap = useTimelineStore((s) => s.setAdaptiveSnap);
+    const arbitrarySnapN = useTimelineStore((s) => s.transport.arbitrarySnapN);
+    const setArbitrarySnapN = useTimelineStore((s) => s.setArbitrarySnapN);
     const lastNonOffQuantizeRef = useRef<QuantizeSetting>('bar');
     useEffect(() => {
         if (quantize !== 'off') {
@@ -47,9 +49,16 @@ const HeaderRightControls: React.FC<{
         }
     }, [quantize]);
     const magnetActive = quantize !== 'off';
-    const currentQuantizeLabel = formatQuantizeLabel(quantize);
-    const pendingQuantizeLabel = formatQuantizeLabel(lastNonOffQuantizeRef.current);
+    const currentQuantizeLabel = formatQuantizeLabel(quantize, arbitrarySnapN);
+    const pendingQuantizeLabel = formatQuantizeLabel(lastNonOffQuantizeRef.current, arbitrarySnapN);
     const snapSelectValue = (magnetActive ? quantize : lastNonOffQuantizeRef.current) as SnapQuantizeOption;
+    const [arbitraryInput, setArbitraryInput] = useState(String(arbitrarySnapN));
+    useEffect(() => { setArbitraryInput(String(arbitrarySnapN)); }, [arbitrarySnapN]);
+    const commitArbitraryInput = () => {
+        const n = parseInt(arbitraryInput, 10);
+        if (n >= 1 && n <= 512) setArbitrarySnapN(n);
+        else setArbitraryInput(String(arbitrarySnapN));
+    };
     // Global timing state
     const globalBpm = useTimelineStore((s) => s.timeline.globalBpm);
     const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
@@ -202,6 +211,27 @@ const HeaderRightControls: React.FC<{
                         </option>
                     ))}
                 </select>
+                {/* Arbitrary N input — only shown when arbitrary snap is selected */}
+                {snapSelectValue === 'arbitrary' && !adaptiveSnap && (
+                    <>
+                        <div className="w-px bg-neutral-700 self-stretch" />
+                        <div className="flex items-center bg-neutral-900/60 px-1">
+                            <span className={`text-[10px] mr-0.5 ${magnetActive ? 'text-neutral-300' : 'text-neutral-500'}`}>1/</span>
+                            <input
+                                type="number"
+                                aria-label="Arbitrary snap denominator"
+                                min={1}
+                                max={512}
+                                step={1}
+                                value={arbitraryInput}
+                                onChange={(e) => setArbitraryInput(e.target.value)}
+                                onBlur={commitArbitraryInput}
+                                onKeyDown={(e) => { if (e.key === 'Enter') { commitArbitraryInput(); (e.currentTarget as HTMLInputElement).blur(); } }}
+                                className={`w-[36px] bg-transparent border-0 focus:outline-none text-center text-[11px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${magnetActive ? 'text-white' : 'text-neutral-400'}`}
+                            />
+                        </div>
+                    </>
+                )}
                 {/* Divider */}
                 <div className="w-px bg-neutral-700 self-stretch" />
                 {/* Segment 3: Adaptive snap toggle */}

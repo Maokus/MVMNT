@@ -10,6 +10,7 @@ import { getAdaptiveSnapSetting, quantizeSettingToBeats, type QuantizeSetting } 
 export function useSnapTicks() {
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const adaptiveSnap = useTimelineStore((s) => s.transport.adaptiveSnap);
+    const arbitrarySnapN = useTimelineStore((s) => s.transport.arbitrarySnapN);
     const bpb = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
     const viewStart = useTimelineStore((s) => s.timelineView.startTick);
     const viewEnd = useTimelineStore((s) => s.timelineView.endTick);
@@ -31,11 +32,11 @@ export function useSnapTicks() {
                 target = quantize;
             }
             if (target === 'off') return clamp(candidateTick);
-            const beatLength = quantizeSettingToBeats(target, bpb);
+            const beatLength = quantizeSettingToBeats(target, bpb, arbitrarySnapN);
             if (!beatLength) return clamp(candidateTick);
             const resolution = Math.max(1, Math.round(beatLength * ppq));
             return clamp(Math.round(candidateTick / resolution) * resolution);
         },
-        [quantize, adaptiveSnap, bpb, ppq, viewStart, viewEnd]
+        [quantize, adaptiveSnap, arbitrarySnapN, bpb, ppq, viewStart, viewEnd]
     );
 }
