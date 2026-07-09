@@ -30,7 +30,8 @@ import {
     beatsToSecondsContext,
 } from '@state/timelineTime';
 import { beatsToTicks, ticksToBeats } from '@core/timing/ppq';
-import PLUGIN_API_VERSION from '../api-version';
+import { PLUGIN_API_VERSION } from '../api-version';
+export { PLUGIN_API_VERSION } from '../api-version';
 
 export const PLUGIN_CAPABILITIES = {
     timelineRead: 'timeline.read',

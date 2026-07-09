@@ -13,6 +13,7 @@ import { shallow } from 'zustand/shallow';
 import { makeChannelId, findKeyframeAtTick, createKeyframe, DEFAULT_SEGMENT_INTERPOLATION, type AutomationValueType } from '@automation/types';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
+import { createDuplicateElementId } from './duplicateElementName';
 
 export interface TrackInputDef {
     key: string;
@@ -428,12 +429,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         (elementId: string) => {
             const store = useSceneStore.getState();
             if (!store.elements[elementId]) return;
-            const baseId = elementId.replace(/_copy_\d+$/, '');
-            let duplicateId = `${baseId}_copy`;
-            let counter = 1;
-            while (store.elements[duplicateId]) {
-                duplicateId = `${baseId}_copy_${counter++}`;
-            }
+            const duplicateId = createDuplicateElementId(elementId, Object.keys(store.elements));
             const ok = runSceneCommand(
                 { type: 'duplicateElement', sourceId: elementId, newId: duplicateId },
                 'SceneSelectionContext.duplicateElement'

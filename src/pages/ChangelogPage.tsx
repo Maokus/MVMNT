@@ -18,6 +18,12 @@ const ChangelogPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-10">
+                    <ChangelogEntry version="0.15.6" date="1-7-26" notes={[
+                        "Allow arbitrary time division snapping (joserizzal req)",
+                        "Change duplicate element name behaviour (no more _copy chains)",
+
+                    ]} />
+
                     <ChangelogEntry version="0.15.4" date="1-7-26" notes={[
                         "Bugfixes",
                         [
