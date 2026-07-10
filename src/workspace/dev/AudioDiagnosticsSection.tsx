@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatBytes, summarizeAudioMemory } from '@audio/audioMemoryDiagnostics';
 import type { AudioFeatureCache, AudioFeatureCacheStatus, AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 import {
     formatCacheDiffDescriptor,
@@ -6,6 +7,7 @@ import {
     type CacheDescriptorDetail,
     type CacheDiff,
 } from '@state/audioDiagnosticsStore';
+import { useAudioMemoryDiagnosticsStore } from '@state/audioMemoryDiagnosticsStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { CollapsibleCard, Section } from './Section';
 
@@ -148,6 +150,21 @@ type DiagnosticsListProps = {
     hint?: string;
 };
 
+const MetricCell: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+    <div
+        style={{
+            border: '1px solid rgba(148, 163, 184, 0.22)',
+            borderRadius: 6,
+            background: 'rgba(15, 23, 42, 0.35)',
+            padding: '7px 8px',
+            minWidth: 0,
+        }}
+    >
+        <div style={{ opacity: 0.6, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10 }}>{label}</div>
+        <div style={{ marginTop: 2, fontSize: 12, fontWeight: 600, overflowWrap: 'anywhere' }}>{value}</div>
+    </div>
+);
+
 const DiagnosticsList: React.FC<DiagnosticsListProps> = ({
     diff,
     descriptorIds,
@@ -233,10 +250,14 @@ type AudioDiagnosticsSectionProps = {
 export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = ({ open, onToggle }) => {
     const intentsByElement = useAudioDiagnosticsStore((state) => state.intentsByElement);
     const diffs = useAudioDiagnosticsStore((state) => state.diffs);
+    const audioCache = useTimelineStore((state) => state.audioCache);
     const audioFeatureCaches = useTimelineStore((state) => state.audioFeatureCaches);
     const audioFeatureCacheStatus = useTimelineStore((state) => state.audioFeatureCacheStatus);
+    const memoryEvents = useAudioMemoryDiagnosticsStore((state) => state.events);
+    const clearMemoryEvents = useAudioMemoryDiagnosticsStore((state) => state.clear);
 
     const [audioSubSectionsOpen, setAudioSubSectionsOpen] = React.useState({
+        memory: true,
         requests: true,
         caches: true,
         diagnostics: false,
@@ -269,6 +290,16 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
             .sort((a, b) => a.key.localeCompare(b.key));
     }, [audioFeatureCaches, audioFeatureCacheStatus]);
 
+    const memorySummary = React.useMemo(
+        () => summarizeAudioMemory(audioCache ?? {}, audioFeatureCaches ?? {}),
+        [audioCache, audioFeatureCaches],
+    );
+
+    const recentMemoryEvents = React.useMemo(
+        () => [...memoryEvents].reverse().slice(0, 8),
+        [memoryEvents],
+    );
+
     const diffSummaries = React.useMemo(() => {
         return [...(diffs ?? [])].sort((a, b) => {
             const aLabel = a.trackRefs[0] ?? a.audioSourceId;
@@ -298,9 +329,101 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
             title="Audio Features"
             open={open}
             onToggle={onToggle}
-            subtitle={`${featureRequests.length} req · ${cacheEntries.length} caches`}
+            subtitle={`${featureRequests.length} req · ${cacheEntries.length} caches · ${formatBytes(memorySummary.retainedAudioBytes)}`}
         >
             <div style={{ display: 'grid', gap: 12 }}>
+                <CollapsibleCard
+                    title="Memory and Import Diagnostics"
+                    open={audioSubSectionsOpen.memory}
+                    onToggle={() => toggleAudioSubSection('memory')}
+                    subtitle={`${memorySummary.sourceCount} sources · ${formatBytes(memorySummary.retainedAudioBytes)}`}
+                >
+                    <div style={{ display: 'grid', gap: 10, fontSize: 11 }}>
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                                gap: 8,
+                            }}
+                        >
+                            <MetricCell label="Decoded PCM" value={formatBytes(memorySummary.decodedPcmBytes)} />
+                            <MetricCell label="Original bytes" value={formatBytes(memorySummary.originalFileBytes)} />
+                            <MetricCell label="Waveforms" value={formatBytes(memorySummary.waveformBytes)} />
+                            <MetricCell label="Feature caches" value={formatBytes(memorySummary.featureCacheBytes)} />
+                            <MetricCell label="Retained audio" value={formatBytes(memorySummary.retainedAudioBytes)} />
+                            <MetricCell
+                                label="Browser heap"
+                                value={
+                                    memorySummary.browserHeapUsedBytes && memorySummary.browserHeapLimitBytes
+                                        ? `${formatBytes(memorySummary.browserHeapUsedBytes)} / ${formatBytes(memorySummary.browserHeapLimitBytes)}`
+                                        : 'unavailable'
+                                }
+                            />
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ opacity: 0.65, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10 }}>
+                                Recent import/cache events
+                            </div>
+                            {memoryEvents.length ? (
+                                <button
+                                    type="button"
+                                    onClick={clearMemoryEvents}
+                                    style={{
+                                        background: 'rgba(15, 23, 42, 0.6)',
+                                        border: '1px solid rgba(148, 163, 184, 0.3)',
+                                        borderRadius: 4,
+                                        color: '#cbd5f5',
+                                        cursor: 'pointer',
+                                        fontSize: 10,
+                                        padding: '3px 6px',
+                                    }}
+                                >
+                                    Clear
+                                </button>
+                            ) : null}
+                        </div>
+                        {recentMemoryEvents.length ? (
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 6 }}>
+                                {recentMemoryEvents.map((event) => (
+                                    <li
+                                        key={event.id}
+                                        style={{
+                                            border: '1px solid rgba(148, 163, 184, 0.22)',
+                                            borderRadius: 6,
+                                            background:
+                                                event.severity === 'warning'
+                                                    ? 'rgba(120, 53, 15, 0.32)'
+                                                    : event.severity === 'error'
+                                                      ? 'rgba(127, 29, 29, 0.32)'
+                                                      : 'rgba(15, 23, 42, 0.35)',
+                                            padding: '7px 8px',
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                                            <strong style={{ color: event.severity === 'warning' ? '#fbbf24' : '#e2e8f0' }}>
+                                                {event.stage}
+                                            </strong>
+                                            <span style={{ opacity: 0.55 }}>{formatRelativeTime(event.timestamp)}</span>
+                                        </div>
+                                        <div style={{ opacity: 0.82, marginTop: 2 }}>{event.message}</div>
+                                        {event.durationMs != null || event.sourceId || event.fileName ? (
+                                            <div style={{ opacity: 0.62, marginTop: 2 }}>
+                                                {event.sourceId ? `source:${event.sourceId}` : ''}
+                                                {event.fileName ? `${event.sourceId ? ' · ' : ''}${event.fileName}` : ''}
+                                                {event.durationMs != null
+                                                    ? `${event.sourceId || event.fileName ? ' · ' : ''}${event.durationMs.toFixed(0)}ms`
+                                                    : ''}
+                                            </div>
+                                        ) : null}
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <div style={{ opacity: 0.65 }}>No import/cache memory events yet.</div>
+                        )}
+                    </div>
+                </CollapsibleCard>
+
                 <CollapsibleCard
                     title="Scene Requests"
                     open={audioSubSectionsOpen.requests}

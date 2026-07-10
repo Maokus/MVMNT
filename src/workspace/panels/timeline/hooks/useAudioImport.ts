@@ -1,6 +1,8 @@
 import { useCallback, useRef } from 'react';
 import type { ChangeEvent } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
+import { estimateAudioImportBatch, formatBytes } from '@audio/audioMemoryDiagnostics';
+import { recordAudioMemoryDiagnostic } from '@state/audioMemoryDiagnosticsStore';
 import { isMidiFile, isAudioFile } from '../utils/fileTypeUtils';
 
 export function useAudioImport() {
@@ -19,6 +21,19 @@ export function useAudioImport() {
             }
             const name = file.name.replace(/\.[^/.]+$/, '');
             try {
+                const estimate = await estimateAudioImportBatch([file]);
+                recordAudioMemoryDiagnostic({
+                    severity: estimate.severity === 'ok' ? 'info' : 'warning',
+                    stage: 'import-preflight',
+                    message: `Importing ${file.name}; estimated retained audio ${formatBytes(estimate.retainedHeapBytes)}`,
+                    fileName: file.name,
+                    fileCount: 1,
+                    bytes: {
+                        file: estimate.fileBytes,
+                        decodedPcm: estimate.decodedPcmBytes,
+                        retainedAudio: estimate.retainedHeapBytes,
+                    },
+                });
                 await addAudioTrack({ name, file });
                 return true;
             } catch (error) {
@@ -35,6 +50,21 @@ export function useAudioImport() {
         async (e: ChangeEvent<HTMLInputElement>) => {
             const files = Array.from(e.target.files ?? []);
             if (!files.length) return;
+            const audioFiles = files.filter((file) => isAudioFile(file) && !isMidiFile(file));
+            if (audioFiles.length > 1) {
+                const estimate = await estimateAudioImportBatch(audioFiles);
+                recordAudioMemoryDiagnostic({
+                    severity: estimate.severity === 'ok' ? 'info' : 'warning',
+                    stage: 'bulk-import-preflight',
+                    message: `${audioFiles.length} audio files selected; estimated retained audio ${formatBytes(estimate.retainedHeapBytes)}`,
+                    fileCount: audioFiles.length,
+                    bytes: {
+                        file: estimate.fileBytes,
+                        decodedPcm: estimate.decodedPcmBytes,
+                        retainedAudio: estimate.retainedHeapBytes,
+                    },
+                });
+            }
             for (const file of files) {
                 await importAudioFile(file);
             }

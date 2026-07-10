@@ -3,6 +3,8 @@ import { createWithEqualityFn } from 'zustand/traditional';
 import { shallow } from 'zustand/shallow';
 import type { MIDIData } from '@core/types';
 import type { AudioTrack, AudioCacheEntry, AudioCacheOriginalFile, AudioCacheWaveform } from '@audio/audioTypes';
+import { estimateAudioBufferBytes, formatBytes, summarizeAudioMemory } from '@audio/audioMemoryDiagnostics';
+import { recordAudioMemoryDiagnostic } from './audioMemoryDiagnosticsStore';
 import type {
     AudioFeatureCache,
     AudioFeatureCacheStatus,
@@ -1158,6 +1160,25 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                       );
                 return updates as TimelineState;
             });
+            const sourceRetainedBytes =
+                estimateAudioBufferBytes(buffer) +
+                (options?.originalFile?.byteLength ?? options?.originalFile?.bytes?.byteLength ?? 0) +
+                (options?.waveform?.channelPeaks?.byteLength ?? 0);
+            const memorySummary = summarizeAudioMemory(get().audioCache, get().audioFeatureCaches);
+            recordAudioMemoryDiagnostic({
+                severity: sourceRetainedBytes >= 512 * 1024 * 1024 || memorySummary.retainedAudioBytes >= 1.5 * 1024 * 1024 * 1024 ? 'warning' : 'info',
+                stage: 'audio-cache-ingest',
+                message: `Cached source ${id}; source retained ${formatBytes(sourceRetainedBytes)}, project retained audio ${formatBytes(memorySummary.retainedAudioBytes)}`,
+                sourceId: id,
+                bytes: {
+                    decodedPcm: estimateAudioBufferBytes(buffer),
+                    originalFile: options?.originalFile?.byteLength ?? options?.originalFile?.bytes?.byteLength,
+                    waveform: options?.waveform?.channelPeaks?.byteLength,
+                    retainedAudio: memorySummary.retainedAudioBytes,
+                    browserHeapUsed: memorySummary.browserHeapUsedBytes,
+                    browserHeapLimit: memorySummary.browserHeapLimitBytes,
+                },
+            });
             // Kick off async peak extraction (non-blocking)
             (async () => {
                 try {
@@ -1179,6 +1200,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                                 [id]: { ...existing, waveform },
                             },
                         } as TimelineState;
+                    });
+                    recordAudioMemoryDiagnostic({
+                        severity: 'info',
+                        stage: 'waveform-cache-ready',
+                        message: `Waveform peaks cached for ${id} (${formatBytes(res.peaks.byteLength)})`,
+                        sourceId: id,
+                        bytes: { waveform: res.peaks.byteLength },
                     });
                 } catch (error) {
                     console.warn(
@@ -1241,6 +1269,17 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 null
             ),
         }));
+        const memorySummary = summarizeAudioMemory(get().audioCache, get().audioFeatureCaches);
+        recordAudioMemoryDiagnostic({
+            severity: memorySummary.featureCacheBytes >= 512 * 1024 * 1024 ? 'warning' : 'info',
+            stage: 'feature-cache-ingest',
+            message: `Feature cache updated for ${id}; feature payloads now ${formatBytes(memorySummary.featureCacheBytes)}`,
+            sourceId: id,
+            bytes: {
+                featureCache: memorySummary.featureCacheBytes,
+                retainedAudio: memorySummary.retainedAudioBytes,
+            },
+        });
         try {
             autoAdjustSceneRangeIfNeeded(get, set);
         } catch {}

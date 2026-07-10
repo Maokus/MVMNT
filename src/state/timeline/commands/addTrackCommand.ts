@@ -15,6 +15,8 @@ import {
 import type { TimelineCommandContext, TimelineCommandExecuteResult } from '../commandTypes';
 import { useSelectionStore } from '@state/selectionStore';
 import type { MidiClip } from '../midiClips';
+import { estimateAudioBufferBytes, formatBytes } from '@audio/audioMemoryDiagnostics';
+import { recordAudioMemoryDiagnostic } from '@state/audioMemoryDiagnosticsStore';
 
 export type AddTrackCommandPayload =
     | {
@@ -108,9 +110,23 @@ interface PreparedAudioSource {
 
 async function prepareAudioSource(payload: { buffer?: AudioBuffer; file?: File }): Promise<PreparedAudioSource> {
     if (payload.buffer) {
+        recordAudioMemoryDiagnostic({
+            severity: 'info',
+            stage: 'decode-skip',
+            message: `Using provided AudioBuffer (${formatBytes(estimateAudioBufferBytes(payload.buffer))} decoded PCM)`,
+            bytes: { decodedPcm: estimateAudioBufferBytes(payload.buffer) },
+        });
         return { buffer: payload.buffer };
     }
     if (payload.file) {
+        const startedAt = performance.now();
+        recordAudioMemoryDiagnostic({
+            severity: 'info',
+            stage: 'file-read-start',
+            message: `Reading ${payload.file.name} (${formatBytes(payload.file.size)})`,
+            fileName: payload.file.name,
+            bytes: { file: payload.file.size },
+        });
         const arrayBuffer = await payload.file.arrayBuffer();
         const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
         if (!AudioContextCtor) {
@@ -118,13 +134,39 @@ async function prepareAudioSource(payload: { buffer?: AudioBuffer; file?: File }
         }
         const ctx = new AudioContextCtor();
         try {
+            const decodeStartedAt = performance.now();
             const decoded = await ctx.decodeAudioData(arrayBuffer.slice(0));
+            const decodedPcmBytes = estimateAudioBufferBytes(decoded);
             const originalFile: AudioCacheOriginalFile = {
                 name: payload.file.name,
                 mimeType: payload.file.type || 'application/octet-stream',
                 bytes: new Uint8Array(arrayBuffer),
                 byteLength: arrayBuffer.byteLength,
             };
+            recordAudioMemoryDiagnostic({
+                severity: decodedPcmBytes + arrayBuffer.byteLength >= 512 * 1024 * 1024 ? 'warning' : 'info',
+                stage: 'decode-complete',
+                message: `Decoded ${payload.file.name}: ${formatBytes(decodedPcmBytes)} PCM plus ${formatBytes(arrayBuffer.byteLength)} original bytes retained`,
+                fileName: payload.file.name,
+                bytes: {
+                    file: arrayBuffer.byteLength,
+                    decodedPcm: decodedPcmBytes,
+                    retainedAudio: decodedPcmBytes + arrayBuffer.byteLength,
+                },
+                durationMs: performance.now() - decodeStartedAt,
+            });
+            recordAudioMemoryDiagnostic({
+                severity: 'info',
+                stage: 'import-file-prepared',
+                message: `Prepared ${payload.file.name} for cache insertion`,
+                fileName: payload.file.name,
+                bytes: {
+                    file: arrayBuffer.byteLength,
+                    decodedPcm: decodedPcmBytes,
+                    retainedAudio: decodedPcmBytes + arrayBuffer.byteLength,
+                },
+                durationMs: performance.now() - startedAt,
+            });
             return { buffer: decoded, originalFile };
         } finally {
             try {

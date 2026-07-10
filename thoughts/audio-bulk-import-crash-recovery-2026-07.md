@@ -39,7 +39,43 @@ The dirty tracker only records whether state differs from the last explicit loca
 - Guaranteeing recovery after IndexedDB quota eviction or private-browsing storage denial.
 - Implementing true disk-backed streaming playback for every browser immediately.
 
-## Plan
+## Phased Implementation Plan
+
+Each phase should leave the app in a shippable state and should keep `.mvt` export/import compatibility intact. Phases are ordered by risk reduction: first make memory pressure visible, then stop preventable large allocations, then add recovery and deeper memory controls.
+
+### Phase 0: Instrumentation and Memory Visibility
+
+Goal: make current memory behavior measurable before changing the storage model.
+
+Scope:
+
+- Add a shared audio memory estimator for:
+  - selected import file bytes
+  - decoded PCM bytes (`samples * channels * 4`)
+  - retained original bytes in `audioCache.originalFile`
+  - waveform peak arrays
+  - audio feature cache payload arrays
+  - browser heap where `performance.memory` is available
+- Parse WAV RIFF headers during import preflight so large WAV batches can be estimated without decoding.
+- Record structured diagnostics events for import preflight, file read, decode completion, audio cache insertion, waveform cache generation, and feature cache insertion.
+- Surface those events in the developer overlay under the existing audio diagnostics panel.
+
+Code areas:
+
+- `src/audio/audioMemoryDiagnostics.ts`
+- `src/state/audioMemoryDiagnosticsStore.ts`
+- `src/workspace/panels/timeline/hooks/useAudioImport.ts`
+- `src/state/timeline/commands/addTrackCommand.ts`
+- `src/state/timelineStore.ts`
+- `src/workspace/dev/AudioDiagnosticsSection.tsx`
+
+Acceptance gate:
+
+- Developer overlay shows decoded PCM, retained original bytes, waveform bytes, feature cache bytes, total retained audio estimate, and recent import/cache events.
+- Importing a single audio file records preflight, decode, and cache events.
+- Selecting multiple audio files records a batch preflight estimate.
+
+Status: implemented in this pass.
 
 ### Phase 1: Import Guardrails and Better Failure Behavior
 
@@ -53,6 +89,21 @@ Add a preflight step before bulk audio import in `useAudioImport` and drag/drop 
 
 This does not solve the memory model, but it prevents blind imports that are likely to kill the tab and gives the user a controlled escape path.
 
+Implementation details:
+
+- Reuse the Phase 0 estimator and thresholds.
+- Add a batch-level import API instead of calling `importAudioFile` independently for every file, so the hook can keep a single cancellation token and summary.
+- Apply the same batch path from file input and drag/drop.
+- Do not decode the next file if the user cancels or if the browser reports critically high heap usage after the previous file.
+- Persist per-file outcomes to diagnostics: imported, skipped, failed, canceled.
+
+Acceptance gate:
+
+- A 17-file WAV selection shows an estimate before decoding.
+- User can cancel between files.
+- One corrupt file does not abort the whole batch.
+- Diagnostics retain the batch summary after the modal closes.
+
 ### Phase 2: Stop Retaining WAV Original Bytes on the JS Heap
 
 Move `AudioCacheOriginalFile.bytes` out of Zustand for large audio. Introduce an `AudioAssetStore` in IndexedDB:
@@ -65,6 +116,25 @@ Move `AudioCacheOriginalFile.bytes` out of Zustand for large audio. Introduce an
 
 For the reported workflow this removes about 1.36 GB of retained heap for 17 * 80 MB WAVs.
 
+Implementation details:
+
+- Add a stable `AudioAssetRef` shape to `AudioCacheOriginalFile`, preserving `bytes` for backward compatibility:
+  - `assetId`
+  - `name`
+  - `mimeType`
+  - `byteLength`
+  - `hash`
+  - `storage: 'indexeddb' | 'memory' | 'missing'`
+- Store large originals in IndexedDB before decoding when possible, so a decode crash does not lose already-written bytes.
+- Keep current export/import readers able to consume either `bytes` or `assetId`.
+- Add quota/write failures to the developer overlay diagnostics and visible user warnings for large imports.
+
+Acceptance gate:
+
+- Importing an 80 MB WAV no longer leaves an 80 MB `Uint8Array` in Zustand when IndexedDB storage succeeds.
+- Export still embeds the original audio bytes.
+- Existing scenes with inline `originalFile.bytes` still load.
+
 ### Phase 3: Bound Decoded Audio Memory
 
 Decoded `AudioBuffer` is the largest unavoidable current cost. Add an audio-source residency manager:
@@ -76,6 +146,26 @@ Decoded `AudioBuffer` is the largest unavoidable current cost. Add an audio-sour
 - Represent cache entries as `ready`, `evicted`, `decoding`, or `failed` so UI can show recoverable state instead of crashing.
 
 Start with conservative behavior: do not evict while playing or exporting. Evict only after imports, after analysis completes, and while idle. Even this can prevent immediate death after bulk import.
+
+Implementation details:
+
+- Introduce cache status states for decoded sources:
+  - `ready`
+  - `decoding`
+  - `evicted`
+  - `failed`
+- Add a budget policy with configurable defaults:
+  - normal working set target around 1.0-1.5 GB decoded PCM
+  - hard idle eviction threshold around 2.0 GB
+- Track pins for playback, export, analysis, selected tracks, and active waveform generation.
+- Rehydrate by reading the asset from `AudioAssetStore` and decoding on demand.
+- Add developer overlay rows for pinned, evictable, evicted, and failed sources.
+
+Acceptance gate:
+
+- After bulk import, idle eviction can lower decoded PCM below the configured budget.
+- Playback/export never evicts a source currently in use.
+- Evicted tracks remain visible and become playable again after lazy re-decode.
 
 ### Phase 4: Lightweight Autosave Journal for Crash Recovery
 
@@ -103,6 +193,25 @@ Startup behavior:
 
 This addresses the core data-loss issue: if the tab crashes after 12 of 17 files, the user should recover a scene with 12 imported tracks and clear status for the remaining missing work.
 
+Implementation details:
+
+- Store journal snapshots separately from manual local-save packages.
+- Use two slots, `current` and `previous-good`, with a write marker or checksum to detect torn writes.
+- Journal only lightweight state and asset references.
+- Flush immediately after:
+  - audio asset write completes
+  - audio track insertion completes
+  - track remove/reorder
+  - scene structural changes
+  - before export starts
+- Do not write decoded buffers, inline original bytes, feature arrays, or undo stacks to the journal.
+
+Acceptance gate:
+
+- Reload after a simulated crash offers recovery when journal revision is newer than the last explicit save.
+- Recovering a mid-import project restores all completed track inserts.
+- Missing audio assets produce recoverable disabled/missing tracks instead of failing import.
+
 ### Phase 5: Reduce Feature-Cache Memory and Make Analysis Demand-Driven
 
 The previous memory plan already identifies full spectrogram storage as a major cost. For bulk imports, make analysis opt-in or bounded:
@@ -115,6 +224,23 @@ The previous memory plan already identifies full spectrogram storage as a major 
 - Never include large feature arrays in crash-recovery autosaves.
 
 For an 80 MB WAV of roughly 7.5 minutes, default 2048/512 analysis can produce about 39k frames. A 1025-bin float spectrogram is about 160 MB per file. Keeping that for 17 files is not viable.
+
+Implementation details:
+
+- Change default import behavior so only waveform peaks are generated for large batches.
+- Queue feature analysis only when an element publishes a requirement or a user explicitly asks to analyze.
+- Add per-calculator memory estimates and priorities:
+  - waveform/peaks: keep
+  - RMS/envelope: keep if small
+  - pitch guide: evictable
+  - spectrogram: lazy/windowed/evictable
+- Add diagnostics for feature cache payload size by calculator/feature.
+
+Acceptance gate:
+
+- Large batch import does not immediately create spectrogram caches for every file.
+- Elements requesting missing features show pending states and trigger bounded analysis.
+- Developer overlay identifies the largest feature cache contributors.
 
 ### Phase 6: Make Undo Payloads Asset-Reference Based
 
@@ -129,6 +255,18 @@ Change audio undo payloads to store:
 
 On undo, restore metadata immediately and rehydrate decoded/feature data from `AudioAssetStore` or by reanalysis. If data is not available, restore the track in a recoverable "missing audio" state.
 
+Implementation details:
+
+- Replace audio undo snapshots with source reference records.
+- Keep inline snapshots only for small, memory-safe sources.
+- Ensure redo removal releases decoded buffers and feature arrays when no longer referenced.
+- Add tests proving remove/undo does not preserve the same large `AudioBuffer` object in the undo stack.
+
+Acceptance gate:
+
+- Removing a large track lowers retained decoded/feature memory after idle cleanup.
+- Undo restores the track by reference and rehydrates data as needed.
+
 ### Phase 7: Lower Save/Export Peak Memory
 
 Keep explicit `.mvt` export compatible, but reduce peak memory:
@@ -139,6 +277,19 @@ Keep explicit `.mvt` export compatible, but reduce peak memory:
 - Ensure local manual save can reuse the recovery asset store and does not duplicate all audio bytes in both a `.mvt` zip and IndexedDB memory cache.
 
 The current `LocalFileStore` also keeps a full in-memory copy of the saved zip. For huge projects, local save should prefer IndexedDB-only storage and avoid retaining the saved package in process memory.
+
+Implementation details:
+
+- Replace synchronous all-files-in-memory export assembly with streaming or chunked zip generation.
+- Avoid duplicating audio bytes while exporting from `AudioAssetStore`.
+- Make feature-cache inclusion explicit for large projects.
+- Stop retaining a full saved package in process memory after successful local save when the IndexedDB copy is durable.
+- Add export diagnostics for package size, peak asset bytes queued, and feature-cache inclusion.
+
+Acceptance gate:
+
+- Exporting a large project does not require holding original audio bytes, decoded buffers, feature arrays, and full zip bytes all at once.
+- Exported `.mvt` files remain portable to another device.
 
 ## Implementation Order
 
