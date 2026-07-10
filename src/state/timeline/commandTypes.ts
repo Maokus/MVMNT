@@ -11,7 +11,8 @@ export type TimelineCommandId =
     | 'timeline.addMidiClip'
     | 'timeline.removeMidiClips'
     | 'timeline.updateMidiClips'
-    | 'timeline.setMultipleMidiClipOffsets';
+    | 'timeline.setMultipleMidiClipOffsets'
+    | 'timeline.pasteMidiClips';
 
 export type TimelineCommandMode = 'serial' | 'concurrent';
 

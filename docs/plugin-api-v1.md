@@ -224,6 +224,8 @@ Requires `timeline.read` capability.
 - `selectCCInWindow({ trackIds?, controller?, startSec, endSec }): TimelineCCEvent[]` — MIDI CC events in a window, optionally filtered by controller number
 - `getSustainStateAtTime({ trackIds?, timeSec }): boolean` — whether sustain pedal (CC 64) is held
 
+MIDI timeline reads are track-oriented. If a MIDI track contains multiple enabled clips, `selectNotesInWindow`, `selectAllNotesInWindow`, `selectCCInWindow`, and sustain queries aggregate events from all enabled clips on that track. Returned note and CC events include the stable `trackId` and may include `clipId` and `sourceId` so plugins can distinguish which clip/source produced an event without binding directly to clips.
+
 ```ts
 const state = api.timeline.getStateSnapshot();
 const bpm = state?.timeline.globalBpm ?? 120;
@@ -375,8 +377,8 @@ Typically, when developing scene elements, you would use `this.bundledImage('pat
 
 ### Types
 
-- `TimelineNoteEvent` — MIDI note event `{ note, startSec, endSec, velocity, trackId, … }`
-- `TimelineCCEvent` — MIDI CC event `{ controller, value, timeSec, trackId, … }`
+- `TimelineNoteEvent` — MIDI note event `{ note, startTime, endTime, duration, velocity, trackId, clipId?, sourceId?, … }`
+- `TimelineCCEvent` — MIDI CC event `{ controller, value, timeSec, trackId, clipId?, sourceId?, … }`
 - `TempoMapEntry` — tempo map entry used in timing calculations
 - `FeatureInput` — union of audio feature names (e.g. `'rms'`, `'spectrum'`, `'waveform'`)
 - `FeatureDataResult` — returned by `sampleFeatureAtTime`

@@ -142,4 +142,52 @@ describe('MIDI clip timeline commands', () => {
             'clip2',
         ]);
     });
+
+    it('pastes MIDI clips in one undoable command', async () => {
+        seedTrack();
+
+        const result = await timelineCommandGateway.dispatchById('timeline.pasteMidiClips', {
+            clips: [
+                {
+                    trackId: 'track1',
+                    clip: { id: 'clip-paste', sourceId: 'source1', offsetTicks: CANONICAL_PPQ * 2 },
+                },
+            ],
+        });
+
+        expect((useTimelineStore.getState().tracks.track1 as any).clips.map((clip: any) => clip.id)).toEqual([
+            'clip1',
+            'clip-paste',
+        ]);
+
+        applyUndo(result.patches);
+        expect((useTimelineStore.getState().tracks.track1 as any).clips.map((clip: any) => clip.id)).toEqual(['clip1']);
+    });
+
+    it('pastes across newly created MIDI tracks and undoes track creation in the same command', async () => {
+        seedTrack();
+
+        const result = await timelineCommandGateway.dispatchById('timeline.pasteMidiClips', {
+            createTracks: [{ trackId: 'track2', name: 'MIDI copy', index: 1 }],
+            clips: [
+                {
+                    trackId: 'track1',
+                    clip: { id: 'clip-track1', sourceId: 'source1', offsetTicks: CANONICAL_PPQ * 2 },
+                },
+                {
+                    trackId: 'track2',
+                    clip: { id: 'clip-track2', sourceId: 'source1', offsetTicks: CANONICAL_PPQ * 2 },
+                },
+            ],
+        });
+
+        expect(useTimelineStore.getState().tracks.track2).toBeDefined();
+        expect((useTimelineStore.getState().tracks.track2 as any).clips.map((clip: any) => clip.id)).toEqual([
+            'clip-track2',
+        ]);
+
+        applyUndo(result.patches);
+        expect(useTimelineStore.getState().tracks.track2).toBeUndefined();
+        expect((useTimelineStore.getState().tracks.track1 as any).clips.map((clip: any) => clip.id)).toEqual(['clip1']);
+    });
 });

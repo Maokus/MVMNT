@@ -52,6 +52,7 @@ export type PluginCapabilityMap = Record<keyof typeof PLUGIN_CAPABILITIES, boole
 export interface PluginTimelineApi {
     getStateSnapshot(): TimelineState | null;
     /** Notes from specific tracks within a time window. */
+    /** Notes from the requested MIDI tracks. Multi-clip tracks aggregate all enabled clips; events may include clipId/sourceId. */
     selectNotesInWindow(args: { trackIds: string[]; startSec: number; endSec: number }): TimelineNoteEvent[];
     /** Notes from ALL MIDI tracks within a time window. Equivalent to selectNotesInWindow with every track. */
     selectAllNotesInWindow(args: { startSec: number; endSec: number }): TimelineNoteEvent[];
@@ -74,7 +75,7 @@ export interface PluginTimelineApi {
     getTracksByIds(trackIds: string[]): Array<TimelineState['tracks'][string]>;
     /** All MIDI tracks on the timeline. */
     getMidiTracks(): Array<TimelineState['tracks'][string]>;
-    /** Returns CC events in the given time window, optionally filtered by controller number. */
+    /** Returns CC events in the given time window, optionally filtered by controller number. Events may include clipId/sourceId. */
     selectCCInWindow(args: {
         trackIds?: string[];
         controller?: number;

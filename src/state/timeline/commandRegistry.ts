@@ -26,11 +26,14 @@ import {
 } from './commands/reorderTracksCommand';
 import {
     createAddMidiClipCommand,
+    createPasteMidiClipsCommand,
     createRemoveMidiClipsCommand,
     createSetMultipleMidiClipOffsetsCommand,
     createUpdateMidiClipsCommand,
     type AddMidiClipPayload,
     type AddMidiClipResult,
+    type PasteMidiClipsPayload,
+    type PasteMidiClipsResult,
     type RemoveMidiClipsPayload,
     type SetMultipleMidiClipOffsetsPayload,
     type UpdateMidiClipsPayload,
@@ -53,6 +56,7 @@ type TimelineRegistryMap = {
     'timeline.removeMidiClips': TimelineCommandRegistration<RemoveMidiClipsPayload>;
     'timeline.updateMidiClips': TimelineCommandRegistration<UpdateMidiClipsPayload>;
     'timeline.setMultipleMidiClipOffsets': TimelineCommandRegistration<SetMultipleMidiClipOffsetsPayload>;
+    'timeline.pasteMidiClips': TimelineCommandRegistration<PasteMidiClipsPayload, PasteMidiClipsResult>;
 };
 
 const registry: TimelineRegistryMap = {
@@ -145,6 +149,15 @@ const registry: TimelineRegistryMap = {
             telemetryEvent: 'timeline_set_multiple_midi_clip_offsets',
         }),
         factory: (payload, metadata) => createSetMultipleMidiClipOffsetsCommand(payload, metadata),
+    },
+    'timeline.pasteMidiClips': {
+        id: 'timeline.pasteMidiClips',
+        buildMetadata: (payload) => ({
+            commandId: 'timeline.pasteMidiClips',
+            undoLabel: payload.clips.length > 1 ? 'Paste MIDI Clips' : 'Paste MIDI Clip',
+            telemetryEvent: 'timeline_paste_midi_clips',
+        }),
+        factory: (payload, metadata) => createPasteMidiClipsCommand(payload, metadata),
     },
 };
 

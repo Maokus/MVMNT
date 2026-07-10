@@ -475,6 +475,8 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
         endSec: targetTime + EPS,
     });
 
+    // MIDI track reads aggregate all enabled clips on the track. Notes may carry
+    // note.clipId and note.sourceId when you need clip/source-aware rendering.
     return activeNotes.map((note, i) => {
         const y = (128 - note.note) * 5;
         return new Rectangle(i * 20, y, 18, 4, { fillColor: props.noteColor });
@@ -615,6 +617,7 @@ protected override onPropertyChanged(key: string, oldValue: unknown, newValue: u
 - Check `midiTrackId` is set
 - Verify track exists in timeline
 - Confirm `getPluginHostApi` returns `status === 'ok'` with `timelineRead` capability
+- Remember that MIDI reads are per track, not per clip; enabled clips on the same track are aggregated and returned events may include `clipId` / `sourceId`
 
 **Performance issues:**
 
