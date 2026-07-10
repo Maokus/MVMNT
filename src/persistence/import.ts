@@ -50,6 +50,10 @@ export interface ImportResultFailureEnabled {
 
 export type ImportSceneResult = ImportResultSuccess | ImportResultFailureEnabled;
 export type ImportSceneInput = string | ArrayBuffer | Uint8Array | Blob;
+export interface ImportSceneOptions {
+    signal?: AbortSignal;
+    onProgress?: (progress: number, text?: string) => void;
+}
 
 interface ParsedArtifact {
     envelope: any;
@@ -63,7 +67,23 @@ interface ParsedArtifact {
     pluginPayloads: Map<string, Uint8Array>;
 }
 
-async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | { error: ImportError }> {
+function createAbortError(): Error {
+    if (typeof DOMException === 'function') {
+        return new DOMException('Import aborted', 'AbortError');
+    }
+    const error = new Error('Import aborted');
+    error.name = 'AbortError';
+    return error;
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+    if (!signal?.aborted) return;
+    throw createAbortError();
+}
+
+async function parseArtifact(input: ImportSceneInput, options: ImportSceneOptions = {}): Promise<ParsedArtifact | { error: ImportError }> {
+    throwIfAborted(options.signal);
+    options.onProgress?.(0.1, 'Reading scene file…');
     if (typeof input === 'string') {
         try {
             if (!isTestEnvironment()) {
@@ -96,12 +116,14 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
     } else if (typeof Blob !== 'undefined' && input instanceof Blob) {
         bytes = new Uint8Array(await input.arrayBuffer());
     }
+    throwIfAborted(options.signal);
 
     if (!bytes) {
         return { error: { code: 'ERR_INPUT_TYPE', message: 'Unsupported import input' } };
     }
 
     try {
+        options.onProgress?.(0.2, 'Parsing scene package…');
         return parseScenePackage(bytes);
     } catch (error) {
         if (error instanceof ScenePackageError) {
@@ -137,7 +159,8 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
 
 async function assessPluginDependencies(
     dependencies: ScenePluginDependency[] | undefined,
-    pluginPayloads: Map<string, Uint8Array>
+    pluginPayloads: Map<string, Uint8Array>,
+    options: ImportSceneOptions = {}
 ): Promise<{
     missing: ScenePluginDependency[];
     versionAdvisory: ScenePluginDependency[];
@@ -156,6 +179,7 @@ async function assessPluginDependencies(
     const installedPlugins = usePluginStore.getState().plugins;
 
     for (const dep of dependencies) {
+        throwIfAborted(options.signal);
         if (!dep || !dep.pluginId) continue;
         const installed = installedPlugins[dep.pluginId];
         let versionOk = true;
@@ -210,10 +234,12 @@ async function assessPluginDependencies(
 
 async function installEmbeddedPlugins(
     dependencies: ScenePluginDependency[],
-    pluginPayloads: Map<string, Uint8Array>
+    pluginPayloads: Map<string, Uint8Array>,
+    options: ImportSceneOptions = {}
 ): Promise<string[]> {
     const warnings: string[] = [];
     for (const dep of dependencies) {
+        throwIfAborted(options.signal);
         const payload = pluginPayloads.get(dep.pluginId);
         if (!payload) {
             warnings.push(`Embedded plugin payload missing for ${dep.pluginId}.`);
@@ -387,7 +413,8 @@ function buildDocumentShape(
 
 async function restoreMidiCache(
     midiSection: any,
-    midiPayloads: Map<string, Uint8Array>
+    midiPayloads: Map<string, Uint8Array>,
+    options: ImportSceneOptions = {}
 ): Promise<{ cache: Record<string, any>; warnings: string[] }> {
     if (!midiSection || typeof midiSection !== 'object') {
         return { cache: {}, warnings: [] };
@@ -395,6 +422,7 @@ async function restoreMidiCache(
     const restored: Record<string, any> = {};
     const warnings: string[] = [];
     for (const [cacheId, value] of Object.entries(midiSection)) {
+        throwIfAborted(options.signal);
         if (!value || typeof value !== 'object') {
             restored[cacheId] = value;
             continue;
@@ -446,7 +474,8 @@ async function restoreMidiCache(
 function restoreVisualAssets(
     scene: any,
     visualAssetsSection: { byId: Record<string, any> } | undefined,
-    visualPayloads: Map<string, Uint8Array>
+    visualPayloads: Map<string, Uint8Array>,
+    options: ImportSceneOptions = {}
 ): { warnings: string[]; fileById: Map<string, File> } {
     const warnings: string[] = [];
     const fileById = new Map<string, File>();
@@ -454,6 +483,7 @@ function restoreVisualAssets(
 
     // Build a map of assetId → reconstructed File
     for (const [assetId, record] of Object.entries(visualAssetsSection.byId)) {
+        throwIfAborted(options.signal);
         if (!record || typeof record !== 'object') continue;
         const bytes = visualPayloads.get(assetId);
         if (!bytes) {
@@ -703,7 +733,8 @@ function resolveWaveformRecord(
 async function hydrateAudioAssets(
     envelope: SceneExportEnvelope,
     assetPayloads: Map<string, Uint8Array>,
-    waveformPayloads: Map<string, Map<string, Uint8Array>>
+    waveformPayloads: Map<string, Map<string, Uint8Array>>,
+    options: ImportSceneOptions = {}
 ): Promise<string[]> {
     const warnings: string[] = [];
     const audioById = envelope.assets?.audio?.byId || {};
@@ -719,6 +750,7 @@ async function hydrateAudioAssets(
 
     const assetData = new Map<string, { record: any; bytes: Uint8Array }>();
     for (const [assetId, record] of Object.entries(audioById)) {
+        throwIfAborted(options.signal);
         let bytes: Uint8Array | undefined;
         if (record.dataBase64) {
             try {
@@ -750,6 +782,7 @@ async function hydrateAudioAssets(
 
     const consumed = new Set<string>();
     for (const [originalId, assetId] of Object.entries(audioIdMap)) {
+        throwIfAborted(options.signal);
         if (consumed.has(originalId)) continue;
         const payload = assetData.get(assetId);
         if (!payload) {
@@ -809,8 +842,10 @@ async function hydrateAudioAssets(
     return warnings;
 }
 
-export async function importScene(input: ImportSceneInput): Promise<ImportSceneResult> {
-    const parsed = await parseArtifact(input);
+export async function importScene(input: ImportSceneInput, options: ImportSceneOptions = {}): Promise<ImportSceneResult> {
+    options.onProgress?.(0.05, 'Starting scene import…');
+    const parsed = await parseArtifact(input, options);
+    throwIfAborted(options.signal);
     if ('error' in parsed) {
         return { ok: false, errors: [parsed.error], warnings: [] };
     }
@@ -826,6 +861,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         audioFeaturePayloads,
         pluginPayloads,
     } = parsed;
+    options.onProgress?.(0.35, 'Validating scene…');
     const migratedEnvelope = migrateSceneMidiClipsV8(migrateSceneRotationUnitsV7(envelope));
     const validation = validateSceneEnvelope(migratedEnvelope);
     if (!validation.ok) {
@@ -840,7 +876,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
     const dependencies = Array.isArray(migratedEnvelope?.plugins)
         ? (migratedEnvelope.plugins as ScenePluginDependency[])
         : [];
-    const dependencyAssessment = await assessPluginDependencies(dependencies, pluginPayloads);
+    const dependencyAssessment = await assessPluginDependencies(dependencies, pluginPayloads, options);
     pluginWarnings.push(...dependencyAssessment.warnings);
 
     if (dependencyAssessment.embeddedMissing.length) {
@@ -850,7 +886,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
             : false;
         if (shouldInstall) {
             pluginWarnings.push(
-                ...(await installEmbeddedPlugins(dependencyAssessment.embeddedMissing, pluginPayloads))
+                ...(await installEmbeddedPlugins(dependencyAssessment.embeddedMissing, pluginPayloads, options))
             );
         }
     }
@@ -873,19 +909,25 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         }
     }
 
+    throwIfAborted(options.signal);
+    options.onProgress?.(0.5, 'Restoring timeline data…');
     const { doc, featureWarnings } = buildDocumentShape(migratedEnvelope, audioFeaturePayloads);
-    const midiRestoration = await restoreMidiCache(migratedEnvelope?.timeline?.midiCache, midiPayloads);
+    const midiRestoration = await restoreMidiCache(migratedEnvelope?.timeline?.midiCache, midiPayloads, options);
     doc.midiCache = midiRestoration.cache;
 
+    options.onProgress?.(0.62, 'Restoring visual assets…');
     const { warnings: visualWarnings, fileById } = restoreVisualAssets(
         doc.scene,
         migratedEnvelope.assets?.visual,
-        visualPayloads
+        visualPayloads,
+        options
     );
 
     // Clear registry before applying (previous project's assets should not persist)
     useVisualAssetRegistryStore.getState()._clear();
 
+    throwIfAborted(options.signal);
+    options.onProgress?.(0.72, 'Applying scene…');
     DocumentGateway.apply(doc as any);
 
     // Populate visual asset registry and migrate assetRef bindings from File → asset ID
@@ -903,12 +945,15 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
             migratedEnvelope.schemaVersion === 8) &&
         migratedEnvelope.assets
     ) {
-        hydrationWarnings = await hydrateAudioAssets(migratedEnvelope, audioPayloads, waveformPayloads);
+        options.onProgress?.(0.82, 'Restoring audio assets…');
+        hydrationWarnings = await hydrateAudioAssets(migratedEnvelope, audioPayloads, waveformPayloads, options);
     }
 
     if (migratedEnvelope.scene?.fontAssets && typeof migratedEnvelope.scene.fontAssets === 'object') {
+        options.onProgress?.(0.9, 'Restoring fonts…');
         const fontAssets = migratedEnvelope.scene.fontAssets as Record<string, FontAsset>;
         for (const asset of Object.values(fontAssets)) {
+            throwIfAborted(options.signal);
             if (!asset || !asset.id) continue;
             const payload = fontPayloads.get(asset.id);
             if (!payload) {
@@ -934,5 +979,6 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         ...fontWarnings.map((message) => ({ message })),
         ...pluginWarnings.map((message) => ({ message })),
     ];
+    options.onProgress?.(1, 'Scene loaded.');
     return { ok: true, errors: [], warnings };
 }

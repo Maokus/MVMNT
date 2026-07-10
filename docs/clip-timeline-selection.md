@@ -20,6 +20,10 @@ type ClipTimelineSelection =
 
 Calling `selectClipTimeline(selection)` also clears element, track, and keyframe selections. Calling `clearSelection('clipTimeline')` clears only the clip-view selection and resets `activeTarget` when the clip timeline was active.
 
+Use `selectClipTimeline()` for user-facing clip gestures and commands. The lower-level
+`setClipTimelineSelection()` setter only patches the stored value and does not change
+`activeTarget` or clear other selection domains.
+
 ## Selection Modes
 
 ### Point
@@ -68,6 +72,29 @@ During movement, drag and resize handlers also prevent default browser behavior.
 
 Native `dragstart` is cancelled on MIDI clip blocks. The clip DOM node is also marked `draggable={false}` and styled with disabled user selection and touch-action so the app gesture stays authoritative.
 
+Background clicks and drags are handled by `useMarqueeSelect()`:
+
+- left-clicking empty clip-lane space starts a provisional marquee and clears the old
+  clip timeline selection immediately.
+- releasing within a 3 px threshold creates a point selection on the row under the
+  pointer.
+- dragging beyond that threshold creates a range selection over the snapped time bounds
+  and all covered visible track rows.
+- holding Ctrl/Cmd while resolving the pointer position bypasses normal snapping.
+
+MIDI clip blocks convert the current selection into concrete clip refs before drag or
+resize. This means a range selection can be dragged as a group after the user starts a
+gesture on one of the clips inside the range.
+
+Dragging clips horizontally updates clip offsets. Dragging vertically previews
+cross-track movement and commits the selected clips to their target MIDI tracks on
+pointer up. If the pointer crosses a non-MIDI row, the preview snaps to the closest MIDI
+track.
+
+Resize handles edit a clip's local region bounds. A left resize writes
+`regionStartTick`, and a right resize writes `regionEndTick`; bounds that reach the
+source start/end are stored as `undefined` so untrimmed clips stay compact.
+
 ## Resolving Selected Clips
 
 Code that needs concrete MIDI clips should resolve the current `clipTimelineSelection` against the timeline store rather than reading clip data from the selection store. `getMidiClipsInTimelineSelection()` performs this resolution for clipboard and group-drag workflows:
@@ -77,6 +104,40 @@ Code that needs concrete MIDI clips should resolve the current `clipTimelineSele
 - `point` and `null` selections return no clip refs.
 
 This keeps the selection store lightweight and avoids duplicating timeline data.
+
+Resolution is intentionally store-relative:
+
+- disabled clips are ignored when resolving a range selection.
+- stale explicit refs are harmless; command code checks the timeline store before
+  applying mutations.
+- returned refs are ordered by `tracksOrder` and then by each track's clip order.
+
+## Keyboard Commands
+
+Timeline navigation owns clip-selection shortcuts when `activeTarget` is
+`'clipTimeline'`:
+
+- Cmd/Ctrl+A selects every enabled MIDI clip on every MIDI track.
+- Cmd/Ctrl+C copies a range or clips selection into the in-memory MIDI clip clipboard.
+- Cmd/Ctrl+X copies the selection, removes the selected clips, and clears clip selection.
+- Cmd/Ctrl+V pastes from the MIDI clip clipboard and selects the pasted clips.
+- Cmd/Ctrl+D duplicates the selected clips immediately after the selected block.
+- Delete/Backspace removes selected clips, or clears an empty point/range selection.
+- Shift+2 zooms to the current clip point, range, or selected clip bounds.
+- F frames the current selection, falling back to the playhead when nothing is selected.
+
+Paste destination is derived from the active selection:
+
+- range selections paste to the range start on the first selected MIDI track.
+- point selections paste to the point tick and track.
+- clips selections paste to the earliest selected clip offset on the first selected MIDI
+  track in timeline order.
+- if no clip selection is usable, paste falls back to the selected MIDI track at the
+  playhead, then the first MIDI track at the playhead.
+
+The clipboard payload stores MIDI source cache entries alongside clip refs. If a paste
+would extend beyond the available destination MIDI tracks, the paste command creates
+additional MIDI tracks and maps source rows onto them.
 
 ## Persistence
 

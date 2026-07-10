@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTimelineStore } from '@state/timelineStore';
 import {
     checkpointCrashRecoveryJournal,
@@ -23,7 +23,23 @@ describe('crash recovery journal', () => {
         useTimelineStore.getState().resetTimeline();
     });
 
-    it('recovers timeline tracks and audio source references without decoded buffers', async () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('recovers timeline tracks and rehydrates decoded audio from stored original assets', async () => {
+        const decodedBuffer = makeBuffer();
+        class MockAudioContext {
+            async decodeAudioData() {
+                return decodedBuffer;
+            }
+
+            async close() {
+                return undefined;
+            }
+        }
+        vi.stubGlobal('AudioContext', MockAudioContext);
+
         useTimelineStore.setState({
             tracks: {
                 audio1: {
@@ -69,8 +85,8 @@ describe('crash recovery journal', () => {
         const state = useTimelineStore.getState();
         expect(state.tracksOrder).toEqual(['audio1']);
         expect(state.tracks.audio1?.name).toBe('Recovered Audio');
-        expect(state.audioCache.audio1.audioBuffer).toBeUndefined();
-        expect(state.audioCache.audio1.decodedState).toBe('evicted');
+        expect(state.audioCache.audio1.audioBuffer).toBe(decodedBuffer);
+        expect(state.audioCache.audio1.decodedState).toBe('ready');
         expect(state.audioCache.audio1.originalFile?.assetId).toBeTruthy();
     });
 });

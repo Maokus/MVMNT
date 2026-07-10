@@ -314,4 +314,9 @@ export async function recoverFromCrashRecoveryJournal(snapshot: CrashRecoveryJou
         ...state,
         audioCache: nextAudioCache,
     }));
+
+    const recoverableSourceIds = Object.entries(nextAudioCache)
+        .filter(([, entry]) => entry.originalFile?.assetId || entry.originalFile?.bytes)
+        .map(([sourceId]) => sourceId);
+    await Promise.allSettled(recoverableSourceIds.map((sourceId) => useTimelineStore.getState().rehydrateAudioSource(sourceId)));
 }

@@ -8,7 +8,7 @@
  */
 
 import { exportScene } from './export';
-import { importScene } from './import';
+import { importScene, type ImportSceneOptions } from './import';
 import { LocalFileStore } from './local-file-store';
 import { clearCrashRecoveryJournal } from './crash-recovery-journal';
 
@@ -23,6 +23,15 @@ export type LocalLoadResult =
     | { ok: true; loaded: false }
     /** File existed but could not be parsed / applied. */
     | { ok: false; error: string };
+
+function createAbortError(): Error {
+    if (typeof DOMException === 'function') {
+        return new DOMException('Local file load aborted', 'AbortError');
+    }
+    const error = new Error('Local file load aborted');
+    error.name = 'AbortError';
+    return error;
+}
 
 export const LocalSaveService = {
     /**
@@ -73,7 +82,8 @@ export const LocalSaveService = {
      * Read the saved file from IndexedDB and hydrate the app state.
      * Returns `{ loaded: false }` (not an error) when no file has been saved yet.
      */
-    async loadSavedFile(): Promise<LocalLoadResult> {
+    async loadSavedFile(options: ImportSceneOptions = {}): Promise<LocalLoadResult> {
+        options.onProgress?.(0.05, 'Loading last open file…');
         let bytes: Uint8Array | null;
         try {
             bytes = await LocalFileStore.load();
@@ -84,11 +94,17 @@ export const LocalSaveService = {
         if (!bytes) {
             return { ok: true, loaded: false };
         }
+        if (options.signal?.aborted) {
+            throw createAbortError();
+        }
 
         let result;
         try {
-            result = await importScene(bytes);
+            result = await importScene(bytes, options);
         } catch (e) {
+            if ((e as Error)?.name === 'AbortError') {
+                throw e;
+            }
             return { ok: false, error: e instanceof Error ? e.message : String(e) };
         }
 
