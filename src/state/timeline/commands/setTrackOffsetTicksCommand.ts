@@ -45,7 +45,7 @@ export function createSetTrackOffsetTicksCommand(
             context.setState((current) => {
                 const currentTrack = current.tracks[payload.trackId];
                 const nextTrack: any = { ...currentTrack, offsetTicks: payload.offsetTicks };
-                if (nextTrack.type === 'midi' && Array.isArray(nextTrack.clips)) {
+                if ((nextTrack.type === 'midi' || nextTrack.type === 'audio') && Array.isArray(nextTrack.clips)) {
                     if (nextTrack.clips.length === 1) {
                         nextTrack.clips = [{ ...nextTrack.clips[0], offsetTicks: payload.offsetTicks }];
                     } else if (nextTrack.clips.length > 1) {

@@ -18,7 +18,8 @@
  *    graph scheduling differences.
  *  - Resampling uses pure arithmetic (linear interpolation) ensuring cross‑run stability.
  */
-import type { AudioTrack, AudioCacheEntry } from '@audio/audioTypes';
+import type { AudioClip, AudioTrack, AudioCacheEntry } from '@audio/audioTypes';
+import { getAudioClipsForTrack } from '@state/timeline/audioClips';
 
 declare global {
     interface Window {
@@ -56,8 +57,8 @@ export async function offlineMix(params: OfflineMixParams): Promise<OfflineMixRe
     const durationSeconds = t2s(params.endTick) - t2s(params.startTick);
     const frameCount = Math.max(1, Math.ceil(durationSeconds * sampleRate));
 
-    const audibleTracks = collectAudibleTracks(params);
-    if (audibleTracks.length === 0) {
+    const audibleClips = collectAudibleClips(params);
+    if (audibleClips.length === 0) {
         const silent = makeEmptyBuffer(channels, frameCount, sampleRate);
         return { buffer: silent, durationSeconds, sampleRate, channels, peak: 0 };
     }
@@ -66,20 +67,20 @@ export async function offlineMix(params: OfflineMixParams): Promise<OfflineMixRe
     const mixChannels: Float32Array[] = Array.from({ length: channels }, () => new Float32Array(frameCount));
 
     let globalPeak = 0;
-    for (const track of audibleTracks) {
-        const cacheKey = track.audioSourceId || track.id;
+    for (const { track, clip } of audibleClips) {
+        const cacheKey = clip.sourceId;
         const cache = params.audioCache[cacheKey];
         if (!cache) continue;
         const buffer = cache.audioBuffer;
         if (!buffer) continue;
-        const regionStartTick = track.regionStartTick ?? 0;
-        const regionEndTick = track.regionEndTick ?? cache.durationTicks;
+        const clipOffsetTicks = clip.offsetTicks ?? 0;
+        const regionStartTick = clip.regionStartTick ?? 0;
+        const regionEndTick = clip.regionEndTick ?? cache.durationTicks;
         if (regionEndTick <= regionStartTick) continue;
 
-        // Compute intersection of (track timeline region) with export range.
-        // track region in timeline ticks: [track.offsetTicks + regionStartTick, track.offsetTicks + regionEndTick)
-        const trackRegionStartTimeline = track.offsetTicks + regionStartTick;
-        const trackRegionEndTimeline = track.offsetTicks + regionEndTick;
+        // Compute intersection of (clip timeline region) with export range.
+        const trackRegionStartTimeline = clipOffsetTicks + regionStartTick;
+        const trackRegionEndTimeline = clipOffsetTicks + regionEndTick;
         const exportStart = params.startTick;
         const exportEnd = params.endTick;
         const intersectStart = Math.max(exportStart, trackRegionStartTimeline);
@@ -94,16 +95,16 @@ export async function offlineMix(params: OfflineMixParams): Promise<OfflineMixRe
         // Source buffer offset (seconds) within the underlying AudioBuffer
         // intersectStart - track.offsetTicks gives the tick within the buffer's timeline
         // regionStartTick is the trim start; sourceStartWithinTrackTicks is relative to regionStart
-        const sourceStartWithinTrackTicks = intersectStart - track.offsetTicks - regionStartTick; // ticks from regionStart
+        const sourceStartWithinTrackTicks = intersectStart - clipOffsetTicks - regionStartTick; // ticks from regionStart
         if (sourceStartWithinTrackTicks < 0) continue; // shouldn't happen
         // durationTicks (and therefore regionStart/End) are position-aware: convert
         // buffer-local ticks to seconds relative to the clip's timeline position.
         const bufferTickPos = regionStartTick + sourceStartWithinTrackTicks;
-        const sourceStartSeconds = t2s(track.offsetTicks + bufferTickPos) - t2s(track.offsetTicks);
+        const sourceStartSeconds = t2s(clipOffsetTicks + bufferTickPos) - t2s(clipOffsetTicks);
         const sourceStartFrame = Math.floor(sourceStartSeconds * buffer.sampleRate);
 
         const srcChannels = buffer.numberOfChannels;
-        const gain = track.mute ? 0 : track.gain ?? 1;
+        const gain = track.mute ? 0 : (track.gain ?? 1) * (clip.gain ?? 1);
         if (gain <= 0) continue;
 
         // Copy & sum with resampling when needed.
@@ -191,8 +192,8 @@ export async function offlineMix(params: OfflineMixParams): Promise<OfflineMixRe
     return { buffer: outBuffer, durationSeconds, sampleRate, channels, peak };
 }
 
-function collectAudibleTracks(params: OfflineMixParams): AudioTrack[] {
-    const list: AudioTrack[] = [];
+function collectAudibleClips(params: OfflineMixParams): Array<{ track: AudioTrack; clip: AudioClip }> {
+    const list: Array<{ track: AudioTrack; clip: AudioClip }> = [];
     let anySolo = false;
     for (const id of params.tracksOrder) {
         const t = params.tracks[id];
@@ -204,7 +205,10 @@ function collectAudibleTracks(params: OfflineMixParams): AudioTrack[] {
         if (!t || t.type !== 'audio') continue;
         if (!t.enabled) continue;
         if (anySolo && !t.solo) continue;
-        list.push(t as AudioTrack);
+        for (const clip of getAudioClipsForTrack(t as AudioTrack)) {
+            if (clip.enabled === false) continue;
+            list.push({ track: t as AudioTrack, clip });
+        }
     }
     return list;
 }

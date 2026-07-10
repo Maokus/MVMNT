@@ -1,4 +1,4 @@
-import type { AudioTrack, AudioCacheEntry } from '@audio/audioTypes';
+import type { AudioTrack, AudioCacheEntry, AudioClip } from '@audio/audioTypes';
 import type { AudioFeatureCache, AudioFeatureCacheStatus } from '@audio/features/audioFeatureTypes';
 import type { MIDIData } from '@core/types';
 import type { TimelineState, TimelineTrack } from '../timelineStore';
@@ -81,6 +81,22 @@ export interface TimelinePatchUpdateMidiClipsPayload {
     updates: Array<{ trackId: string; clips: MidiClip[] }>;
 }
 
+export interface TimelinePatchRemoveAudioClipsPayload {
+    clips: Array<{ trackId: string; clipId: string }>;
+    audioCacheKeys?: string[];
+    audioFeatureCacheKeys?: string[];
+}
+
+export interface TimelinePatchRestoreAudioClipsPayload {
+    clips: Array<{ trackId: string; clip: AudioClip; index?: number }>;
+    audioCache?: Array<{ key: string; value: AudioCacheEntry }>;
+    audioFeatureCaches?: Array<{ key: string; value: AudioFeatureCache }>;
+}
+
+export interface TimelinePatchUpdateAudioClipsPayload {
+    updates: Array<{ trackId: string; clips: AudioClip[] }>;
+}
+
 export type TimelinePatchAction =
     | { action: 'timeline/ADD_TRACK'; payload: TimelinePatchAddTrackPayload }
     | { action: 'timeline/REMOVE_TRACKS'; payload: TimelinePatchRemoveTracksPayload }
@@ -91,7 +107,10 @@ export type TimelinePatchAction =
     | { action: 'timeline/ADD_MIDI_CLIP'; payload: TimelinePatchAddMidiClipPayload }
     | { action: 'timeline/REMOVE_MIDI_CLIPS'; payload: TimelinePatchRemoveMidiClipsPayload }
     | { action: 'timeline/RESTORE_MIDI_CLIPS'; payload: TimelinePatchRestoreMidiClipsPayload }
-    | { action: 'timeline/UPDATE_MIDI_CLIPS'; payload: TimelinePatchUpdateMidiClipsPayload };
+    | { action: 'timeline/UPDATE_MIDI_CLIPS'; payload: TimelinePatchUpdateMidiClipsPayload }
+    | { action: 'timeline/REMOVE_AUDIO_CLIPS'; payload: TimelinePatchRemoveAudioClipsPayload }
+    | { action: 'timeline/RESTORE_AUDIO_CLIPS'; payload: TimelinePatchRestoreAudioClipsPayload }
+    | { action: 'timeline/UPDATE_AUDIO_CLIPS'; payload: TimelinePatchUpdateAudioClipsPayload };
 
 export interface TimelineCommandPatch {
     undo: TimelinePatchAction[];
@@ -265,7 +284,7 @@ function applySetTrackOffset(
         if (!track) return state;
         const previousOffset = (track as any).offsetTicks ?? 0;
         const nextTrack: any = { ...track, offsetTicks: payload.offsetTicks };
-        if (nextTrack.type === 'midi' && Array.isArray(nextTrack.clips)) {
+        if ((nextTrack.type === 'midi' || nextTrack.type === 'audio') && Array.isArray(nextTrack.clips)) {
             if (nextTrack.clips.length === 1) {
                 nextTrack.clips = [{ ...nextTrack.clips[0], offsetTicks: payload.offsetTicks }];
             } else if (nextTrack.clips.length > 1) {
@@ -312,12 +331,12 @@ function applyUpdateTracks(context: TimelinePatchContext, payload: TimelinePatch
             }
             const nextTrack = { ...existing, ...update.patch } as TimelineTrackLike;
             if (
-                nextTrack.type === 'midi' &&
+                (nextTrack.type === 'midi' || nextTrack.type === 'audio') &&
                 Array.isArray(nextTrack.clips) &&
                 nextTrack.clips.length === 1 &&
                 ('regionStartTick' in update.patch || 'regionEndTick' in update.patch)
             ) {
-                nextTrack.clips = [
+                (nextTrack as any).clips = [
                     {
                         ...nextTrack.clips[0],
                         ...('regionStartTick' in update.patch ? { regionStartTick: (update.patch as any).regionStartTick } : {}),
@@ -425,6 +444,102 @@ function applyUpdateMidiClips(context: TimelinePatchContext, payload: TimelinePa
     });
 }
 
+function applyRemoveAudioClips(context: TimelinePatchContext, payload: TimelinePatchRemoveAudioClipsPayload): void {
+    const targetsByTrack = new Map<string, Set<string>>();
+    for (const target of payload.clips) {
+        if (!targetsByTrack.has(target.trackId)) targetsByTrack.set(target.trackId, new Set());
+        targetsByTrack.get(target.trackId)?.add(target.clipId);
+    }
+    context.setState((state) => {
+        let nextTracks = state.tracks;
+        let mutated = false;
+        for (const [trackId, clipIds] of targetsByTrack) {
+            const track = state.tracks[trackId];
+            if (!track || track.type !== 'audio' || !Array.isArray(track.clips)) continue;
+            const clips = track.clips.filter((clip) => !clipIds.has(clip.id));
+            if (clips.length === track.clips.length) continue;
+            if (!mutated) {
+                nextTracks = { ...state.tracks };
+                mutated = true;
+            }
+            nextTracks[trackId] = { ...track, clips };
+        }
+        const nextAudioCache = { ...state.audioCache };
+        for (const key of payload.audioCacheKeys ?? []) {
+            delete nextAudioCache[key];
+        }
+        const nextAudioFeatureCaches = { ...state.audioFeatureCaches };
+        const nextAudioFeatureStatus = { ...state.audioFeatureCacheStatus };
+        for (const key of payload.audioFeatureCacheKeys ?? []) {
+            delete nextAudioFeatureCaches[key];
+            delete nextAudioFeatureStatus[key];
+        }
+        if (!mutated && !payload.audioCacheKeys?.length && !payload.audioFeatureCacheKeys?.length) return state;
+        return {
+            tracks: nextTracks,
+            audioCache: nextAudioCache,
+            audioFeatureCaches: nextAudioFeatureCaches,
+            audioFeatureCacheStatus: nextAudioFeatureStatus,
+        } as TimelineState;
+    });
+}
+
+function applyRestoreAudioClips(context: TimelinePatchContext, payload: TimelinePatchRestoreAudioClipsPayload): void {
+    context.setState((state) => {
+        let nextTracks = state.tracks;
+        let mutated = false;
+        for (const entry of payload.clips) {
+            const track = state.tracks[entry.trackId];
+            if (!track || track.type !== 'audio') continue;
+            const clips = Array.isArray(track.clips) ? [...track.clips] : [];
+            if (clips.some((clip) => clip.id === entry.clip.id)) continue;
+            const index = typeof entry.index === 'number' ? Math.max(0, Math.min(entry.index, clips.length)) : clips.length;
+            clips.splice(index, 0, entry.clip);
+            if (!mutated) {
+                nextTracks = { ...state.tracks };
+                mutated = true;
+            }
+            nextTracks[entry.trackId] = { ...track, clips };
+        }
+        const nextAudioCache = { ...state.audioCache };
+        for (const cache of payload.audioCache ?? []) {
+            nextAudioCache[cache.key] = cache.value;
+        }
+        const nextAudioFeatureCaches = { ...state.audioFeatureCaches };
+        const nextAudioFeatureStatus = { ...state.audioFeatureCacheStatus };
+        for (const cache of payload.audioFeatureCaches ?? []) {
+            nextAudioFeatureCaches[cache.key] = cache.value;
+            nextAudioFeatureStatus[cache.key] = buildReadyFeatureStatus(cache.value);
+        }
+        if (!mutated && !payload.audioCache?.length && !payload.audioFeatureCaches?.length) return state;
+        return {
+            tracks: nextTracks,
+            audioCache: nextAudioCache,
+            audioFeatureCaches: nextAudioFeatureCaches,
+            audioFeatureCacheStatus: nextAudioFeatureStatus,
+        } as TimelineState;
+    });
+}
+
+function applyUpdateAudioClips(context: TimelinePatchContext, payload: TimelinePatchUpdateAudioClipsPayload): void {
+    if (!payload.updates.length) return;
+    context.setState((state) => {
+        let nextTracks = state.tracks;
+        let mutated = false;
+        for (const update of payload.updates) {
+            const track = state.tracks[update.trackId];
+            if (!track || track.type !== 'audio') continue;
+            if (!mutated) {
+                nextTracks = { ...state.tracks };
+                mutated = true;
+            }
+            nextTracks[update.trackId] = { ...track, clips: update.clips };
+        }
+        if (!mutated) return state;
+        return { tracks: nextTracks } as TimelineState;
+    });
+}
+
 export function applyTimelinePatchActions(
     context: TimelinePatchContext,
     actions: TimelinePatchAction[],
@@ -461,6 +576,15 @@ export function applyTimelinePatchActions(
                 break;
             case 'timeline/UPDATE_MIDI_CLIPS':
                 applyUpdateMidiClips(context, action.payload);
+                break;
+            case 'timeline/REMOVE_AUDIO_CLIPS':
+                applyRemoveAudioClips(context, action.payload);
+                break;
+            case 'timeline/RESTORE_AUDIO_CLIPS':
+                applyRestoreAudioClips(context, action.payload);
+                break;
+            case 'timeline/UPDATE_AUDIO_CLIPS':
+                applyUpdateAudioClips(context, action.payload);
                 break;
             default:
                 break;

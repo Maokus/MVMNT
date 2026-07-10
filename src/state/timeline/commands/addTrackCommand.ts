@@ -1,4 +1,4 @@
-import type { AudioTrack, AudioCacheOriginalFile } from '@audio/audioTypes';
+import type { AudioClip, AudioTrack, AudioCacheOriginalFile } from '@audio/audioTypes';
 import type { MIDIData } from '@core/types';
 import { buildNotesFromMIDI } from '@core/midi/midi-ingest';
 import { parseMIDIFileToData } from '@core/midi/midi-library';
@@ -56,6 +56,17 @@ function buildInitialMidiClip(trackId: string, name: string, offsetTicks: number
     return {
         id: `${trackId}__clip`,
         type: 'midi',
+        sourceId: trackId,
+        offsetTicks,
+        name,
+        enabled: true,
+    };
+}
+
+function buildInitialAudioClip(trackId: string, name: string, offsetTicks: number): AudioClip {
+    return {
+        id: `${trackId}__audio_clip`,
+        type: 'audio',
         sourceId: trackId,
         offsetTicks,
         name,
@@ -344,6 +355,7 @@ export function createAddTrackCommand(
                     mute: false,
                     solo: false,
                     offsetTicks: payload.offsetTicks ?? 0,
+                    clips: [buildInitialAudioClip(id, payload.name || 'Audio Track', payload.offsetTicks ?? 0)],
                     gain: 1,
                 };
                 context.setState((state) => ({

@@ -10,17 +10,10 @@ import {
 } from '../patches';
 import { useSelectionStore } from '@state/selectionStore';
 import { findReferencedMidiSourceIds, getMidiClipsForTrack } from '../midiClips';
+import { buildLightweightAudioCacheEntry, findReferencedAudioSourceIds, getAudioClipsForTrack } from '../audioClips';
 import { estimateFeatureCacheBytes } from '@audio/audioMemoryDiagnostics';
 
 const LARGE_UNDO_FEATURE_CACHE_BYTES = 32 * 1024 * 1024;
-
-function buildUndoAudioCacheEntry(cache: import('@audio/audioTypes').AudioCacheEntry): import('@audio/audioTypes').AudioCacheEntry {
-    const { audioBuffer: _audioBuffer, ...rest } = cache;
-    return {
-        ...rest,
-        decodedState: cache.audioBuffer ? 'evicted' : cache.decodedState ?? 'evicted',
-    };
-}
 
 export interface RemoveTracksCommandPayload {
     trackIds: string[];
@@ -70,24 +63,21 @@ export function createRemoveTracksCommand(
                     restorePayload.tracks.push(restoreEntry);
                 } else if (track.type === 'audio') {
                     const audioTrack = track as AudioTrack;
-                    const key = audioTrack.audioSourceId ?? id;
-                    const cache = state.audioCache[key];
-                    if (cache) {
-                        restorePayload.tracks.push({ track: audioTrack, index, audioCache: { key, value: buildUndoAudioCacheEntry(cache) } });
-                        audioKeys.push(key);
-                    } else {
-                        restorePayload.tracks.push({ track: audioTrack, index });
+                    const restoreEntry: TimelinePatchRestoreTracksPayload['tracks'][number] = { track: audioTrack, index };
+                    const sourceIds = new Set(getAudioClipsForTrack(audioTrack).map((clip) => clip.sourceId));
+                    for (const key of sourceIds) {
+                        const cache = state.audioCache[key];
+                        if (cache && !restoreEntry.audioCache) {
+                            restoreEntry.audioCache = { key, value: buildLightweightAudioCacheEntry(cache) };
+                        }
+                        const featureCache = (state as any).audioFeatureCaches?.[key] as
+                            | import('@audio/features/audioFeatureTypes').AudioFeatureCache
+                            | undefined;
+                        if (featureCache && estimateFeatureCacheBytes(featureCache) <= LARGE_UNDO_FEATURE_CACHE_BYTES && !restoreEntry.audioFeatureCache) {
+                            restoreEntry.audioFeatureCache = { key, value: featureCache };
+                        }
                     }
-                    const featureCache = (state as any).audioFeatureCaches?.[key] as
-                        | import('@audio/features/audioFeatureTypes').AudioFeatureCache
-                        | undefined;
-                    if (featureCache && estimateFeatureCacheBytes(featureCache) <= LARGE_UNDO_FEATURE_CACHE_BYTES) {
-                        const entry = restorePayload.tracks[restorePayload.tracks.length - 1];
-                        entry.audioFeatureCache = { key, value: featureCache };
-                        featureKeys.push(key);
-                    } else if (featureCache) {
-                        featureKeys.push(key);
-                    }
+                    restorePayload.tracks.push(restoreEntry);
                 }
             }
             const removedSet = new Set(payload.trackIds);
@@ -101,11 +91,22 @@ export function createRemoveTracksCommand(
             if (removableMidiKeys.length) {
                 removePayload.midiCacheKeys = removableMidiKeys;
             }
+            const referencedAudioSources = findReferencedAudioSourceIds(remainingState as typeof state);
+            for (const key of Object.keys(state.audioCache)) {
+                if (!referencedAudioSources.has(key)) {
+                    audioKeys.push(key);
+                }
+            }
+            for (const key of Object.keys((state as any).audioFeatureCaches ?? {})) {
+                if (!referencedAudioSources.has(key)) {
+                    featureKeys.push(key);
+                }
+            }
             if (audioKeys.length) {
-                removePayload.audioCacheKeys = audioKeys;
+                removePayload.audioCacheKeys = [...new Set(audioKeys)];
             }
             if (featureKeys.length) {
-                removePayload.audioFeatureCacheKeys = featureKeys;
+                removePayload.audioFeatureCacheKeys = [...new Set(featureKeys)];
             }
             const patch: TimelineCommandPatch = {
                 redo: [

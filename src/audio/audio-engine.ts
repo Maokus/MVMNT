@@ -36,13 +36,15 @@
 
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 import { createTimingContext, ticksToSecondsAt } from '@state/timelineTime';
-import type { AudioTrack } from '@audio/audioTypes';
+import type { AudioClip, AudioTrack } from '@audio/audioTypes';
+import { getAudioClipsForTrack } from '@state/timeline/audioClips';
 
 interface ActiveTrackNode {
     source: AudioBufferSourceNode;
     gainNode: GainNode;
     startTick: number; // transport tick we aligned this node at
     region: { startTick: number; endTick: number } | null; // trimming snapshot
+    clipGain: number;
 }
 
 export interface AudioEngineConfig {
@@ -158,9 +160,9 @@ export class AudioEngine {
 
     /** Apply gain change realtime if node exists */
     applyGain(trackId: string, gain: number) {
-        const node = this.active.get(trackId);
-        if (node) {
-            const g = Math.max(0, Math.min(2, gain));
+        for (const [key, node] of this.active) {
+            if (key !== trackId && !key.startsWith(`${trackId}:`)) continue;
+            const g = Math.max(0, Math.min(2, gain)) * (node.clipGain ?? 1);
             const param = node.gainNode.gain as AudioParam & { value?: number };
             if (typeof param.setTargetAtTime === 'function') {
                 param.setTargetAtTime(g, this.ctx!.currentTime, 0.01);
@@ -171,9 +173,9 @@ export class AudioEngine {
     }
 
     applyMuteState(trackId: string, muted: boolean) {
-        const node = this.active.get(trackId);
-        if (node) {
-            const target = muted ? 0 : (useTimelineStore.getState().tracks[trackId] as any).gain ?? 1;
+        for (const [key, node] of this.active) {
+            if (key !== trackId && !key.startsWith(`${trackId}:`)) continue;
+            const target = muted ? 0 : ((useTimelineStore.getState().tracks[trackId] as any).gain ?? 1) * (node.clipGain ?? 1);
             const param = node.gainNode.gain as AudioParam & { value?: number };
             if (typeof param.setTargetAtTime === 'function') {
                 param.setTargetAtTime(target, this.ctx!.currentTime, 0.005);
@@ -190,12 +192,12 @@ export class AudioEngine {
 
     /** Test / debug helper (non-production critical) */
     getActiveTrackIds(): string[] {
-        return Array.from(this.active.keys());
+        return Array.from(new Set(Array.from(this.active.keys()).map((key) => key.split(':')[0])));
     }
 
-    private getAudibleTracks(): AudioTrack[] {
+    private getAudibleClips(): Array<{ track: AudioTrack; clip: AudioClip }> {
         const s = useTimelineStore.getState();
-        const tracks: AudioTrack[] = [];
+        const clips: Array<{ track: AudioTrack; clip: AudioClip }> = [];
         let anySolo = false;
         for (const id of s.tracksOrder) {
             const t = s.tracks[id] as any;
@@ -207,9 +209,12 @@ export class AudioEngine {
             if (!t || t.type !== 'audio') continue;
             if (!t.enabled) continue;
             if (anySolo && !t.solo) continue;
-            tracks.push(t as AudioTrack);
+            for (const clip of getAudioClipsForTrack(t as AudioTrack)) {
+                if (clip.enabled === false) continue;
+                clips.push({ track: t as AudioTrack, clip });
+            }
         }
-        return tracks;
+        return clips;
     }
 
     private startAudibleSources(playFromTick: number) {
@@ -226,21 +231,21 @@ export class AudioEngine {
             { globalBpm: s.timeline.globalBpm, beatsPerBar: s.timeline.beatsPerBar, masterTempoMap: s.timeline.masterTempoMap },
             tmgr.ticksPerQuarter
         );
-        const audible = this.getAudibleTracks();
-        audible.forEach((track) => {
-            const cacheKey = track.audioSourceId || track.id;
+        const audible = this.getAudibleClips();
+        audible.forEach(({ track, clip }) => {
+            const cacheKey = clip.sourceId;
             const cache = s.audioCache[cacheKey];
             if (!cache) return;
             const buffer = cache.audioBuffer;
             if (!buffer) return;
-            const regionStart = track.regionStartTick ?? 0;
-            const regionEnd = track.regionEndTick ?? cache.durationTicks;
+            const regionStart = clip.regionStartTick ?? 0;
+            const regionEnd = clip.regionEndTick ?? cache.durationTicks;
             if (regionEnd <= regionStart) return;
             // Timeline alignment:
             //   - Track base placement (tick where buffer tick 0 would align) = track.offsetTicks
             //   - Trimmed region audible start on timeline = track.offsetTicks + regionStart
             // If playFromTick precedes earliest audible tick, we schedule a FUTURE start (no premature audio).
-            const earliestAudibleTick = (track.offsetTicks || 0) + regionStart;
+            const earliestAudibleTick = (clip.offsetTicks || 0) + regionStart;
             const regionDurationTicks = regionEnd - regionStart;
             // Case 1: playback begins after region end -> nothing to schedule
             if (playFromTick >= earliestAudibleTick + regionDurationTicks) return;
@@ -262,14 +267,14 @@ export class AudioEngine {
             // Buffer-space conversions: regionStart/End/Offset ticks -> buffer seconds
             // durationTicks is computed at the clip's offsetTicks position, so use
             // ticksToSecondsAt to convert buffer-local ticks back to seconds at that position.
-            const clipOffsetTicks = track.offsetTicks || 0;
+            const clipOffsetTicks = clip.offsetTicks || 0;
             const playbackBufferOffsetSeconds = ticksToSecondsAt(timingCtx, playbackBufferOffsetTicks, clipOffsetTicks);
             const durationSeconds = ticksToSecondsAt(timingCtx, regionEnd, clipOffsetTicks) - playbackBufferOffsetSeconds;
 
             const source = ctx.createBufferSource();
             source.buffer = buffer;
             const gainNode = ctx.createGain();
-            const targetGain = track.mute ? 0 : track.gain;
+            const targetGain = track.mute ? 0 : track.gain * (clip.gain ?? 1);
             // Micro-fade envelope (avoid clicks) 4ms default
             const fadeTime = 0.004;
             const now = ctx.currentTime;
@@ -311,16 +316,18 @@ export class AudioEngine {
             }
             source.onended = () => {
                 // Remove when naturally ends (if not already replaced by seek)
-                if (this.active.get(track.id)?.source === source) {
-                    this.active.delete(track.id);
+                const activeKey = `${track.id}:${clip.id}`;
+                if (this.active.get(activeKey)?.source === source) {
+                    this.active.delete(activeKey);
                 }
             };
-            this.active.set(track.id, {
+            this.active.set(`${track.id}:${clip.id}`, {
                 source,
                 gainNode,
                 // startTick represents the timeline tick we aligned the source start to (earliest audible if in future, else playFromTick)
                 startTick: playFromTick < earliestAudibleTick ? earliestAudibleTick : playFromTick,
                 region: { startTick: regionStart, endTick: regionEnd },
+                clipGain: clip.gain ?? 1,
             });
         });
     }

@@ -13,7 +13,13 @@ export type TimelineCommandId =
     | 'timeline.updateMidiClips'
     | 'timeline.setMultipleMidiClipOffsets'
     | 'timeline.pasteMidiClips'
-    | 'timeline.moveMidiClipsBetweenTracks';
+    | 'timeline.moveMidiClipsBetweenTracks'
+    | 'timeline.addAudioClip'
+    | 'timeline.removeAudioClips'
+    | 'timeline.updateAudioClips'
+    | 'timeline.setMultipleAudioClipOffsets'
+    | 'timeline.pasteAudioClips'
+    | 'timeline.moveAudioClipsBetweenTracks';
 
 export type TimelineCommandMode = 'serial' | 'concurrent';
 

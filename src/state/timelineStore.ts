@@ -59,6 +59,13 @@ import type {
     UpdateMidiClipsPayload,
     MoveMidiClipsBetweenTracksPayload,
 } from './timeline/commands/midiClipCommands';
+import type {
+    AddAudioClipPayload,
+    MoveAudioClipsBetweenTracksPayload,
+    RemoveAudioClipsPayload,
+    SetMultipleAudioClipOffsetsPayload,
+    UpdateAudioClipsPayload,
+} from './timeline/commands/audioClipCommands';
 
 export { getSharedTimingManager, sharedTimingManager } from './timeline/timelineShared';
 
@@ -153,6 +160,12 @@ export type TimelineState = {
     updateMidiClips: (input: UpdateMidiClipsPayload) => Promise<void>;
     setMultipleMidiClipOffsets: (input: SetMultipleMidiClipOffsetsPayload) => Promise<void>;
     moveMidiClipsBetweenTracks: (input: MoveMidiClipsBetweenTracksPayload) => Promise<void>;
+    addAudioClip: (input: AddAudioClipPayload) => Promise<string>;
+    removeAudioClips: (input: RemoveAudioClipsPayload) => Promise<void>;
+    updateAudioClip: (input: UpdateAudioClipsPayload['updates'][number]) => Promise<void>;
+    updateAudioClips: (input: UpdateAudioClipsPayload) => Promise<void>;
+    setMultipleAudioClipOffsets: (input: SetMultipleAudioClipOffsetsPayload) => Promise<void>;
+    moveAudioClipsBetweenTracks: (input: MoveAudioClipsBetweenTracksPayload) => Promise<void>;
     addAudioTrack: (input: {
         name: string;
         file?: File;
@@ -713,6 +726,35 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
     async moveMidiClipsBetweenTracks(input: MoveMidiClipsBetweenTracksPayload) {
         await timelineCommandGateway.dispatchById('timeline.moveMidiClipsBetweenTracks', input, {
+            source: 'timeline-store',
+        });
+    },
+    async addAudioClip(input: AddAudioClipPayload) {
+        const result = await timelineCommandGateway.dispatchById<{ clipId: string }>('timeline.addAudioClip', input, {
+            source: 'timeline-store',
+        });
+        return result.result?.clipId ?? '';
+    },
+    async removeAudioClips(input: RemoveAudioClipsPayload) {
+        await timelineCommandGateway.dispatchById('timeline.removeAudioClips', input, { source: 'timeline-store' });
+    },
+    async updateAudioClip(input: UpdateAudioClipsPayload['updates'][number]) {
+        await timelineCommandGateway.dispatchById(
+            'timeline.updateAudioClips',
+            { updates: [input] },
+            { source: 'timeline-store' },
+        );
+    },
+    async updateAudioClips(input: UpdateAudioClipsPayload) {
+        await timelineCommandGateway.dispatchById('timeline.updateAudioClips', input, { source: 'timeline-store' });
+    },
+    async setMultipleAudioClipOffsets(input: SetMultipleAudioClipOffsetsPayload) {
+        await timelineCommandGateway.dispatchById('timeline.setMultipleAudioClipOffsets', input, {
+            source: 'timeline-store',
+        });
+    },
+    async moveAudioClipsBetweenTracks(input: MoveAudioClipsBetweenTracksPayload) {
+        await timelineCommandGateway.dispatchById('timeline.moveAudioClipsBetweenTracks', input, {
             source: 'timeline-store',
         });
     },
@@ -1278,7 +1320,25 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     },
                     tracks: {
                         ...s.tracks,
-                        [id]: { ...(s.tracks[id] as any), audioSourceId: id },
+                        [id]: {
+                            ...(s.tracks[id] as any),
+                            audioSourceId: id,
+                            clips:
+                                s.tracks[id]?.type === 'audio' &&
+                                Array.isArray((s.tracks[id] as AudioTrack).clips) &&
+                                (s.tracks[id] as AudioTrack).clips?.length === 0
+                                    ? [
+                                          {
+                                              id: `${id}__audio_clip`,
+                                              type: 'audio',
+                                              sourceId: id,
+                                              offsetTicks: (s.tracks[id] as AudioTrack).offsetTicks ?? 0,
+                                              name: s.tracks[id].name,
+                                              enabled: true,
+                                          },
+                                      ]
+                                    : (s.tracks[id] as AudioTrack | undefined)?.clips,
+                        },
                     },
                 };
                 const existingStatus = s.audioFeatureCacheStatus[id];

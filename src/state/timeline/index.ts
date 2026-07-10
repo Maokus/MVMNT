@@ -4,3 +4,4 @@ export * from './commandRegistry';
 export * from './timelineTelemetry';
 export * from './patches';
 export * from './midiClips';
+export * from './audioClips';
