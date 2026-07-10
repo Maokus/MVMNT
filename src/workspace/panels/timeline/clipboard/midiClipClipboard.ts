@@ -5,11 +5,18 @@ import {
     makeMidiClipId,
     type MidiClip,
 } from '@state/timeline/midiClips';
-import type { ClipTimelineSelection } from '@state/selectionStore';
+import type { ClipTimelineSelection, TimelineClipRef } from '@state/selectionStore';
+import type { TimelineMidiCacheEntry } from '@state/timeline/patches';
+
+export type { TimelineClipRef };
 
 export type MidiClipClipboard = {
     kind: 'mvmnt.midi-clips';
     version: 1;
+    sources?: Array<{
+        sourceId: string;
+        cache: TimelineMidiCacheEntry;
+    }>;
     clips: Array<{
         sourceTrackId: string;
         sourceClipId: string;
@@ -25,16 +32,12 @@ export type MidiClipClipboard = {
 };
 
 export interface PreparedMidiClipPaste {
+    midiCache?: Array<{ key: string; value: TimelineMidiCacheEntry }>;
     clips: Array<{
         trackId: string;
         clip: Omit<MidiClip, 'type'> & { type?: 'midi' };
     }>;
     createTracks: Array<{ trackId: string; name: string; index?: number }>;
-}
-
-export interface TimelineClipRef {
-    trackId: string;
-    clipId: string;
 }
 
 let clipboard: MidiClipClipboard | null = null;
@@ -53,9 +56,11 @@ function rangesOverlap(startA: number, endA: number, startB: number, endB: numbe
 
 export function getMidiClipsInTimelineSelection(
     state: TimelineState,
-    selection: ClipTimelineSelection | null,
+    selection: ClipTimelineSelection | null
 ): TimelineClipRef[] {
-    if (!selection || selection.type !== 'range') return [];
+    if (!selection) return [];
+    if (selection.type === 'clips') return selection.clips;
+    if (selection.type !== 'range') return [];
     const refs: TimelineClipRef[] = [];
     const selectedTrackIds = new Set(selection.range.trackIds);
     const startTick = Math.min(selection.range.startTick, selection.range.endTick);
@@ -78,16 +83,21 @@ export function getMidiClipsInTimelineSelection(
 
 export function copyTimelineSelectionToMidiClipClipboard(
     state: TimelineState,
-    selection: ClipTimelineSelection | null,
+    selection: ClipTimelineSelection | null
 ): MidiClipClipboard | null {
     const copied: MidiClipClipboard['clips'] = [];
-    const selectedKeys = new Set(getMidiClipsInTimelineSelection(state, selection).map((entry) => `${entry.trackId}:${entry.clipId}`));
+    const copiedSources = new Map<string, TimelineMidiCacheEntry>();
+    const selectedKeys = new Set(
+        getMidiClipsInTimelineSelection(state, selection).map((entry) => `${entry.trackId}:${entry.clipId}`)
+    );
     for (const trackId of state.tracksOrder) {
         const track = state.tracks[trackId];
         if (!track || track.type !== 'midi') continue;
         for (const clip of getMidiClipsForTrack(track)) {
             if (!selectedKeys.has(`${trackId}:${clip.id}`)) continue;
-            if (!state.midiCache[clip.sourceId]) continue;
+            const sourceCache = state.midiCache[clip.sourceId];
+            if (!sourceCache) continue;
+            copiedSources.set(clip.sourceId, sourceCache);
             copied.push({
                 sourceTrackId: trackId,
                 sourceClipId: clip.id,
@@ -105,12 +115,13 @@ export function copyTimelineSelectionToMidiClipClipboard(
         return null;
     }
     const sourceTrackOrder = state.tracksOrder.filter((trackId) =>
-        copied.some((clip) => clip.sourceTrackId === trackId),
+        copied.some((clip) => clip.sourceTrackId === trackId)
     );
     const anchorTick = Math.min(...copied.map((clip) => clip.offsetTicks));
     const payload: MidiClipClipboard = {
         kind: 'mvmnt.midi-clips',
         version: 1,
+        sources: [...copiedSources].map(([sourceId, cache]) => ({ sourceId, cache })),
         clips: copied,
         anchorTick,
         sourceTrackOrder,
@@ -122,7 +133,7 @@ export function copyTimelineSelectionToMidiClipClipboard(
 export function prepareMidiClipPaste(
     state: TimelineState,
     payload: MidiClipClipboard,
-    destination: { tick: number; trackId: string },
+    destination: { tick: number; trackId: string }
 ): PreparedMidiClipPaste | null {
     if (!payload || payload.kind !== 'mvmnt.midi-clips' || payload.version !== 1 || !payload.clips.length) {
         return null;
@@ -137,6 +148,10 @@ export function prepareMidiClipPaste(
     const trackMap = new Map<string, string>();
     const createTracks: PreparedMidiClipPaste['createTracks'] = [];
     const baseOrderIndex = state.tracksOrder.indexOf(destination.trackId);
+    const sourceCache = new Map((payload.sources ?? []).map((entry) => [entry.sourceId, entry.cache] as const));
+    const missingSourceCache = [...sourceCache]
+        .filter(([sourceId]) => !state.midiCache[sourceId])
+        .map(([key, value]) => ({ key, value }));
 
     sourceTrackOrder.forEach((sourceTrackId, sourceIndex) => {
         const existingDestination = midiTrackIds[destinationTrackIndex + sourceIndex];
@@ -157,7 +172,7 @@ export function prepareMidiClipPaste(
     const clips = payload.clips
         .map((clip) => {
             const targetTrackId = trackMap.get(clip.sourceTrackId);
-            if (!targetTrackId || !state.midiCache[clip.sourceId]) return null;
+            if (!targetTrackId || (!state.midiCache[clip.sourceId] && !sourceCache.has(clip.sourceId))) return null;
             return {
                 trackId: targetTrackId,
                 clip: {
@@ -175,5 +190,5 @@ export function prepareMidiClipPaste(
         .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
 
     if (!clips.length) return null;
-    return { clips, createTracks };
+    return { clips, createTracks, midiCache: missingSourceCache.length ? missingSourceCache : undefined };
 }

@@ -4,10 +4,7 @@ import {
     type AddTrackCommandPayload,
     type AddTrackCommandResult,
 } from './commands/addTrackCommand';
-import {
-    createRemoveTracksCommand,
-    type RemoveTracksCommandPayload,
-} from './commands/removeTracksCommand';
+import { createRemoveTracksCommand, type RemoveTracksCommandPayload } from './commands/removeTracksCommand';
 import {
     createSetTrackOffsetTicksCommand,
     type SetTrackOffsetTicksPayload,
@@ -16,20 +13,15 @@ import {
     createSetMultipleTrackOffsetTicksCommand,
     type SetMultipleTrackOffsetTicksPayload,
 } from './commands/setMultipleTrackOffsetTicksCommand';
-import {
-    createSetTrackPropertiesCommand,
-    type SetTrackPropertiesPayload,
-} from './commands/setTrackPropertiesCommand';
-import {
-    createReorderTracksCommand,
-    type ReorderTracksPayload,
-} from './commands/reorderTracksCommand';
+import { createSetTrackPropertiesCommand, type SetTrackPropertiesPayload } from './commands/setTrackPropertiesCommand';
+import { createReorderTracksCommand, type ReorderTracksPayload } from './commands/reorderTracksCommand';
 import {
     createAddMidiClipCommand,
     createPasteMidiClipsCommand,
     createRemoveMidiClipsCommand,
     createSetMultipleMidiClipOffsetsCommand,
     createUpdateMidiClipsCommand,
+    createMoveMidiClipsBetweenTracksCommand,
     type AddMidiClipPayload,
     type AddMidiClipResult,
     type PasteMidiClipsPayload,
@@ -37,6 +29,8 @@ import {
     type RemoveMidiClipsPayload,
     type SetMultipleMidiClipOffsetsPayload,
     type UpdateMidiClipsPayload,
+    type MoveMidiClipsBetweenTracksPayload,
+    type MoveMidiClipsBetweenTracksResult,
 } from './commands/midiClipCommands';
 
 export interface TimelineCommandRegistration<TPayload, TResult = void> {
@@ -57,6 +51,10 @@ type TimelineRegistryMap = {
     'timeline.updateMidiClips': TimelineCommandRegistration<UpdateMidiClipsPayload>;
     'timeline.setMultipleMidiClipOffsets': TimelineCommandRegistration<SetMultipleMidiClipOffsetsPayload>;
     'timeline.pasteMidiClips': TimelineCommandRegistration<PasteMidiClipsPayload, PasteMidiClipsResult>;
+    'timeline.moveMidiClipsBetweenTracks': TimelineCommandRegistration<
+        MoveMidiClipsBetweenTracksPayload,
+        MoveMidiClipsBetweenTracksResult
+    >;
 };
 
 const registry: TimelineRegistryMap = {
@@ -159,10 +157,19 @@ const registry: TimelineRegistryMap = {
         }),
         factory: (payload, metadata) => createPasteMidiClipsCommand(payload, metadata),
     },
+    'timeline.moveMidiClipsBetweenTracks': {
+        id: 'timeline.moveMidiClipsBetweenTracks',
+        buildMetadata: (payload) => ({
+            commandId: 'timeline.moveMidiClipsBetweenTracks',
+            undoLabel: payload.moves.length > 1 ? 'Move MIDI Clips' : 'Move MIDI Clip',
+            telemetryEvent: 'timeline_move_midi_clips_between_tracks',
+        }),
+        factory: (payload, metadata) => createMoveMidiClipsBetweenTracksCommand(payload, metadata),
+    },
 };
 
 export function getTimelineCommandRegistration<TPayload, TResult = void>(
-    id: TimelineCommandId,
+    id: TimelineCommandId
 ): TimelineCommandRegistration<TPayload, TResult> | undefined {
     const entry = registry[id as keyof TimelineRegistryMap];
     return entry as unknown as TimelineCommandRegistration<TPayload, TResult> | undefined;
@@ -170,7 +177,7 @@ export function getTimelineCommandRegistration<TPayload, TResult = void>(
 
 export function createTimelineCommand<TPayload, TResult = void>(
     id: TimelineCommandId,
-    payload: TPayload,
+    payload: TPayload
 ): TimelineCommand<TResult> {
     const entry = getTimelineCommandRegistration<TPayload, TResult>(id);
     if (!entry) {

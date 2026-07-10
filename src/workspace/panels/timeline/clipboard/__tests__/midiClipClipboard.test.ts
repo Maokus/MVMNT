@@ -55,6 +55,7 @@ describe('midiClipClipboard', () => {
 
         expect(copied?.anchorTick).toBe(CANONICAL_PPQ);
         expect(copied?.clips.map((clip) => clip.sourceClipId)).toEqual(['clip1', 'clip2']);
+        expect(copied?.sources?.map((source) => source.sourceId)).toEqual(['source1']);
 
         const prepared = copied
             ? prepareMidiClipPaste(state(), copied, { trackId: 'track2', tick: CANONICAL_PPQ * 5 })
@@ -98,5 +99,32 @@ describe('midiClipClipboard', () => {
 
         expect(prepared?.createTracks).toHaveLength(1);
         expect(prepared?.clips.map((entry) => entry.trackId)).toEqual(['track2', prepared?.createTracks[0].trackId]);
+    });
+
+    it('prepares paste after cut removes the last clip using a MIDI source', () => {
+        const copied = copyTimelineSelectionToMidiClipClipboard(state(), {
+            type: 'clips',
+            clips: [{ trackId: 'track1', clipId: 'clip1' }],
+        });
+        const postCutState = {
+            ...state(),
+            tracks: {
+                ...state().tracks,
+                track1: {
+                    ...state().tracks.track1,
+                    clips: [],
+                },
+            },
+            midiCache: {},
+        } as TimelineState;
+
+        const prepared = copied
+            ? prepareMidiClipPaste(postCutState, copied, { trackId: 'track2', tick: CANONICAL_PPQ * 8 })
+            : null;
+
+        expect(prepared?.midiCache?.map((entry) => entry.key)).toEqual(['source1']);
+        expect(prepared?.clips).toHaveLength(1);
+        expect(prepared?.clips[0].clip.sourceId).toBe('source1');
+        expect(prepared?.clips[0].clip.offsetTicks).toBe(CANONICAL_PPQ * 8);
     });
 });

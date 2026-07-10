@@ -5,6 +5,7 @@ import {
     type TimelineCommandPatch,
     type TimelinePatchAction,
     type TimelinePatchAddTrackPayload,
+    type TimelineMidiCacheEntry,
     type TimelinePatchRestoreMidiClipsPayload,
 } from '../patches';
 import {
@@ -40,6 +41,7 @@ export interface SetMultipleMidiClipOffsetsPayload {
 
 export interface PasteMidiClipsPayload {
     createTracks?: Array<{ trackId: string; name: string; index?: number }>;
+    midiCache?: Array<{ key: string; value: TimelineMidiCacheEntry }>;
     clips: Array<{
         trackId: string;
         clip: Omit<MidiClip, 'type'> & { type?: 'midi' };
@@ -303,6 +305,98 @@ export function createRemoveMidiClipsCommand(
     };
 }
 
+export interface MoveMidiClipsBetweenTracksPayload {
+    moves: Array<{
+        sourceTrackId: string;
+        clipId: string;
+        destinationTrackId: string;
+        newOffsetTicks: number;
+    }>;
+}
+
+export interface MoveMidiClipsBetweenTracksResult {
+    movedClipIds: string[];
+}
+
+export function createMoveMidiClipsBetweenTracksCommand(
+    payload: MoveMidiClipsBetweenTracksPayload,
+    metadataOverride?: TimelineCommand['metadata']
+): TimelineCommand<MoveMidiClipsBetweenTracksResult> {
+    return {
+        id: 'timeline.moveMidiClipsBetweenTracks',
+        mode: 'serial',
+        metadata:
+            metadataOverride ?? {
+                commandId: 'timeline.moveMidiClipsBetweenTracks',
+                undoLabel: (payload.moves?.length ?? 0) > 1 ? 'Move MIDI Clips' : 'Move MIDI Clip',
+                telemetryEvent: 'timeline_move_midi_clips_between_tracks',
+            },
+        async execute(context): Promise<TimelineCommandExecuteResult<MoveMidiClipsBetweenTracksResult>> {
+            const snapshot = context.getState();
+            // Collect all affected track IDs
+            const affectedTrackIds = new Set<string>();
+            for (const move of payload.moves ?? []) {
+                affectedTrackIds.add(move.sourceTrackId);
+                affectedTrackIds.add(move.destinationTrackId);
+            }
+            // Snapshot before state for all affected tracks
+            const beforeByTrack = new Map<string, MidiClip[]>();
+            for (const trackId of affectedTrackIds) {
+                const track = getMidiTrack(context, trackId);
+                if (track) {
+                    beforeByTrack.set(trackId, normalizeStoredClips(track, context));
+                }
+            }
+            // Build mutable working copies
+            const workingByTrack = new Map<string, MidiClip[]>();
+            for (const [trackId, clips] of beforeByTrack) {
+                workingByTrack.set(trackId, [...clips]);
+            }
+            const movedClipIds: string[] = [];
+            for (const move of payload.moves ?? []) {
+                const srcClips = workingByTrack.get(move.sourceTrackId);
+                if (!srcClips) continue;
+                const clipIndex = srcClips.findIndex((c) => c.id === move.clipId);
+                if (clipIndex < 0) continue;
+                const [clip] = srcClips.splice(clipIndex, 1);
+                const destTrack = snapshot.tracks[move.destinationTrackId];
+                if (!destTrack || destTrack.type !== 'midi') continue;
+                if (!snapshot.midiCache[clip.sourceId]) continue;
+                const movedClip: MidiClip = { ...clip, offsetTicks: sanitizeOffsetTicks(move.newOffsetTicks) };
+                const destClips = workingByTrack.get(move.destinationTrackId) ?? [];
+                workingByTrack.set(move.destinationTrackId, destClips);
+                const resolved = resolveMidiClipOverlapWithCache(
+                    { ...destTrack, clips: destClips },
+                    movedClip,
+                    snapshot.midiCache,
+                );
+                workingByTrack.set(move.destinationTrackId, resolved);
+                movedClipIds.push(clip.id);
+            }
+            const redoUpdates: Array<{ trackId: string; clips: MidiClip[] }> = [];
+            const undoUpdates: Array<{ trackId: string; clips: MidiClip[] }> = [];
+            for (const trackId of affectedTrackIds) {
+                const before = beforeByTrack.get(trackId) ?? [];
+                const after = workingByTrack.get(trackId) ?? [];
+                redoUpdates.push({ trackId, clips: after });
+                undoUpdates.push({ trackId, clips: before });
+            }
+            const patch: TimelineCommandPatch = {
+                redo: [{ action: 'timeline/UPDATE_MIDI_CLIPS', payload: { updates: redoUpdates } }],
+                undo: [{ action: 'timeline/UPDATE_MIDI_CLIPS', payload: { updates: undoUpdates } }],
+            };
+            applyPatch(context, patch);
+            return { patches: patch, result: { movedClipIds } };
+        },
+        async undo(_context, patch) {
+            return patch.undo;
+        },
+        async redo(_context, patch) {
+            return patch.redo;
+        },
+    };
+}
+
 export function createPasteMidiClipsCommand(
     payload: PasteMidiClipsPayload,
     metadataOverride?: TimelineCommand['metadata']
@@ -315,9 +409,14 @@ export function createPasteMidiClipsCommand(
                 commandId: 'timeline.pasteMidiClips',
                 undoLabel: 'Paste MIDI Clips',
                 telemetryEvent: 'timeline_paste_midi_clips',
-            },
+        },
         async execute(context): Promise<TimelineCommandExecuteResult<PasteMidiClipsResult>> {
             const snapshot = context.getState();
+            const missingMidiCache = (payload.midiCache ?? []).filter((entry) => !snapshot.midiCache[entry.key]);
+            const effectiveMidiCache = {
+                ...snapshot.midiCache,
+                ...Object.fromEntries(missingMidiCache.map((entry) => [entry.key, entry.value])),
+            };
             const createdTracks = (payload.createTracks ?? []).filter((entry) => !snapshot.tracks[entry.trackId]);
             const createdTrackPayloads: TimelinePatchAddTrackPayload[] = createdTracks.map((entry) => ({
                 track: {
@@ -343,7 +442,7 @@ export function createPasteMidiClipsCommand(
                 const track = virtualTracks[entry.trackId];
                 if (!track || track.type !== 'midi') continue;
                 const clip = buildClip(entry.clip);
-                if (!snapshot.midiCache[clip.sourceId]) continue;
+                if (!effectiveMidiCache[clip.sourceId]) continue;
                 clipIds.push(clip.id);
                 if (!clipsByTrack.has(entry.trackId)) clipsByTrack.set(entry.trackId, []);
                 clipsByTrack.get(entry.trackId)?.push(clip);
@@ -359,11 +458,11 @@ export function createPasteMidiClipsCommand(
                     : [];
                 let next = before;
                 for (const clip of pastedClips.sort((a, b) => {
-                    const aBounds = getMidiClipTimelineBounds(snapshot.midiCache, a);
-                    const bBounds = getMidiClipTimelineBounds(snapshot.midiCache, b);
+                    const aBounds = getMidiClipTimelineBounds(effectiveMidiCache, a);
+                    const bBounds = getMidiClipTimelineBounds(effectiveMidiCache, b);
                     return (aBounds?.startTick ?? a.offsetTicks) - (bBounds?.startTick ?? b.offsetTicks);
                 })) {
-                    next = resolveMidiClipOverlapWithCache({ ...track, clips: next }, clip, snapshot.midiCache);
+                    next = resolveMidiClipOverlapWithCache({ ...track, clips: next }, clip, effectiveMidiCache);
                 }
                 redoUpdates.push({ trackId, clips: next });
                 if (trackId in snapshot.tracks) {
@@ -372,6 +471,14 @@ export function createPasteMidiClipsCommand(
             }
 
             const redo: TimelinePatchAction[] = [
+                ...(missingMidiCache.length
+                    ? [
+                          {
+                              action: 'timeline/RESTORE_MIDI_CLIPS' as const,
+                              payload: { clips: [], midiCache: missingMidiCache },
+                          },
+                      ]
+                    : []),
                 ...createdTrackPayloads.map((trackPayload) => ({
                     action: 'timeline/ADD_TRACK' as const,
                     payload: trackPayload,
@@ -385,6 +492,12 @@ export function createPasteMidiClipsCommand(
                 undo.push({
                     action: 'timeline/REMOVE_TRACKS',
                     payload: { trackIds: createdTrackPayloads.map((entry) => entry.track.id) },
+                });
+            }
+            if (missingMidiCache.length) {
+                undo.push({
+                    action: 'timeline/REMOVE_MIDI_CLIPS',
+                    payload: { clips: [], midiCacheKeys: missingMidiCache.map((entry) => entry.key) },
                 });
             }
             const patch: TimelineCommandPatch = { redo, undo };

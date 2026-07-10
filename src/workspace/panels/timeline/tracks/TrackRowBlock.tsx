@@ -13,12 +13,13 @@ import MidiClipBlock from './MidiClipBlock';
 
 type Props = {
     trackId: string;
+    trackIndex: number;
     laneWidth: number;
     laneHeight: number;
     onHoverSnapX: (x: number | null) => void;
 };
 
-const TrackRowBlock: React.FC<Props> = ({ trackId, laneWidth, laneHeight, onHoverSnapX }) => {
+const TrackRowBlock: React.FC<Props> = ({ trackId, trackIndex, laneWidth, laneHeight, onHoverSnapX }) => {
     const track = useTimelineStore((s) => s.tracks[trackId]);
     const setTrackOffsetTicks = useTimelineStore((s) => s.setTrackOffsetTicks);
     const setTrackRegionTicks = useTimelineStore((s) => s.setTrackRegionTicks);
@@ -328,6 +329,8 @@ const TrackRowBlock: React.FC<Props> = ({ trackId, laneWidth, laneHeight, onHove
                     <MidiClipBlock
                         key={clip.id}
                         trackId={trackId}
+                        trackIndex={trackIndex}
+                        rowHeight={laneHeight}
                         clip={clip}
                         laneWidth={laneWidth}
                         laneHeight={laneHeight}

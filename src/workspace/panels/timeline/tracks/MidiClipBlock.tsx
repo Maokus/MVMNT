@@ -11,6 +11,8 @@ import { useTickScale } from '../hooks/useTickScale';
 
 type Props = {
     trackId: string;
+    trackIndex: number;
+    rowHeight: number;
     clip: MidiClip;
     laneWidth: number;
     laneHeight: number;
@@ -19,9 +21,10 @@ type Props = {
 
 type DragStart = {
     startX: number;
+    startY: number;
     baseOffsetTick: number;
     alt: boolean;
-    groupBaseOffsets: Array<{ trackId: string; clipId: string; offsetTicks: number }>;
+    groupBaseOffsets: Array<{ trackId: string; clipId: string; offsetTicks: number; trackIndex: number }>;
 };
 
 type ResizeStart = {
@@ -32,10 +35,14 @@ type ResizeStart = {
     alt: boolean;
 };
 
-const MidiClipBlock: React.FC<Props> = ({ trackId, clip, laneWidth, laneHeight, onHoverSnapX }) => {
+const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, laneWidth, laneHeight, onHoverSnapX }) => {
     const midiCacheEntry = useTimelineStore((s) => s.midiCache[clip.sourceId]);
     const updateMidiClip = useTimelineStore((s) => s.updateMidiClip);
     const setMultipleMidiClipOffsets = useTimelineStore((s) => s.setMultipleMidiClipOffsets);
+    const moveMidiClipsBetweenTracks = useTimelineStore((s) => s.moveMidiClipsBetweenTracks);
+    const setCrossTrackDrag = useTimelineStore((s) => s._setCrossTrackDrag);
+    const crossTrackDrag = useTimelineStore((s) => s._crossTrackDrag);
+    const tracksOrder = useTimelineStore((s) => s.tracksOrder);
     const bpb = useTimelineStore((s) => s.timeline.beatsPerBar);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const selectClipTimeline = useSelectionStore((s) => s.selectClipTimeline);
@@ -75,13 +82,20 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, clip, laneWidth, laneHeight, 
     const sign = offsetBeats < 0 ? '-' : '+';
     const label = `${sign}${barsDisplay}|${beatInBarDisplay}`;
     const displayName = clip.name || useTimelineStore.getState().tracks[trackId]?.name || 'MIDI clip';
+
     const isSelected = useMemo(() => {
-        if (!clipTimelineSelection || clipTimelineSelection.type !== 'range') return false;
+        if (!clipTimelineSelection) return false;
+        if (clipTimelineSelection.type === 'clips') {
+            return clipTimelineSelection.clips.some((c) => c.trackId === trackId && c.clipId === clip.id);
+        }
+        if (clipTimelineSelection.type !== 'range') return false;
         if (!clipTimelineSelection.range.trackIds.includes(trackId)) return false;
         const selectionStart = Math.min(clipTimelineSelection.range.startTick, clipTimelineSelection.range.endTick);
         const selectionEnd = Math.max(clipTimelineSelection.range.startTick, clipTimelineSelection.range.endTick);
         return absStartTick < selectionEnd && absEndTick > selectionStart;
-    }, [absEndTick, absStartTick, clipTimelineSelection, trackId]);
+    }, [absEndTick, absStartTick, clipTimelineSelection, trackId, clip.id]);
+
+    const isCrossDragging = crossTrackDrag?.previews.some((p) => p.clipId === clip.id) ?? false;
 
     const tooltip = useMemo(() => {
         const st = useTimelineStore.getState();
@@ -101,48 +115,41 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, clip, laneWidth, laneHeight, 
         return `Clip: ${displayName}\n${snapInfo}\nOffset ${label}\nStart ${fmt(ticksToSec(absStartTick))} (${fmtBar(absStartTick)})\nEnd ${fmt(ticksToSec(absEndTick))} (${fmtBar(absEndTick)})`;
     }, [absStartTick, absEndTick, beatsPerBar, displayName, label, ppq, quantize]);
 
-    const selectForPointer = (): TimelineClipRef[] => {
+    const selectForPointer = (e: React.PointerEvent): TimelineClipRef[] => {
         const state = useTimelineStore.getState();
         const currentSelection = useSelectionStore.getState().clipTimelineSelection;
         const selectedRefs = getMidiClipsInTimelineSelection(state, currentSelection);
-        if (selectedRefs.some((entry) => entry.trackId === trackId && entry.clipId === clip.id)) {
+        const alreadySelected = selectedRefs.some((entry) => entry.trackId === trackId && entry.clipId === clip.id);
+
+        if (e.shiftKey || e.metaKey || e.ctrlKey) {
+            // Shift/Cmd: toggle this clip in the selection
+            const base: TimelineClipRef[] = currentSelection?.type === 'clips' ? [...currentSelection.clips] : selectedRefs;
+            const existingIndex = base.findIndex((c) => c.trackId === trackId && c.clipId === clip.id);
+            const next: TimelineClipRef[] = existingIndex >= 0
+                ? base.filter((_, i) => i !== existingIndex)
+                : [...base, { trackId, clipId: clip.id }];
+            if (next.length) {
+                selectClipTimeline({ type: 'clips', clips: next });
+                return next;
+            }
+            selectClipTimeline(null);
+            return [];
+        }
+
+        if (alreadySelected) {
+            // Already selected — preserve selection for drag
             return selectedRefs;
         }
-        const nextSelection = {
-            type: 'range' as const,
-            range: {
-                startTick: absStartTick,
-                endTick: absEndTick,
-                trackIds: [trackId],
-            },
-        };
+
+        // Plain click: select only this clip
+        const nextSelection = { type: 'clips' as const, clips: [{ trackId, clipId: clip.id }] };
         selectClipTimeline(nextSelection);
-        return [{ trackId, clipId: clip.id }];
+        return nextSelection.clips;
     };
 
-    const selectRangeForRefs = (refs: TimelineClipRef[]) => {
-        const state = useTimelineStore.getState();
-        let startTick = Infinity;
-        let endTick = -Infinity;
-        const selectedTrackIds = new Set<string>();
-        const refKeys = new Set(refs.map((entry) => `${entry.trackId}:${entry.clipId}`));
-        for (const candidateTrackId of state.tracksOrder) {
-            const track = state.tracks[candidateTrackId];
-            if (!track || track.type !== 'midi') continue;
-            for (const candidateClip of track.clips ?? []) {
-                if (!refKeys.has(`${candidateTrackId}:${candidateClip.id}`)) continue;
-                const bounds = getMidiClipTimelineBounds(state.midiCache, candidateClip);
-                if (!bounds) continue;
-                startTick = Math.min(startTick, bounds.startTick);
-                endTick = Math.max(endTick, bounds.endTick);
-                selectedTrackIds.add(candidateTrackId);
-            }
-        }
-        if (Number.isFinite(startTick) && Number.isFinite(endTick) && selectedTrackIds.size) {
-            selectClipTimeline({
-                type: 'range',
-                range: { startTick, endTick, trackIds: [...selectedTrackIds] },
-            });
+    const selectRefsAsClips = (refs: TimelineClipRef[]) => {
+        if (refs.length) {
+            selectClipTimeline({ type: 'clips', clips: refs });
         }
     };
 
@@ -150,20 +157,22 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, clip, laneWidth, laneHeight, 
         if (e.button != null && e.button !== 0) return;
         e.stopPropagation();
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-        const nextSelection = selectForPointer();
+        const nextSelection = selectForPointer(e);
         const storeState = useTimelineStore.getState();
         const groupBaseOffsets = nextSelection
             .map((entry) => {
                 const track = storeState.tracks[entry.trackId];
                 if (!track || track.type !== 'midi') return null;
                 const targetClip = track.clips?.find((candidate) => candidate.id === entry.clipId);
+                const ti = storeState.tracksOrder.indexOf(entry.trackId);
                 return targetClip
-                    ? { trackId: entry.trackId, clipId: entry.clipId, offsetTicks: targetClip.offsetTicks }
+                    ? { trackId: entry.trackId, clipId: entry.clipId, offsetTicks: targetClip.offsetTicks, trackIndex: ti }
                     : null;
             })
             .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
         dragRef.current = {
             startX: e.clientX,
+            startY: e.clientY,
             baseOffsetTick: clip.offsetTicks,
             alt: !!(e.ctrlKey || e.metaKey),
             groupBaseOffsets,
@@ -192,18 +201,73 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, clip, laneWidth, laneHeight, 
             return;
         }
         if (!dragRef.current) return;
-        const dx = e.clientX - dragRef.current.startX;
+        const drag = dragRef.current;
+        const dx = e.clientX - drag.startX;
+        const dy = e.clientY - drag.startY;
         const deltaTicks = Math.round((dx / Math.max(1, laneWidth)) * (view.endTick - view.startTick));
-        const snapped = snapTicks(dragRef.current.baseOffsetTick + deltaTicks, e.ctrlKey || e.metaKey || dragRef.current.alt, false, true);
+        const snapped = snapTicks(drag.baseOffsetTick + deltaTicks, e.ctrlKey || e.metaKey || drag.alt, false, true);
         setDragTick(snapped);
         onHoverSnapX(toX(snapped + localStartTick, laneWidth));
-        if (Math.abs(dx) > 2) setDidMove(true);
+        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) setDidMove(true);
+
+        // Cross-track drag detection
+        const trackDelta = Math.round(dy / Math.max(1, rowHeight));
+        if (trackDelta !== 0 && drag.groupBaseOffsets.length) {
+            const horizontalDelta = snapped - drag.baseOffsetTick;
+            const midiTrackIds = tracksOrder.filter((id) => {
+                const t = useTimelineStore.getState().tracks[id];
+                return t?.type === 'midi';
+            });
+            const previews = drag.groupBaseOffsets
+                .map((entry) => {
+                    const newTrackIndex = entry.trackIndex + trackDelta;
+                    const clampedIndex = Math.max(0, Math.min(tracksOrder.length - 1, newTrackIndex));
+                    const targetId = tracksOrder[clampedIndex];
+                    if (!targetId || !midiTrackIds.includes(targetId)) {
+                        // Snap to nearest MIDI track
+                        const closestMidi = midiTrackIds.reduce((best, id) => {
+                            const idx = tracksOrder.indexOf(id);
+                            return Math.abs(idx - newTrackIndex) < Math.abs(tracksOrder.indexOf(best) - newTrackIndex) ? id : best;
+                        }, midiTrackIds[0] ?? entry.trackId);
+                        const t = useTimelineStore.getState().tracks[entry.trackId];
+                        const c = t?.type === 'midi' ? t.clips?.find((cl) => cl.id === entry.clipId) : undefined;
+                        return {
+                            clipId: entry.clipId,
+                            sourceTrackId: entry.trackId,
+                            targetTrackId: closestMidi,
+                            previewOffsetTicks: entry.offsetTicks + horizontalDelta,
+                            sourceId: c?.sourceId ?? '',
+                            regionStartTick: c?.regionStartTick,
+                            regionEndTick: c?.regionEndTick,
+                        };
+                    }
+                    const t = useTimelineStore.getState().tracks[entry.trackId];
+                    const c = t?.type === 'midi' ? t.clips?.find((cl) => cl.id === entry.clipId) : undefined;
+                    return {
+                        clipId: entry.clipId,
+                        sourceTrackId: entry.trackId,
+                        targetTrackId: targetId,
+                        previewOffsetTicks: entry.offsetTicks + horizontalDelta,
+                        sourceId: c?.sourceId ?? '',
+                        regionStartTick: c?.regionStartTick,
+                        regionEndTick: c?.regionEndTick,
+                    };
+                })
+                .filter((p) => !!p.sourceId);
+
+            if (previews.length) {
+                const primaryTarget = previews.find((p) => p.clipId === clip.id)?.targetTrackId ?? previews[0].targetTrackId;
+                setCrossTrackDrag({ previews, targetTrackId: primaryTarget });
+            }
+        } else {
+            if (crossTrackDrag) setCrossTrackDrag(null);
+        }
     };
 
     const onPointerUp = (e: React.PointerEvent) => {
         try {
             (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-        } catch {}
+        } catch { }
         if (resizeRef.current) {
             const preview = resizePreview;
             resizeRef.current = null;
@@ -213,7 +277,7 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, clip, laneWidth, laneHeight, 
                 const regionEndTick =
                     midiCacheEntry?.bounds && preview.end >= midiCacheEntry.bounds.maxTick ? undefined : preview.end;
                 void updateMidiClip({ trackId, clipId: clip.id, patch: { regionStartTick, regionEndTick } }).then(() => {
-                    selectRangeForRefs([{ trackId, clipId: clip.id }]);
+                    selectRefsAsClips([{ trackId, clipId: clip.id }]);
                 });
             }
             return;
@@ -223,7 +287,27 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, clip, laneWidth, laneHeight, 
         const finalTick = dragTick;
         setDragTick(null);
         onHoverSnapX(null);
-        if (!drag || finalTick == null || !didMove) return;
+
+        const activeCrossTrackDrag = crossTrackDrag;
+        setCrossTrackDrag(null);
+
+        if (!drag || !didMove) return;
+
+        if (activeCrossTrackDrag && activeCrossTrackDrag.previews.some((p) => p.sourceTrackId !== p.targetTrackId)) {
+            const moves = activeCrossTrackDrag.previews.map((p) => ({
+                sourceTrackId: p.sourceTrackId,
+                clipId: p.clipId,
+                destinationTrackId: p.targetTrackId,
+                newOffsetTicks: p.previewOffsetTicks,
+            }));
+            void moveMidiClipsBetweenTracks({ moves }).then(() => {
+                selectRefsAsClips(moves.map((m) => ({ trackId: m.destinationTrackId, clipId: m.clipId })));
+            });
+            return;
+        }
+
+        if (finalTick == null) return;
+
         if (drag.groupBaseOffsets.length > 1) {
             const delta = finalTick - drag.baseOffsetTick;
             void setMultipleMidiClipOffsets({
@@ -233,11 +317,11 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, clip, laneWidth, laneHeight, 
                     offsetTicks: entry.offsetTicks + delta,
                 })),
             }).then(() => {
-                selectRangeForRefs(drag.groupBaseOffsets);
+                selectRefsAsClips(drag.groupBaseOffsets.map((entry) => ({ trackId: entry.trackId, clipId: entry.clipId })));
             });
         } else {
             void updateMidiClip({ trackId, clipId: clip.id, patch: { offsetTicks: finalTick } }).then(() => {
-                selectRangeForRefs([{ trackId, clipId: clip.id }]);
+                selectRefsAsClips([{ trackId, clipId: clip.id }]);
             });
         }
     };
@@ -246,7 +330,7 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, clip, laneWidth, laneHeight, 
         if (e.button != null && e.button !== 0) return;
         e.stopPropagation();
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-        selectForPointer();
+        selectForPointer(e);
         resizeRef.current = {
             type,
             startX: e.clientX,
@@ -260,9 +344,8 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, clip, laneWidth, laneHeight, 
 
     return (
         <div
-            className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none overflow-hidden ${
-                isSelected ? 'bg-sky-500/65 border border-sky-200/90' : 'bg-blue-500/40 border border-blue-400/60'
-            }`}
+            className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none overflow-hidden transition-opacity ${isCrossDragging ? 'opacity-30 pointer-events-none' : ''
+                } ${isSelected ? 'bg-sky-500/65 border border-sky-200/90' : 'bg-blue-500/40 border border-blue-400/60'}`}
             style={{ left: leftX, width: Math.max(8, widthPx), height: clipHeight }}
             title={tooltip}
             onPointerDown={onPointerDown}

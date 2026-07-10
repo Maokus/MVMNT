@@ -10,6 +10,7 @@ import TempoAutomationLane from '../automation/TempoAutomationLane';
 import { AUTOMATION_HEADER_HEIGHT, TEMPO_LANE_HEIGHT } from '../constants';
 import GridLines from './GridLines';
 import TrackRowBlock from './TrackRowBlock';
+import { getMidiClipLocalBounds } from '@state/timeline/midiClips';
 
 type Props = {
     trackIds: string[];
@@ -28,7 +29,10 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
     const tempoEnabled = useTimelineStore((s) => !!s.timeline.tempoAutomation?.enabled);
     const tempoLaneVisible = useTimelineStore((s) => s.timeline.tempoAutomation?.laneVisible !== false);
     const rowHeight = useTimelineStore((s) => s.rowHeight);
+    const crossTrackDrag = useTimelineStore((s) => s._crossTrackDrag);
+    const midiCache = useTimelineStore((s) => s.midiCache);
     const clipTimelineSelection = useSelectionStore((s) => s.clipTimelineSelection);
+    const midiTracks = useTimelineStore((s) => s.tracks);
 
     useEffect(() => {
         const el = containerRef.current;
@@ -64,35 +68,77 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
     const effectiveHeight = Math.max(lanesHeight, containerHeight);
     const playheadX = toX(currentTick, Math.max(1, width));
 
-    const selectionOverlay = (() => {
-        if (activeTab !== 'clips' || !clipTimelineSelection) return null;
+    // Compute selection overlay entries (one per row segment)
+    type OverlayEntry =
+        | { type: 'point'; left: number; top: number; height: number }
+        | { type: 'range'; left: number; top: number; width: number; height: number };
+
+    const selectionOverlays: OverlayEntry[] = (() => {
+        if (activeTab !== 'clips' || !clipTimelineSelection) return [];
         const w = Math.max(1, width);
         if (clipTimelineSelection.type === 'point') {
             const rowIndex = trackIds.indexOf(clipTimelineSelection.point.trackId);
-            if (rowIndex < 0) return null;
-            return {
+            if (rowIndex < 0) return [];
+            return [{
                 type: 'point' as const,
                 left: toX(clipTimelineSelection.point.tick, w),
                 top: rowIndex * rowHeight,
                 height: rowHeight,
-            };
+            }];
         }
-        const selectedIndexes = clipTimelineSelection.range.trackIds
-            .map((id) => trackIds.indexOf(id))
-            .filter((index) => index >= 0)
-            .sort((a, b) => a - b);
-        if (!selectedIndexes.length) return null;
-        const left = toX(clipTimelineSelection.range.startTick, w);
-        const right = toX(clipTimelineSelection.range.endTick, w);
-        const first = selectedIndexes[0];
-        const last = selectedIndexes[selectedIndexes.length - 1];
-        return {
-            type: 'range' as const,
-            left: Math.min(left, right),
-            width: Math.max(1, Math.abs(right - left)),
-            top: first * rowHeight,
-            height: (last - first + 1) * rowHeight,
-        };
+        if (clipTimelineSelection.type === 'range') {
+            const selectedIndexes = clipTimelineSelection.range.trackIds
+                .map((id) => trackIds.indexOf(id))
+                .filter((index) => index >= 0)
+                .sort((a, b) => a - b);
+            if (!selectedIndexes.length) return [];
+            const left = toX(clipTimelineSelection.range.startTick, w);
+            const right = toX(clipTimelineSelection.range.endTick, w);
+            const first = selectedIndexes[0];
+            const last = selectedIndexes[selectedIndexes.length - 1];
+            return [{
+                type: 'range' as const,
+                left: Math.min(left, right),
+                top: first * rowHeight,
+                width: Math.max(1, Math.abs(right - left)),
+                height: (last - first + 1) * rowHeight,
+            }];
+        }
+        if (clipTimelineSelection.type === 'clips') {
+            // Per-track segments: one highlight per track that has selected clips
+            const segmentsByTrack = new Map<string, { minTick: number; maxTick: number }>();
+            for (const ref of clipTimelineSelection.clips) {
+                const track = midiTracks[ref.trackId];
+                if (!track || track.type !== 'midi') continue;
+                const clip = track.clips?.find((c) => c.id === ref.clipId);
+                if (!clip) continue;
+                const bounds = getMidiClipLocalBounds(midiCache, clip);
+                if (!bounds) continue;
+                const abStart = clip.offsetTicks + bounds.startTick;
+                const abEnd = clip.offsetTicks + bounds.endTick;
+                const seg = segmentsByTrack.get(ref.trackId);
+                if (seg) {
+                    seg.minTick = Math.min(seg.minTick, abStart);
+                    seg.maxTick = Math.max(seg.maxTick, abEnd);
+                } else {
+                    segmentsByTrack.set(ref.trackId, { minTick: abStart, maxTick: abEnd });
+                }
+            }
+            const result: OverlayEntry[] = [];
+            for (const [tId, seg] of segmentsByTrack) {
+                const rowIndex = trackIds.indexOf(tId);
+                if (rowIndex < 0) continue;
+                result.push({
+                    type: 'range',
+                    left: toX(seg.minTick, w),
+                    top: rowIndex * rowHeight,
+                    width: Math.max(1, toX(seg.maxTick, w) - toX(seg.minTick, w)),
+                    height: rowHeight,
+                });
+            }
+            return result;
+        }
+        return [];
     })();
 
     const rawRange = Math.max(1, view.endTick - view.startTick);
@@ -152,6 +198,10 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
         setHoverX(null);
     }, [addMidiTrack, addAudioTrack, snapTicks, toTick, toX, width]);
 
+    // Cross-track drag: ghost clips and row highlight
+    const targetRowIndex = crossTrackDrag ? trackIds.indexOf(crossTrackDrag.targetTrackId) : -1;
+    const w = Math.max(1, width);
+
     return (
         <div
             className="timeline-lanes relative border-t border-neutral-800 bg-neutral-900/40"
@@ -171,27 +221,31 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
                 <div className="absolute top-0 bottom-0 border-l border-blue-300/70 pointer-events-none" style={{ left: hoverX }} />
             )}
 
-            {selectionOverlay?.type === 'range' && (
-                <div
-                    className="absolute z-20 bg-cyan-300/10 border border-cyan-300/70 pointer-events-none"
-                    style={{
-                        left: selectionOverlay.left,
-                        top: selectionOverlay.top,
-                        width: selectionOverlay.width,
-                        height: selectionOverlay.height,
-                    }}
-                />
-            )}
-
-            {selectionOverlay?.type === 'point' && (
-                <div
-                    className="absolute z-20 border-l-2 border-cyan-300 pointer-events-none"
-                    style={{ left: selectionOverlay.left, top: selectionOverlay.top, height: selectionOverlay.height }}
-                />
+            {selectionOverlays.map((ov, i) =>
+                ov.type === 'range' ? (
+                    <div
+                        key={i}
+                        className="absolute z-20 bg-cyan-300/10 border border-cyan-300/70 pointer-events-none"
+                        style={{ left: ov.left, top: ov.top, width: ov.width, height: ov.height }}
+                    />
+                ) : (
+                    <div
+                        key={i}
+                        className="absolute z-20 border-l-2 border-cyan-300 pointer-events-none"
+                        style={{ left: ov.left, top: ov.top, height: ov.height }}
+                    />
+                )
             )}
 
             {activeTab === 'clips' && (
                 <div className="relative">
+                    {/* Cross-track drag: target row highlight */}
+                    {crossTrackDrag && targetRowIndex >= 0 && (
+                        <div
+                            className="absolute z-10 bg-sky-400/15 border-y border-sky-400/50 pointer-events-none"
+                            style={{ top: targetRowIndex * rowHeight, height: rowHeight, left: 0, right: 0 }}
+                        />
+                    )}
                     {trackIds.map((id, idx) => (
                         <div
                             key={id}
@@ -199,9 +253,43 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
                             style={{ height: rowHeight }}
                         >
                             <div className="absolute left-0 right-0 bottom-0 border-b border-neutral-800" />
-                            <TrackRowBlock trackId={id} laneWidth={width} laneHeight={rowHeight} onHoverSnapX={setHoverX} />
+                            <TrackRowBlock trackId={id} trackIndex={idx} laneWidth={width} laneHeight={rowHeight} onHoverSnapX={setHoverX} />
                         </div>
                     ))}
+                    {/* Cross-track drag: ghost clips */}
+                    {crossTrackDrag && crossTrackDrag.previews.map((preview) => {
+                        const tIdx = trackIds.indexOf(preview.targetTrackId);
+                        if (tIdx < 0) return null;
+                        const cacheEntry = midiCache[preview.sourceId];
+                        if (!cacheEntry) return null;
+                        const localBounds = getMidiClipLocalBounds(midiCache, {
+                            id: preview.clipId,
+                            type: 'midi',
+                            sourceId: preview.sourceId,
+                            offsetTicks: preview.previewOffsetTicks,
+                            regionStartTick: preview.regionStartTick,
+                            regionEndTick: preview.regionEndTick,
+                        });
+                        if (!localBounds) return null;
+                        const absStart = preview.previewOffsetTicks + localBounds.startTick;
+                        const absEnd = preview.previewOffsetTicks + localBounds.endTick;
+                        const leftPx = toX(absStart, w);
+                        const rightPx = toX(absEnd, w);
+                        const wPx = Math.max(8, rightPx - leftPx);
+                        const clipHeight = Math.max(18, rowHeight * 0.6);
+                        return (
+                            <div
+                                key={`ghost-${preview.clipId}`}
+                                className="absolute z-30 rounded border border-sky-200/80 bg-sky-500/50 pointer-events-none"
+                                style={{
+                                    left: leftPx,
+                                    top: tIdx * rowHeight + (rowHeight - clipHeight) / 2,
+                                    width: wPx,
+                                    height: clipHeight,
+                                }}
+                            />
+                        );
+                    })}
                 </div>
             )}
 

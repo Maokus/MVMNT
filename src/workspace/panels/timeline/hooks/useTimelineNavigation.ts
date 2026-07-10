@@ -77,6 +77,18 @@ export function useTimelineNavigation() {
         } else if (clipTimelineSelection?.type === 'point') {
             minTick = Math.min(minTick, clipTimelineSelection.point.tick);
             maxTick = Math.max(maxTick, clipTimelineSelection.point.tick);
+        } else if (clipTimelineSelection?.type === 'clips') {
+            for (const ref of clipTimelineSelection.clips) {
+                const track = state.tracks[ref.trackId];
+                if (!track || track.type !== 'midi') continue;
+                const clip = track.clips?.find((c) => c.id === ref.clipId);
+                if (!clip) continue;
+                const bounds = getMidiClipTimelineBounds(state.midiCache, clip);
+                if (bounds) {
+                    minTick = Math.min(minTick, bounds.startTick);
+                    maxTick = Math.max(maxTick, bounds.endTick);
+                }
+            }
         }
 
         if (!isFinite(minTick) || !isFinite(maxTick)) return;
@@ -147,23 +159,19 @@ export function useTimelineNavigation() {
                     break;
                 case 's':
                 case 'S': {
-                    if (e.ctrlKey || e.metaKey) break; // reserved for save
+                    if (e.ctrlKey || e.metaKey) break;
                     const snapState = useTimelineStore.getState();
                     const q = snapState.transport.quantize;
                     snapState.setQuantize(q !== 'off' ? 'off' : lastSnapRef.current);
                     e.preventDefault();
                     break;
                 }
-                // Arrow keys → nudge playhead (skip if Ctrl/Cmd — reserved for single-tick step)
                 case 'ArrowLeft':
                 case 'ArrowRight': {
                     if (e.defaultPrevented || e.ctrlKey || e.metaKey) break;
-                    // Don't nudge playhead when elements are selected (arrow keys nudge the element instead)
                     const sel = useSelectionStore.getState();
                     if (sel.activeTarget === 'elements' && sel.selectedElementIds.length > 0) break;
-                    const nudge = e.shiftKey
-                        ? CANONICAL_PPQ * (state.timeline.beatsPerBar || 4) // 1 bar
-                        : CANONICAL_PPQ; // 1 beat
+                    const nudge = e.shiftKey ? CANONICAL_PPQ * (state.timeline.beatsPerBar || 4) : CANONICAL_PPQ;
                     const dir = e.key === 'ArrowLeft' ? -1 : 1;
                     const next = Math.max(0, state.timeline.currentTick + dir * nudge);
                     state.seekTick(next);
@@ -178,90 +186,202 @@ export function useTimelineNavigation() {
         return () => window.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
     }, [fitAll, zoomToSelection, frameSelection]);
 
+    // Cmd+A: select all clips when clip timeline is active
     useEffect(() => {
-        const resolvePasteDestination = () => {
-            const timelineState = useTimelineStore.getState();
-            const selection = useSelectionStore.getState();
-            const clipSelection = selection.clipTimelineSelection;
-            if (clipSelection?.type === 'range') {
-                const trackId = clipSelection.range.trackIds.find((id) => timelineState.tracks[id]?.type === 'midi');
-                if (trackId) {
-                    return { trackId, tick: clipSelection.range.startTick };
+        const handler = (e: KeyboardEvent) => {
+            if (isEditableTarget(document.activeElement)) return;
+            if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'a') return;
+            const sel = useSelectionStore.getState();
+            if (sel.activeTarget !== 'clipTimeline') return;
+            const state = useTimelineStore.getState();
+            const allRefs: Array<{ trackId: string; clipId: string }> = [];
+            for (const trackId of state.tracksOrder) {
+                const track = state.tracks[trackId];
+                if (!track || track.type !== 'midi') continue;
+                for (const clip of getMidiClipsForTrack(track)) {
+                    if (clip.enabled !== false) allRefs.push({ trackId, clipId: clip.id });
                 }
             }
-            if (clipSelection?.type === 'point' && timelineState.tracks[clipSelection.point.trackId]?.type === 'midi') {
-                return { trackId: clipSelection.point.trackId, tick: clipSelection.point.tick };
+            if (allRefs.length) {
+                sel.selectClipTimeline({ type: 'clips', clips: allRefs });
+                e.preventDefault();
+                e.stopPropagation();
             }
-            const selectedTrack = selection.selectedTrackIds.find((id) => timelineState.tracks[id]?.type === 'midi');
-            if (selectedTrack) {
-                return { trackId: selectedTrack, tick: timelineState.timeline.currentTick };
-            }
-            const firstMidiTrack = timelineState.tracksOrder.find((id) => timelineState.tracks[id]?.type === 'midi');
-            return firstMidiTrack ? { trackId: firstMidiTrack, tick: timelineState.timeline.currentTick } : null;
         };
+        window.addEventListener('keydown', handler, { capture: true });
+        return () => window.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
+    }, []);
 
+    // Resolve paste destination from current selection state
+    const resolvePasteDestination = () => {
+        const timelineState = useTimelineStore.getState();
+        const selection = useSelectionStore.getState();
+        const clipSelection = selection.clipTimelineSelection;
+        if (clipSelection?.type === 'range') {
+            const trackId = clipSelection.range.trackIds.find((id) => timelineState.tracks[id]?.type === 'midi');
+            if (trackId) return { trackId, tick: clipSelection.range.startTick };
+        }
+        if (clipSelection?.type === 'point' && timelineState.tracks[clipSelection.point.trackId]?.type === 'midi') {
+            return { trackId: clipSelection.point.trackId, tick: clipSelection.point.tick };
+        }
+        if (clipSelection?.type === 'clips' && clipSelection.clips.length) {
+            // Find first track (in track order) that has selected clips
+            const clipTrackIds = new Set(clipSelection.clips.map((c) => c.trackId));
+            const firstTrackId = timelineState.tracksOrder.find(
+                (id) => clipTrackIds.has(id) && timelineState.tracks[id]?.type === 'midi'
+            );
+            if (firstTrackId) {
+                // Paste at the minimum offset of selected clips on that track
+                const track = timelineState.tracks[firstTrackId];
+                let minTick = Infinity;
+                if (track && track.type === 'midi') {
+                    for (const ref of clipSelection.clips) {
+                        if (ref.trackId !== firstTrackId) continue;
+                        const clip = track.clips?.find((c) => c.id === ref.clipId);
+                        if (clip) minTick = Math.min(minTick, clip.offsetTicks);
+                    }
+                }
+                return {
+                    trackId: firstTrackId,
+                    tick: isFinite(minTick) ? minTick : timelineState.timeline.currentTick,
+                };
+            }
+        }
+        const selectedTrack = selection.selectedTrackIds.find((id) => timelineState.tracks[id]?.type === 'midi');
+        if (selectedTrack) return { trackId: selectedTrack, tick: timelineState.timeline.currentTick };
+        const firstMidiTrack = timelineState.tracksOrder.find((id) => timelineState.tracks[id]?.type === 'midi');
+        return firstMidiTrack ? { trackId: firstMidiTrack, tick: timelineState.timeline.currentTick } : null;
+    };
+
+    // Helper: execute a paste and update selection to pasted clips
+    const executePaste = (prepared: ReturnType<typeof prepareMidiClipPaste>) => {
+        if (!prepared) return;
+        void timelineCommandGateway
+            .dispatchById(
+                'timeline.pasteMidiClips',
+                { clips: prepared.clips, createTracks: prepared.createTracks, midiCache: prepared.midiCache },
+                { source: 'timeline-clipboard' }
+            )
+            .then(() => {
+                const state = useTimelineStore.getState();
+                const pastedIds = new Set(prepared.clips.map((entry) => entry.clip.id));
+                const clips: Array<{ trackId: string; clipId: string }> = [];
+                for (const trackId of state.tracksOrder) {
+                    const track = state.tracks[trackId];
+                    if (!track || track.type !== 'midi') continue;
+                    for (const clip of getMidiClipsForTrack(track)) {
+                        if (pastedIds.has(clip.id)) clips.push({ trackId, clipId: clip.id });
+                    }
+                }
+                if (clips.length) {
+                    useSelectionStore.getState().selectClipTimeline({ type: 'clips', clips });
+                }
+            })
+            .catch((error) => console.error('[timeline] failed to paste MIDI clips', error));
+    };
+
+    // Cmd+C / Cmd+V copy-paste
+    useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             if (isEditableTarget(document.activeElement)) return;
             if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
-            if (e.key.toLowerCase() === 'c') {
+            const key = e.key.toLowerCase();
+
+            if (key === 'c') {
                 const selection = useSelectionStore.getState();
-                if (selection.activeTarget !== 'clipTimeline' || selection.clipTimelineSelection?.type !== 'range') return;
-                const copied = copyTimelineSelectionToMidiClipClipboard(useTimelineStore.getState(), selection.clipTimelineSelection);
+                if (selection.activeTarget !== 'clipTimeline') return;
+                const clipSel = selection.clipTimelineSelection;
+                if (!clipSel || clipSel.type === 'point') return;
+                const copied = copyTimelineSelectionToMidiClipClipboard(useTimelineStore.getState(), clipSel);
                 if (copied) {
                     e.preventDefault();
                     e.stopPropagation();
                 }
                 return;
             }
-            if (e.key.toLowerCase() !== 'v') return;
-            const clipboard = getMidiClipClipboard();
-            if (!clipboard) return;
-            const destination = resolvePasteDestination();
-            if (!destination) return;
-            const prepared = prepareMidiClipPaste(useTimelineStore.getState(), clipboard, destination);
-            if (!prepared) return;
-            e.preventDefault();
-            e.stopPropagation();
-            void timelineCommandGateway
-                .dispatchById(
-                    'timeline.pasteMidiClips',
-                    { clips: prepared.clips, createTracks: prepared.createTracks },
-                    { source: 'timeline-clipboard' },
-                )
-                .then(() => {
-                    const state = useTimelineStore.getState();
-                    let startTick = Infinity;
-                    let endTick = -Infinity;
-                    const trackIds = new Set<string>();
-                    const pastedIds = new Set(prepared.clips.map((entry) => entry.clip.id));
-                    for (const trackId of state.tracksOrder) {
-                        const track = state.tracks[trackId];
-                        if (!track || track.type !== 'midi') continue;
-                        for (const clip of getMidiClipsForTrack(track)) {
-                            if (!pastedIds.has(clip.id)) continue;
-                            const bounds = getMidiClipTimelineBounds(state.midiCache, clip);
-                            if (!bounds) continue;
-                            startTick = Math.min(startTick, bounds.startTick);
-                            endTick = Math.max(endTick, bounds.endTick);
-                            trackIds.add(trackId);
-                        }
-                    }
-                    if (Number.isFinite(startTick) && Number.isFinite(endTick) && trackIds.size) {
-                        useSelectionStore.getState().selectClipTimeline({
-                            type: 'range',
-                            range: { startTick, endTick, trackIds: [...trackIds] },
-                        });
-                    }
-                })
-                .catch((error) => {
-                    console.error('[timeline] failed to paste MIDI clips', error);
-                });
+
+            if (key === 'v') {
+                const clipboard = getMidiClipClipboard();
+                if (!clipboard) return;
+                const destination = resolvePasteDestination();
+                if (!destination) return;
+                const prepared = prepareMidiClipPaste(useTimelineStore.getState(), clipboard, destination);
+                if (!prepared) return;
+                e.preventDefault();
+                e.stopPropagation();
+                executePaste(prepared);
+                return;
+            }
         };
         window.addEventListener('keydown', handler, { capture: true });
         return () => window.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
     }, []);
 
-    // Delete/Backspace dispatches based on activeTarget from selectionStore
+    // Cmd+X: cut (copy + delete in single undo step for delete)
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (isEditableTarget(document.activeElement)) return;
+            if (!(e.ctrlKey || e.metaKey) || e.altKey || e.key.toLowerCase() !== 'x') return;
+            const selection = useSelectionStore.getState();
+            if (selection.activeTarget !== 'clipTimeline') return;
+            const clipSel = selection.clipTimelineSelection;
+            if (!clipSel || clipSel.type === 'point') return;
+            const state = useTimelineStore.getState();
+            const copied = copyTimelineSelectionToMidiClipClipboard(state, clipSel);
+            if (!copied) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const clips = getMidiClipsInTimelineSelection(state, clipSel);
+            if (!clips.length) return;
+            void useTimelineStore.getState().removeMidiClips({ clips });
+            useSelectionStore.getState().clearSelection('clipTimeline');
+        };
+        window.addEventListener('keydown', handler, { capture: true });
+        return () => window.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
+    }, []);
+
+    // Cmd+D: duplicate (paste copy immediately after current clips)
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (isEditableTarget(document.activeElement)) return;
+            if (!(e.ctrlKey || e.metaKey) || e.altKey || e.key.toLowerCase() !== 'd') return;
+            const selection = useSelectionStore.getState();
+            if (selection.activeTarget !== 'clipTimeline') return;
+            const clipSel = selection.clipTimelineSelection;
+            if (!clipSel || clipSel.type === 'point') return;
+            e.preventDefault();
+            e.stopPropagation();
+            const state = useTimelineStore.getState();
+            const refs = getMidiClipsInTimelineSelection(state, clipSel);
+            if (!refs.length) return;
+            // Build a clipboard payload from selected clips
+            const copied = copyTimelineSelectionToMidiClipClipboard(state, clipSel);
+            if (!copied) return;
+            // Destination tick = max end tick across all selected clips
+            let maxEndTick = 0;
+            for (const ref of refs) {
+                const track = state.tracks[ref.trackId];
+                if (!track || track.type !== 'midi') continue;
+                const clip = track.clips?.find((c) => c.id === ref.clipId);
+                if (!clip) continue;
+                const bounds = getMidiClipTimelineBounds(state.midiCache, clip);
+                if (bounds) maxEndTick = Math.max(maxEndTick, bounds.endTick);
+            }
+            // First selected track (in track order) as destination
+            const clipTrackIds = new Set(refs.map((r) => r.trackId));
+            const firstTrackId = state.tracksOrder.find(
+                (id) => clipTrackIds.has(id) && state.tracks[id]?.type === 'midi'
+            );
+            if (!firstTrackId) return;
+            const prepared = prepareMidiClipPaste(state, copied, { tick: maxEndTick, trackId: firstTrackId });
+            if (!prepared) return;
+            executePaste(prepared);
+        };
+        window.addEventListener('keydown', handler, { capture: true });
+        return () => window.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
+    }, []);
+
+    // Delete/Backspace
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             if (e.key !== 'Delete' && e.key !== 'Backspace') return;
@@ -278,14 +398,19 @@ export function useTimelineNavigation() {
                 }
                 case 'clipTimeline': {
                     const selection = useSelectionStore.getState().clipTimelineSelection;
-                    if (selection?.type !== 'range') {
+                    if (!selection || selection.type === 'point') {
                         useSelectionStore.getState().clearSelection('clipTimeline');
                         e.preventDefault();
                         e.stopPropagation();
                         break;
                     }
                     const clips = getMidiClipsInTimelineSelection(useTimelineStore.getState(), selection);
-                    if (!clips.length) return;
+                    if (!clips.length) {
+                        useSelectionStore.getState().clearSelection('clipTimeline');
+                        e.preventDefault();
+                        e.stopPropagation();
+                        break;
+                    }
                     void useTimelineStore.getState().removeMidiClips({ clips });
                     useSelectionStore.getState().clearSelection('clipTimeline');
                     e.preventDefault();
@@ -294,7 +419,6 @@ export function useTimelineNavigation() {
                 }
                 case 'keyframes':
                 case 'elements':
-                    // Handled by scene/canvas delete handlers; do not interfere.
                     break;
                 default:
                     break;

@@ -3,6 +3,7 @@ import type React from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 import { useTickScale } from './useTickScale';
+import { useSnapTicks } from './useSnapTicks';
 
 interface UseMarqueeSelectOptions {
     containerRef: React.RefObject<HTMLDivElement | null>;
@@ -12,11 +13,18 @@ interface UseMarqueeSelectOptions {
 }
 
 export function useMarqueeSelect({ containerRef, trackIds, width, activeTab }: UseMarqueeSelectOptions) {
-    const marqueeRef = useRef<null | { startX: number; startY: number; currentX: number; currentY: number; active: boolean }>(null);
+    const marqueeRef = useRef<null | {
+        startX: number;
+        startY: number;
+        currentX: number;
+        currentY: number;
+        active: boolean;
+    }>(null);
     const [marquee, setMarquee] = useState<null | { x1: number; x2: number; y1: number; y2: number }>(null);
     const selectClipTimeline = useSelectionStore((s) => s.selectClipTimeline);
     const rowHeight = useTimelineStore((s) => s.rowHeight);
     const { toTick } = useTickScale();
+    const snapTicks = useSnapTicks();
 
     const resolveTrackAtY = (y: number): string | null => {
         if (!trackIds.length) return null;
@@ -26,8 +34,14 @@ export function useMarqueeSelect({ containerRef, trackIds, width, activeTab }: U
 
     const resolveTracksBetween = (y1: number, y2: number): string[] => {
         if (!trackIds.length) return [];
-        const minIndex = Math.max(0, Math.min(trackIds.length - 1, Math.floor(Math.min(y1, y2) / Math.max(1, rowHeight))));
-        const maxIndex = Math.max(0, Math.min(trackIds.length - 1, Math.floor(Math.max(y1, y2) / Math.max(1, rowHeight))));
+        const minIndex = Math.max(
+            0,
+            Math.min(trackIds.length - 1, Math.floor(Math.min(y1, y2) / Math.max(1, rowHeight)))
+        );
+        const maxIndex = Math.max(
+            0,
+            Math.min(trackIds.length - 1, Math.floor(Math.max(y1, y2) / Math.max(1, rowHeight)))
+        );
         return trackIds.slice(minIndex, maxIndex + 1);
     };
 
@@ -43,6 +57,8 @@ export function useMarqueeSelect({ containerRef, trackIds, width, activeTab }: U
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         marqueeRef.current = { startX: x, startY: y, currentX: x, currentY: y, active: true };
         setMarquee({ x1: x, x2: x, y1: y, y2: y });
+        // Clear existing selection immediately so old selection box disappears
+        selectClipTimeline(null);
     };
 
     const onBackgroundPointerMove: React.PointerEventHandler<HTMLDivElement> = (e) => {
@@ -73,16 +89,17 @@ export function useMarqueeSelect({ containerRef, trackIds, width, activeTab }: U
         if (Math.abs(x2 - x1) < 3 && Math.abs(y2 - y1) < 3) {
             const trackId = resolveTrackAtY(m.startY);
             if (trackId) {
+                const rawTick = toTick(m.startX, w);
                 selectClipTimeline({
                     type: 'point',
-                    point: { trackId, tick: Math.round(toTick(m.startX, w)) },
+                    point: { trackId, tick: snapTicks(rawTick, e.ctrlKey || e.metaKey) },
                 });
             } else {
                 selectClipTimeline(null);
             }
         } else {
-            const startTick = Math.round(toTick(x1, w));
-            const endTick = Math.round(toTick(x2, w));
+            const startTick = snapTicks(toTick(x1, w), e.ctrlKey || e.metaKey);
+            const endTick = snapTicks(toTick(x2, w), e.ctrlKey || e.metaKey);
             const selectedTrackIds = resolveTracksBetween(y1, y2);
             if (selectedTrackIds.length) {
                 selectClipTimeline({

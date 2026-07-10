@@ -17,9 +17,15 @@ export interface TimelineInsertionSelection {
     trackId: string;
 }
 
+export interface TimelineClipRef {
+    trackId: string;
+    clipId: string;
+}
+
 export type ClipTimelineSelection =
     | { type: 'range'; range: TimelineRangeSelection }
-    | { type: 'point'; point: TimelineInsertionSelection };
+    | { type: 'point'; point: TimelineInsertionSelection }
+    | { type: 'clips'; clips: TimelineClipRef[] };
 
 export type SelectionTarget = 'none' | 'elements' | 'tracks' | 'keyframes' | 'clipTimeline';
 
@@ -131,11 +137,21 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
         },
 
         // ── Low-level setters ───────────────────────────────────────────────
-        setSelectedElementIds(ids) { set({ selectedElementIds: ids }); },
-        setSelectedTrackIds(ids) { set({ selectedTrackIds: ids }); },
-        setSelectedKeyframes(keys) { set({ selectedKeyframes: keys }); },
-        setClipTimelineSelection(selection) { set({ clipTimelineSelection: selection }); },
-        setActiveTarget(target) { set({ activeTarget: target }); },
+        setSelectedElementIds(ids) {
+            set({ selectedElementIds: ids });
+        },
+        setSelectedTrackIds(ids) {
+            set({ selectedTrackIds: ids });
+        },
+        setSelectedKeyframes(keys) {
+            set({ selectedKeyframes: keys });
+        },
+        setClipTimelineSelection(selection) {
+            set({ clipTimelineSelection: selection });
+        },
+        setActiveTarget(target) {
+            set({ activeTarget: target });
+        },
 
         // ── clearSelection ──────────────────────────────────────────────────
         clearSelection(target) {

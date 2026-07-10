@@ -54,6 +54,7 @@ import type {
     RemoveMidiClipsPayload,
     SetMultipleMidiClipOffsetsPayload,
     UpdateMidiClipsPayload,
+    MoveMidiClipsBetweenTracksPayload,
 } from './timeline/commands/midiClipCommands';
 
 export { getSharedTimingManager, sharedTimingManager } from './timeline/timelineShared';
@@ -148,6 +149,7 @@ export type TimelineState = {
     updateMidiClip: (input: UpdateMidiClipsPayload['updates'][number]) => Promise<void>;
     updateMidiClips: (input: UpdateMidiClipsPayload) => Promise<void>;
     setMultipleMidiClipOffsets: (input: SetMultipleMidiClipOffsetsPayload) => Promise<void>;
+    moveMidiClipsBetweenTracks: (input: MoveMidiClipsBetweenTracksPayload) => Promise<void>;
     addAudioTrack: (input: {
         name: string;
         file?: File;
@@ -185,6 +187,19 @@ export type TimelineState = {
     setTimelineViewTicks: (startTick: number, endTick: number) => void;
     _clipGroupDrag: { delta: number; trackIds: string[] } | null;
     _setClipGroupDrag: (drag: { delta: number; trackIds: string[] } | null) => void;
+    _crossTrackDrag: {
+        previews: Array<{
+            clipId: string;
+            sourceTrackId: string;
+            targetTrackId: string;
+            previewOffsetTicks: number;
+            sourceId: string;
+            regionStartTick?: number;
+            regionEndTick?: number;
+        }>;
+        targetTrackId: string;
+    } | null;
+    _setCrossTrackDrag: (drag: TimelineState['_crossTrackDrag']) => void;
     setPlaybackRangeTicks: (startTick?: number, endTick?: number) => void;
     setPlaybackRangeExplicitTicks: (startTick?: number, endTick?: number) => void;
     setRowHeight: (h: number) => void;
@@ -462,6 +477,7 @@ function createInitialTimelineSlice(): Pick<
     | 'hybridCacheRollout'
     | 'tempoAlignedDiagnostics'
     | '_clipGroupDrag'
+    | '_crossTrackDrag'
 > {
     return {
         timeline: {
@@ -495,6 +511,7 @@ function createInitialTimelineSlice(): Pick<
             loopEndTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 5)),
         },
         _clipGroupDrag: null,
+        _crossTrackDrag: null,
         midiCache: {},
         timelineView: { startTick: 0, endTick: Math.round(beatsToTicks(DEFAULT_TIMING_CONTEXT, 120)) },
         playbackRange: undefined,
@@ -545,13 +562,22 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         await timelineCommandGateway.dispatchById('timeline.removeMidiClips', input, { source: 'timeline-store' });
     },
     async updateMidiClip(input: UpdateMidiClipsPayload['updates'][number]) {
-        await timelineCommandGateway.dispatchById('timeline.updateMidiClips', { updates: [input] }, { source: 'timeline-store' });
+        await timelineCommandGateway.dispatchById(
+            'timeline.updateMidiClips',
+            { updates: [input] },
+            { source: 'timeline-store' }
+        );
     },
     async updateMidiClips(input: UpdateMidiClipsPayload) {
         await timelineCommandGateway.dispatchById('timeline.updateMidiClips', input, { source: 'timeline-store' });
     },
     async setMultipleMidiClipOffsets(input: SetMultipleMidiClipOffsetsPayload) {
         await timelineCommandGateway.dispatchById('timeline.setMultipleMidiClipOffsets', input, {
+            source: 'timeline-store',
+        });
+    },
+    async moveMidiClipsBetweenTracks(input: MoveMidiClipsBetweenTracksPayload) {
+        await timelineCommandGateway.dispatchById('timeline.moveMidiClipsBetweenTracks', input, {
             source: 'timeline-store',
         });
     },
@@ -1000,6 +1026,10 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     _setClipGroupDrag(drag) {
         set(() => ({ _clipGroupDrag: drag }));
+    },
+
+    _setCrossTrackDrag(drag) {
+        set(() => ({ _crossTrackDrag: drag }));
     },
 
     ingestMidiToCache(
