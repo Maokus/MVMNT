@@ -15,7 +15,7 @@ import {
 import type { TimelineCommandContext, TimelineCommandExecuteResult } from '../commandTypes';
 import { useSelectionStore } from '@state/selectionStore';
 import type { MidiClip } from '../midiClips';
-import { estimateAudioBufferBytes, formatBytes } from '@audio/audioMemoryDiagnostics';
+import { estimateAudioBufferBytes, estimateFeatureCacheBytes, formatBytes } from '@audio/audioMemoryDiagnostics';
 import { recordAudioMemoryDiagnostic } from '@state/audioMemoryDiagnosticsStore';
 import { AudioAssetStore, createAudioAssetId } from '@persistence/audio-asset-store';
 import { checkpointCrashRecoveryJournal } from '@persistence/crash-recovery-journal';
@@ -111,6 +111,15 @@ interface PreparedAudioSource {
 }
 
 const INLINE_ORIGINAL_FILE_LIMIT_BYTES = 16 * 1024 * 1024;
+const LARGE_UNDO_FEATURE_CACHE_BYTES = 32 * 1024 * 1024;
+
+function buildUndoAudioCacheEntry(cache: import('@audio/audioTypes').AudioCacheEntry): import('@audio/audioTypes').AudioCacheEntry {
+    const { audioBuffer: _audioBuffer, ...rest } = cache;
+    return {
+        ...rest,
+        decodedState: cache.audioBuffer ? 'evicted' : cache.decodedState ?? 'evicted',
+    };
+}
 
 async function prepareAudioSource(payload: { buffer?: AudioBuffer; file?: File }): Promise<PreparedAudioSource> {
     if (payload.buffer) {
@@ -244,10 +253,10 @@ function buildRedoPayload(
         const key = audioTrack.audioSourceId ?? trackId;
         const cache = state.audioCache[key];
         if (cache) {
-            payload.audioCache = { key, value: cache };
+            payload.audioCache = { key, value: buildUndoAudioCacheEntry(cache) };
         }
         const featureCache = state.audioFeatureCaches?.[key];
-        if (featureCache) {
+        if (featureCache && estimateFeatureCacheBytes(featureCache) <= LARGE_UNDO_FEATURE_CACHE_BYTES) {
             payload.audioFeatureCache = { key, value: featureCache };
         }
     }

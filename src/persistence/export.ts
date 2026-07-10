@@ -27,6 +27,8 @@ import {
     type SerializedAudioFeatureTrackDataRef,
 } from '@audio/features/audioFeatureAnalysis';
 import type { AudioFeatureCacheStatus } from '@audio/features/audioFeatureTypes';
+import { estimateFeatureCacheBytes, formatBytes } from '@audio/audioMemoryDiagnostics';
+import { recordAudioMemoryDiagnostic } from '@state/audioMemoryDiagnosticsStore';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 import { migrateTimelineTrackMidiClipsV8, stripLegacyMidiPlacementFields } from './migrations/midiClipsV8';
 
@@ -160,6 +162,8 @@ export interface ExportSceneOptions {
     maxInlineAssetBytes?: number;
     onProgress?: (value: number, label?: string) => void;
     embedPlugins?: boolean;
+    includeLargeAudioFeatureCaches?: boolean;
+    maxAudioFeatureCacheBytes?: number;
 }
 
 interface ExportResultBase {
@@ -193,6 +197,7 @@ export type ExportSceneResult = ExportSceneResultInline | ExportSceneResultZip |
 const DEFAULT_MAX_INLINE_BYTES = 50 * 1024 * 1024; // 50 MB
 const DEFAULT_INLINE_WARN_BYTES = 25 * 1024 * 1024; // 25 MB
 const DEFAULT_MAX_INLINE_ASSET_BYTES = 10 * 1024 * 1024; // 10 MB
+const DEFAULT_MAX_AUDIO_FEATURE_CACHE_BYTES = 128 * 1024 * 1024;
 
 function buildCompatibilityWarnings(messages: string[]): { warnings: { message: string }[] } | undefined {
     if (!messages.length) return undefined;
@@ -541,15 +546,20 @@ function buildZip(
 
 function prepareAudioFeatureCaches(
     caches: Record<string, any> | undefined,
-    mode: AssetStorageMode
+    mode: AssetStorageMode,
+    options: { includeLargeAudioFeatureCaches?: boolean; maxAudioFeatureCacheBytes: number }
 ): {
     timelineCaches: Record<string, SerializedAudioFeatureCache | AudioFeatureCacheAssetReference>;
     assetPayloads: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>;
+    omittedSourceIds: string[];
+    omittedBytes: number;
 } {
     const timelineCaches: Record<string, SerializedAudioFeatureCache | AudioFeatureCacheAssetReference> = {};
     const assetPayloads = new Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>();
+    const omittedSourceIds: string[] = [];
+    let omittedBytes = 0;
     if (!caches) {
-        return { timelineCaches, assetPayloads };
+        return { timelineCaches, assetPayloads, omittedSourceIds, omittedBytes };
     }
 
     const toTypedArray = (
@@ -590,6 +600,19 @@ function prepareAudioFeatureCaches(
 
     for (const [sourceId, cache] of Object.entries(caches)) {
         try {
+            const cacheBytes = estimateFeatureCacheBytes(cache);
+            if (!options.includeLargeAudioFeatureCaches && cacheBytes > options.maxAudioFeatureCacheBytes) {
+                omittedSourceIds.push(sourceId);
+                omittedBytes += cacheBytes;
+                recordAudioMemoryDiagnostic({
+                    severity: 'warning',
+                    stage: 'feature-cache-export-omitted',
+                    message: `Skipped large audio feature cache for ${sourceId} (${formatBytes(cacheBytes)}); it can be regenerated`,
+                    sourceId,
+                    bytes: { featureCache: cacheBytes },
+                });
+                continue;
+            }
             const serialized = serializeAudioFeatureCache(cache);
             if (mode === 'zip-package') {
                 const assetId = encodeURIComponent(sourceId);
@@ -686,7 +709,7 @@ function prepareAudioFeatureCaches(
         }
     }
 
-    return { timelineCaches, assetPayloads };
+    return { timelineCaches, assetPayloads, omittedSourceIds, omittedBytes };
 }
 
 export async function exportScene(
@@ -828,7 +851,31 @@ export async function exportScene(
     }
 
     const midiAssets = prepareMidiAssets(doc.midiCache, storage);
-    const featureAssets = prepareAudioFeatureCaches(doc.audioFeatureCaches, storage);
+    const featureAssets = prepareAudioFeatureCaches(doc.audioFeatureCaches, storage, {
+        includeLargeAudioFeatureCaches: options.includeLargeAudioFeatureCaches === true,
+        maxAudioFeatureCacheBytes: options.maxAudioFeatureCacheBytes ?? DEFAULT_MAX_AUDIO_FEATURE_CACHE_BYTES,
+    });
+    if (featureAssets.omittedSourceIds.length) {
+        warnings.push(
+            `Skipped ${featureAssets.omittedSourceIds.length} large audio analysis cache${
+                featureAssets.omittedSourceIds.length === 1 ? '' : 's'
+            } (${formatBytes(featureAssets.omittedBytes)}). Analysis can be regenerated after opening.`
+        );
+    }
+    const exportedFeatureStatus =
+        doc.audioFeatureCacheStatus && Object.keys(doc.audioFeatureCacheStatus).length
+            ? { ...doc.audioFeatureCacheStatus }
+            : undefined;
+    if (exportedFeatureStatus) {
+        for (const sourceId of featureAssets.omittedSourceIds) {
+            exportedFeatureStatus[sourceId] = {
+                ...(exportedFeatureStatus[sourceId] ?? { state: 'stale', updatedAt: Date.now() }),
+                state: 'stale',
+                updatedAt: Date.now(),
+                message: 'analysis cache omitted during export',
+            };
+        }
+    }
 
     const envelope: SceneExportEnvelopeV8 = {
         schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -856,8 +903,8 @@ export async function exportScene(
                 ? featureAssets.timelineCaches
                 : undefined,
             audioFeatureCacheStatus:
-                doc.audioFeatureCacheStatus && Object.keys(doc.audioFeatureCacheStatus).length
-                    ? doc.audioFeatureCacheStatus
+                exportedFeatureStatus && Object.keys(exportedFeatureStatus).length
+                    ? exportedFeatureStatus
                     : undefined,
         },
         assets: assetsSection,

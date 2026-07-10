@@ -3,7 +3,7 @@ import { createWithEqualityFn } from 'zustand/traditional';
 import { shallow } from 'zustand/shallow';
 import type { MIDIData } from '@core/types';
 import type { AudioTrack, AudioCacheEntry, AudioCacheOriginalFile, AudioCacheWaveform } from '@audio/audioTypes';
-import { estimateAudioBufferBytes, formatBytes, summarizeAudioMemory } from '@audio/audioMemoryDiagnostics';
+import { estimateAudioBufferBytes, estimateFeatureCacheBytes, formatBytes, summarizeAudioMemory } from '@audio/audioMemoryDiagnostics';
 import { recordAudioMemoryDiagnostic } from './audioMemoryDiagnosticsStore';
 import { AudioAssetStore } from '@persistence/audio-asset-store';
 import type {
@@ -344,6 +344,8 @@ function cancelActiveAudioFeatureJob(id: string): void {
 }
 
 const DECODED_AUDIO_TARGET_BYTES = 1.5 * 1024 * 1024 * 1024;
+const LARGE_AUDIO_IMPORT_BYTES = 64 * 1024 * 1024;
+const LARGE_FEATURE_CACHE_BYTES = 128 * 1024 * 1024;
 
 async function decodeAudioBytes(bytes: ArrayBuffer): Promise<AudioBuffer> {
     const AudioContextCtor =
@@ -1281,13 +1283,17 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 };
                 const existingStatus = s.audioFeatureCacheStatus[id];
                 const preserveReadyStatus = Boolean(options?.skipAutoAnalysis && existingStatus?.state === 'ready');
+                const statusMessage =
+                    (options?.originalFile?.byteLength ?? 0) >= LARGE_AUDIO_IMPORT_BYTES
+                        ? 'analysis deferred for large audio import'
+                        : 'analysis not started';
                 updates.audioFeatureCacheStatus = preserveReadyStatus
                     ? { ...s.audioFeatureCacheStatus }
                     : updateAudioFeatureStatusEntry(
                           s.audioFeatureCacheStatus,
                           id,
                           'idle',
-                          'analysis not started',
+                          statusMessage,
                           undefined,
                           null
                       );
@@ -1477,13 +1483,15 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             ),
         }));
         const memorySummary = summarizeAudioMemory(get().audioCache, get().audioFeatureCaches);
+        const cacheBytes = estimateFeatureCacheBytes(normalized);
         recordAudioMemoryDiagnostic({
-            severity: memorySummary.featureCacheBytes >= 512 * 1024 * 1024 ? 'warning' : 'info',
+            severity: cacheBytes >= LARGE_FEATURE_CACHE_BYTES || memorySummary.featureCacheBytes >= 512 * 1024 * 1024 ? 'warning' : 'info',
             stage: 'feature-cache-ingest',
-            message: `Feature cache updated for ${id}; feature payloads now ${formatBytes(memorySummary.featureCacheBytes)}`,
+            message: `Feature cache updated for ${id}; cache ${formatBytes(cacheBytes)}, feature payloads now ${formatBytes(memorySummary.featureCacheBytes)}`,
             sourceId: id,
             bytes: {
-                featureCache: memorySummary.featureCacheBytes,
+                featureCache: cacheBytes,
+                featureCacheTotal: memorySummary.featureCacheBytes,
                 retainedAudio: memorySummary.retainedAudioBytes,
             },
         });

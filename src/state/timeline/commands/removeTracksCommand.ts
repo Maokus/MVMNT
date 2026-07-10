@@ -10,6 +10,17 @@ import {
 } from '../patches';
 import { useSelectionStore } from '@state/selectionStore';
 import { findReferencedMidiSourceIds, getMidiClipsForTrack } from '../midiClips';
+import { estimateFeatureCacheBytes } from '@audio/audioMemoryDiagnostics';
+
+const LARGE_UNDO_FEATURE_CACHE_BYTES = 32 * 1024 * 1024;
+
+function buildUndoAudioCacheEntry(cache: import('@audio/audioTypes').AudioCacheEntry): import('@audio/audioTypes').AudioCacheEntry {
+    const { audioBuffer: _audioBuffer, ...rest } = cache;
+    return {
+        ...rest,
+        decodedState: cache.audioBuffer ? 'evicted' : cache.decodedState ?? 'evicted',
+    };
+}
 
 export interface RemoveTracksCommandPayload {
     trackIds: string[];
@@ -62,7 +73,7 @@ export function createRemoveTracksCommand(
                     const key = audioTrack.audioSourceId ?? id;
                     const cache = state.audioCache[key];
                     if (cache) {
-                        restorePayload.tracks.push({ track: audioTrack, index, audioCache: { key, value: cache } });
+                        restorePayload.tracks.push({ track: audioTrack, index, audioCache: { key, value: buildUndoAudioCacheEntry(cache) } });
                         audioKeys.push(key);
                     } else {
                         restorePayload.tracks.push({ track: audioTrack, index });
@@ -70,9 +81,11 @@ export function createRemoveTracksCommand(
                     const featureCache = (state as any).audioFeatureCaches?.[key] as
                         | import('@audio/features/audioFeatureTypes').AudioFeatureCache
                         | undefined;
-                    if (featureCache) {
+                    if (featureCache && estimateFeatureCacheBytes(featureCache) <= LARGE_UNDO_FEATURE_CACHE_BYTES) {
                         const entry = restorePayload.tracks[restorePayload.tracks.length - 1];
                         entry.audioFeatureCache = { key, value: featureCache };
+                        featureKeys.push(key);
+                    } else if (featureCache) {
                         featureKeys.push(key);
                     }
                 }

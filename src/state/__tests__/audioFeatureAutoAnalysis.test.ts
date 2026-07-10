@@ -56,4 +56,20 @@ describe('timeline audio feature analysis scheduling', () => {
         const cache = useTimelineStore.getState().audioFeatureCaches['autoTrack'];
         expect(cache).toBeUndefined();
     });
+
+    it('marks large audio imports as deferred for lazy analysis', () => {
+        const buffer = makeTestAudioBuffer(0.1);
+        useTimelineStore.getState().ingestAudioToCache('autoTrack', buffer, {
+            originalFile: {
+                mimeType: 'audio/wav',
+                byteLength: 80 * 1024 * 1024,
+                assetId: 'large-audio',
+                storage: 'indexeddb',
+            },
+        });
+
+        const status = useTimelineStore.getState().audioFeatureCacheStatus['autoTrack'];
+        expect(status?.state).toBe('idle');
+        expect(status?.message).toBe('analysis deferred for large audio import');
+    });
 });

@@ -250,6 +250,8 @@ Acceptance gate:
 - Elements requesting missing features show pending states and trigger bounded analysis.
 - Developer overlay identifies the largest feature cache contributors.
 
+Status: implemented in this pass. Large imports are explicitly marked as lazy/deferred, feature-cache ingest diagnostics now report per-cache size, and oversized analysis caches are treated as regenerable instead of mandatory persisted payload.
+
 ### Phase 6: Make Undo Payloads Asset-Reference Based
 
 `removeTracksCommand` currently captures `AudioCacheEntry` and `audioFeatureCache` objects in undo payloads. For large audio this can pin huge buffers even after a track is removed.
@@ -275,6 +277,8 @@ Acceptance gate:
 - Removing a large track lowers retained decoded/feature memory after idle cleanup.
 - Undo restores the track by reference and rehydrates data as needed.
 
+Status: implemented in this pass. Audio add/remove undo payloads now omit decoded `AudioBuffer` objects and only keep small feature caches inline; large feature caches are removed from undo payloads and left for regeneration.
+
 ### Phase 7: Lower Save/Export Peak Memory
 
 Keep explicit `.mvt` export compatible, but reduce peak memory:
@@ -298,6 +302,8 @@ Acceptance gate:
 
 - Exporting a large project does not require holding original audio bytes, decoded buffers, feature arrays, and full zip bytes all at once.
 - Exported `.mvt` files remain portable to another device.
+
+Status: implemented in this pass within the current synchronous zip architecture. Large feature caches are omitted by default with compatibility warnings/status, original bytes are read from `AudioAssetStore`, and `LocalFileStore` no longer keeps a full saved zip in process memory after a successful IndexedDB write.
 
 ## Implementation Order
 

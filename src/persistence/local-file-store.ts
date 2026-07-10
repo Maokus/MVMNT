@@ -73,18 +73,20 @@ async function runTransaction<T>(
 export const LocalFileStore = {
     /** Persist the current file bytes. Overwrites any previous save. */
     async save(data: Uint8Array): Promise<void> {
-        // Clone to own the buffer
         const copy = new Uint8Array(data);
-        memoryCache = copy;
         const idb = getIndexedDB();
-        if (!idb) return;
+        if (!idb) {
+            memoryCache = copy;
+            return;
+        }
         try {
             await runTransaction('readwrite', (store) => {
                 store.put(copy.buffer, CURRENT_FILE_KEY);
                 store.put(Date.now(), CURRENT_FILE_SAVED_AT_KEY);
             });
+            memoryCache = null;
         } catch {
-            /* ignore – already cached in memory */
+            memoryCache = copy;
         }
     },
 
