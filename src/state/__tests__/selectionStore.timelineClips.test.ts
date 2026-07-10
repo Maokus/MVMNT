@@ -6,16 +6,7 @@ describe('selectionStore timeline clip selection', () => {
         useSelectionStore.getState().clearSelection();
     });
 
-    it('stores selected timeline clips as their own active target', () => {
-        useSelectionStore.getState().selectTimelineClips([{ trackId: 'track-a', clipId: 'clip-a' }]);
-
-        const state = useSelectionStore.getState();
-        expect(state.activeTarget).toBe('timelineClips');
-        expect(state.selectedTimelineClips).toEqual([{ trackId: 'track-a', clipId: 'clip-a' }]);
-        expect(state.selectedTrackIds).toEqual([]);
-    });
-
-    it('stores point and range clip timeline selections separately from clips', () => {
+    it('stores point and range clip timeline selections as the clip-view selection target', () => {
         useSelectionStore.getState().selectClipTimeline({
             type: 'point',
             point: { trackId: 'track-a', tick: 480 },
@@ -36,6 +27,5 @@ describe('selectionStore timeline clip selection', () => {
             type: 'range',
             range: { startTick: 240, endTick: 960, trackIds: ['track-a', 'track-b'] },
         });
-        expect(useSelectionStore.getState().selectedTimelineClips).toEqual([]);
     });
 });

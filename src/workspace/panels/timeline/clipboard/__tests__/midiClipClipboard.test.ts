@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import type { TimelineState } from '@state/timelineStore';
 import {
-    copySelectedMidiClipsToClipboard,
+    copyTimelineSelectionToMidiClipClipboard,
     prepareMidiClipPaste,
     setMidiClipClipboard,
 } from '../midiClipClipboard';
@@ -39,6 +39,7 @@ function state(): TimelineState {
                 notesRaw: [],
                 ccRaw: [],
                 ticksPerQuarter: CANONICAL_PPQ,
+                bounds: { minTick: 0, maxTick: CANONICAL_PPQ, minNote: 60, maxNote: 60, maxDurationTicks: CANONICAL_PPQ },
             },
         },
     } as unknown as TimelineState;
@@ -47,10 +48,10 @@ function state(): TimelineState {
 describe('midiClipClipboard', () => {
     it('copies selected clips with an anchor tick and prepares point-selection paste offsets', () => {
         setMidiClipClipboard(null);
-        const copied = copySelectedMidiClipsToClipboard(state(), [
-            { trackId: 'track1', clipId: 'clip1' },
-            { trackId: 'track1', clipId: 'clip2' },
-        ]);
+        const copied = copyTimelineSelectionToMidiClipClipboard(state(), {
+            type: 'range',
+            range: { startTick: CANONICAL_PPQ, endTick: CANONICAL_PPQ * 4, trackIds: ['track1'] },
+        });
 
         expect(copied?.anchorTick).toBe(CANONICAL_PPQ);
         expect(copied?.clips.map((clip) => clip.sourceClipId)).toEqual(['clip1', 'clip2']);
@@ -68,7 +69,7 @@ describe('midiClipClipboard', () => {
     });
 
     it('prepares new destination MIDI tracks when the paste spans beyond existing tracks', () => {
-        const copied = copySelectedMidiClipsToClipboard(
+        const copied = copyTimelineSelectionToMidiClipClipboard(
             {
                 ...state(),
                 tracks: {
@@ -85,10 +86,10 @@ describe('midiClipClipboard', () => {
                 },
                 tracksOrder: ['track1', 'track2', 'track3'],
             },
-            [
-                { trackId: 'track1', clipId: 'clip1' },
-                { trackId: 'track3', clipId: 'clip3' },
-            ],
+            {
+                type: 'range',
+                range: { startTick: CANONICAL_PPQ, endTick: CANONICAL_PPQ * 2, trackIds: ['track1', 'track3'] },
+            },
         );
 
         const prepared = copied

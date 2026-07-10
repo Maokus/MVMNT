@@ -1,10 +1,11 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
-import { useSelectionStore, type SelectedTimelineClip } from '@state/selectionStore';
-import { getMidiClipLocalBounds, type MidiClip } from '@state/timeline/midiClips';
+import { useSelectionStore } from '@state/selectionStore';
+import { getMidiClipLocalBounds, getMidiClipTimelineBounds, type MidiClip } from '@state/timeline/midiClips';
 import { formatQuantizeShortLabel } from '@state/timeline/quantize';
 import { useTimelineStore } from '@state/timelineStore';
 import MidiNotePreview from '@workspace/components/MidiNotePreview';
+import { getMidiClipsInTimelineSelection, type TimelineClipRef } from '../clipboard/midiClipClipboard';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import { useTickScale } from '../hooks/useTickScale';
 
@@ -31,19 +32,14 @@ type ResizeStart = {
     alt: boolean;
 };
 
-function sameClip(a: SelectedTimelineClip, b: SelectedTimelineClip): boolean {
-    return a.trackId === b.trackId && a.clipId === b.clipId;
-}
-
 const MidiClipBlock: React.FC<Props> = ({ trackId, clip, laneWidth, laneHeight, onHoverSnapX }) => {
     const midiCacheEntry = useTimelineStore((s) => s.midiCache[clip.sourceId]);
     const updateMidiClip = useTimelineStore((s) => s.updateMidiClip);
     const setMultipleMidiClipOffsets = useTimelineStore((s) => s.setMultipleMidiClipOffsets);
     const bpb = useTimelineStore((s) => s.timeline.beatsPerBar);
     const quantize = useTimelineStore((s) => s.transport.quantize);
-    const selectTimelineClips = useSelectionStore((s) => s.selectTimelineClips);
-    const selectedTimelineClips = useSelectionStore((s) => s.selectedTimelineClips);
-    const isSelected = selectedTimelineClips.some((entry) => entry.trackId === trackId && entry.clipId === clip.id);
+    const selectClipTimeline = useSelectionStore((s) => s.selectClipTimeline);
+    const clipTimelineSelection = useSelectionStore((s) => s.clipTimelineSelection);
     const { view, toX } = useTickScale();
     const snapTicks = useSnapTicks();
     const ppq = CANONICAL_PPQ;
@@ -79,6 +75,13 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, clip, laneWidth, laneHeight, 
     const sign = offsetBeats < 0 ? '-' : '+';
     const label = `${sign}${barsDisplay}|${beatInBarDisplay}`;
     const displayName = clip.name || useTimelineStore.getState().tracks[trackId]?.name || 'MIDI clip';
+    const isSelected = useMemo(() => {
+        if (!clipTimelineSelection || clipTimelineSelection.type !== 'range') return false;
+        if (!clipTimelineSelection.range.trackIds.includes(trackId)) return false;
+        const selectionStart = Math.min(clipTimelineSelection.range.startTick, clipTimelineSelection.range.endTick);
+        const selectionEnd = Math.max(clipTimelineSelection.range.startTick, clipTimelineSelection.range.endTick);
+        return absStartTick < selectionEnd && absEndTick > selectionStart;
+    }, [absEndTick, absStartTick, clipTimelineSelection, trackId]);
 
     const tooltip = useMemo(() => {
         const st = useTimelineStore.getState();
@@ -98,25 +101,56 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, clip, laneWidth, laneHeight, 
         return `Clip: ${displayName}\n${snapInfo}\nOffset ${label}\nStart ${fmt(ticksToSec(absStartTick))} (${fmtBar(absStartTick)})\nEnd ${fmt(ticksToSec(absEndTick))} (${fmtBar(absEndTick)})`;
     }, [absStartTick, absEndTick, beatsPerBar, displayName, label, ppq, quantize]);
 
-    const selectForPointer = (shiftKey: boolean): SelectedTimelineClip[] => {
-        const target = { trackId, clipId: clip.id };
-        const current = useSelectionStore.getState().selectedTimelineClips;
-        if (!shiftKey) {
-            const next = current.some((entry) => sameClip(entry, target)) ? current : [target];
-            selectTimelineClips(next);
-            return next;
+    const selectForPointer = (): TimelineClipRef[] => {
+        const state = useTimelineStore.getState();
+        const currentSelection = useSelectionStore.getState().clipTimelineSelection;
+        const selectedRefs = getMidiClipsInTimelineSelection(state, currentSelection);
+        if (selectedRefs.some((entry) => entry.trackId === trackId && entry.clipId === clip.id)) {
+            return selectedRefs;
         }
-        const exists = current.some((entry) => sameClip(entry, target));
-        const next = exists ? current.filter((entry) => !sameClip(entry, target)) : [...current, target];
-        selectTimelineClips(next);
-        return next;
+        const nextSelection = {
+            type: 'range' as const,
+            range: {
+                startTick: absStartTick,
+                endTick: absEndTick,
+                trackIds: [trackId],
+            },
+        };
+        selectClipTimeline(nextSelection);
+        return [{ trackId, clipId: clip.id }];
+    };
+
+    const selectRangeForRefs = (refs: TimelineClipRef[]) => {
+        const state = useTimelineStore.getState();
+        let startTick = Infinity;
+        let endTick = -Infinity;
+        const selectedTrackIds = new Set<string>();
+        const refKeys = new Set(refs.map((entry) => `${entry.trackId}:${entry.clipId}`));
+        for (const candidateTrackId of state.tracksOrder) {
+            const track = state.tracks[candidateTrackId];
+            if (!track || track.type !== 'midi') continue;
+            for (const candidateClip of track.clips ?? []) {
+                if (!refKeys.has(`${candidateTrackId}:${candidateClip.id}`)) continue;
+                const bounds = getMidiClipTimelineBounds(state.midiCache, candidateClip);
+                if (!bounds) continue;
+                startTick = Math.min(startTick, bounds.startTick);
+                endTick = Math.max(endTick, bounds.endTick);
+                selectedTrackIds.add(candidateTrackId);
+            }
+        }
+        if (Number.isFinite(startTick) && Number.isFinite(endTick) && selectedTrackIds.size) {
+            selectClipTimeline({
+                type: 'range',
+                range: { startTick, endTick, trackIds: [...selectedTrackIds] },
+            });
+        }
     };
 
     const onPointerDown = (e: React.PointerEvent) => {
         if (e.button != null && e.button !== 0) return;
         e.stopPropagation();
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-        const nextSelection = selectForPointer(e.shiftKey);
+        const nextSelection = selectForPointer();
         const storeState = useTimelineStore.getState();
         const groupBaseOffsets = nextSelection
             .map((entry) => {
@@ -178,7 +212,9 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, clip, laneWidth, laneHeight, 
                 const regionStartTick = preview.start <= 0 ? undefined : preview.start;
                 const regionEndTick =
                     midiCacheEntry?.bounds && preview.end >= midiCacheEntry.bounds.maxTick ? undefined : preview.end;
-                void updateMidiClip({ trackId, clipId: clip.id, patch: { regionStartTick, regionEndTick } });
+                void updateMidiClip({ trackId, clipId: clip.id, patch: { regionStartTick, regionEndTick } }).then(() => {
+                    selectRangeForRefs([{ trackId, clipId: clip.id }]);
+                });
             }
             return;
         }
@@ -196,9 +232,13 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, clip, laneWidth, laneHeight, 
                     clipId: entry.clipId,
                     offsetTicks: entry.offsetTicks + delta,
                 })),
+            }).then(() => {
+                selectRangeForRefs(drag.groupBaseOffsets);
             });
         } else {
-            void updateMidiClip({ trackId, clipId: clip.id, patch: { offsetTicks: finalTick } });
+            void updateMidiClip({ trackId, clipId: clip.id, patch: { offsetTicks: finalTick } }).then(() => {
+                selectRangeForRefs([{ trackId, clipId: clip.id }]);
+            });
         }
     };
 
@@ -206,7 +246,7 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, clip, laneWidth, laneHeight, 
         if (e.button != null && e.button !== 0) return;
         e.stopPropagation();
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-        selectForPointer(e.shiftKey);
+        selectForPointer();
         resizeRef.current = {
             type,
             startX: e.clientX,

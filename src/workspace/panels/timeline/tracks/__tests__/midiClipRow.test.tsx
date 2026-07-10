@@ -84,7 +84,7 @@ describe('TrackRowBlock MIDI clips', () => {
         expect(container.querySelectorAll('[data-clip="1"]')).toHaveLength(2);
     });
 
-    it('selects a clicked MIDI clip without selecting the track', () => {
+    it('creates a clip timeline range around a clicked MIDI clip without selecting the track', () => {
         const { container } = render(
             <TrackRowBlock trackId="midi1" laneWidth={1000} laneHeight={60} onHoverSnapX={() => {}} />
         );
@@ -93,8 +93,11 @@ describe('TrackRowBlock MIDI clips', () => {
         expect(firstClip).toBeTruthy();
         fireEvent.pointerDown(firstClip as Element, { button: 0, clientX: 20 });
 
-        expect(useSelectionStore.getState().activeTarget).toBe('timelineClips');
-        expect(useSelectionStore.getState().selectedTimelineClips).toEqual([{ trackId: 'midi1', clipId: 'clip-a' }]);
+        expect(useSelectionStore.getState().activeTarget).toBe('clipTimeline');
+        expect(useSelectionStore.getState().clipTimelineSelection).toEqual({
+            type: 'range',
+            range: { startTick: 0, endTick: 240, trackIds: ['midi1'] },
+        });
         expect(useSelectionStore.getState().selectedTrackIds).toEqual([]);
     });
 });

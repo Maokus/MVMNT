@@ -1,6 +1,11 @@
 import type { TimelineState } from '@state/timelineStore';
-import { getMidiClipsForTrack, makeMidiClipId, type MidiClip } from '@state/timeline/midiClips';
-import type { SelectedTimelineClip } from '@state/selectionStore';
+import {
+    getMidiClipTimelineBounds,
+    getMidiClipsForTrack,
+    makeMidiClipId,
+    type MidiClip,
+} from '@state/timeline/midiClips';
+import type { ClipTimelineSelection } from '@state/selectionStore';
 
 export type MidiClipClipboard = {
     kind: 'mvmnt.midi-clips';
@@ -27,6 +32,11 @@ export interface PreparedMidiClipPaste {
     createTracks: Array<{ trackId: string; name: string; index?: number }>;
 }
 
+export interface TimelineClipRef {
+    trackId: string;
+    clipId: string;
+}
+
 let clipboard: MidiClipClipboard | null = null;
 
 export function getMidiClipClipboard(): MidiClipClipboard | null {
@@ -37,12 +47,41 @@ export function setMidiClipClipboard(next: MidiClipClipboard | null): void {
     clipboard = next;
 }
 
-export function copySelectedMidiClipsToClipboard(
+function rangesOverlap(startA: number, endA: number, startB: number, endB: number): boolean {
+    return startA < endB && endA > startB;
+}
+
+export function getMidiClipsInTimelineSelection(
     state: TimelineState,
-    selectedClips: SelectedTimelineClip[],
+    selection: ClipTimelineSelection | null,
+): TimelineClipRef[] {
+    if (!selection || selection.type !== 'range') return [];
+    const refs: TimelineClipRef[] = [];
+    const selectedTrackIds = new Set(selection.range.trackIds);
+    const startTick = Math.min(selection.range.startTick, selection.range.endTick);
+    const endTick = Math.max(selection.range.startTick, selection.range.endTick);
+    for (const trackId of state.tracksOrder) {
+        if (!selectedTrackIds.has(trackId)) continue;
+        const track = state.tracks[trackId];
+        if (!track || track.type !== 'midi') continue;
+        for (const clip of getMidiClipsForTrack(track)) {
+            if (clip.enabled === false) continue;
+            const bounds = getMidiClipTimelineBounds(state.midiCache, clip);
+            if (!bounds) continue;
+            if (rangesOverlap(startTick, endTick, bounds.startTick, bounds.endTick)) {
+                refs.push({ trackId, clipId: clip.id });
+            }
+        }
+    }
+    return refs;
+}
+
+export function copyTimelineSelectionToMidiClipClipboard(
+    state: TimelineState,
+    selection: ClipTimelineSelection | null,
 ): MidiClipClipboard | null {
     const copied: MidiClipClipboard['clips'] = [];
-    const selectedKeys = new Set(selectedClips.map((entry) => `${entry.trackId}:${entry.clipId}`));
+    const selectedKeys = new Set(getMidiClipsInTimelineSelection(state, selection).map((entry) => `${entry.trackId}:${entry.clipId}`));
     for (const trackId of state.tracksOrder) {
         const track = state.tracks[trackId];
         if (!track || track.type !== 'midi') continue;
