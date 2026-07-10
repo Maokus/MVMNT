@@ -90,6 +90,26 @@ describe('MIDI clip timeline commands', () => {
         expect(clips[0].regionEndTick).toBe(CANONICAL_PPQ / 2);
     });
 
+    it('moves multiple selected clips as a group before resolving overlaps', async () => {
+        seedTrack();
+        await timelineCommandGateway.dispatchById('timeline.addMidiClip', {
+            trackId: 'track1',
+            clip: { id: 'clip2', sourceId: 'source1', offsetTicks: CANONICAL_PPQ },
+        });
+
+        await timelineCommandGateway.dispatchById('timeline.setMultipleMidiClipOffsets', {
+            offsets: [
+                { trackId: 'track1', clipId: 'clip1', offsetTicks: CANONICAL_PPQ },
+                { trackId: 'track1', clipId: 'clip2', offsetTicks: CANONICAL_PPQ * 2 },
+            ],
+        });
+
+        const clips = (useTimelineStore.getState().tracks.track1 as any).clips;
+        expect(clips.map((clip: any) => clip.id)).toEqual(['clip1', 'clip2']);
+        expect(clips.map((clip: any) => clip.offsetTicks)).toEqual([CANONICAL_PPQ, CANONICAL_PPQ * 2]);
+        expect(clips.map((clip: any) => clip.regionEndTick)).toEqual([undefined, undefined]);
+    });
+
     it('removes MIDI clips without deleting shared source data until the final reference is gone', async () => {
         seedTrack();
         await timelineCommandGateway.dispatchById('timeline.addMidiClip', {

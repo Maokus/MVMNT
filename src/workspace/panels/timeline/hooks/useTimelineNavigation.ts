@@ -28,10 +28,13 @@ export function useTimelineNavigation() {
 
     const zoomToSelection = useCallback(() => {
         const state = useTimelineStore.getState();
-        const selectedIds = useSelectionStore.getState().selectedTrackIds;
-        const selectedKeyframes = useSelectionStore.getState().selectedKeyframes;
+        const selection = useSelectionStore.getState();
+        const selectedIds = selection.selectedTrackIds;
+        const selectedKeyframes = selection.selectedKeyframes;
+        const selectedClips = selection.selectedTimelineClips;
+        const clipTimelineSelection = selection.clipTimelineSelection;
 
-        if (!selectedIds.length && !selectedKeyframes.length) return;
+        if (!selectedIds.length && !selectedKeyframes.length && !selectedClips.length && !clipTimelineSelection) return;
 
         let minTick = Infinity,
             maxTick = -Infinity;
@@ -63,6 +66,25 @@ export function useTimelineNavigation() {
             maxTick = Math.max(maxTick, tick);
         }
 
+        for (const { trackId, clipId } of selectedClips) {
+            const track = state.tracks[trackId];
+            if (!track || track.type !== 'midi') continue;
+            const clip = getMidiClipsForTrack(track).find((entry) => entry.id === clipId);
+            if (!clip || clip.enabled === false) continue;
+            const bounds = getMidiClipTimelineBounds(state.midiCache, clip);
+            if (!bounds) continue;
+            minTick = Math.min(minTick, bounds.startTick);
+            maxTick = Math.max(maxTick, bounds.endTick);
+        }
+
+        if (clipTimelineSelection?.type === 'range') {
+            minTick = Math.min(minTick, clipTimelineSelection.range.startTick);
+            maxTick = Math.max(maxTick, clipTimelineSelection.range.endTick);
+        } else if (clipTimelineSelection?.type === 'point') {
+            minTick = Math.min(minTick, clipTimelineSelection.point.tick);
+            maxTick = Math.max(maxTick, clipTimelineSelection.point.tick);
+        }
+
         if (!isFinite(minTick) || !isFinite(maxTick)) return;
         const padding = Math.max(CANONICAL_PPQ, (maxTick - minTick) * 0.1);
         setTimelineViewTicks(Math.round(minTick - padding), Math.round(maxTick + padding));
@@ -77,7 +99,13 @@ export function useTimelineNavigation() {
     }, [setTimelineViewTicks]);
 
     const frameSelection = useCallback(() => {
-        if (useSelectionStore.getState().selectedTrackIds.length) {
+        const selection = useSelectionStore.getState();
+        if (
+            selection.selectedTrackIds.length ||
+            selection.selectedTimelineClips.length ||
+            selection.selectedKeyframes.length ||
+            selection.clipTimelineSelection
+        ) {
             zoomToSelection();
         } else {
             centerOnPlayhead();
@@ -172,6 +200,20 @@ export function useTimelineNavigation() {
                     e.stopPropagation();
                     break;
                 }
+                case 'timelineClips': {
+                    const clips = useSelectionStore.getState().selectedTimelineClips;
+                    if (!clips.length) return;
+                    void useTimelineStore.getState().removeMidiClips({ clips });
+                    useSelectionStore.getState().clearSelection('timelineClips');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    break;
+                }
+                case 'clipTimeline':
+                    useSelectionStore.getState().clearSelection('clipTimeline');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    break;
                 case 'keyframes':
                 case 'elements':
                     // Handled by scene/canvas delete handlers; do not interfere.

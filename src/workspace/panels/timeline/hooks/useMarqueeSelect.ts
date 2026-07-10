@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 import type React from 'react';
-import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 import { useTickScale } from './useTickScale';
@@ -13,12 +12,24 @@ interface UseMarqueeSelectOptions {
 }
 
 export function useMarqueeSelect({ containerRef, trackIds, width, activeTab }: UseMarqueeSelectOptions) {
-    const marqueeRef = useRef<null | { startX: number; currentX: number; active: boolean }>(null);
-    const [marquee, setMarquee] = useState<null | { x1: number; x2: number }>(null);
-    const selectTracks = useSelectionStore((s) => s.selectTracks);
-    const tracksMap = useTimelineStore((s) => s.tracks);
-    const midiCache = useTimelineStore((s) => s.midiCache);
-    const { toX } = useTickScale();
+    const marqueeRef = useRef<null | { startX: number; startY: number; currentX: number; currentY: number; active: boolean }>(null);
+    const [marquee, setMarquee] = useState<null | { x1: number; x2: number; y1: number; y2: number }>(null);
+    const selectClipTimeline = useSelectionStore((s) => s.selectClipTimeline);
+    const rowHeight = useTimelineStore((s) => s.rowHeight);
+    const { toTick } = useTickScale();
+
+    const resolveTrackAtY = (y: number): string | null => {
+        if (!trackIds.length) return null;
+        const index = Math.max(0, Math.min(trackIds.length - 1, Math.floor(y / Math.max(1, rowHeight))));
+        return trackIds[index] ?? null;
+    };
+
+    const resolveTracksBetween = (y1: number, y2: number): string[] => {
+        if (!trackIds.length) return [];
+        const minIndex = Math.max(0, Math.min(trackIds.length - 1, Math.floor(Math.min(y1, y2) / Math.max(1, rowHeight))));
+        const maxIndex = Math.max(0, Math.min(trackIds.length - 1, Math.floor(Math.max(y1, y2) / Math.max(1, rowHeight))));
+        return trackIds.slice(minIndex, maxIndex + 1);
+    };
 
     const onBackgroundPointerDown: React.PointerEventHandler<HTMLDivElement> = (e) => {
         if (e.button !== 0) return;
@@ -28,9 +39,10 @@ export function useMarqueeSelect({ containerRef, trackIds, width, activeTab }: U
         if (target?.closest('[data-clip="1"]')) return;
         const rect = containerRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-        marqueeRef.current = { startX: x, currentX: x, active: true };
-        setMarquee({ x1: x, x2: x });
+        marqueeRef.current = { startX: x, startY: y, currentX: x, currentY: y, active: true };
+        setMarquee({ x1: x, x2: x, y1: y, y2: y });
     };
 
     const onBackgroundPointerMove: React.PointerEventHandler<HTMLDivElement> = (e) => {
@@ -38,7 +50,8 @@ export function useMarqueeSelect({ containerRef, trackIds, width, activeTab }: U
         if (!m?.active || !containerRef.current) return;
         const rect = containerRef.current.getBoundingClientRect();
         m.currentX = e.clientX - rect.left;
-        setMarquee({ x1: m.startX, x2: m.currentX });
+        m.currentY = e.clientY - rect.top;
+        setMarquee({ x1: m.startX, x2: m.currentX, y1: m.startY, y2: m.currentY });
     };
 
     const onBackgroundPointerUp: React.PointerEventHandler<HTMLDivElement> = (e) => {
@@ -53,45 +66,36 @@ export function useMarqueeSelect({ containerRef, trackIds, width, activeTab }: U
         }
         const x1 = Math.min(m.startX, m.currentX);
         const x2 = Math.max(m.startX, m.currentX);
+        const y1 = Math.min(m.startY, m.currentY);
+        const y2 = Math.max(m.startY, m.currentY);
         const w = Math.max(1, width);
-        const ppq = CANONICAL_PPQ;
-        const selected: string[] = [];
 
-        for (const id of trackIds) {
-            const t = tracksMap[id];
-            if (!t) continue;
-            if (t.type === 'midi') {
-                const cacheKey = t.midiSourceId ?? id;
-                const cache = midiCache[cacheKey];
-                const notes = cache?.notesRaw || [];
-                if (notes.length === 0) continue;
-                const rawStart = notes.reduce(
-                    (acc, n) => Math.min(acc, n.startBeat != null ? Math.round(n.startBeat * ppq) : acc),
-                    Number.POSITIVE_INFINITY
-                );
-                const rawEnd = notes.reduce(
-                    (acc, n) => Math.max(acc, n.endBeat != null ? Math.round(n.endBeat * ppq) : acc),
-                    0
-                );
-                const regionStart =
-                    typeof t.regionStartTick === 'number' ? Math.max(rawStart, t.regionStartTick) : rawStart;
-                const regionEnd = typeof t.regionEndTick === 'number' ? Math.min(rawEnd, t.regionEndTick) : rawEnd;
-                const absStart = Math.max(0, (t.offsetTicks || 0) + Math.max(0, regionStart));
-                const absEnd = Math.max(absStart, (t.offsetTicks || 0) + Math.max(0, regionEnd));
-                if (!(toX(absEnd, w) < x1 || toX(absStart, w) > x2)) selected.push(id);
-            } else if (t.type === 'audio') {
-                const regionStart = t.regionStartTick ?? 0;
-                const regionEnd = t.regionEndTick ?? (useTimelineStore.getState().audioCache[id]?.durationTicks || 0);
-                const absStart = Math.max(0, (t.offsetTicks || 0) + regionStart);
-                const absEnd = Math.max(absStart, (t.offsetTicks || 0) + regionEnd);
-                if (!(toX(absEnd, w) < x1 || toX(absStart, w) > x2)) selected.push(id);
+        if (Math.abs(x2 - x1) < 3 && Math.abs(y2 - y1) < 3) {
+            const trackId = resolveTrackAtY(m.startY);
+            if (trackId) {
+                selectClipTimeline({
+                    type: 'point',
+                    point: { trackId, tick: Math.round(toTick(m.startX, w)) },
+                });
+            } else {
+                selectClipTimeline(null);
             }
-        }
-
-        if (Math.abs(x2 - x1) < 3) {
-            selectTracks([]);
         } else {
-            selectTracks(selected);
+            const startTick = Math.round(toTick(x1, w));
+            const endTick = Math.round(toTick(x2, w));
+            const selectedTrackIds = resolveTracksBetween(y1, y2);
+            if (selectedTrackIds.length) {
+                selectClipTimeline({
+                    type: 'range',
+                    range: {
+                        startTick: Math.min(startTick, endTick),
+                        endTick: Math.max(startTick, endTick),
+                        trackIds: selectedTrackIds,
+                    },
+                });
+            } else {
+                selectClipTimeline(null);
+            }
         }
         setMarquee(null);
     };

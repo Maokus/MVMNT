@@ -9,6 +9,7 @@ import {
 import {
     enforceNonOverlappingMidiClips,
     findReferencedMidiSourceIds,
+    getMidiClipTimelineBounds,
     makeMidiClipId,
     resolveMidiClipOverlapWithCache,
     type MidiClip,
@@ -137,9 +138,9 @@ export function createUpdateMidiClipsCommand(
                 const track = getMidiTrack(context, trackId);
                 if (!track) continue;
                 const before = normalizeStoredClips(track, context);
-                let next = before;
+                const editedById = new Map<string, MidiClip>();
                 for (const update of updates) {
-                    const existing = next.find((clip) => clip.id === update.clipId);
+                    const existing = editedById.get(update.clipId) ?? before.find((clip) => clip.id === update.clipId);
                     if (!existing) continue;
                     const edited: MidiClip = {
                         ...existing,
@@ -160,6 +161,16 @@ export function createUpdateMidiClipsCommand(
                                 : existing.regionEndTick,
                     };
                     if (!context.getState().midiCache[edited.sourceId]) continue;
+                    editedById.set(update.clipId, edited);
+                }
+                let next = before.filter((clip) => !editedById.has(clip.id));
+                const editedClips = [...editedById.values()].sort((a, b) => {
+                    const cache = context.getState().midiCache;
+                    const aBounds = getMidiClipTimelineBounds(cache, a);
+                    const bBounds = getMidiClipTimelineBounds(cache, b);
+                    return (aBounds?.startTick ?? a.offsetTicks) - (bBounds?.startTick ?? b.offsetTicks);
+                });
+                for (const edited of editedClips) {
                     next = resolveMidiClipOverlapWithCache({ ...track, clips: next }, edited, context.getState().midiCache);
                 }
                 redoUpdates.push({ trackId, clips: next });

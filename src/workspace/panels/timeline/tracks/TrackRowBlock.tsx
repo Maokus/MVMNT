@@ -6,9 +6,10 @@ import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import { useTickScale } from '../hooks/useTickScale';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import AudioWaveform from '@workspace/components/AudioWaveform';
-import MidiNotePreview from '@workspace/components/MidiNotePreview';
 import { formatQuantizeShortLabel } from '@state/timeline/quantize';
 import type { AudioTrack } from '@audio/audioTypes';
+import { getMidiClipTimelineBounds, getMidiClipsForTrack } from '@state/timeline/midiClips';
+import MidiClipBlock from './MidiClipBlock';
 
 type Props = {
     trackId: string;
@@ -310,6 +311,33 @@ const TrackRowBlock: React.FC<Props> = ({ trackId, laneWidth, laneHeight, onHove
         return parts.length ? parts.join(' • ') : undefined;
     }, [audioFeatureStatus, showFeatureChip]);
 
+    if (track?.type === 'midi') {
+        const cache = useTimelineStore.getState().midiCache;
+        const viewportPad = Math.max(1, Math.floor((view.endTick - view.startTick) * 0.1));
+        const visibleStart = view.startTick - viewportPad;
+        const visibleEnd = view.endTick + viewportPad;
+        const clips = getMidiClipsForTrack(track).filter((clip) => {
+            if (clip.enabled === false) return false;
+            const bounds = getMidiClipTimelineBounds(cache, clip);
+            if (!bounds) return false;
+            return bounds.endTick >= visibleStart && bounds.startTick <= visibleEnd;
+        });
+        return (
+            <div className="relative h-full">
+                {clips.map((clip) => (
+                    <MidiClipBlock
+                        key={clip.id}
+                        trackId={trackId}
+                        clip={clip}
+                        laneWidth={laneWidth}
+                        laneHeight={laneHeight}
+                        onHoverSnapX={onHoverSnapX}
+                    />
+                ))}
+            </div>
+        );
+    }
+
     return (
         <div className="relative h-full" onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
             {shouldRenderClip && (
@@ -329,15 +357,6 @@ const TrackRowBlock: React.FC<Props> = ({ trackId, laneWidth, laneHeight, onHove
                                 regionEndTickAbs={absEndTick}
                             />
                         </div>
-                    )}
-                    {track?.type === 'midi' && (
-                        <MidiNotePreview
-                            notes={midiCacheEntry?.notesRaw ?? []}
-                            visibleStartTick={localStartTick}
-                            visibleEndTick={localEndTick}
-                            height={clipHeight - 4}
-                            bounds={midiCacheEntry?.bounds}
-                        />
                     )}
                     <div className="relative z-10 flex items-center gap-1">
                         {editingName ? (
@@ -374,25 +393,19 @@ const TrackRowBlock: React.FC<Props> = ({ trackId, laneWidth, laneHeight, onHove
                             >{track?.name}</span>
                         )}
                         <span className="opacity-80">{label}</span>
-                        {track?.type === 'audio' ? (
-                            <>
-                                <span className="ml-1 text-[10px] opacity-80">
-                                    {audioCacheEntry ? `${(audioCacheEntry.durationTicks / ppq).toFixed(2)} beats` : 'loading...'}
+                        <>
+                            <span className="ml-1 text-[10px] opacity-80">
+                                {audioCacheEntry ? `${(audioCacheEntry.durationTicks / ppq).toFixed(2)} beats` : 'loading...'}
+                            </span>
+                            {showFeatureChip && featureStatusLabel && (
+                                <span
+                                    className={`ml-1 rounded px-1.5 py-[1px] text-[10px] font-medium ${featureStatusClass}`}
+                                    title={featureStatusTitle}
+                                >
+                                    {featureStatusLabel}
                                 </span>
-                                {showFeatureChip && featureStatusLabel && (
-                                    <span
-                                        className={`ml-1 rounded px-1.5 py-[1px] text-[10px] font-medium ${featureStatusClass}`}
-                                        title={featureStatusTitle}
-                                    >
-                                        {featureStatusLabel}
-                                    </span>
-                                )}
-                            </>
-                        ) : (
-                            (midiCacheEntry?.notesRaw?.length ?? 0) === 0 && (
-                                <span className="ml-1 text-[10px] opacity-70">No data</span>
-                            )
-                        )}
+                            )}
+                        </>
                     </div>
 
                     {canResize && (

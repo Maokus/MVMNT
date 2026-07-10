@@ -6,12 +6,34 @@ export interface SelectedKeyframe {
     tick: number;
 }
 
-export type SelectionTarget = 'none' | 'elements' | 'tracks' | 'keyframes';
+export interface SelectedTimelineClip {
+    trackId: string;
+    clipId: string;
+}
+
+export interface TimelineRangeSelection {
+    startTick: number;
+    endTick: number;
+    trackIds: string[];
+}
+
+export interface TimelineInsertionSelection {
+    tick: number;
+    trackId: string;
+}
+
+export type ClipTimelineSelection =
+    | { type: 'range'; range: TimelineRangeSelection }
+    | { type: 'point'; point: TimelineInsertionSelection };
+
+export type SelectionTarget = 'none' | 'elements' | 'tracks' | 'keyframes' | 'timelineClips' | 'clipTimeline';
 
 interface SelectionState {
     selectedElementIds: string[];
     selectedTrackIds: string[];
     selectedKeyframes: SelectedKeyframe[];
+    selectedTimelineClips: SelectedTimelineClip[];
+    clipTimelineSelection: ClipTimelineSelection | null;
     activeTarget: SelectionTarget;
 }
 
@@ -22,11 +44,17 @@ interface SelectionActions {
     selectTracks(ids: string[]): void;
     /** Set keyframes as active selection domain. */
     selectKeyframes(keys: SelectedKeyframe[]): void;
+    /** Set MIDI timeline clips as active selection domain. */
+    selectTimelineClips(clips: SelectedTimelineClip[]): void;
+    /** Set clip-lane point/range selection as active selection domain. */
+    selectClipTimeline(selection: ClipTimelineSelection | null): void;
 
     /** Low-level setters — update array without changing activeTarget. */
     setSelectedElementIds(ids: string[]): void;
     setSelectedTrackIds(ids: string[]): void;
     setSelectedKeyframes(keys: SelectedKeyframe[]): void;
+    setSelectedTimelineClips(clips: SelectedTimelineClip[]): void;
+    setClipTimelineSelection(selection: ClipTimelineSelection | null): void;
     setActiveTarget(target: SelectionTarget): void;
 
     /**
@@ -69,6 +97,8 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
         selectedElementIds: [],
         selectedTrackIds: [],
         selectedKeyframes: [],
+        selectedTimelineClips: [],
+        clipTimelineSelection: null,
         activeTarget: 'none',
 
         // ── High-level domain selectors (set array + activeTarget atomically) ──
@@ -77,6 +107,8 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
                 selectedElementIds: ids,
                 selectedTrackIds: [],
                 selectedKeyframes: [],
+                selectedTimelineClips: [],
+                clipTimelineSelection: null,
                 activeTarget: ids.length ? 'elements' : 'none',
             });
         },
@@ -85,6 +117,8 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
                 selectedTrackIds: ids,
                 selectedElementIds: [],
                 selectedKeyframes: [],
+                selectedTimelineClips: [],
+                clipTimelineSelection: null,
                 activeTarget: ids.length ? 'tracks' : 'none',
             });
         },
@@ -94,7 +128,29 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
                 // Preserve element selection for inspector context — elements are
                 // derived from the keyframe channel IDs anyway.
                 selectedTrackIds: [],
+                selectedTimelineClips: [],
+                clipTimelineSelection: null,
                 activeTarget: keys.length ? 'keyframes' : 'none',
+            });
+        },
+        selectTimelineClips(clips) {
+            set({
+                selectedTimelineClips: clips,
+                clipTimelineSelection: null,
+                selectedElementIds: [],
+                selectedTrackIds: [],
+                selectedKeyframes: [],
+                activeTarget: clips.length ? 'timelineClips' : 'none',
+            });
+        },
+        selectClipTimeline(selection) {
+            set({
+                clipTimelineSelection: selection,
+                selectedTimelineClips: [],
+                selectedElementIds: [],
+                selectedTrackIds: [],
+                selectedKeyframes: [],
+                activeTarget: selection ? 'clipTimeline' : 'none',
             });
         },
 
@@ -102,12 +158,21 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
         setSelectedElementIds(ids) { set({ selectedElementIds: ids }); },
         setSelectedTrackIds(ids) { set({ selectedTrackIds: ids }); },
         setSelectedKeyframes(keys) { set({ selectedKeyframes: keys }); },
+        setSelectedTimelineClips(clips) { set({ selectedTimelineClips: clips }); },
+        setClipTimelineSelection(selection) { set({ clipTimelineSelection: selection }); },
         setActiveTarget(target) { set({ activeTarget: target }); },
 
         // ── clearSelection ──────────────────────────────────────────────────
         clearSelection(target) {
             if (target === undefined) {
-                set({ selectedElementIds: [], selectedTrackIds: [], selectedKeyframes: [], activeTarget: 'none' });
+                set({
+                    selectedElementIds: [],
+                    selectedTrackIds: [],
+                    selectedKeyframes: [],
+                    selectedTimelineClips: [],
+                    clipTimelineSelection: null,
+                    activeTarget: 'none',
+                });
                 return;
             }
             const { activeTarget } = get();
@@ -115,6 +180,8 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
             if (target === 'elements') patch.selectedElementIds = [];
             if (target === 'tracks') patch.selectedTrackIds = [];
             if (target === 'keyframes') patch.selectedKeyframes = [];
+            if (target === 'timelineClips') patch.selectedTimelineClips = [];
+            if (target === 'clipTimeline') patch.clipTimelineSelection = null;
             if (activeTarget === target) patch.activeTarget = 'none';
             set(patch);
         },

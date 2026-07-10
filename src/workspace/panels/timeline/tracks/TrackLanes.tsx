@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
+import { useSelectionStore } from '@state/selectionStore';
 import { useTickScale } from '../hooks/useTickScale';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import { useMarqueeSelect } from '../hooks/useMarqueeSelect';
@@ -27,6 +28,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
     const tempoEnabled = useTimelineStore((s) => !!s.timeline.tempoAutomation?.enabled);
     const tempoLaneVisible = useTimelineStore((s) => s.timeline.tempoAutomation?.laneVisible !== false);
     const rowHeight = useTimelineStore((s) => s.rowHeight);
+    const clipTimelineSelection = useSelectionStore((s) => s.clipTimelineSelection);
 
     useEffect(() => {
         const el = containerRef.current;
@@ -61,6 +63,37 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
 
     const effectiveHeight = Math.max(lanesHeight, containerHeight);
     const playheadX = toX(currentTick, Math.max(1, width));
+
+    const selectionOverlay = (() => {
+        if (activeTab !== 'clips' || !clipTimelineSelection) return null;
+        const w = Math.max(1, width);
+        if (clipTimelineSelection.type === 'point') {
+            const rowIndex = trackIds.indexOf(clipTimelineSelection.point.trackId);
+            if (rowIndex < 0) return null;
+            return {
+                type: 'point' as const,
+                left: toX(clipTimelineSelection.point.tick, w),
+                top: rowIndex * rowHeight,
+                height: rowHeight,
+            };
+        }
+        const selectedIndexes = clipTimelineSelection.range.trackIds
+            .map((id) => trackIds.indexOf(id))
+            .filter((index) => index >= 0)
+            .sort((a, b) => a - b);
+        if (!selectedIndexes.length) return null;
+        const left = toX(clipTimelineSelection.range.startTick, w);
+        const right = toX(clipTimelineSelection.range.endTick, w);
+        const first = selectedIndexes[0];
+        const last = selectedIndexes[selectedIndexes.length - 1];
+        return {
+            type: 'range' as const,
+            left: Math.min(left, right),
+            width: Math.max(1, Math.abs(right - left)),
+            top: first * rowHeight,
+            height: (last - first + 1) * rowHeight,
+        };
+    })();
 
     const rawRange = Math.max(1, view.endTick - view.startTick);
     const pad = Math.max(1, Math.floor(rawRange * 0.01));
@@ -138,6 +171,25 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
                 <div className="absolute top-0 bottom-0 border-l border-blue-300/70 pointer-events-none" style={{ left: hoverX }} />
             )}
 
+            {selectionOverlay?.type === 'range' && (
+                <div
+                    className="absolute z-20 bg-cyan-300/10 border border-cyan-300/70 pointer-events-none"
+                    style={{
+                        left: selectionOverlay.left,
+                        top: selectionOverlay.top,
+                        width: selectionOverlay.width,
+                        height: selectionOverlay.height,
+                    }}
+                />
+            )}
+
+            {selectionOverlay?.type === 'point' && (
+                <div
+                    className="absolute z-20 border-l-2 border-cyan-300 pointer-events-none"
+                    style={{ left: selectionOverlay.left, top: selectionOverlay.top, height: selectionOverlay.height }}
+                />
+            )}
+
             {activeTab === 'clips' && (
                 <div className="relative">
                     {trackIds.map((id, idx) => (
@@ -174,8 +226,13 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
 
             {activeTab === 'clips' && marquee && (
                 <div
-                    className="absolute top-0 bottom-0 bg-blue-400/10 border-x border-blue-400 pointer-events-none"
-                    style={{ left: Math.min(marquee.x1, marquee.x2), width: Math.abs(marquee.x2 - marquee.x1) }}
+                    className="absolute z-30 bg-cyan-300/10 border border-cyan-300/70 pointer-events-none"
+                    style={{
+                        left: Math.min(marquee.x1, marquee.x2),
+                        top: Math.min(marquee.y1, marquee.y2),
+                        width: Math.abs(marquee.x2 - marquee.x1),
+                        height: Math.max(1, Math.abs(marquee.y2 - marquee.y1)),
+                    }}
                 />
             )}
         </div>
