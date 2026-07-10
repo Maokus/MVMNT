@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useSelectionStore } from '@state/selectionStore';
 import { getMidiClipLocalBounds, getMidiClipTimelineBounds, type MidiClip } from '@state/timeline/midiClips';
@@ -58,6 +58,8 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
     const [nameValue, setNameValue] = useState('');
     const dragRef = useRef<DragStart | null>(null);
     const resizeRef = useRef<ResizeStart | null>(null);
+    const clipElRef = useRef<HTMLDivElement | null>(null);
+    const activePointerIdRef = useRef<number | null>(null);
 
     const localBounds = useMemo(() => getMidiClipLocalBounds(useTimelineStore.getState().midiCache, clip), [clip, midiCacheEntry]);
     if (!localBounds) return null;
@@ -153,9 +155,96 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
         }
     };
 
+    const releaseClipPointerCapture = (pointerId: number | null) => {
+        if (pointerId == null) return;
+        try {
+            const clipEl = clipElRef.current;
+            if (clipEl?.hasPointerCapture?.(pointerId)) {
+                clipEl.releasePointerCapture(pointerId);
+            }
+        } catch { }
+    };
+
+    const finishPointerGesture = (pointerId: number | null) => {
+        releaseClipPointerCapture(pointerId);
+        activePointerIdRef.current = null;
+        if (resizeRef.current) {
+            const preview = resizePreview;
+            resizeRef.current = null;
+            setResizePreview(null);
+            if (preview && didMove) {
+                const regionStartTick = preview.start <= 0 ? undefined : preview.start;
+                const regionEndTick =
+                    midiCacheEntry?.bounds && preview.end >= midiCacheEntry.bounds.maxTick ? undefined : preview.end;
+                void updateMidiClip({ trackId, clipId: clip.id, patch: { regionStartTick, regionEndTick } }).then(() => {
+                    selectRefsAsClips([{ trackId, clipId: clip.id }]);
+                });
+            }
+            return;
+        }
+        const drag = dragRef.current;
+        dragRef.current = null;
+        const finalTick = dragTick;
+        setDragTick(null);
+        onHoverSnapX(null);
+
+        const activeCrossTrackDrag = crossTrackDrag;
+        setCrossTrackDrag(null);
+
+        if (!drag || !didMove) return;
+
+        if (activeCrossTrackDrag && activeCrossTrackDrag.previews.some((p) => p.sourceTrackId !== p.targetTrackId)) {
+            const moves = activeCrossTrackDrag.previews.map((p) => ({
+                sourceTrackId: p.sourceTrackId,
+                clipId: p.clipId,
+                destinationTrackId: p.targetTrackId,
+                newOffsetTicks: p.previewOffsetTicks,
+            }));
+            void moveMidiClipsBetweenTracks({ moves }).then(() => {
+                selectRefsAsClips(moves.map((m) => ({ trackId: m.destinationTrackId, clipId: m.clipId })));
+            });
+            return;
+        }
+
+        if (finalTick == null) return;
+
+        if (drag.groupBaseOffsets.length > 1) {
+            const delta = finalTick - drag.baseOffsetTick;
+            void setMultipleMidiClipOffsets({
+                offsets: drag.groupBaseOffsets.map((entry) => ({
+                    trackId: entry.trackId,
+                    clipId: entry.clipId,
+                    offsetTicks: entry.offsetTicks + delta,
+                })),
+            }).then(() => {
+                selectRefsAsClips(drag.groupBaseOffsets.map((entry) => ({ trackId: entry.trackId, clipId: entry.clipId })));
+            });
+        } else {
+            void updateMidiClip({ trackId, clipId: clip.id, patch: { offsetTicks: finalTick } }).then(() => {
+                selectRefsAsClips([{ trackId, clipId: clip.id }]);
+            });
+        }
+    };
+
+    useEffect(() => {
+        const finishFromWindow = (event: PointerEvent) => {
+            if (activePointerIdRef.current !== event.pointerId) return;
+            event.preventDefault();
+            finishPointerGesture(event.pointerId);
+        };
+        window.addEventListener('pointerup', finishFromWindow, { capture: true });
+        window.addEventListener('pointercancel', finishFromWindow, { capture: true });
+        return () => {
+            window.removeEventListener('pointerup', finishFromWindow, { capture: true });
+            window.removeEventListener('pointercancel', finishFromWindow, { capture: true });
+        };
+    });
+
     const onPointerDown = (e: React.PointerEvent) => {
         if (e.button != null && e.button !== 0) return;
+        e.preventDefault();
         e.stopPropagation();
+        activePointerIdRef.current = e.pointerId;
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         const nextSelection = selectForPointer(e);
         const storeState = useTimelineStore.getState();
@@ -183,6 +272,7 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
 
     const onPointerMove = (e: React.PointerEvent) => {
         if (resizeRef.current) {
+            e.preventDefault();
             const resize = resizeRef.current;
             const dx = e.clientX - resize.startX;
             const deltaTicks = Math.round((dx / Math.max(1, laneWidth)) * (view.endTick - view.startTick));
@@ -201,6 +291,7 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
             return;
         }
         if (!dragRef.current) return;
+        e.preventDefault();
         const drag = dragRef.current;
         const dx = e.clientX - drag.startX;
         const dy = e.clientY - drag.startY;
@@ -265,71 +356,16 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
     };
 
     const onPointerUp = (e: React.PointerEvent) => {
-        try {
-            (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-        } catch { }
-        if (resizeRef.current) {
-            const preview = resizePreview;
-            resizeRef.current = null;
-            setResizePreview(null);
-            if (preview && didMove) {
-                const regionStartTick = preview.start <= 0 ? undefined : preview.start;
-                const regionEndTick =
-                    midiCacheEntry?.bounds && preview.end >= midiCacheEntry.bounds.maxTick ? undefined : preview.end;
-                void updateMidiClip({ trackId, clipId: clip.id, patch: { regionStartTick, regionEndTick } }).then(() => {
-                    selectRefsAsClips([{ trackId, clipId: clip.id }]);
-                });
-            }
-            return;
-        }
-        const drag = dragRef.current;
-        dragRef.current = null;
-        const finalTick = dragTick;
-        setDragTick(null);
-        onHoverSnapX(null);
-
-        const activeCrossTrackDrag = crossTrackDrag;
-        setCrossTrackDrag(null);
-
-        if (!drag || !didMove) return;
-
-        if (activeCrossTrackDrag && activeCrossTrackDrag.previews.some((p) => p.sourceTrackId !== p.targetTrackId)) {
-            const moves = activeCrossTrackDrag.previews.map((p) => ({
-                sourceTrackId: p.sourceTrackId,
-                clipId: p.clipId,
-                destinationTrackId: p.targetTrackId,
-                newOffsetTicks: p.previewOffsetTicks,
-            }));
-            void moveMidiClipsBetweenTracks({ moves }).then(() => {
-                selectRefsAsClips(moves.map((m) => ({ trackId: m.destinationTrackId, clipId: m.clipId })));
-            });
-            return;
-        }
-
-        if (finalTick == null) return;
-
-        if (drag.groupBaseOffsets.length > 1) {
-            const delta = finalTick - drag.baseOffsetTick;
-            void setMultipleMidiClipOffsets({
-                offsets: drag.groupBaseOffsets.map((entry) => ({
-                    trackId: entry.trackId,
-                    clipId: entry.clipId,
-                    offsetTicks: entry.offsetTicks + delta,
-                })),
-            }).then(() => {
-                selectRefsAsClips(drag.groupBaseOffsets.map((entry) => ({ trackId: entry.trackId, clipId: entry.clipId })));
-            });
-        } else {
-            void updateMidiClip({ trackId, clipId: clip.id, patch: { offsetTicks: finalTick } }).then(() => {
-                selectRefsAsClips([{ trackId, clipId: clip.id }]);
-            });
-        }
+        e.preventDefault();
+        finishPointerGesture(e.pointerId);
     };
 
     const onResizeDown = (e: React.PointerEvent, type: 'left' | 'right') => {
         if (e.button != null && e.button !== 0) return;
+        e.preventDefault();
         e.stopPropagation();
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        activePointerIdRef.current = e.pointerId;
+        clipElRef.current?.setPointerCapture(e.pointerId);
         selectForPointer(e);
         resizeRef.current = {
             type,
@@ -346,11 +382,31 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
         <div
             className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none overflow-hidden transition-opacity ${isCrossDragging ? 'opacity-30 pointer-events-none' : ''
                 } ${isSelected ? 'bg-sky-500/65 border border-sky-200/90' : 'bg-blue-500/40 border border-blue-400/60'}`}
-            style={{ left: leftX, width: Math.max(8, widthPx), height: clipHeight }}
+            ref={clipElRef}
+            style={{
+                left: leftX,
+                width: Math.max(8, widthPx),
+                height: clipHeight,
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                touchAction: 'none',
+                WebkitUserDrag: 'none',
+            } as React.CSSProperties & { WebkitUserDrag: 'none' }}
             title={tooltip}
+            draggable={false}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+            onLostPointerCapture={() => {
+                if (dragRef.current || resizeRef.current) {
+                    finishPointerGesture(activePointerIdRef.current);
+                }
+            }}
+            onDragStart={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+            }}
             data-clip="1"
         >
             <MidiNotePreview

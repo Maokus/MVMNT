@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import { useSelectionStore } from '@state/selectionStore';
 import { useTimelineStore } from '@state/timelineStore';
 import TrackRowBlock from '../TrackRowBlock';
@@ -99,5 +99,32 @@ describe('TrackRowBlock MIDI clips', () => {
             clips: [{ trackId: 'midi1', clipId: 'clip-a' }],
         });
         expect(useSelectionStore.getState().selectedTrackIds).toEqual([]);
+    });
+
+    it('prevents native browser drag behaviour on MIDI clips', () => {
+        const { container } = render(
+            <TrackRowBlock trackId="midi1" trackIndex={0} laneWidth={1000} laneHeight={60} onHoverSnapX={() => { }} />
+        );
+
+        const firstClip = container.querySelector('[data-clip="1"]');
+        expect(firstClip).toBeTruthy();
+
+        const pointerDown = new MouseEvent('pointerdown', {
+            bubbles: true,
+            cancelable: true,
+            button: 0,
+            clientX: 20,
+        });
+        act(() => {
+            firstClip?.dispatchEvent(pointerDown);
+        });
+        expect(pointerDown.defaultPrevented).toBe(true);
+
+        const dragStart = new Event('dragstart', { bubbles: true, cancelable: true });
+        act(() => {
+            firstClip?.dispatchEvent(dragStart);
+        });
+        expect(dragStart.defaultPrevented).toBe(true);
+        expect((firstClip as HTMLElement).draggable).toBe(false);
     });
 });
