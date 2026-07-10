@@ -7,7 +7,11 @@ export type TimelineCommandId =
     | 'timeline.setTrackOffsetTicks'
     | 'timeline.setMultipleTrackOffsetTicks'
     | 'timeline.setTrackProperties'
-    | 'timeline.reorderTracks';
+    | 'timeline.reorderTracks'
+    | 'timeline.addMidiClip'
+    | 'timeline.removeMidiClips'
+    | 'timeline.updateMidiClips'
+    | 'timeline.setMultipleMidiClipOffsets';
 
 export type TimelineCommandMode = 'serial' | 'concurrent';
 

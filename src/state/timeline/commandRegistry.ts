@@ -24,6 +24,17 @@ import {
     createReorderTracksCommand,
     type ReorderTracksPayload,
 } from './commands/reorderTracksCommand';
+import {
+    createAddMidiClipCommand,
+    createRemoveMidiClipsCommand,
+    createSetMultipleMidiClipOffsetsCommand,
+    createUpdateMidiClipsCommand,
+    type AddMidiClipPayload,
+    type AddMidiClipResult,
+    type RemoveMidiClipsPayload,
+    type SetMultipleMidiClipOffsetsPayload,
+    type UpdateMidiClipsPayload,
+} from './commands/midiClipCommands';
 
 export interface TimelineCommandRegistration<TPayload, TResult = void> {
     id: TimelineCommandId;
@@ -38,6 +49,10 @@ type TimelineRegistryMap = {
     'timeline.setMultipleTrackOffsetTicks': TimelineCommandRegistration<SetMultipleTrackOffsetTicksPayload>;
     'timeline.setTrackProperties': TimelineCommandRegistration<SetTrackPropertiesPayload>;
     'timeline.reorderTracks': TimelineCommandRegistration<ReorderTracksPayload>;
+    'timeline.addMidiClip': TimelineCommandRegistration<AddMidiClipPayload, AddMidiClipResult>;
+    'timeline.removeMidiClips': TimelineCommandRegistration<RemoveMidiClipsPayload>;
+    'timeline.updateMidiClips': TimelineCommandRegistration<UpdateMidiClipsPayload>;
+    'timeline.setMultipleMidiClipOffsets': TimelineCommandRegistration<SetMultipleMidiClipOffsetsPayload>;
 };
 
 const registry: TimelineRegistryMap = {
@@ -94,6 +109,42 @@ const registry: TimelineRegistryMap = {
             telemetryEvent: 'timeline_reorder_tracks',
         }),
         factory: (payload, metadata) => createReorderTracksCommand(payload, metadata),
+    },
+    'timeline.addMidiClip': {
+        id: 'timeline.addMidiClip',
+        buildMetadata: () => ({
+            commandId: 'timeline.addMidiClip',
+            undoLabel: 'Add MIDI Clip',
+            telemetryEvent: 'timeline_add_midi_clip',
+        }),
+        factory: (payload, metadata) => createAddMidiClipCommand(payload, metadata),
+    },
+    'timeline.removeMidiClips': {
+        id: 'timeline.removeMidiClips',
+        buildMetadata: (payload) => ({
+            commandId: 'timeline.removeMidiClips',
+            undoLabel: payload.clips.length > 1 ? 'Remove MIDI Clips' : 'Remove MIDI Clip',
+            telemetryEvent: 'timeline_remove_midi_clips',
+        }),
+        factory: (payload, metadata) => createRemoveMidiClipsCommand(payload, metadata),
+    },
+    'timeline.updateMidiClips': {
+        id: 'timeline.updateMidiClips',
+        buildMetadata: (payload) => ({
+            commandId: 'timeline.updateMidiClips',
+            undoLabel: payload.updates.length > 1 ? 'Update MIDI Clips' : 'Update MIDI Clip',
+            telemetryEvent: 'timeline_update_midi_clips',
+        }),
+        factory: (payload, metadata) => createUpdateMidiClipsCommand(payload, metadata),
+    },
+    'timeline.setMultipleMidiClipOffsets': {
+        id: 'timeline.setMultipleMidiClipOffsets',
+        buildMetadata: (payload) => ({
+            commandId: 'timeline.setMultipleMidiClipOffsets',
+            undoLabel: payload.offsets.length > 1 ? 'Move MIDI Clips' : 'Move MIDI Clip',
+            telemetryEvent: 'timeline_set_multiple_midi_clip_offsets',
+        }),
+        factory: (payload, metadata) => createSetMultipleMidiClipOffsetsCommand(payload, metadata),
     },
 };
 

@@ -28,6 +28,7 @@ import {
 } from '@audio/features/audioFeatureAnalysis';
 import type { AudioFeatureCacheStatus } from '@audio/features/audioFeatureTypes';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
+import { migrateTimelineTrackMidiClipsV8, stripLegacyMidiPlacementFields } from './migrations/midiClipsV8';
 
 /** Converts an exact plugin version to a ^major.minor.0 semver range for scene exports.
  *  e.g. "1.2.3" → "^1.2.0", so any compatible 1.x install >= 1.2.0 opens the scene without warnings. */
@@ -133,12 +134,17 @@ export interface SceneExportEnvelopeV7 extends Omit<SceneExportEnvelopeV6, 'sche
     schemaVersion: 7;
 }
 
+export interface SceneExportEnvelopeV8 extends Omit<SceneExportEnvelopeV6, 'schemaVersion'> {
+    schemaVersion: 8;
+}
+
 export type SceneExportEnvelope =
     | SceneExportEnvelopeV2
     | SceneExportEnvelopeV4
     | SceneExportEnvelopeV5
     | SceneExportEnvelopeV6
-    | SceneExportEnvelopeV7;
+    | SceneExportEnvelopeV7
+    | SceneExportEnvelopeV8;
 
 interface AudioFeatureCacheAssetReference {
     assetId: string;
@@ -164,7 +170,7 @@ interface ExportResultBase {
 export interface ExportSceneResultInline extends ExportResultBase {
     ok: true;
     mode: 'inline-json';
-    envelope: SceneExportEnvelopeV7;
+    envelope: SceneExportEnvelopeV8;
     json: string;
     blob?: Blob;
 }
@@ -172,7 +178,7 @@ export interface ExportSceneResultInline extends ExportResultBase {
 export interface ExportSceneResultZip extends ExportResultBase {
     ok: true;
     mode: 'zip-package';
-    envelope: SceneExportEnvelopeV7;
+    envelope: SceneExportEnvelopeV8;
     zip: Uint8Array<ArrayBuffer>;
     blob?: Blob;
 }
@@ -191,6 +197,16 @@ const DEFAULT_MAX_INLINE_ASSET_BYTES = 10 * 1024 * 1024; // 10 MB
 function buildCompatibilityWarnings(messages: string[]): { warnings: { message: string }[] } | undefined {
     if (!messages.length) return undefined;
     return { warnings: messages.map((message) => ({ message })) };
+}
+
+function serializeTimelineTracksV8(tracks: Record<string, any>): Record<string, any> {
+    const next: Record<string, any> = {};
+    for (const [id, track] of Object.entries(tracks || {})) {
+        next[id] = track?.type === 'midi'
+            ? stripLegacyMidiPlacementFields(migrateTimelineTrackMidiClipsV8(track))
+            : track;
+    }
+    return next;
 }
 
 function buildVisualAssetRegistry(): SceneExportEnvelopeBase['visualAssetRegistry'] {
@@ -814,7 +830,7 @@ export async function exportScene(
     const midiAssets = prepareMidiAssets(doc.midiCache, storage);
     const featureAssets = prepareAudioFeatureCaches(doc.audioFeatureCaches, storage);
 
-    const envelope: SceneExportEnvelopeV7 = {
+    const envelope: SceneExportEnvelopeV8 = {
         schemaVersion: CURRENT_SCHEMA_VERSION,
         format: 'mvmnt.scene',
         metadata,
@@ -830,7 +846,7 @@ export async function exportScene(
         },
         timeline: {
             timeline: doc.timeline,
-            tracks: doc.tracks,
+            tracks: serializeTimelineTracksV8(doc.tracks),
             tracksOrder: doc.tracksOrder,
             playbackRange: doc.playbackRange,
             playbackRangeUserDefined: doc.playbackRangeUserDefined,

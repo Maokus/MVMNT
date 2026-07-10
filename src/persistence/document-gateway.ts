@@ -7,6 +7,7 @@ import type { SceneSerializedElement } from '@state/sceneStore';
 import { getMacroSnapshot, replaceMacrosFromSnapshot } from '@state/scene/macroSyncService';
 import { migrateSceneAudioSystemV5 } from './migrations/audioSystemV5';
 import { useSceneMetadataStore, type SceneMetadataState } from '@state/sceneMetadataStore';
+import { hydrateRuntimeMidiPlacementFields } from './migrations/midiClipsV8';
 
 /** Fields stripped from sceneSettings when persisting (padding concepts removed). */
 const STRIP_SCENE_SETTINGS_KEYS = new Set(['prePadding', 'postPadding']);
@@ -171,6 +172,10 @@ export const DocumentGateway = {
     apply(doc: PersistentDocumentV1 & { __ephemeral?: any }) {
         const set = useTimelineStore.setState;
         const timelineCore = doc.timeline || {};
+        const hydratedTracks: Record<string, any> = {};
+        for (const [id, track] of Object.entries(doc.tracks || {})) {
+            hydratedTracks[id] = hydrateRuntimeMidiPlacementFields(track);
+        }
         set((prev: any) => ({
             ...prev,
             timeline: {
@@ -178,7 +183,7 @@ export const DocumentGateway = {
                 ...timelineCore,
                 currentTick: prev.timeline.currentTick, // preserve existing playhead
             },
-            tracks: doc.tracks || {},
+            tracks: hydratedTracks,
             tracksOrder: doc.tracksOrder || [],
             playbackRange: doc.playbackRange,
             playbackRangeUserDefined: !!doc.playbackRangeUserDefined,

@@ -49,6 +49,12 @@ import type { TimelineCommandDispatchResult, TimelineSerializedCommandDescriptor
 import { mergeFeatureCaches } from './timeline/featureCacheUtils';
 import { useSelectionStore } from '@state/selectionStore';
 import type { MidiClip } from './timeline/midiClips';
+import type {
+    AddMidiClipPayload,
+    RemoveMidiClipsPayload,
+    SetMultipleMidiClipOffsetsPayload,
+    UpdateMidiClipsPayload,
+} from './timeline/commands/midiClipCommands';
 
 export { getSharedTimingManager, sharedTimingManager } from './timeline/timelineShared';
 
@@ -137,6 +143,11 @@ export type TimelineState = {
 
     // Actions
     addMidiTrack: (input: { name: string; file?: File; midiData?: MIDIData; offsetTicks?: number }) => Promise<string>;
+    addMidiClip: (input: AddMidiClipPayload) => Promise<string>;
+    removeMidiClips: (input: RemoveMidiClipsPayload) => Promise<void>;
+    updateMidiClip: (input: UpdateMidiClipsPayload['updates'][number]) => Promise<void>;
+    updateMidiClips: (input: UpdateMidiClipsPayload) => Promise<void>;
+    setMultipleMidiClipOffsets: (input: SetMultipleMidiClipOffsetsPayload) => Promise<void>;
     addAudioTrack: (input: {
         name: string;
         file?: File;
@@ -523,6 +534,26 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             { source: 'timeline-store' }
         );
         return result.result?.trackId ?? '';
+    },
+    async addMidiClip(input: AddMidiClipPayload) {
+        const result = await timelineCommandGateway.dispatchById<{ clipId: string }>('timeline.addMidiClip', input, {
+            source: 'timeline-store',
+        });
+        return result.result?.clipId ?? '';
+    },
+    async removeMidiClips(input: RemoveMidiClipsPayload) {
+        await timelineCommandGateway.dispatchById('timeline.removeMidiClips', input, { source: 'timeline-store' });
+    },
+    async updateMidiClip(input: UpdateMidiClipsPayload['updates'][number]) {
+        await timelineCommandGateway.dispatchById('timeline.updateMidiClips', { updates: [input] }, { source: 'timeline-store' });
+    },
+    async updateMidiClips(input: UpdateMidiClipsPayload) {
+        await timelineCommandGateway.dispatchById('timeline.updateMidiClips', input, { source: 'timeline-store' });
+    },
+    async setMultipleMidiClipOffsets(input: SetMultipleMidiClipOffsetsPayload) {
+        await timelineCommandGateway.dispatchById('timeline.setMultipleMidiClipOffsets', input, {
+            source: 'timeline-store',
+        });
     },
     async addAudioTrack(input: { name: string; file?: File; buffer?: AudioBuffer; offsetTicks?: number }) {
         const result = await timelineCommandGateway.dispatchById<AddTrackCommandResult>(

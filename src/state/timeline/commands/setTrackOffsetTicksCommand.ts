@@ -45,8 +45,16 @@ export function createSetTrackOffsetTicksCommand(
             context.setState((current) => {
                 const currentTrack = current.tracks[payload.trackId];
                 const nextTrack: any = { ...currentTrack, offsetTicks: payload.offsetTicks };
-                if (nextTrack.type === 'midi' && Array.isArray(nextTrack.clips) && nextTrack.clips.length === 1) {
-                    nextTrack.clips = [{ ...nextTrack.clips[0], offsetTicks: payload.offsetTicks }];
+                if (nextTrack.type === 'midi' && Array.isArray(nextTrack.clips)) {
+                    if (nextTrack.clips.length === 1) {
+                        nextTrack.clips = [{ ...nextTrack.clips[0], offsetTicks: payload.offsetTicks }];
+                    } else if (nextTrack.clips.length > 1) {
+                        const delta = payload.offsetTicks - previousOffset;
+                        nextTrack.clips = nextTrack.clips.map((clip: any) => ({
+                            ...clip,
+                            offsetTicks: Math.max(0, (clip.offsetTicks ?? 0) + delta),
+                        }));
+                    }
                 }
                 const next: any = {
                     tracks: {

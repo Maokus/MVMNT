@@ -6,6 +6,7 @@ import type { NoteRaw, CCEventRaw, TempoMapEntry } from '../timelineTypes';
 import { autoAdjustSceneRangeIfNeeded, createTimelineTimingContext } from './timelineShared';
 import { secondsToTicksAt } from '../timelineTime';
 import { useSelectionStore } from '@state/selectionStore';
+import type { MidiClip } from './midiClips';
 
 export type TimelineTrackLike = TimelineTrack | AudioTrack;
 
@@ -61,13 +62,36 @@ export interface TimelinePatchSetTrackOrderPayload {
     order: string[];
 }
 
+export interface TimelinePatchAddMidiClipPayload {
+    trackId: string;
+    clip: MidiClip;
+}
+
+export interface TimelinePatchRemoveMidiClipsPayload {
+    clips: Array<{ trackId: string; clipId: string }>;
+    midiCacheKeys?: string[];
+}
+
+export interface TimelinePatchRestoreMidiClipsPayload {
+    clips: Array<{ trackId: string; clip: MidiClip; index?: number }>;
+    midiCache?: Array<{ key: string; value: TimelineMidiCacheEntry }>;
+}
+
+export interface TimelinePatchUpdateMidiClipsPayload {
+    updates: Array<{ trackId: string; clips: MidiClip[] }>;
+}
+
 export type TimelinePatchAction =
     | { action: 'timeline/ADD_TRACK'; payload: TimelinePatchAddTrackPayload }
     | { action: 'timeline/REMOVE_TRACKS'; payload: TimelinePatchRemoveTracksPayload }
     | { action: 'timeline/RESTORE_TRACKS'; payload: TimelinePatchRestoreTracksPayload }
     | { action: 'timeline/SET_TRACK_OFFSET_TICKS'; payload: TimelinePatchSetTrackOffsetPayload }
     | { action: 'timeline/UPDATE_TRACKS'; payload: TimelinePatchUpdateTracksPayload }
-    | { action: 'timeline/SET_TRACK_ORDER'; payload: TimelinePatchSetTrackOrderPayload };
+    | { action: 'timeline/SET_TRACK_ORDER'; payload: TimelinePatchSetTrackOrderPayload }
+    | { action: 'timeline/ADD_MIDI_CLIP'; payload: TimelinePatchAddMidiClipPayload }
+    | { action: 'timeline/REMOVE_MIDI_CLIPS'; payload: TimelinePatchRemoveMidiClipsPayload }
+    | { action: 'timeline/RESTORE_MIDI_CLIPS'; payload: TimelinePatchRestoreMidiClipsPayload }
+    | { action: 'timeline/UPDATE_MIDI_CLIPS'; payload: TimelinePatchUpdateMidiClipsPayload };
 
 export interface TimelineCommandPatch {
     undo: TimelinePatchAction[];
@@ -239,9 +263,18 @@ function applySetTrackOffset(
     setState((state) => {
         const track = state.tracks[payload.trackId];
         if (!track) return state;
+        const previousOffset = (track as any).offsetTicks ?? 0;
         const nextTrack: any = { ...track, offsetTicks: payload.offsetTicks };
-        if (nextTrack.type === 'midi' && Array.isArray(nextTrack.clips) && nextTrack.clips.length === 1) {
-            nextTrack.clips = [{ ...nextTrack.clips[0], offsetTicks: payload.offsetTicks }];
+        if (nextTrack.type === 'midi' && Array.isArray(nextTrack.clips)) {
+            if (nextTrack.clips.length === 1) {
+                nextTrack.clips = [{ ...nextTrack.clips[0], offsetTicks: payload.offsetTicks }];
+            } else if (nextTrack.clips.length > 1) {
+                const delta = payload.offsetTicks - previousOffset;
+                nextTrack.clips = nextTrack.clips.map((clip: MidiClip) => ({
+                    ...clip,
+                    offsetTicks: Math.max(0, clip.offsetTicks + delta),
+                }));
+            }
         }
         const next: Partial<TimelineState> = {
             tracks: {
@@ -304,6 +337,94 @@ function applySetTrackOrder(context: TimelinePatchContext, payload: TimelinePatc
     setState(() => ({ tracksOrder: [...payload.order] } as TimelineState));
 }
 
+function applyAddMidiClip(context: TimelinePatchContext, payload: TimelinePatchAddMidiClipPayload): void {
+    context.setState((state) => {
+        const track = state.tracks[payload.trackId];
+        if (!track || track.type !== 'midi') return state;
+        const clips = Array.isArray(track.clips) ? track.clips : [];
+        return {
+            tracks: {
+                ...state.tracks,
+                [payload.trackId]: { ...track, clips: [...clips, payload.clip] },
+            },
+        } as TimelineState;
+    });
+}
+
+function applyRemoveMidiClips(context: TimelinePatchContext, payload: TimelinePatchRemoveMidiClipsPayload): void {
+    const targetsByTrack = new Map<string, Set<string>>();
+    for (const target of payload.clips) {
+        if (!targetsByTrack.has(target.trackId)) targetsByTrack.set(target.trackId, new Set());
+        targetsByTrack.get(target.trackId)?.add(target.clipId);
+    }
+    context.setState((state) => {
+        let nextTracks = state.tracks;
+        let mutated = false;
+        for (const [trackId, clipIds] of targetsByTrack) {
+            const track = state.tracks[trackId];
+            if (!track || track.type !== 'midi' || !Array.isArray(track.clips)) continue;
+            const clips = track.clips.filter((clip) => !clipIds.has(clip.id));
+            if (clips.length === track.clips.length) continue;
+            if (!mutated) {
+                nextTracks = { ...state.tracks };
+                mutated = true;
+            }
+            nextTracks[trackId] = { ...track, clips };
+        }
+        const nextMidiCache = { ...state.midiCache };
+        for (const key of payload.midiCacheKeys ?? []) {
+            delete nextMidiCache[key];
+        }
+        if (!mutated && !payload.midiCacheKeys?.length) return state;
+        return { tracks: nextTracks, midiCache: nextMidiCache } as TimelineState;
+    });
+}
+
+function applyRestoreMidiClips(context: TimelinePatchContext, payload: TimelinePatchRestoreMidiClipsPayload): void {
+    context.setState((state) => {
+        let nextTracks = state.tracks;
+        let mutated = false;
+        for (const entry of payload.clips) {
+            const track = state.tracks[entry.trackId];
+            if (!track || track.type !== 'midi') continue;
+            const clips = Array.isArray(track.clips) ? [...track.clips] : [];
+            if (clips.some((clip) => clip.id === entry.clip.id)) continue;
+            const index = typeof entry.index === 'number' ? Math.max(0, Math.min(entry.index, clips.length)) : clips.length;
+            clips.splice(index, 0, entry.clip);
+            if (!mutated) {
+                nextTracks = { ...state.tracks };
+                mutated = true;
+            }
+            nextTracks[entry.trackId] = { ...track, clips };
+        }
+        const nextMidiCache = { ...state.midiCache };
+        for (const cache of payload.midiCache ?? []) {
+            nextMidiCache[cache.key] = cache.value;
+        }
+        if (!mutated && !payload.midiCache?.length) return state;
+        return { tracks: nextTracks, midiCache: nextMidiCache } as TimelineState;
+    });
+}
+
+function applyUpdateMidiClips(context: TimelinePatchContext, payload: TimelinePatchUpdateMidiClipsPayload): void {
+    if (!payload.updates.length) return;
+    context.setState((state) => {
+        let nextTracks = state.tracks;
+        let mutated = false;
+        for (const update of payload.updates) {
+            const track = state.tracks[update.trackId];
+            if (!track || track.type !== 'midi') continue;
+            if (!mutated) {
+                nextTracks = { ...state.tracks };
+                mutated = true;
+            }
+            nextTracks[update.trackId] = { ...track, clips: update.clips };
+        }
+        if (!mutated) return state;
+        return { tracks: nextTracks } as TimelineState;
+    });
+}
+
 export function applyTimelinePatchActions(
     context: TimelinePatchContext,
     actions: TimelinePatchAction[],
@@ -328,6 +449,18 @@ export function applyTimelinePatchActions(
                 break;
             case 'timeline/SET_TRACK_ORDER':
                 applySetTrackOrder(context, action.payload);
+                break;
+            case 'timeline/ADD_MIDI_CLIP':
+                applyAddMidiClip(context, action.payload);
+                break;
+            case 'timeline/REMOVE_MIDI_CLIPS':
+                applyRemoveMidiClips(context, action.payload);
+                break;
+            case 'timeline/RESTORE_MIDI_CLIPS':
+                applyRestoreMidiClips(context, action.payload);
+                break;
+            case 'timeline/UPDATE_MIDI_CLIPS':
+                applyUpdateMidiClips(context, action.payload);
                 break;
             default:
                 break;

@@ -9,6 +9,7 @@ import {
     type TimelinePatchRestoreTracksPayload,
 } from '../patches';
 import { useSelectionStore } from '@state/selectionStore';
+import { findReferencedMidiSourceIds, getMidiClipsForTrack } from '../midiClips';
 
 export interface RemoveTracksCommandPayload {
     trackIds: string[];
@@ -38,7 +39,6 @@ export function createRemoveTracksCommand(
                 trackIds: payload.trackIds,
                 selection: selectionBefore,
             };
-            const midiKeys: string[] = [];
             const audioKeys: string[] = [];
             const featureKeys: string[] = [];
             for (const id of payload.trackIds) {
@@ -47,14 +47,16 @@ export function createRemoveTracksCommand(
                 const index = state.tracksOrder.indexOf(id);
                 if (index === -1) continue;
                 if (track.type === 'midi') {
-                    const key = (track as any).midiSourceId ?? id;
-                    const cache = state.midiCache[key];
-                    if (cache) {
-                        restorePayload.tracks.push({ track, index, midiCache: { key, value: cache } });
-                        midiKeys.push(key);
-                    } else {
-                        restorePayload.tracks.push({ track, index });
+                    const restoreEntry: TimelinePatchRestoreTracksPayload['tracks'][number] = { track, index };
+                    const sourceIds = new Set(getMidiClipsForTrack(track).map((clip) => clip.sourceId));
+                    for (const key of sourceIds) {
+                        const cache = state.midiCache[key];
+                        if (cache) {
+                            restoreEntry.midiCache = { key, value: cache };
+                            break;
+                        }
                     }
+                    restorePayload.tracks.push(restoreEntry);
                 } else if (track.type === 'audio') {
                     const audioTrack = track as AudioTrack;
                     const key = audioTrack.audioSourceId ?? id;
@@ -75,8 +77,16 @@ export function createRemoveTracksCommand(
                     }
                 }
             }
-            if (midiKeys.length) {
-                removePayload.midiCacheKeys = midiKeys;
+            const removedSet = new Set(payload.trackIds);
+            const remainingState = {
+                ...state,
+                tracks: Object.fromEntries(Object.entries(state.tracks).filter(([id]) => !removedSet.has(id))),
+                tracksOrder: state.tracksOrder.filter((id) => !removedSet.has(id)),
+            };
+            const referencedMidiSources = findReferencedMidiSourceIds(remainingState as typeof state);
+            const removableMidiKeys = Object.keys(state.midiCache).filter((key) => !referencedMidiSources.has(key));
+            if (removableMidiKeys.length) {
+                removePayload.midiCacheKeys = removableMidiKeys;
             }
             if (audioKeys.length) {
                 removePayload.audioCacheKeys = audioKeys;

@@ -8,7 +8,7 @@
  *  - Range checks for rowHeight (if present) & globalBpm > 0
  */
 
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 /**
  * Maps schema version to the minimum app version required to open files at that version.
@@ -22,6 +22,7 @@ export const SCHEMA_TO_MIN_APP_VERSION: Record<number, string> = {
     5: '0.14.0',
     6: '0.15.0',
     7: '0.15.4',
+    8: '0.15.4',
 };
 
 export type ValidationErrorCode =
@@ -44,6 +45,10 @@ export type ValidationErrorCode =
     | 'ERR_TRACKS_ORDER_ITEM_TYPE'
     | 'ERR_TRACKS_ORDER_REF'
     | 'ERR_TRACK_SHAPE'
+    | 'ERR_MIDI_CLIPS_SHAPE'
+    | 'ERR_MIDI_CLIP_SOURCE'
+    | 'ERR_MIDI_CLIP_DUPLICATE'
+    | 'ERR_MIDI_CLIP_OVERLAP'
     | 'ERR_TIMELINE_NUMERIC'
     | 'ERR_ROW_HEIGHT_RANGE'
     | 'ERR_GLOBAL_BPM_RANGE'
@@ -98,7 +103,7 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
     }
     if (!root.scene || typeof root.scene !== 'object') {
         errors.push(err('ERR_SCENE_MISSING', 'Missing scene object', 'scene'));
-    } else if (schemaVersion === 6 || schemaVersion === 7) {
+    } else if (schemaVersion === 6 || schemaVersion === 7 || schemaVersion === 8) {
         // V6+: elements is a Record keyed by ID, elementsOrder is the ordering array
         if (typeof root.scene.elements !== 'object' || root.scene.elements === null || Array.isArray(root.scene.elements)) {
             errors.push(err('ERR_SCENE_ELEMENTS_TYPE', 'scene.elements must be an object in schema v6', 'scene.elements'));
@@ -211,6 +216,10 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
                     errors.push(err('ERR_TRACK_SHAPE', 'Invalid track shape for id ' + k, 'timeline.tracks.' + k));
                     break;
                 }
+                if (schemaVersion >= 8 && tr.type === 'midi') {
+                    validateMidiTrackClips(tr, tl.midiCache, `timeline.tracks.${k}`, errors);
+                    if (errors.length) break;
+                }
             }
         }
         // Numeric range checks (non-fatal design but still enforced here)
@@ -226,7 +235,7 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
         }
     }
 
-    if (schemaVersion === 2 || schemaVersion === 4 || schemaVersion === 5 || schemaVersion === 6 || schemaVersion === 7) {
+    if (schemaVersion === 2 || schemaVersion === 4 || schemaVersion === 5 || schemaVersion === 6 || schemaVersion === 7 || schemaVersion === 8) {
         if (!root.assets || typeof root.assets !== 'object') {
             errors.push(err('ERR_ASSETS_MISSING', 'Missing assets block', 'assets'));
         } else {
@@ -253,4 +262,85 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
     }
 
     return { ok: errors.length === 0, errors, warnings };
+}
+
+function getClipTimelineBounds(midiCache: any, clip: any): { startTick: number; endTick: number } | null {
+    const source = midiCache?.[clip.sourceId];
+    if (!source) return null;
+    const sourceStart =
+        typeof source.bounds?.minTick === 'number'
+            ? source.bounds.minTick
+            : Array.isArray(source.notesRaw) && source.notesRaw.length
+              ? Math.min(...source.notesRaw.map((note: any) => note.startTick).filter((tick: any) => typeof tick === 'number'))
+              : 0;
+    const sourceEnd =
+        typeof source.bounds?.maxTick === 'number'
+            ? source.bounds.maxTick
+            : Array.isArray(source.notesRaw) && source.notesRaw.length
+              ? Math.max(...source.notesRaw.map((note: any) => note.endTick).filter((tick: any) => typeof tick === 'number'))
+              : undefined;
+    const startTick = typeof clip.regionStartTick === 'number' ? clip.regionStartTick : sourceStart;
+    const endTick = typeof clip.regionEndTick === 'number' ? clip.regionEndTick : sourceEnd;
+    if (typeof endTick !== 'number' || !Number.isFinite(startTick) || !Number.isFinite(endTick) || endTick <= startTick) {
+        return null;
+    }
+    return { startTick: clip.offsetTicks + startTick, endTick: clip.offsetTicks + endTick };
+}
+
+function validateMidiTrackClips(
+    track: any,
+    midiCache: any,
+    path: string,
+    errors: ValidationError[]
+): void {
+    if (!Array.isArray(track.clips)) {
+        errors.push(err('ERR_MIDI_CLIPS_SHAPE', 'MIDI track clips must be an array', `${path}.clips`));
+        return;
+    }
+    const seenIds = new Set<string>();
+    const bounds: Array<{ id: string; startTick: number; endTick: number }> = [];
+    for (let i = 0; i < track.clips.length; i++) {
+        const clip = track.clips[i];
+        const clipPath = `${path}.clips[${i}]`;
+        if (!clip || typeof clip !== 'object' || clip.type !== 'midi') {
+            errors.push(err('ERR_MIDI_CLIPS_SHAPE', 'Invalid MIDI clip shape', clipPath));
+            return;
+        }
+        if (typeof clip.id !== 'string' || typeof clip.sourceId !== 'string' || typeof clip.offsetTicks !== 'number' || !Number.isFinite(clip.offsetTicks)) {
+            errors.push(err('ERR_MIDI_CLIPS_SHAPE', 'MIDI clip requires string id/sourceId and finite offsetTicks', clipPath));
+            return;
+        }
+        if (seenIds.has(clip.id)) {
+            errors.push(err('ERR_MIDI_CLIP_DUPLICATE', `Duplicate MIDI clip id ${clip.id}`, `${clipPath}.id`));
+            return;
+        }
+        seenIds.add(clip.id);
+        if (
+            (clip.regionStartTick !== undefined && (typeof clip.regionStartTick !== 'number' || !Number.isFinite(clip.regionStartTick))) ||
+            (clip.regionEndTick !== undefined && (typeof clip.regionEndTick !== 'number' || !Number.isFinite(clip.regionEndTick))) ||
+            (typeof clip.regionStartTick === 'number' && typeof clip.regionEndTick === 'number' && clip.regionEndTick <= clip.regionStartTick)
+        ) {
+            errors.push(err('ERR_MIDI_CLIPS_SHAPE', 'Invalid MIDI clip region ticks', clipPath));
+            return;
+        }
+        if (!midiCache || !midiCache[clip.sourceId]) {
+            errors.push(err('ERR_MIDI_CLIP_SOURCE', `MIDI clip source ${clip.sourceId} is missing`, `${clipPath}.sourceId`));
+            return;
+        }
+        const clipBounds = getClipTimelineBounds(midiCache, clip);
+        if (clipBounds) bounds.push({ id: clip.id, ...clipBounds });
+    }
+    bounds.sort((a, b) => a.startTick - b.startTick || a.endTick - b.endTick);
+    for (let i = 1; i < bounds.length; i++) {
+        if (bounds[i].startTick < bounds[i - 1].endTick) {
+            errors.push(
+                err(
+                    'ERR_MIDI_CLIP_OVERLAP',
+                    `MIDI clip ${bounds[i].id} overlaps ${bounds[i - 1].id}`,
+                    `${path}.clips`
+                )
+            );
+            return;
+        }
+    }
 }

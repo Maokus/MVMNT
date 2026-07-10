@@ -23,6 +23,7 @@ import { isTestEnvironment } from '@utils/env';
 import { useVisualAssetRegistryStore, type ProjectAsset } from '@state/visualAssetRegistryStore';
 import { useSceneStore } from '@state/sceneStore';
 import { migrateSceneRotationUnitsV7 } from './migrations/rotationUnitsV7';
+import { migrateSceneMidiClipsV8 } from './migrations/midiClipsV8';
 
 const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
@@ -799,7 +800,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         audioFeaturePayloads,
         pluginPayloads,
     } = parsed;
-    const migratedEnvelope = migrateSceneRotationUnitsV7(envelope);
+    const migratedEnvelope = migrateSceneMidiClipsV8(migrateSceneRotationUnitsV7(envelope));
     const validation = validateSceneEnvelope(migratedEnvelope);
     if (!validation.ok) {
         return {
@@ -872,7 +873,8 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
             migratedEnvelope.schemaVersion === 4 ||
             migratedEnvelope.schemaVersion === 5 ||
             migratedEnvelope.schemaVersion === 6 ||
-            migratedEnvelope.schemaVersion === 7) &&
+            migratedEnvelope.schemaVersion === 7 ||
+            migratedEnvelope.schemaVersion === 8) &&
         migratedEnvelope.assets
     ) {
         hydrationWarnings = await hydrateAudioAssets(migratedEnvelope, audioPayloads, waveformPayloads);
