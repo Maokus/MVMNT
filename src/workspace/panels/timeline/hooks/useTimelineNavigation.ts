@@ -4,6 +4,7 @@ import { useSelectionStore } from '@state/selectionStore';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { type QuantizeSetting } from '@state/timeline/quantize';
 import { zoomAround, getContentEndTick, isEditableTarget } from '../utils/timelineNavUtils';
+import { getMidiClipTimelineBounds, getMidiClipsForTrack } from '@state/timeline/midiClips';
 
 /**
  * Provides view preset callbacks (fitAll, zoomToSelection, centerOnPlayhead, frameSelection)
@@ -39,11 +40,14 @@ export function useTimelineNavigation() {
             const track = state.tracks[id] as any;
             if (!track) continue;
             const offset: number = track.offsetTicks ?? 0;
-            if (track.midiSourceId) {
-                const cache = state.midiCache[track.midiSourceId];
-                if (cache?.notesRaw?.length) {
-                    minTick = Math.min(minTick, offset);
-                    maxTick = Math.max(maxTick, offset + cache.notesRaw[cache.notesRaw.length - 1].endTick);
+            if (track.type === 'midi') {
+                for (const clip of getMidiClipsForTrack(track)) {
+                    if (clip.enabled === false) continue;
+                    const bounds = getMidiClipTimelineBounds(state.midiCache, clip);
+                    if (bounds) {
+                        minTick = Math.min(minTick, bounds.startTick);
+                        maxTick = Math.max(maxTick, bounds.endTick);
+                    }
                 }
             } else {
                 const entry = (state as any).audioCache?.[id];

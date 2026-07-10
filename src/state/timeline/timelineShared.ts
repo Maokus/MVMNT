@@ -8,6 +8,7 @@ import {
 } from '../timelineTime';
 import type { TimelineState } from '../timelineStore';
 import type { TempoMapEntry } from '../timelineTypes';
+import { getMidiClipTimelineBounds, getMidiClipsForTrack } from './midiClips';
 
 export const sharedTimingManager = new TimingManager();
 
@@ -41,16 +42,11 @@ function computeContentEndTick(state: TimelineState): number {
         const t = state.tracks[id] as any;
         if (!t || !t.enabled) continue;
         if (t.type === 'midi') {
-            const cacheKey = t.midiSourceId ?? id;
-            const cache = state.midiCache[cacheKey];
-            if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
-            if (cache.bounds) {
-                const endTick = cache.bounds.maxTick + t.offsetTicks;
-                if (endTick > max) max = endTick;
-            } else {
-                for (const n of cache.notesRaw) {
-                    const endTick = n.endTick + t.offsetTicks;
-                    if (endTick > max) max = endTick;
+            for (const clip of getMidiClipsForTrack(t)) {
+                if (clip.enabled === false) continue;
+                const bounds = getMidiClipTimelineBounds(state.midiCache, clip);
+                if (bounds && bounds.endTick > max) {
+                    max = bounds.endTick;
                 }
             }
         } else if (t.type === 'audio') {
@@ -79,16 +75,11 @@ function computeContentStartTick(state: TimelineState): number {
         const t = state.tracks[id] as any;
         if (!t || !t.enabled) continue;
         if (t.type === 'midi') {
-            const cacheKey = t.midiSourceId ?? id;
-            const cache = state.midiCache[cacheKey];
-            if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
-            if (cache.bounds) {
-                const startTick = cache.bounds.minTick + t.offsetTicks;
-                if (startTick < min) min = startTick;
-            } else {
-                for (const n of cache.notesRaw) {
-                    const startTick = n.startTick + t.offsetTicks;
-                    if (startTick < min) min = startTick;
+            for (const clip of getMidiClipsForTrack(t)) {
+                if (clip.enabled === false) continue;
+                const bounds = getMidiClipTimelineBounds(state.midiCache, clip);
+                if (bounds && bounds.startTick < min) {
+                    min = bounds.startTick;
                 }
             }
         } else if (t.type === 'audio') {

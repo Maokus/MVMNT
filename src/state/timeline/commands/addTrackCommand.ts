@@ -14,6 +14,7 @@ import {
 } from '../patches';
 import type { TimelineCommandContext, TimelineCommandExecuteResult } from '../commandTypes';
 import { useSelectionStore } from '@state/selectionStore';
+import type { MidiClip } from '../midiClips';
 
 export type AddTrackCommandPayload =
     | {
@@ -47,6 +48,17 @@ function ensureWindowEvent(context: TimelineCommandContext, trackId: string): vo
     }
 }
 
+function buildInitialMidiClip(trackId: string, name: string, offsetTicks: number): MidiClip {
+    return {
+        id: `${trackId}__clip`,
+        type: 'midi',
+        sourceId: trackId,
+        offsetTicks,
+        name,
+        enabled: true,
+    };
+}
+
 async function ingestMidiSource(
     context: TimelineCommandContext,
     trackId: string,
@@ -59,7 +71,11 @@ async function ingestMidiSource(
         context.setState((state) => ({
             tracks: {
                 ...state.tracks,
-                [trackId]: { ...state.tracks[trackId], midiSourceId: trackId } as TimelineTrack,
+                [trackId]: {
+                    ...state.tracks[trackId],
+                    midiSourceId: trackId,
+                    clips: [buildInitialMidiClip(trackId, state.tracks[trackId]?.name ?? 'MIDI Track', (state.tracks[trackId] as TimelineTrack)?.offsetTicks ?? 0)],
+                } as TimelineTrack,
             },
         }));
         return;
@@ -72,7 +88,11 @@ async function ingestMidiSource(
             context.setState((state) => ({
                 tracks: {
                     ...state.tracks,
-                    [trackId]: { ...state.tracks[trackId], midiSourceId: trackId } as TimelineTrack,
+                    [trackId]: {
+                        ...state.tracks[trackId],
+                        midiSourceId: trackId,
+                        clips: [buildInitialMidiClip(trackId, state.tracks[trackId]?.name ?? 'MIDI Track', (state.tracks[trackId] as TimelineTrack)?.offsetTicks ?? 0)],
+                    } as TimelineTrack,
                 },
             }));
         } catch (error) {
@@ -218,6 +238,7 @@ export function createAddTrackCommand(
                     enabled: true,
                     mute: false,
                     solo: false,
+                    clips: [],
                     offsetTicks: payload.offsetTicks ?? 0,
                 };
                 context.setState((state) => ({

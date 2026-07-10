@@ -239,10 +239,14 @@ function applySetTrackOffset(
     setState((state) => {
         const track = state.tracks[payload.trackId];
         if (!track) return state;
+        const nextTrack: any = { ...track, offsetTicks: payload.offsetTicks };
+        if (nextTrack.type === 'midi' && Array.isArray(nextTrack.clips) && nextTrack.clips.length === 1) {
+            nextTrack.clips = [{ ...nextTrack.clips[0], offsetTicks: payload.offsetTicks }];
+        }
         const next: Partial<TimelineState> = {
             tracks: {
                 ...state.tracks,
-                [payload.trackId]: { ...track, offsetTicks: payload.offsetTicks },
+                [payload.trackId]: nextTrack,
             },
         } as any;
         // Recompute durationTicks for audio tracks at the new position
@@ -273,7 +277,22 @@ function applyUpdateTracks(context: TimelinePatchContext, payload: TimelinePatch
                 nextTracks = { ...state.tracks };
                 mutated = true;
             }
-            nextTracks[update.trackId] = { ...existing, ...update.patch } as TimelineTrackLike;
+            const nextTrack = { ...existing, ...update.patch } as TimelineTrackLike;
+            if (
+                nextTrack.type === 'midi' &&
+                Array.isArray(nextTrack.clips) &&
+                nextTrack.clips.length === 1 &&
+                ('regionStartTick' in update.patch || 'regionEndTick' in update.patch)
+            ) {
+                nextTrack.clips = [
+                    {
+                        ...nextTrack.clips[0],
+                        ...('regionStartTick' in update.patch ? { regionStartTick: (update.patch as any).regionStartTick } : {}),
+                        ...('regionEndTick' in update.patch ? { regionEndTick: (update.patch as any).regionEndTick } : {}),
+                    },
+                ];
+            }
+            nextTracks[update.trackId] = nextTrack;
         }
         if (!mutated) return state;
         return { tracks: nextTracks } as TimelineState;

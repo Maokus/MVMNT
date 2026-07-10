@@ -43,10 +43,15 @@ export function createSetTrackOffsetTicksCommand(
             }
             const previousOffset = (track as any).offsetTicks ?? 0;
             context.setState((current) => {
+                const currentTrack = current.tracks[payload.trackId];
+                const nextTrack: any = { ...currentTrack, offsetTicks: payload.offsetTicks };
+                if (nextTrack.type === 'midi' && Array.isArray(nextTrack.clips) && nextTrack.clips.length === 1) {
+                    nextTrack.clips = [{ ...nextTrack.clips[0], offsetTicks: payload.offsetTicks }];
+                }
                 const next: any = {
                     tracks: {
                         ...current.tracks,
-                        [payload.trackId]: { ...current.tracks[payload.trackId], offsetTicks: payload.offsetTicks },
+                        [payload.trackId]: nextTrack,
                     },
                 };
                 // Recompute durationTicks for audio tracks so clip width reflects tempo at the new position

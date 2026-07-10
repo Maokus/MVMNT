@@ -6,9 +6,12 @@ import type { TimelineState, TimelineTrack } from '@state/timelineStore';
 import type { TempoMapEntry } from './types';
 import { beatsToSeconds, secondsToBeats } from './tempo-utils';
 import { CANONICAL_PPQ } from './ppq';
+import { getMidiClipTimelineBounds, getMidiClipsForTrack, getPrimaryMidiClip, type MidiClip } from '@state/timeline/midiClips';
 
 export interface NoteQueryResult {
     trackId: string;
+    clipId?: string;
+    sourceId?: string;
     note: number;
     channel: number;
     startSec: number;
@@ -25,7 +28,15 @@ function resolveTempoMap(state: TimelineState, track?: { tempoMap?: TempoMapEntr
     return track?.tempoMap ?? state.timeline.masterTempoMap;
 }
 
+function clipOffsetSeconds(state: TimelineState, clip: MidiClip): number {
+    const spb = getSecondsPerBeatFallback(state);
+    const beats = (clip.offsetTicks || 0) / CANONICAL_PPQ;
+    return beatsToSeconds(state.timeline.masterTempoMap, beats, spb);
+}
+
 function trackOffsetSeconds(state: TimelineState, track: TimelineTrack): number {
+    const clip = getPrimaryMidiClip(track);
+    if (clip) return clipOffsetSeconds(state, clip);
     const spb = getSecondsPerBeatFallback(state);
     const beats = (track.offsetTicks || 0) / CANONICAL_PPQ;
     return beatsToSeconds(state.timeline.masterTempoMap, beats, spb);
@@ -33,12 +44,15 @@ function trackOffsetSeconds(state: TimelineState, track: TimelineTrack): number 
 
 // Map timeline seconds -> track local seconds accounting for offset & (future) regions
 export function timelineToTrackSeconds(state: TimelineState, track: TimelineTrack, timelineSec: number): number | null {
-    const local = timelineSec - trackOffsetSeconds(state, track);
-    if (track.regionStartTick != null || track.regionEndTick != null) {
+    const clip = getPrimaryMidiClip(track);
+    const local = timelineSec - (clip ? clipOffsetSeconds(state, clip) : trackOffsetSeconds(state, track));
+    const regionStartTick = clip?.regionStartTick ?? track.regionStartTick;
+    const regionEndTick = clip?.regionEndTick ?? track.regionEndTick;
+    if (regionStartTick != null || regionEndTick != null) {
         // Derive region bounds in seconds lazily
         const spb = getSecondsPerBeatFallback(state);
-        const startBeats = (track.regionStartTick ?? 0) / CANONICAL_PPQ;
-        const endBeats = (track.regionEndTick ?? track.regionStartTick ?? 0) / CANONICAL_PPQ;
+        const startBeats = (regionStartTick ?? 0) / CANONICAL_PPQ;
+        const endBeats = (regionEndTick ?? regionStartTick ?? 0) / CANONICAL_PPQ;
         const startSec = beatsToSeconds(state.timeline.masterTempoMap, startBeats, spb);
         const endSec = beatsToSeconds(state.timeline.masterTempoMap, endBeats, spb);
         if (local < startSec || local > endSec) return null;
@@ -88,48 +102,78 @@ export function getNotesInWindow(
     for (const id of candidates) {
         const track = state.tracks[id];
         if (!track || track.type !== 'midi' || !track.enabled || track.mute) continue;
-        const cacheKey = track.midiSourceId ?? id;
-        const cache = state.midiCache[cacheKey];
-        if (!cache) continue;
-        const map = cache.tempoMap ?? state.timeline.masterTempoMap;
-        const offsetSec = trackOffsetSeconds(state, track);
+        for (const clip of getMidiClipsForTrack(track)) {
+            if (clip.enabled === false) continue;
+            const clipBounds = getMidiClipTimelineBounds(state.midiCache, clip);
+            if (clipBounds) {
+                const clipStartSec = beatsToSeconds(state.timeline.masterTempoMap, clipBounds.startTick / CANONICAL_PPQ, spbFallback);
+                const clipEndSec = beatsToSeconds(state.timeline.masterTempoMap, clipBounds.endTick / CANONICAL_PPQ, spbFallback);
+                if (clipEndSec <= startSec || clipStartSec >= endSec) continue;
+            }
+            const cache = state.midiCache[clip.sourceId];
+            if (!cache) continue;
+            const map = cache.tempoMap ?? state.timeline.masterTempoMap;
+            const offsetSec = clipOffsetSeconds(state, clip);
+            let loLocal = startSec - offsetSec;
+            let hiLocal = endSec - offsetSec;
+            if (clip.regionStartTick != null || clip.regionEndTick != null) {
+                const regionStartBeats = (clip.regionStartTick ?? 0) / CANONICAL_PPQ;
+                const regionEndBeats = (clip.regionEndTick ?? clip.regionStartTick ?? 0) / CANONICAL_PPQ;
+                const regionStartSec = beatsToSeconds(state.timeline.masterTempoMap, regionStartBeats, spbFallback);
+                const regionEndSec = beatsToSeconds(state.timeline.masterTempoMap, regionEndBeats, spbFallback);
+                if (loLocal < regionStartSec) loLocal = regionStartSec;
+                if (hiLocal > regionEndSec) hiLocal = regionEndSec;
+            }
+            if (!(hiLocal > loLocal)) continue;
 
-        // Compute local query window (track seconds)
-        let loLocal = startSec - offsetSec;
-        let hiLocal = endSec - offsetSec;
-        // Region clipping (region ticks define allowed local range)
-        if (track.regionStartTick != null || track.regionEndTick != null) {
-            const regionStartBeats = (track.regionStartTick ?? 0) / CANONICAL_PPQ;
-            const regionEndBeats = (track.regionEndTick ?? track.regionStartTick ?? 0) / CANONICAL_PPQ;
-            const regionStartSec = beatsToSeconds(state.timeline.masterTempoMap, regionStartBeats, spbFallback);
-            const regionEndSec = beatsToSeconds(state.timeline.masterTempoMap, regionEndBeats, spbFallback);
-            if (loLocal < regionStartSec) loLocal = regionStartSec;
-            if (hiLocal > regionEndSec) hiLocal = regionEndSec;
-        }
-        if (!(hiLocal > loLocal)) continue;
+            const notesRaw = cache.notesRaw;
+            let startIdx = 0;
+            if (cache.bounds && notesRaw.length > 32) {
+                const localStartBeats = secondsToBeats(map, Math.max(0, loLocal), spbFallback);
+                const searchStartTick = Math.max(
+                    0,
+                    Math.round(localStartBeats * CANONICAL_PPQ) - cache.bounds.maxDurationTicks
+                );
+                let lo = 0;
+                let hi = notesRaw.length;
+                while (lo < hi) {
+                    const mid = (lo + hi) >>> 1;
+                    if (notesRaw[mid].startTick < searchStartTick) lo = mid + 1;
+                    else hi = mid;
+                }
+                startIdx = lo;
+            }
 
-        for (const n of cache.notesRaw) {
-            // Derive note local seconds from beats (preferred) or ticks fallback
-            let startBeats: number | undefined = n.startBeat;
-            let endBeats: number | undefined = n.endBeat;
-            if (startBeats == null) startBeats = n.startTick / CANONICAL_PPQ;
-            if (endBeats == null) endBeats = n.endTick / CANONICAL_PPQ;
-            const sLocal = beatsToSeconds(map, startBeats, spbFallback);
-            const eLocal = beatsToSeconds(map, endBeats, spbFallback);
-            // Window overlap test in local domain
-            if (!(eLocal >= loLocal && sLocal <= hiLocal)) continue;
-            const absStart = sLocal + offsetSec;
-            const absEnd = eLocal + offsetSec;
-            if (!(absEnd >= startSec && absStart <= endSec)) continue;
-            out.push({
-                trackId: id,
-                note: n.note,
-                channel: n.channel || 0,
-                startSec: absStart,
-                endSec: absEnd,
-                velocity: n.velocity ?? 0,
-                duration: Math.max(0, absEnd - absStart),
-            });
+            for (let i = startIdx; i < notesRaw.length; i++) {
+                const n = notesRaw[i];
+                if (n.endTick <= (clip.regionStartTick ?? 0) || n.startTick >= (clip.regionEndTick ?? Number.POSITIVE_INFINITY)) {
+                    continue;
+                }
+                let startBeats: number | undefined = n.startBeat;
+                let endBeats: number | undefined = n.endBeat;
+                if (startBeats == null) startBeats = n.startTick / CANONICAL_PPQ;
+                if (endBeats == null) endBeats = n.endTick / CANONICAL_PPQ;
+                const sLocal = beatsToSeconds(map, startBeats, spbFallback);
+                const eLocal = beatsToSeconds(map, endBeats, spbFallback);
+                if (!(eLocal >= loLocal && sLocal <= hiLocal)) {
+                    if (cache.bounds && sLocal >= hiLocal) break;
+                    continue;
+                }
+                const absStart = sLocal + offsetSec;
+                const absEnd = eLocal + offsetSec;
+                if (!(absEnd >= startSec && absStart <= endSec)) continue;
+                out.push({
+                    trackId: id,
+                    clipId: clip.id,
+                    sourceId: clip.sourceId,
+                    note: n.note,
+                    channel: n.channel || 0,
+                    startSec: absStart,
+                    endSec: absEnd,
+                    velocity: n.velocity ?? 0,
+                    duration: Math.max(0, absEnd - absStart),
+                });
+            }
         }
     }
     out.sort((a, b) => a.startSec - b.startSec);

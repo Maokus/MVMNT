@@ -121,7 +121,22 @@ function applyDiffs(context: TimelineCommandContext, diffs: TrackDiff[]): void {
                 nextTracks = { ...state.tracks };
                 mutated = true;
             }
-            nextTracks[diff.trackId] = { ...existing, ...diff.apply } as TimelineTrackLike;
+            const nextTrack = { ...existing, ...diff.apply } as TimelineTrackLike;
+            if (
+                nextTrack.type === 'midi' &&
+                Array.isArray(nextTrack.clips) &&
+                nextTrack.clips.length === 1 &&
+                ('regionStartTick' in diff.apply || 'regionEndTick' in diff.apply)
+            ) {
+                nextTrack.clips = [
+                    {
+                        ...nextTrack.clips[0],
+                        ...('regionStartTick' in diff.apply ? { regionStartTick: diff.apply.regionStartTick } : {}),
+                        ...('regionEndTick' in diff.apply ? { regionEndTick: diff.apply.regionEndTick } : {}),
+                    },
+                ];
+            }
+            nextTracks[diff.trackId] = nextTrack;
         }
         if (!mutated) return state;
         return { tracks: nextTracks } as TimelineState;

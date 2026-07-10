@@ -48,6 +48,7 @@ import type { AddTrackCommandResult } from './timeline/commands/addTrackCommand'
 import type { TimelineCommandDispatchResult, TimelineSerializedCommandDescriptor } from './timeline/commandTypes';
 import { mergeFeatureCaches } from './timeline/featureCacheUtils';
 import { useSelectionStore } from '@state/selectionStore';
+import type { MidiClip } from './timeline/midiClips';
 
 export { getSharedTimingManager, sharedTimingManager } from './timeline/timelineShared';
 
@@ -61,12 +62,12 @@ export type TimelineTrack = {
     enabled: boolean;
     mute: boolean;
     solo: boolean;
-    // Canonical time domain fields
-    offsetTicks: number; // canonical track offset in ticks
-    // Optional region limits expressed in ticks (inclusive start, exclusive end semantics TBD)
+    clips?: MidiClip[];
+    // Legacy MIDI placement fields retained for old documents and current single-clip UI.
+    offsetTicks?: number;
     regionStartTick?: number;
     regionEndTick?: number;
-    midiSourceId?: string; // references midiCache key
+    midiSourceId?: string;
 };
 
 export interface HybridCacheFallbackEvent {
@@ -1018,6 +1019,29 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             }
             return {
                 midiCache: { ...s.midiCache, [id]: { ...data, notesRaw: notes, ccRaw: data.ccRaw ?? [], bounds } },
+                tracks:
+                    s.tracks[id]?.type === 'midi' &&
+                    Array.isArray((s.tracks[id] as TimelineTrack).clips) &&
+                    (s.tracks[id] as TimelineTrack).clips?.length === 0 &&
+                    !(s.tracks[id] as TimelineTrack).midiSourceId
+                        ? {
+                              ...s.tracks,
+                              [id]: {
+                                  ...(s.tracks[id] as TimelineTrack),
+                                  midiSourceId: id,
+                                  clips: [
+                                      {
+                                          id: `${id}__clip`,
+                                          type: 'midi',
+                                          sourceId: id,
+                                          offsetTicks: (s.tracks[id] as TimelineTrack).offsetTicks ?? 0,
+                                          name: s.tracks[id].name,
+                                          enabled: true,
+                                      },
+                                  ],
+                              },
+                          }
+                        : s.tracks,
             } as TimelineState;
         });
         // Now that notes are available, attempt auto adjust (if not user-defined)

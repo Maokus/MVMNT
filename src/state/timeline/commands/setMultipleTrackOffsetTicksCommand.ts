@@ -57,7 +57,11 @@ export function createSetMultipleTrackOffsetTicksCommand(
                 for (const { trackId, offsetTicks } of payload.offsets) {
                     const track = current.tracks[trackId];
                     if (!track) continue;
-                    next.tracks[trackId] = { ...track, offsetTicks };
+                    const nextTrack: any = { ...track, offsetTicks };
+                    if (nextTrack.type === 'midi' && Array.isArray(nextTrack.clips) && nextTrack.clips.length === 1) {
+                        nextTrack.clips = [{ ...nextTrack.clips[0], offsetTicks }];
+                    }
+                    next.tracks[trackId] = nextTrack;
                     // Recompute durationTicks for audio tracks
                     const cacheKey = (track as any).audioSourceId || trackId;
                     const cacheEntry = current.audioCache[cacheKey];

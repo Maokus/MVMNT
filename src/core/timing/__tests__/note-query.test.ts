@@ -64,4 +64,43 @@ describe('note-query utilities', () => {
         expect(first.startSec).toBeGreaterThan(0.45);
         expect(first.startSec).toBeLessThan(0.55);
     });
+
+    it('queries manually constructed multi-clip tracks', () => {
+        const PPQ = CANONICAL_PPQ;
+        useTimelineStore.setState((state) => ({
+            tracks: {
+                ...state.tracks,
+                track1: {
+                    id: 'track1',
+                    name: 'Multi',
+                    type: 'midi',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    clips: [
+                        { id: 'clip1', type: 'midi', sourceId: 'source1', offsetTicks: 0 },
+                        { id: 'clip2', type: 'midi', sourceId: 'source1', offsetTicks: PPQ * 4 },
+                    ],
+                },
+            },
+            tracksOrder: ['track1'],
+            midiCache: {
+                source1: {
+                    midiData: undefined as any,
+                    notesRaw: [{ note: 60, channel: 0, startTick: 0, endTick: PPQ, durationTicks: PPQ }],
+                    ccRaw: [],
+                    ticksPerQuarter: PPQ,
+                    bounds: { minTick: 0, maxTick: PPQ, minNote: 60, maxNote: 60, maxDurationTicks: PPQ },
+                },
+            },
+        }));
+
+        const notes = noteQueryApi.getNotesInWindow(useTimelineStore.getState(), ['track1'], 0, 5);
+
+        expect(notes.map((note) => [note.note, note.clipId, note.sourceId])).toEqual([
+            [60, 'clip1', 'source1'],
+            [60, 'clip2', 'source1'],
+        ]);
+        expect(notes[1].startSec).toBeCloseTo(2);
+    });
 });

@@ -10,6 +10,8 @@ export type TempoMapEntry = { time: number; tempo?: number; bpm?: number; curve?
 // plugin SDK without leaking internal state-layer import paths.
 export type TimelineNoteEvent = {
     trackId: string;
+    clipId?: string;
+    sourceId?: string;
     note: number;
     channel: number;
     startTime: number; // in timeline seconds
@@ -21,6 +23,8 @@ export type TimelineNoteEvent = {
 /** A single MIDI Control Change message, stored in seconds-domain time. */
 export interface TimelineCCEvent {
     trackId: string;
+    clipId?: string;
+    sourceId?: string;
     channel: number;
     controller: number; // 0–127, e.g. 64 = sustain pedal
     value: number; // 0–127
