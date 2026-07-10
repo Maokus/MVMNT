@@ -204,7 +204,9 @@ export type TimelineState = {
     _clipGroupDrag: { delta: number; trackIds: string[] } | null;
     _setClipGroupDrag: (drag: { delta: number; trackIds: string[] } | null) => void;
     _crossTrackDrag: {
+        kind?: 'midi' | 'audio';
         previews: Array<{
+            kind?: 'midi' | 'audio';
             clipId: string;
             sourceTrackId: string;
             targetTrackId: string;

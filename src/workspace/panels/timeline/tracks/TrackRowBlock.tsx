@@ -9,7 +9,9 @@ import AudioWaveform from '@workspace/components/AudioWaveform';
 import { formatQuantizeShortLabel } from '@state/timeline/quantize';
 import type { AudioTrack } from '@audio/audioTypes';
 import { getMidiClipTimelineBounds, getMidiClipsForTrack } from '@state/timeline/midiClips';
+import { getAudioClipTimelineBounds, getAudioClipsForTrack } from '@state/timeline/audioClips';
 import MidiClipBlock from './MidiClipBlock';
+import AudioClipBlock from './AudioClipBlock';
 
 type Props = {
     trackId: string;
@@ -341,94 +343,36 @@ const TrackRowBlock: React.FC<Props> = ({ trackId, trackIndex, laneWidth, laneHe
         );
     }
 
-    return (
-        <div className="relative h-full" onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
-            {shouldRenderClip && (
-                <div
-                    className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none overflow-hidden ${isSelected ? 'bg-blue-500/60 border border-blue-300/80' : 'bg-blue-500/40 border border-blue-400/60'}`}
-                    style={{ left: leftX, width: effectiveWidthPx, height: clipHeight }}
-                    title={tooltip}
-                    onPointerDown={onPointerDown}
-                    data-clip="1"
-                >
-                    {hasWaveform && (
-                        <div className="absolute inset-0 pointer-events-none opacity-70">
-                            <AudioWaveform
-                                trackId={trackId}
-                                height={clipHeight - 4}
-                                regionStartTickAbs={absStartTick}
-                                regionEndTickAbs={absEndTick}
-                            />
-                        </div>
-                    )}
-                    <div className="relative z-10 flex items-center gap-1">
-                        {editingName ? (
-                            <input
-                                className="bg-transparent text-white outline-none border-b border-blue-400 w-[80px] text-[11px] min-w-0"
-                                value={nameValue}
-                                autoFocus
-                                onClick={(e) => e.stopPropagation()}
-                                onPointerDown={(e) => e.stopPropagation()}
-                                onChange={(e) => setNameValue(e.target.value)}
-                                onBlur={() => {
-                                    const trimmed = nameValue.trim();
-                                    if (trimmed) updateTrack(trackId, { name: trimmed });
-                                    setEditingName(false);
-                                }}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        const trimmed = nameValue.trim();
-                                        if (trimmed) updateTrack(trackId, { name: trimmed });
-                                        setEditingName(false);
-                                    } else if (e.key === 'Escape') {
-                                        setEditingName(false);
-                                    }
-                                    e.stopPropagation();
-                                }}
-                            />
-                        ) : (
-                            <span
-                                onDoubleClick={(e) => {
-                                    e.stopPropagation();
-                                    setNameValue(track?.name ?? '');
-                                    setEditingName(true);
-                                }}
-                            >{track?.name}</span>
-                        )}
-                        <span className="opacity-80">{label}</span>
-                        <>
-                            <span className="ml-1 text-[10px] opacity-80">
-                                {audioCacheEntry ? `${(audioCacheEntry.durationTicks / ppq).toFixed(2)} beats` : 'loading...'}
-                            </span>
-                            {showFeatureChip && featureStatusLabel && (
-                                <span
-                                    className={`ml-1 rounded px-1.5 py-[1px] text-[10px] font-medium ${featureStatusClass}`}
-                                    title={featureStatusTitle}
-                                >
-                                    {featureStatusLabel}
-                                </span>
-                            )}
-                        </>
-                    </div>
+    if (track?.type === 'audio') {
+        const cache = useTimelineStore.getState().audioCache;
+        const viewportPad = Math.max(1, Math.floor((view.endTick - view.startTick) * 0.1));
+        const visibleStart = view.startTick - viewportPad;
+        const visibleEnd = view.endTick + viewportPad;
+        const clips = getAudioClipsForTrack(track).filter((clip) => {
+            if (clip.enabled === false) return false;
+            const bounds = getAudioClipTimelineBounds(cache, clip);
+            if (!bounds) return false;
+            return bounds.endTick >= visibleStart && bounds.startTick <= visibleEnd;
+        });
+        return (
+            <div className="relative h-full">
+                {clips.map((clip) => (
+                    <AudioClipBlock
+                        key={clip.id}
+                        trackId={trackId}
+                        trackIndex={trackIndex}
+                        rowHeight={laneHeight}
+                        clip={clip}
+                        laneWidth={laneWidth}
+                        laneHeight={laneHeight}
+                        onHoverSnapX={onHoverSnapX}
+                    />
+                ))}
+            </div>
+        );
+    }
 
-                    {canResize && (
-                        <>
-                            <div
-                                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize"
-                                onPointerDown={(e) => onResizeDown(e, 'left')}
-                                title="Resize start (Shift snaps to bars, Alt bypass)"
-                            />
-                            <div
-                                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
-                                onPointerDown={(e) => onResizeDown(e, 'right')}
-                                title="Resize end (Shift snaps to bars, Alt bypass)"
-                            />
-                        </>
-                    )}
-                </div>
-            )}
-        </div>
-    );
+    return null;
 };
 
 export default TrackRowBlock;

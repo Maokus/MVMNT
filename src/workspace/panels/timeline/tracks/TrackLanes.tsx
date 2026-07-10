@@ -11,6 +11,7 @@ import { AUTOMATION_HEADER_HEIGHT, TEMPO_LANE_HEIGHT } from '../constants';
 import GridLines from './GridLines';
 import TrackRowBlock from './TrackRowBlock';
 import { getMidiClipLocalBounds } from '@state/timeline/midiClips';
+import { getAudioClipLocalBounds } from '@state/timeline/audioClips';
 
 type Props = {
     trackIds: string[];
@@ -109,10 +110,19 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
             const segmentsByTrack = new Map<string, { minTick: number; maxTick: number }>();
             for (const ref of clipTimelineSelection.clips) {
                 const track = midiTracks[ref.trackId];
-                if (!track || track.type !== 'midi') continue;
-                const clip = track.clips?.find((c) => c.id === ref.clipId);
+                if (!track) continue;
+                const kind = ref.kind ?? track.type;
+                const clip =
+                    kind === 'midi' && track.type === 'midi'
+                        ? track.clips?.find((c) => c.id === ref.clipId)
+                        : kind === 'audio' && track.type === 'audio'
+                          ? track.clips?.find((c) => c.id === ref.clipId)
+                          : undefined;
                 if (!clip) continue;
-                const bounds = getMidiClipLocalBounds(midiCache, clip);
+                const bounds =
+                    kind === 'midi'
+                        ? getMidiClipLocalBounds(midiCache, clip as any)
+                        : getAudioClipLocalBounds(useTimelineStore.getState().audioCache, clip as any);
                 if (!bounds) continue;
                 const abStart = clip.offsetTicks + bounds.startTick;
                 const abEnd = clip.offsetTicks + bounds.endTick;
@@ -260,16 +270,25 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
                     {crossTrackDrag && crossTrackDrag.previews.map((preview) => {
                         const tIdx = trackIds.indexOf(preview.targetTrackId);
                         if (tIdx < 0) return null;
-                        const cacheEntry = midiCache[preview.sourceId];
-                        if (!cacheEntry) return null;
-                        const localBounds = getMidiClipLocalBounds(midiCache, {
-                            id: preview.clipId,
-                            type: 'midi',
-                            sourceId: preview.sourceId,
-                            offsetTicks: preview.previewOffsetTicks,
-                            regionStartTick: preview.regionStartTick,
-                            regionEndTick: preview.regionEndTick,
-                        });
+                        const kind = preview.kind ?? crossTrackDrag.kind ?? 'midi';
+                        const localBounds =
+                            kind === 'midi'
+                                ? getMidiClipLocalBounds(midiCache, {
+                                      id: preview.clipId,
+                                      type: 'midi',
+                                      sourceId: preview.sourceId,
+                                      offsetTicks: preview.previewOffsetTicks,
+                                      regionStartTick: preview.regionStartTick,
+                                      regionEndTick: preview.regionEndTick,
+                                  })
+                                : getAudioClipLocalBounds(useTimelineStore.getState().audioCache, {
+                                      id: preview.clipId,
+                                      type: 'audio',
+                                      sourceId: preview.sourceId,
+                                      offsetTicks: preview.previewOffsetTicks,
+                                      regionStartTick: preview.regionStartTick,
+                                      regionEndTick: preview.regionEndTick,
+                                  });
                         if (!localBounds) return null;
                         const absStart = preview.previewOffsetTicks + localBounds.startTick;
                         const absEnd = preview.previewOffsetTicks + localBounds.endTick;
@@ -280,7 +299,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
                         return (
                             <div
                                 key={`ghost-${preview.clipId}`}
-                                className="absolute z-30 rounded border border-sky-200/80 bg-sky-500/50 pointer-events-none"
+                                className={`absolute z-30 rounded border pointer-events-none ${kind === 'audio' ? 'border-emerald-200/80 bg-emerald-500/50' : 'border-sky-200/80 bg-sky-500/50'}`}
                                 style={{
                                     left: leftPx,
                                     top: tIdx * rowHeight + (rowHeight - clipHeight) / 2,
