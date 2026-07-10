@@ -30,6 +30,7 @@ export interface TimelineAudioMemorySummary {
     sourceCount: number;
     decodedPcmBytes: number;
     originalFileBytes: number;
+    externalOriginalFileBytes: number;
     waveformBytes: number;
     featureCacheBytes: number;
     retainedAudioBytes: number;
@@ -179,11 +180,18 @@ export function summarizeAudioMemory(
 ): TimelineAudioMemorySummary {
     let decodedPcmBytes = 0;
     let originalFileBytes = 0;
+    let externalOriginalFileBytes = 0;
     let waveformBytes = 0;
     for (const entry of Object.values(audioCache ?? {})) {
         if (!entry) continue;
-        decodedPcmBytes += estimateAudioBufferBytes(entry.audioBuffer);
-        originalFileBytes += entry.originalFile?.byteLength ?? entry.originalFile?.bytes?.byteLength ?? 0;
+        if (entry.audioBuffer) {
+            decodedPcmBytes += estimateAudioBufferBytes(entry.audioBuffer);
+        }
+        if (entry.originalFile?.bytes) {
+            originalFileBytes += entry.originalFile.bytes.byteLength;
+        } else if (entry.originalFile?.assetId) {
+            externalOriginalFileBytes += entry.originalFile.byteLength ?? 0;
+        }
         waveformBytes += entry.waveform?.channelPeaks?.byteLength ?? 0;
     }
     const featureCacheBytes = Object.values(audioFeatureCaches ?? {}).reduce(
@@ -197,6 +205,7 @@ export function summarizeAudioMemory(
         sourceCount: Object.keys(audioCache ?? {}).length,
         decodedPcmBytes,
         originalFileBytes,
+        externalOriginalFileBytes,
         waveformBytes,
         featureCacheBytes,
         retainedAudioBytes: decodedPcmBytes + originalFileBytes + waveformBytes + featureCacheBytes,

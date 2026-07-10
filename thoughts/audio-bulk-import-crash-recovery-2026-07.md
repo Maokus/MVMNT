@@ -104,6 +104,8 @@ Acceptance gate:
 - One corrupt file does not abort the whole batch.
 - Diagnostics retain the batch summary after the modal closes.
 
+Status: implemented in this pass. Current UI uses browser confirmation for threshold warnings and an in-timeline progress/cancel overlay; richer modal styling can follow without changing the batch import API.
+
 ### Phase 2: Stop Retaining WAV Original Bytes on the JS Heap
 
 Move `AudioCacheOriginalFile.bytes` out of Zustand for large audio. Introduce an `AudioAssetStore` in IndexedDB:
@@ -134,6 +136,8 @@ Acceptance gate:
 - Importing an 80 MB WAV no longer leaves an 80 MB `Uint8Array` in Zustand when IndexedDB storage succeeds.
 - Export still embeds the original audio bytes.
 - Existing scenes with inline `originalFile.bytes` still load.
+
+Status: implemented in this pass for large original audio payloads over 16 MB. Small originals stay inline for low overhead, and environments without durable IndexedDB fall back to memory with diagnostics warnings.
 
 ### Phase 3: Bound Decoded Audio Memory
 
@@ -166,6 +170,8 @@ Acceptance gate:
 - After bulk import, idle eviction can lower decoded PCM below the configured budget.
 - Playback/export never evicts a source currently in use.
 - Evicted tracks remain visible and become playable again after lazy re-decode.
+
+Status: implemented in this pass as a conservative residency layer. The app now tracks decoded source state, can evict inactive decoded buffers when the decoded PCM budget is exceeded, and can rehydrate evicted sources from `AudioAssetStore` for analysis paths. Playback-active sources are not evicted.
 
 ### Phase 4: Lightweight Autosave Journal for Crash Recovery
 
@@ -211,6 +217,8 @@ Acceptance gate:
 - Reload after a simulated crash offers recovery when journal revision is newer than the last explicit save.
 - Recovering a mid-import project restores all completed track inserts.
 - Missing audio assets produce recoverable disabled/missing tracks instead of failing import.
+
+Status: implemented in this pass. The journal stores a lightweight document plus audio source metadata/asset references, starts with the workspace, checkpoints on structural changes and track adds, and offers startup recovery when newer than the last explicit local save.
 
 ### Phase 5: Reduce Feature-Cache Memory and Make Analysis Demand-Driven
 

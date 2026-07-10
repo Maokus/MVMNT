@@ -10,6 +10,7 @@
 import { exportScene } from './export';
 import { importScene } from './import';
 import { LocalFileStore } from './local-file-store';
+import { clearCrashRecoveryJournal } from './crash-recovery-journal';
 
 export type LocalSaveResult =
     | { ok: true }
@@ -59,6 +60,12 @@ export const LocalSaveService = {
             console.warn('[LocalSaveService] Save completed with warnings:', res.warnings);
         }
 
+        try {
+            await clearCrashRecoveryJournal();
+        } catch {
+            /* ignore */
+        }
+
         return { ok: true };
     },
 
@@ -99,6 +106,14 @@ export const LocalSaveService = {
             return await LocalFileStore.exists();
         } catch {
             return false;
+        }
+    },
+
+    async savedAt(): Promise<number | null> {
+        try {
+            return await LocalFileStore.savedAt();
+        } catch {
+            return null;
         }
     },
 };

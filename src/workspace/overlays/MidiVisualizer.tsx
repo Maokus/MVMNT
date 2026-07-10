@@ -30,6 +30,12 @@ import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useSceneStore } from '@state/sceneStore';
 import { clearStoredImportPayload, readStoredImportPayload } from '@utils/importPayloadStorage';
 import { LocalSaveService } from '@persistence/local-save-service';
+import {
+    clearCrashRecoveryJournal,
+    loadCrashRecoveryJournal,
+    recoverFromCrashRecoveryJournal,
+    startCrashRecoveryJournaling,
+} from '@persistence/crash-recovery-journal';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { TemplateLoadingOverlay } from '../../components/TemplateLoadingOverlay';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
@@ -206,6 +212,10 @@ const MidiVisualizerInner: React.FC = () => {
 
     const diagnosticsBannerVisible = useAudioDiagnosticsStore((state) => state.bannerVisible);
     const showDiagnosticsBanner = diagnosticsBannerVisible;
+
+    useEffect(() => {
+        startCrashRecoveryJournaling();
+    }, []);
 
     const getTimelineBounds = useCallback(() => {
         if (typeof window === 'undefined') {
@@ -609,6 +619,25 @@ const TemplateInitializer: React.FC = () => {
                     refreshSceneUI();
                     didChange = true;
                 } else if (shouldLoadDefault) {
+                    const recovery = await loadCrashRecoveryJournal();
+                    const savedAt = await LocalSaveService.savedAt();
+                    if (recovery && (!savedAt || recovery.timestamp > savedAt)) {
+                        const recoveredAt = new Date(recovery.timestamp).toLocaleString();
+                        const shouldRecover = window.confirm(
+                            `MVMNT found unsaved recovery data from ${recoveredAt}.\n\nRecover it now? Choose Cancel to discard recovery data and continue with the last saved file or default template.`
+                        );
+                        if (shouldRecover) {
+                            await recoverFromCrashRecoveryJournal(recovery);
+                            refreshSceneUI();
+                            markDirty();
+                            didChange = true;
+                        } else {
+                            await clearCrashRecoveryJournal();
+                        }
+                    }
+                    if (didChange) {
+                        // recovered from journal
+                    } else {
                     // Try to restore from the user's last local save first.
                     const localResult = await LocalSaveService.loadSavedFile();
                     if (localResult.ok && localResult.loaded) {
@@ -630,6 +659,7 @@ const TemplateInitializer: React.FC = () => {
                             markSaveClean();
                             didChange = true;
                         }
+                    }
                     }
                 }
                 if (didChange) {

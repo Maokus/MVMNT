@@ -232,6 +232,7 @@ export class AudioEngine {
             const cache = s.audioCache[cacheKey];
             if (!cache) return;
             const buffer = cache.audioBuffer;
+            if (!buffer) return;
             const regionStart = track.regionStartTick ?? 0;
             const regionEnd = track.regionEndTick ?? cache.durationTicks;
             if (regionEnd <= regionStart) return;

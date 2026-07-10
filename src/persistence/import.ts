@@ -11,6 +11,7 @@ import {
     type SerializedAudioFeatureTrackDataRef,
 } from '@audio/features/audioFeatureAnalysis';
 import { base64ToUint8Array } from '@utils/base64';
+import { AudioAssetStore, createAudioAssetId } from './audio-asset-store';
 import { sha256Hex } from '@utils/hash/sha256';
 import { FontBinaryStore } from './font-binary-store';
 import { PluginBinaryStore } from './plugin-binary-store';
@@ -27,6 +28,7 @@ import { migrateSceneMidiClipsV8 } from './migrations/midiClipsV8';
 
 const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
+const INLINE_ORIGINAL_FILE_LIMIT_BYTES = 16 * 1024 * 1024;
 
 export interface ImportError {
     code?: string;
@@ -757,13 +759,37 @@ async function hydrateAudioAssets(
         const waveformRecord = resolveWaveformRecord(waveforms, assetId, waveformPayloads, warnings);
         const waveform = buildWaveform(waveformRecord);
         const buffer = await createAudioBufferFromAsset(payload.record, payload.bytes);
-        const originalFile = {
-            name: payload.record.filename,
-            mimeType: payload.record.mimeType,
-            bytes: payload.bytes,
-            byteLength: payload.bytes.byteLength,
-            hash: payload.record.hash,
+        let originalFile: {
+            name?: string;
+            mimeType: string;
+            bytes?: Uint8Array;
+            byteLength: number;
+            hash?: string;
+            assetId?: string;
+            storage?: 'indexeddb' | 'memory' | 'inline' | 'missing';
         };
+        if (payload.bytes.byteLength > INLINE_ORIGINAL_FILE_LIMIT_BYTES) {
+            const storedAssetId = createAudioAssetId('audio-import');
+            const storage = await AudioAssetStore.put(storedAssetId, payload.bytes);
+            originalFile = {
+                name: payload.record.filename,
+                mimeType: payload.record.mimeType,
+                byteLength: payload.bytes.byteLength,
+                hash: payload.record.hash,
+                assetId: storedAssetId,
+                storage,
+                bytes: storage === 'memory' ? payload.bytes : undefined,
+            };
+        } else {
+            originalFile = {
+                name: payload.record.filename,
+                mimeType: payload.record.mimeType,
+                bytes: payload.bytes,
+                byteLength: payload.bytes.byteLength,
+                hash: payload.record.hash,
+                storage: 'inline',
+            };
+        }
         try {
             const timelineState = useTimelineStore.getState();
             const cacheStatus = timelineState.audioFeatureCacheStatus?.[originalId];

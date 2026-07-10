@@ -17,9 +17,11 @@ export interface AudioTrack {
 export interface AudioCacheOriginalFile {
     name?: string;
     mimeType: string;
-    bytes: Uint8Array;
+    bytes?: Uint8Array;
     byteLength: number;
     hash?: string;
+    assetId?: string;
+    storage?: 'indexeddb' | 'memory' | 'inline' | 'missing';
 }
 
 export interface AudioCacheWaveform {
@@ -29,7 +31,7 @@ export interface AudioCacheWaveform {
 }
 
 export interface AudioCacheEntry {
-    audioBuffer: AudioBuffer;
+    audioBuffer?: AudioBuffer;
     durationTicks: number; // computed from buffer.duration via ticksPerSecond
     sampleRate: number;
     channels: number;
@@ -38,6 +40,9 @@ export interface AudioCacheEntry {
     filePath?: string; // optional reference (not persisted across sessions yet)
     originalFile?: AudioCacheOriginalFile;
     waveform?: AudioCacheWaveform;
+    decodedState?: 'ready' | 'evicted' | 'decoding' | 'failed';
+    decodedLastUsedAt?: number;
+    decodedFailureReason?: string;
 }
 
 export type AnyTrack = AudioTrack | import('@state/timelineStore').TimelineTrack; // existing midi timeline track

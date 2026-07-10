@@ -347,7 +347,8 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
                             }}
                         >
                             <MetricCell label="Decoded PCM" value={formatBytes(memorySummary.decodedPcmBytes)} />
-                            <MetricCell label="Original bytes" value={formatBytes(memorySummary.originalFileBytes)} />
+                            <MetricCell label="Original heap" value={formatBytes(memorySummary.originalFileBytes)} />
+                            <MetricCell label="Original assets" value={formatBytes(memorySummary.externalOriginalFileBytes)} />
                             <MetricCell label="Waveforms" value={formatBytes(memorySummary.waveformBytes)} />
                             <MetricCell label="Feature caches" value={formatBytes(memorySummary.featureCacheBytes)} />
                             <MetricCell label="Retained audio" value={formatBytes(memorySummary.retainedAudioBytes)} />

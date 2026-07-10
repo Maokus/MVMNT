@@ -17,6 +17,8 @@ import { useSelectionStore } from '@state/selectionStore';
 import type { MidiClip } from '../midiClips';
 import { estimateAudioBufferBytes, formatBytes } from '@audio/audioMemoryDiagnostics';
 import { recordAudioMemoryDiagnostic } from '@state/audioMemoryDiagnosticsStore';
+import { AudioAssetStore, createAudioAssetId } from '@persistence/audio-asset-store';
+import { checkpointCrashRecoveryJournal } from '@persistence/crash-recovery-journal';
 
 export type AddTrackCommandPayload =
     | {
@@ -108,6 +110,8 @@ interface PreparedAudioSource {
     originalFile?: AudioCacheOriginalFile;
 }
 
+const INLINE_ORIGINAL_FILE_LIMIT_BYTES = 16 * 1024 * 1024;
+
 async function prepareAudioSource(payload: { buffer?: AudioBuffer; file?: File }): Promise<PreparedAudioSource> {
     if (payload.buffer) {
         recordAudioMemoryDiagnostic({
@@ -137,21 +141,47 @@ async function prepareAudioSource(payload: { buffer?: AudioBuffer; file?: File }
             const decodeStartedAt = performance.now();
             const decoded = await ctx.decodeAudioData(arrayBuffer.slice(0));
             const decodedPcmBytes = estimateAudioBufferBytes(decoded);
-            const originalFile: AudioCacheOriginalFile = {
-                name: payload.file.name,
-                mimeType: payload.file.type || 'application/octet-stream',
-                bytes: new Uint8Array(arrayBuffer),
-                byteLength: arrayBuffer.byteLength,
-            };
+            let originalFile: AudioCacheOriginalFile;
+            if (arrayBuffer.byteLength > INLINE_ORIGINAL_FILE_LIMIT_BYTES) {
+                const assetId = createAudioAssetId('audio-original');
+                const storage = await AudioAssetStore.put(assetId, arrayBuffer);
+                originalFile = {
+                    name: payload.file.name,
+                    mimeType: payload.file.type || 'application/octet-stream',
+                    byteLength: arrayBuffer.byteLength,
+                    assetId,
+                    storage,
+                    bytes: storage === 'memory' ? new Uint8Array(arrayBuffer) : undefined,
+                };
+                recordAudioMemoryDiagnostic({
+                    severity: storage === 'indexeddb' ? 'info' : 'warning',
+                    stage: 'original-asset-store',
+                    message:
+                        storage === 'indexeddb'
+                            ? `Stored original bytes for ${payload.file.name} outside Zustand`
+                            : `Stored original bytes for ${payload.file.name} in memory fallback`,
+                    fileName: payload.file.name,
+                    bytes: { originalFile: arrayBuffer.byteLength },
+                });
+            } else {
+                originalFile = {
+                    name: payload.file.name,
+                    mimeType: payload.file.type || 'application/octet-stream',
+                    bytes: new Uint8Array(arrayBuffer),
+                    byteLength: arrayBuffer.byteLength,
+                    storage: 'inline',
+                };
+            }
             recordAudioMemoryDiagnostic({
                 severity: decodedPcmBytes + arrayBuffer.byteLength >= 512 * 1024 * 1024 ? 'warning' : 'info',
                 stage: 'decode-complete',
-                message: `Decoded ${payload.file.name}: ${formatBytes(decodedPcmBytes)} PCM plus ${formatBytes(arrayBuffer.byteLength)} original bytes retained`,
+                message: `Decoded ${payload.file.name}: ${formatBytes(decodedPcmBytes)} PCM plus ${formatBytes(arrayBuffer.byteLength)} original bytes ${originalFile.storage === 'indexeddb' ? 'asset-referenced' : 'retained'}`,
                 fileName: payload.file.name,
                 bytes: {
                     file: arrayBuffer.byteLength,
                     decodedPcm: decodedPcmBytes,
-                    retainedAudio: decodedPcmBytes + arrayBuffer.byteLength,
+                    retainedAudio:
+                        decodedPcmBytes + (originalFile.bytes?.byteLength ?? (originalFile.storage === 'indexeddb' ? 0 : arrayBuffer.byteLength)),
                 },
                 durationMs: performance.now() - decodeStartedAt,
             });
@@ -163,7 +193,8 @@ async function prepareAudioSource(payload: { buffer?: AudioBuffer; file?: File }
                 bytes: {
                     file: arrayBuffer.byteLength,
                     decodedPcm: decodedPcmBytes,
-                    retainedAudio: decodedPcmBytes + arrayBuffer.byteLength,
+                    retainedAudio:
+                        decodedPcmBytes + (originalFile.bytes?.byteLength ?? (originalFile.storage === 'indexeddb' ? 0 : arrayBuffer.byteLength)),
                 },
                 durationMs: performance.now() - startedAt,
             });
@@ -314,6 +345,7 @@ export function createAddTrackCommand(
             }
             autoAdjustSceneRangeIfNeeded(context.getState, context.setState);
             ensureWindowEvent(context, id);
+            void checkpointCrashRecoveryJournal('track-added');
             const redoPayload = buildRedoPayload(context, id, previousSelection);
             const undoPayload = buildUndoPayload(context, id, previousSelection);
             const patch: TimelineCommandPatch = {

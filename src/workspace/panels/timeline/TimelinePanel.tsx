@@ -23,6 +23,7 @@ import { useFileDrop } from './hooks/useFileDrop';
 import { useTimelineNavigation } from './hooks/useTimelineNavigation';
 import { useTimelinePointerControls } from './hooks/useTimelinePointerControls';
 import { useAutoFollow } from './hooks/useAutoFollow';
+import { formatBytes } from '@audio/audioMemoryDiagnostics';
 
 const TimelinePanel: React.FC = () => {
     const { visualizer } = useVisualizer();
@@ -43,11 +44,18 @@ const TimelinePanel: React.FC = () => {
 
     // File import
     const { fileRef, importMidiFile, handleAddFile } = useMidiImport({ requestImportMode, requestTempoImport });
-    const { audioFileRef, importAudioFile, handleAddAudio } = useAudioImport();
+    const {
+        audioFileRef,
+        importAudioFile,
+        importAudioFiles,
+        handleAddAudio,
+        audioImportProgress,
+        cancelAudioImport,
+    } = useAudioImport();
 
     // Drag-and-drop overlay
     const { isDragActive, onPanelDragEnter, onPanelDragOver, onPanelDragLeave, onPanelDrop, onPanelDropCapture } =
-        useFileDrop({ importMidiFile, importAudioFile });
+        useFileDrop({ importMidiFile, importAudioFile, importAudioFiles });
 
     // View navigation and keyboard shortcuts
     const { fitAll, zoomToSelection, centerOnPlayhead } = useTimelineNavigation();
@@ -156,6 +164,53 @@ const TimelinePanel: React.FC = () => {
                 {isDragActive && (
                     <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-dashed border-blue-500/80 bg-blue-500/10 text-blue-100 text-sm font-semibold uppercase tracking-wide">
                         Drop MIDI or audio files to add tracks
+                    </div>
+                )}
+                {audioImportProgress.active && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/45">
+                        <div className="w-[min(420px,calc(100%-32px))] rounded border border-neutral-700 bg-neutral-950 p-4 shadow-2xl">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <div className="text-sm font-semibold text-neutral-100">Importing audio</div>
+                                    <div className="mt-1 text-xs text-neutral-400">
+                                        {audioImportProgress.currentIndex} / {audioImportProgress.total}
+                                        {audioImportProgress.estimateRetainedBytes
+                                            ? ` · est. ${formatBytes(audioImportProgress.estimateRetainedBytes)} retained`
+                                            : ''}
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={cancelAudioImport}
+                                    disabled={audioImportProgress.cancelRequested}
+                                    className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {audioImportProgress.cancelRequested ? 'Canceling...' : 'Cancel'}
+                                </button>
+                            </div>
+                            <div className="mt-3 truncate text-xs text-neutral-300">
+                                {audioImportProgress.currentFile ?? 'Preparing batch...'}
+                            </div>
+                            <div className="mt-3 h-2 overflow-hidden rounded bg-neutral-800">
+                                <div
+                                    className="h-full bg-blue-500 transition-[width]"
+                                    style={{
+                                        width: `${Math.min(
+                                            100,
+                                            Math.max(
+                                                0,
+                                                (audioImportProgress.currentIndex / Math.max(1, audioImportProgress.total)) * 100
+                                            )
+                                        )}%`,
+                                    }}
+                                />
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-400">
+                                <span>Imported: {audioImportProgress.imported}</span>
+                                <span>Failed: {audioImportProgress.failed}</span>
+                                <span>Skipped: {audioImportProgress.skipped}</span>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

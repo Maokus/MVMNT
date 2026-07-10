@@ -5,6 +5,7 @@ import type { MIDIData } from '@core/types';
 import type { AudioTrack, AudioCacheEntry, AudioCacheOriginalFile, AudioCacheWaveform } from '@audio/audioTypes';
 import { estimateAudioBufferBytes, formatBytes, summarizeAudioMemory } from '@audio/audioMemoryDiagnostics';
 import { recordAudioMemoryDiagnostic } from './audioMemoryDiagnosticsStore';
+import { AudioAssetStore } from '@persistence/audio-asset-store';
 import type {
     AudioFeatureCache,
     AudioFeatureCacheStatus,
@@ -224,6 +225,8 @@ export type TimelineState = {
             skipAutoAnalysis?: boolean;
         }
     ) => void;
+    rehydrateAudioSource: (id: string) => Promise<boolean>;
+    evictDecodedAudioBuffers: (reason?: string) => number;
     ingestAudioFeatureCache: (id: string, cache: AudioFeatureCache) => void;
     invalidateAudioFeatureCachesByCalculator: (calculatorId: string, version: number) => void;
     setAudioFeatureCacheStatus: (
@@ -337,6 +340,134 @@ function cancelActiveAudioFeatureJob(id: string): void {
         job.cancel();
     } catch (error) {
         console.warn(`[timelineStore] failed to cancel audio analysis job for source "${id}"`, error);
+    }
+}
+
+const DECODED_AUDIO_TARGET_BYTES = 1.5 * 1024 * 1024 * 1024;
+
+async function decodeAudioBytes(bytes: ArrayBuffer): Promise<AudioBuffer> {
+    const AudioContextCtor =
+        typeof window !== 'undefined' ? window.AudioContext || (window as any).webkitAudioContext : undefined;
+    if (!AudioContextCtor) {
+        throw new Error('Audio decoding is not supported in this environment.');
+    }
+    const ctx = new AudioContextCtor();
+    try {
+        return await ctx.decodeAudioData(bytes.slice(0));
+    } finally {
+        try {
+            await ctx.close();
+        } catch {
+            /* ignore */
+        }
+    }
+}
+
+function isAudioSourceActive(state: TimelineState, sourceId: string): boolean {
+    const tracks = Object.values(state.tracks) as Array<any>;
+    for (const track of tracks) {
+        if (!track || track.type !== 'audio') continue;
+        const trackSourceId = track.audioSourceId ?? track.id;
+        if (trackSourceId !== sourceId) continue;
+        if (track.enabled && !track.mute) {
+            return true;
+        }
+    }
+    return false;
+}
+
+async function rehydrateAudioSourceInternal(
+    id: string,
+    get: () => TimelineState,
+    set: (fn: (state: TimelineState) => Partial<TimelineState> | TimelineState) => void
+): Promise<boolean> {
+    const entry = get().audioCache[id];
+    if (!entry) return false;
+    if (entry.audioBuffer) {
+        set((state: TimelineState) => ({
+            audioCache: {
+                ...state.audioCache,
+                [id]: { ...state.audioCache[id], decodedState: 'ready', decodedLastUsedAt: Date.now() },
+            },
+        }));
+        return true;
+    }
+    const original = entry.originalFile;
+    const inlineBytes = original?.bytes;
+    let bytes: ArrayBuffer | undefined;
+    if (inlineBytes) {
+        const copy = new Uint8Array(inlineBytes.byteLength);
+        copy.set(inlineBytes);
+        bytes = copy.buffer;
+    } else if (original?.assetId) {
+        bytes = await AudioAssetStore.get(original.assetId);
+    }
+    if (!bytes) {
+        set((state: TimelineState) => ({
+            audioCache: {
+                ...state.audioCache,
+                [id]: { ...state.audioCache[id], decodedState: 'failed', decodedFailureReason: 'original asset unavailable' },
+            },
+        }));
+        return false;
+    }
+
+    set((state: TimelineState) => ({
+        audioCache: {
+            ...state.audioCache,
+            [id]: { ...state.audioCache[id], decodedState: 'decoding', decodedFailureReason: undefined },
+        },
+    }));
+    try {
+        const buffer = await decodeAudioBytes(bytes);
+        const state = get();
+        const ctx = createTimelineTimingContext(state);
+        const offsetTicks = (state.tracks[id] as any)?.offsetTicks ?? 0;
+        const durationTicks = Math.round(timingSecondsToTicksAt(ctx, buffer.duration, offsetTicks));
+        set((current: TimelineState) => {
+            const existing = current.audioCache[id];
+            if (!existing) return current;
+            return {
+                audioCache: {
+                    ...current.audioCache,
+                    [id]: {
+                        ...existing,
+                        audioBuffer: buffer,
+                        durationTicks,
+                        sampleRate: buffer.sampleRate,
+                        channels: buffer.numberOfChannels,
+                        durationSeconds: buffer.duration,
+                        durationSamples: buffer.length,
+                        decodedState: 'ready',
+                        decodedLastUsedAt: Date.now(),
+                        decodedFailureReason: undefined,
+                    },
+                },
+            } as TimelineState;
+        });
+        recordAudioMemoryDiagnostic({
+            severity: 'info',
+            stage: 'decoded-buffer-rehydrated',
+            message: `Rehydrated decoded audio for ${id} (${formatBytes(estimateAudioBufferBytes(buffer))})`,
+            sourceId: id,
+            bytes: { decodedPcm: estimateAudioBufferBytes(buffer) },
+        });
+        return true;
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        set((state: TimelineState) => ({
+            audioCache: {
+                ...state.audioCache,
+                [id]: { ...state.audioCache[id], decodedState: 'failed', decodedFailureReason: message },
+            },
+        }));
+        recordAudioMemoryDiagnostic({
+            severity: 'error',
+            stage: 'decoded-buffer-rehydrate-failed',
+            message: `Failed to rehydrate decoded audio for ${id}: ${message}`,
+            sourceId: id,
+        });
+        return false;
     }
 }
 
@@ -1139,6 +1270,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                             durationSamples: buffer.length,
                             originalFile: options?.originalFile,
                             waveform: options?.waveform,
+                            decodedState: 'ready',
+                            decodedLastUsedAt: Date.now(),
                         },
                     },
                     tracks: {
@@ -1162,7 +1295,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             });
             const sourceRetainedBytes =
                 estimateAudioBufferBytes(buffer) +
-                (options?.originalFile?.byteLength ?? options?.originalFile?.bytes?.byteLength ?? 0) +
+                (options?.originalFile?.bytes?.byteLength ?? 0) +
                 (options?.waveform?.channelPeaks?.byteLength ?? 0);
             const memorySummary = summarizeAudioMemory(get().audioCache, get().audioFeatureCaches);
             recordAudioMemoryDiagnostic({
@@ -1172,13 +1305,23 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 sourceId: id,
                 bytes: {
                     decodedPcm: estimateAudioBufferBytes(buffer),
-                    originalFile: options?.originalFile?.byteLength ?? options?.originalFile?.bytes?.byteLength,
+                    originalFile: options?.originalFile?.bytes?.byteLength,
+                    externalOriginalFile: options?.originalFile?.assetId ? options.originalFile.byteLength : undefined,
                     waveform: options?.waveform?.channelPeaks?.byteLength,
                     retainedAudio: memorySummary.retainedAudioBytes,
                     browserHeapUsed: memorySummary.browserHeapUsedBytes,
                     browserHeapLimit: memorySummary.browserHeapLimitBytes,
                 },
             });
+            if (memorySummary.decodedPcmBytes > DECODED_AUDIO_TARGET_BYTES) {
+                setTimeout(() => {
+                    try {
+                        get().evictDecodedAudioBuffers('decoded PCM budget exceeded after ingest');
+                    } catch {
+                        /* ignore idle eviction errors */
+                    }
+                }, 0);
+            }
             // Kick off async peak extraction (non-blocking)
             (async () => {
                 try {
@@ -1241,6 +1384,70 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 );
             }
         }
+    },
+
+    async rehydrateAudioSource(id: string) {
+        return rehydrateAudioSourceInternal(id, get, set);
+    },
+
+    evictDecodedAudioBuffers(reason = 'manual') {
+        const state = get();
+        const summary = summarizeAudioMemory(state.audioCache, state.audioFeatureCaches);
+        if (summary.decodedPcmBytes <= DECODED_AUDIO_TARGET_BYTES && reason !== 'manual') {
+            return 0;
+        }
+        const candidates = Object.entries(state.audioCache)
+            .filter(([sourceId, entry]) => {
+                if (!entry?.audioBuffer) return false;
+                if (!entry.originalFile?.assetId && !entry.originalFile?.bytes) return false;
+                return !isAudioSourceActive(state, sourceId);
+            })
+            .map(([sourceId, entry]) => ({
+                sourceId,
+                bytes: entry.audioBuffer ? estimateAudioBufferBytes(entry.audioBuffer) : 0,
+                lastUsed: entry.decodedLastUsedAt ?? 0,
+            }))
+            .sort((a, b) => a.lastUsed - b.lastUsed);
+
+        let evictedCount = 0;
+        let evictedBytes = 0;
+        let remainingDecoded = summary.decodedPcmBytes;
+        const evictIds: string[] = [];
+        for (const candidate of candidates) {
+            if (reason !== 'manual' && remainingDecoded <= DECODED_AUDIO_TARGET_BYTES) {
+                break;
+            }
+            evictIds.push(candidate.sourceId);
+            evictedCount += 1;
+            evictedBytes += candidate.bytes;
+            remainingDecoded -= candidate.bytes;
+        }
+        if (!evictIds.length) {
+            return 0;
+        }
+        set((current: TimelineState) => {
+            const nextAudioCache = { ...current.audioCache };
+            for (const id of evictIds) {
+                const entry = nextAudioCache[id];
+                if (!entry) continue;
+                const { audioBuffer: _audioBuffer, ...rest } = entry;
+                nextAudioCache[id] = {
+                    ...rest,
+                    decodedState: 'evicted',
+                    decodedLastUsedAt: Date.now(),
+                    decodedFailureReason: undefined,
+                } as AudioCacheEntry;
+            }
+            return { audioCache: nextAudioCache } as TimelineState;
+        });
+        recordAudioMemoryDiagnostic({
+            severity: 'warning',
+            stage: 'decoded-buffer-evicted',
+            message: `Evicted ${evictedCount} decoded audio buffer${evictedCount === 1 ? '' : 's'} (${formatBytes(evictedBytes)}): ${reason}`,
+            fileCount: evictedCount,
+            bytes: { decodedPcm: evictedBytes },
+        });
+        return evictedCount;
     },
 
     ingestAudioFeatureCache(id: string, cache: AudioFeatureCache) {
@@ -1360,16 +1567,23 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     restartAudioFeatureAnalysis(id: string, analysisProfileId?: string | null) {
         const buffer = get().audioCache[id]?.audioBuffer;
         if (!buffer) {
-            set((s: TimelineState) => ({
-                audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
-                    s.audioFeatureCacheStatus,
-                    id,
-                    'failed',
-                    'no audio buffer available',
-                    undefined,
-                    null
-                ),
-            }));
+            void rehydrateAudioSourceInternal(id, get, set).then((ready) => {
+                const nextBuffer = get().audioCache[id]?.audioBuffer;
+                if (ready && nextBuffer) {
+                    scheduleAudioFeatureAnalysis(id, nextBuffer, get, set, { analysisProfileId });
+                    return;
+                }
+                set((s: TimelineState) => ({
+                    audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+                        s.audioFeatureCacheStatus,
+                        id,
+                        'failed',
+                        'no audio buffer available',
+                        undefined,
+                        null
+                    ),
+                }));
+            });
             return;
         }
         scheduleAudioFeatureAnalysis(id, buffer, get, set, { analysisProfileId });
@@ -1382,16 +1596,28 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         }
         const buffer = get().audioCache[id]?.audioBuffer;
         if (!buffer) {
-            set((s: TimelineState) => ({
-                audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
-                    s.audioFeatureCacheStatus,
-                    id,
-                    'failed',
-                    'no audio buffer available',
-                    undefined,
-                    null
-                ),
-            }));
+            void rehydrateAudioSourceInternal(id, get, set).then((ready) => {
+                const nextBuffer = get().audioCache[id]?.audioBuffer;
+                if (ready && nextBuffer) {
+                    scheduleAudioFeatureAnalysis(id, nextBuffer, get, set, {
+                        calculators: unique,
+                        statusMessage: unique.length === 1 ? 'reanalysing feature track' : 'reanalysing feature tracks',
+                        mergeWithExisting: true,
+                        analysisProfileId,
+                    });
+                    return;
+                }
+                set((s: TimelineState) => ({
+                    audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+                        s.audioFeatureCacheStatus,
+                        id,
+                        'failed',
+                        'no audio buffer available',
+                        undefined,
+                        null
+                    ),
+                }));
+            });
             return;
         }
         const statusMessage = unique.length === 1 ? 'reanalysing feature track' : 'reanalysing feature tracks';

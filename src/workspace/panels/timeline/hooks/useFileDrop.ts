@@ -5,9 +5,10 @@ import { isMidiFile, isAudioFile } from '../utils/fileTypeUtils';
 interface UseFileDropOptions {
     importMidiFile: (file: File) => Promise<boolean>;
     importAudioFile: (file: File) => Promise<boolean>;
+    importAudioFiles?: (files: File[]) => Promise<unknown>;
 }
 
-export function useFileDrop({ importMidiFile, importAudioFile }: UseFileDropOptions) {
+export function useFileDrop({ importMidiFile, importAudioFile, importAudioFiles }: UseFileDropOptions) {
     const dragCounterRef = useRef(0);
     const [isDragActive, setIsDragActive] = useState(false);
 
@@ -61,15 +62,19 @@ export function useFileDrop({ importMidiFile, importAudioFile }: UseFileDropOpti
             for (const midi of midiFiles) {
                 await importMidiFile(midi);
             }
-            for (const audio of audioFiles) {
-                await importAudioFile(audio);
+            if (importAudioFiles) {
+                await importAudioFiles(audioFiles);
+            } else {
+                for (const audio of audioFiles) {
+                    await importAudioFile(audio);
+                }
             }
             const ignored = unique.length - midiFiles.length - audioFiles.length;
             if (ignored > 0) {
                 alert(`Ignored ${ignored} file${ignored > 1 ? 's' : ''}. Only MIDI (.mid/.midi) and common audio formats are supported.`);
             }
         },
-        [importMidiFile, importAudioFile],
+        [importMidiFile, importAudioFile, importAudioFiles],
     );
 
     const onPanelDragEnter = useCallback<DragEventHandler<HTMLDivElement>>(
