@@ -5,6 +5,7 @@ import { registerSceneCommandListener } from '@state/scene';
 import { registerTimelineCommandListener } from '@state/timeline/timelineTelemetry';
 import {
     AudioDiagnosticsSection,
+    AudioMemoryDiagnosticsSection,
 } from './AudioDiagnosticsSection';
 import { TelemetrySection, type TelemetryEvent, type TelemetryMetrics } from './TelemetrySection';
 import { TransportSection } from './TransportSection';
@@ -61,6 +62,7 @@ export const DeveloperOverlay: React.FC = () => {
         scene: false,
         timeline: false,
         audio: false,
+        audioMemory: false,
         undo: false,
     });
 
@@ -225,6 +227,11 @@ export const DeveloperOverlay: React.FC = () => {
             <AudioDiagnosticsSection
                 open={sectionsOpen.audio}
                 onToggle={() => toggleSection('audio')}
+            />
+
+            <AudioMemoryDiagnosticsSection
+                open={sectionsOpen.audioMemory}
+                onToggle={() => toggleSection('audioMemory')}
             />
 
             <UndoSection

@@ -3,6 +3,9 @@ import { createWithEqualityFn } from 'zustand/traditional';
 import { shallow } from 'zustand/shallow';
 import type { MIDIData } from '@core/types';
 import type { AudioTrack, AudioCacheEntry, AudioCacheOriginalFile, AudioCacheWaveform } from '@audio/audioTypes';
+import { estimateAudioBufferBytes, estimateFeatureCacheBytes, formatBytes, summarizeAudioMemory } from '@audio/audioMemoryDiagnostics';
+import { recordAudioMemoryDiagnostic } from './audioMemoryDiagnosticsStore';
+import { AudioAssetStore } from '@persistence/audio-asset-store';
 import type {
     AudioFeatureCache,
     AudioFeatureCacheStatus,
@@ -56,6 +59,13 @@ import type {
     UpdateMidiClipsPayload,
     MoveMidiClipsBetweenTracksPayload,
 } from './timeline/commands/midiClipCommands';
+import type {
+    AddAudioClipPayload,
+    MoveAudioClipsBetweenTracksPayload,
+    RemoveAudioClipsPayload,
+    SetMultipleAudioClipOffsetsPayload,
+    UpdateAudioClipsPayload,
+} from './timeline/commands/audioClipCommands';
 
 export { getSharedTimingManager, sharedTimingManager } from './timeline/timelineShared';
 
@@ -150,6 +160,12 @@ export type TimelineState = {
     updateMidiClips: (input: UpdateMidiClipsPayload) => Promise<void>;
     setMultipleMidiClipOffsets: (input: SetMultipleMidiClipOffsetsPayload) => Promise<void>;
     moveMidiClipsBetweenTracks: (input: MoveMidiClipsBetweenTracksPayload) => Promise<void>;
+    addAudioClip: (input: AddAudioClipPayload) => Promise<string>;
+    removeAudioClips: (input: RemoveAudioClipsPayload) => Promise<void>;
+    updateAudioClip: (input: UpdateAudioClipsPayload['updates'][number]) => Promise<void>;
+    updateAudioClips: (input: UpdateAudioClipsPayload) => Promise<void>;
+    setMultipleAudioClipOffsets: (input: SetMultipleAudioClipOffsetsPayload) => Promise<void>;
+    moveAudioClipsBetweenTracks: (input: MoveAudioClipsBetweenTracksPayload) => Promise<void>;
     addAudioTrack: (input: {
         name: string;
         file?: File;
@@ -188,7 +204,9 @@ export type TimelineState = {
     _clipGroupDrag: { delta: number; trackIds: string[] } | null;
     _setClipGroupDrag: (drag: { delta: number; trackIds: string[] } | null) => void;
     _crossTrackDrag: {
+        kind?: 'midi' | 'audio';
         previews: Array<{
+            kind?: 'midi' | 'audio';
             clipId: string;
             sourceTrackId: string;
             targetTrackId: string;
@@ -222,6 +240,7 @@ export type TimelineState = {
             skipAutoAnalysis?: boolean;
         }
     ) => void;
+    rehydrateAudioSource: (id: string) => Promise<boolean>;
     ingestAudioFeatureCache: (id: string, cache: AudioFeatureCache) => void;
     invalidateAudioFeatureCachesByCalculator: (calculatorId: string, version: number) => void;
     setAudioFeatureCacheStatus: (
@@ -335,6 +354,122 @@ function cancelActiveAudioFeatureJob(id: string): void {
         job.cancel();
     } catch (error) {
         console.warn(`[timelineStore] failed to cancel audio analysis job for source "${id}"`, error);
+    }
+}
+
+const LARGE_AUDIO_IMPORT_BYTES = 64 * 1024 * 1024;
+const LARGE_FEATURE_CACHE_BYTES = 128 * 1024 * 1024;
+
+async function decodeAudioBytes(bytes: ArrayBuffer): Promise<AudioBuffer> {
+    const AudioContextCtor =
+        typeof window !== 'undefined' ? window.AudioContext || (window as any).webkitAudioContext : undefined;
+    if (!AudioContextCtor) {
+        throw new Error('Audio decoding is not supported in this environment.');
+    }
+    const ctx = new AudioContextCtor();
+    try {
+        return await ctx.decodeAudioData(bytes.slice(0));
+    } finally {
+        try {
+            await ctx.close();
+        } catch {
+            /* ignore */
+        }
+    }
+}
+
+async function rehydrateAudioSourceInternal(
+    id: string,
+    get: () => TimelineState,
+    set: (fn: (state: TimelineState) => Partial<TimelineState> | TimelineState) => void
+): Promise<boolean> {
+    const entry = get().audioCache[id];
+    if (!entry) return false;
+    if (entry.audioBuffer) {
+        set((state: TimelineState) => ({
+            audioCache: {
+                ...state.audioCache,
+                [id]: { ...state.audioCache[id], decodedState: 'ready', decodedLastUsedAt: Date.now() },
+            },
+        }));
+        return true;
+    }
+    const original = entry.originalFile;
+    const inlineBytes = original?.bytes;
+    let bytes: ArrayBuffer | undefined;
+    if (inlineBytes) {
+        const copy = new Uint8Array(inlineBytes.byteLength);
+        copy.set(inlineBytes);
+        bytes = copy.buffer;
+    } else if (original?.assetId) {
+        bytes = await AudioAssetStore.get(original.assetId);
+    }
+    if (!bytes) {
+        set((state: TimelineState) => ({
+            audioCache: {
+                ...state.audioCache,
+                [id]: { ...state.audioCache[id], decodedState: 'failed', decodedFailureReason: 'original asset unavailable' },
+            },
+        }));
+        return false;
+    }
+
+    set((state: TimelineState) => ({
+        audioCache: {
+            ...state.audioCache,
+            [id]: { ...state.audioCache[id], decodedState: 'decoding', decodedFailureReason: undefined },
+        },
+    }));
+    try {
+        const buffer = await decodeAudioBytes(bytes);
+        const state = get();
+        const ctx = createTimelineTimingContext(state);
+        const offsetTicks = (state.tracks[id] as any)?.offsetTicks ?? 0;
+        const durationTicks = Math.round(timingSecondsToTicksAt(ctx, buffer.duration, offsetTicks));
+        set((current: TimelineState) => {
+            const existing = current.audioCache[id];
+            if (!existing) return current;
+            return {
+                audioCache: {
+                    ...current.audioCache,
+                    [id]: {
+                        ...existing,
+                        audioBuffer: buffer,
+                        durationTicks,
+                        sampleRate: buffer.sampleRate,
+                        channels: buffer.numberOfChannels,
+                        durationSeconds: buffer.duration,
+                        durationSamples: buffer.length,
+                        decodedState: 'ready',
+                        decodedLastUsedAt: Date.now(),
+                        decodedFailureReason: undefined,
+                    },
+                },
+            } as TimelineState;
+        });
+        recordAudioMemoryDiagnostic({
+            severity: 'info',
+            stage: 'decoded-buffer-rehydrated',
+            message: `Rehydrated decoded audio for ${id} (${formatBytes(estimateAudioBufferBytes(buffer))})`,
+            sourceId: id,
+            bytes: { decodedPcm: estimateAudioBufferBytes(buffer) },
+        });
+        return true;
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        set((state: TimelineState) => ({
+            audioCache: {
+                ...state.audioCache,
+                [id]: { ...state.audioCache[id], decodedState: 'failed', decodedFailureReason: message },
+            },
+        }));
+        recordAudioMemoryDiagnostic({
+            severity: 'error',
+            stage: 'decoded-buffer-rehydrate-failed',
+            message: `Failed to rehydrate decoded audio for ${id}: ${message}`,
+            sourceId: id,
+        });
+        return false;
     }
 }
 
@@ -578,6 +713,35 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
     async moveMidiClipsBetweenTracks(input: MoveMidiClipsBetweenTracksPayload) {
         await timelineCommandGateway.dispatchById('timeline.moveMidiClipsBetweenTracks', input, {
+            source: 'timeline-store',
+        });
+    },
+    async addAudioClip(input: AddAudioClipPayload) {
+        const result = await timelineCommandGateway.dispatchById<{ clipId: string }>('timeline.addAudioClip', input, {
+            source: 'timeline-store',
+        });
+        return result.result?.clipId ?? '';
+    },
+    async removeAudioClips(input: RemoveAudioClipsPayload) {
+        await timelineCommandGateway.dispatchById('timeline.removeAudioClips', input, { source: 'timeline-store' });
+    },
+    async updateAudioClip(input: UpdateAudioClipsPayload['updates'][number]) {
+        await timelineCommandGateway.dispatchById(
+            'timeline.updateAudioClips',
+            { updates: [input] },
+            { source: 'timeline-store' },
+        );
+    },
+    async updateAudioClips(input: UpdateAudioClipsPayload) {
+        await timelineCommandGateway.dispatchById('timeline.updateAudioClips', input, { source: 'timeline-store' });
+    },
+    async setMultipleAudioClipOffsets(input: SetMultipleAudioClipOffsetsPayload) {
+        await timelineCommandGateway.dispatchById('timeline.setMultipleAudioClipOffsets', input, {
+            source: 'timeline-store',
+        });
+    },
+    async moveAudioClipsBetweenTracks(input: MoveAudioClipsBetweenTracksPayload) {
+        await timelineCommandGateway.dispatchById('timeline.moveAudioClipsBetweenTracks', input, {
             source: 'timeline-store',
         });
     },
@@ -1137,26 +1301,70 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                             durationSamples: buffer.length,
                             originalFile: options?.originalFile,
                             waveform: options?.waveform,
+                            decodedState: 'ready',
+                            decodedLastUsedAt: Date.now(),
                         },
                     },
                     tracks: {
                         ...s.tracks,
-                        [id]: { ...(s.tracks[id] as any), audioSourceId: id },
+                        [id]: {
+                            ...(s.tracks[id] as any),
+                            audioSourceId: id,
+                            clips:
+                                s.tracks[id]?.type === 'audio' &&
+                                Array.isArray((s.tracks[id] as AudioTrack).clips) &&
+                                (s.tracks[id] as AudioTrack).clips?.length === 0
+                                    ? [
+                                          {
+                                              id: `${id}__audio_clip`,
+                                              type: 'audio',
+                                              sourceId: id,
+                                              offsetTicks: (s.tracks[id] as AudioTrack).offsetTicks ?? 0,
+                                              name: s.tracks[id].name,
+                                              enabled: true,
+                                          },
+                                      ]
+                                    : (s.tracks[id] as AudioTrack | undefined)?.clips,
+                        },
                     },
                 };
                 const existingStatus = s.audioFeatureCacheStatus[id];
                 const preserveReadyStatus = Boolean(options?.skipAutoAnalysis && existingStatus?.state === 'ready');
+                const statusMessage =
+                    (options?.originalFile?.byteLength ?? 0) >= LARGE_AUDIO_IMPORT_BYTES
+                        ? 'analysis deferred for large audio import'
+                        : 'analysis not started';
                 updates.audioFeatureCacheStatus = preserveReadyStatus
                     ? { ...s.audioFeatureCacheStatus }
                     : updateAudioFeatureStatusEntry(
                           s.audioFeatureCacheStatus,
                           id,
                           'idle',
-                          'analysis not started',
+                          statusMessage,
                           undefined,
                           null
                       );
                 return updates as TimelineState;
+            });
+            const sourceRetainedBytes =
+                estimateAudioBufferBytes(buffer) +
+                (options?.originalFile?.bytes?.byteLength ?? 0) +
+                (options?.waveform?.channelPeaks?.byteLength ?? 0);
+            const memorySummary = summarizeAudioMemory(get().audioCache, get().audioFeatureCaches);
+            recordAudioMemoryDiagnostic({
+                severity: sourceRetainedBytes >= 512 * 1024 * 1024 || memorySummary.retainedAudioBytes >= 1.5 * 1024 * 1024 * 1024 ? 'warning' : 'info',
+                stage: 'audio-cache-ingest',
+                message: `Cached source ${id}; source retained ${formatBytes(sourceRetainedBytes)}, project retained audio ${formatBytes(memorySummary.retainedAudioBytes)}`,
+                sourceId: id,
+                bytes: {
+                    decodedPcm: estimateAudioBufferBytes(buffer),
+                    originalFile: options?.originalFile?.bytes?.byteLength,
+                    externalOriginalFile: options?.originalFile?.assetId ? options.originalFile.byteLength : undefined,
+                    waveform: options?.waveform?.channelPeaks?.byteLength,
+                    retainedAudio: memorySummary.retainedAudioBytes,
+                    browserHeapUsed: memorySummary.browserHeapUsedBytes,
+                    browserHeapLimit: memorySummary.browserHeapLimitBytes,
+                },
             });
             // Kick off async peak extraction (non-blocking)
             (async () => {
@@ -1179,6 +1387,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                                 [id]: { ...existing, waveform },
                             },
                         } as TimelineState;
+                    });
+                    recordAudioMemoryDiagnostic({
+                        severity: 'info',
+                        stage: 'waveform-cache-ready',
+                        message: `Waveform peaks cached for ${id} (${formatBytes(res.peaks.byteLength)})`,
+                        sourceId: id,
+                        bytes: { waveform: res.peaks.byteLength },
                     });
                 } catch (error) {
                     console.warn(
@@ -1215,6 +1430,10 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         }
     },
 
+    async rehydrateAudioSource(id: string) {
+        return rehydrateAudioSourceInternal(id, get, set);
+    },
+
     ingestAudioFeatureCache(id: string, cache: AudioFeatureCache) {
         cancelActiveAudioFeatureJob(id);
         if (cache.version !== 3) {
@@ -1241,6 +1460,19 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 null
             ),
         }));
+        const memorySummary = summarizeAudioMemory(get().audioCache, get().audioFeatureCaches);
+        const cacheBytes = estimateFeatureCacheBytes(normalized);
+        recordAudioMemoryDiagnostic({
+            severity: cacheBytes >= LARGE_FEATURE_CACHE_BYTES || memorySummary.featureCacheBytes >= 512 * 1024 * 1024 ? 'warning' : 'info',
+            stage: 'feature-cache-ingest',
+            message: `Feature cache updated for ${id}; cache ${formatBytes(cacheBytes)}, feature payloads now ${formatBytes(memorySummary.featureCacheBytes)}`,
+            sourceId: id,
+            bytes: {
+                featureCache: cacheBytes,
+                featureCacheTotal: memorySummary.featureCacheBytes,
+                retainedAudio: memorySummary.retainedAudioBytes,
+            },
+        });
         try {
             autoAdjustSceneRangeIfNeeded(get, set);
         } catch {}
@@ -1321,16 +1553,23 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     restartAudioFeatureAnalysis(id: string, analysisProfileId?: string | null) {
         const buffer = get().audioCache[id]?.audioBuffer;
         if (!buffer) {
-            set((s: TimelineState) => ({
-                audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
-                    s.audioFeatureCacheStatus,
-                    id,
-                    'failed',
-                    'no audio buffer available',
-                    undefined,
-                    null
-                ),
-            }));
+            void rehydrateAudioSourceInternal(id, get, set).then((ready) => {
+                const nextBuffer = get().audioCache[id]?.audioBuffer;
+                if (ready && nextBuffer) {
+                    scheduleAudioFeatureAnalysis(id, nextBuffer, get, set, { analysisProfileId });
+                    return;
+                }
+                set((s: TimelineState) => ({
+                    audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+                        s.audioFeatureCacheStatus,
+                        id,
+                        'failed',
+                        'no audio buffer available',
+                        undefined,
+                        null
+                    ),
+                }));
+            });
             return;
         }
         scheduleAudioFeatureAnalysis(id, buffer, get, set, { analysisProfileId });
@@ -1343,16 +1582,28 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         }
         const buffer = get().audioCache[id]?.audioBuffer;
         if (!buffer) {
-            set((s: TimelineState) => ({
-                audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
-                    s.audioFeatureCacheStatus,
-                    id,
-                    'failed',
-                    'no audio buffer available',
-                    undefined,
-                    null
-                ),
-            }));
+            void rehydrateAudioSourceInternal(id, get, set).then((ready) => {
+                const nextBuffer = get().audioCache[id]?.audioBuffer;
+                if (ready && nextBuffer) {
+                    scheduleAudioFeatureAnalysis(id, nextBuffer, get, set, {
+                        calculators: unique,
+                        statusMessage: unique.length === 1 ? 'reanalysing feature track' : 'reanalysing feature tracks',
+                        mergeWithExisting: true,
+                        analysisProfileId,
+                    });
+                    return;
+                }
+                set((s: TimelineState) => ({
+                    audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+                        s.audioFeatureCacheStatus,
+                        id,
+                        'failed',
+                        'no audio buffer available',
+                        undefined,
+                        null
+                    ),
+                }));
+            });
             return;
         }
         const statusMessage = unique.length === 1 ? 'reanalysing feature track' : 'reanalysing feature tracks';

@@ -123,12 +123,12 @@ function applyDiffs(context: TimelineCommandContext, diffs: TrackDiff[]): void {
             }
             const nextTrack = { ...existing, ...diff.apply } as TimelineTrackLike;
             if (
-                nextTrack.type === 'midi' &&
+                (nextTrack.type === 'midi' || nextTrack.type === 'audio') &&
                 Array.isArray(nextTrack.clips) &&
                 nextTrack.clips.length === 1 &&
                 ('regionStartTick' in diff.apply || 'regionEndTick' in diff.apply)
             ) {
-                nextTrack.clips = [
+                (nextTrack as any).clips = [
                     {
                         ...nextTrack.clips[0],
                         ...('regionStartTick' in diff.apply ? { regionStartTick: diff.apply.regionStartTick } : {}),

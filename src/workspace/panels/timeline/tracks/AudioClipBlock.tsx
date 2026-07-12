@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
-import { useSelectionStore } from '@state/selectionStore';
-import { getMidiClipLocalBounds, getMidiClipTimelineBounds, type MidiClip } from '@state/timeline/midiClips';
+import type { AudioClip } from '@audio/audioTypes';
+import { getAudioClipLocalBounds, getAudioClipsForTrack } from '@state/timeline/audioClips';
 import { formatQuantizeShortLabel } from '@state/timeline/quantize';
+import { useSelectionStore } from '@state/selectionStore';
 import { useTimelineStore } from '@state/timelineStore';
-import MidiNotePreview from '@workspace/components/MidiNotePreview';
-import { getMidiClipsInTimelineSelection, type TimelineClipRef } from '../clipboard/midiClipClipboard';
+import AudioWaveform from '@workspace/components/AudioWaveform';
+import { getAudioClipsInTimelineSelection, type TimelineClipRef } from '../clipboard/midiClipClipboard';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import { useTickScale } from '../hooks/useTickScale';
 
@@ -13,7 +14,7 @@ type Props = {
     trackId: string;
     trackIndex: number;
     rowHeight: number;
-    clip: MidiClip;
+    clip: AudioClip;
     laneWidth: number;
     laneHeight: number;
     onHoverSnapX: (x: number | null) => void;
@@ -35,11 +36,11 @@ type ResizeStart = {
     alt: boolean;
 };
 
-const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, laneWidth, laneHeight, onHoverSnapX }) => {
-    const midiCacheEntry = useTimelineStore((s) => s.midiCache[clip.sourceId]);
-    const updateMidiClip = useTimelineStore((s) => s.updateMidiClip);
-    const setMultipleMidiClipOffsets = useTimelineStore((s) => s.setMultipleMidiClipOffsets);
-    const moveMidiClipsBetweenTracks = useTimelineStore((s) => s.moveMidiClipsBetweenTracks);
+const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, laneWidth, laneHeight, onHoverSnapX }) => {
+    const audioCacheEntry = useTimelineStore((s) => s.audioCache[clip.sourceId]);
+    const updateAudioClip = useTimelineStore((s) => s.updateAudioClip);
+    const setMultipleAudioClipOffsets = useTimelineStore((s) => s.setMultipleAudioClipOffsets);
+    const moveAudioClipsBetweenTracks = useTimelineStore((s) => s.moveAudioClipsBetweenTracks);
     const setCrossTrackDrag = useTimelineStore((s) => s._setCrossTrackDrag);
     const crossTrackDrag = useTimelineStore((s) => s._crossTrackDrag);
     const tracksOrder = useTimelineStore((s) => s.tracksOrder);
@@ -61,7 +62,7 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
     const clipElRef = useRef<HTMLDivElement | null>(null);
     const activePointerIdRef = useRef<number | null>(null);
 
-    const localBounds = useMemo(() => getMidiClipLocalBounds(useTimelineStore.getState().midiCache, clip), [clip, midiCacheEntry]);
+    const localBounds = useMemo(() => getAudioClipLocalBounds(useTimelineStore.getState().audioCache, clip), [clip, audioCacheEntry]);
     if (!localBounds) return null;
 
     const localStartTick = resizePreview?.start ?? localBounds.startTick;
@@ -77,13 +78,9 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
     const clipHeight = Math.max(18, laneHeight * 0.6);
     const offsetBeats = offsetTick / ppq;
     const beatsPerBar = Math.max(1, bpb);
-    const offsetBeatsAbs = Math.abs(offsetBeats);
-    const wholeBeats = Math.floor(offsetBeatsAbs + 1e-9);
-    const barsDisplay = Math.floor(wholeBeats / beatsPerBar);
-    const beatInBarDisplay = (wholeBeats % beatsPerBar) + 1;
-    const sign = offsetBeats < 0 ? '-' : '+';
-    const label = `${sign}${barsDisplay}|${beatInBarDisplay}`;
-    const displayName = clip.name || useTimelineStore.getState().tracks[trackId]?.name || 'MIDI clip';
+    const wholeBeats = Math.floor(Math.abs(offsetBeats) + 1e-9);
+    const label = `${offsetBeats < 0 ? '-' : '+'}${Math.floor(wholeBeats / beatsPerBar)}|${(wholeBeats % beatsPerBar) + 1}`;
+    const displayName = clip.name || useTimelineStore.getState().tracks[trackId]?.name || 'Audio clip';
 
     const isSelected = useMemo(() => {
         if (!clipTimelineSelection) return false;
@@ -97,72 +94,43 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
         return absStartTick < selectionEnd && absEndTick > selectionStart;
     }, [absEndTick, absStartTick, clipTimelineSelection, trackId, clip.id]);
 
-    const isCrossDragging = crossTrackDrag?.previews.some((p) => p.clipId === clip.id) ?? false;
+    const isCrossDragging = crossTrackDrag?.previews.some((p) => p.clipId === clip.id && p.sourceTrackId === trackId) ?? false;
 
     const tooltip = useMemo(() => {
-        const st = useTimelineStore.getState();
-        const bpm = st.timeline.globalBpm || 120;
-        const secPerBeat = 60 / bpm;
-        const ticksToSec = (tick: number) => (tick / ppq) * secPerBeat;
-        const fmt = (seconds: number) => `${seconds.toFixed(2)}s`;
-        const fmtBar = (tick: number) => {
-            const beats = tick / ppq;
-            const negative = beats < 0;
-            const abs = Math.abs(beats);
-            const barIdx = Math.floor(abs / beatsPerBar) + 1;
-            const beatInBar = Math.floor(abs % beatsPerBar) + 1;
-            return `${negative ? '-' : ''}${barIdx}|${beatInBar}`;
-        };
         const snapInfo = `Snap: ${formatQuantizeShortLabel(quantize)} (hold Alt to bypass)`;
-        return `Clip: ${displayName}\n${snapInfo}\nOffset ${label}\nStart ${fmt(ticksToSec(absStartTick))} (${fmtBar(absStartTick)})\nEnd ${fmt(ticksToSec(absEndTick))} (${fmtBar(absEndTick)})`;
-    }, [absStartTick, absEndTick, beatsPerBar, displayName, label, ppq, quantize]);
+        return `Clip: ${displayName}\n${snapInfo}\nOffset ${label}`;
+    }, [displayName, label, quantize]);
 
     const selectForPointer = (e: React.PointerEvent): TimelineClipRef[] => {
         const state = useTimelineStore.getState();
         const currentSelection = useSelectionStore.getState().clipTimelineSelection;
-        const selectedRefs = getMidiClipsInTimelineSelection(state, currentSelection);
+        const selectedRefs = getAudioClipsInTimelineSelection(state, currentSelection);
         const alreadySelected = selectedRefs.some((entry) => entry.trackId === trackId && entry.clipId === clip.id);
-
         if (e.shiftKey || e.metaKey || e.ctrlKey) {
-            // Shift/Cmd: toggle this clip in the selection
             const base: TimelineClipRef[] = currentSelection?.type === 'clips' ? [...currentSelection.clips] : selectedRefs;
             const existingIndex = base.findIndex((c) => c.trackId === trackId && c.clipId === clip.id);
             const next: TimelineClipRef[] = existingIndex >= 0
                 ? base.filter((_, i) => i !== existingIndex)
-                : [...base, { trackId, clipId: clip.id }];
-            if (next.length) {
-                selectClipTimeline({ type: 'clips', clips: next });
-                return next;
-            }
-            selectClipTimeline(null);
-            return [];
+                : [...base, { trackId, clipId: clip.id, kind: 'audio' }];
+            selectClipTimeline(next.length ? { type: 'clips', clips: next } : null);
+            return next;
         }
-
-        if (alreadySelected) {
-            // Already selected — preserve selection for drag
-            return selectedRefs;
-        }
-
-        // Plain click: select only this clip
-        const nextSelection = { type: 'clips' as const, clips: [{ trackId, clipId: clip.id }] };
+        if (alreadySelected) return selectedRefs;
+        const nextSelection = { type: 'clips' as const, clips: [{ trackId, clipId: clip.id, kind: 'audio' as const }] };
         selectClipTimeline(nextSelection);
         return nextSelection.clips;
     };
 
     const selectRefsAsClips = (refs: TimelineClipRef[]) => {
-        if (refs.length) {
-            selectClipTimeline({ type: 'clips', clips: refs });
-        }
+        if (refs.length) selectClipTimeline({ type: 'clips', clips: refs.map((ref) => ({ ...ref, kind: 'audio' })) });
     };
 
     const releaseClipPointerCapture = (pointerId: number | null) => {
         if (pointerId == null) return;
         try {
             const clipEl = clipElRef.current;
-            if (clipEl?.hasPointerCapture?.(pointerId)) {
-                clipEl.releasePointerCapture(pointerId);
-            }
-        } catch { }
+            if (clipEl?.hasPointerCapture?.(pointerId)) clipEl.releasePointerCapture(pointerId);
+        } catch {}
     };
 
     const finishPointerGesture = (pointerId: number | null) => {
@@ -174,10 +142,9 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
             setResizePreview(null);
             if (preview && didMove) {
                 const regionStartTick = preview.start <= 0 ? undefined : preview.start;
-                const regionEndTick =
-                    midiCacheEntry?.bounds && preview.end >= midiCacheEntry.bounds.maxTick ? undefined : preview.end;
-                void updateMidiClip({ trackId, clipId: clip.id, patch: { regionStartTick, regionEndTick } }).then(() => {
-                    selectRefsAsClips([{ trackId, clipId: clip.id }]);
+                const regionEndTick = audioCacheEntry && preview.end >= audioCacheEntry.durationTicks ? undefined : preview.end;
+                void updateAudioClip({ trackId, clipId: clip.id, patch: { regionStartTick, regionEndTick } }).then(() => {
+                    selectRefsAsClips([{ trackId, clipId: clip.id, kind: 'audio' }]);
                 });
             }
             return;
@@ -187,12 +154,9 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
         const finalTick = dragTick;
         setDragTick(null);
         onHoverSnapX(null);
-
         const activeCrossTrackDrag = crossTrackDrag;
         setCrossTrackDrag(null);
-
         if (!drag || !didMove) return;
-
         if (activeCrossTrackDrag && activeCrossTrackDrag.previews.some((p) => p.sourceTrackId !== p.targetTrackId)) {
             const moves = activeCrossTrackDrag.previews.map((p) => ({
                 sourceTrackId: p.sourceTrackId,
@@ -200,28 +164,26 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
                 destinationTrackId: p.targetTrackId,
                 newOffsetTicks: p.previewOffsetTicks,
             }));
-            void moveMidiClipsBetweenTracks({ moves }).then(() => {
-                selectRefsAsClips(moves.map((m) => ({ trackId: m.destinationTrackId, clipId: m.clipId })));
+            void moveAudioClipsBetweenTracks({ moves }).then(() => {
+                selectRefsAsClips(moves.map((m) => ({ trackId: m.destinationTrackId, clipId: m.clipId, kind: 'audio' })));
             });
             return;
         }
-
         if (finalTick == null) return;
-
         if (drag.groupBaseOffsets.length > 1) {
             const delta = finalTick - drag.baseOffsetTick;
-            void setMultipleMidiClipOffsets({
+            void setMultipleAudioClipOffsets({
                 offsets: drag.groupBaseOffsets.map((entry) => ({
                     trackId: entry.trackId,
                     clipId: entry.clipId,
                     offsetTicks: entry.offsetTicks + delta,
                 })),
             }).then(() => {
-                selectRefsAsClips(drag.groupBaseOffsets.map((entry) => ({ trackId: entry.trackId, clipId: entry.clipId })));
+                selectRefsAsClips(drag.groupBaseOffsets.map((entry) => ({ trackId: entry.trackId, clipId: entry.clipId, kind: 'audio' })));
             });
         } else {
-            void updateMidiClip({ trackId, clipId: clip.id, patch: { offsetTicks: finalTick } }).then(() => {
-                selectRefsAsClips([{ trackId, clipId: clip.id }]);
+            void updateAudioClip({ trackId, clipId: clip.id, patch: { offsetTicks: finalTick } }).then(() => {
+                selectRefsAsClips([{ trackId, clipId: clip.id, kind: 'audio' }]);
             });
         }
     };
@@ -249,10 +211,11 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
         const nextSelection = selectForPointer(e);
         const storeState = useTimelineStore.getState();
         const groupBaseOffsets = nextSelection
+            .filter((entry) => (entry.kind ?? storeState.tracks[entry.trackId]?.type) === 'audio')
             .map((entry) => {
                 const track = storeState.tracks[entry.trackId];
-                if (!track || track.type !== 'midi') return null;
-                const targetClip = track.clips?.find((candidate) => candidate.id === entry.clipId);
+                if (!track || track.type !== 'audio') return null;
+                const targetClip = getAudioClipsForTrack(track).find((candidate) => candidate.id === entry.clipId);
                 const ti = storeState.tracksOrder.indexOf(entry.trackId);
                 return targetClip
                     ? { trackId: entry.trackId, clipId: entry.clipId, offsetTicks: targetClip.offsetTicks, trackIndex: ti }
@@ -281,11 +244,9 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
             const snappedAbs = snapTicks(candidateAbs, e.ctrlKey || e.metaKey || resize.alt, false);
             const nextLocal = Math.max(0, snappedAbs - clip.offsetTicks);
             if (resize.type === 'left') {
-                const limited = Math.min(nextLocal, localEndTick - 1);
-                setResizePreview({ start: Math.max(0, Math.round(limited)), end: localEndTick });
+                setResizePreview({ start: Math.max(0, Math.round(Math.min(nextLocal, localEndTick - 1))), end: localEndTick });
             } else {
-                const limited = Math.max(nextLocal, localStartTick + 1);
-                setResizePreview({ start: localStartTick, end: Math.round(limited) });
+                setResizePreview({ start: localStartTick, end: Math.round(Math.max(nextLocal, localStartTick + 1)) });
             }
             setDidMove(true);
             return;
@@ -301,42 +262,25 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
         onHoverSnapX(toX(snapped + localStartTick, laneWidth));
         if (Math.abs(dx) > 2 || Math.abs(dy) > 2) setDidMove(true);
 
-        // Cross-track drag detection
         const trackDelta = Math.round(dy / Math.max(1, rowHeight));
         if (trackDelta !== 0 && drag.groupBaseOffsets.length) {
             const horizontalDelta = snapped - drag.baseOffsetTick;
-            const midiTrackIds = tracksOrder.filter((id) => {
-                const t = useTimelineStore.getState().tracks[id];
-                return t?.type === 'midi';
-            });
+            const audioTrackIds = tracksOrder.filter((id) => useTimelineStore.getState().tracks[id]?.type === 'audio');
             const previews = drag.groupBaseOffsets
                 .map((entry) => {
                     const newTrackIndex = entry.trackIndex + trackDelta;
                     const clampedIndex = Math.max(0, Math.min(tracksOrder.length - 1, newTrackIndex));
-                    const targetId = tracksOrder[clampedIndex];
-                    if (!targetId || !midiTrackIds.includes(targetId)) {
-                        // Snap to nearest MIDI track
-                        const closestMidi = midiTrackIds.reduce((best, id) => {
+                    let targetId = tracksOrder[clampedIndex];
+                    if (!targetId || !audioTrackIds.includes(targetId)) {
+                        targetId = audioTrackIds.reduce((best, id) => {
                             const idx = tracksOrder.indexOf(id);
                             return Math.abs(idx - newTrackIndex) < Math.abs(tracksOrder.indexOf(best) - newTrackIndex) ? id : best;
-                        }, midiTrackIds[0] ?? entry.trackId);
-                        const t = useTimelineStore.getState().tracks[entry.trackId];
-                        const c = t?.type === 'midi' ? t.clips?.find((cl) => cl.id === entry.clipId) : undefined;
-                        return {
-                            kind: 'midi' as const,
-                            clipId: entry.clipId,
-                            sourceTrackId: entry.trackId,
-                            targetTrackId: closestMidi,
-                            previewOffsetTicks: entry.offsetTicks + horizontalDelta,
-                            sourceId: c?.sourceId ?? '',
-                            regionStartTick: c?.regionStartTick,
-                            regionEndTick: c?.regionEndTick,
-                        };
+                        }, audioTrackIds[0] ?? entry.trackId);
                     }
                     const t = useTimelineStore.getState().tracks[entry.trackId];
-                    const c = t?.type === 'midi' ? t.clips?.find((cl) => cl.id === entry.clipId) : undefined;
+                    const c = t?.type === 'audio' ? getAudioClipsForTrack(t).find((cl) => cl.id === entry.clipId) : undefined;
                     return {
-                        kind: 'midi' as const,
+                        kind: 'audio' as const,
                         clipId: entry.clipId,
                         sourceTrackId: entry.trackId,
                         targetTrackId: targetId,
@@ -347,13 +291,12 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
                     };
                 })
                 .filter((p) => !!p.sourceId);
-
             if (previews.length) {
                 const primaryTarget = previews.find((p) => p.clipId === clip.id)?.targetTrackId ?? previews[0].targetTrackId;
-                setCrossTrackDrag({ kind: 'midi', previews, targetTrackId: primaryTarget });
+                setCrossTrackDrag({ kind: 'audio', previews, targetTrackId: primaryTarget } as any);
             }
-        } else {
-            if (crossTrackDrag) setCrossTrackDrag(null);
+        } else if (crossTrackDrag) {
+            setCrossTrackDrag(null);
         }
     };
 
@@ -369,31 +312,16 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
         activePointerIdRef.current = e.pointerId;
         clipElRef.current?.setPointerCapture(e.pointerId);
         selectForPointer(e);
-        resizeRef.current = {
-            type,
-            startX: e.clientX,
-            baseStart: localBounds.startTick,
-            baseEnd: localBounds.endTick,
-            alt: !!(e.ctrlKey || e.metaKey),
-        };
+        resizeRef.current = { type, startX: e.clientX, baseStart: localBounds.startTick, baseEnd: localBounds.endTick, alt: !!(e.ctrlKey || e.metaKey) };
         setResizePreview({ start: localBounds.startTick, end: localBounds.endTick });
         setDidMove(false);
     };
 
     return (
         <div
-            className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none overflow-hidden transition-opacity ${isCrossDragging ? 'opacity-30 pointer-events-none' : ''
-                } ${isSelected ? 'bg-sky-500/65 border border-sky-200/90' : 'bg-blue-500/40 border border-blue-400/60'}`}
+            className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none overflow-hidden transition-opacity ${isCrossDragging ? 'opacity-30 pointer-events-none' : ''} ${isSelected ? 'bg-emerald-500/65 border border-emerald-200/90' : 'bg-blue-500/40 border border-blue-400/60'}`}
             ref={clipElRef}
-            style={{
-                left: leftX,
-                width: Math.max(8, widthPx),
-                height: clipHeight,
-                userSelect: 'none',
-                WebkitUserSelect: 'none',
-                touchAction: 'none',
-                WebkitUserDrag: 'none',
-            } as React.CSSProperties & { WebkitUserDrag: 'none' }}
+            style={{ left: leftX, width: Math.max(8, widthPx), height: clipHeight, userSelect: 'none', touchAction: 'none' }}
             title={tooltip}
             draggable={false}
             onPointerDown={onPointerDown}
@@ -401,9 +329,7 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerUp}
             onLostPointerCapture={() => {
-                if (dragRef.current || resizeRef.current) {
-                    finishPointerGesture(activePointerIdRef.current);
-                }
+                if (dragRef.current || resizeRef.current) finishPointerGesture(activePointerIdRef.current);
             }}
             onDragStart={(event) => {
                 event.preventDefault();
@@ -411,17 +337,22 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
             }}
             data-clip="1"
         >
-            <MidiNotePreview
-                notes={midiCacheEntry?.notesRaw ?? []}
-                visibleStartTick={localStartTick}
-                visibleEndTick={localEndTick}
-                height={clipHeight - 4}
-                bounds={midiCacheEntry?.bounds}
-            />
+            <div className="absolute inset-0 pointer-events-none opacity-70">
+                <AudioWaveform
+                    trackId={trackId}
+                    sourceId={clip.sourceId}
+                    clipOffsetTicks={offsetTick}
+                    regionStartTick={localStartTick}
+                    regionEndTick={localEndTick}
+                    height={clipHeight - 4}
+                    regionStartTickAbs={absStartTick}
+                    regionEndTickAbs={absEndTick}
+                />
+            </div>
             <div className="relative z-10 flex min-w-0 items-center gap-1">
                 {editingName ? (
                     <input
-                        className="bg-transparent text-white outline-none border-b border-blue-300 w-[80px] text-[11px] min-w-0"
+                        className="bg-transparent text-white outline-none border-b border-emerald-300 w-[80px] text-[11px] min-w-0"
                         value={nameValue}
                         autoFocus
                         onClick={(event) => event.stopPropagation()}
@@ -429,13 +360,13 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
                         onChange={(event) => setNameValue(event.target.value)}
                         onBlur={() => {
                             const trimmed = nameValue.trim();
-                            void updateMidiClip({ trackId, clipId: clip.id, patch: { name: trimmed || undefined } });
+                            void updateAudioClip({ trackId, clipId: clip.id, patch: { name: trimmed || undefined } });
                             setEditingName(false);
                         }}
                         onKeyDown={(event) => {
                             if (event.key === 'Enter') {
                                 const trimmed = nameValue.trim();
-                                void updateMidiClip({ trackId, clipId: clip.id, patch: { name: trimmed || undefined } });
+                                void updateAudioClip({ trackId, clipId: clip.id, patch: { name: trimmed || undefined } });
                                 setEditingName(false);
                             } else if (event.key === 'Escape') {
                                 setEditingName(false);
@@ -456,20 +387,11 @@ const MidiClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, 
                     </span>
                 )}
                 <span className="shrink-0 opacity-80">{label}</span>
-                {(midiCacheEntry?.notesRaw?.length ?? 0) === 0 && <span className="shrink-0 text-[10px] opacity-70">No data</span>}
             </div>
-            <div
-                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize"
-                onPointerDown={(event) => onResizeDown(event, 'left')}
-                title="Resize start"
-            />
-            <div
-                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
-                onPointerDown={(event) => onResizeDown(event, 'right')}
-                title="Resize end"
-            />
+            <div className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize" onPointerDown={(event) => onResizeDown(event, 'left')} title="Resize start" />
+            <div className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize" onPointerDown={(event) => onResizeDown(event, 'right')} title="Resize end" />
         </div>
     );
 };
 
-export default MidiClipBlock;
+export default AudioClipBlock;

@@ -59,7 +59,7 @@ export function createSetMultipleTrackOffsetTicksCommand(
                     if (!track) continue;
                     const previousOffset = (track as any).offsetTicks ?? 0;
                     const nextTrack: any = { ...track, offsetTicks };
-                    if (nextTrack.type === 'midi' && Array.isArray(nextTrack.clips)) {
+                    if ((nextTrack.type === 'midi' || nextTrack.type === 'audio') && Array.isArray(nextTrack.clips)) {
                         if (nextTrack.clips.length === 1) {
                             nextTrack.clips = [{ ...nextTrack.clips[0], offsetTicks }];
                         } else if (nextTrack.clips.length > 1) {

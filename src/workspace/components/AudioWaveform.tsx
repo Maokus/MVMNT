@@ -4,6 +4,10 @@ import { useSelectionStore } from '@state/selectionStore';
 
 interface AudioWaveformProps {
     trackId: string;
+    sourceId?: string;
+    clipOffsetTicks?: number;
+    regionStartTick?: number;
+    regionEndTick?: number;
     height?: number;
     color?: string;
     background?: string;
@@ -19,6 +23,10 @@ interface AudioWaveformProps {
 // Assumes waveform extracted asynchronously; will re-render when cache changes via subscription.
 export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     trackId,
+    sourceId,
+    clipOffsetTicks,
+    regionStartTick: explicitRegionStartTick,
+    regionEndTick: explicitRegionEndTick,
     height = 40,
     color = '#4ADE80',
     background = 'transparent',
@@ -46,14 +54,16 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
                 regionEndTick: 0,
                 sourceDurationTicks: 0,
             };
-        const cacheKey = t.audioSourceId || trackId;
+        const cacheKey = sourceId || t.audioSourceId || trackId;
         const cache = s.audioCache[cacheKey];
+        const startTick = explicitRegionStartTick ?? t.regionStartTick ?? 0;
+        const endTick = explicitRegionEndTick ?? t.regionEndTick ?? cache?.durationTicks ?? 0;
         return {
             peaks: cache?.waveform?.channelPeaks,
-            offsetTicks: t.offsetTicks,
-            durationTicks: (t.regionEndTick ?? cache?.durationTicks ?? 0) - (t.regionStartTick ?? 0),
-            regionStartTick: t.regionStartTick ?? 0,
-            regionEndTick: t.regionEndTick ?? cache?.durationTicks ?? 0,
+            offsetTicks: clipOffsetTicks ?? t.offsetTicks,
+            durationTicks: endTick - startTick,
+            regionStartTick: startTick,
+            regionEndTick: endTick,
             sourceDurationTicks: cache?.durationTicks ?? 0,
         };
     });

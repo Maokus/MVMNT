@@ -5,6 +5,7 @@ import { uint8ArrayToBase64 } from '@utils/base64';
 import { sha256Hex } from '@utils/hash/sha256';
 import { serializeStable } from './stable-stringify';
 import { strToU8 } from 'fflate';
+import { AudioAssetStore } from './audio-asset-store';
 
 export type AssetStorageMode =
     | 'zip-package'
@@ -110,6 +111,17 @@ async function resolveBytes(entry: AudioCacheEntry, sourceId: string): Promise<{
         const filename = inferFilename(sourceId, mimeType, entry.originalFile.name);
         return { bytes: entry.originalFile.bytes, mimeType, kind: 'original', filename };
     }
+    if (entry.originalFile?.assetId && entry.originalFile.byteLength > 0) {
+        const stored = await AudioAssetStore.get(entry.originalFile.assetId);
+        if (stored) {
+            const mimeType = entry.originalFile.mimeType || 'application/octet-stream';
+            const filename = inferFilename(sourceId, mimeType, entry.originalFile.name);
+            return { bytes: new Uint8Array(stored), mimeType, kind: 'original', filename };
+        }
+    }
+    if (!entry.audioBuffer) {
+        throw new Error(`Audio source ${sourceId} has no decoded buffer or readable original asset`);
+    }
     const wavBytes = encodeAudioBufferToWavFloat32(entry.audioBuffer);
     const mimeType = 'audio/wav';
     const filename = inferFilename(sourceId, mimeType, undefined);
@@ -159,10 +171,10 @@ export async function collectAudioAssets(options: CollectAssetsOptions): Promise
                 mimeType,
                 byteLength: bytes.byteLength,
                 hash,
-                durationSeconds: entry.durationSeconds ?? entry.audioBuffer.duration,
+                durationSeconds: entry.durationSeconds ?? entry.audioBuffer?.duration ?? 0,
                 sampleRate: entry.sampleRate,
                 channels: entry.channels,
-                durationSamples: entry.durationSamples ?? entry.audioBuffer.length,
+                durationSamples: entry.durationSamples ?? entry.audioBuffer?.length ?? 0,
             };
             if (options.mode === 'inline-json') {
                 if (bytes.byteLength > options.maxInlineAssetBytes) {

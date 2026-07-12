@@ -20,6 +20,7 @@ export interface TimelineInsertionSelection {
 export interface TimelineClipRef {
     trackId: string;
     clipId: string;
+    kind?: 'midi' | 'audio';
 }
 
 export type ClipTimelineSelection =

@@ -1,4 +1,4 @@
-import type { AudioTrack, AudioCacheOriginalFile } from '@audio/audioTypes';
+import type { AudioClip, AudioTrack, AudioCacheOriginalFile } from '@audio/audioTypes';
 import type { MIDIData } from '@core/types';
 import { buildNotesFromMIDI } from '@core/midi/midi-ingest';
 import { parseMIDIFileToData } from '@core/midi/midi-library';
@@ -15,6 +15,9 @@ import {
 import type { TimelineCommandContext, TimelineCommandExecuteResult } from '../commandTypes';
 import { useSelectionStore } from '@state/selectionStore';
 import type { MidiClip } from '../midiClips';
+import { estimateAudioBufferBytes, estimateFeatureCacheBytes, formatBytes } from '@audio/audioMemoryDiagnostics';
+import { recordAudioMemoryDiagnostic } from '@state/audioMemoryDiagnosticsStore';
+import { AudioAssetStore, createAudioAssetId } from '@persistence/audio-asset-store';
 
 export type AddTrackCommandPayload =
     | {
@@ -52,6 +55,17 @@ function buildInitialMidiClip(trackId: string, name: string, offsetTicks: number
     return {
         id: `${trackId}__clip`,
         type: 'midi',
+        sourceId: trackId,
+        offsetTicks,
+        name,
+        enabled: true,
+    };
+}
+
+function buildInitialAudioClip(trackId: string, name: string, offsetTicks: number): AudioClip {
+    return {
+        id: `${trackId}__audio_clip`,
+        type: 'audio',
         sourceId: trackId,
         offsetTicks,
         name,
@@ -106,11 +120,37 @@ interface PreparedAudioSource {
     originalFile?: AudioCacheOriginalFile;
 }
 
+const INLINE_ORIGINAL_FILE_LIMIT_BYTES = 16 * 1024 * 1024;
+const LARGE_UNDO_FEATURE_CACHE_BYTES = 32 * 1024 * 1024;
+
+function buildUndoAudioCacheEntry(cache: import('@audio/audioTypes').AudioCacheEntry): import('@audio/audioTypes').AudioCacheEntry {
+    const { audioBuffer: _audioBuffer, ...rest } = cache;
+    return {
+        ...rest,
+        decodedState: cache.audioBuffer ? 'failed' : cache.decodedState ?? 'failed',
+        decodedFailureReason: cache.audioBuffer ? 'decoded buffer omitted from undo payload' : cache.decodedFailureReason,
+    };
+}
+
 async function prepareAudioSource(payload: { buffer?: AudioBuffer; file?: File }): Promise<PreparedAudioSource> {
     if (payload.buffer) {
+        recordAudioMemoryDiagnostic({
+            severity: 'info',
+            stage: 'decode-skip',
+            message: `Using provided AudioBuffer (${formatBytes(estimateAudioBufferBytes(payload.buffer))} decoded PCM)`,
+            bytes: { decodedPcm: estimateAudioBufferBytes(payload.buffer) },
+        });
         return { buffer: payload.buffer };
     }
     if (payload.file) {
+        const startedAt = performance.now();
+        recordAudioMemoryDiagnostic({
+            severity: 'info',
+            stage: 'file-read-start',
+            message: `Reading ${payload.file.name} (${formatBytes(payload.file.size)})`,
+            fileName: payload.file.name,
+            bytes: { file: payload.file.size },
+        });
         const arrayBuffer = await payload.file.arrayBuffer();
         const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
         if (!AudioContextCtor) {
@@ -118,13 +158,66 @@ async function prepareAudioSource(payload: { buffer?: AudioBuffer; file?: File }
         }
         const ctx = new AudioContextCtor();
         try {
+            const decodeStartedAt = performance.now();
             const decoded = await ctx.decodeAudioData(arrayBuffer.slice(0));
-            const originalFile: AudioCacheOriginalFile = {
-                name: payload.file.name,
-                mimeType: payload.file.type || 'application/octet-stream',
-                bytes: new Uint8Array(arrayBuffer),
-                byteLength: arrayBuffer.byteLength,
-            };
+            const decodedPcmBytes = estimateAudioBufferBytes(decoded);
+            let originalFile: AudioCacheOriginalFile;
+            if (arrayBuffer.byteLength > INLINE_ORIGINAL_FILE_LIMIT_BYTES) {
+                const assetId = createAudioAssetId('audio-original');
+                const storage = await AudioAssetStore.put(assetId, arrayBuffer);
+                originalFile = {
+                    name: payload.file.name,
+                    mimeType: payload.file.type || 'application/octet-stream',
+                    byteLength: arrayBuffer.byteLength,
+                    assetId,
+                    storage,
+                    bytes: storage === 'memory' ? new Uint8Array(arrayBuffer) : undefined,
+                };
+                recordAudioMemoryDiagnostic({
+                    severity: storage === 'indexeddb' ? 'info' : 'warning',
+                    stage: 'original-asset-store',
+                    message:
+                        storage === 'indexeddb'
+                            ? `Stored original bytes for ${payload.file.name} outside Zustand`
+                            : `Stored original bytes for ${payload.file.name} in memory fallback`,
+                    fileName: payload.file.name,
+                    bytes: { originalFile: arrayBuffer.byteLength },
+                });
+            } else {
+                originalFile = {
+                    name: payload.file.name,
+                    mimeType: payload.file.type || 'application/octet-stream',
+                    bytes: new Uint8Array(arrayBuffer),
+                    byteLength: arrayBuffer.byteLength,
+                    storage: 'inline',
+                };
+            }
+            recordAudioMemoryDiagnostic({
+                severity: decodedPcmBytes + arrayBuffer.byteLength >= 512 * 1024 * 1024 ? 'warning' : 'info',
+                stage: 'decode-complete',
+                message: `Decoded ${payload.file.name}: ${formatBytes(decodedPcmBytes)} PCM plus ${formatBytes(arrayBuffer.byteLength)} original bytes ${originalFile.storage === 'indexeddb' ? 'asset-referenced' : 'retained'}`,
+                fileName: payload.file.name,
+                bytes: {
+                    file: arrayBuffer.byteLength,
+                    decodedPcm: decodedPcmBytes,
+                    retainedAudio:
+                        decodedPcmBytes + (originalFile.bytes?.byteLength ?? (originalFile.storage === 'indexeddb' ? 0 : arrayBuffer.byteLength)),
+                },
+                durationMs: performance.now() - decodeStartedAt,
+            });
+            recordAudioMemoryDiagnostic({
+                severity: 'info',
+                stage: 'import-file-prepared',
+                message: `Prepared ${payload.file.name} for cache insertion`,
+                fileName: payload.file.name,
+                bytes: {
+                    file: arrayBuffer.byteLength,
+                    decodedPcm: decodedPcmBytes,
+                    retainedAudio:
+                        decodedPcmBytes + (originalFile.bytes?.byteLength ?? (originalFile.storage === 'indexeddb' ? 0 : arrayBuffer.byteLength)),
+                },
+                durationMs: performance.now() - startedAt,
+            });
             return { buffer: decoded, originalFile };
         } finally {
             try {
@@ -171,10 +264,10 @@ function buildRedoPayload(
         const key = audioTrack.audioSourceId ?? trackId;
         const cache = state.audioCache[key];
         if (cache) {
-            payload.audioCache = { key, value: cache };
+            payload.audioCache = { key, value: buildUndoAudioCacheEntry(cache) };
         }
         const featureCache = state.audioFeatureCaches?.[key];
-        if (featureCache) {
+        if (featureCache && estimateFeatureCacheBytes(featureCache) <= LARGE_UNDO_FEATURE_CACHE_BYTES) {
             payload.audioFeatureCache = { key, value: featureCache };
         }
     }
@@ -262,6 +355,7 @@ export function createAddTrackCommand(
                     mute: false,
                     solo: false,
                     offsetTicks: payload.offsetTicks ?? 0,
+                    clips: [buildInitialAudioClip(id, payload.name || 'Audio Track', payload.offsetTicks ?? 0)],
                     gain: 1,
                 };
                 context.setState((state) => ({

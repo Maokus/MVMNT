@@ -499,6 +499,7 @@ const TemplateInitializer: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const startTemplateLoading = useTemplateStatusStore((state) => state.startLoading);
+    const updateTemplateLoading = useTemplateStatusStore((state) => state.updateLoading);
     const finishTemplateLoading = useTemplateStatusStore((state) => state.finishLoading);
 
     useEffect(() => {
@@ -522,20 +523,25 @@ const TemplateInitializer: React.FC = () => {
             ? 'Importing scene…'
             : shouldLoadTemplate
                 ? 'Loading template…'
-                : 'Preparing default scene…';
+                : 'Checking for last open file…';
 
         let finished = false;
         let unsubscribeHydration: (() => void) | null = null;
+        const abortController = shouldShowIndicator ? new AbortController() : null;
         const finish = () => {
             if (finished || !shouldShowIndicator) return;
             finished = true;
+            abortController?.abort();
             unsubscribeHydration?.();
             unsubscribeHydration = null;
             finishTemplateLoading();
         };
 
         if (shouldShowIndicator) {
-            startTemplateLoading(message);
+            startTemplateLoading(message, {
+                progress: 0,
+                onAbort: abortController ? () => abortController.abort() : null,
+            });
             try {
                 const initialHydration = useSceneStore.getState().runtimeMeta?.lastHydratedAt ?? 0;
                 unsubscribeHydration = useSceneStore.subscribe((state, previousState) => {
@@ -558,7 +564,10 @@ const TemplateInitializer: React.FC = () => {
                     const payload = readStoredImportPayload();
                     if (payload) {
                         try {
-                            const result = await importScene(payload);
+                            const result = await importScene(payload, {
+                                signal: abortController?.signal,
+                                onProgress: (progress, text) => updateTemplateLoading({ progress, message: text }),
+                            });
                             if (!result.ok) {
                                 const msg = result.errors.map((e) => e.message).join('\n');
                                 console.warn('[Import] Failed:', msg);
@@ -582,6 +591,9 @@ const TemplateInitializer: React.FC = () => {
                                 didChange = true;
                             }
                         } catch (e) {
+                            if ((e as Error)?.name === 'AbortError') {
+                                throw e;
+                            }
                             console.error('Failed to import scene payload', e);
                             alert('Failed to load scene: ' + (e instanceof Error ? e.message : String(e)));
                         }
@@ -590,6 +602,7 @@ const TemplateInitializer: React.FC = () => {
                     // Always clear the importScene navigation state to prevent getting stuck
                     navigate('/workspace', { replace: true });
                 } else if (shouldLoadTemplate) {
+                    updateTemplateLoading({ progress: null, message: 'Loading template…', onAbort: null });
                     const tpl = state.template as string;
                     dispatchSceneCommand({ type: 'clearScene', clearMacros: true }, { source: 'TemplateInitializer.template' });
                     switch (tpl) {
@@ -609,8 +622,16 @@ const TemplateInitializer: React.FC = () => {
                     refreshSceneUI();
                     didChange = true;
                 } else if (shouldLoadDefault) {
+                    const savedAt = await LocalSaveService.savedAt();
                     // Try to restore from the user's last local save first.
-                    const localResult = await LocalSaveService.loadSavedFile();
+                    updateTemplateLoading({
+                        progress: 0.05,
+                        message: savedAt ? 'Loading last open file…' : 'Preparing default scene…',
+                    });
+                    const localResult = await LocalSaveService.loadSavedFile({
+                        signal: abortController?.signal,
+                        onProgress: (progress, text) => updateTemplateLoading({ progress, message: text }),
+                    });
                     if (localResult.ok && localResult.loaded) {
                         // Loaded from IndexedDB – this IS the saved state, so no dirty mark.
                         refreshSceneUI();
@@ -621,6 +642,7 @@ const TemplateInitializer: React.FC = () => {
                             console.warn('[TemplateInitializer] Could not load local save, falling back to default scene:', localResult.error);
                         }
                         // No local save found (or corrupt) – load the default template.
+                        updateTemplateLoading({ progress: null, message: 'Preparing default scene…', onAbort: null });
                         const loaded = await loadDefaultScene('MidiVisualizer.TemplateInitializer.initialDefault');
                         if (loaded) {
                             // Give the fresh scene a generated name (default template may have a generic one).
@@ -639,7 +661,9 @@ const TemplateInitializer: React.FC = () => {
                     }
                 }
             } catch (e) {
-                console.error('Template initialization error', e);
+                if ((e as Error)?.name !== 'AbortError') {
+                    console.error('Template initialization error', e);
+                }
             } finally {
                 finish();
             }
@@ -661,6 +685,7 @@ const TemplateInitializer: React.FC = () => {
         undo,
         startTemplateLoading,
         finishTemplateLoading,
+        updateTemplateLoading,
     ]);
     return null;
 };

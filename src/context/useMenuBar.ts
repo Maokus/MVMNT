@@ -17,6 +17,7 @@ function humanReadableImportError(error: ImportError): string {
 import { useUndo } from './UndoContext';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
+import { useTemplateStatusStore } from '@state/templateStatusStore';
 
 function toArrayBuffer(view: Uint8Array): ArrayBuffer {
     const buffer = view.buffer as ArrayBuffer;
@@ -27,6 +28,54 @@ function toArrayBuffer(view: Uint8Array): ArrayBuffer {
         return buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
     }
     return view.slice().buffer as ArrayBuffer;
+}
+
+function createAbortError(): Error {
+    if (typeof DOMException === 'function') {
+        return new DOMException('File load aborted', 'AbortError');
+    }
+    const error = new Error('File load aborted');
+    error.name = 'AbortError';
+    return error;
+}
+
+function readFileWithProgress(
+    file: File,
+    signal: AbortSignal,
+    onProgress: (progress: number, text?: string) => void,
+): Promise<ArrayBuffer> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        const abort = () => {
+            if (reader.readyState === FileReader.LOADING) {
+                reader.abort();
+            }
+            reject(createAbortError());
+        };
+        if (signal.aborted) {
+            reject(createAbortError());
+            return;
+        }
+        signal.addEventListener('abort', abort, { once: true });
+        reader.onprogress = (event) => {
+            if (!event.lengthComputable || event.total <= 0) return;
+            onProgress(Math.min(0.35, (event.loaded / event.total) * 0.35), 'Reading file…');
+        };
+        reader.onload = () => {
+            signal.removeEventListener('abort', abort);
+            resolve(reader.result as ArrayBuffer);
+        };
+        reader.onerror = () => {
+            signal.removeEventListener('abort', abort);
+            reject(reader.error ?? new Error('Failed to read file'));
+        };
+        reader.onabort = () => {
+            signal.removeEventListener('abort', abort);
+            reject(createAbortError());
+        };
+        onProgress(0, 'Reading file…');
+        reader.readAsArrayBuffer(file);
+    });
 }
 
 interface UseMenuBarProps {
@@ -121,10 +170,26 @@ export const useMenuBar = ({
                 document.body.removeChild(fileInput);
                 return;
             }
+            const abortController = new AbortController();
+            const statusStore = useTemplateStatusStore.getState();
+            statusStore.startLoading(`Loading ${file.name}…`, {
+                progress: 0,
+                onAbort: () => abortController.abort(),
+            });
             try {
-                const buffer = await file.arrayBuffer();
+                const buffer = await readFileWithProgress(file, abortController.signal, (progress, text) => {
+                    useTemplateStatusStore.getState().updateLoading({ progress, message: text });
+                });
                 const bytes = new Uint8Array(buffer);
-                const result = await importScene(bytes);
+                const result = await importScene(bytes, {
+                    signal: abortController.signal,
+                    onProgress: (progress, text) => {
+                        useTemplateStatusStore.getState().updateLoading({
+                            progress: 0.35 + progress * 0.65,
+                            message: text ?? `Loading ${file.name}…`,
+                        });
+                    },
+                });
                 if (!result.ok) {
                     alert(
                         'Import failed: ' + (result.errors.map(humanReadableImportError).join('\n') || 'Unknown error')
@@ -135,7 +200,7 @@ export const useMenuBar = ({
                         onSceneNameChange(metadata.name.trim());
                     } else if (file.name) {
                         // Fallback: derive scene name from filename (strip extension)
-                        const base = file.name.replace(/\.(mvt|json)$/i, '');
+                        const base = file.name.replace(/\.(mvt|json|mvmntpkg)$/i, '');
                         if (base) onSceneNameChange(base);
                     }
                     undo?.reset();
@@ -150,9 +215,12 @@ export const useMenuBar = ({
                     console.log('Scene opened.');
                 }
             } catch (err) {
-                console.error('Load error:', err);
-                alert('Error loading scene.');
+                if ((err as Error)?.name !== 'AbortError') {
+                    console.error('Load error:', err);
+                    alert('Error loading scene.');
+                }
             } finally {
+                useTemplateStatusStore.getState().finishLoading();
                 document.body.removeChild(fileInput);
             }
         };

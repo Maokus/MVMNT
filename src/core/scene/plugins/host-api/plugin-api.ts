@@ -488,6 +488,7 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                 const entry = state.audioCache[sourceId];
                 if (!entry) return null;
                 const { audioBuffer } = entry;
+                if (!audioBuffer) return null;
                 const sampleRate = audioBuffer.sampleRate;
                 // Convert timeline seconds to audio-file-local seconds, accounting for track offset and region trim.
                 const timingCtx = createTimingContext(state.timeline);
@@ -536,6 +537,7 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                 const entry = state.audioCache[sourceId];
                 if (!entry) return null;
                 const { audioBuffer } = entry;
+                if (!audioBuffer) return null;
                 const sampleRate = audioBuffer.sampleRate;
                 // Convert timeline seconds to audio-file-local seconds, accounting for track offset and region trim.
                 const timingCtx = createTimingContext(state.timeline);
@@ -571,7 +573,7 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                 if (!track || track.type !== 'audio') return null;
                 const sourceId = track.audioSourceId ?? track.id;
                 const entry = state.audioCache[sourceId];
-                if (!entry) return null;
+                if (!entry?.audioBuffer) return null;
                 return entry.audioBuffer.sampleRate;
             },
         },

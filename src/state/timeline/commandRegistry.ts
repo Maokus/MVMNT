@@ -32,6 +32,23 @@ import {
     type MoveMidiClipsBetweenTracksPayload,
     type MoveMidiClipsBetweenTracksResult,
 } from './commands/midiClipCommands';
+import {
+    createAddAudioClipCommand,
+    createMoveAudioClipsBetweenTracksCommand,
+    createPasteAudioClipsCommand,
+    createRemoveAudioClipsCommand,
+    createSetMultipleAudioClipOffsetsCommand,
+    createUpdateAudioClipsCommand,
+    type AddAudioClipPayload,
+    type AddAudioClipResult,
+    type MoveAudioClipsBetweenTracksPayload,
+    type MoveAudioClipsBetweenTracksResult,
+    type PasteAudioClipsPayload,
+    type PasteAudioClipsResult,
+    type RemoveAudioClipsPayload,
+    type SetMultipleAudioClipOffsetsPayload,
+    type UpdateAudioClipsPayload,
+} from './commands/audioClipCommands';
 
 export interface TimelineCommandRegistration<TPayload, TResult = void> {
     id: TimelineCommandId;
@@ -54,6 +71,15 @@ type TimelineRegistryMap = {
     'timeline.moveMidiClipsBetweenTracks': TimelineCommandRegistration<
         MoveMidiClipsBetweenTracksPayload,
         MoveMidiClipsBetweenTracksResult
+    >;
+    'timeline.addAudioClip': TimelineCommandRegistration<AddAudioClipPayload, AddAudioClipResult>;
+    'timeline.removeAudioClips': TimelineCommandRegistration<RemoveAudioClipsPayload>;
+    'timeline.updateAudioClips': TimelineCommandRegistration<UpdateAudioClipsPayload>;
+    'timeline.setMultipleAudioClipOffsets': TimelineCommandRegistration<SetMultipleAudioClipOffsetsPayload>;
+    'timeline.pasteAudioClips': TimelineCommandRegistration<PasteAudioClipsPayload, PasteAudioClipsResult>;
+    'timeline.moveAudioClipsBetweenTracks': TimelineCommandRegistration<
+        MoveAudioClipsBetweenTracksPayload,
+        MoveAudioClipsBetweenTracksResult
     >;
 };
 
@@ -165,6 +191,60 @@ const registry: TimelineRegistryMap = {
             telemetryEvent: 'timeline_move_midi_clips_between_tracks',
         }),
         factory: (payload, metadata) => createMoveMidiClipsBetweenTracksCommand(payload, metadata),
+    },
+    'timeline.addAudioClip': {
+        id: 'timeline.addAudioClip',
+        buildMetadata: () => ({
+            commandId: 'timeline.addAudioClip',
+            undoLabel: 'Add Audio Clip',
+            telemetryEvent: 'timeline_add_audio_clip',
+        }),
+        factory: (payload, metadata) => createAddAudioClipCommand(payload, metadata),
+    },
+    'timeline.removeAudioClips': {
+        id: 'timeline.removeAudioClips',
+        buildMetadata: (payload) => ({
+            commandId: 'timeline.removeAudioClips',
+            undoLabel: payload.clips.length > 1 ? 'Remove Audio Clips' : 'Remove Audio Clip',
+            telemetryEvent: 'timeline_remove_audio_clips',
+        }),
+        factory: (payload, metadata) => createRemoveAudioClipsCommand(payload, metadata),
+    },
+    'timeline.updateAudioClips': {
+        id: 'timeline.updateAudioClips',
+        buildMetadata: (payload) => ({
+            commandId: 'timeline.updateAudioClips',
+            undoLabel: payload.updates.length > 1 ? 'Update Audio Clips' : 'Update Audio Clip',
+            telemetryEvent: 'timeline_update_audio_clips',
+        }),
+        factory: (payload, metadata) => createUpdateAudioClipsCommand(payload, metadata),
+    },
+    'timeline.setMultipleAudioClipOffsets': {
+        id: 'timeline.setMultipleAudioClipOffsets',
+        buildMetadata: (payload) => ({
+            commandId: 'timeline.setMultipleAudioClipOffsets',
+            undoLabel: payload.offsets.length > 1 ? 'Move Audio Clips' : 'Move Audio Clip',
+            telemetryEvent: 'timeline_set_multiple_audio_clip_offsets',
+        }),
+        factory: (payload, metadata) => createSetMultipleAudioClipOffsetsCommand(payload, metadata),
+    },
+    'timeline.pasteAudioClips': {
+        id: 'timeline.pasteAudioClips',
+        buildMetadata: (payload) => ({
+            commandId: 'timeline.pasteAudioClips',
+            undoLabel: payload.clips.length > 1 ? 'Paste Audio Clips' : 'Paste Audio Clip',
+            telemetryEvent: 'timeline_paste_audio_clips',
+        }),
+        factory: (payload, metadata) => createPasteAudioClipsCommand(payload, metadata),
+    },
+    'timeline.moveAudioClipsBetweenTracks': {
+        id: 'timeline.moveAudioClipsBetweenTracks',
+        buildMetadata: (payload) => ({
+            commandId: 'timeline.moveAudioClipsBetweenTracks',
+            undoLabel: payload.moves.length > 1 ? 'Move Audio Clips' : 'Move Audio Clip',
+            telemetryEvent: 'timeline_move_audio_clips_between_tracks',
+        }),
+        factory: (payload, metadata) => createMoveAudioClipsBetweenTracksCommand(payload, metadata),
     },
 };
 

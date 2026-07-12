@@ -12,6 +12,7 @@
 const DB_NAME = 'mvmnt-local-files';
 const STORE_NAME = 'files';
 const CURRENT_FILE_KEY = 'current';
+const CURRENT_FILE_SAVED_AT_KEY = 'current:savedAt';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 let memoryCache: Uint8Array | null = null;
@@ -72,17 +73,20 @@ async function runTransaction<T>(
 export const LocalFileStore = {
     /** Persist the current file bytes. Overwrites any previous save. */
     async save(data: Uint8Array): Promise<void> {
-        // Clone to own the buffer
         const copy = new Uint8Array(data);
-        memoryCache = copy;
         const idb = getIndexedDB();
-        if (!idb) return;
+        if (!idb) {
+            memoryCache = copy;
+            return;
+        }
         try {
             await runTransaction('readwrite', (store) => {
                 store.put(copy.buffer, CURRENT_FILE_KEY);
+                store.put(Date.now(), CURRENT_FILE_SAVED_AT_KEY);
             });
+            memoryCache = null;
         } catch {
-            /* ignore – already cached in memory */
+            memoryCache = copy;
         }
     },
 
@@ -139,6 +143,26 @@ export const LocalFileStore = {
         }
     },
 
+    async savedAt(): Promise<number | null> {
+        const idb = getIndexedDB();
+        if (!idb) return memoryCache ? Date.now() : null;
+        try {
+            return await runTransaction('readonly', (store) => {
+                return new Promise<number | null>((resolve, reject) => {
+                    const request = store.get(CURRENT_FILE_SAVED_AT_KEY);
+                    request.onerror = () =>
+                        reject(request.error ?? new Error('LocalFileStore.savedAt failed'));
+                    request.onsuccess = () => {
+                        const value = request.result;
+                        resolve(typeof value === 'number' ? value : null);
+                    };
+                });
+            });
+        } catch {
+            return null;
+        }
+    },
+
     /** Remove the saved file from IndexedDB and the memory cache. */
     async clear(): Promise<void> {
         memoryCache = null;
@@ -147,6 +171,7 @@ export const LocalFileStore = {
         try {
             await runTransaction('readwrite', (store) => {
                 store.delete(CURRENT_FILE_KEY);
+                store.delete(CURRENT_FILE_SAVED_AT_KEY);
             });
         } catch {
             /* ignore */
