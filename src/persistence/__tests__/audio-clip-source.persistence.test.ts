@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTimelineStore } from '@state/timelineStore';
 import { exportScene, importScene } from '@persistence/index';
 import { LocalSaveService } from '@persistence/local-save-service';
@@ -16,6 +16,8 @@ function makeAudioBufferStub(): AudioBuffer {
     } as unknown as AudioBuffer;
 }
 
+const originalAudioContext = (window as any).AudioContext;
+
 beforeEach(() => {
     useTimelineStore.getState().resetTimeline();
     useTimelineStore.setState((state) => ({
@@ -27,6 +29,11 @@ beforeEach(() => {
         audioFeatureCacheStatus: {},
     }));
     return LocalFileStore.clear();
+});
+
+afterEach(() => {
+    (window as any).AudioContext = originalAudioContext;
+    vi.restoreAllMocks();
 });
 
 function setSceneWithClipAudioSource() {
@@ -132,6 +139,38 @@ describe('audio clip source persistence', () => {
         expect(state.audioCache.source1).toBeDefined();
         expect(state.audioCache.source1.originalFile?.byteLength).toBe(4);
         expect((state.tracks.audioTrack1 as any).clips?.[0]?.sourceId).toBe('source1');
+    });
+
+    it('does not hydrate packaged audio after the timeline is reset mid-import', async () => {
+        setSceneWithClipAudioSource();
+        const exported = await exportScene();
+        if (!exported.ok || exported.mode !== 'zip-package') {
+            throw new Error('Expected packaged scene export');
+        }
+
+        useTimelineStore.getState().resetTimeline();
+
+        let resolveDecode: ((buffer: AudioBuffer) => void) | undefined;
+        (window as any).AudioContext = vi.fn(() => ({
+            decodeAudioData: () =>
+                new Promise<AudioBuffer>((resolve) => {
+                    resolveDecode = resolve;
+                }),
+            close: vi.fn(),
+        }));
+
+        const importPromise = importScene(exported.zip);
+        for (let attempts = 0; attempts < 50 && !resolveDecode; attempts += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+        expect(resolveDecode).toBeDefined();
+
+        useTimelineStore.getState().resetTimeline();
+        resolveDecode?.(makeAudioBufferStub());
+
+        await expect(importPromise).resolves.toMatchObject({ ok: true });
+        expect(useTimelineStore.getState().audioCache.source1).toBeUndefined();
+        expect(useTimelineStore.getState().tracks.audioTrack1).toBeUndefined();
     });
 
     it('keeps restored audio bytes when startup decode is deferred', async () => {

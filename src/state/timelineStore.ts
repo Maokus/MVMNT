@@ -343,6 +343,16 @@ function updateAudioFeatureStatusEntry(
 }
 
 const activeAudioFeatureJobs = new Map<string, AudioFeatureAnalysisHandle>();
+let timelineMutationGeneration = 0;
+
+export function getTimelineMutationGeneration(): number {
+    return timelineMutationGeneration;
+}
+
+export function advanceTimelineMutationGeneration(): number {
+    timelineMutationGeneration += 1;
+    return timelineMutationGeneration;
+}
 
 function cancelActiveAudioFeatureJob(id: string): void {
     const job = activeAudioFeatureJobs.get(id);
@@ -406,19 +416,27 @@ async function rehydrateAudioSourceInternal(
     }
     if (!bytes) {
         set((state: TimelineState) => ({
-            audioCache: {
-                ...state.audioCache,
-                [id]: { ...state.audioCache[id], decodedState: 'failed', decodedFailureReason: 'original asset unavailable' },
-            },
+            audioCache: state.audioCache[id]
+                ? {
+                      ...state.audioCache,
+                      [id]: {
+                          ...state.audioCache[id],
+                          decodedState: 'failed',
+                          decodedFailureReason: 'original asset unavailable',
+                      },
+                  }
+                : state.audioCache,
         }));
         return false;
     }
 
     set((state: TimelineState) => ({
-        audioCache: {
-            ...state.audioCache,
-            [id]: { ...state.audioCache[id], decodedState: 'decoding', decodedFailureReason: undefined },
-        },
+        audioCache: state.audioCache[id]
+            ? {
+                  ...state.audioCache,
+                  [id]: { ...state.audioCache[id], decodedState: 'decoding', decodedFailureReason: undefined },
+              }
+            : state.audioCache,
     }));
     try {
         const buffer = await decodeAudioBytes(bytes);
@@ -458,10 +476,12 @@ async function rehydrateAudioSourceInternal(
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         set((state: TimelineState) => ({
-            audioCache: {
-                ...state.audioCache,
-                [id]: { ...state.audioCache[id], decodedState: 'failed', decodedFailureReason: message },
-            },
+            audioCache: state.audioCache[id]
+                ? {
+                      ...state.audioCache,
+                      [id]: { ...state.audioCache[id], decodedState: 'failed', decodedFailureReason: message },
+                  }
+                : state.audioCache,
         }));
         recordAudioMemoryDiagnostic({
             severity: 'error',
@@ -1690,6 +1710,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     clearAllTracks() {
+        advanceTimelineMutationGeneration();
         for (const key of Array.from(activeAudioFeatureJobs.keys())) {
             cancelActiveAudioFeatureJob(key);
         }
@@ -1715,6 +1736,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     resetTimeline() {
+        advanceTimelineMutationGeneration();
         for (const key of Array.from(activeAudioFeatureJobs.keys())) {
             cancelActiveAudioFeatureJob(key);
         }

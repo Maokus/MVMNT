@@ -23,7 +23,11 @@ import { decodeSceneText, parseLegacyInlineScene, parseScenePackage, ScenePackag
 import { isTestEnvironment } from '@utils/env';
 import { useVisualAssetRegistryStore, type ProjectAsset } from '@state/visualAssetRegistryStore';
 import { useSceneStore } from '@state/sceneStore';
-import { useTimelineStore } from '@state/timelineStore';
+import {
+    advanceTimelineMutationGeneration,
+    getTimelineMutationGeneration,
+    useTimelineStore,
+} from '@state/timelineStore';
 import { findReferencedAudioSourceIds, getAudioClipsForTrack } from '@state/timeline/audioClips';
 import { migrateSceneRotationUnitsV7 } from './migrations/rotationUnitsV7';
 import { migrateSceneMidiClipsV8 } from './migrations/midiClipsV8';
@@ -791,11 +795,20 @@ function findAudioAssetIdForReferencedSource(
     return assetIds.length === 1 ? assetIds[0] : undefined;
 }
 
+function isAudioHydrationStillCurrent(expectedGeneration: number): boolean {
+    return getTimelineMutationGeneration() === expectedGeneration;
+}
+
+function shouldHydrateAudioSource(sourceId: string, state: ReturnType<typeof useTimelineStore.getState>): boolean {
+    return Boolean(state.audioCache[sourceId]) || findReferencedAudioSourceIds(state).has(sourceId);
+}
+
 async function hydrateAudioAssets(
     envelope: SceneExportEnvelope,
     assetPayloads: Map<string, Uint8Array>,
     waveformPayloads: Map<string, Map<string, Uint8Array>>,
-    options: ImportSceneOptions = {}
+    options: ImportSceneOptions = {},
+    expectedTimelineGeneration = getTimelineMutationGeneration()
 ): Promise<string[]> {
     const warnings: string[] = [];
     const audioById = envelope.assets?.audio?.byId || {};
@@ -855,6 +868,9 @@ async function hydrateAudioAssets(
     const consumed = new Set<string>();
     for (const [originalId, assetId] of Object.entries(audioIdMap)) {
         throwIfAborted(options.signal);
+        if (!isAudioHydrationStillCurrent(expectedTimelineGeneration)) {
+            break;
+        }
         if (consumed.has(originalId)) continue;
         const payload = assetData.get(assetId);
         if (!payload) {
@@ -875,6 +891,9 @@ async function hydrateAudioAssets(
         if (payload.bytes.byteLength > INLINE_ORIGINAL_FILE_LIMIT_BYTES) {
             const storedAssetId = createAudioAssetId('audio-import');
             const storage = await AudioAssetStore.put(storedAssetId, payload.bytes);
+            if (!isAudioHydrationStillCurrent(expectedTimelineGeneration)) {
+                break;
+            }
             originalFile = {
                 name: payload.record.filename,
                 mimeType: payload.record.mimeType,
@@ -897,6 +916,13 @@ async function hydrateAudioAssets(
         try {
             const buffer = await createAudioBufferFromAsset(payload.record, payload.bytes);
             const timelineState = useTimelineStore.getState();
+            if (
+                !isAudioHydrationStillCurrent(expectedTimelineGeneration) ||
+                !shouldHydrateAudioSource(originalId, timelineState)
+            ) {
+                consumed.add(originalId);
+                continue;
+            }
             const cacheStatus = timelineState.audioFeatureCacheStatus?.[originalId];
             const hasReadyFeatureCache =
                 !!timelineState.audioFeatureCaches?.[originalId] && cacheStatus?.state === 'ready';
@@ -906,6 +932,13 @@ async function hydrateAudioAssets(
                 skipAutoAnalysis: hasReadyFeatureCache,
             });
         } catch (error) {
+            if (
+                !isAudioHydrationStillCurrent(expectedTimelineGeneration) ||
+                !shouldHydrateAudioSource(originalId, useTimelineStore.getState())
+            ) {
+                consumed.add(originalId);
+                continue;
+            }
             useTimelineStore.setState((state) => ({
                 audioCache: {
                     ...state.audioCache,
@@ -1010,6 +1043,7 @@ export async function importScene(input: ImportSceneInput, options: ImportSceneO
     throwIfAborted(options.signal);
     options.onProgress?.(0.72, 'Applying scene…');
     DocumentGateway.apply(doc as any);
+    const importTimelineGeneration = advanceTimelineMutationGeneration();
 
     // Populate visual asset registry and migrate assetRef bindings from File → asset ID
     hydrateVisualAssetRegistry(fileById, migratedEnvelope.assets?.visual, (migratedEnvelope as any).visualAssetRegistry);
@@ -1027,7 +1061,13 @@ export async function importScene(input: ImportSceneInput, options: ImportSceneO
         migratedEnvelope.assets
     ) {
         options.onProgress?.(0.82, 'Restoring audio assets…');
-        hydrationWarnings = await hydrateAudioAssets(migratedEnvelope, audioPayloads, waveformPayloads, options);
+        hydrationWarnings = await hydrateAudioAssets(
+            migratedEnvelope,
+            audioPayloads,
+            waveformPayloads,
+            options,
+            importTimelineGeneration
+        );
     }
 
     if (migratedEnvelope.scene?.fontAssets && typeof migratedEnvelope.scene.fontAssets === 'object') {
