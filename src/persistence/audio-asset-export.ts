@@ -6,7 +6,7 @@ import { sha256Hex } from '@utils/hash/sha256';
 import { serializeStable } from './stable-stringify';
 import { strToU8 } from 'fflate';
 import { AudioAssetStore } from './audio-asset-store';
-import { findReferencedAudioSourceIds } from '@state/timeline/audioClips';
+import { findReferencedAudioSourceIds, getAudioClipsForTrack } from '@state/timeline/audioClips';
 
 export type AssetStorageMode =
     | 'zip-package'
@@ -101,6 +101,40 @@ function inferFilename(baseId: string, mimeType: string, originalName?: string):
     return sanitizeFilename(baseId, 'audio') + ext;
 }
 
+function findCacheIdForReferencedAudioSource(
+    sourceId: string,
+    state: ReturnType<typeof useTimelineStore.getState>,
+    unreferencedCacheIds: string[]
+): string {
+    if (state.audioCache[sourceId]) {
+        return sourceId;
+    }
+
+    for (const [trackId, track] of Object.entries(state.tracks)) {
+        if (!track || track.type !== 'audio') {
+            continue;
+        }
+        const clips = getAudioClipsForTrack(track);
+        if (!clips.some((clip) => clip.sourceId === sourceId)) {
+            continue;
+        }
+        const audioSourceId = track.audioSourceId;
+        if (audioSourceId && state.audioCache[audioSourceId]) {
+            return audioSourceId;
+        }
+        if (state.audioCache[trackId]) {
+            return trackId;
+        }
+    }
+
+    const hashMatch = unreferencedCacheIds.find((cacheId) => state.audioCache[cacheId]?.originalFile?.hash === sourceId);
+    if (hashMatch) {
+        return hashMatch;
+    }
+
+    return unreferencedCacheIds.length === 1 ? unreferencedCacheIds[0] : sourceId;
+}
+
 async function resolveBytes(entry: AudioCacheEntry, sourceId: string): Promise<{
     bytes: Uint8Array;
     mimeType: string;
@@ -144,10 +178,12 @@ export async function collectAudioAssets(options: CollectAssetsOptions): Promise
 
     let processed = 0;
     let totalBytes = 0;
+    const unreferencedCacheIds = Object.keys(state.audioCache).filter((id) => !referencedIds.has(id));
     for (const audioId of referencedIds) {
         processed++;
         options.onProgress?.(processed / Math.max(1, referencedIds.size), `Preparing audio ${audioId}`);
-        const entry = state.audioCache[audioId];
+        const fallbackCacheId = findCacheIdForReferencedAudioSource(audioId, state, unreferencedCacheIds);
+        const entry = state.audioCache[fallbackCacheId];
         if (!entry) {
             missingIds.push(audioId);
             continue;

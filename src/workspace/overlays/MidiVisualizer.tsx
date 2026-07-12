@@ -528,10 +528,12 @@ const TemplateInitializer: React.FC = () => {
         let finished = false;
         let unsubscribeHydration: (() => void) | null = null;
         const abortController = shouldShowIndicator ? new AbortController() : null;
-        const finish = () => {
+        const finish = (options: { abort?: boolean } = {}) => {
             if (finished || !shouldShowIndicator) return;
             finished = true;
-            abortController?.abort();
+            if (options.abort) {
+                abortController?.abort();
+            }
             unsubscribeHydration?.();
             unsubscribeHydration = null;
             finishTemplateLoading();
@@ -671,7 +673,7 @@ const TemplateInitializer: React.FC = () => {
 
         run();
 
-        return finish;
+        return () => finish({ abort: true });
     }, [
         visualizer,
         location.state,

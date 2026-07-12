@@ -55,6 +55,8 @@ export class AudioEngine {
     private ctx: AudioContext | null = null;
     private cfg: Required<AudioEngineConfig>;
     private active: Map<string, ActiveTrackNode> = new Map();
+    private rehydratingSources: Set<string> = new Set();
+    private playbackActive = false;
     private lastPlayheadTick: number = 0; // last tick we initiated playback from
     private unsub?: () => void;
     // Adaptive lookahead scaffolding (currently passive; future scheduling granularity may use this)
@@ -121,6 +123,7 @@ export class AudioEngine {
      * We schedule / start all audible track sources fresh.
      */
     async playTick(playFromTick: number) {
+        this.playbackActive = true;
         this.lastPlayheadTick = playFromTick;
         const ctx = await this.ensureContext();
         if (ctx.state === 'suspended') {
@@ -131,10 +134,13 @@ export class AudioEngine {
             }
         }
         this.stopAllSources();
+        const rehydration = this.rehydrateAudibleSourcesForPlayback();
+        if (rehydration) await rehydration;
         this.startAudibleSources(playFromTick);
     }
 
     stop() {
+        this.playbackActive = false;
         this.stopAllSources();
     }
 
@@ -152,9 +158,12 @@ export class AudioEngine {
     /** Called by TransportCoordinator on seek while playing. */
     async seek(playFromTick: number) {
         if (!this.ctx) return; // nothing to do
+        this.playbackActive = true;
         this.lastPlayheadTick = playFromTick;
         // Recreate sources at new timeline position
         this.stopAllSources();
+        const rehydration = this.rehydrateAudibleSourcesForPlayback();
+        if (rehydration) await rehydration;
         this.startAudibleSources(playFromTick);
     }
 
@@ -237,7 +246,10 @@ export class AudioEngine {
             const cache = s.audioCache[cacheKey];
             if (!cache) return;
             const buffer = cache.audioBuffer;
-            if (!buffer) return;
+            if (!buffer) {
+                this.rehydrateSourceForPlayback(cacheKey);
+                return;
+            }
             const regionStart = clip.regionStartTick ?? 0;
             const regionEnd = clip.regionEndTick ?? cache.durationTicks;
             if (regionEnd <= regionStart) return;
@@ -373,6 +385,38 @@ export class AudioEngine {
             } catch {}
         });
         this.active.clear();
+    }
+
+    private rehydrateSourceForPlayback(sourceId: string) {
+        if (this.rehydratingSources.has(sourceId)) return;
+        const store = useTimelineStore.getState();
+        const entry = store.audioCache[sourceId];
+        if (!entry || entry.decodedState === 'decoding') return;
+        this.rehydratingSources.add(sourceId);
+        void store.rehydrateAudioSource(sourceId).then((ready) => {
+            this.rehydratingSources.delete(sourceId);
+            if (!ready || !this.ctx) return;
+            if (!this.playbackActive) return;
+            const latest = useTimelineStore.getState();
+            void this.seek(latest.timeline.currentTick ?? this.lastPlayheadTick);
+        }).catch(() => {
+            this.rehydratingSources.delete(sourceId);
+        });
+    }
+
+    private rehydrateAudibleSourcesForPlayback(): Promise<unknown[]> | undefined {
+        const missingSourceIds = new Set<string>();
+        const state = useTimelineStore.getState();
+        for (const { clip } of this.getAudibleClips()) {
+            const entry = state.audioCache[clip.sourceId];
+            if (entry && !entry.audioBuffer) {
+                missingSourceIds.add(clip.sourceId);
+            }
+        }
+        if (!missingSourceIds.size) return undefined;
+        return Promise.all(
+            Array.from(missingSourceIds).map((sourceId) => useTimelineStore.getState().rehydrateAudioSource(sourceId))
+        );
     }
 }
 

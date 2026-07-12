@@ -4,15 +4,18 @@
  * Stores the current file as a Uint8Array (the raw .mvt zip bytes) under a
  * single well-known key so it can be loaded on the next page visit.
  *
- * Follows the same two-tier (memory + IDB) pattern used by PluginBinaryStore
- * and FontBinaryStore so graceful fallback to memory-only is guaranteed when
- * IndexedDB is unavailable.
+ * Uses a memory fallback only when IndexedDB is unavailable. If IndexedDB is
+ * present but the durable write fails, callers must surface that failure
+ * because the save will not survive a page reload.
  */
 
 const DB_NAME = 'mvmnt-local-files';
 const STORE_NAME = 'files';
 const CURRENT_FILE_KEY = 'current';
 const CURRENT_FILE_SAVED_AT_KEY = 'current:savedAt';
+const CURRENT_FILE_META_KEY = 'current:meta';
+const CURRENT_FILE_CHUNK_PREFIX = 'current:chunk:';
+const CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 let memoryCache: Uint8Array | null = null;
@@ -36,7 +39,7 @@ function openDatabase(): Promise<IDBDatabase> {
             dbPromise = Promise.reject(new Error('IndexedDB unavailable')) as Promise<IDBDatabase>;
         } else {
             dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
-                const request = idb.open(DB_NAME, 1);
+                const request = idb.open(DB_NAME, 2);
                 request.onupgradeneeded = () => {
                     const db = request.result;
                     if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -52,6 +55,49 @@ function openDatabase(): Promise<IDBDatabase> {
         }
     }
     return dbPromise!;
+}
+
+function requestToPromise<T = unknown>(request: IDBRequest<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        request.onerror = () => reject(request.error ?? new Error('LocalFileStore request failed'));
+        request.onsuccess = () => resolve(request.result);
+    });
+}
+
+function chunkKey(index: number): string {
+    return `${CURRENT_FILE_CHUNK_PREFIX}${index}`;
+}
+
+function cloneBytes(data: Uint8Array): Uint8Array {
+    return new Uint8Array(data);
+}
+
+function toStoredBuffer(data: Uint8Array): ArrayBuffer {
+    const buffer = new ArrayBuffer(data.byteLength);
+    new Uint8Array(buffer).set(data);
+    return buffer;
+}
+
+async function deleteCurrentChunks(store: IDBObjectStore): Promise<void> {
+    const keys = await requestToPromise<IDBValidKey[]>(store.getAllKeys());
+    for (const key of keys) {
+        if (typeof key === 'string' && key.startsWith(CURRENT_FILE_CHUNK_PREFIX)) {
+            store.delete(key);
+        }
+    }
+}
+
+function readBytesFromStoredValue(value: unknown): Uint8Array | null {
+    if (!value) {
+        return null;
+    }
+    if (value instanceof ArrayBuffer) {
+        return new Uint8Array(value);
+    }
+    if (ArrayBuffer.isView(value)) {
+        return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+    }
+    return null;
 }
 
 async function runTransaction<T>(
@@ -73,20 +119,39 @@ async function runTransaction<T>(
 export const LocalFileStore = {
     /** Persist the current file bytes. Overwrites any previous save. */
     async save(data: Uint8Array): Promise<void> {
-        const copy = new Uint8Array(data);
+        const copy = cloneBytes(data);
         const idb = getIndexedDB();
         if (!idb) {
             memoryCache = copy;
             return;
         }
         try {
-            await runTransaction('readwrite', (store) => {
-                store.put(copy.buffer, CURRENT_FILE_KEY);
-                store.put(Date.now(), CURRENT_FILE_SAVED_AT_KEY);
+            await runTransaction('readwrite', async (store) => {
+                await deleteCurrentChunks(store);
+                store.delete(CURRENT_FILE_KEY);
+                const chunkCount = Math.max(1, Math.ceil(copy.byteLength / CHUNK_SIZE_BYTES));
+                for (let index = 0; index < chunkCount; index++) {
+                    const start = index * CHUNK_SIZE_BYTES;
+                    const end = Math.min(copy.byteLength, start + CHUNK_SIZE_BYTES);
+                    store.put(toStoredBuffer(copy.subarray(start, end)), chunkKey(index));
+                }
+                const savedAt = Date.now();
+                store.put(
+                    {
+                        version: 2,
+                        byteLength: copy.byteLength,
+                        chunkSize: CHUNK_SIZE_BYTES,
+                        chunkCount,
+                        savedAt,
+                    },
+                    CURRENT_FILE_META_KEY
+                );
+                store.put(savedAt, CURRENT_FILE_SAVED_AT_KEY);
             });
             memoryCache = null;
-        } catch {
+        } catch (error) {
             memoryCache = copy;
+            throw error;
         }
     },
 
@@ -100,20 +165,36 @@ export const LocalFileStore = {
         try {
             const result = await runTransaction('readonly', (store) => {
                 return new Promise<Uint8Array | null>((resolve, reject) => {
-                    const request = store.get(CURRENT_FILE_KEY);
-                    request.onerror = () =>
-                        reject(request.error ?? new Error('LocalFileStore.load failed'));
-                    request.onsuccess = () => {
-                        const value = request.result;
-                        if (!value) {
-                            resolve(null);
-                        } else if (value instanceof ArrayBuffer) {
-                            resolve(new Uint8Array(value));
-                        } else if (ArrayBuffer.isView(value)) {
-                            resolve(new Uint8Array(value.buffer, value.byteOffset, value.byteLength));
-                        } else {
-                            resolve(null);
+                    const metaRequest = store.get(CURRENT_FILE_META_KEY);
+                    metaRequest.onerror = () =>
+                        reject(metaRequest.error ?? new Error('LocalFileStore.load metadata failed'));
+                    metaRequest.onsuccess = async () => {
+                        const meta = metaRequest.result as
+                            | { byteLength?: number; chunkCount?: number }
+                            | undefined;
+                        if (meta && typeof meta.byteLength === 'number' && typeof meta.chunkCount === 'number') {
+                            try {
+                                const bytes = new Uint8Array(meta.byteLength);
+                                let offset = 0;
+                                for (let index = 0; index < meta.chunkCount; index++) {
+                                    const chunk = readBytesFromStoredValue(await requestToPromise(store.get(chunkKey(index))));
+                                    if (!chunk) {
+                                        resolve(null);
+                                        return;
+                                    }
+                                    bytes.set(chunk, offset);
+                                    offset += chunk.byteLength;
+                                }
+                                resolve(bytes);
+                            } catch (error) {
+                                reject(error);
+                            }
+                            return;
                         }
+                        const request = store.get(CURRENT_FILE_KEY);
+                        request.onerror = () =>
+                            reject(request.error ?? new Error('LocalFileStore.load failed'));
+                        request.onsuccess = () => resolve(readBytesFromStoredValue(request.result));
                     };
                 });
             });
@@ -132,10 +213,19 @@ export const LocalFileStore = {
         try {
             return await runTransaction('readonly', (store) => {
                 return new Promise<boolean>((resolve, reject) => {
-                    const request = store.count(CURRENT_FILE_KEY);
+                    const request = store.count(CURRENT_FILE_META_KEY);
                     request.onerror = () =>
                         reject(request.error ?? new Error('LocalFileStore.exists failed'));
-                    request.onsuccess = () => resolve(request.result > 0);
+                    request.onsuccess = () => {
+                        if (request.result > 0) {
+                            resolve(true);
+                            return;
+                        }
+                        const legacyRequest = store.count(CURRENT_FILE_KEY);
+                        legacyRequest.onerror = () =>
+                            reject(legacyRequest.error ?? new Error('LocalFileStore.exists failed'));
+                        legacyRequest.onsuccess = () => resolve(legacyRequest.result > 0);
+                    };
                 });
             });
         } catch {
@@ -169,9 +259,11 @@ export const LocalFileStore = {
         const idb = getIndexedDB();
         if (!idb) return;
         try {
-            await runTransaction('readwrite', (store) => {
+            await runTransaction('readwrite', async (store) => {
+                await deleteCurrentChunks(store);
                 store.delete(CURRENT_FILE_KEY);
                 store.delete(CURRENT_FILE_SAVED_AT_KEY);
+                store.delete(CURRENT_FILE_META_KEY);
             });
         } catch {
             /* ignore */

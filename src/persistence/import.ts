@@ -23,8 +23,11 @@ import { decodeSceneText, parseLegacyInlineScene, parseScenePackage, ScenePackag
 import { isTestEnvironment } from '@utils/env';
 import { useVisualAssetRegistryStore, type ProjectAsset } from '@state/visualAssetRegistryStore';
 import { useSceneStore } from '@state/sceneStore';
+import { useTimelineStore } from '@state/timelineStore';
+import { findReferencedAudioSourceIds, getAudioClipsForTrack } from '@state/timeline/audioClips';
 import { migrateSceneRotationUnitsV7 } from './migrations/rotationUnitsV7';
 import { migrateSceneMidiClipsV8 } from './migrations/midiClipsV8';
+import { createTimingContext, secondsToTicks } from '@state/timelineTime';
 
 const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
@@ -627,14 +630,15 @@ async function createAudioBufferFromAsset(record: any, bytes: Uint8Array): Promi
     const length = Math.max(1, record.durationSamples || Math.round(record.durationSeconds * record.sampleRate));
     const sampleRate = record.sampleRate || 44100;
     const channels = Math.max(1, record.channels || 1);
-    if (typeof window !== 'undefined' && typeof (window as any).AudioContext === 'function') {
+    const AudioContextCtor =
+        typeof window !== 'undefined' ? (window as any).AudioContext || (window as any).webkitAudioContext : undefined;
+    if (typeof AudioContextCtor === 'function') {
+        const ctx = new AudioContextCtor();
         try {
-            const ctx = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
             const buffer = await ctx.decodeAudioData(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
-            ctx.close?.();
             return buffer;
-        } catch {
-            /* fall through */
+        } finally {
+            ctx.close?.();
         }
     }
     if (typeof AudioBuffer === 'function') {
@@ -663,6 +667,34 @@ async function createAudioBufferFromAsset(record: any, bytes: Uint8Array): Promi
         getChannelData: (channel: number) => channelData[Math.min(channel, channelData.length - 1)] ?? channelData[0],
     } as unknown as AudioBuffer;
     return fallback;
+}
+
+function buildLightweightAudioCacheEntry(record: any, originalFile: {
+    name?: string;
+    mimeType: string;
+    bytes?: Uint8Array;
+    byteLength: number;
+    hash?: string;
+    assetId?: string;
+    storage?: 'indexeddb' | 'memory' | 'inline' | 'missing';
+}) {
+    const durationSeconds = typeof record.durationSeconds === 'number' ? record.durationSeconds : 0;
+    const sampleRate = typeof record.sampleRate === 'number' ? record.sampleRate : 44100;
+    const channels = typeof record.channels === 'number' ? record.channels : 1;
+    const durationSamples =
+        typeof record.durationSamples === 'number'
+            ? record.durationSamples
+            : Math.max(0, Math.round(durationSeconds * sampleRate));
+    return {
+        durationTicks: Math.round(secondsToTicks(createTimingContext(useTimelineStore.getState().timeline), durationSeconds)),
+        durationSeconds,
+        durationSamples,
+        sampleRate,
+        channels,
+        originalFile,
+        decodedState: 'failed' as const,
+        decodedFailureReason: 'decoded buffer deferred until playback',
+    };
 }
 
 function buildWaveform(record: any | undefined) {
@@ -730,6 +762,35 @@ function resolveWaveformRecord(
     return undefined;
 }
 
+function findAudioAssetIdForReferencedSource(
+    sourceId: string,
+    state: ReturnType<typeof useTimelineStore.getState>,
+    assetIds: string[],
+    audioById: Record<string, any>
+): string | undefined {
+    if (audioById[sourceId]) {
+        return sourceId;
+    }
+
+    for (const [trackId, track] of Object.entries(state.tracks)) {
+        if (!track || track.type !== 'audio') {
+            continue;
+        }
+        const clips = getAudioClipsForTrack(track);
+        if (!clips.some((clip) => clip.sourceId === sourceId)) {
+            continue;
+        }
+        if (track.audioSourceId && audioById[track.audioSourceId]) {
+            return track.audioSourceId;
+        }
+        if (audioById[trackId]) {
+            return trackId;
+        }
+    }
+
+    return assetIds.length === 1 ? assetIds[0] : undefined;
+}
+
 async function hydrateAudioAssets(
     envelope: SceneExportEnvelope,
     assetPayloads: Map<string, Uint8Array>,
@@ -739,14 +800,25 @@ async function hydrateAudioAssets(
     const warnings: string[] = [];
     const audioById = envelope.assets?.audio?.byId || {};
     const waveforms = envelope.assets?.waveforms?.byAudioId || {};
-    const audioIdMap = Object.keys(envelope.references?.audioIdMap || {}).length
-        ? envelope.references!.audioIdMap!
-        : Object.keys(audioById).reduce((acc: Record<string, string>, id) => {
-              acc[id] = id;
-              return acc;
-          }, {});
     const { useTimelineStore } = (await import('@state/timelineStore')) as typeof import('@state/timelineStore');
     const ingest = useTimelineStore.getState().ingestAudioToCache;
+    const audioIdMap: Record<string, string> = Object.keys(envelope.references?.audioIdMap || {}).length
+        ? { ...envelope.references!.audioIdMap! }
+        : {};
+    const assetIds = Object.keys(audioById);
+    const timelineState = useTimelineStore.getState();
+    for (const sourceId of findReferencedAudioSourceIds(timelineState)) {
+        if (audioIdMap[sourceId]) continue;
+        const assetId = findAudioAssetIdForReferencedSource(sourceId, timelineState, assetIds, audioById);
+        if (assetId) {
+            audioIdMap[sourceId] = assetId;
+        }
+    }
+    for (const assetId of assetIds) {
+        if (!Object.values(audioIdMap).includes(assetId)) {
+            audioIdMap[assetId] = assetId;
+        }
+    }
 
     const assetData = new Map<string, { record: any; bytes: Uint8Array }>();
     for (const [assetId, record] of Object.entries(audioById)) {
@@ -791,7 +863,6 @@ async function hydrateAudioAssets(
         }
         const waveformRecord = resolveWaveformRecord(waveforms, assetId, waveformPayloads, warnings);
         const waveform = buildWaveform(waveformRecord);
-        const buffer = await createAudioBufferFromAsset(payload.record, payload.bytes);
         let originalFile: {
             name?: string;
             mimeType: string;
@@ -824,6 +895,7 @@ async function hydrateAudioAssets(
             };
         }
         try {
+            const buffer = await createAudioBufferFromAsset(payload.record, payload.bytes);
             const timelineState = useTimelineStore.getState();
             const cacheStatus = timelineState.audioFeatureCacheStatus?.[originalId];
             const hasReadyFeatureCache =
@@ -834,7 +906,16 @@ async function hydrateAudioAssets(
                 skipAutoAnalysis: hasReadyFeatureCache,
             });
         } catch (error) {
-            warnings.push(`Failed to ingest audio ${originalId}: ${(error as Error).message}`);
+            useTimelineStore.setState((state) => ({
+                audioCache: {
+                    ...state.audioCache,
+                    [originalId]: {
+                        ...buildLightweightAudioCacheEntry(payload.record, originalFile),
+                        waveform,
+                    },
+                },
+            }));
+            warnings.push(`Deferred audio decode for ${originalId}: ${(error as Error).message}`);
         }
         consumed.add(originalId);
     }
