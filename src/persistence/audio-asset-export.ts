@@ -6,6 +6,7 @@ import { sha256Hex } from '@utils/hash/sha256';
 import { serializeStable } from './stable-stringify';
 import { strToU8 } from 'fflate';
 import { AudioAssetStore } from './audio-asset-store';
+import { findReferencedAudioSourceIds } from '@state/timeline/audioClips';
 
 export type AssetStorageMode =
     | 'zip-package'
@@ -130,13 +131,7 @@ async function resolveBytes(entry: AudioCacheEntry, sourceId: string): Promise<{
 
 export async function collectAudioAssets(options: CollectAssetsOptions): Promise<CollectedAudioAssets> {
     const state = useTimelineStore.getState();
-    const referencedIds = new Set<string>();
-    for (const id of state.tracksOrder) {
-        const track = state.tracks[id] as any;
-        if (!track || track.type !== 'audio') continue;
-        const audioId = track.audioSourceId || id;
-        referencedIds.add(audioId);
-    }
+    const referencedIds = findReferencedAudioSourceIds(state);
 
     const audioById: Record<string, AudioAssetRecord> = {};
     const waveforms: Record<string, WaveformExportRecord> = {};

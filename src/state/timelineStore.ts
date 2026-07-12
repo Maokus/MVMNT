@@ -1289,6 +1289,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             const offsetTicks = (state.tracks[id] as any)?.offsetTicks ?? 0;
             const durationTicks = Math.round(timingSecondsToTicksAt(ctx, buffer.duration, offsetTicks));
             set((s: TimelineState) => {
+                const existingTrack = s.tracks[id] as AudioTrack | undefined;
                 const updates: Partial<TimelineState> = {
                     audioCache: {
                         ...s.audioCache,
@@ -1305,28 +1306,29 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                             decodedLastUsedAt: Date.now(),
                         },
                     },
-                    tracks: {
-                        ...s.tracks,
-                        [id]: {
-                            ...(s.tracks[id] as any),
-                            audioSourceId: id,
-                            clips:
-                                s.tracks[id]?.type === 'audio' &&
-                                Array.isArray((s.tracks[id] as AudioTrack).clips) &&
-                                (s.tracks[id] as AudioTrack).clips?.length === 0
-                                    ? [
-                                          {
-                                              id: `${id}__audio_clip`,
-                                              type: 'audio',
-                                              sourceId: id,
-                                              offsetTicks: (s.tracks[id] as AudioTrack).offsetTicks ?? 0,
-                                              name: s.tracks[id].name,
-                                              enabled: true,
-                                          },
-                                      ]
-                                    : (s.tracks[id] as AudioTrack | undefined)?.clips,
-                        },
-                    },
+                    tracks:
+                        existingTrack?.type === 'audio'
+                            ? {
+                                  ...s.tracks,
+                                  [id]: {
+                                      ...existingTrack,
+                                      audioSourceId: id,
+                                      clips:
+                                          Array.isArray(existingTrack.clips) && existingTrack.clips.length === 0
+                                              ? [
+                                                    {
+                                                        id: `${id}__audio_clip`,
+                                                        type: 'audio',
+                                                        sourceId: id,
+                                                        offsetTicks: existingTrack.offsetTicks ?? 0,
+                                                        name: existingTrack.name,
+                                                        enabled: true,
+                                                    },
+                                                ]
+                                              : existingTrack.clips,
+                                  },
+                              }
+                            : s.tracks,
                 };
                 const existingStatus = s.audioFeatureCacheStatus[id];
                 const preserveReadyStatus = Boolean(options?.skipAutoAnalysis && existingStatus?.state === 'ready');

@@ -455,7 +455,7 @@ Cache retention:
 - `removeTracksCommand` must remove audio cache entries only when no remaining audio clips reference them.
 - `removeAudioClipsCommand` follows the same rule.
 - audio memory diagnostics should count source references from clips, not from `track.audioSourceId`.
-- crash recovery should persist source metadata exactly once per `audioCache` entry.
+- persistence should serialize source metadata exactly once per `audioCache` entry.
 
 ## Phased Implementation
 
@@ -612,7 +612,7 @@ Only after V9 migration and UI are stable:
 | Risk | Mitigation |
 | --- | --- |
 | Tempo-map conversion bugs for audio trims | Keep tests around `secondsToTicksAt`/`ticksToSecondsAt` for clips at different offsets. |
-| Source cache eviction while clips still reference a source | Centralize `findReferencedAudioSourceIds` and use it in every remove/evict path. |
+| Removing shared audio sources while clips still reference them | Centralize `findReferencedAudioSourceIds` and use it in remove paths. |
 | Mixed MIDI/audio selections causing invalid paste targets | Store clip kind in clipboard entries and validate destination track type before applying commands. |
 | Waveform rendering becomes expensive with many audio clips | Use viewport culling and source-level peak reuse; do not slice peak arrays per render. |
 | Feature sampling semantics become ambiguous | Disallow same-track overlap and resolve exactly one clip per track/time. |

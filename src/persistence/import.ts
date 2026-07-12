@@ -630,7 +630,7 @@ async function createAudioBufferFromAsset(record: any, bytes: Uint8Array): Promi
     if (typeof window !== 'undefined' && typeof (window as any).AudioContext === 'function') {
         try {
             const ctx = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
-            const buffer = await ctx.decodeAudioData(bytes.buffer.slice(0));
+            const buffer = await ctx.decodeAudioData(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
             ctx.close?.();
             return buffer;
         } catch {
