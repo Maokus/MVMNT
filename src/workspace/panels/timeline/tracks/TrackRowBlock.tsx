@@ -10,6 +10,7 @@ import { formatQuantizeShortLabel } from '@state/timeline/quantize';
 import type { AudioTrack } from '@audio/audioTypes';
 import { getMidiClipTimelineBounds, getMidiClipsForTrack } from '@state/timeline/midiClips';
 import { getAudioClipTimelineBounds, getAudioClipsForTrack } from '@state/timeline/audioClips';
+import { createTimingContext } from '@state/timelineTime';
 import MidiClipBlock from './MidiClipBlock';
 import AudioClipBlock from './AudioClipBlock';
 
@@ -344,13 +345,15 @@ const TrackRowBlock: React.FC<Props> = ({ trackId, trackIndex, laneWidth, laneHe
     }
 
     if (track?.type === 'audio') {
-        const cache = useTimelineStore.getState().audioCache;
+        const state = useTimelineStore.getState();
+        const cache = state.audioCache;
+        const timing = createTimingContext(state.timeline);
         const viewportPad = Math.max(1, Math.floor((view.endTick - view.startTick) * 0.1));
         const visibleStart = view.startTick - viewportPad;
         const visibleEnd = view.endTick + viewportPad;
         const clips = getAudioClipsForTrack(track).filter((clip) => {
             if (clip.enabled === false) return false;
-            const bounds = getAudioClipTimelineBounds(cache, clip);
+            const bounds = getAudioClipTimelineBounds(cache, clip, timing);
             if (!bounds) return false;
             return bounds.endTick >= visibleStart && bounds.startTick <= visibleEnd;
         });

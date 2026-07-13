@@ -11,7 +11,8 @@ import { AUTOMATION_HEADER_HEIGHT, TEMPO_LANE_HEIGHT } from '../constants';
 import GridLines from './GridLines';
 import TrackRowBlock from './TrackRowBlock';
 import { getMidiClipLocalBounds } from '@state/timeline/midiClips';
-import { getAudioClipLocalBounds } from '@state/timeline/audioClips';
+import { getAudioClipTimelineBounds } from '@state/timeline/audioClips';
+import { createTimingContext } from '@state/timelineTime';
 
 type Props = {
     trackIds: string[];
@@ -34,6 +35,8 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
     const midiCache = useTimelineStore((s) => s.midiCache);
     const clipTimelineSelection = useSelectionStore((s) => s.clipTimelineSelection);
     const midiTracks = useTimelineStore((s) => s.tracks);
+    const audioCache = useTimelineStore((s) => s.audioCache);
+    const timelineTiming = useTimelineStore((s) => s.timeline);
 
     useEffect(() => {
         const el = containerRef.current;
@@ -119,13 +122,12 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
                           ? track.clips?.find((c) => c.id === ref.clipId)
                           : undefined;
                 if (!clip) continue;
-                const bounds =
-                    kind === 'midi'
-                        ? getMidiClipLocalBounds(midiCache, clip as any)
-                        : getAudioClipLocalBounds(useTimelineStore.getState().audioCache, clip as any);
+                const bounds = kind === 'midi'
+                    ? getMidiClipLocalBounds(midiCache, clip as any)
+                    : getAudioClipTimelineBounds(audioCache, clip as any, createTimingContext(timelineTiming));
                 if (!bounds) continue;
-                const abStart = clip.offsetTicks + bounds.startTick;
-                const abEnd = clip.offsetTicks + bounds.endTick;
+                const abStart = kind === 'midi' ? clip.offsetTicks + bounds.startTick : bounds.startTick;
+                const abEnd = kind === 'midi' ? clip.offsetTicks + bounds.endTick : bounds.endTick;
                 const seg = segmentsByTrack.get(ref.trackId);
                 if (seg) {
                     seg.minTick = Math.min(seg.minTick, abStart);
@@ -281,17 +283,19 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
                                       regionStartTick: preview.regionStartTick,
                                       regionEndTick: preview.regionEndTick,
                                   })
-                                : getAudioClipLocalBounds(useTimelineStore.getState().audioCache, {
+                                : getAudioClipTimelineBounds(audioCache, {
                                       id: preview.clipId,
                                       type: 'audio',
                                       sourceId: preview.sourceId,
                                       offsetTicks: preview.previewOffsetTicks,
                                       regionStartTick: preview.regionStartTick,
                                       regionEndTick: preview.regionEndTick,
-                                  });
+                                      sourceStartSeconds: (preview as any).sourceStartSeconds,
+                                      sourceEndSeconds: (preview as any).sourceEndSeconds,
+                                  }, createTimingContext(timelineTiming));
                         if (!localBounds) return null;
-                        const absStart = preview.previewOffsetTicks + localBounds.startTick;
-                        const absEnd = preview.previewOffsetTicks + localBounds.endTick;
+                        const absStart = kind === 'midi' ? preview.previewOffsetTicks + localBounds.startTick : localBounds.startTick;
+                        const absEnd = kind === 'midi' ? preview.previewOffsetTicks + localBounds.endTick : localBounds.endTick;
                         const leftPx = toX(absStart, w);
                         const rightPx = toX(absEnd, w);
                         const wPx = Math.max(8, rightPx - leftPx);

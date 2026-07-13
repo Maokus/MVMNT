@@ -8,6 +8,10 @@ interface AudioWaveformProps {
     clipOffsetTicks?: number;
     regionStartTick?: number;
     regionEndTick?: number;
+    /** Preferred media-time trim values for tempo-aware audio clips. */
+    sourceStartSeconds?: number;
+    sourceEndSeconds?: number;
+    sourceDurationSeconds?: number;
     height?: number;
     color?: string;
     background?: string;
@@ -27,6 +31,9 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     clipOffsetTicks,
     regionStartTick: explicitRegionStartTick,
     regionEndTick: explicitRegionEndTick,
+    sourceStartSeconds,
+    sourceEndSeconds,
+    sourceDurationSeconds,
     height = 40,
     color = '#4ADE80',
     background = 'transparent',
@@ -43,6 +50,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         regionStartTick,
         regionEndTick,
         sourceDurationTicks,
+        cacheDurationSeconds,
     } = useTimelineStore((s) => {
         const t: any = s.tracks[trackId];
         if (!t || t.type !== 'audio')
@@ -52,7 +60,8 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
                 durationTicks: 0,
                 regionStartTick: 0,
                 regionEndTick: 0,
-                sourceDurationTicks: 0,
+            sourceDurationTicks: 0,
+                cacheDurationSeconds: 0,
             };
         const cacheKey = sourceId || t.audioSourceId || trackId;
         const cache = s.audioCache[cacheKey];
@@ -65,9 +74,17 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
             regionStartTick: startTick,
             regionEndTick: endTick,
             sourceDurationTicks: cache?.durationTicks ?? 0,
+            cacheDurationSeconds: cache?.durationSeconds ?? 0,
         };
     });
     const selected = useSelectionStore((s) => s.selectedTrackIds.includes(trackId));
+    const mediaDurationSeconds = sourceDurationSeconds ?? cacheDurationSeconds;
+    const hasSourceTimeBounds =
+        typeof sourceStartSeconds === 'number' &&
+        typeof sourceEndSeconds === 'number' &&
+        Number.isFinite(sourceStartSeconds) &&
+        Number.isFinite(sourceEndSeconds) &&
+        mediaDurationSeconds > 0;
 
     const fallbackRegionStart = typeof regionStartTick === 'number' ? regionStartTick : 0;
     const fallbackRegionEnd = typeof regionEndTick === 'number' ? regionEndTick : fallbackRegionStart + Math.max(durationTicks, 0);
@@ -130,7 +147,14 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         ctx.beginPath();
         const bins = peaks.length;
         // Determine mapping from visible slice to peak bins.
-        // Region = trimmed portion of the underlying buffer (regionStartTick .. regionEndTick) relative to buffer start.
+        // Peak bins are indexed in source media time. Do not project a tempo-map
+        // tick span into this space: that was the cause of waveform/audio drift.
+        const sourceStartFraction = hasSourceTimeBounds
+            ? Math.max(0, Math.min(1, sourceStartSeconds! / mediaDurationSeconds))
+            : undefined;
+        const sourceEndFraction = hasSourceTimeBounds
+            ? Math.max(sourceStartFraction!, Math.min(1, sourceEndSeconds! / mediaDurationSeconds))
+            : undefined;
         const totalDurationTicks = Math.max(
             1,
             sourceDurationTicks > 0 ? sourceDurationTicks : Math.max(effectiveRegionEnd, durationTicks + effectiveRegionStart),
@@ -138,8 +162,8 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         // Clamp visible window inside region
         const visStartClamped = Math.max(effectiveRegionStart, Math.min(effectiveVisibleStart, effectiveRegionEnd));
         const visEndClamped = Math.max(visStartClamped, Math.min(effectiveVisibleEnd, effectiveRegionEnd));
-        const startFrac = Math.max(0, Math.min(1, visStartClamped / totalDurationTicks));
-        const endFrac = Math.max(startFrac, Math.min(1, visEndClamped / totalDurationTicks));
+        const startFrac = sourceStartFraction ?? Math.max(0, Math.min(1, visStartClamped / totalDurationTicks));
+        const endFrac = sourceEndFraction ?? Math.max(startFrac, Math.min(1, visEndClamped / totalDurationTicks));
         const startBin = Math.max(0, Math.min(bins - 1, Math.floor(startFrac * bins)));
         const endBin = Math.max(startBin + 1, Math.min(bins, Math.floor(endFrac * bins)));
         const sliceBins = endBin - startBin;
@@ -170,6 +194,10 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         effectiveVisibleStart,
         effectiveVisibleEnd,
         sourceDurationTicks,
+        sourceStartSeconds,
+        sourceEndSeconds,
+        mediaDurationSeconds,
+        hasSourceTimeBounds,
     ]);
 
     return <canvas ref={canvasRef} style={{ width: '100%', height: `${height}px`, display: 'block' }} data-track={trackId} />;

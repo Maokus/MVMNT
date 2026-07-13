@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import type { AudioClip } from '@audio/audioTypes';
-import { getAudioClipTimelineBounds, getAudioClipsForTrack } from '@state/timeline/audioClips';
-import { createTimingContext, ticksToSeconds } from '@state/timelineTime';
+import { getAudioClipSourceBounds, getAudioClipTimelineBounds, getAudioClipsForTrack } from '@state/timeline/audioClips';
+import { createTimingContext, secondsToTicks, ticksToSeconds } from '@state/timelineTime';
 import { formatQuantizeShortLabel } from '@state/timeline/quantize';
 import { useSelectionStore } from '@state/selectionStore';
 import { useTimelineStore } from '@state/timelineStore';
@@ -73,12 +73,19 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
         [clip, audioCacheEntry, timelineTiming],
     );
     if (!timelineBounds) return null;
+    const timingContext = createTimingContext(timelineTiming);
+    const sourceBounds = getAudioClipSourceBounds(useTimelineStore.getState().audioCache, clip);
+    if (!sourceBounds) return null;
 
-    const localStartTick = resizePreview?.start ?? timelineBounds.startTick - clip.offsetTicks;
-    const localEndTick = resizePreview?.end ?? timelineBounds.endTick - clip.offsetTicks;
     const offsetTick = dragTick ?? clip.offsetTicks;
-    const absStartTick = offsetTick + localStartTick;
-    const absEndTick = offsetTick + localEndTick;
+    const movedBounds = dragTick == null
+        ? timelineBounds
+        : getAudioClipTimelineBounds(useTimelineStore.getState().audioCache, { ...clip, offsetTicks: offsetTick }, timingContext);
+    if (!movedBounds) return null;
+    const absStartTick = resizePreview?.start != null ? clip.offsetTicks + resizePreview.start : movedBounds.startTick;
+    const absEndTick = resizePreview?.end != null ? clip.offsetTicks + resizePreview.end : movedBounds.endTick;
+    const localStartTick = absStartTick - offsetTick;
+    const localEndTick = absEndTick - offsetTick;
     const leftX = toX(absStartTick, laneWidth);
     const rightX = toX(absEndTick, laneWidth);
     const widthPx = Math.max(0, rightX - leftX);
@@ -271,9 +278,16 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
         const dx = e.clientX - drag.startX;
         const dy = e.clientY - drag.startY;
         const deltaTicks = Math.round((dx / Math.max(1, laneWidth)) * (view.endTick - view.startTick));
-        const snapped = snapTicks(drag.baseOffsetTick + deltaTicks, e.ctrlKey || e.metaKey || drag.alt, false, true);
+        const desiredTrimmedStart = snapTicks(
+            timelineBounds.startTick + deltaTicks,
+            e.ctrlKey || e.metaKey || drag.alt,
+            false,
+            true,
+        );
+        const desiredBaseSeconds = ticksToSeconds(timingContext, desiredTrimmedStart) - sourceBounds.startSeconds;
+        const snapped = Math.round(secondsToTicks(timingContext, Math.max(0, desiredBaseSeconds)));
         setDragTick(snapped);
-        onHoverSnapX(toX(snapped + localStartTick, laneWidth));
+        onHoverSnapX(toX(desiredTrimmedStart, laneWidth));
         if (Math.abs(dx) > 2 || Math.abs(dy) > 2) setDidMove(true);
 
         const trackDelta = Math.round(dy / Math.max(1, rowHeight));
@@ -300,6 +314,8 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
                         targetTrackId: targetId,
                         previewOffsetTicks: entry.offsetTicks + horizontalDelta,
                         sourceId: c?.sourceId ?? '',
+                        sourceStartSeconds: c?.sourceStartSeconds,
+                        sourceEndSeconds: c?.sourceEndSeconds,
                         regionStartTick: c?.regionStartTick,
                         regionEndTick: c?.regionEndTick,
                     };
@@ -364,6 +380,9 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
                         trackId={trackId}
                         sourceId={clip.sourceId}
                         clipOffsetTicks={offsetTick}
+                        sourceStartSeconds={sourceBounds.startSeconds}
+                        sourceEndSeconds={sourceBounds.endSeconds}
+                        sourceDurationSeconds={audioCacheEntry?.durationSeconds}
                         regionStartTick={localStartTick}
                         regionEndTick={localEndTick}
                         height={clipHeight - 4}
