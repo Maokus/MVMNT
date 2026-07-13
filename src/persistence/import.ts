@@ -29,6 +29,7 @@ import {
     useTimelineStore,
 } from '@state/timelineStore';
 import { findReferencedAudioSourceIds, getAudioClipsForTrack } from '@state/timeline/audioClips';
+import type { AudioCacheEntry } from '@audio/audioTypes';
 import { migrateSceneRotationUnitsV7 } from './migrations/rotationUnitsV7';
 import { migrateSceneMidiClipsV8 } from './migrations/midiClipsV8';
 import { createTimingContext, secondsToTicks } from '@state/timelineTime';
@@ -856,13 +857,48 @@ async function hydrateAudioAssets(
                 `Byte length mismatch for asset ${assetId} (expected ${record.byteLength}, got ${bytes.byteLength})`
             );
         }
+        assetData.set(assetId, { record, bytes });
+    }
+
+    // Publish bounds for every referenced source before work that can take a
+    // noticeable amount of time (hashing, IndexedDB writes, or decoding). This
+    // lets the timeline render all of its loading placeholders at once.
+    const pendingAudioCache: Record<string, AudioCacheEntry> = {};
+    for (const [originalId, assetId] of Object.entries(audioIdMap)) {
+        const payload = assetData.get(assetId);
+        if (!payload || pendingAudioCache[originalId]) continue;
+        pendingAudioCache[originalId] = {
+            ...buildLightweightAudioCacheEntry(payload.record, {
+                name: payload.record.filename,
+                mimeType: payload.record.mimeType,
+                byteLength: payload.bytes.byteLength,
+                hash: payload.record.hash,
+                storage: 'missing',
+            }),
+            decodedState: 'decoding',
+            decodedFailureReason: undefined,
+        };
+    }
+    useTimelineStore.setState((state) => {
+        if (!isAudioHydrationStillCurrent(expectedTimelineGeneration)) return state;
+        const audioCache = { ...state.audioCache };
+        let changed = false;
+        for (const [sourceId, entry] of Object.entries(pendingAudioCache)) {
+            if (!shouldHydrateAudioSource(sourceId, state)) continue;
+            audioCache[sourceId] = entry;
+            changed = true;
+        }
+        return changed ? { audioCache } : state;
+    });
+
+    for (const [assetId, { record, bytes }] of assetData) {
+        throwIfAborted(options.signal);
         try {
             const hash = await sha256Hex(bytes);
             if (record.hash && hash !== record.hash) warnings.push(`Hash mismatch for asset ${assetId}`);
         } catch {
             warnings.push(`Failed to hash asset ${assetId}`);
         }
-        assetData.set(assetId, { record, bytes });
     }
 
     const consumed = new Set<string>();
@@ -914,10 +950,8 @@ async function hydrateAudioAssets(
             };
         }
 
-        // Make the clip visible as soon as its persisted metadata is available.
-        // Decoding can take considerably longer than restoring the scene itself;
-        // without this entry, clip bounds are unknown and the timeline renders
-        // nothing until decoding finishes.
+        // Replace the metadata-only placeholder with the original bytes before
+        // this source is decoded.
         const lightweightEntry = {
             ...buildLightweightAudioCacheEntry(payload.record, originalFile),
             decodedState: 'decoding' as const,

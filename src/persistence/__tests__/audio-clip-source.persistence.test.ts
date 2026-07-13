@@ -143,6 +143,40 @@ describe('audio clip source persistence', () => {
 
     it('does not hydrate packaged audio after the timeline is reset mid-import', async () => {
         setSceneWithClipAudioSource();
+        useTimelineStore.setState((state) => ({
+            ...state,
+            tracks: {
+                ...state.tracks,
+                audioTrack2: {
+                    id: 'audioTrack2',
+                    name: 'Second audio track',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    gain: 1,
+                    clips: [{ id: 'clip2', type: 'audio', sourceId: 'source2', offsetTicks: 0, enabled: true }],
+                },
+            },
+            tracksOrder: [...state.tracksOrder, 'audioTrack2'],
+            audioCache: {
+                ...state.audioCache,
+                source2: {
+                    audioBuffer: makeAudioBufferStub(),
+                    durationTicks: 960,
+                    durationSeconds: 1,
+                    durationSamples: 100,
+                    sampleRate: 44100,
+                    channels: 1,
+                    originalFile: {
+                        name: 'second-clip-source.wav',
+                        mimeType: 'audio/wav',
+                        bytes: new Uint8Array([5, 6, 7, 8]),
+                        byteLength: 4,
+                    },
+                },
+            },
+        }));
         const exported = await exportScene();
         if (!exported.ok || exported.mode !== 'zip-package') {
             throw new Error('Expected packaged scene export');
@@ -151,11 +185,15 @@ describe('audio clip source persistence', () => {
         useTimelineStore.getState().resetTimeline();
 
         let resolveDecode: ((buffer: AudioBuffer) => void) | undefined;
+        let decodeCount = 0;
         (window as any).AudioContext = vi.fn(() => ({
-            decodeAudioData: () =>
-                new Promise<AudioBuffer>((resolve) => {
+            decodeAudioData: () => {
+                decodeCount += 1;
+                if (decodeCount > 1) return Promise.resolve(makeAudioBufferStub());
+                return new Promise<AudioBuffer>((resolve) => {
                     resolveDecode = resolve;
-                }),
+                });
+            },
             close: vi.fn(),
         }));
 
@@ -167,6 +205,7 @@ describe('audio clip source persistence', () => {
         const loadingEntry = useTimelineStore.getState().audioCache.source1;
         expect(loadingEntry).toMatchObject({ decodedState: 'decoding' });
         expect(loadingEntry.durationTicks).toBeGreaterThan(0);
+        expect(useTimelineStore.getState().audioCache.source2).toMatchObject({ decodedState: 'decoding' });
 
         useTimelineStore.getState().resetTimeline();
         resolveDecode?.(makeAudioBufferStub());
