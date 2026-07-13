@@ -19,10 +19,14 @@ const ChangelogPage: React.FC = () => {
 
                 <div className="space-y-10">
                     <ChangelogEntry version="0.15.6" date="1-7-26" notes={[
-                        "Overhauled clip timeline to allow multiple clips per track and standard edit commands (copy, cut, paste, duplicate)",
+                        "Overhauled clip timeline",
+                        [
+                            "Track-clip seperation (more than one clip per track!)",
+                            "Clip selection and manipulation",
+                        ],
+                        "Improve tempo automation behaviour",
                         "Allow arbitrary time division snapping (joserizzal req)",
                         "Change duplicate element name behaviour (no more _copy chains)",
-
                     ]} />
 
                     <ChangelogEntry version="0.15.4" date="1-7-26" notes={[

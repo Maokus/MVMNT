@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
+import { createTimingContext, ticksToSeconds, type TimelineTimingContext } from '@state/timelineTime';
 
 interface AudioWaveformProps {
     trackId: string;
@@ -21,6 +22,32 @@ interface AudioWaveformProps {
     regionEndTickAbs?: number;
     visibleStartTickAbs?: number;
     visibleEndTickAbs?: number;
+}
+
+/**
+ * Convert a timeline position into a source waveform bin. Horizontal canvas
+ * positions are evenly spaced in ticks, while audio advances in seconds; a
+ * tempo map therefore requires this conversion for every position.
+ */
+export function getWaveformBinAtTimelineTick({
+    tick,
+    clipStartTick,
+    sourceDurationSeconds,
+    binCount,
+    timing,
+}: {
+    tick: number;
+    clipStartTick: number;
+    sourceDurationSeconds: number;
+    binCount: number;
+    timing: TimelineTimingContext;
+}): number {
+    if (!Number.isFinite(tick) || !Number.isFinite(clipStartTick) || sourceDurationSeconds <= 0 || binCount <= 0) {
+        return 0;
+    }
+    const sourceSeconds = ticksToSeconds(timing, tick) - ticksToSeconds(timing, clipStartTick);
+    const sourceFraction = Math.max(0, Math.min(1, sourceSeconds / sourceDurationSeconds));
+    return Math.min(binCount - 1, Math.floor(sourceFraction * binCount));
 }
 
 // Lightweight canvas waveform renderer using waveform peak data (mono absolute peaks) from audioCache.
@@ -78,6 +105,8 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         };
     });
     const selected = useSelectionStore((s) => s.selectedTrackIds.includes(trackId));
+    const timing = useTimelineStore((s) => s.timeline);
+    const timingContext = useMemo(() => createTimingContext(timing), [timing]);
     const mediaDurationSeconds = sourceDurationSeconds ?? cacheDurationSeconds;
     const hasSourceTimeBounds =
         typeof sourceStartSeconds === 'number' &&
@@ -146,9 +175,9 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         const mid = h / 2;
         ctx.beginPath();
         const bins = peaks.length;
-        // Determine mapping from visible slice to peak bins.
-        // Peak bins are indexed in source media time. Do not project a tempo-map
-        // tick span into this space: that was the cause of waveform/audio drift.
+        // Peak bins are indexed in source media time. Canvas positions are
+        // evenly spaced in timeline ticks, so tempo automation must be applied
+        // when resolving each position to a media-time peak bin.
         const sourceStartFraction = hasSourceTimeBounds
             ? Math.max(0, Math.min(1, sourceStartSeconds! / mediaDurationSeconds))
             : undefined;
@@ -168,8 +197,17 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         const endBin = Math.max(startBin + 1, Math.min(bins, Math.floor(endFrac * bins)));
         const sliceBins = endBin - startBin;
         for (let x = 0; x < w; x++) {
-            const t = sliceBins <= 1 ? 0 : x / (w - 1 || 1);
-            const bin = Math.min(bins - 1, startBin + Math.floor(t * sliceBins));
+            const timelineFraction = x / (w - 1 || 1);
+            const t = sliceBins <= 1 ? 0 : timelineFraction;
+            const bin = hasSourceTimeBounds
+                ? getWaveformBinAtTimelineTick({
+                    tick: effectiveOffsetTicks + visStartClamped + timelineFraction * (visEndClamped - visStartClamped),
+                    clipStartTick: effectiveOffsetTicks,
+                    sourceDurationSeconds: mediaDurationSeconds,
+                    binCount: bins,
+                    timing: timingContext,
+                })
+                : Math.min(bins - 1, startBin + Math.floor(t * sliceBins));
             const amp = peaks[bin] || 0;
             const y = amp * (mid - 1);
             ctx.moveTo(x + 0.5, mid - y);
@@ -198,6 +236,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         sourceEndSeconds,
         mediaDurationSeconds,
         hasSourceTimeBounds,
+        timingContext,
     ]);
 
     return <canvas ref={canvasRef} style={{ width: '100%', height: `${height}px`, display: 'block' }} data-track={trackId} />;
