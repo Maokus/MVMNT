@@ -13,7 +13,7 @@ import { LocalFileStore } from './local-file-store';
 
 export type LocalSaveResult =
     | { ok: true }
-    | { ok: false; error: string };
+    | { ok: false; error: string; fallbackToFileExport?: boolean };
 
 export type LocalLoadResult =
     /** File loaded and applied to app state. */
@@ -34,6 +34,20 @@ function createAbortError(): Error {
     const error = new Error('Local file load aborted');
     error.name = 'AbortError';
     return error;
+}
+
+/**
+ * Firefox exposes IndexedDB in some contexts where write transactions are
+ * forbidden (notably private browsing with IndexedDB disabled).  The browser
+ * reports this as an InvalidStateError rather than treating IndexedDB as
+ * unavailable.  A file export is the durable save option in that case.
+ */
+function requiresFileExportFallback(error: unknown): boolean {
+    if (!(error instanceof Error)) return false;
+    return (
+        error.name === 'ReadOnlyError' ||
+        (error.name === 'InvalidStateError' && /did not allow mutations/i.test(error.message))
+    );
 }
 
 export const LocalSaveService = {
@@ -69,7 +83,11 @@ export const LocalSaveService = {
             await LocalFileStore.save(res.zip);
             options.onProgress?.(1, 'File saved.');
         } catch (e) {
-            return { ok: false, error: e instanceof Error ? e.message : String(e) };
+            return {
+                ok: false,
+                error: e instanceof Error ? e.message : String(e),
+                fallbackToFileExport: requiresFileExportFallback(e),
+            };
         }
 
         if (res.warnings?.length) {

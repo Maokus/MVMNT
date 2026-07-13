@@ -89,6 +89,13 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
             });
             if (result.ok) {
                 markClean();
+            } else if (result.fallbackToFileExport) {
+                // Some browsers expose IndexedDB but prohibit writes (for
+                // example, Firefox private browsing). Preserve the user's
+                // work with the same durable file export used by the menu.
+                console.warn('[SceneContext] Local save unavailable; exporting scene as a file instead:', result.error);
+                alert('Local saving is unavailable in this browser session. Your scene will be exported as a file instead.');
+                await menuBarActions.saveScene(sceneName);
             } else {
                 console.error('[SceneContext] Local save failed:', result.error);
                 alert('Save failed: ' + result.error);
@@ -96,7 +103,7 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         } finally {
             finishFileLoading();
         }
-    }, [finishFileLoading, markClean, sceneName, startFileLoading, updateFileLoading]);
+    }, [finishFileLoading, markClean, menuBarActions, sceneName, startFileLoading, updateFileLoading]);
 
     // Expose markClean so TemplateInitializer can call it after loading from IDB
     const markSaveClean = markClean;
