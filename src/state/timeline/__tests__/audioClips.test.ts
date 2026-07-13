@@ -10,6 +10,7 @@ import {
     getPrimaryAudioClip,
     resolveAudioClipOverlapWithCache,
 } from '../audioClips';
+import { createTimingContext } from '@state/timelineTime';
 
 function cacheFor(durationTicks: number): TimelineState['audioCache'] {
     return {
@@ -177,5 +178,42 @@ describe('audio clip helpers', () => {
 
         expect(resolved.map((clip) => clip.id)).toEqual(['a', 'b']);
         expect(resolved[0].regionEndTick).toBe(50);
+    });
+
+    it('trims in source seconds when resolving overlap across a tempo change', () => {
+        const cache = {
+            sourceA: {
+                durationTicks: 3840,
+                durationSeconds: 4,
+                durationSamples: 192000,
+                sampleRate: 48000,
+                channels: 2,
+            },
+        } as TimelineState['audioCache'];
+        const timing = createTimingContext({
+            globalBpm: 120,
+            beatsPerBar: 4,
+            masterTempoMap: [{ time: 0, bpm: 120 }, { time: 2, bpm: 60 }],
+        });
+        const track: AudioTrack = {
+            id: 'track1', name: 'Track', type: 'audio', enabled: true, mute: false, solo: false, gain: 1,
+            clips: [
+                { id: 'left', type: 'audio', sourceId: 'sourceA', offsetTicks: 0 },
+                { id: 'right', type: 'audio', sourceId: 'sourceA', offsetTicks: 3600 },
+            ],
+        };
+        const edited: AudioClip = {
+            id: 'edited', type: 'audio', sourceId: 'sourceA', offsetTicks: 2880,
+            sourceStartSeconds: 0, sourceEndSeconds: 0.75,
+        };
+
+        const resolved = resolveAudioClipOverlapWithCache(track, edited, cache, timing);
+        const left = resolved.find((clip) => clip.id === 'left')!;
+        const right = resolved.find((clip) => clip.id === 'right')!;
+
+        expect(left.sourceEndSeconds).toBeCloseTo(1.5, 5);
+        expect(right.sourceStartSeconds).toBeCloseTo(0.375, 5);
+        expect(getAudioClipTimelineBounds(cache, left, timing)?.endTick).toBe(2880);
+        expect(getAudioClipTimelineBounds(cache, right, timing)?.startTick).toBe(4080);
     });
 });

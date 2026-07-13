@@ -212,6 +212,57 @@ function clipWithLocalStart(clip: AudioClip, localStartTick: number): AudioClip 
     return { ...clip, regionStartTick: Math.max(0, localStartTick) };
 }
 
+/**
+ * Clip regions are stored in source seconds.  With a tempo map, subtracting
+ * timeline ticks from an offset does not produce a source-time trim point:
+ * the same duration can occupy different tick widths at different positions.
+ */
+function sourceSecondsAtTimelineTick(
+    clip: AudioClip,
+    timelineTick: number,
+    timing: TimelineTimingContext,
+): number {
+    return ticksToSeconds(timing, timelineTick) - ticksToSeconds(timing, clip.offsetTicks);
+}
+
+function clipWithTimelineEnd(
+    clip: AudioClip,
+    timelineEndTick: number,
+    audioCache: AudioCache,
+    timing?: TimelineTimingContext,
+): AudioClip | null {
+    if (!timing) return clipWithLocalEnd(clip, timelineEndTick - clip.offsetTicks);
+    const source = getAudioClipSourceBounds(audioCache, clip);
+    const sourceEndSeconds = sourceSecondsAtTimelineTick(clip, timelineEndTick, timing);
+    if (!source || !Number.isFinite(sourceEndSeconds) || sourceEndSeconds <= source.startSeconds) return null;
+    return {
+        ...clip,
+        // Retain the legacy projection for persistence/UI compatibility. Source
+        // seconds above remain authoritative for tempo-aware playback.
+        regionEndTick: timelineEndTick - clip.offsetTicks,
+        sourceEndSeconds: Math.min(source.endSeconds, sourceEndSeconds),
+    };
+}
+
+function clipWithTimelineStart(
+    clip: AudioClip,
+    timelineStartTick: number,
+    audioCache: AudioCache,
+    timing?: TimelineTimingContext,
+): AudioClip | null {
+    if (!timing) return clipWithLocalStart(clip, timelineStartTick - clip.offsetTicks);
+    const source = getAudioClipSourceBounds(audioCache, clip);
+    const sourceStartSeconds = sourceSecondsAtTimelineTick(clip, timelineStartTick, timing);
+    if (!source || !Number.isFinite(sourceStartSeconds) || sourceStartSeconds >= source.endSeconds) return null;
+    return {
+        ...clip,
+        // Retain the legacy projection for persistence/UI compatibility. Source
+        // seconds above remain authoritative for tempo-aware playback.
+        regionStartTick: Math.max(0, timelineStartTick - clip.offsetTicks),
+        sourceStartSeconds: Math.max(source.startSeconds, sourceStartSeconds),
+    };
+}
+
 export function resolveAudioClipOverlapWithCache(
     track: AudioTrack,
     editedClip: AudioClip,
@@ -237,15 +288,13 @@ export function resolveAudioClipOverlapWithCache(
             continue;
         }
         if (bounds.startTick < editedBounds.startTick) {
-            const localEndTick = editedBounds.startTick - clip.offsetTicks;
-            const cropped = clipWithLocalEnd(clip, localEndTick);
+            const cropped = clipWithTimelineEnd(clip, editedBounds.startTick, audioCache, timing);
             if (cropped) {
                 resolved.push(cropped);
             }
             continue;
         }
-        const localStartTick = editedBounds.endTick - clip.offsetTicks;
-        const cropped = clipWithLocalStart(clip, localStartTick);
+        const cropped = clipWithTimelineStart(clip, editedBounds.endTick, audioCache, timing);
         if (cropped) {
             resolved.push(cropped);
         }
