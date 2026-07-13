@@ -86,6 +86,12 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
     const absEndTick = resizePreview?.end != null ? clip.offsetTicks + resizePreview.end : movedBounds.endTick;
     const localStartTick = absStartTick - offsetTick;
     const localEndTick = absEndTick - offsetTick;
+    const previewSourceBounds = resizePreview
+        ? {
+              startSeconds: Math.max(0, ticksToSeconds(timingContext, clip.offsetTicks + resizePreview.start) - ticksToSeconds(timingContext, clip.offsetTicks)),
+              endSeconds: Math.max(0, ticksToSeconds(timingContext, clip.offsetTicks + resizePreview.end) - ticksToSeconds(timingContext, clip.offsetTicks)),
+          }
+        : sourceBounds;
     const leftX = toX(absStartTick, laneWidth);
     const rightX = toX(absEndTick, laneWidth);
     const widthPx = Math.max(0, rightX - leftX);
@@ -380,8 +386,8 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
                         trackId={trackId}
                         sourceId={clip.sourceId}
                         clipOffsetTicks={offsetTick}
-                        sourceStartSeconds={sourceBounds.startSeconds}
-                        sourceEndSeconds={sourceBounds.endSeconds}
+                        sourceStartSeconds={previewSourceBounds.startSeconds}
+                        sourceEndSeconds={previewSourceBounds.endSeconds}
                         sourceDurationSeconds={audioCacheEntry?.durationSeconds}
                         regionStartTick={localStartTick}
                         regionEndTick={localEndTick}

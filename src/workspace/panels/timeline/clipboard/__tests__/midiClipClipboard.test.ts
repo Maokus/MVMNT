@@ -3,7 +3,9 @@ import { CANONICAL_PPQ } from '@core/timing/ppq';
 import type { TimelineState } from '@state/timelineStore';
 import {
     copyTimelineSelectionToMidiClipClipboard,
+    copyTimelineSelectionToClipboard,
     prepareMidiClipPaste,
+    prepareTimelineClipPaste,
     setMidiClipClipboard,
 } from '../midiClipClipboard';
 
@@ -126,5 +128,35 @@ describe('midiClipClipboard', () => {
         expect(prepared?.clips).toHaveLength(1);
         expect(prepared?.clips[0].clip.sourceId).toBe('source1');
         expect(prepared?.clips[0].clip.offsetTicks).toBe(CANONICAL_PPQ * 8);
+    });
+
+    it('places a cropped audio duplicate at its tempo-aware audible end', () => {
+        const audioState = {
+            ...state(),
+            timeline: {
+                globalBpm: 120,
+                beatsPerBar: 4,
+                masterTempoMap: [{ time: 0, bpm: 120 }, { time: 2, bpm: 60 }],
+            },
+            tracks: {
+                audio: {
+                    id: 'audio', name: 'Audio', type: 'audio', enabled: true, mute: false, solo: false, gain: 1,
+                    clips: [{
+                        id: 'audioClip', type: 'audio', sourceId: 'audioSource', offsetTicks: 3 * CANONICAL_PPQ,
+                        sourceStartSeconds: 1, sourceEndSeconds: 3,
+                    }],
+                },
+            },
+            tracksOrder: ['audio'],
+            audioCache: {
+                audioSource: { durationSeconds: 4, durationSamples: 192000, durationTicks: 7680, sampleRate: 48000, channels: 1 },
+            },
+        } as unknown as TimelineState;
+        const copied = copyTimelineSelectionToClipboard(audioState, {
+            type: 'clips', clips: [{ trackId: 'audio', clipId: 'audioClip', kind: 'audio' }],
+        });
+        // Original audible end: base 1.5s + source end 3s = 4.5s => tick 6240.
+        const prepared = copied ? prepareTimelineClipPaste(audioState, copied, { trackId: 'audio', tick: 6240 }) : null;
+        expect(prepared?.audioClips[0].clip.offsetTicks).toBe(5280);
     });
 });

@@ -14,6 +14,8 @@ import {
 import type { ClipTimelineSelection, TimelineClipRef } from '@state/selectionStore';
 import type { TimelineMidiCacheEntry } from '@state/timeline/patches';
 import type { AudioCacheEntry } from '@audio/audioTypes';
+import { createTimingContext, secondsToTicks, ticksToSeconds } from '@state/timelineTime';
+import { getAudioClipSourceBounds } from '@state/timeline/audioClips';
 
 export type { TimelineClipRef };
 
@@ -51,6 +53,8 @@ export type TimelineClipClipboard = {
         offsetTicks: number;
         regionStartTick?: number;
         regionEndTick?: number;
+        sourceStartSeconds?: number;
+        sourceEndSeconds?: number;
         name?: string;
         enabled?: boolean;
         gain?: number;
@@ -157,6 +161,7 @@ export function getAudioClipsInTimelineSelection(
     if (selection.type !== 'range') return [];
     const refs: TimelineClipRef[] = [];
     const selectedTrackIds = new Set(selection.range.trackIds);
+    const timing = createTimingContext(state.timeline);
     const startTick = Math.min(selection.range.startTick, selection.range.endTick);
     const endTick = Math.max(selection.range.startTick, selection.range.endTick);
     for (const trackId of state.tracksOrder) {
@@ -165,7 +170,7 @@ export function getAudioClipsInTimelineSelection(
         if (!track || track.type !== 'audio') continue;
         for (const clip of getAudioClipsForTrack(track)) {
             if (clip.enabled === false) continue;
-            const bounds = getAudioClipTimelineBounds(state.audioCache, clip);
+            const bounds = getAudioClipTimelineBounds(state.audioCache, clip, timing);
             if (!bounds) continue;
             if (rangesOverlap(startTick, endTick, bounds.startTick, bounds.endTick)) {
                 refs.push({ trackId, clipId: clip.id, kind: 'audio' });
@@ -279,6 +284,8 @@ export function copyTimelineSelectionToClipboard(
                     offsetTicks: clip.offsetTicks,
                     regionStartTick: clip.regionStartTick,
                     regionEndTick: clip.regionEndTick,
+                    sourceStartSeconds: clip.sourceStartSeconds,
+                    sourceEndSeconds: clip.sourceEndSeconds,
                     name: clip.name,
                     enabled: clip.enabled,
                     gain: clip.gain,
@@ -419,6 +426,18 @@ export function prepareTimelineClipPaste(
     const missingAudioCache = [...audioSources]
         .filter(([sourceId]) => !state.audioCache[sourceId])
         .map(([key, value]) => ({ key, value }));
+    const timing = createTimingContext(state.timeline);
+    const audioAnchorStartSeconds = Math.min(
+        ...payload.clips
+            .filter((clip) => clip.kind === 'audio')
+            .map((clip) => {
+                const source = getAudioClipSourceBounds(
+                    { ...state.audioCache, ...Object.fromEntries(audioSources) },
+                    clip as unknown as AudioClip,
+                );
+                return ticksToSeconds(timing, clip.offsetTicks) + (source?.startSeconds ?? 0);
+            }),
+    );
 
     const midiMap = payload.clips.some((clip) => clip.kind === 'midi')
         ? buildTrackMap({ state, payload, destination, kind: destinationKind === 'midi' ? 'midi' : 'midi' })
@@ -453,15 +472,25 @@ export function prepareTimelineClipPaste(
         .map((clip) => {
             const targetTrackId = audioMap?.trackMap.get(clip.sourceTrackId);
             if (!targetTrackId || (!state.audioCache[clip.sourceId] && !audioSources.has(clip.sourceId))) return null;
+            const sourceBounds = getAudioClipSourceBounds(
+                { ...state.audioCache, ...Object.fromEntries(audioSources) },
+                clip as unknown as AudioClip,
+            );
+            const sourceStartSeconds = sourceBounds?.startSeconds ?? clip.sourceStartSeconds ?? 0;
+            const originalVisualStartSeconds = ticksToSeconds(timing, clip.offsetTicks) + sourceStartSeconds;
+            const destinationVisualStartSeconds = ticksToSeconds(timing, destination.tick) +
+                (Number.isFinite(audioAnchorStartSeconds) ? originalVisualStartSeconds - audioAnchorStartSeconds : 0);
             return {
                 trackId: targetTrackId,
                 clip: {
                     id: makeAudioClipId(),
                     type: 'audio' as const,
                     sourceId: clip.sourceId,
-                    offsetTicks: Math.max(0, Math.round(destination.tick + (clip.offsetTicks - payload.anchorTick))),
+                    offsetTicks: Math.max(0, Math.round(secondsToTicks(timing, destinationVisualStartSeconds - sourceStartSeconds))),
                     regionStartTick: clip.regionStartTick,
                     regionEndTick: clip.regionEndTick,
+                    sourceStartSeconds: clip.sourceStartSeconds,
+                    sourceEndSeconds: clip.sourceEndSeconds,
                     name: clip.name,
                     enabled: clip.enabled,
                     gain: clip.gain,

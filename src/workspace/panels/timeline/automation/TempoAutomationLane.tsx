@@ -44,9 +44,11 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
 
     const keyframes = tempoAutomation?.keyframes ?? [];
     const [selectedTick, setSelectedTick] = useState<number | null>(null);
+    const [editingTick, setEditingTick] = useState<number | null>(null);
     const [dragState, setDragState] = useState<DragState | null>(null);
     const [draftPos, setDraftPos] = useState<{ tick: number; bpm: number } | null>(null);
     const svgRef = useRef<SVGSVGElement>(null);
+    const laneRef = useRef<HTMLDivElement>(null);
     // Live refs so global pointerup handler always sees latest drag state
     const dragStateRef = useRef<DragState | null>(null);
     const draftPosRef = useRef<{ tick: number; bpm: number } | null>(null);
@@ -168,6 +170,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
         (e: React.PointerEvent, kfIndex: number) => {
             e.stopPropagation();
             e.preventDefault();
+            laneRef.current?.focus({ preventScroll: true });
             const target = e.currentTarget as SVGElement;
             target.setPointerCapture(e.pointerId);
             const kf = keyframes[kfIndex];
@@ -184,6 +187,14 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
         },
         [keyframes],
     );
+
+    const handleKeyframeDoubleClick = useCallback((e: React.MouseEvent, tick: number) => {
+        e.preventDefault();
+        e.stopPropagation();
+        laneRef.current?.focus({ preventScroll: true });
+        setSelectedTick(tick);
+        setEditingTick(tick);
+    }, []);
 
     const handlePointerMove = useCallback(
         (e: React.PointerEvent) => {
@@ -262,12 +273,14 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
             removeTempoKeyframe(interpNotAvailMenu.tick);
             setInterpNotAvailMenu(null);
             setSelectedTick(null);
+            setEditingTick(null);
         }
     }, [interpNotAvailMenu, removeTempoKeyframe]);
 
     // Background click to deselect
     const handleBackgroundClick = useCallback(() => {
         setSelectedTick(null);
+        setEditingTick(null);
         setInterpNotAvailMenu(null);
     }, []);
 
@@ -285,6 +298,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                 e.preventDefault();
                 removeTempoKeyframe(selectedTick);
                 setSelectedTick(null);
+                setEditingTick(null);
             }
         },
         [selectedTick, removeTempoKeyframe],
@@ -315,6 +329,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
     return (
         <div
             className="relative w-full h-full"
+            ref={laneRef}
             tabIndex={0}
             onKeyDown={handleKeyDown}
             onPointerDown={(e) => e.stopPropagation()}
@@ -420,6 +435,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                                 fill="transparent"
                                 className="cursor-grab"
                                 onPointerDown={(e) => handleDiamondPointerDown(e, i)}
+                                onDoubleClick={(e) => handleKeyframeDoubleClick(e, kf.tick)}
                                 onContextMenu={(e) => handleContextMenu(e, kf.tick)}
                             />
                             {/* Diamond shape */}
@@ -437,6 +453,11 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                                 x={x}
                                 y={y}
                                 selected={isSelected}
+                                editing={editingTick !== null && Math.abs(kf.tick - editingTick) <= 1}
+                                onEditingChange={(editing) => {
+                                    setSelectedTick(kf.tick);
+                                    setEditingTick(editing ? kf.tick : null);
+                                }}
                             />
                         </g>
                     );

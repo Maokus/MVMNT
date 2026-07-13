@@ -6,6 +6,7 @@ import { type QuantizeSetting } from '@state/timeline/quantize';
 import { zoomAround, getContentEndTick, isEditableTarget } from '../utils/timelineNavUtils';
 import { getMidiClipTimelineBounds, getMidiClipsForTrack } from '@state/timeline/midiClips';
 import { getAudioClipTimelineBounds, getAudioClipsForTrack } from '@state/timeline/audioClips';
+import { createTimingContext } from '@state/timelineTime';
 import {
     copyTimelineSelectionToClipboard,
     getTimelineClipClipboard,
@@ -407,6 +408,7 @@ export function useTimelineNavigation() {
             e.preventDefault();
             e.stopPropagation();
             const state = useTimelineStore.getState();
+            const timing = createTimingContext(state.timeline);
             const refs = getTimelineClipsInSelection(state, clipSel);
             if (!refs.length) return;
             // Build a clipboard payload from selected clips
@@ -428,7 +430,7 @@ export function useTimelineNavigation() {
                 const bounds =
                     kind === 'midi'
                         ? getMidiClipTimelineBounds(state.midiCache, clip as any)
-                        : getAudioClipTimelineBounds(state.audioCache, clip as any);
+                        : getAudioClipTimelineBounds(state.audioCache, clip as any, timing);
                 if (bounds) maxEndTick = Math.max(maxEndTick, bounds.endTick);
             }
             // First selected track (in track order) as destination

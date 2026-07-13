@@ -7,11 +7,20 @@ interface TempoKeyframeLabelProps {
     x: number;
     y: number;
     selected: boolean;
+    editing: boolean;
+    onEditingChange: (editing: boolean) => void;
 }
 
 /** Inline BPM label shown near a tempo keyframe diamond. Editable on double-click. */
-const TempoKeyframeLabel: React.FC<TempoKeyframeLabelProps> = ({ tick, bpm, x, y, selected }) => {
-    const [editing, setEditing] = useState(false);
+const TempoKeyframeLabel: React.FC<TempoKeyframeLabelProps> = ({
+    tick,
+    bpm,
+    x,
+    y,
+    selected,
+    editing,
+    onEditingChange,
+}) => {
     const [localValue, setLocalValue] = useState(String(bpm));
     const inputRef = useRef<HTMLInputElement>(null);
     const updateBpm = useTimelineStore((s) => s.updateTempoKeyframeBpm);
@@ -29,8 +38,8 @@ const TempoKeyframeLabel: React.FC<TempoKeyframeLabelProps> = ({ tick, bpm, x, y
         if (Number.isFinite(v) && v > 0) {
             updateBpm(tick, v);
         }
-        setEditing(false);
-    }, [localValue, tick, updateBpm]);
+        onEditingChange(false);
+    }, [localValue, onEditingChange, tick, updateBpm]);
 
     if (editing) {
         return (
@@ -47,9 +56,10 @@ const TempoKeyframeLabel: React.FC<TempoKeyframeLabelProps> = ({ tick, bpm, x, y
                     onBlur={commit}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter') commit();
-                        if (e.key === 'Escape') setEditing(false);
+                        if (e.key === 'Escape') onEditingChange(false);
                         e.stopPropagation();
                     }}
+                    onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                 />
             </foreignObject>
@@ -64,7 +74,7 @@ const TempoKeyframeLabel: React.FC<TempoKeyframeLabelProps> = ({ tick, bpm, x, y
             className={`text-[9px] select-none cursor-default ${selected ? 'fill-white' : 'fill-neutral-400'}`}
             onDoubleClick={(e) => {
                 e.stopPropagation();
-                setEditing(true);
+                onEditingChange(true);
             }}
         >
             {Math.round(bpm * 10) / 10}
