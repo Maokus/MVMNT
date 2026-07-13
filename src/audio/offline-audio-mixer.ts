@@ -19,7 +19,7 @@
  *  - Resampling uses pure arithmetic (linear interpolation) ensuring cross‑run stability.
  */
 import type { AudioClip, AudioTrack, AudioCacheEntry } from '@audio/audioTypes';
-import { getAudioClipsForTrack } from '@state/timeline/audioClips';
+import { getAudioClipSourceBounds, getAudioClipsForTrack } from '@state/timeline/audioClips';
 
 declare global {
     interface Window {
@@ -74,33 +74,24 @@ export async function offlineMix(params: OfflineMixParams): Promise<OfflineMixRe
         const buffer = cache.audioBuffer;
         if (!buffer) continue;
         const clipOffsetTicks = clip.offsetTicks ?? 0;
-        const regionStartTick = clip.regionStartTick ?? 0;
-        const regionEndTick = clip.regionEndTick ?? cache.durationTicks;
-        if (regionEndTick <= regionStartTick) continue;
+        const sourceBounds = getAudioClipSourceBounds(params.audioCache, clip);
+        if (!sourceBounds) continue;
 
         // Compute intersection of (clip timeline region) with export range.
-        const trackRegionStartTimeline = clipOffsetTicks + regionStartTick;
-        const trackRegionEndTimeline = clipOffsetTicks + regionEndTick;
-        const exportStart = params.startTick;
-        const exportEnd = params.endTick;
-        const intersectStart = Math.max(exportStart, trackRegionStartTimeline);
-        const intersectEnd = Math.min(exportEnd, trackRegionEndTimeline);
-        if (intersectEnd <= intersectStart) continue; // no overlap
+        const baseTimelineSeconds = t2s(clipOffsetTicks);
+        const clipStartSeconds = baseTimelineSeconds + sourceBounds.startSeconds;
+        const clipEndSeconds = baseTimelineSeconds + sourceBounds.endSeconds;
+        const exportStartSeconds = t2s(params.startTick);
+        const exportEndSeconds = t2s(params.endTick);
+        const intersectStartSeconds = Math.max(exportStartSeconds, clipStartSeconds);
+        const intersectEndSeconds = Math.min(exportEndSeconds, clipEndSeconds);
+        if (intersectEndSeconds <= intersectStartSeconds) continue;
 
-        const overlapTicks = intersectEnd - intersectStart;
-        const overlapSecs = t2s(intersectEnd) - t2s(intersectStart);
-        const writeStartSeconds = t2s(intersectStart) - t2s(exportStart);
+        const overlapSecs = intersectEndSeconds - intersectStartSeconds;
+        const writeStartSeconds = intersectStartSeconds - exportStartSeconds;
         const writeStartFrame = Math.floor(writeStartSeconds * sampleRate);
 
-        // Source buffer offset (seconds) within the underlying AudioBuffer
-        // intersectStart - track.offsetTicks gives the tick within the buffer's timeline
-        // regionStartTick is the trim start; sourceStartWithinTrackTicks is relative to regionStart
-        const sourceStartWithinTrackTicks = intersectStart - clipOffsetTicks - regionStartTick; // ticks from regionStart
-        if (sourceStartWithinTrackTicks < 0) continue; // shouldn't happen
-        // durationTicks (and therefore regionStart/End) are position-aware: convert
-        // buffer-local ticks to seconds relative to the clip's timeline position.
-        const bufferTickPos = regionStartTick + sourceStartWithinTrackTicks;
-        const sourceStartSeconds = t2s(clipOffsetTicks + bufferTickPos) - t2s(clipOffsetTicks);
+        const sourceStartSeconds = sourceBounds.startSeconds + (intersectStartSeconds - clipStartSeconds);
         const sourceStartFrame = Math.floor(sourceStartSeconds * buffer.sampleRate);
 
         const srcChannels = buffer.numberOfChannels;

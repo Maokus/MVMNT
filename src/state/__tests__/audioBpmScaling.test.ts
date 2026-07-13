@@ -25,7 +25,7 @@ function makeTestAudioBuffer(durationSeconds: number, sampleRate = 48000, channe
 }
 
 describe('Audio BPM scaling', () => {
-    it('recomputes durationTicks when BPM changes', async () => {
+    it('does not mutate media duration metadata when BPM changes', async () => {
         const initialBpm = useTimelineStore.getState().timeline.globalBpm;
         const ppq = sharedTimingManager.ticksPerQuarter;
         const buffer = makeTestAudioBuffer(3.0);
@@ -33,22 +33,20 @@ describe('Audio BPM scaling', () => {
         await new Promise((r) => setTimeout(r, 0));
         const st1 = useTimelineStore.getState();
         const cache1 = st1.audioCache[id];
-        const expected1 = Math.round((buffer.duration * (initialBpm * ppq)) / 60);
+        const expected1 = Math.round(buffer.duration * ppq * 2);
         expect(cache1.durationTicks).toBe(expected1);
 
-        // Double BPM -> durationTicks should double (more ticks per real second)
+        // Tempo changes affect derived clip endpoints, never the source cache.
         const newBpm = initialBpm * 2;
         useTimelineStore.getState().setGlobalBpm(newBpm);
         const st2 = useTimelineStore.getState();
         const cache2 = st2.audioCache[id];
-        const expected2 = Math.round((buffer.duration * (newBpm * ppq)) / 60);
-        expect(cache2.durationTicks).toBe(expected2);
+        expect(cache2.durationTicks).toBe(expected1);
 
-        // Half BPM -> durationTicks should halve relative to original if we go back
+        // Nor does a later BPM change alter the compatibility field.
         useTimelineStore.getState().setGlobalBpm(initialBpm / 2);
         const st3 = useTimelineStore.getState();
         const cache3 = st3.audioCache[id];
-        const expected3 = Math.round((buffer.duration * ((initialBpm / 2) * ppq)) / 60);
-        expect(cache3.durationTicks).toBe(expected3);
+        expect(cache3.durationTicks).toBe(expected1);
     });
 });

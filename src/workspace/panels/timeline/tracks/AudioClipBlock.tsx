@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import type { AudioClip } from '@audio/audioTypes';
-import { getAudioClipLocalBounds, getAudioClipsForTrack } from '@state/timeline/audioClips';
+import { getAudioClipTimelineBounds, getAudioClipsForTrack } from '@state/timeline/audioClips';
+import { createTimingContext, ticksToSeconds } from '@state/timelineTime';
 import { formatQuantizeShortLabel } from '@state/timeline/quantize';
 import { useSelectionStore } from '@state/selectionStore';
 import { useTimelineStore } from '@state/timelineStore';
@@ -38,6 +39,7 @@ type ResizeStart = {
 
 const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, laneWidth, laneHeight, onHoverSnapX }) => {
     const audioCacheEntry = useTimelineStore((s) => s.audioCache[clip.sourceId]);
+    const timelineTiming = useTimelineStore((s) => s.timeline);
     const updateAudioClip = useTimelineStore((s) => s.updateAudioClip);
     const setMultipleAudioClipOffsets = useTimelineStore((s) => s.setMultipleAudioClipOffsets);
     const moveAudioClipsBetweenTracks = useTimelineStore((s) => s.moveAudioClipsBetweenTracks);
@@ -62,11 +64,18 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
     const clipElRef = useRef<HTMLDivElement | null>(null);
     const activePointerIdRef = useRef<number | null>(null);
 
-    const localBounds = useMemo(() => getAudioClipLocalBounds(useTimelineStore.getState().audioCache, clip), [clip, audioCacheEntry]);
-    if (!localBounds) return null;
+    const timelineBounds = useMemo(
+        () => getAudioClipTimelineBounds(
+            useTimelineStore.getState().audioCache,
+            clip,
+            createTimingContext(timelineTiming),
+        ),
+        [clip, audioCacheEntry, timelineTiming],
+    );
+    if (!timelineBounds) return null;
 
-    const localStartTick = resizePreview?.start ?? localBounds.startTick;
-    const localEndTick = resizePreview?.end ?? localBounds.endTick;
+    const localStartTick = resizePreview?.start ?? timelineBounds.startTick - clip.offsetTicks;
+    const localEndTick = resizePreview?.end ?? timelineBounds.endTick - clip.offsetTicks;
     const offsetTick = dragTick ?? clip.offsetTicks;
     const absStartTick = offsetTick + localStartTick;
     const absEndTick = offsetTick + localEndTick;
@@ -144,9 +153,11 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
             resizeRef.current = null;
             setResizePreview(null);
             if (preview && didMove) {
-                const regionStartTick = preview.start <= 0 ? undefined : preview.start;
-                const regionEndTick = audioCacheEntry && preview.end >= audioCacheEntry.durationTicks ? undefined : preview.end;
-                void updateAudioClip({ trackId, clipId: clip.id, patch: { regionStartTick, regionEndTick } }).then(() => {
+                const timing = createTimingContext(useTimelineStore.getState().timeline);
+                const baseSeconds = ticksToSeconds(timing, clip.offsetTicks);
+                const sourceStartSeconds = Math.max(0, ticksToSeconds(timing, clip.offsetTicks + preview.start) - baseSeconds);
+                const sourceEndSeconds = Math.max(sourceStartSeconds, ticksToSeconds(timing, clip.offsetTicks + preview.end) - baseSeconds);
+                void updateAudioClip({ trackId, clipId: clip.id, patch: { sourceStartSeconds, sourceEndSeconds } }).then(() => {
                     selectRefsAsClips([{ trackId, clipId: clip.id, kind: 'audio' }]);
                 });
             }
@@ -315,8 +326,8 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
         activePointerIdRef.current = e.pointerId;
         clipElRef.current?.setPointerCapture(e.pointerId);
         selectForPointer(e);
-        resizeRef.current = { type, startX: e.clientX, baseStart: localBounds.startTick, baseEnd: localBounds.endTick, alt: !!(e.ctrlKey || e.metaKey) };
-        setResizePreview({ start: localBounds.startTick, end: localBounds.endTick });
+        resizeRef.current = { type, startX: e.clientX, baseStart: localStartTick, baseEnd: localEndTick, alt: !!(e.ctrlKey || e.metaKey) };
+        setResizePreview({ start: localStartTick, end: localEndTick });
         setDidMove(false);
     };
 

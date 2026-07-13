@@ -5,7 +5,13 @@ export interface AudioClip {
     type: 'audio';
     sourceId: string;
     offsetTicks: number;
+    /** Offset into the immutable media source. Unlike timeline placement, this is real time. */
+    sourceStartSeconds?: number;
+    /** Exclusive offset into the immutable media source. Omitted means the source end. */
+    sourceEndSeconds?: number;
+    /** @deprecated Legacy source-local tick trim. Migrated scenes use source seconds. */
     regionStartTick?: number;
+    /** @deprecated Legacy source-local tick trim. Migrated scenes use source seconds. */
     regionEndTick?: number;
     name?: string;
     enabled?: boolean;
@@ -45,7 +51,8 @@ export interface AudioCacheWaveform {
 
 export interface AudioCacheEntry {
     audioBuffer?: AudioBuffer;
-    durationTicks: number; // computed from buffer.duration via ticksPerSecond
+    /** @deprecated A compatibility value for legacy scenes only; never use as source authority. */
+    durationTicks: number;
     sampleRate: number;
     channels: number;
     durationSeconds: number;

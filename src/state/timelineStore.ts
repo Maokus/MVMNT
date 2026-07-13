@@ -30,7 +30,6 @@ import { quantizeSettingToBeats, type QuantizeSetting } from './timeline/quantiz
 import {
     createTimingContext,
     secondsToTicks as timingSecondsToTicks,
-    secondsToTicksAt as timingSecondsToTicksAt,
     ticksToSeconds as timingTicksToSeconds,
     secondsToBeatsContext,
     beatsToSecondsContext,
@@ -440,10 +439,7 @@ async function rehydrateAudioSourceInternal(
     }));
     try {
         const buffer = await decodeAudioBytes(bytes);
-        const state = get();
-        const ctx = createTimelineTimingContext(state);
-        const offsetTicks = (state.tracks[id] as any)?.offsetTicks ?? 0;
-        const durationTicks = Math.round(timingSecondsToTicksAt(ctx, buffer.duration, offsetTicks));
+        const durationTicks = Math.round(buffer.duration * CANONICAL_PPQ * 2);
         set((current: TimelineState) => {
             const existing = current.audioCache[id];
             if (!existing) return current;
@@ -956,32 +952,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 /* noop */
             }
             // Notes no longer store seconds; conversions happen in selectors.
-            // Recompute audioCache durationTicks so clip widths reflect the new tempo map.
-            try {
-                const timing = createTimingContext(
-                    {
-                        globalBpm: s.timeline.globalBpm,
-                        beatsPerBar: s.timeline.beatsPerBar,
-                        masterTempoMap: map,
-                    },
-                    getSharedTimingManager().ticksPerQuarter
-                );
-                const updatedAudio: Record<string, AudioCacheEntry> = {} as any;
-                for (const [id, entry] of Object.entries(next.audioCache)) {
-                    if (!entry || !entry.audioBuffer) {
-                        updatedAudio[id] = entry as any;
-                        continue;
-                    }
-                    const offsetTicks = (next.tracks[id] as any)?.offsetTicks ?? 0;
-                    const newDurationTicks = Math.round(
-                        timingSecondsToTicksAt(timing, entry.audioBuffer.duration, offsetTicks)
-                    );
-                    updatedAudio[id] = { ...entry, durationTicks: newDurationTicks } as any;
-                }
-                next.audioCache = updatedAudio;
-            } catch {
-                /* noop */
-            }
+            // Audio source metadata is media time and must never be rescaled for tempo changes.
             return next;
         });
     },
@@ -1008,33 +979,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             }
             // If a tempo map is present we keep its segment BPMs; only fallback bpm changes effect conversions when map empty.
             // Seconds no longer stored on notes; real-time updates occur via selectors.
-            // Recompute audioCache durationTicks so displayed beat length and clip width scale with BPM.
-            // Original audioBuffer duration (in seconds) is constant; ticksPerSecond = (bpm * ppq)/60.
-            try {
-                const timing = createTimingContext(
-                    {
-                        globalBpm: v,
-                        beatsPerBar: s.timeline.beatsPerBar,
-                        masterTempoMap: s.timeline.masterTempoMap,
-                    },
-                    getSharedTimingManager().ticksPerQuarter
-                );
-                const updatedAudio: Record<string, AudioCacheEntry> = {} as any;
-                for (const [id, entry] of Object.entries(next.audioCache)) {
-                    if (!entry || !entry.audioBuffer) {
-                        updatedAudio[id] = entry as any;
-                        continue;
-                    }
-                    const offsetTicks = (next.tracks[id] as any)?.offsetTicks ?? 0;
-                    const newDurationTicks = Math.round(
-                        timingSecondsToTicksAt(timing, entry.audioBuffer.duration, offsetTicks)
-                    );
-                    updatedAudio[id] = { ...entry, durationTicks: newDurationTicks } as any;
-                }
-                next.audioCache = updatedAudio;
-            } catch {
-                /* noop */
-            }
+            // Audio source metadata is media time and must never be rescaled for BPM changes.
             return next;
         });
     },
@@ -1304,10 +1249,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         cancelActiveAudioFeatureJob(id);
         // Compute duration in ticks using shared timing manager (position-aware for tempo maps)
         try {
-            const state = get();
-            const ctx = createTimelineTimingContext(state);
-            const offsetTicks = (state.tracks[id] as any)?.offsetTicks ?? 0;
-            const durationTicks = Math.round(timingSecondsToTicksAt(ctx, buffer.duration, offsetTicks));
+            const durationTicks = Math.round(buffer.duration * CANONICAL_PPQ * 2);
             set((s: TimelineState) => {
                 const existingTrack = s.tracks[id] as AudioTrack | undefined;
                 const updates: Partial<TimelineState> = {

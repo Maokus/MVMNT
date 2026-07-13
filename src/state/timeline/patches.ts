@@ -3,8 +3,7 @@ import type { AudioFeatureCache, AudioFeatureCacheStatus } from '@audio/features
 import type { MIDIData } from '@core/types';
 import type { TimelineState, TimelineTrack } from '../timelineStore';
 import type { NoteRaw, CCEventRaw, TempoMapEntry } from '../timelineTypes';
-import { autoAdjustSceneRangeIfNeeded, createTimelineTimingContext } from './timelineShared';
-import { secondsToTicksAt } from '../timelineTime';
+import { autoAdjustSceneRangeIfNeeded } from './timelineShared';
 import { useSelectionStore } from '@state/selectionStore';
 import type { MidiClip } from './midiClips';
 
@@ -301,17 +300,6 @@ function applySetTrackOffset(
                 [payload.trackId]: nextTrack,
             },
         } as any;
-        // Recompute durationTicks for audio tracks at the new position
-        const cacheKey = (track as any).audioSourceId || payload.trackId;
-        const cacheEntry = state.audioCache[cacheKey];
-        if ((track as any).type === 'audio' && cacheEntry?.audioBuffer) {
-            const ctx = createTimelineTimingContext(state);
-            const newDurationTicks = Math.round(secondsToTicksAt(ctx, cacheEntry.audioBuffer.duration, payload.offsetTicks));
-            (next as any).audioCache = {
-                ...state.audioCache,
-                [cacheKey]: { ...cacheEntry, durationTicks: newDurationTicks },
-            };
-        }
         return next as TimelineState;
     });
 }

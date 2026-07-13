@@ -35,7 +35,8 @@
 // - refresh() currently minimal; future granular scheduling will populate lookahead logic here.
 
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
-import { createTimingContext, ticksToSecondsAt } from '@state/timelineTime';
+import { createTimingContext, secondsToTicks, ticksToSeconds } from '@state/timelineTime';
+import { getAudioClipSourceBounds } from '@state/timeline/audioClips';
 import type { AudioClip, AudioTrack } from '@audio/audioTypes';
 import { getAudioClipsForTrack } from '@state/timeline/audioClips';
 
@@ -230,11 +231,7 @@ export class AudioEngine {
         if (!this.ctx) return;
         const ctx = this.ctx;
         const s = useTimelineStore.getState();
-        // Tempo-map-aware conversions:
-        // - tmgr: converts timeline tick positions to absolute seconds (for scheduling delays)
-        // - timingCtx: converts buffer-space ticks to buffer seconds (for offset/duration in source.start())
-        //   durationTicks is computed position-aware via secondsToTicksAt(ctx, duration, offsetTicks),
-        //   so ticksToSecondsAt rounds them back at the same position.
+        // Timeline positions are musical ticks; buffer offsets are immutable source seconds.
         const tmgr = getSharedTimingManager();
         const timingCtx = createTimingContext(
             { globalBpm: s.timeline.globalBpm, beatsPerBar: s.timeline.beatsPerBar, masterTempoMap: s.timeline.masterTempoMap },
@@ -250,38 +247,24 @@ export class AudioEngine {
                 this.rehydrateSourceForPlayback(cacheKey);
                 return;
             }
-            const regionStart = clip.regionStartTick ?? 0;
-            const regionEnd = clip.regionEndTick ?? cache.durationTicks;
-            if (regionEnd <= regionStart) return;
-            // Timeline alignment:
-            //   - Track base placement (tick where buffer tick 0 would align) = track.offsetTicks
-            //   - Trimmed region audible start on timeline = track.offsetTicks + regionStart
-            // If playFromTick precedes earliest audible tick, we schedule a FUTURE start (no premature audio).
-            const earliestAudibleTick = (clip.offsetTicks || 0) + regionStart;
-            const regionDurationTicks = regionEnd - regionStart;
-            // Case 1: playback begins after region end -> nothing to schedule
-            if (playFromTick >= earliestAudibleTick + regionDurationTicks) return;
+            const sourceBounds = getAudioClipSourceBounds(s.audioCache, clip);
+            if (!sourceBounds) return;
+            const baseTimelineSeconds = ticksToSeconds(timingCtx, clip.offsetTicks || 0);
+            const earliestAudibleSeconds = baseTimelineSeconds + sourceBounds.startSeconds;
+            const regionEndSeconds = baseTimelineSeconds + sourceBounds.endSeconds;
+            const playFromSeconds = ticksToSeconds(timingCtx, playFromTick);
+            if (playFromSeconds >= regionEndSeconds) return;
 
             let whenTime = ctx.currentTime; // default immediate
-            let playbackBufferOffsetTicks = regionStart; // buffer tick position we start from
+            let playbackBufferOffsetSeconds = sourceBounds.startSeconds;
 
-            if (playFromTick < earliestAudibleTick) {
-                // Future start: delay until earliestAudibleTick (timeline positions -> use tmgr)
-                const delaySeconds = tmgr.ticksToSeconds(earliestAudibleTick) - tmgr.ticksToSeconds(playFromTick);
+            if (playFromSeconds < earliestAudibleSeconds) {
+                const delaySeconds = earliestAudibleSeconds - playFromSeconds;
                 whenTime = ctx.currentTime + delaySeconds;
-                playbackBufferOffsetTicks = regionStart; // start of region inside buffer
             } else {
-                // Inside region: compute offset inside trimmed region
-                const ticksIntoRegion = playFromTick - earliestAudibleTick; // 0 <= ... < regionDurationTicks (guarded by earlier return)
-                playbackBufferOffsetTicks = regionStart + ticksIntoRegion;
+                playbackBufferOffsetSeconds = sourceBounds.startSeconds + (playFromSeconds - earliestAudibleSeconds);
             }
-
-            // Buffer-space conversions: regionStart/End/Offset ticks -> buffer seconds
-            // durationTicks is computed at the clip's offsetTicks position, so use
-            // ticksToSecondsAt to convert buffer-local ticks back to seconds at that position.
-            const clipOffsetTicks = clip.offsetTicks || 0;
-            const playbackBufferOffsetSeconds = ticksToSecondsAt(timingCtx, playbackBufferOffsetTicks, clipOffsetTicks);
-            const durationSeconds = ticksToSecondsAt(timingCtx, regionEnd, clipOffsetTicks) - playbackBufferOffsetSeconds;
+            const durationSeconds = regionEndSeconds - (baseTimelineSeconds + playbackBufferOffsetSeconds);
 
             const source = ctx.createBufferSource();
             source.buffer = buffer;
@@ -336,9 +319,11 @@ export class AudioEngine {
             this.active.set(`${track.id}:${clip.id}`, {
                 source,
                 gainNode,
-                // startTick represents the timeline tick we aligned the source start to (earliest audible if in future, else playFromTick)
-                startTick: playFromTick < earliestAudibleTick ? earliestAudibleTick : playFromTick,
-                region: { startTick: regionStart, endTick: regionEnd },
+                startTick: playFromSeconds < earliestAudibleSeconds ? Math.round(secondsToTicks(timingCtx, earliestAudibleSeconds)) : playFromTick,
+                region: {
+                    startTick: Math.round(secondsToTicks(timingCtx, earliestAudibleSeconds)),
+                    endTick: Math.round(secondsToTicks(timingCtx, regionEndSeconds)),
+                },
                 clipGain: clip.gain ?? 1,
             });
         });

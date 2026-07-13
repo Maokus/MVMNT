@@ -93,7 +93,7 @@ describe('MIDI clips schema V8 persistence', () => {
         if (!exported.ok || exported.mode !== 'inline-json') throw new Error('Expected inline export');
         const exportedTrack = exported.envelope.timeline.tracks.track1;
 
-        expect(exported.envelope.schemaVersion).toBe(8);
+        expect(exported.envelope.schemaVersion).toBe(9);
         expect(exportedTrack.clips).toHaveLength(2);
         expect(exportedTrack.offsetTicks).toBeUndefined();
         expect(exportedTrack.midiSourceId).toBeUndefined();

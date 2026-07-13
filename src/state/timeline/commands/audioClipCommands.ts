@@ -17,6 +17,7 @@ import {
     makeAudioClipId,
     resolveAudioClipOverlapWithCache,
 } from '../audioClips';
+import { createTimelineTimingContext } from '../timelineShared';
 
 const LARGE_UNDO_FEATURE_CACHE_BYTES = 32 * 1024 * 1024;
 
@@ -75,7 +76,8 @@ function getAudioTrack(context: TimelineCommandContext, trackId: string): AudioT
 }
 
 function normalizeStoredClips(track: AudioTrack, context: TimelineCommandContext): AudioClip[] {
-    return enforceNonOverlappingAudioClips(track, context.getState().audioCache);
+    const state = context.getState();
+    return enforceNonOverlappingAudioClips(track, state.audioCache, createTimelineTimingContext(state));
 }
 
 function applyPatch(context: TimelineCommandContext, patch: TimelineCommandPatch): void {
@@ -90,6 +92,10 @@ function sanitizeRegionTick(value: unknown): number | undefined {
     return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.round(value)) : undefined;
 }
 
+function sanitizeSourceSeconds(value: unknown): number | undefined {
+    return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : undefined;
+}
+
 function sanitizeGain(value: unknown): number | undefined {
     if (value === undefined) return undefined;
     const num = typeof value === 'number' && Number.isFinite(value) ? value : 1;
@@ -102,6 +108,8 @@ function buildClip(input: AddAudioClipPayload['clip']): AudioClip {
         type: 'audio',
         sourceId: input.sourceId,
         offsetTicks: sanitizeOffsetTicks(input.offsetTicks),
+        sourceStartSeconds: sanitizeSourceSeconds(input.sourceStartSeconds),
+        sourceEndSeconds: sanitizeSourceSeconds(input.sourceEndSeconds),
         regionStartTick: sanitizeRegionTick(input.regionStartTick),
         regionEndTick: sanitizeRegionTick(input.regionEndTick),
         name: input.name,
@@ -138,7 +146,10 @@ export function createAddAudioClipCommand(
                 throw new Error(`Audio source not found: ${clip.sourceId}`);
             }
             const before = normalizeStoredClips(track, context);
-            const after = resolveAudioClipOverlapWithCache({ ...track, clips: before }, clip, context.getState().audioCache);
+            const state = context.getState();
+            const after = resolveAudioClipOverlapWithCache(
+                { ...track, clips: before }, clip, state.audioCache, createTimelineTimingContext(state)
+            );
             const patch = updatePatch(payload.trackId, before, after);
             applyPatch(context, patch);
             return { patches: patch, result: { clipId: clip.id } };
@@ -198,6 +209,14 @@ export function createUpdateAudioClipsCommand(
                             'regionEndTick' in update.patch
                                 ? sanitizeRegionTick(update.patch.regionEndTick)
                                 : existing.regionEndTick,
+                        sourceStartSeconds:
+                            'sourceStartSeconds' in update.patch
+                                ? sanitizeSourceSeconds(update.patch.sourceStartSeconds)
+                                : existing.sourceStartSeconds,
+                        sourceEndSeconds:
+                            'sourceEndSeconds' in update.patch
+                                ? sanitizeSourceSeconds(update.patch.sourceEndSeconds)
+                                : existing.sourceEndSeconds,
                         gain: 'gain' in update.patch ? sanitizeGain(update.patch.gain) : existing.gain,
                     };
                     if (!context.getState().audioCache[edited.sourceId]) continue;
@@ -206,12 +225,15 @@ export function createUpdateAudioClipsCommand(
                 let next = before.filter((clip) => !editedById.has(clip.id));
                 const editedClips = [...editedById.values()].sort((a, b) => {
                     const cache = context.getState().audioCache;
-                    const aBounds = getAudioClipTimelineBounds(cache, a);
-                    const bBounds = getAudioClipTimelineBounds(cache, b);
+                    const timing = createTimelineTimingContext(context.getState());
+                    const aBounds = getAudioClipTimelineBounds(cache, a, timing);
+                    const bBounds = getAudioClipTimelineBounds(cache, b, timing);
                     return (aBounds?.startTick ?? a.offsetTicks) - (bBounds?.startTick ?? b.offsetTicks);
                 });
                 for (const edited of editedClips) {
-                    next = resolveAudioClipOverlapWithCache({ ...track, clips: next }, edited, context.getState().audioCache);
+                    next = resolveAudioClipOverlapWithCache(
+                        { ...track, clips: next }, edited, context.getState().audioCache, createTimelineTimingContext(context.getState())
+                    );
                 }
                 redoUpdates.push({ trackId, clips: next });
                 undoUpdates.push({ trackId, clips: before });
@@ -380,7 +402,9 @@ export function createMoveAudioClipsBetweenTracksCommand(
                 workingByTrack.set(move.destinationTrackId, destClips);
                 workingByTrack.set(
                     move.destinationTrackId,
-                    resolveAudioClipOverlapWithCache({ ...destTrack, clips: destClips }, movedClip, snapshot.audioCache),
+                    resolveAudioClipOverlapWithCache(
+                        { ...destTrack, clips: destClips }, movedClip, snapshot.audioCache, createTimelineTimingContext(snapshot)
+                    ),
                 );
                 movedClipIds.push(clip.id);
             }
@@ -469,11 +493,14 @@ export function createPasteAudioClipsCommand(
                 const before = trackId in snapshot.tracks ? normalizeStoredClips(snapshot.tracks[trackId] as AudioTrack, context) : [];
                 let next = before;
                 for (const clip of pastedClips.sort((a, b) => {
-                    const aBounds = getAudioClipTimelineBounds(effectiveAudioCache, a);
-                    const bBounds = getAudioClipTimelineBounds(effectiveAudioCache, b);
+                    const timing = createTimelineTimingContext(snapshot);
+                    const aBounds = getAudioClipTimelineBounds(effectiveAudioCache, a, timing);
+                    const bBounds = getAudioClipTimelineBounds(effectiveAudioCache, b, timing);
                     return (aBounds?.startTick ?? a.offsetTicks) - (bBounds?.startTick ?? b.offsetTicks);
                 })) {
-                    next = resolveAudioClipOverlapWithCache({ ...track, clips: next }, clip, effectiveAudioCache);
+                    next = resolveAudioClipOverlapWithCache(
+                        { ...track, clips: next }, clip, effectiveAudioCache, createTimelineTimingContext(snapshot)
+                    );
                 }
                 redoUpdates.push({ trackId, clips: next });
                 if (trackId in snapshot.tracks) {

@@ -13,6 +13,8 @@ computed through the shared `TimingManager` using the tempo map + global BPM fal
 | Playback Range (Scene Bounds) | `playbackRange.startTick`, `playbackRange.endTick`     | Optional explicit scene trimming.                                   |
 | Track Offsets                 | `tracks[id].offsetTicks`                               | Applied additively to note start/end ticks for global position.     |
 | Notes                         | `note.startTick`, `note.endTick`, `note.durationTicks` | Ingest normalizes to canonical PPQ.                                 |
+| Audio clip placement          | `audioClip.offsetTicks`                                | Musical start of source time zero.                                  |
+| Audio source and clip trim    | `durationSeconds`, `sourceStartSeconds`, `sourceEndSeconds` | Immutable media-time offsets; never tempo-scaled.               |
 
 No seconds (`currentTimeSec`, `loopStartSec`, `offsetSec`, etc.) or beats fields are persisted in state. Beats/seconds are computed on demand.
 
@@ -161,5 +163,14 @@ const ticks = host.api.timing.secondsToTicks(targetTime) ?? 0;
 BPM is automatable via the keyframe system (schema version 5+). When `globalBpm` has automation channels, `TimingManager` recomputes tempo segments on each evaluator tick. All tick↔second conversions remain accurate — no additional handling is required in element or plugin code. The `tempoVersion` counter on `TimingManager` invalidates memoized selectors automatically.
 
 Plugin elements that sample audio features should use `targetTime` (seconds) directly — the audio cache system handles tempo-aware alignment internally.
+
+### Audio clips
+
+Audio clips bridge the two domains: their placement is stored in ticks, but an
+audio file and its trim points are stored in source seconds. A clip end tick is
+derived as `secondsToTicks(ticksToSeconds(offsetTicks) + sourceEndSeconds)`.
+This means a fixed-length recording occupies a different number of beats at
+different tempos (and may cross a tempo step), while preview and export always
+play the same source duration and samples.
 
 ---

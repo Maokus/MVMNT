@@ -37,7 +37,7 @@ describe('Persistence', () => {
     test('Export -> Import -> Export round-trip stable ignoring modifiedAt', async () => {
         const first = await exportInlineScene();
         expect(first.ok).toBe(true);
-        expect(first.envelope.schemaVersion).toBe(8);
+        expect(first.envelope.schemaVersion).toBe(9);
         const json1 = first.json;
         const imp = await importScene(json1);
         expect(imp.ok).toBe(true);

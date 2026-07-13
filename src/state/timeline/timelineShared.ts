@@ -9,6 +9,7 @@ import {
 import type { TimelineState } from '../timelineStore';
 import type { TempoMapEntry } from '../timelineTypes';
 import { getMidiClipTimelineBounds, getMidiClipsForTrack } from './midiClips';
+import { getAudioClipTimelineBounds, getAudioClipsForTrack } from './audioClips';
 
 export const sharedTimingManager = new TimingManager();
 
@@ -62,8 +63,12 @@ function computeContentEndTick(state: TimelineState): number {
                 if (clipEnd > max) max = clipEnd;
                 continue;
             }
-            const clipEnd = (t.regionEndTick ?? acache.durationTicks) + t.offsetTicks;
-            if (clipEnd > max) max = clipEnd;
+            const timing = createTimelineTimingContext(state);
+            for (const clip of getAudioClipsForTrack(t)) {
+                if (clip.enabled === false) continue;
+                const bounds = getAudioClipTimelineBounds(state.audioCache, clip, timing);
+                if (bounds && bounds.endTick > max) max = bounds.endTick;
+            }
         }
     }
     return max;
@@ -94,9 +99,12 @@ function computeContentStartTick(state: TimelineState): number {
                 if (clipStart < min) min = clipStart;
                 continue;
             }
-            const regionStart = t.regionStartTick ?? 0;
-            const clipStart = regionStart + t.offsetTicks;
-            if (clipStart < min) min = clipStart;
+            const timing = createTimelineTimingContext(state);
+            for (const clip of getAudioClipsForTrack(t)) {
+                if (clip.enabled === false) continue;
+                const bounds = getAudioClipTimelineBounds(state.audioCache, clip, timing);
+                if (bounds && bounds.startTick < min) min = bounds.startTick;
+            }
         }
     }
     if (!isFinite(min)) return 0;

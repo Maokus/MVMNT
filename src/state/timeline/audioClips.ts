@@ -1,11 +1,17 @@
 import type { AudioCacheEntry, AudioClip, AudioTrack } from '@audio/audioTypes';
 import type { TimelineState } from '@state/timelineStore';
+import { secondsToTicks, ticksToSeconds, type TimelineTimingContext } from '@state/timelineTime';
 
 type AudioCache = TimelineState['audioCache'];
 
 export interface AudioClipBounds {
     startTick: number;
     endTick: number;
+}
+
+export interface AudioClipSourceBounds {
+    startSeconds: number;
+    endSeconds: number;
 }
 
 export function makeAudioClipId(): string {
@@ -34,7 +40,22 @@ export function getPrimaryAudioClip(track: AudioTrack): AudioClip | undefined {
     return getAudioClipsForTrack(track).find((clip) => clip.enabled !== false);
 }
 
+/** Source trims are media-time offsets, independent of tempo and clip placement. */
+export function getAudioClipSourceBounds(cache: AudioCache, clip: AudioClip): AudioClipSourceBounds | null {
+    const source = cache[clip.sourceId];
+    const durationSeconds = source?.durationSeconds;
+    if (typeof durationSeconds !== 'number' || !Number.isFinite(durationSeconds) || durationSeconds <= 0) return null;
+    // The ratio fallback is only for in-memory legacy state before the V9 import migration runs.
+    const legacyScale = source.durationTicks > 0 ? durationSeconds / source.durationTicks : 0;
+    const rawStart = clip.sourceStartSeconds ?? ((clip.regionStartTick ?? 0) * legacyScale);
+    const rawEnd = clip.sourceEndSeconds ?? (clip.regionEndTick != null ? clip.regionEndTick * legacyScale : durationSeconds);
+    const startSeconds = Math.max(0, Math.min(durationSeconds, rawStart));
+    const endSeconds = Math.max(startSeconds, Math.min(durationSeconds, rawEnd));
+    return endSeconds > startSeconds ? { startSeconds, endSeconds } : null;
+}
+
 export function getAudioClipLocalBounds(cache: AudioCache, clip: AudioClip): AudioClipBounds | null {
+    // Compatibility projection for older callers. New runtime code must use source bounds.
     const source = cache[clip.sourceId];
     const startTick = clip.regionStartTick ?? 0;
     const endTick = clip.regionEndTick ?? source?.durationTicks;
@@ -47,7 +68,20 @@ export function getAudioClipLocalBounds(cache: AudioCache, clip: AudioClip): Aud
     return { startTick, endTick };
 }
 
-export function getAudioClipTimelineBounds(cache: AudioCache, clip: AudioClip): AudioClipBounds | null {
+export function getAudioClipTimelineBounds(
+    cache: AudioCache,
+    clip: AudioClip,
+    timing?: TimelineTimingContext,
+): AudioClipBounds | null {
+    if (timing) {
+        const source = getAudioClipSourceBounds(cache, clip);
+        if (!source) return null;
+        const clipStartSeconds = ticksToSeconds(timing, clip.offsetTicks);
+        return {
+            startTick: Math.round(secondsToTicks(timing, clipStartSeconds + source.startSeconds)),
+            endTick: Math.round(secondsToTicks(timing, clipStartSeconds + source.endSeconds)),
+        };
+    }
     const local = getAudioClipLocalBounds(cache, clip);
     if (!local) {
         return null;
@@ -91,8 +125,9 @@ export function resolveAudioClipOverlapWithCache(
     track: AudioTrack,
     editedClip: AudioClip,
     audioCache: AudioCache,
+    timing?: TimelineTimingContext,
 ): AudioClip[] {
-    const editedBounds = getAudioClipTimelineBounds(audioCache, editedClip);
+    const editedBounds = getAudioClipTimelineBounds(audioCache, editedClip, timing);
     if (!editedBounds) {
         return getAudioClipsForTrack(track).filter((clip) => clip.id !== editedClip.id);
     }
@@ -102,7 +137,7 @@ export function resolveAudioClipOverlapWithCache(
         if (clip.id === editedClip.id) {
             continue;
         }
-        const bounds = getAudioClipTimelineBounds(audioCache, clip);
+        const bounds = getAudioClipTimelineBounds(audioCache, clip, timing);
         if (!bounds || bounds.endTick <= editedBounds.startTick || bounds.startTick >= editedBounds.endTick) {
             resolved.push(clip);
             continue;
@@ -127,23 +162,27 @@ export function resolveAudioClipOverlapWithCache(
 
     resolved.push(editedClip);
     return resolved.sort((a, b) => {
-        const aBounds = getAudioClipTimelineBounds(audioCache, a);
-        const bBounds = getAudioClipTimelineBounds(audioCache, b);
+        const aBounds = getAudioClipTimelineBounds(audioCache, a, timing);
+        const bBounds = getAudioClipTimelineBounds(audioCache, b, timing);
         return (aBounds?.startTick ?? a.offsetTicks) - (bBounds?.startTick ?? b.offsetTicks);
     });
 }
 
-export function enforceNonOverlappingAudioClips(track: AudioTrack, audioCache: AudioCache = {}): AudioClip[] {
+export function enforceNonOverlappingAudioClips(
+    track: AudioTrack,
+    audioCache: AudioCache = {},
+    timing?: TimelineTimingContext,
+): AudioClip[] {
     let clips: AudioClip[] = [];
     const sorted = getAudioClipsForTrack(track)
         .filter((clip) => clip.enabled !== false)
         .sort((a, b) => {
-            const aBounds = getAudioClipTimelineBounds(audioCache, a);
-            const bBounds = getAudioClipTimelineBounds(audioCache, b);
+            const aBounds = getAudioClipTimelineBounds(audioCache, a, timing);
+            const bBounds = getAudioClipTimelineBounds(audioCache, b, timing);
             return (aBounds?.startTick ?? a.offsetTicks) - (bBounds?.startTick ?? b.offsetTicks);
         });
     for (const clip of sorted) {
-        clips = resolveAudioClipOverlapWithCache({ ...track, clips }, clip, audioCache);
+        clips = resolveAudioClipOverlapWithCache({ ...track, clips }, clip, audioCache, timing);
     }
     return clips;
 }
