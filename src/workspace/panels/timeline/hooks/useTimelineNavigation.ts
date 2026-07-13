@@ -6,13 +6,12 @@ import { type QuantizeSetting } from '@state/timeline/quantize';
 import { zoomAround, getContentEndTick, isEditableTarget } from '../utils/timelineNavUtils';
 import { getMidiClipTimelineBounds, getMidiClipsForTrack } from '@state/timeline/midiClips';
 import { getAudioClipTimelineBounds, getAudioClipsForTrack } from '@state/timeline/audioClips';
-import { createTimingContext } from '@state/timelineTime';
 import {
     copyTimelineSelectionToClipboard,
+    getTimelineClipDuplicateDestination,
     getTimelineClipClipboard,
     getAudioClipsInTimelineSelection,
     getMidiClipsInTimelineSelection,
-    getTimelineClipsInSelection,
     prepareTimelineClipPaste,
 } from '../clipboard/midiClipClipboard';
 
@@ -408,38 +407,12 @@ export function useTimelineNavigation() {
             e.preventDefault();
             e.stopPropagation();
             const state = useTimelineStore.getState();
-            const timing = createTimingContext(state.timeline);
-            const refs = getTimelineClipsInSelection(state, clipSel);
-            if (!refs.length) return;
             // Build a clipboard payload from selected clips
             const copied = copyTimelineSelectionToClipboard(state, clipSel);
             if (!copied) return;
-            // Destination tick = max end tick across all selected clips
-            let maxEndTick = 0;
-            for (const ref of refs) {
-                const track = state.tracks[ref.trackId];
-                if (!track) continue;
-                const kind = ref.kind ?? track.type;
-                const clip =
-                    kind === 'midi' && track.type === 'midi'
-                        ? getMidiClipsForTrack(track).find((c) => c.id === ref.clipId)
-                        : kind === 'audio' && track.type === 'audio'
-                          ? getAudioClipsForTrack(track).find((c) => c.id === ref.clipId)
-                          : undefined;
-                if (!clip) continue;
-                const bounds =
-                    kind === 'midi'
-                        ? getMidiClipTimelineBounds(state.midiCache, clip as any)
-                        : getAudioClipTimelineBounds(state.audioCache, clip as any, timing);
-                if (bounds) maxEndTick = Math.max(maxEndTick, bounds.endTick);
-            }
-            // First selected track (in track order) as destination
-            const clipTrackIds = new Set(refs.map((r) => r.trackId));
-            const firstTrackId = state.tracksOrder.find(
-                (id) => clipTrackIds.has(id) && Boolean(state.tracks[id])
-            );
-            if (!firstTrackId) return;
-            const prepared = prepareTimelineClipPaste(state, copied, { tick: maxEndTick, trackId: firstTrackId });
+            const destination = getTimelineClipDuplicateDestination(state, copied);
+            if (!destination) return;
+            const prepared = prepareTimelineClipPaste(state, copied, destination);
             if (!prepared) return;
             executePaste(prepared);
         };

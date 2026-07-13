@@ -18,15 +18,18 @@ const ChangelogPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-10">
-                    <ChangelogEntry version="0.15.6" date="1-7-26" notes={[
+                    <ChangelogEntry version="0.15.6" date="13-7-26" notes={[
                         "Overhauled clip timeline",
                         [
-                            "Track-clip seperation (more than one clip per track!)",
-                            "Clip selection and manipulation",
+                            "Track-clip seperation for both midi and audio (more than one clip per track!)",
+                            "Clip selection and manipulation (standard copy, paste, whatnot)",
                         ],
-                        "Improve tempo automation behaviour",
                         "Allow arbitrary time division snapping (joserizzal req)",
+                        "Double click to manually enter tempo values in tempo automation",
                         "Change duplicate element name behaviour (no more _copy chains)",
+                        "Removed audio data from undo payloads (deleting an audio track should actually clear memory now)",
+                        "Decreased save and export peak memory usage (decreases browser crash and lockup chances)",
+                        "Added progress indicators for save and load",
                     ]} />
 
                     <ChangelogEntry version="0.15.4" date="1-7-26" notes={[

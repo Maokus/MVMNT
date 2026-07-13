@@ -4,6 +4,7 @@ import type { TimelineState } from '@state/timelineStore';
 import {
     copyTimelineSelectionToMidiClipClipboard,
     copyTimelineSelectionToClipboard,
+    getTimelineClipDuplicateDestination,
     prepareMidiClipPaste,
     prepareTimelineClipPaste,
     setMidiClipClipboard,
@@ -158,5 +159,39 @@ describe('midiClipClipboard', () => {
         // Original audible end: base 1.5s + source end 3s = 4.5s => tick 6240.
         const prepared = copied ? prepareTimelineClipPaste(audioState, copied, { trackId: 'audio', tick: 6240 }) : null;
         expect(prepared?.audioClips[0].clip.offsetTicks).toBe(5280);
+    });
+
+    it('places a MIDI duplicate immediately after its visible end', () => {
+        const midiState = {
+            ...state(),
+            timeline: { globalBpm: 120, beatsPerBar: 4 },
+            midiCache: {
+                source1: {
+                    ...state().midiCache.source1,
+                    bounds: {
+                        minTick: CANONICAL_PPQ / 2,
+                        maxTick: CANONICAL_PPQ * 2,
+                        minNote: 60,
+                        maxNote: 60,
+                        maxDurationTicks: CANONICAL_PPQ,
+                    },
+                },
+            },
+            tracks: {
+                track1: {
+                    ...state().tracks.track1,
+                    clips: [{ id: 'clip1', type: 'midi', sourceId: 'source1', offsetTicks: CANONICAL_PPQ }],
+                },
+            },
+            tracksOrder: ['track1'],
+        } as unknown as TimelineState;
+        const copied = copyTimelineSelectionToClipboard(midiState, {
+            type: 'clips', clips: [{ trackId: 'track1', clipId: 'clip1', kind: 'midi' }],
+        });
+        const destination = copied ? getTimelineClipDuplicateDestination(midiState, copied) : null;
+        const prepared = copied && destination ? prepareTimelineClipPaste(midiState, copied, destination) : null;
+
+        expect(destination).toEqual({ trackId: 'track1', tick: CANONICAL_PPQ * 2.5 });
+        expect(prepared?.midiClips[0].clip.offsetTicks).toBe(CANONICAL_PPQ * 2.5);
     });
 });

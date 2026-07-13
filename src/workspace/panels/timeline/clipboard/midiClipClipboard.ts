@@ -310,6 +310,59 @@ export function copyTimelineSelectionToClipboard(
     return payload;
 }
 
+/**
+ * Finds the timeline destination for duplicating a copied clip selection.
+ *
+ * MIDI clip offsets refer to the source timeline origin, while the rendered
+ * clip begins at the source's first MIDI event. Account for that local start
+ * so the visible duplicate begins at the visible end of the selection.
+ */
+export function getTimelineClipDuplicateDestination(
+    state: TimelineState,
+    payload: TimelineClipClipboard,
+): { tick: number; trackId: string } | null {
+    if (!payload.clips.length) return null;
+
+    const trackId = state.tracksOrder.find((id) =>
+        payload.sourceTrackOrder.includes(id) && Boolean(state.tracks[id])
+    );
+    if (!trackId) return null;
+
+    let maxEndTick = -Infinity;
+    let minMidiStartTick = Infinity;
+    let midiOnly = true;
+
+    for (const copiedClip of payload.clips) {
+        const track = state.tracks[copiedClip.sourceTrackId];
+        if (copiedClip.kind === 'midi') {
+            const clip = track?.type === 'midi'
+                ? getMidiClipsForTrack(track).find((entry) => entry.id === copiedClip.sourceClipId)
+                : undefined;
+            const bounds = clip ? getMidiClipTimelineBounds(state.midiCache, clip) : null;
+            if (!bounds) continue;
+            maxEndTick = Math.max(maxEndTick, bounds.endTick);
+            minMidiStartTick = Math.min(minMidiStartTick, bounds.startTick);
+            continue;
+        }
+
+        midiOnly = false;
+        const clip = track?.type === 'audio'
+            ? getAudioClipsForTrack(track).find((entry) => entry.id === copiedClip.sourceClipId)
+            : undefined;
+        const bounds = clip ? getAudioClipTimelineBounds(state.audioCache, clip, createTimingContext(state.timeline)) : null;
+        if (bounds) maxEndTick = Math.max(maxEndTick, bounds.endTick);
+    }
+
+    if (!Number.isFinite(maxEndTick)) return null;
+
+    return {
+        trackId,
+        tick: midiOnly && Number.isFinite(minMidiStartTick)
+            ? Math.max(0, Math.round(maxEndTick - (minMidiStartTick - payload.anchorTick)))
+            : Math.round(maxEndTick),
+    };
+}
+
 export function prepareMidiClipPaste(
     state: TimelineState,
     payload: MidiClipClipboard,
