@@ -164,6 +164,9 @@ describe('audio clip source persistence', () => {
             await new Promise((resolve) => setTimeout(resolve, 0));
         }
         expect(resolveDecode).toBeDefined();
+        const loadingEntry = useTimelineStore.getState().audioCache.source1;
+        expect(loadingEntry).toMatchObject({ decodedState: 'decoding' });
+        expect(loadingEntry.durationTicks).toBeGreaterThan(0);
 
         useTimelineStore.getState().resetTimeline();
         resolveDecode?.(makeAudioBufferStub());

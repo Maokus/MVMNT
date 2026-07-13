@@ -913,6 +913,27 @@ async function hydrateAudioAssets(
                 storage: 'inline',
             };
         }
+
+        // Make the clip visible as soon as its persisted metadata is available.
+        // Decoding can take considerably longer than restoring the scene itself;
+        // without this entry, clip bounds are unknown and the timeline renders
+        // nothing until decoding finishes.
+        const lightweightEntry = {
+            ...buildLightweightAudioCacheEntry(payload.record, originalFile),
+            decodedState: 'decoding' as const,
+            decodedFailureReason: undefined,
+        };
+        useTimelineStore.setState((state) => {
+            if (!isAudioHydrationStillCurrent(expectedTimelineGeneration) || !shouldHydrateAudioSource(originalId, state)) {
+                return state;
+            }
+            return {
+                audioCache: {
+                    ...state.audioCache,
+                    [originalId]: lightweightEntry,
+                },
+            };
+        });
         try {
             const buffer = await createAudioBufferFromAsset(payload.record, payload.bytes);
             const timelineState = useTimelineStore.getState();
@@ -1089,6 +1110,24 @@ export async function importScene(input: ImportSceneInput, options: ImportSceneO
             }
         }
     }
+
+    // Audio cache is runtime-only. Retain only sources referenced by the newly
+    // loaded timeline before removing old originals from IndexedDB. Doing this
+    // after hydration preserves the import cancellation safeguards above.
+    const timelineState = useTimelineStore.getState();
+    const referencedSourceIds = findReferencedAudioSourceIds(timelineState);
+    const activeAudioCache = Object.fromEntries(
+        Object.entries(timelineState.audioCache).filter(([sourceId]) => referencedSourceIds.has(sourceId))
+    );
+    useTimelineStore.setState({ audioCache: activeAudioCache });
+
+    // Large imported originals receive fresh audio-import IDs. Once this
+    // document has replaced the previous scene, reclaim every old persisted
+    // original so repeatedly opening large projects does not exhaust quota.
+    const referencedAudioAssetIds = Object.values(activeAudioCache)
+        .map((entry) => entry?.originalFile?.assetId)
+        .filter((assetId): assetId is string => typeof assetId === 'string');
+    await AudioAssetStore.removeUnreferenced(referencedAudioAssetIds);
 
     const warnings = [
         ...artifactWarnings,

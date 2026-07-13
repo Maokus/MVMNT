@@ -76,6 +76,8 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
     if (widthPx <= 0) return null;
 
     const clipHeight = Math.max(18, laneHeight * 0.6);
+    const isAudioLoading = !audioCacheEntry?.audioBuffer && audioCacheEntry?.decodedState !== 'failed';
+    const audioLoadFailed = !audioCacheEntry?.audioBuffer && audioCacheEntry?.decodedState === 'failed';
     const offsetBeats = offsetTick / ppq;
     const beatsPerBar = Math.max(1, bpb);
     const wholeBeats = Math.floor(Math.abs(offsetBeats) + 1e-9);
@@ -98,8 +100,9 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
 
     const tooltip = useMemo(() => {
         const snapInfo = `Snap: ${formatQuantizeShortLabel(quantize)} (hold Alt to bypass)`;
-        return `Clip: ${displayName}\n${snapInfo}\nOffset ${label}`;
-    }, [displayName, label, quantize]);
+        const audioStatus = isAudioLoading ? '\nAudio is loading…' : audioLoadFailed ? '\nAudio could not be loaded yet' : '';
+        return `Clip: ${displayName}\n${snapInfo}\nOffset ${label}${audioStatus}`;
+    }, [audioLoadFailed, displayName, isAudioLoading, label, quantize]);
 
     const selectForPointer = (e: React.PointerEvent): TimelineClipRef[] => {
         const state = useTimelineStore.getState();
@@ -337,19 +340,30 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
             }}
             data-clip="1"
         >
-            <div className="absolute inset-0 pointer-events-none opacity-70">
-                <AudioWaveform
-                    trackId={trackId}
-                    sourceId={clip.sourceId}
-                    clipOffsetTicks={offsetTick}
-                    regionStartTick={localStartTick}
-                    regionEndTick={localEndTick}
-                    height={clipHeight - 4}
-                    regionStartTickAbs={absStartTick}
-                    regionEndTickAbs={absEndTick}
-                />
-            </div>
+            {isAudioLoading ? (
+                <div
+                    className="absolute inset-0 pointer-events-none animate-pulse bg-slate-900/35"
+                    aria-label="Audio loading"
+                >
+                    <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-white/30" />
+                </div>
+            ) : (
+                <div className="absolute inset-0 pointer-events-none opacity-70">
+                    <AudioWaveform
+                        trackId={trackId}
+                        sourceId={clip.sourceId}
+                        clipOffsetTicks={offsetTick}
+                        regionStartTick={localStartTick}
+                        regionEndTick={localEndTick}
+                        height={clipHeight - 4}
+                        regionStartTickAbs={absStartTick}
+                        regionEndTickAbs={absEndTick}
+                    />
+                </div>
+            )}
             <div className="relative z-10 flex min-w-0 items-center gap-1">
+                {isAudioLoading && <span className="shrink-0 opacity-90">Loading audio…</span>}
+                {audioLoadFailed && <span className="shrink-0 text-amber-100 opacity-90">Audio unavailable</span>}
                 {editingName ? (
                     <input
                         className="bg-transparent text-white outline-none border-b border-emerald-300 w-[80px] text-[11px] min-w-0"

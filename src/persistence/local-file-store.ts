@@ -253,6 +253,27 @@ export const LocalFileStore = {
         }
     },
 
+    /** Byte length of the current durable package, when known. */
+    async savedSize(): Promise<number> {
+        if (memoryCache) return memoryCache.byteLength;
+        const idb = getIndexedDB();
+        if (!idb) return 0;
+        try {
+            return await runTransaction('readonly', (store) => {
+                return new Promise<number>((resolve, reject) => {
+                    const request = store.get(CURRENT_FILE_META_KEY);
+                    request.onerror = () => reject(request.error ?? new Error('LocalFileStore.savedSize failed'));
+                    request.onsuccess = () => {
+                        const size = (request.result as { byteLength?: unknown } | undefined)?.byteLength;
+                        resolve(typeof size === 'number' && Number.isFinite(size) ? size : 0);
+                    };
+                });
+            });
+        } catch {
+            return 0;
+        }
+    },
+
     /** Remove the saved file from IndexedDB and the memory cache. */
     async clear(): Promise<void> {
         memoryCache = null;

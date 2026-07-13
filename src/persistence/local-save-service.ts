@@ -50,6 +50,22 @@ function requiresFileExportFallback(error: unknown): boolean {
     );
 }
 
+async function hasRoomForLocalSave(bytes: number): Promise<boolean> {
+    const storage = typeof navigator === 'undefined' ? undefined : navigator.storage;
+    if (!storage?.estimate) return true;
+    try {
+        const { quota, usage } = await storage.estimate();
+        if (!Number.isFinite(quota) || !Number.isFinite(usage)) return true;
+        // Replacing the current file releases its old chunks. Reserve one chunk
+        // for metadata/implementation overhead while accounting for that reuse.
+        const reclaimable = await LocalFileStore.savedSize();
+        const available = Math.max(0, quota! - usage!) + reclaimable;
+        return available >= bytes + 4 * 1024 * 1024;
+    } catch {
+        return true;
+    }
+}
+
 export const LocalSaveService = {
     /**
      * Serialize the current app state and write it to IndexedDB.
@@ -76,6 +92,14 @@ export const LocalSaveService = {
 
         if (res.mode !== 'zip-package') {
             return { ok: false, error: 'Unexpected export mode: ' + res.mode };
+        }
+
+        if (!(await hasRoomForLocalSave(res.zip.byteLength))) {
+            return {
+                ok: false,
+                error: 'Not enough browser storage to keep this scene locally. Export it as a file instead.',
+                fallbackToFileExport: true,
+            };
         }
 
         try {

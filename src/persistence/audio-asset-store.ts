@@ -138,4 +138,48 @@ export const AudioAssetStore = {
             return undefined;
         }
     },
+
+    /**
+     * Remove stored originals that are not referenced by the active scene.
+     * Scene imports create new IDs for large audio payloads, so retaining old
+     * records would otherwise make IndexedDB grow every time a project is
+     * opened. This is best-effort: an unavailable store must not block import.
+     */
+    async removeUnreferenced(referencedAssetIds: Iterable<string>): Promise<number> {
+        const referenced = new Set(referencedAssetIds);
+        let removed = 0;
+
+        for (const id of memoryCache.keys()) {
+            if (!referenced.has(id)) {
+                memoryCache.delete(id);
+                removed++;
+            }
+        }
+
+        if (!getIndexedDB()) return removed;
+        try {
+            const db = await openDatabase();
+            await new Promise<void>((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                const cursorRequest = store.openCursor();
+                cursorRequest.onerror = () => reject(cursorRequest.error ?? new Error('Audio asset cleanup failed'));
+                cursorRequest.onsuccess = () => {
+                    const cursor = cursorRequest.result;
+                    if (!cursor) return;
+                    if (typeof cursor.key === 'string' && !referenced.has(cursor.key)) {
+                        cursor.delete();
+                        removed++;
+                    }
+                    cursor.continue();
+                };
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error ?? new Error('Audio asset cleanup transaction failed'));
+                tx.onabort = () => reject(tx.error ?? new Error('Audio asset cleanup transaction aborted'));
+            });
+        } catch {
+            // Imports remain usable when browser storage is unavailable.
+        }
+        return removed;
+    },
 };

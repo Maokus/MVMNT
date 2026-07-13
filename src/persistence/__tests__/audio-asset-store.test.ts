@@ -11,4 +11,18 @@ describe('AudioAssetStore', () => {
         expect(stored).toBeInstanceOf(ArrayBuffer);
         expect(Array.from(new Uint8Array(stored!))).toEqual([1, 2, 3, 4]);
     });
+
+    it('removes original assets that are no longer referenced by the active scene', async () => {
+        const prefix = `audio-cleanup-${Date.now()}-${Math.random()}`;
+        const keepId = `${prefix}-keep`;
+        const staleId = `${prefix}-stale`;
+        await AudioAssetStore.put(keepId, new Uint8Array([1]));
+        await AudioAssetStore.put(staleId, new Uint8Array([2]));
+
+        const removed = await AudioAssetStore.removeUnreferenced([keepId]);
+
+        expect(removed).toBeGreaterThanOrEqual(1);
+        expect(await AudioAssetStore.get(keepId)).toBeInstanceOf(ArrayBuffer);
+        expect(await AudioAssetStore.get(staleId)).toBeUndefined();
+    });
 });
