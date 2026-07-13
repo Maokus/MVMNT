@@ -22,6 +22,19 @@ describe('Persistence skeleton', () => {
         }
     });
 
+    it('exportScene reports staged progress through packaging', async () => {
+        const updates: Array<{ progress: number; label?: string }> = [];
+        const result = await exportScene(undefined, {
+            onProgress: (progress, label) => updates.push({ progress, label }),
+        });
+
+        expect(result.ok).toBe(true);
+        expect(updates.length).toBeGreaterThan(1);
+        expect(updates[0].progress).toBeGreaterThanOrEqual(0);
+        expect(updates.at(-1)).toEqual({ progress: 1, label: 'Scene ready.' });
+        expect(updates.some((update) => update.label === 'Packaging scene file…')).toBe(true);
+    });
+
     it('importScene round trip succeeds for a packaged export', async () => {
         const exp = await exportScene();
         if (!exp.ok || exp.mode !== 'zip-package') {

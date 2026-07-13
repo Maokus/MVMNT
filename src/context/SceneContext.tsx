@@ -6,6 +6,7 @@ import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { SaveSceneModal } from '@workspace/modals/SaveSceneModal';
 import { LocalSaveService } from '@persistence/local-save-service';
 import { useDirtyTracking } from '@hooks/useDirtyTracking';
+import { useTemplateStatusStore } from '@state/templateStatusStore';
 
 interface SceneContextValue {
     sceneName: string;
@@ -36,6 +37,9 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
     const { isDirty, markClean, markDirty } = useDirtyTracking();
+    const startFileLoading = useTemplateStatusStore((state) => state.startLoading);
+    const updateFileLoading = useTemplateStatusStore((state) => state.updateLoading);
+    const finishFileLoading = useTemplateStatusStore((state) => state.finishLoading);
 
     useEffect(() => {
         try {
@@ -78,14 +82,21 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     // Local save (IndexedDB)
     // -------------------------------------------------------------------------
     const saveToLocal = useCallback(async () => {
-        const result = await LocalSaveService.saveCurrentFile(sceneName);
-        if (result.ok) {
-            markClean();
-        } else {
-            console.error('[SceneContext] Local save failed:', result.error);
-            alert('Save failed: ' + result.error);
+        startFileLoading(`Saving ${sceneName || 'scene'}…`, { progress: 0 });
+        try {
+            const result = await LocalSaveService.saveCurrentFile(sceneName, {
+                onProgress: (progress, message) => updateFileLoading({ progress, message }),
+            });
+            if (result.ok) {
+                markClean();
+            } else {
+                console.error('[SceneContext] Local save failed:', result.error);
+                alert('Save failed: ' + result.error);
+            }
+        } finally {
+            finishFileLoading();
         }
-    }, [sceneName, markClean]);
+    }, [finishFileLoading, markClean, sceneName, startFileLoading, updateFileLoading]);
 
     // Expose markClean so TemplateInitializer can call it after loading from IDB
     const markSaveClean = markClean;

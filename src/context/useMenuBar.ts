@@ -113,9 +113,14 @@ export const useMenuBar = ({
     }
 
     const saveScene = async (projectName?: string, options?: { embedPlugins?: boolean }) => {
+        const nameToUse = projectName?.trim() ? projectName.trim() : sceneName;
+        const statusStore = useTemplateStatusStore.getState();
+        statusStore.startLoading(`Saving ${nameToUse || 'scene'}…`, { progress: 0 });
         try {
-            const nameToUse = projectName?.trim() ? projectName.trim() : sceneName;
-            const res = await exportScene(nameToUse, { embedPlugins: options?.embedPlugins });
+            const res = await exportScene(nameToUse, {
+                embedPlugins: options?.embedPlugins,
+                onProgress: (progress, message) => useTemplateStatusStore.getState().updateLoading({ progress, message }),
+            });
             if (!res.ok) {
                 alert(res.errors?.map((e) => e.message).join('\n') || 'Export failed.');
                 return;
@@ -138,6 +143,7 @@ export const useMenuBar = ({
                     ? new Blob([toArrayBuffer(res.zip)], { type: 'application/zip' })
                     : new Blob([res.json], { type: 'application/json' }));
             const extension = mode === 'zip-package' ? '.mvt' : '.json';
+            useTemplateStatusStore.getState().updateLoading({ progress: 1, message: 'Starting download…' });
             const url = URL.createObjectURL(exportBlob);
             const link = document.createElement('a');
             link.href = url;
@@ -150,6 +156,8 @@ export const useMenuBar = ({
         } catch (e) {
             console.error('Export error:', e);
             alert('Error exporting scene. See console.');
+        } finally {
+            useTemplateStatusStore.getState().finishLoading();
         }
     };
 
@@ -215,7 +223,11 @@ export const useMenuBar = ({
                     console.log('Scene opened.');
                 }
             } catch (err) {
-                if ((err as Error)?.name !== 'AbortError') {
+                if ((err as Error)?.name === 'AbortError') {
+                    // An import can be cancelled after it has already applied part of
+                    // the document. Leave the workspace in a deterministic empty state.
+                    clearScene();
+                } else {
                     console.error('Load error:', err);
                     alert('Error loading scene.');
                 }

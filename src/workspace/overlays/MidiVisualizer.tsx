@@ -561,6 +561,17 @@ const TemplateInitializer: React.FC = () => {
 
         const run = async () => {
             let didChange = false;
+            const clearSceneAfterAbort = () => {
+                dispatchSceneCommand(
+                    { type: 'clearScene', clearMacros: true },
+                    { source: 'MidiVisualizer.TemplateInitializer.abort' }
+                );
+                try {
+                    useTimelineStore.getState().resetTimeline();
+                } catch {}
+                refreshSceneUI();
+                visualizer.invalidateRender?.();
+            };
             try {
                 if (shouldImport) {
                     const payload = readStoredImportPayload();
@@ -663,7 +674,9 @@ const TemplateInitializer: React.FC = () => {
                     }
                 }
             } catch (e) {
-                if ((e as Error)?.name !== 'AbortError') {
+                if ((e as Error)?.name === 'AbortError') {
+                    clearSceneAfterAbort();
+                } else {
                     console.error('Template initialization error', e);
                 }
             } finally {

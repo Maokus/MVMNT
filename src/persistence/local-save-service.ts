@@ -23,6 +23,10 @@ export type LocalLoadResult =
     /** File existed but could not be parsed / applied. */
     | { ok: false; error: string };
 
+export interface LocalSaveOptions {
+    onProgress?: (progress: number, message?: string) => void;
+}
+
 function createAbortError(): Error {
     if (typeof DOMException === 'function') {
         return new DOMException('Local file load aborted', 'AbortError');
@@ -38,10 +42,13 @@ export const LocalSaveService = {
      * Uses the same exportScene pipeline as file export so the stored bytes are
      * a valid .mvt package that can be opened on any device.
      */
-    async saveCurrentFile(sceneName?: string): Promise<LocalSaveResult> {
+    async saveCurrentFile(sceneName?: string, options: LocalSaveOptions = {}): Promise<LocalSaveResult> {
+        options.onProgress?.(0, 'Preparing scene…');
         let res;
         try {
-            res = await exportScene(sceneName);
+            res = await exportScene(sceneName, {
+                onProgress: (progress, message) => options.onProgress?.(progress * 0.85, message),
+            });
         } catch (e) {
             return { ok: false, error: e instanceof Error ? e.message : String(e) };
         }
@@ -58,7 +65,9 @@ export const LocalSaveService = {
         }
 
         try {
+            options.onProgress?.(0.9, 'Saving file…');
             await LocalFileStore.save(res.zip);
+            options.onProgress?.(1, 'File saved.');
         } catch (e) {
             return { ok: false, error: e instanceof Error ? e.message : String(e) };
         }

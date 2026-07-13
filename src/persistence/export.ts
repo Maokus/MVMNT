@@ -716,6 +716,10 @@ export async function exportScene(
     sceneNameOverride?: string,
     options: ExportSceneOptions = {}
 ): Promise<ExportSceneResult> {
+    const reportProgress = (value: number, label: string) => {
+        options.onProgress?.(Math.max(0, Math.min(1, value)), label);
+    };
+    reportProgress(0.02, 'Preparing scene…');
     const storage: AssetStorageMode = options.storage ?? 'zip-package';
     const preflightWarnings: string[] = [];
     if (storage === 'inline-json') {
@@ -768,10 +772,12 @@ export async function exportScene(
         maxInlineBytes: options.maxInlineBytes ?? DEFAULT_MAX_INLINE_BYTES,
         inlineWarnBytes: options.inlineWarnBytes ?? DEFAULT_INLINE_WARN_BYTES,
         maxInlineAssetBytes: options.maxInlineAssetBytes ?? DEFAULT_MAX_INLINE_ASSET_BYTES,
-        onProgress: options.onProgress,
+        onProgress: (progress, label) => reportProgress(0.05 + progress * 0.5, label ?? 'Preparing audio…'),
     });
 
+    reportProgress(0.6, 'Preparing fonts…');
     const fontResult = await collectFontAssets();
+    reportProgress(0.66, 'Preparing visual assets…');
     const visualResult = await collectVisualAssets();
 
     const warnings: string[] = [...preflightWarnings, ...docWarnings, ...collectResult.warnings];
@@ -792,6 +798,7 @@ export async function exportScene(
         warnings.push(`Visual asset bytes missing for: ${visualResult.missing.join(', ')}`);
     }
 
+    reportProgress(0.72, 'Preparing plugins…');
     const pluginResult = await collectPluginDependencies(doc.scene?.elements, {
         embedPlugins: options.embedPlugins === true,
         storage,
@@ -914,7 +921,9 @@ export async function exportScene(
     };
 
     if (storage === 'inline-json') {
+        reportProgress(0.92, 'Serializing scene…');
         const json = serializeStable(envelope);
+        reportProgress(1, 'Scene ready.');
         return {
             ok: true,
             mode: 'inline-json',
@@ -927,6 +936,7 @@ export async function exportScene(
 
     let zip: Uint8Array<ArrayBuffer>;
     try {
+        reportProgress(0.92, 'Packaging scene file…');
         zip = buildZip(
             envelope,
             collectResult.assetPayloads,
@@ -946,6 +956,7 @@ export async function exportScene(
             warnings,
         };
     }
+    reportProgress(1, 'Scene ready.');
     return {
         ok: true,
         mode: 'zip-package',
