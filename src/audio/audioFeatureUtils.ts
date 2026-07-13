@@ -11,6 +11,8 @@ import type { TempoAlignedAdapterDiagnostics } from '@audio/features/tempoAligne
 import type { AudioTrack } from '@audio/audioTypes';
 import type { TimelineTrack } from '@state/timelineStore';
 import type { ChannelLayoutMeta } from '@audio/features/audioFeatureTypes';
+import { getAudioClipsForTrack } from '@state/timeline/audioClips';
+import { createTimingContext, secondsToTicks } from '@state/timelineTime';
 
 type TimelineTrackEntry = TimelineTrack | AudioTrack;
 
@@ -186,16 +188,22 @@ export function resolveFeatureContext(
     const state = useTimelineStore.getState();
     const entry = state.tracks[trackId] as TimelineTrackEntry | undefined;
     if (!entry || entry.type !== 'audio') return null;
-    const sourceId = entry.audioSourceId ?? entry.id;
-    const cache = state.audioFeatureCaches[sourceId];
-    const { track: featureTrack } = resolveFeatureTrackFromCache(cache, featureKey, {
-        analysisProfileId: sanitizeAnalysisProfileId(analysisProfileId),
-    });
-    if (!featureTrack) return null;
-    return { state, track: entry, sourceId, cache, featureTrack } as const;
+    const sourceIds = Array.isArray(entry.clips)
+        ? getAudioClipsForTrack(entry).filter((clip) => clip.enabled !== false).map((clip) => clip.sourceId)
+        : [entry.audioSourceId ?? entry.id];
+    for (const sourceId of sourceIds) {
+        const cache = state.audioFeatureCaches[sourceId];
+        const { track: featureTrack } = resolveFeatureTrackFromCache(cache, featureKey, {
+            analysisProfileId: sanitizeAnalysisProfileId(analysisProfileId),
+        });
+        if (featureTrack) return { state, track: entry, sourceId, cache, featureTrack } as const;
+    }
+    return null;
 }
 
 function buildSampleCacheKey(
+    trackId: string,
+    placementSignature: string,
     tick: number,
     descriptor: AudioFeatureDescriptor,
     analysisProfileId: string | null
@@ -204,7 +212,7 @@ function buildSampleCacheKey(
     const band = descriptor.bandIndex != null ? `b${descriptor.bandIndex}` : 'b*';
     const profileComponent = sanitizeAnalysisProfileId(analysisProfileId) ?? 'default';
     const overridesHash = descriptor.profileOverridesHash ?? null;
-    const base = `tick:${tick}|feature:${featureKey || 'unknown'}|${band}`;
+    const base = `track:${trackId}|placement:${placementSignature}|tick:${tick}|feature:${featureKey || 'unknown'}|${band}`;
     const profilePart = `profile:${profileComponent}`;
     const overridesPart = overridesHash ? `|overrides:${overridesHash}` : '';
     return `${base}|${profilePart}${overridesPart}`;
@@ -245,9 +253,14 @@ export function sampleFeatureFrame(
         return null;
     }
     const { featureTrack } = context;
-    const tm = getSharedTimingManager();
-    const tick = tm.secondsToTicks(Math.max(0, targetTime));
-    const cacheKey = buildSampleCacheKey(tick, descriptor, analysisProfileId);
+    const timing = createTimingContext(state.timeline, getSharedTimingManager().ticksPerQuarter);
+    const tick = secondsToTicks(timing, Math.max(0, targetTime));
+    const placementSignature = Array.isArray(context.track.clips)
+        ? context.track.clips
+              .map((clip) => `${clip.id}:${clip.sourceId}:${clip.offsetTicks}:${clip.sourceStartSeconds ?? ''}:${clip.sourceEndSeconds ?? ''}:${clip.enabled !== false}`)
+              .join(',')
+        : `${context.track.offsetTicks ?? 0}:${context.track.regionStartTick ?? 0}:${context.track.regionEndTick ?? ''}`;
+    const cacheKey = buildSampleCacheKey(trackId, placementSignature, tick, descriptor, analysisProfileId);
     let trackCache = featureSampleCache.get(featureTrack);
     if (!trackCache) {
         trackCache = new Map();

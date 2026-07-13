@@ -1,0 +1,43 @@
+import { describe, expect, it } from 'vitest';
+import { createPluginHostApi } from '../host-api/plugin-api';
+
+function buffer(value: number, sampleRate = 8): AudioBuffer {
+    const samples = new Float32Array(sampleRate * 3).fill(value);
+    return {
+        sampleRate,
+        length: samples.length,
+        numberOfChannels: 1,
+        getChannelData: () => samples,
+    } as unknown as AudioBuffer;
+}
+
+describe('clip-aware raw audio reads', () => {
+    it('assembles clip PCM in timeline order and zero-fills gaps', () => {
+        const state = {
+            timeline: { globalBpm: 120, beatsPerBar: 4, masterTempoMap: undefined },
+            tracks: {
+                clips: {
+                    id: 'clips', type: 'audio', name: 'Clips', enabled: true, mute: false, solo: false, gain: 1,
+                    clips: [
+                        { id: 'a', type: 'audio', sourceId: 'a', offsetTicks: 0, sourceStartSeconds: 0, sourceEndSeconds: 1 },
+                        { id: 'b', type: 'audio', sourceId: 'b', offsetTicks: 3840, sourceStartSeconds: 0, sourceEndSeconds: 1 },
+                    ],
+                },
+            },
+            audioCache: {
+                a: { durationSeconds: 3, durationTicks: 5760, sampleRate: 8, channels: 1, durationSamples: 24, audioBuffer: buffer(0.5) },
+                b: { durationSeconds: 3, durationTicks: 5760, sampleRate: 8, channels: 1, durationSamples: 24, audioBuffer: buffer(-0.5) },
+            },
+        } as any;
+        const host = createPluginHostApi({ timelineStore: { getState: () => state } }).api;
+
+        const samples = host.audio.getRawSamples({ trackId: 'clips', startSec: 0.75, endSec: 2.25, channel: 'left' });
+
+        expect(host.audio.getSampleRate({ trackId: 'clips' })).toBe(8);
+        expect(samples).toHaveLength(12);
+        expect(Array.from(samples!.slice(0, 2))).toEqual([0.5, 0.5]);
+        expect(Array.from(samples!.slice(2, 10))).toEqual(new Array(8).fill(0));
+        expect(Array.from(samples!.slice(10))).toEqual([-0.5, -0.5]);
+        expect(host.audio.getRmsInWindow({ trackId: 'clips', startSec: 1, endSec: 2 })).toEqual(new Float32Array([0]));
+    });
+});

@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
 import type { AudioTrack } from '@audio/audioTypes';
+import { getAudioTrackSourceIds } from '@state/timeline/audioClips';
 import type { AudioFeatureCacheStatus, AudioFeatureTrack } from '@audio/features/audioFeatureTypes';
 import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
 import { formatCacheDiffDescriptor, useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
@@ -143,8 +144,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
         return timelineState.order
             .map((trackId) => timelineState.tracks[trackId])
             .filter((track): track is AudioTrack => Boolean(track) && track.type === 'audio')
-            .map((track) => {
-                const sourceId = track.audioSourceId ?? track.id;
+            .flatMap((track) => getAudioTrackSourceIds(track).map((sourceId) => {
                 const status = timelineState.status[sourceId];
                 const cache = timelineState.caches[sourceId];
                 const hasAudioBuffer = Boolean(timelineState.audioCache[sourceId]?.audioBuffer);
@@ -165,7 +165,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                     updatedAt: status?.updatedAt,
                     features,
                 };
-            });
+            }));
     }, [timelineState]);
 
     const diagnosticsBySource = useMemo(() => {

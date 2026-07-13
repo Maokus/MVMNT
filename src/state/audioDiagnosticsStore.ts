@@ -18,6 +18,7 @@ import {
 import { isAdhocAnalysisProfileId } from '@audio/features/analysisProfileRegistry';
 import { getFeatureRequirements, type AudioFeatureRequirement } from '@audio/audioElementMetadata';
 import { useTimelineStore, type TimelineState } from './timelineStore';
+import { getAudioTrackSourceIds } from './timeline/audioClips';
 import {
     parseFeatureTrackKey,
     resolveFeatureTrackFromCache,
@@ -61,6 +62,7 @@ interface AnalysisIntentRecord {
     previousTrackRef: string | null;
     trackHistory: string[];
     audioSourceId: string;
+    audioSourceIds: string[];
     analysisProfileId: string | null;
     descriptors: Record<string, DescriptorInfo>;
     requestedAt: string;
@@ -170,11 +172,19 @@ function makeGroupKey(audioSourceId: string, analysisProfileId: string | null): 
 }
 
 function resolveAudioSourceId(trackRef: string, state: Pick<TimelineState, 'tracks'>): string {
+    return resolveAudioSourceIds(trackRef, state)[0] ?? trackRef;
+}
+
+function resolveAudioSourceIds(trackRef: string, state: Pick<TimelineState, 'tracks'>): string[] {
     const track = state.tracks[trackRef] as { id: string; type: string; audioSourceId?: string } | undefined;
     if (track && track.type === 'audio') {
-        return track.audioSourceId ?? track.id;
+        if (Array.isArray((track as any).clips)) {
+            const ids = getAudioTrackSourceIds(track as any);
+            if (ids.length) return ids;
+        }
+        return [track.audioSourceId ?? track.id];
     }
-    return trackRef;
+    return [trackRef];
 }
 
 function extractFeatureKey(descriptorId: string): string | null {
@@ -385,13 +395,14 @@ function computeCacheDiffs(
         if (!track) continue;
         const trackType = (track as { type?: string }).type;
         if (trackType !== 'audio') continue;
-        const sourceId = resolveAudioSourceId(trackRef, timelineState);
-        let refs = trackRefsBySource.get(sourceId);
-        if (!refs) {
-            refs = new Set<string>();
-            trackRefsBySource.set(sourceId, refs);
+        for (const sourceId of resolveAudioSourceIds(trackRef, timelineState)) {
+            let refs = trackRefsBySource.get(sourceId);
+            if (!refs) {
+                refs = new Set<string>();
+                trackRefsBySource.set(sourceId, refs);
+            }
+            refs.add(trackRef);
         }
-        refs.add(trackRef);
     }
 
     const calculators = audioFeatureCalculatorRegistry.list();
@@ -399,7 +410,7 @@ function computeCacheDiffs(
     const calculatorFeatureById = new Map(calculators.map((entry) => [entry.id, entry.featureKey]));
 
     for (const record of Object.values(intentsByElement)) {
-        const audioSourceId = resolveAudioSourceId(record.trackRef, timelineState);
+        for (const audioSourceId of record.audioSourceIds ?? resolveAudioSourceIds(record.trackRef, timelineState)) {
         const requestedAt = Date.parse(record.requestedAt) || Date.now();
         const ensureGroup = (preferredProfileId: string | null) => {
             const sanitizedPreferred = sanitizeProfileId(preferredProfileId);
@@ -457,6 +468,7 @@ function computeCacheDiffs(
 
         for (const requirement of record.requirementDiagnostics ?? []) {
             requiredRequestKeys.add(requirement.requestKey);
+        }
         }
     }
 
@@ -785,7 +797,8 @@ export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsSta
     ...initialState,
     publishIntent(intent: AnalysisIntent) {
         const timelineState = useTimelineStore.getState();
-        const audioSourceId = resolveAudioSourceId(intent.trackRef, timelineState);
+        const audioSourceIds = resolveAudioSourceIds(intent.trackRef, timelineState);
+        const audioSourceId = audioSourceIds[0] ?? intent.trackRef;
         const intentProfileId = sanitizeProfileId(intent.analysisProfileId);
         const descriptors: Record<string, DescriptorInfo> = {};
         for (const entry of intent.descriptors) {
@@ -856,17 +869,16 @@ export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsSta
                     : previousRecord?.previousTrackRef ?? null;
             const trackHistory = buildTrackHistory(intent.trackRef, previousRecord?.trackHistory);
             const nextSources = { ...state.sourcesWithIntents };
-            if (!previousRecord) {
-                nextSources[audioSourceId] = (nextSources[audioSourceId] ?? 0) + 1;
-            } else if (previousRecord.audioSourceId !== audioSourceId) {
-                const prevSourceId = previousRecord.audioSourceId;
-                const prevCount = (nextSources[prevSourceId] ?? 1) - 1;
-                if (prevCount <= 0) {
-                    delete nextSources[prevSourceId];
-                } else {
-                    nextSources[prevSourceId] = prevCount;
-                }
-                nextSources[audioSourceId] = (nextSources[audioSourceId] ?? 0) + 1;
+            const previousSources = new Set(previousRecord?.audioSourceIds ?? (previousRecord ? [previousRecord.audioSourceId] : []));
+            const nextSourceSet = new Set(audioSourceIds);
+            for (const sourceId of previousSources) {
+                if (nextSourceSet.has(sourceId)) continue;
+                const prevCount = (nextSources[sourceId] ?? 1) - 1;
+                if (prevCount <= 0) delete nextSources[sourceId];
+                else nextSources[sourceId] = prevCount;
+            }
+            for (const sourceId of nextSourceSet) {
+                if (!previousSources.has(sourceId)) nextSources[sourceId] = (nextSources[sourceId] ?? 0) + 1;
             }
 
             return {
@@ -880,6 +892,7 @@ export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsSta
                         previousTrackRef,
                         trackHistory,
                         audioSourceId,
+                        audioSourceIds,
                         analysisProfileId: intentProfileId,
                         descriptors,
                         requestedAt: intent.requestedAt,
@@ -903,13 +916,11 @@ export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsSta
             const nextIntents = { ...state.intentsByElement };
             delete nextIntents[elementId];
             const nextSources = { ...state.sourcesWithIntents };
-            const sourceId = existing.audioSourceId;
-            const currentCount = nextSources[sourceId];
-            if (typeof currentCount === 'number') {
-                if (currentCount <= 1) {
-                    delete nextSources[sourceId];
-                } else {
-                    nextSources[sourceId] = currentCount - 1;
+            for (const sourceId of existing.audioSourceIds ?? [existing.audioSourceId]) {
+                const currentCount = nextSources[sourceId];
+                if (typeof currentCount === 'number') {
+                    if (currentCount <= 1) delete nextSources[sourceId];
+                    else nextSources[sourceId] = currentCount - 1;
                 }
             }
             return { intentsByElement: nextIntents, sourcesWithIntents: nextSources };

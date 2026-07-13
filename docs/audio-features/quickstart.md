@@ -54,6 +54,7 @@ if (!sample) return [];
 - Pass runtime presentation tweaks (smoothing, interpolation) through the final argument.
 - `AudioFeatureDescriptor` objects remain focused on analysis identity.
 - Changing sampling options never invalidates cache entries, so multiple elements share work.
+- `audioTrackId` is clip-aware: the enabled clip under `targetTime` selects the immutable source cache; gaps return silence. Keep the track binding when clips move or are replaced.
 
 ## 3. Let the runtime manage subscriptions
 

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import type { AudioFeatureAnalysisProfileDescriptor } from '@audio/features/audioFeatureTypes';
+import { getAudioTrackSourceIds } from '@state/timeline/audioClips';
 
 interface AudioAnalysisProfileSelectSchema {
     trackId?: string | string[] | null;
@@ -57,11 +58,12 @@ export const AudioAnalysisProfileSelect: React.FC<AudioAnalysisProfileSelectProp
                 if (!track || track.type !== 'audio') {
                     return { profiles: {}, defaultProfileId: null };
                 }
-                const sourceId = track.audioSourceId ?? track.id;
-                const cache = state.audioFeatureCaches[sourceId];
+                const sourceIds = getAudioTrackSourceIds(track);
+                const caches = sourceIds.map((sourceId) => state.audioFeatureCaches[sourceId]).filter(Boolean);
+                const profiles = Object.assign({}, ...caches.map((cache) => cache?.analysisProfiles ?? {}));
                 return {
-                    profiles: cache?.analysisProfiles ?? {},
-                    defaultProfileId: cache?.defaultAnalysisProfileId ?? null,
+                    profiles,
+                    defaultProfileId: caches.find((cache) => cache?.defaultAnalysisProfileId)?.defaultAnalysisProfileId ?? null,
                 };
             },
             [trackKey],

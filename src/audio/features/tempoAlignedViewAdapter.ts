@@ -9,6 +9,9 @@ import type {
 } from './audioFeatureTypes';
 import { parseFeatureTrackKey, resolveFeatureTrackFromCache } from './featureTrackIdentity';
 import { normalizeHopTicks, quantizeHopTicks } from './hopQuantization';
+import { getAudioClipTimelineSegments, resolveAudioClipAtTick } from '@state/timeline/audioClips';
+import { createTimingContext } from '@state/timelineTime';
+import type { AudioTrack } from '@audio/audioTypes';
 
 type NumericArray = Float32Array | Uint8Array | Int16Array;
 
@@ -720,6 +723,196 @@ function buildDiagnostics(
     };
 }
 
+/** Clip-aware source-time sampler used by modern `AudioTrack.clips` tracks. */
+function getClipAwareFrame(state: TimelineState, request: TempoAlignedFrameRequest): TempoAlignedFrameResult {
+    const options = request.options ?? {};
+    const interpolation = options.interpolation ?? DEFAULT_INTERPOLATION;
+    const track = state.tracks[request.trackId] as AudioTrack | undefined;
+    if (!track || track.type !== 'audio') {
+        return { sample: undefined, diagnostics: buildDiagnostics(request, undefined, false, interpolation, 0, 0, 'track-missing') };
+    }
+    const timing = createTimingContext(state.timeline, getSharedTimingManager().ticksPerQuarter);
+    const segments = getAudioClipTimelineSegments(state, request.trackId, timing);
+    const active = resolveAudioClipAtTick(state, request.trackId, request.tick, timing);
+    // A gap is still a valid track read. Use the first available source only to
+    // retain the feature's shape while returning a silent vector.
+    const candidateSourceIds = active
+        ? [active.sourceId]
+        : segments.map((segment) => segment.sourceId);
+    let sourceId: string | undefined;
+    let cache: AudioFeatureCache | undefined;
+    let featureTrack: AudioFeatureTrack | undefined;
+    let resolvedFeatureKey: string | null = null;
+    for (const candidate of candidateSourceIds) {
+        const candidateCache = state.audioFeatureCaches[candidate];
+        const resolvedFeature = resolveFeatureTrackFromCache(candidateCache, request.featureKey, {
+            analysisProfileId: request.analysisProfileId,
+        });
+        if (candidateCache && resolvedFeature.track) {
+            sourceId = candidate;
+            cache = candidateCache;
+            featureTrack = resolvedFeature.track;
+            resolvedFeatureKey = resolvedFeature.key;
+            break;
+        }
+    }
+    if (!cache || !featureTrack || !sourceId) {
+        const reason = active ? 'cache-missing' : segments.length ? 'feature-missing' : 'clip-missing';
+        return {
+            sample: undefined,
+            diagnostics: buildDiagnostics(request, active?.sourceId, false, interpolation, 0, 0, reason),
+        };
+    }
+    const diagnosticsRequest = resolvedFeatureKey ? { ...request, featureKey: resolvedFeatureKey } : request;
+    const hopSeconds = resolveHopSeconds(featureTrack, cache);
+    if (hopSeconds <= 0) {
+        return { sample: undefined, diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, true, interpolation, 0, 0, 'invalid-hop') };
+    }
+    const channelMeta = buildChannelMetadata(featureTrack, cache);
+    const tempoMapper = resolveTempoMapper(state);
+    const hopTicks = resolveHopTicks(featureTrack, cache, tempoMapper);
+    const mapperStart = nowNs();
+    const startSeconds = resolveStartSeconds(featureTrack, cache);
+    const frameFloat = active && active.sourceId === sourceId ? (active.sourceSeconds - startSeconds) / hopSeconds : Number.NaN;
+    const buildSilentSample = (fractionalIndex: number): TempoAlignedFrameSample => {
+        const base = Number.isFinite(fractionalIndex) ? Math.floor(fractionalIndex) : 0;
+        const silent = buildSilentVector(featureTrack!, options);
+        return {
+            frameIndex: Math.max(0, Math.min(featureTrack!.frameCount - 1, base)),
+            fractionalIndex,
+            hopTicks,
+            values: [...silent.flatValues],
+            channels: silent.channelValues.length,
+            channelValues: silent.channelValues.map((channel) => [...channel]),
+            channelAliases: channelMeta.aliases,
+            channelLayout: channelMeta.layout,
+            format: featureTrack!.format,
+            frameLength: silent.frameLength ?? 0,
+        };
+    };
+    if (!Number.isFinite(frameFloat) || frameFloat < 0 || frameFloat >= featureTrack.frameCount) {
+        const sample = buildSilentSample(frameFloat);
+        return {
+            sample,
+            diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, true, interpolation, nowNs() - mapperStart, 1, undefined),
+        };
+    }
+    const baseIndex = Math.floor(frameFloat);
+    const frac = frameFloat - baseIndex;
+    const radius = Math.max(0, Math.floor(options.smoothing ?? 0));
+    const getVectorInfo = (index: number): FrameVectorInfo =>
+        index < 0 || index >= featureTrack!.frameCount
+            ? buildSilentVector(featureTrack!, options)
+            : buildFrameVectorInfo(featureTrack!, index, options);
+    const smoothingSamples: number[][] = [];
+    for (let i = -radius; i <= radius; i += 1) smoothingSamples.push(getVectorInfo(baseIndex + i).flatValues);
+    const baseInfo = getVectorInfo(baseIndex);
+    let values = applySmoothingWindow(smoothingSamples, radius);
+    if (radius === 0) {
+        values = interpolateVectors(
+            interpolation,
+            baseInfo.flatValues,
+            getVectorInfo(baseIndex - 1).flatValues,
+            getVectorInfo(baseIndex + 1).flatValues,
+            getVectorInfo(baseIndex + 2).flatValues,
+            frac,
+        );
+    }
+    const channelValues = splitValuesBySizes(values, baseInfo.channelSizes);
+    return {
+        sample: {
+            frameIndex: Math.max(0, Math.min(featureTrack.frameCount - 1, baseIndex)),
+            fractionalIndex: frameFloat,
+            hopTicks,
+            values,
+            channels: channelValues.length,
+            channelValues,
+            channelAliases: channelMeta.aliases,
+            channelLayout: channelMeta.layout,
+            format: featureTrack.format,
+            frameLength: baseInfo.frameLength,
+        },
+        diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, true, interpolation, nowNs() - mapperStart, 1, undefined),
+    };
+}
+
+function getClipAwareRange(state: TimelineState, request: TempoAlignedRangeRequest): TempoAlignedRangeResult {
+    const options = request.options ?? {};
+    const interpolation = options.interpolation ?? DEFAULT_INTERPOLATION;
+    const track = state.tracks[request.trackId] as AudioTrack | undefined;
+    if (!track || track.type !== 'audio') {
+        return { range: undefined, diagnostics: buildDiagnostics(request, undefined, false, interpolation, 0, 0, 'track-missing') };
+    }
+    const timing = createTimingContext(state.timeline, getSharedTimingManager().ticksPerQuarter);
+    const segments = getAudioClipTimelineSegments(state, request.trackId, timing);
+    const source = segments.find((segment) => {
+        const cache = state.audioFeatureCaches[segment.sourceId];
+        return Boolean(resolveFeatureTrackFromCache(cache, request.featureKey, { analysisProfileId: request.analysisProfileId }).track);
+    });
+    if (!source) {
+        return {
+            range: undefined,
+            diagnostics: buildDiagnostics(request, segments[0]?.sourceId, false, interpolation, 0, 0, segments.length ? 'feature-missing' : 'clip-missing'),
+        };
+    }
+    const cache = state.audioFeatureCaches[source.sourceId]!;
+    const resolvedFeature = resolveFeatureTrackFromCache(cache, request.featureKey, { analysisProfileId: request.analysisProfileId });
+    const featureTrack = resolvedFeature.track!;
+    const hopSeconds = resolveHopSeconds(featureTrack, cache);
+    if (hopSeconds <= 0) {
+        return { range: undefined, diagnostics: buildDiagnostics(request, source.sourceId, true, interpolation, 0, 0, 'invalid-hop') };
+    }
+    const tempoMapper = resolveTempoMapper(state);
+    const startSeconds = tempoMapper.ticksToSeconds(Math.min(request.startTick, request.endTick));
+    const endSeconds = tempoMapper.ticksToSeconds(Math.max(request.startTick, request.endTick));
+    const padding = Math.max(0, Math.floor(options.framePadding ?? 0));
+    const firstSeconds = startSeconds - padding * hopSeconds + hopSeconds / 2;
+    const lastSeconds = endSeconds + padding * hopSeconds;
+    const frameCount = Math.max(1, Math.floor((lastSeconds - firstSeconds) / hopSeconds) + 1);
+    const firstFrame = getClipAwareFrame(state, {
+        ...request,
+        tick: tempoMapper.secondsToTicks(firstSeconds),
+    }).sample;
+    if (!firstFrame) {
+        return { range: undefined, diagnostics: buildDiagnostics(request, source.sourceId, false, interpolation, 0, 0, 'feature-missing') };
+    }
+    const vectorWidth = firstFrame.values.length;
+    const data = new Float32Array(frameCount * vectorWidth);
+    const frameTicks = new Float64Array(frameCount);
+    const frameSeconds = new Float64Array(frameCount);
+    for (let frame = 0; frame < frameCount; frame += 1) {
+        const seconds = firstSeconds + frame * hopSeconds;
+        const tick = tempoMapper.secondsToTicks(seconds);
+        const sample = getClipAwareFrame(state, { ...request, tick }).sample;
+        frameSeconds[frame] = seconds;
+        frameTicks[frame] = tick;
+        for (let i = 0; i < vectorWidth; i += 1) data[frame * vectorWidth + i] = sample?.values[i] ?? 0;
+    }
+    const trackStartTick = Math.min(...segments.map((segment) => segment.startTick));
+    const trackEndTick = Math.max(...segments.map((segment) => segment.endTick));
+    return {
+        range: {
+            hopTicks: resolveHopTicks(featureTrack, cache, tempoMapper),
+            frameCount,
+            channels: vectorWidth,
+            format: firstFrame.format,
+            data,
+            frameTicks,
+            frameSeconds,
+            channelAliases: firstFrame.channelAliases ?? null,
+            channelLayout: firstFrame.channelLayout ?? null,
+            requestedStartTick: request.startTick,
+            requestedEndTick: request.endTick,
+            windowStartTick: Math.min(request.startTick, request.endTick),
+            windowEndTick: Math.max(request.startTick, request.endTick),
+            trackStartTick,
+            trackEndTick,
+            sourceId: source.sourceId,
+        },
+        diagnostics: buildDiagnostics(request, source.sourceId, true, interpolation, 0, frameCount, undefined),
+    };
+}
+
 export function getTempoAlignedFrame(state: TimelineState, request: TempoAlignedFrameRequest): TempoAlignedFrameResult {
     const options = request.options ?? {};
     const interpolation = options.interpolation ?? DEFAULT_INTERPOLATION;
@@ -729,6 +922,9 @@ export function getTempoAlignedFrame(state: TimelineState, request: TempoAligned
             sample: undefined,
             diagnostics: buildDiagnostics(request, undefined, false, interpolation, 0, 0, 'track-missing'),
         };
+    }
+    if (Array.isArray((resolved.track as AudioTrack).clips)) {
+        return getClipAwareFrame(state, request);
     }
     const { track, sourceId } = resolved;
     const cache = state.audioFeatureCaches[sourceId];
@@ -904,6 +1100,9 @@ export function getTempoAlignedRange(state: TimelineState, request: TempoAligned
             range: undefined,
             diagnostics: buildDiagnostics(request, undefined, false, interpolation, 0, 0, 'track-missing'),
         };
+    }
+    if (Array.isArray((resolved.track as AudioTrack).clips)) {
+        return getClipAwareRange(state, request);
     }
     const { track, sourceId } = resolved;
     const cache = state.audioFeatureCaches[sourceId];

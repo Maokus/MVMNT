@@ -30,6 +30,8 @@ import {
     beatsToSecondsContext,
 } from '@state/timelineTime';
 import { beatsToTicks, ticksToBeats } from '@core/timing/ppq';
+import { getAudioClipSegmentsInSeconds, getAudioClipTimelineSegments } from '@state/timeline/audioClips';
+import type { AudioTrack } from '@audio/audioTypes';
 import { PLUGIN_API_VERSION } from '../api-version';
 export { PLUGIN_API_VERSION } from '../api-version';
 
@@ -44,6 +46,92 @@ export const PLUGIN_CAPABILITIES = {
 
 /** Maximum number of raw PCM samples returned by getRawSamples in a single call. */
 export const MAX_RAW_SAMPLES = 8192;
+
+const CLIP_RAW_FALLBACK_SAMPLE_RATE = 48_000;
+
+function isModernAudioClipTrack(track: unknown): track is AudioTrack & { clips: NonNullable<AudioTrack['clips']> } {
+    return Boolean(track && (track as AudioTrack).type === 'audio' && Array.isArray((track as AudioTrack).clips));
+}
+
+function getClipRawSampleRate(state: TimelineState, trackId: string): number | null {
+    const track = state.tracks[trackId];
+    if (!isModernAudioClipTrack(track)) return null;
+    const timing = createTimingContext(state.timeline);
+    const rates = getAudioClipTimelineSegments(state, trackId, timing)
+        .map((segment) => state.audioCache[segment.sourceId]?.audioBuffer?.sampleRate)
+        .filter((rate): rate is number => typeof rate === 'number' && rate > 0);
+    if (!rates.length) return null;
+    return rates.every((rate) => rate === rates[0]) ? rates[0] : CLIP_RAW_FALLBACK_SAMPLE_RATE;
+}
+
+function readBufferSample(buffer: AudioBuffer, position: number, channel: 'mono' | 'left' | 'right' | number): number {
+    const index = Math.max(0, Math.min(buffer.length - 1, position));
+    const left = Math.floor(index);
+    const right = Math.min(buffer.length - 1, left + 1);
+    const fraction = index - left;
+    const readChannel = (channelIndex: number) => {
+        const data = buffer.getChannelData(Math.max(0, Math.min(buffer.numberOfChannels - 1, channelIndex)));
+        const a = data[left] ?? 0;
+        const b = data[right] ?? 0;
+        return a + (b - a) * fraction;
+    };
+    if (channel === 'mono') {
+        let sum = 0;
+        for (let i = 0; i < buffer.numberOfChannels; i += 1) sum += readChannel(i);
+        return sum / Math.max(1, buffer.numberOfChannels);
+    }
+    const channelIndex = channel === 'left' ? 0 : channel === 'right' ? 1 : channel;
+    return readChannel(channelIndex);
+}
+
+function getClipRawSamples(
+    state: TimelineState,
+    trackId: string,
+    startSec: number,
+    endSec: number,
+    channel: 'mono' | 'left' | 'right' | number,
+): Float32Array | null {
+    const sampleRate = getClipRawSampleRate(state, trackId);
+    if (!sampleRate) return null;
+    const count = Math.ceil((endSec - startSec) * sampleRate);
+    if (count <= 0 || count > MAX_RAW_SAMPLES) return null;
+    const timing = createTimingContext(state.timeline);
+    const segments = getAudioClipSegmentsInSeconds(state, trackId, startSec, endSec, timing);
+    const result = new Float32Array(count);
+    for (const segment of segments) {
+        const buffer = state.audioCache[segment.sourceId]?.audioBuffer;
+        if (!buffer) continue;
+        const overlapStart = Math.max(startSec, segment.startSeconds);
+        const overlapEnd = Math.min(endSec, segment.endSeconds);
+        const placementSeconds = ticksToSeconds(timing, segment.clip.offsetTicks);
+        const first = Math.max(0, Math.floor((overlapStart - startSec) * sampleRate));
+        const last = Math.min(count, Math.ceil((overlapEnd - startSec) * sampleRate));
+        for (let i = first; i < last; i += 1) {
+            const timelineSeconds = startSec + i / sampleRate;
+            const sourceSeconds = timelineSeconds - placementSeconds;
+            if (sourceSeconds < segment.sourceStartSeconds || sourceSeconds >= segment.sourceEndSeconds) continue;
+            result[i] = readBufferSample(buffer, sourceSeconds * buffer.sampleRate, channel);
+        }
+    }
+    return result;
+}
+
+function getClipRmsInWindow(state: TimelineState, trackId: string, startSec: number, endSec: number): Float32Array | null {
+    const track = state.tracks[trackId] as AudioTrack | undefined;
+    if (!track || !isModernAudioClipTrack(track)) return null;
+    const timing = createTimingContext(state.timeline);
+    const segments = getAudioClipSegmentsInSeconds(state, trackId, startSec, endSec, timing);
+    const channels = Math.max(1, ...segments.map((segment) => state.audioCache[segment.sourceId]?.audioBuffer?.numberOfChannels ?? 0));
+    const result = new Float32Array(channels);
+    for (let channel = 0; channel < channels; channel += 1) {
+        const samples = getClipRawSamples(state, trackId, startSec, endSec, channel);
+        if (!samples) return null;
+        let sumSquares = 0;
+        for (const sample of samples) sumSquares += sample * sample;
+        result[channel] = Math.sqrt(sumSquares / Math.max(1, samples.length));
+    }
+    return result;
+}
 
 export type PluginHostCapability = (typeof PLUGIN_CAPABILITIES)[keyof typeof PLUGIN_CAPABILITIES];
 
@@ -484,6 +572,9 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                 const state = timelineStore.getState();
                 const track = state.tracks[trackId];
                 if (!track || track.type !== 'audio') return null;
+                if (isModernAudioClipTrack(track)) {
+                    return getClipRawSamples(state, trackId, startSec, endSec, channel);
+                }
                 const sourceId = track.audioSourceId ?? track.id;
                 const entry = state.audioCache[sourceId];
                 if (!entry) return null;
@@ -533,6 +624,9 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                 const state = timelineStore.getState();
                 const track = state.tracks[trackId];
                 if (!track || track.type !== 'audio') return null;
+                if (isModernAudioClipTrack(track)) {
+                    return getClipRmsInWindow(state, trackId, startSec, endSec);
+                }
                 const sourceId = track.audioSourceId ?? track.id;
                 const entry = state.audioCache[sourceId];
                 if (!entry) return null;
@@ -571,6 +665,9 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                 const state = timelineStore.getState();
                 const track = state.tracks[trackId];
                 if (!track || track.type !== 'audio') return null;
+                if (isModernAudioClipTrack(track)) {
+                    return getClipRawSampleRate(state, trackId);
+                }
                 const sourceId = track.audioSourceId ?? track.id;
                 const entry = state.audioCache[sourceId];
                 if (!entry?.audioBuffer) return null;

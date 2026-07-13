@@ -14,6 +14,21 @@ export interface AudioClipSourceBounds {
     endSeconds: number;
 }
 
+/** A clip segment expressed in both timeline and immutable-source time. */
+export interface AudioClipTimelineSegment {
+    trackId: string;
+    clip: AudioClip;
+    sourceId: string;
+    startTick: number;
+    endTick: number;
+    startSeconds: number;
+    endSeconds: number;
+    sourceStartSeconds: number;
+    sourceEndSeconds: number;
+    /** Stable enough for short-lived sampling caches; changes when placement/trim changes. */
+    samplingIdentity: string;
+}
+
 export function makeAudioClipId(): string {
     return `aclip_${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -38,6 +53,82 @@ export function getAudioClipsForTrack(track: AudioTrack): AudioClip[] {
 
 export function getPrimaryAudioClip(track: AudioTrack): AudioClip | undefined {
     return getAudioClipsForTrack(track).find((clip) => clip.enabled !== false);
+}
+
+/**
+ * Resolve enabled, modern audio clips into timeline/source segments.  Legacy
+ * tracks intentionally return no segments: their deprecated track-level
+ * placement remains supported by the legacy feature/raw read paths.
+ */
+export function getAudioClipTimelineSegments(
+    state: Pick<TimelineState, 'tracks' | 'audioCache'>,
+    trackId: string,
+    timing: TimelineTimingContext,
+): AudioClipTimelineSegment[] {
+    const track = state.tracks[trackId] as AudioTrack | undefined;
+    if (!track || track.type !== 'audio' || !Array.isArray(track.clips)) return [];
+
+    return track.clips
+        .filter((clip) => clip.enabled !== false)
+        .flatMap((clip) => {
+            const bounds = getAudioClipTimelineBounds(state.audioCache, clip, timing);
+            const source = getAudioClipSourceBounds(state.audioCache, clip);
+            if (!bounds || !source) return [];
+            const startSeconds = ticksToSeconds(timing, bounds.startTick);
+            const endSeconds = ticksToSeconds(timing, bounds.endTick);
+            if (!Number.isFinite(startSeconds) || !Number.isFinite(endSeconds) || endSeconds <= startSeconds) return [];
+            return [{
+                trackId,
+                clip,
+                sourceId: clip.sourceId,
+                startTick: bounds.startTick,
+                endTick: bounds.endTick,
+                startSeconds,
+                endSeconds,
+                sourceStartSeconds: source.startSeconds,
+                sourceEndSeconds: source.endSeconds,
+                samplingIdentity: `${trackId}:${clip.id}:${clip.sourceId}:${clip.offsetTicks}:${source.startSeconds}:${source.endSeconds}`,
+            }];
+        })
+        .sort((a, b) => a.startTick - b.startTick || a.clip.id.localeCompare(b.clip.id));
+}
+
+/** Resolve the (non-overlapping) clip audible at a timeline tick. */
+export function resolveAudioClipAtTick(
+    state: Pick<TimelineState, 'tracks' | 'audioCache' | 'timeline'>,
+    trackId: string,
+    tick: number,
+    timing: TimelineTimingContext,
+): (AudioClipTimelineSegment & { sourceSeconds: number }) | null {
+    if (!Number.isFinite(tick)) return null;
+    const segments = getAudioClipTimelineSegments(state, trackId, timing);
+    const segment = segments.find((candidate) => tick >= candidate.startTick && tick < candidate.endTick);
+    if (!segment) return null;
+    const timelineSeconds = ticksToSeconds(timing, tick);
+    const placementSeconds = ticksToSeconds(timing, segment.clip.offsetTicks);
+    const sourceSeconds = Math.max(
+        segment.sourceStartSeconds,
+        Math.min(segment.sourceEndSeconds, timelineSeconds - placementSeconds),
+    );
+    return { ...segment, sourceSeconds };
+}
+
+/** Return modern clip segments intersecting a timeline-second window. */
+export function getAudioClipSegmentsInSeconds(
+    state: Pick<TimelineState, 'tracks' | 'audioCache'>,
+    trackId: string,
+    startSeconds: number,
+    endSeconds: number,
+    timing: TimelineTimingContext,
+): AudioClipTimelineSegment[] {
+    if (!Number.isFinite(startSeconds) || !Number.isFinite(endSeconds) || endSeconds <= startSeconds) return [];
+    return getAudioClipTimelineSegments(state, trackId, timing).filter(
+        (segment) => segment.endSeconds > startSeconds && segment.startSeconds < endSeconds,
+    );
+}
+
+export function getAudioTrackSourceIds(track: AudioTrack): string[] {
+    return Array.from(new Set(getAudioClipsForTrack(track).filter((clip) => clip.enabled !== false).map((clip) => clip.sourceId)));
 }
 
 /** Source trims are media-time offsets, independent of tempo and clip placement. */

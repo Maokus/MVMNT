@@ -72,6 +72,11 @@ Here’s how the terms relate:
     - The in-memory or on-disk store of all tracks for a given audio buffer + tempo map.
     - An `AudioFeatureCache` holds `featureTracks: Record<featureKey, AudioFeatureTrack>` plus shared metadata (`hopSeconds`, `startTimeSeconds`, etc.).
 
+- audio track vs. audio clip
+    - Elements keep an `audioTrackId` binding. At render time that track resolves the enabled clip at the requested timeline time.
+    - Caches remain keyed by immutable `sourceId`, so the same source can be reused by several clips without re-analysis.
+    - Gaps between clips sample as silence. Feature and raw-PCM values are pre-fader; clip/track gain and mute do not alter source analysis.
+
 Putting it all together:
 
 1. You run your calculators once and produce a `featureTracks` cache (one track per feature).
