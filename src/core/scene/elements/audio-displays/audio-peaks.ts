@@ -1,12 +1,11 @@
 import { SceneElement, asNumber, asTrimmedString } from '../base';
-import { Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
+import { Line, Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
 import {
     getRequiredPluginApi,
-    getFeatureDataRange,
     PLUGIN_CAPABILITIES,
     type FeatureDataResult,
     type RequiredPluginApiResult,
@@ -44,15 +43,21 @@ function normalizePeaksChannel(value: unknown, fallback: PeaksChannel): PeaksCha
 interface PeakSeries {
     mins: number[];
     maxes: number[];
+    xPositions: number[];
 }
 
-function extractPeakSeries(samples: FeatureDataResult[], channel: PeaksChannel, gain: number): PeakSeries {
+function extractPeakSeries(
+    samples: Array<FeatureDataResult | null>,
+    xPositions: number[],
+    channel: PeaksChannel,
+    gain: number
+): PeakSeries {
     const mins: number[] = [];
     const maxes: number[] = [];
     const safeGain = Math.max(0, gain);
 
     for (const sample of samples) {
-        const cv = sample.metadata.frame.channelValues;
+        const cv = sample?.metadata.frame.channelValues;
         if (!cv || cv.length === 0) {
             mins.push(0);
             maxes.push(0);
@@ -112,7 +117,7 @@ function extractPeakSeries(samples: FeatureDataResult[], channel: PeaksChannel, 
         maxes.push(clamp(max * safeGain, -1, 1));
     }
 
-    return { mins, maxes };
+    return { mins, maxes, xPositions };
 }
 
 function renderPeaksEnvelope(
@@ -122,24 +127,23 @@ function renderPeaksEnvelope(
     color: string,
     objects: RenderObject[]
 ): void {
-    const { mins, maxes } = series;
+    const { mins, maxes, xPositions } = series;
     if (mins.length === 0) return;
 
     const count = mins.length;
     const centerY = height / 2;
     const verticalScale = height / 2;
-    const denom = Math.max(1, count - 1);
 
     const points: { x: number; y: number }[] = [];
 
     for (let i = 0; i < count; i++) {
-        const x = denom === 0 ? width / 2 : (i / denom) * width;
+        const x = xPositions[i] ?? 0;
         const y = centerY - (maxes[i] ?? 0) * verticalScale;
         points.push({ x, y });
     }
 
     for (let i = count - 1; i >= 0; i--) {
-        const x = denom === 0 ? width / 2 : (i / denom) * width;
+        const x = xPositions[i] ?? width;
         const y = centerY - (mins[i] ?? 0) * verticalScale;
         points.push({ x, y });
     }
@@ -149,7 +153,47 @@ function renderPeaksEnvelope(
     objects.push(poly);
 }
 
+function aggregatePeakSeries(
+    samples: Array<FeatureDataResult | null>,
+    firstSampleIndex: number,
+    firstBucketIndex: number,
+    lastBucketIndex: number,
+    samplesPerBucket: number,
+    bucketSeconds: number,
+    startSeconds: number,
+    windowSeconds: number,
+    width: number,
+    channel: PeaksChannel,
+    gain: number
+): PeakSeries {
+    const detail = extractPeakSeries(samples, [], channel, gain);
+    const mins: number[] = [];
+    const maxes: number[] = [];
+    const xPositions: number[] = [];
+
+    for (let bucket = firstBucketIndex; bucket <= lastBucketIndex; bucket += 1) {
+        const firstDetailIndex = bucket * samplesPerBucket - firstSampleIndex;
+        let min = Number.POSITIVE_INFINITY;
+        let max = Number.NEGATIVE_INFINITY;
+        for (let offset = 0; offset < samplesPerBucket; offset += 1) {
+            const index = firstDetailIndex + offset;
+            const sampleMin = detail.mins[index];
+            const sampleMax = detail.maxes[index];
+            if (sampleMin !== undefined) min = Math.min(min, sampleMin);
+            if (sampleMax !== undefined) max = Math.max(max, sampleMax);
+        }
+        mins.push(Number.isFinite(min) ? min : 0);
+        maxes.push(Number.isFinite(max) ? max : 0);
+        xPositions.push(clamp(((bucket * bucketSeconds - startSeconds) / windowSeconds) * width, 0, width));
+    }
+
+    return { mins, maxes, xPositions };
+}
+
 export class AudioPeaksElement extends SceneElement {
+    private _peakSampleCacheKey: string | null = null;
+    private _peakSamples = new Map<number, FeatureDataResult>();
+
     constructor(id: string = 'audioPeaks', config: Record<string, unknown> = {}) {
         super('audioPeaks', id, config);
     }
@@ -215,6 +259,26 @@ export class AudioPeaksElement extends SceneElement {
                                 },
                             },
                             prop.boolean('showPlayhead', 'Show Playhead', false),
+                            prop.boolean('showBarLines', 'Show Bar Lines', false),
+                            prop.color('barLineColor', 'Bar Line Color', '#94A3B8'),
+                            prop.number('barLineLength', 'Bar Line Length (px)', 200, {
+                                min: 0,
+                                max: 10_000,
+                                step: 1,
+                            }),
+                            prop.boolean('showBeatLines', 'Show Beat Lines', false),
+                            prop.color('beatLineColor', 'Beat Line Color', '#64748B'),
+                            prop.number('beatLineLength', 'Beat Line Length (px)', 200, {
+                                min: 0,
+                                max: 10_000,
+                                step: 1,
+                            }),
+                            prop.range('beatGridOpacity', 'Line Opacity', 0.45, {
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                            }),
+                            prop.number('beatGridWidth', 'Line Width (px)', 1, { min: 0.5, max: 8, step: 0.5 }),
                         ],
                     },
                     {
@@ -359,6 +423,8 @@ export class AudioPeaksElement extends SceneElement {
         const primaryBlendMode = (props.primaryBlendMode ?? 'source-over') as GlobalCompositeOperation;
         const secondaryBlendMode = (props.secondaryBlendMode ?? 'source-over') as GlobalCompositeOperation;
         const showPlayhead = props.showPlayhead === true;
+        const showBarLines = props.showBarLines === true;
+        const showBeatLines = props.showBeatLines === true;
 
         const objects: RenderObject[] = [];
         objects.push(
@@ -381,7 +447,11 @@ export class AudioPeaksElement extends SceneElement {
             return pushMessage('Select an audio track');
         }
 
-        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioFeaturesRead]) as RequiredPluginApiResult;
+        const host = getRequiredPluginApi(this, [
+            PLUGIN_CAPABILITIES.audioFeaturesRead,
+            PLUGIN_CAPABILITIES.timelineRead,
+            PLUGIN_CAPABILITIES.timingConversion,
+        ]) as RequiredPluginApiResult;
 
         if (!host.ok) {
             return pushMessage('Audio not available');
@@ -389,27 +459,112 @@ export class AudioPeaksElement extends SceneElement {
 
         const startSeconds = targetTime - windowSeconds * startOffset;
         const endSeconds = startSeconds + windowSeconds;
-        const stepSec = Math.max(1 / 240, windowSeconds / Math.max(32, Math.min(Math.round(width), 400)));
+        const bucketSeconds = Math.max(1 / 240, windowSeconds / Math.max(32, Math.min(Math.round(width), 400)));
+        const samplesPerBucket = Math.min(8, Math.max(1, Math.ceil(bucketSeconds * 240)));
+        const stepSec = bucketSeconds / samplesPerBucket;
 
-        const samples = getFeatureDataRange(
-            this,
-            props.audioTrackId,
-            PEAKS_DESCRIPTOR,
-            startSeconds,
-            endSeconds,
-            stepSec
-        );
+        // Keep peak windows on a fixed absolute-time grid. Previously every render shifted the
+        // sampling grid with the playhead, so every point could select a different peak window
+        // and make the entire envelope flicker. Cached windows now keep their value while their
+        // x position moves smoothly through the viewport.
+        const cacheKey = `${props.audioTrackId}:${stepSec}`;
+        if (this._peakSampleCacheKey !== cacheKey) {
+            this._peakSampleCacheKey = cacheKey;
+            this._peakSamples.clear();
+        }
+        const firstBucketIndex = Math.floor(startSeconds / bucketSeconds);
+        const lastBucketIndex = Math.ceil(endSeconds / bucketSeconds);
+        const firstSampleIndex = firstBucketIndex * samplesPerBucket;
+        const lastSampleIndex = (lastBucketIndex + 1) * samplesPerBucket - 1;
+        const missingRanges: Array<{ start: number; end: number }> = [];
+        for (let index = firstSampleIndex; index <= lastSampleIndex; ) {
+            if (index * stepSec < 0) {
+                index += 1;
+                continue;
+            }
+            if (this._peakSamples.has(index)) {
+                index += 1;
+                continue;
+            }
+            const start = index;
+            while (index <= lastSampleIndex && index * stepSec >= 0 && !this._peakSamples.has(index)) index += 1;
+            missingRanges.push({ start, end: index - 1 });
+        }
 
-        if (samples.length === 0) {
+        for (const range of missingRanges) {
+            const samples = host.api.audio.sampleFeatureRange({
+                element: this,
+                trackId: props.audioTrackId,
+                feature: PEAKS_DESCRIPTOR,
+                startTime: range.start * stepSec,
+                endTime: range.end * stepSec,
+                stepSec,
+                samplingOptions: { interpolation: 'nearest' },
+            });
+            if (samples.length !== range.end - range.start + 1) continue;
+            samples.forEach((sample, offset) => this._peakSamples.set(range.start + offset, sample));
+        }
+
+        const samples: Array<FeatureDataResult | null> = [];
+        for (let index = firstSampleIndex; index <= lastSampleIndex; index += 1) {
+            samples.push(index * stepSec < 0 ? null : (this._peakSamples.get(index) ?? null));
+        }
+
+        if (!samples.some((sample) => sample !== null)) {
             return pushMessage('No peaks data');
         }
 
-        const primarySeries = extractPeakSeries(samples, primaryChannel, gain);
+        const primarySeries = aggregatePeakSeries(
+            samples, firstSampleIndex, firstBucketIndex, lastBucketIndex, samplesPerBucket,
+            bucketSeconds, startSeconds, windowSeconds, width, primaryChannel, gain
+        );
         const secondarySeries =
-            secondaryChannel !== primaryChannel ? extractPeakSeries(samples, secondaryChannel, gain) : null;
+            secondaryChannel !== primaryChannel
+                ? aggregatePeakSeries(
+                      samples, firstSampleIndex, firstBucketIndex, lastBucketIndex, samplesPerBucket,
+                      bucketSeconds, startSeconds, windowSeconds, width, secondaryChannel, gain
+                  )
+                : null;
 
         if (primarySeries.mins.length < 2 && (!secondarySeries || secondarySeries.mins.length < 2)) {
             return pushMessage('Peaks too short');
+        }
+
+        if (showBarLines || showBeatLines) {
+            const beatsPerBar = Math.max(1, host.api.timeline.getStateSnapshot()?.timeline.beatsPerBar ?? 4);
+            const firstBeat = host.api.timing.secondsToBeats(startSeconds);
+            const lastBeat = host.api.timing.secondsToBeats(endSeconds);
+            if (firstBeat !== null && lastBeat !== null && Number.isFinite(firstBeat) && Number.isFinite(lastBeat)) {
+                const initialBeat = Math.ceil(firstBeat);
+                const lineWidth = clamp(typeof props.beatGridWidth === 'number' ? props.beatGridWidth : 1, 0.5, 8);
+                for (let beat = initialBeat; beat <= lastBeat + 1e-9; beat += 1) {
+                    const isBar = Math.abs(beat / beatsPerBar - Math.round(beat / beatsPerBar)) < 1e-9;
+                    if ((isBar && !showBarLines) || (!isBar && !showBeatLines)) continue;
+                    const seconds = host.api.timing.beatsToSeconds(beat);
+                    if (seconds === null) continue;
+                    const x = ((seconds - startSeconds) / windowSeconds) * width;
+                    if (x >= 0 && x <= width) {
+                        const configuredLineLength = isBar ? props.barLineLength : props.beatLineLength;
+                        const lineLength = clamp(
+                            typeof configuredLineLength === 'number' ? configuredLineLength : height,
+                            0,
+                            height
+                        );
+                        const lineColor = applyOpacity(
+                            isBar ? props.barLineColor ?? '#94A3B8' : props.beatLineColor ?? '#64748B',
+                            props.beatGridOpacity ?? 0.45
+                        );
+                        const lineY = (height - lineLength) / 2;
+                        objects.push(
+                            new Line(x, lineY, x, lineY + lineLength, {
+                                color: lineColor,
+                                lineWidth,
+                                includeInLayoutBounds: false,
+                            })
+                        );
+                    }
+                }
+            }
         }
 
         if (secondarySeries && secondarySeries.mins.length >= 2) {
@@ -446,6 +601,11 @@ export class AudioPeaksElement extends SceneElement {
             );
             playheadLine.setClosed(false).setLineJoin('round').setLineCap('round');
             objects.push(playheadLine);
+        }
+
+        const earliestRetainedIndex = firstSampleIndex - samplesPerBucket * 2;
+        for (const index of this._peakSamples.keys()) {
+            if (index < earliestRetainedIndex) this._peakSamples.delete(index);
         }
 
         return objects;

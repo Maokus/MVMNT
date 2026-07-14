@@ -1,8 +1,8 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { AudioVolumeMeterElement } from '@core/scene/elements/audio-displays/audio-volume-meter';
-import { AudioWaveformElement, AudioLockedOscilloscopeElement } from '@core/scene/elements';
+import { AudioPeaksElement, AudioWaveformElement, AudioLockedOscilloscopeElement } from '@core/scene/elements';
 import { AudioDebugElement } from '@core/scene/elements/audio-debug/audio-debug';
-import { Poly, Rectangle, Text } from '@core/render/render-objects';
+import { Line, Poly, Rectangle, Text } from '@core/render/render-objects';
 import * as timelineStore from '@state/timelineStore';
 import * as analysisIntents from '@audio/features/analysisIntents';
 import * as sceneApi from '@audio/features/sceneApi';
@@ -17,6 +17,9 @@ function makePluginApiResult(
         getRmsInWindow?: (args: unknown) => Float32Array | null;
         getSampleRate?: (args: unknown) => number | null;
         secondsToTicks?: (s: number) => number | null;
+        secondsToBeats?: (s: number) => number | null;
+        beatsToSeconds?: (beats: number) => number | null;
+        getStateSnapshot?: () => unknown;
     } = {}
 ) {
     return {
@@ -32,10 +35,13 @@ function makePluginApiResult(
             timing: {
                 secondsToTicks: overrides.secondsToTicks ?? (() => null),
                 ticksToSeconds: () => null,
-                secondsToBeats: () => null,
-                beatsToSeconds: () => null,
+                secondsToBeats: overrides.secondsToBeats ?? (() => null),
+                beatsToSeconds: overrides.beatsToSeconds ?? (() => null),
                 beatsToTicks: () => 0,
                 ticksToBeats: () => 0,
+            },
+            timeline: {
+                getStateSnapshot: overrides.getStateSnapshot ?? (() => null),
             },
         } as any,
     };
@@ -163,6 +169,148 @@ describe('simplified audio scene elements', () => {
         expect(waveform).toBeInstanceOf(Poly);
     });
 
+    it('samples peak envelopes from discrete analysis windows', () => {
+        const peakSamples = [
+            { min: -0.8, max: 0.4 },
+            { min: -0.2, max: 0.9 },
+        ].map(({ min, max }) => ({
+            values: [min, max],
+            metadata: {
+                channels: 1,
+                frame: { channels: 1, channelValues: [[min, max]], format: 'waveform-minmax' as const },
+            },
+        }));
+        const sampleFeatureRange = vi.fn((args: any) => {
+            const count = Math.round((args.endTime - args.startTime) / args.stepSec) + 1;
+            return Array.from({ length: count }, (_, index) => peakSamples[index % peakSamples.length]);
+        });
+        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(
+            makePluginApiResult({ sampleFeatureRange })
+        );
+
+        const element = new AudioPeaksElement('peaks', {
+            audioTrackId: 'track-1',
+            width: 120,
+            height: 60,
+            windowSeconds: 0.05,
+        });
+
+        const [container] = element.buildRenderObjects({}, 2);
+
+        expect((container as any).children.some((child: unknown) => child instanceof Poly)).toBe(true);
+        expect(sampleFeatureRange).toHaveBeenCalledWith(
+            expect.objectContaining({
+                element,
+                trackId: 'track-1',
+                samplingOptions: { interpolation: 'nearest' },
+            })
+        );
+
+        element.buildRenderObjects({}, 2.001);
+        expect(sampleFeatureRange).toHaveBeenCalledTimes(2);
+        const [initialRequest] = sampleFeatureRange.mock.calls[0] as [any];
+        const [nextRequest] = sampleFeatureRange.mock.calls[1] as [any];
+        expect(nextRequest.startTime).toBeGreaterThan(initialRequest.endTime);
+    });
+
+    it('reduces neighboring peak windows to one min/max envelope bucket', () => {
+        const sampleFeatureRange = vi.fn((args: any) => {
+            const count = Math.round((args.endTime - args.startTime) / args.stepSec) + 1;
+            return Array.from({ length: count }, (_, index) => {
+                const isHigh = index % 2 === 1;
+                return {
+                    values: [isHigh ? -0.9 : -0.2, isHigh ? 0.8 : 0.1],
+                    metadata: {
+                        channels: 1,
+                        frame: {
+                            channels: 1,
+                            channelValues: [[isHigh ? -0.9 : -0.2, isHigh ? 0.8 : 0.1]],
+                            format: 'waveform-minmax' as const,
+                        },
+                    },
+                };
+            });
+        });
+        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(makePluginApiResult({ sampleFeatureRange }));
+
+        const element = new AudioPeaksElement('peaks', {
+            audioTrackId: 'track-1',
+            width: 120,
+            height: 60,
+            windowSeconds: 1,
+            startOffset: 0,
+            secondaryChannel: 'left',
+        });
+        const [container] = element.buildRenderObjects({}, 0);
+        const envelope = (container as any).children.find((child: unknown) => child instanceof Poly) as Poly;
+
+        expect(envelope.points.some((point) => point.y === 6)).toBe(true);
+        expect(envelope.points.some((point) => point.y === 57)).toBe(true);
+    });
+
+    it('keeps the pre-audio portion silent instead of repeating the first peak frame', () => {
+        const sampleFeatureRange = vi.fn((args: any) => {
+            const count = Math.round((args.endTime - args.startTime) / args.stepSec) + 1;
+            return Array.from({ length: count }, () => ({
+                values: [-1, 1],
+                metadata: { channels: 1, frame: { channels: 1, channelValues: [[-1, 1]], format: 'waveform-minmax' as const } },
+            }));
+        });
+        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(makePluginApiResult({ sampleFeatureRange }));
+
+        const element = new AudioPeaksElement('peaks', {
+            audioTrackId: 'track-1',
+            width: 120,
+            height: 60,
+            windowSeconds: 1,
+            startOffset: 0.5,
+            secondaryChannel: 'left',
+        });
+        const [container] = element.buildRenderObjects({}, 0);
+        const envelope = (container as any).children.find((child: unknown) => child instanceof Poly) as Poly;
+
+        expect(envelope.points.filter((point) => point.x < 60).every((point) => point.y === 30)).toBe(true);
+        expect(sampleFeatureRange.mock.calls.every(([args]) => args.startTime >= 0)).toBe(true);
+    });
+
+    it('draws one guide at each beat when beat and bar lines are both enabled', () => {
+        const sampleFeatureRange = vi.fn((args: any) => {
+            const count = Math.round((args.endTime - args.startTime) / args.stepSec) + 1;
+            return Array.from({ length: count }, () => ({
+                values: [0, 0],
+                metadata: { channels: 1, frame: { channels: 1, channelValues: [[0, 0]], format: 'waveform-minmax' as const } },
+            }));
+        });
+        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(
+            makePluginApiResult({
+                sampleFeatureRange,
+                secondsToBeats: (seconds) => seconds,
+                beatsToSeconds: (beats) => beats,
+                getStateSnapshot: () => ({ timeline: { beatsPerBar: 4 } }),
+            })
+        );
+
+        const element = new AudioPeaksElement('peaks', {
+            audioTrackId: 'track-1',
+            width: 400,
+            height: 60,
+            windowSeconds: 4,
+            startOffset: 0,
+            showBeatLines: true,
+            showBarLines: true,
+            barLineColor: '#ff0000',
+            barLineLength: 60,
+            beatLineColor: '#00ff00',
+            beatLineLength: 20,
+        });
+        const [container] = element.buildRenderObjects({}, 0);
+        const guides = (container as any).children.filter((child: unknown) => child instanceof Line) as Line[];
+
+        expect(guides.map((line) => line.x)).toEqual([0, 100, 200, 300, 400]);
+        expect(guides[0]).toMatchObject({ color: '#FF000073', y: 0, deltaY: 60 });
+        expect(guides[1]).toMatchObject({ color: '#00FF0073', y: 20, deltaY: 20 });
+    });
+
     it('renders a locked oscilloscope polyline using detected period length', () => {
         // Provide pitch guide data so the element uses the pitch-locked rendering path
         const sineAtPeriod45 = new Float32Array(200);
@@ -193,6 +341,28 @@ describe('simplified audio scene elements', () => {
 
         expect(waveform).toBeInstanceOf(Poly);
         expect((waveform as Poly).strokeColor).toBe('#FF00FFFF');
+    });
+
+    it('applies gain to the locked oscilloscope waveform', () => {
+        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(
+            makePluginApiResult({
+                sampleFeatureAtTime: () => null,
+                getRawSamples: () => new Float32Array([0, 0.25, 0, -0.25]),
+            })
+        );
+
+        const element = new AudioLockedOscilloscopeElement('locked', {
+            audioTrackId: 'track-1',
+            width: 4,
+            height: 40,
+            gain: 2,
+        });
+
+        const [container] = element.buildRenderObjects({}, 2.5);
+        const waveform = (container as any).children.find((child: unknown) => child instanceof Poly) as Poly;
+
+        // 0.25 × gain 2 = 0.5, so the second point is 10px above the 20px center line.
+        expect(waveform.points[1]?.y).toBeCloseTo(10);
     });
 
     it('summarizes channel metadata in the audio debug panel', () => {

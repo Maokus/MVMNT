@@ -100,6 +100,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                             prop.number('width', 'Width (px)', 800, { step: 1 }),
                             prop.number('height', 'Height (px)', 300, { step: 1 }),
                             prop.number('lineWidth', 'Line Width (px)', 2, { step: 0.5, min: 0 }),
+                            prop.number('gain', 'Gain', 1, { step: 0.1, min: 0, max: 10 }),
                             prop.number('cycleCount', 'Cycles', 3, { step: 1, min: 1, max: 8 }),
                         ],
                     },
@@ -143,6 +144,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
         const width = props.width ?? 800;
         const height = props.height ?? 300;
         const blendMode = (props.blendMode ?? 'source-over') as GlobalCompositeOperation;
+        const gain = clamp(typeof props.gain === 'number' ? props.gain : 1, 0, 10);
         const cycleCount = clamp(typeof props.cycleCount === 'number' ? Math.round(props.cycleCount) : 3, 1, 8);
         const confidenceThreshold = clamp(
             typeof props.confidenceThreshold === 'number' ? props.confidenceThreshold : 0.3,
@@ -241,6 +243,13 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
             return poly;
         };
 
+        const makeWaveformPoints = (samples: Float32Array) =>
+            buildPolylinePoints(
+                resampleLinear(samples, Math.max(2, Math.round(width))).map((value) => clamp(value * gain, -1, 1)),
+                width,
+                height
+            );
+
         const pushFlatLine = (opacity: number) => {
             objects.push(
                 makePoly(
@@ -312,8 +321,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                     const extracted = rawSamples.slice(bestTrigger, extractEnd);
 
                     if (extracted.length >= 2) {
-                        const displayValues = resampleLinear(extracted, Math.max(2, Math.round(width)));
-                        const points = buildPolylinePoints(displayValues, width, height);
+                        const points = makeWaveformPoints(extracted);
                         if (points.length >= 2) {
                             objects.push(makePoly(points, activeOpacity));
                             return objects;
@@ -333,8 +341,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
         });
 
         if (fallbackRaw && fallbackRaw.length >= 4) {
-            const displayValues = resampleLinear(fallbackRaw, Math.max(2, Math.round(width)));
-            const points = buildPolylinePoints(displayValues, width, height);
+            const points = makeWaveformPoints(fallbackRaw);
             if (points.length >= 2) {
                 objects.push(makePoly(points, rawLineOpacity));
                 return objects;
