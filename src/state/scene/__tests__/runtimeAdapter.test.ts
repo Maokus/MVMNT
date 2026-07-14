@@ -91,4 +91,20 @@ describe('SceneRuntimeAdapter', () => {
         expect(trackBinding?.getValue()).toBe('track-1');
         expect(descriptorBinding?.getValue()).toEqual([expect.objectContaining({ featureKey: 'waveform' })]);
     });
+
+    it('resets removed optional bindings on an existing runtime element', () => {
+        store.getState().addElement({
+            id: 'image',
+            type: 'image',
+            index: store.getState().order.length,
+            bindings: {
+                imageSource: { type: 'constant', value: 'custom-gif-id' },
+            },
+        });
+
+        store.getState().updateBindings('image', { imageSource: null });
+
+        const image = adapter.getElements().find((element) => element.id === 'image');
+        expect(image?.getBinding('imageSource')?.getValue()).toBeUndefined();
+    });
 });

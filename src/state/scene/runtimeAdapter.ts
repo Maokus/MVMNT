@@ -39,7 +39,7 @@ function isConstantBinding(binding: BindingState): binding is Extract<BindingSta
     return binding.type === 'constant';
 }
 
-function buildConfigPayload(record: SceneElementRecord, bindings: ElementBindings) {
+function buildConfigPayload(record: SceneElementRecord, bindings: ElementBindings, resetKeys: string[] = []) {
     const config: Record<string, unknown> = { id: record.id };
     for (const [property, binding] of Object.entries(bindings)) {
         if (binding.type === 'macro') {
@@ -49,6 +49,12 @@ function buildConfigPayload(record: SceneElementRecord, bindings: ElementBinding
         } else if (isConstantBinding(binding)) {
             config[property] = { type: 'constant', value: binding.value };
         }
+    }
+    // Store updates remove optional bindings entirely. Explicitly reset those
+    // keys on the long-lived runtime element so it falls back to its schema
+    // default instead of retaining the previous value.
+    for (const key of resetKeys) {
+        config[key] = undefined;
     }
     return config;
 }
@@ -367,7 +373,9 @@ export class SceneRuntimeAdapter {
                 const nextSignature = bindingsSignature(record.type, bindings);
                 if (nextSignature !== entry.signature) {
                     try {
-                        entry.element.updateConfig(buildConfigPayload(record, bindings));
+                        const previousBindings = prev.bindings.byElement[id] ?? {};
+                        const removedKeys = Object.keys(previousBindings).filter((key) => !(key in bindings));
+                        entry.element.updateConfig(buildConfigPayload(record, bindings, removedKeys));
                     } catch (error) {
                         console.error('[SceneRuntimeAdapter] element update failed', { id, error });
                         const recreated = this.instantiateElement(record, bindings);
