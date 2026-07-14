@@ -45,9 +45,9 @@ An image or GIF that ships with the plugin, with an optional user override. Demo
 
 A shape that scales with audio volume (RMS). Demonstrates:
 
-- `registerFeatureRequirements()` to declare needed audio features
-- `getRequiredPluginApi([PLUGIN_CAPABILITIES.audioFeaturesRead])`
-- `host.api.audio.sampleFeatureAtTime()` and the `rms` feature
+- `getRequiredPluginApi([PLUGIN_CAPABILITIES.audioRawRead])`
+- `host.api.audio.getRmsInWindow()` for a live PCM-derived RMS value
+- A configurable short averaging window for smoothing
 - Graceful fallback via `host.renderFallback()` when the audio API is unavailable
 
 ### `midi-notes.ts` — MIDI Reactive Visual

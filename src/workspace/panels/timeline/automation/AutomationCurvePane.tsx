@@ -306,13 +306,18 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             const idx = kfs.findIndex((kf) => Math.abs(kf.tick - tick) < 0.5);
             if (idx < 0 || idx >= kfs.length - 1) return;
             const leftTick = kfs[idx].tick;
+            const existing = useSelectionStore.getState().selectedKeyframes;
+            const hasLeft = existing.some(
+                (keyframe) =>
+                    keyframe.channelId === channel.id &&
+                    Math.abs(keyframe.tick - leftTick) < 0.5,
+            );
             if (e.shiftKey) {
-                const existing = useSelectionStore.getState().selectedKeyframes;
-                const hasLeft = existing.some(
-                    (k) => k.channelId === channel.id && Math.abs(k.tick - leftTick) < 0.5,
-                );
                 const toAdd = hasLeft ? [] : [{ channelId: channel.id, tick: leftTick }];
                 useSelectionStore.getState().selectKeyframes([...existing, ...toAdd]);
+            } else if (hasLeft) {
+                // Preserve a multi-selection when editing one of its segments.
+                useSelectionStore.getState().selectKeyframes(existing);
             } else {
                 useSelectionStore.getState().selectKeyframes([{ channelId: channel.id, tick: leftTick }]);
             }
@@ -324,10 +329,14 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         (interpolation: SegmentInterpolation) => {
             if (!interpolationPicker) return;
             const allSelected = useSelectionStore.getState().selectedKeyframes;
-            const channelTickSet = new Set(
-                allSelected.filter((k) => k.channelId === channel.id).map((k) => k.tick),
+            // Keyframe lookups use a half-tick tolerance throughout the automation
+            // editor. Do the same for selection membership so a selected keyframe
+            // always triggers a bulk interpolation update, including after a drag.
+            const isPartOfSelection = allSelected.some(
+                (keyframe) =>
+                    keyframe.channelId === channel.id &&
+                    Math.abs(keyframe.tick - interpolationPicker.tick) < 0.5,
             );
-            const isPartOfSelection = channelTickSet.has(interpolationPicker.tick);
             if (isPartOfSelection && allSelected.length > 1) {
                 for (const { channelId, tick } of allSelected) {
                     dispatchSceneCommand(
@@ -583,7 +592,8 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                         ref={pickerRefs.setFloating}
                         className="ae-easing-picker-popover z-50"
                         style={pickerFloatingStyles}
-                        onPointerDown={(e) => e.stopPropagation()}
+                        onPointerDownCapture={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
                     >
                         <InterpolationPicker
                             current={pickerCurrent}

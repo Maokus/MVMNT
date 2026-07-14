@@ -604,18 +604,29 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     const handleSegmentClick = useCallback(
         (e: React.MouseEvent, tick: number) => {
             e.stopPropagation();
-            useSelectionStore.getState().selectElements([channel.elementId]);
+            // Keep the active keyframe selection intact. selectElements clears
+            // selected keyframes, which meant opening interpolation controls from
+            // a selected segment discarded the rest of a multi-selection.
+            useSelectionStore.getState().setSelectedElementIds([channel.elementId]);
             const kfs = channel.keyframes;
             const idx = kfs.findIndex((kf) => Math.abs(kf.tick - tick) < 0.5);
             if (idx < 0 || idx >= kfs.length - 1) return;
             const leftTick = kfs[idx].tick;
+            const existing = useSelectionStore.getState().selectedKeyframes;
+            const hasLeft = existing.some(
+                (keyframe) =>
+                    keyframe.channelId === channel.id &&
+                    Math.abs(keyframe.tick - leftTick) < 0.5,
+            );
             if (e.shiftKey) {
                 // Shift+click: add left keyframe to existing selection
-                const existing = useSelectionStore.getState().selectedKeyframes;
-                const hasLeft = existing.some((k) => k.channelId === channel.id && Math.abs(k.tick - leftTick) < 0.5);
                 useSelectionStore.getState().selectKeyframes(
                     hasLeft ? existing : [...existing, { channelId: channel.id, tick: leftTick }]
                 );
+            } else if (hasLeft) {
+                // Clicking an already selected segment keeps its multi-selection,
+                // matching keyframe-diamond interaction behaviour.
+                useSelectionStore.getState().selectKeyframes(existing);
             } else {
                 // Plain click: select only this segment's left (outgoing) keyframe
                 useSelectionStore.getState().selectKeyframes([{ channelId: channel.id, tick: leftTick }]);
@@ -628,10 +639,14 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
         (interpolation: SegmentInterpolation) => {
             if (!interpolationPicker) return;
             const allSelected = useSelectionStore.getState().selectedKeyframes;
-            const channelTickSet = new Set(
-                allSelected.filter((k) => k.channelId === channel.id).map((k) => k.tick),
+            // Keep selection membership consistent with the tolerance used by
+            // keyframe lookup and updates. Exact equality can fail for a
+            // keyframe selected after dragging, preventing the bulk update.
+            const isPartOfSelection = allSelected.some(
+                (keyframe) =>
+                    keyframe.channelId === channel.id &&
+                    Math.abs(keyframe.tick - interpolationPicker.tick) < 0.5,
             );
-            const isPartOfSelection = channelTickSet.has(interpolationPicker.tick);
             if (isPartOfSelection && allSelected.length > 1) {
                 for (const { channelId, tick } of allSelected) {
                     dispatchSceneCommand(
@@ -896,7 +911,8 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                         ref={pickerRefs.setFloating}
                         className="ae-easing-picker-popover z-50"
                         style={pickerFloatingStyles}
-                        onPointerDown={(e) => e.stopPropagation()}
+                        onPointerDownCapture={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
                     >
                         <InterpolationPicker
                             current={pickerCurrent}

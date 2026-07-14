@@ -4,9 +4,9 @@ _Last reviewed: May 2026_
 
 ## Overview
 
-Audio-reactive elements request analysis data from the audio cache system. Elements declare the
-features they depend on, the scene engine manages subscriptions, and render methods sample frames at
-runtime. Follow the patterns below to stay aligned with the v4 audio system simplifications.
+Audio-reactive elements either sample cached analysis data or read a short raw-PCM window. Cached
+features are for spectra, pitch, and history-based views; direct live volume/RMS should use the raw
+PCM path. Follow the patterns below to stay aligned with the v4 audio system simplifications.
 
 ## Automatic feature requirements
 
@@ -130,7 +130,7 @@ function computeSide(left: Float32Array, right: Float32Array): number[] {
 | **Resolution**   | Sample-accurate                               | Hop-aligned (lower resolution)             |
 | **Window limit** | ≤ ~0.18 s at 44 100 Hz                        | Any length                                 |
 | **Capability**   | `audioRawRead`                                | `audioFeaturesRead`                        |
-| **Good for**     | Oscilloscopes, waveform zoom, short envelopes | Spectra, long-range waveforms, RMS history |
+| **Good for**     | Oscilloscopes, waveform zoom, live RMS/short envelopes | Spectra, long-range waveforms, RMS history |
 
 If you need to support both modes (as in the Audio Waveform element), drive the choice with an
 explicit user-facing boolean property rather than silently falling back — silent fallback hides the

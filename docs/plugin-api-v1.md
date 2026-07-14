@@ -167,7 +167,7 @@ Import specific API domains directly. These throw `MissingCapabilityError` if th
 import { timelineApi, audioApi, timingApi } from '@mvmnt/plugin-sdk';
 
 const notes = timelineApi.selectNotesInWindow({...});
-const rms = audioApi.sampleFeatureAtTime({...});
+const spectrum = audioApi.sampleFeatureAtTime({...});
 const beats = timingApi.secondsToBeats(10);
 ```
 
@@ -239,16 +239,21 @@ Requires `audio.features.read` capability.
 - `sampleFeatureRange({ element?, trackId, feature, startTime, endTime, stepSec, samplingOptions? }): FeatureDataResult[]`
 
 ```ts
-const rms = api.audio.sampleFeatureAtTime({
+const spectrum = api.audio.sampleFeatureAtTime({
     element: this,
     trackId: props.audioTrackId,
-    feature: 'rms',
+    feature: 'spectrogram',
     time: targetTime,
     samplingOptions: { smoothing: props.smoothing },
 });
 
-const volume = rms?.values?.[0] ?? 0;
+const magnitude = spectrum?.values?.[0] ?? 0;
 ```
+
+For live volume/RMS response, do not request the cached `rms` feature. Require
+`audioRawRead` and call `api.audio.getRmsInWindow({ trackId, startSec, endSec })`
+over a short window instead. This is the path used by the built-in Audio Volume
+Meter and avoids unnecessary feature-cache requests.
 
 For range windows (oscilloscope traces, waveform histories), prefer `sampleFeatureRange` over calling `sampleFeatureAtTime` in a loop — it resolves the descriptor and subscription controller once and is significantly faster:
 

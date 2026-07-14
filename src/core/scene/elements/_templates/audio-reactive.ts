@@ -1,5 +1,7 @@
 // Template: Audio Reactive Element
-// Reacts to audio volume/RMS to create dynamic visualizations
+// Reacts to live audio volume/RMS to create dynamic visualizations.
+// Use raw PCM RMS for a volume control; cached feature tracks are for spectral
+// or history-based visualizations.
 import {
     SceneElement,
     prop,
@@ -8,15 +10,9 @@ import {
     Rectangle,
     getRequiredPluginApi,
     PLUGIN_CAPABILITIES,
-    registerFeatureRequirements,
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
-
-// Register audio features this element needs
-registerFeatureRequirements('audioReactive', [
-    { feature: 'rms' }, // Root mean square (volume)
-]);
 
 export class AudioReactiveElement extends SceneElement {
     constructor(id: string = 'audioReactive', config: Record<string, unknown> = {}) {
@@ -43,7 +39,7 @@ export class AudioReactiveElement extends SceneElement {
                                 min: 0,
                                 max: 64,
                                 step: 1,
-                                description: 'Smoothing factor for audio response',
+                                description: 'RMS averaging window: 25 ms plus 10 ms per step',
                             }),
                         ],
                     },
@@ -81,20 +77,21 @@ export class AudioReactiveElement extends SceneElement {
 
         const objects: RenderObject[] = [];
 
-        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioFeaturesRead]);
+        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioRawRead]);
         if (!host.ok) return host.renderFallback();
 
-        // Get audio data from public host API
-        const audioData = host.api.audio.sampleFeatureAtTime({
-            element: this,
-            trackId: props.audioTrackId,
-            feature: 'rms',
-            time: targetTime,
-            samplingOptions: { smoothing: props.smoothing },
-        });
-
-        // Get volume value (0-1 range typically)
-        const volume = audioData?.values?.[0] ?? 0;
+        const trackId = props.audioTrackId as string | null;
+        const smoothing = props.smoothing as number;
+        const windowSec = Math.max(0.025, smoothing * 0.01);
+        const rms = trackId
+            ? host.api.audio.getRmsInWindow({
+                  trackId,
+                  startSec: targetTime - windowSec / 2,
+                  endSec: targetTime + windowSec / 2,
+              })
+            : null;
+        // Average per-channel RMS readings into one 0–1 volume value.
+        const volume = rms && rms.length > 0 ? rms.reduce((sum, value) => sum + value, 0) / rms.length : 0;
 
         // Calculate reactive size
         const size = props.baseSize + volume * props.reactivityScale;

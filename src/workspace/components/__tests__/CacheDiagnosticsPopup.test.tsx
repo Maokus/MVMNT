@@ -3,18 +3,22 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { CacheDiagnosticsPopup } from '@workspace/components/CacheDiagnosticsPopup';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
+import { useTimelineStore } from '@state/timelineStore';
 
 describe('CacheDiagnosticsPopup', () => {
     beforeEach(() => {
         act(() => {
             useAudioDiagnosticsStore.getState().reset();
+            useTimelineStore.setState({ audioFeatureCacheStatus: {} });
         });
     });
 
     afterEach(() => {
         act(() => {
             useAudioDiagnosticsStore.getState().reset();
+            useTimelineStore.setState({ audioFeatureCacheStatus: {} });
         });
+        vi.restoreAllMocks();
     });
 
     it('renders when diagnostics are enabled and popup is visible', () => {
@@ -50,7 +54,7 @@ describe('CacheDiagnosticsPopup', () => {
         expect(dismissSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('calculate button triggers regenerateAll and dismiss', () => {
+    it('calculate button starts regeneration without dismissing the popup', () => {
         act(() => {
             useAudioDiagnosticsStore.setState({ missingPopupVisible: true });
         });
@@ -59,6 +63,41 @@ describe('CacheDiagnosticsPopup', () => {
         render(<CacheDiagnosticsPopup />);
         fireEvent.click(screen.getByRole('button', { name: 'Calculate' }));
         expect(regenerateSpy).toHaveBeenCalledTimes(1);
-        expect(dismissSpy).toHaveBeenCalledTimes(1);
+        expect(dismissSpy).not.toHaveBeenCalled();
+    });
+
+    it('shows live calculation progress after calculation starts', () => {
+        const regenerateSpy = vi.spyOn(useAudioDiagnosticsStore.getState(), 'regenerateAll').mockImplementation(() => {});
+        act(() => {
+            useTimelineStore.setState({
+                audioFeatureCacheStatus: {
+                    'audio-1': {
+                        state: 'pending',
+                        updatedAt: Date.now(),
+                        progress: { value: 0.42, label: 'Spectrogram' },
+                    },
+                },
+            });
+            useAudioDiagnosticsStore.setState({
+                missingPopupVisible: true,
+                diffs: [
+                    {
+                        audioSourceId: 'audio-1',
+                        missing: ['spectrogram'],
+                        stale: [],
+                    },
+                ] as any,
+            });
+        });
+        render(<CacheDiagnosticsPopup />);
+        fireEvent.click(screen.getByRole('button', { name: 'Calculate' }));
+
+        expect(regenerateSpy).toHaveBeenCalledTimes(1);
+        expect(screen.getByText('Calculating audio features')).toBeInTheDocument();
+        expect(screen.getByText('Spectrogram')).toBeInTheDocument();
+        expect(screen.getByRole('progressbar', { name: 'Audio feature calculation progress' })).toHaveAttribute(
+            'aria-valuenow',
+            '42'
+        );
     });
 });

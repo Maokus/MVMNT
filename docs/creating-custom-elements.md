@@ -609,8 +609,8 @@ protected override onPropertyChanged(key: string, oldValue: unknown, newValue: u
 **Audio not working:**
 
 - Check `audioTrackId` is set and the track exists in the timeline
-- Verify `getPluginHostApi` returns `status === 'ok'` with `audioFeaturesRead` capability
-- Call `registerFeatureRequirements(this, [...])` in your element constructor for features you intend to sample (this pre-warms the audio cache)
+- For cached spectral/history data, verify `getPluginHostApi` returns `status === 'ok'` with `audioFeaturesRead` and call `registerFeatureRequirements('your-element-type', [...])` at module scope.
+- For live volume/RMS, require `audioRawRead` and call `getRmsInWindow`; do not register or sample the cached `rms` feature.
 
 **MIDI not working:**
 

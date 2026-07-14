@@ -491,23 +491,21 @@ export class AudioSpectrumElement extends SceneElement {
 
 ### Workflow 2: dBFS Meter with Channel Selection
 
-**Goal**: Show a dBFS level meter using RMS with runtime channel selection.
-
-> **Note**: The built-in `rms` calculator always outputs a **mono mix** (`channels: 1`,
-> `channelLayout.aliases: ['Mono']`). Selecting "Left" or "Right" via a channel selector will
-> return the same mono value. To get independent per-channel levels, register a custom calculator
-> with `channels: 2` and your own feature key.
+**Goal**: Show a dBFS level meter using live RMS with runtime channel selection. Use raw PCM RMS;
+it returns one value per source channel and does not create an audio-feature-cache request.
 
 ```ts
-registerFeatureRequirements('myVolumeMeter', [{ feature: 'rms' }]);
-
 export class VolumeMeterElement extends SceneElement {
     protected override _buildRenderObjects(config: unknown, targetTime: number) {
         const trackId = this.getProperty<string>('audioTrackId');
         if (!trackId) return [];
 
-        const frame = getFeatureData(this, trackId, 'rms', targetTime);
-        const linearRms = frame?.values?.[0] ?? 0;
+        const rms = host.api.audio.getRmsInWindow({
+            trackId,
+            startSec: targetTime - 0.025,
+            endSec: targetTime + 0.025,
+        });
+        const linearRms = rms?.[0] ?? 0;
         const db = linearRms > 0 ? 20 * Math.log10(linearRms) : -Infinity;
         const normalized = Math.max(0, (db + 60) / 60); // map [-60, 0] dBFS to [0, 1]
 

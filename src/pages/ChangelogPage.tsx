@@ -25,6 +25,8 @@ const ChangelogPage: React.FC = () => {
                             "Clip selection and manipulation (standard copy, paste, whatnot)",
                             "Clip resolver for same track selection semantics"
                         ],
+                        "Bulk edit keyframe interpolation",
+                        "Progress bar for audio feature calculation",
                         "Allow arbitrary time division snapping (joserizzal req)",
                         "Double click to manually enter tempo values in tempo automation",
                         "Change duplicate element name behaviour (no more _copy chains, ivlayz req)",
