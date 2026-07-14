@@ -39,6 +39,7 @@ import { createTimingContext, secondsToTicks, ticksToSeconds } from '@state/time
 import { getAudioClipSourceBounds } from '@state/timeline/audioClips';
 import type { AudioClip, AudioTrack } from '@audio/audioTypes';
 import { getAudioClipsForTrack } from '@state/timeline/audioClips';
+import { getNotesInWindow } from '@core/timing/note-query';
 
 interface ActiveTrackNode {
     source: AudioBufferSourceNode;
@@ -48,6 +49,16 @@ interface ActiveTrackNode {
     clipGain: number;
 }
 
+interface ActiveMidiVoice {
+    oscillator: OscillatorNode;
+    gainNode: GainNode;
+    trackId: string;
+}
+
+const MIDI_PREVIEW_LOOKAHEAD_SECONDS = 0.15;
+const MIDI_PREVIEW_ATTACK_SECONDS = 0.005;
+const MIDI_PREVIEW_RELEASE_SECONDS = 0.02;
+
 export interface AudioEngineConfig {
     lookaheadSeconds?: number; // reserved for future incremental scheduling
 }
@@ -56,6 +67,7 @@ export class AudioEngine {
     private ctx: AudioContext | null = null;
     private cfg: Required<AudioEngineConfig>;
     private active: Map<string, ActiveTrackNode> = new Map();
+    private activeMidiVoices: Map<string, ActiveMidiVoice> = new Map();
     private rehydratingSources: Set<string> = new Set();
     private playbackActive = false;
     private lastPlayheadTick: number = 0; // last tick we initiated playback from
@@ -67,7 +79,7 @@ export class AudioEngine {
         // Subscribe to store for gain/mute/solo updates; lightweight diff each change.
         try {
             let lastSnapshot: Record<string, { gain: number; mute: boolean; solo: boolean }> = {};
-            this.unsub = useTimelineStore.subscribe((s) => {
+            this.unsub = useTimelineStore.subscribe((s, previousState) => {
                 const next: typeof lastSnapshot = {};
                 // Build new snapshot & detect changes for audio tracks only
                 for (const id of s.tracksOrder) {
@@ -87,6 +99,18 @@ export class AudioEngine {
                     // Rebuild by restarting (simple approach). Future: optimize by muting only.
                     if (useTimelineStore.getState().transport.isPlaying) {
                         this.seek(this.lastPlayheadTick);
+                    }
+                }
+                // Preview routing is transient, so it is handled here instead of the
+                // command/persistence path used by timeline tracks.
+                const previousPreviewIds = new Set(Object.keys(previousState.midiPreviewTrackIds));
+                const nextPreviewIds = new Set(Object.keys(s.midiPreviewTrackIds));
+                for (const trackId of previousPreviewIds) {
+                    if (!nextPreviewIds.has(trackId)) this.stopMidiVoices(trackId);
+                }
+                if (this.playbackActive && this.ctx) {
+                    for (const trackId of nextPreviewIds) {
+                        if (!previousPreviewIds.has(trackId)) this.scheduleMidiPreview(this.lastPlayheadTick, [trackId]);
                     }
                 }
                 lastSnapshot = next;
@@ -135,14 +159,17 @@ export class AudioEngine {
             }
         }
         this.stopAllSources();
+        this.stopMidiVoices();
         const rehydration = this.rehydrateAudibleSourcesForPlayback();
         if (rehydration) await rehydration;
         this.startAudibleSources(playFromTick);
+        this.scheduleMidiPreview(playFromTick);
     }
 
     stop() {
         this.playbackActive = false;
         this.stopAllSources();
+        this.stopMidiVoices();
     }
 
     dispose() {
@@ -150,6 +177,7 @@ export class AudioEngine {
             this.unsub?.();
         } catch {}
         this.stopAllSources();
+        this.stopMidiVoices();
         try {
             this.ctx?.close();
         } catch {}
@@ -166,6 +194,7 @@ export class AudioEngine {
         const rehydration = this.rehydrateAudibleSourcesForPlayback();
         if (rehydration) await rehydration;
         this.startAudibleSources(playFromTick);
+        this.scheduleMidiPreview(playFromTick);
     }
 
     /** Apply gain change realtime if node exists */
@@ -196,8 +225,13 @@ export class AudioEngine {
     }
 
     /** For future incremental scheduling; currently ensures any missing sources are started. */
-    refresh(_currentTick: number) {
-        // no-op placeholder (previous adaptive lookahead scaffolding removed as unused)
+    refresh(currentTick: number) {
+        if (!this.playbackActive || !this.ctx) return;
+        // A loop wrap moves the playhead backwards without necessarily issuing a
+        // transport seek. Cancel future voices and build a new lookahead window.
+        if (currentTick < this.lastPlayheadTick) this.stopMidiVoices();
+        this.lastPlayheadTick = currentTick;
+        this.scheduleMidiPreview(currentTick);
     }
 
     /** Test / debug helper (non-production critical) */
@@ -370,6 +404,95 @@ export class AudioEngine {
             } catch {}
         });
         this.active.clear();
+    }
+
+    private scheduleMidiPreview(playFromTick: number, trackIds?: string[]) {
+        if (!this.ctx) return;
+        const state = useTimelineStore.getState();
+        const enabledIds = trackIds ?? Object.keys(state.midiPreviewTrackIds);
+        if (!enabledIds.length) return;
+
+        const timing = createTimingContext(
+            { globalBpm: state.timeline.globalBpm, beatsPerBar: state.timeline.beatsPerBar, masterTempoMap: state.timeline.masterTempoMap },
+            getSharedTimingManager().ticksPerQuarter
+        );
+        const nowTimelineSeconds = ticksToSeconds(timing, playFromTick);
+        const endTimelineSeconds = nowTimelineSeconds + MIDI_PREVIEW_LOOKAHEAD_SECONDS;
+        const notes = getNotesInWindow(state, enabledIds, nowTimelineSeconds, endTimelineSeconds);
+        for (const note of notes) {
+            if (note.endSec <= nowTimelineSeconds) continue;
+            const voiceKey = `${note.trackId}:${note.clipId ?? ''}:${note.sourceId ?? ''}:${note.note}:${note.startSec}:${note.endSec}`;
+            if (this.activeMidiVoices.has(voiceKey)) continue;
+
+            const startsInSeconds = Math.max(0, note.startSec - nowTimelineSeconds);
+            const durationSeconds = note.endSec - Math.max(note.startSec, nowTimelineSeconds);
+            if (durationSeconds <= 0) continue;
+            this.startMidiVoice(voiceKey, note.trackId, note.note, note.velocity, startsInSeconds, durationSeconds);
+        }
+    }
+
+    private startMidiVoice(
+        voiceKey: string,
+        trackId: string,
+        midiNote: number,
+        velocity: number,
+        startsInSeconds: number,
+        durationSeconds: number
+    ) {
+        const ctx = this.ctx;
+        if (!ctx) return;
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        const startAt = ctx.currentTime + startsInSeconds;
+        const endAt = startAt + durationSeconds;
+        const normalizedVelocity = Math.max(0, Math.min(1, velocity > 1 ? velocity / 127 : velocity || 0.7));
+        const targetGain = 0.16 * Math.max(0.08, normalizedVelocity);
+        const frequency = 440 * Math.pow(2, (Math.max(0, Math.min(127, midiNote)) - 69) / 12);
+        try {
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(frequency, startAt);
+            gainNode.gain.setValueAtTime(0, startAt);
+            gainNode.gain.linearRampToValueAtTime(targetGain, startAt + Math.min(MIDI_PREVIEW_ATTACK_SECONDS, durationSeconds / 2));
+            gainNode.gain.setValueAtTime(targetGain, Math.max(startAt, endAt - MIDI_PREVIEW_RELEASE_SECONDS));
+            gainNode.gain.linearRampToValueAtTime(0, endAt);
+        } catch {
+            // Lightweight test contexts may not implement the full AudioParam API.
+            (gainNode.gain as any).value = targetGain;
+        }
+        oscillator.connect(gainNode).connect(ctx.destination);
+        oscillator.onended = () => {
+            if (this.activeMidiVoices.get(voiceKey)?.oscillator === oscillator) {
+                this.activeMidiVoices.delete(voiceKey);
+            }
+            try { oscillator.disconnect(); gainNode.disconnect(); } catch {}
+        };
+        try {
+            oscillator.start(startAt);
+            oscillator.stop(endAt + 0.001);
+            this.activeMidiVoices.set(voiceKey, { oscillator, gainNode, trackId });
+        } catch {
+            try { oscillator.disconnect(); gainNode.disconnect(); } catch {}
+        }
+    }
+
+    private stopMidiVoices(trackId?: string) {
+        const now = this.ctx?.currentTime ?? 0;
+        for (const [key, voice] of this.activeMidiVoices) {
+            if (trackId && voice.trackId !== trackId) continue;
+            try {
+                if (this.ctx) {
+                    const gain = voice.gainNode.gain;
+                    gain.cancelScheduledValues?.(now);
+                    gain.setValueAtTime?.((gain as any).value ?? 0, now);
+                    gain.linearRampToValueAtTime?.(0, now + MIDI_PREVIEW_RELEASE_SECONDS);
+                    voice.oscillator.stop(now + MIDI_PREVIEW_RELEASE_SECONDS + 0.001);
+                } else {
+                    voice.oscillator.stop();
+                }
+            } catch {}
+            try { voice.oscillator.disconnect(); voice.gainNode.disconnect(); } catch {}
+            this.activeMidiVoices.delete(key);
+        }
     }
 
     private rehydrateSourceForPlayback(sourceId: string) {

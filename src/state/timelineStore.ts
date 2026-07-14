@@ -150,6 +150,8 @@ export type TimelineState = {
     tempoAlignedDiagnostics: Record<string, TempoAlignedAdapterDiagnostics>;
     // UI preferences
     rowHeight: number; // track row height in px
+    /** Session-only test-synth routing. This is deliberately not part of a track/document. */
+    midiPreviewTrackIds: Record<string, true>;
 
     // Actions
     addMidiTrack: (input: { name: string; file?: File; midiData?: MIDIData; offsetTicks?: number }) => Promise<string>;
@@ -181,6 +183,8 @@ export type TimelineState = {
     setTrackMute: (id: string, mute: boolean) => Promise<void>;
     setTrackSolo: (id: string, solo: boolean) => Promise<void>;
     setTrackGain: (id: string, gain: number) => Promise<void>; // audio only
+    setMidiPreviewEnabled: (id: string, enabled: boolean) => void;
+    toggleMidiPreview: (id: string) => void;
     setMasterTempoMap: (map?: TempoMapEntry[]) => void;
     setGlobalBpm: (bpm: number) => void;
     setBeatsPerBar: (n: number) => void;
@@ -625,6 +629,7 @@ function createInitialTimelineSlice(): Pick<
     | 'playbackRange'
     | 'playbackRangeUserDefined'
     | 'rowHeight'
+    | 'midiPreviewTrackIds'
     | 'hybridCacheRollout'
     | 'tempoAlignedDiagnostics'
     | '_clipGroupDrag'
@@ -668,6 +673,7 @@ function createInitialTimelineSlice(): Pick<
         playbackRange: undefined,
         playbackRangeUserDefined: false,
         rowHeight: 64,
+        midiPreviewTrackIds: {},
         hybridCacheRollout: {
             adapterEnabled: true,
             fallbackLog: [],
@@ -787,6 +793,19 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         if (!ids || !ids.length) return;
         timelineCommandGateway
             .dispatchById('timeline.removeTracks', { trackIds: ids }, { source: 'timeline-store' })
+            .then(() => {
+                set((state: TimelineState) => {
+                    const next = { ...state.midiPreviewTrackIds };
+                    let changed = false;
+                    for (const id of ids) {
+                        if (next[id]) {
+                            delete next[id];
+                            changed = true;
+                        }
+                    }
+                    return changed ? { midiPreviewTrackIds: next } as TimelineState : state;
+                });
+            })
             .catch((error) => {
                 console.error('[timelineStore] removeTracks command failed', error);
             });
@@ -931,6 +950,23 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             console.error('[timelineStore] setTrackGain command failed', error);
             throw error;
         }
+    },
+    setMidiPreviewEnabled(id: string, enabled: boolean) {
+        if (!id) return;
+        set((state: TimelineState) => {
+            const track = state.tracks[id];
+            if (!track || track.type !== 'midi') return state;
+            const isEnabled = Boolean(state.midiPreviewTrackIds[id]);
+            if (isEnabled === enabled) return state;
+            const midiPreviewTrackIds = { ...state.midiPreviewTrackIds };
+            if (enabled) midiPreviewTrackIds[id] = true;
+            else delete midiPreviewTrackIds[id];
+            return { midiPreviewTrackIds } as TimelineState;
+        });
+    },
+    toggleMidiPreview(id: string) {
+        const state = get();
+        state.setMidiPreviewEnabled(id, !state.midiPreviewTrackIds[id]);
     },
 
     setMasterTempoMap(map?: TempoMapEntry[]) {
@@ -1664,6 +1700,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             audioFeatureCaches: {},
             audioFeatureCacheStatus: {},
             tempoAlignedDiagnostics: {},
+            midiPreviewTrackIds: {},
             hybridCacheRollout: {
                 adapterEnabled: s.hybridCacheRollout.adapterEnabled,
                 fallbackLog: [],

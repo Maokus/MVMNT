@@ -185,6 +185,8 @@ export const DocumentGateway = {
             },
             tracks: hydratedTracks,
             tracksOrder: doc.tracksOrder || [],
+            // Test synth routing is a session-only preview preference, never scene data.
+            midiPreviewTrackIds: {},
             playbackRange: doc.playbackRange,
             playbackRangeUserDefined: !!doc.playbackRangeUserDefined,
             rowHeight: typeof doc.rowHeight === 'number' ? doc.rowHeight : prev.rowHeight,

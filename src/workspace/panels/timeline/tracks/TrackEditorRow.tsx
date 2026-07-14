@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { FaTrash, FaGripVertical } from 'react-icons/fa';
+import { FaTrash, FaGripVertical, FaVolumeUp } from 'react-icons/fa';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 import { computeTrackRowSizing } from './trackRowSizing';
@@ -19,6 +19,8 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
     const setTrackGain = useTimelineStore((s) => s.setTrackGain);
     const setTrackMute = useTimelineStore((s) => s.setTrackMute);
     const setTrackSolo = useTimelineStore((s) => s.setTrackSolo);
+    const midiPreviewEnabled = useTimelineStore((s) => Boolean(s.midiPreviewTrackIds[trackId]));
+    const toggleMidiPreview = useTimelineStore((s) => s.toggleMidiPreview);
     const rowHeight = useTimelineStore((s) => s.rowHeight);
     const [editingName, setEditingName] = useState(false);
     const nameInputRef = useRef<HTMLInputElement>(null);
@@ -74,6 +76,21 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
                         title={`${track.name} (double-click to rename)`}
                         onDoubleClick={(e) => { e.stopPropagation(); setEditingName(true); }}
                     >{track.name}</div>
+                )}
+                {track.type === 'midi' && (
+                    <button
+                        type="button"
+                        aria-label={midiPreviewEnabled ? 'Disable MIDI test sound' : 'Enable MIDI test sound'}
+                        className={`rounded border px-1 ${midiPreviewEnabled ? 'bg-cyan-700/40 border-cyan-400 text-cyan-100' : 'border-neutral-600 text-neutral-300 hover:bg-neutral-700/40'}`}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            toggleMidiPreview(trackId);
+                        }}
+                        title={midiPreviewEnabled ? 'Test sound on (click to disable)' : 'Enable test sound'}
+                        style={{ height: pillHeight, minHeight: pillHeight, fontSize: smallFontSize }}
+                    >
+                        <FaVolumeUp aria-hidden="true" />
+                    </button>
                 )}
                 {/* Mute / Solo (audio only for now, easily extend) */}
                 {track.type === 'audio' && (
