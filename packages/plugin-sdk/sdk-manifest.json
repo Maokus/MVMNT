@@ -1,0 +1,53 @@
+{
+  "package": "@mvmnt/plugin-sdk",
+  "version": "2.0.0",
+  "runtimeFormat": "commonjs",
+  "subpaths": [
+    ".", "api", "animation", "audio", "render", "scene", "safety", "timeline", "timing", "utils", "visual-assets"
+  ],
+  "runtimeModules": [
+    "@mvmnt/plugin-sdk",
+    "@mvmnt/plugin-sdk/api",
+    "@mvmnt/plugin-sdk/animation",
+    "@mvmnt/plugin-sdk/audio",
+    "@mvmnt/plugin-sdk/render",
+    "@mvmnt/plugin-sdk/scene",
+    "@mvmnt/plugin-sdk/safety",
+    "@mvmnt/plugin-sdk/timeline",
+    "@mvmnt/plugin-sdk/timing",
+    "@mvmnt/plugin-sdk/utils",
+    "@mvmnt/plugin-sdk/visual-assets"
+  ],
+  "capabilities": [
+    "timeline.read",
+    "audio.features.read",
+    "audio.raw.read",
+    "timing.conversion",
+    "midi.utils",
+    "audio.calculators.register"
+  ],
+  "publicExports": {
+    ".": [
+      "SDK_VERSION", "PLUGIN_CAPABILITIES", "PluginContractError", "ok", "err",
+      "clamp", "lerp", "invLerp", "remap", "easings",
+      "RenderObject", "BoxRenderObject", "EmptyRenderObject", "Rectangle", "Text", "Line", "Arc",
+      "Poly", "BezierPath", "GlowLayer", "CompositeLayer", "ClipLayer", "VisualMedia", "PixelGrid",
+      "definePluginElement", "isPluginElementDefinition",
+      "checkCapability", "limitRenderObjects",
+      "midiNoteToName", "ensureEightDigitHex"
+    ],
+    "api": ["SDK_VERSION", "PLUGIN_CAPABILITIES", "PluginContractError", "ok", "err"],
+    "animation": ["clamp", "lerp", "invLerp", "remap", "easings"],
+    "audio": [],
+    "render": [
+      "RenderObject", "BoxRenderObject", "EmptyRenderObject", "Rectangle", "Text", "Line", "Arc",
+      "Poly", "BezierPath", "GlowLayer", "CompositeLayer", "ClipLayer", "VisualMedia", "PixelGrid"
+    ],
+    "scene": ["definePluginElement", "isPluginElementDefinition"],
+    "safety": ["checkCapability", "limitRenderObjects"],
+    "timeline": [],
+    "timing": [],
+    "utils": ["midiNoteToName", "ensureEightDigitHex"],
+    "visual-assets": []
+  }
+}

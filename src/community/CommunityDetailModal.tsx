@@ -4,7 +4,7 @@ import { FaDownload, FaStar, FaTrash, FaXmark, FaArrowRight, FaBolt, FaPen, FaAr
 import type { User } from '@supabase/supabase-js';
 import type { CommunityItem, UserRole } from './communityApi';
 import { getThumbnailUrl, downloadItem, rateItem, getUserRating, deleteItem, semverGt } from './communityApi';
-import { loadPlugin, upgradePlugin, unloadPlugin, satisfiesVersion, PLUGIN_API_VERSION } from '@core/scene/plugins';
+import { loadPlugin, upgradePlugin, unloadPlugin, getPluginApiLine } from '@core/scene/plugins';
 import { writeStoredImportPayload } from '../utils/importPayloadStorage';
 import { usePluginStore } from '../state/pluginStore';
 import { CURRENT_SCHEMA_VERSION } from '@persistence/validate';
@@ -19,7 +19,7 @@ function getCompatBadge(item: CommunityItem): CompatBadge | null {
   if (item.template_schema_version != null && item.template_schema_version > CURRENT_SCHEMA_VERSION) {
     return { level: 'red', message: 'Requires a newer version of MVMNT' };
   }
-  if (item.plugin_api_version != null && !satisfiesVersion(PLUGIN_API_VERSION, item.plugin_api_version)) {
+  if (item.plugin_api_version != null && getPluginApiLine(item.plugin_api_version) == null) {
     return { level: 'red', message: 'Incompatible with this version of MVMNT' };
   }
   if (item.min_app_version != null && semverGt(item.min_app_version, pkg.version ?? '0.0.0')) {

@@ -18,169 +18,21 @@ import { createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import * as fflate from 'fflate';
 import { BUILTIN_ELEMENT_TYPES } from './built-in-element-types.mjs';
+import {
+    PLUGIN_EXTERNALS,
+    validateElementImports,
+    validateManifestContract,
+} from './plugin-contract.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 
-const PLUGIN_PUBLIC_IMPORTS = new Set([
-    '@mvmnt/plugin-sdk',
-    'react',
-    'react-dom',
-    'react/jsx-runtime',
-    'react/jsx-dev-runtime',
-]);
-
-const LEGACY_INTERNAL_IMPORT_PREFIXES = ['@core/', '@audio/', '@utils/'];
-
-const BLOCKED_INTERNAL_IMPORT_PREFIXES = [
-    '@state/',
-    '@selectors/',
-    '@persistence/',
-    '@constants/',
-    '@types/',
-    '@app/',
-    '@workspace/',
-    '@context/',
-    '@fonts/',
-    '@assets/',
-    '@export/',
-    '@bindings/',
-    '@math/',
-    '@pages/',
-    '@devtools/',
-    '@config/',
-];
-
-function extractModuleSpecifiers(sourceCode) {
-    const specifiers = new Set();
-    const patterns = [
-        /import\s+[^'"\n]+\s+from\s+['"]([^'"\n]+)['"]/g,
-        /import\s+['"]([^'"\n]+)['"]/g,
-        /require\(\s*['"]([^'"\n]+)['"]\s*\)/g,
-        /import\(\s*['"]([^'"\n]+)['"]\s*\)/g,
-    ];
-
-    for (const pattern of patterns) {
-        let match = pattern.exec(sourceCode);
-        while (match) {
-            specifiers.add(match[1]);
-            match = pattern.exec(sourceCode);
-        }
-    }
-
-    return [...specifiers];
-}
-
-function validateElementImports(sourceCode, elementName) {
-    const errors = [];
-    const warnings = [];
-    const moduleSpecifiers = extractModuleSpecifiers(sourceCode);
-
-    for (const specifier of moduleSpecifiers) {
-        if (!specifier || specifier.startsWith('.') || specifier.startsWith('/')) {
-            continue;
-        }
-
-        if (PLUGIN_PUBLIC_IMPORTS.has(specifier)) {
-            continue;
-        }
-
-        const blockedPrefix = BLOCKED_INTERNAL_IMPORT_PREFIXES.find((prefix) => specifier.startsWith(prefix));
-        if (blockedPrefix) {
-            errors.push(
-                `${elementName}: Import '${specifier}' is not part of the public plugin API. Use '@mvmnt/plugin-sdk' instead.`
-            );
-            continue;
-        }
-
-        const legacyPrefix = LEGACY_INTERNAL_IMPORT_PREFIXES.find((prefix) => specifier.startsWith(prefix));
-        if (legacyPrefix) {
-            warnings.push(
-                `${elementName}: Import '${specifier}' is a legacy internal alias. Migrate to '@mvmnt/plugin-sdk'.`
-            );
-        }
-    }
-
-    return { errors, warnings };
-}
-
 /**
  * Validate plugin manifest against schema
  */
 function validateManifest(manifest, pluginDir) {
-    const errors = [];
-    
-    // Required fields
-    if (!manifest.id || typeof manifest.id !== 'string') {
-        errors.push('Missing or invalid "id" field');
-    } else if (!/^[a-z0-9.-]+$/.test(manifest.id) || manifest.id.length < 3) {
-        errors.push('Invalid "id": must be at least 3 characters and contain only lowercase letters, numbers, dots, and hyphens');
-    }
-    
-    if (!manifest.name || typeof manifest.name !== 'string') {
-        errors.push('Missing or invalid "name" field');
-    }
-    
-    if (!manifest.version || typeof manifest.version !== 'string') {
-        errors.push('Missing or invalid "version" field');
-    } else if (!/^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/.test(manifest.version)) {
-        errors.push('Invalid "version": must follow semantic versioning (e.g., 1.0.0)');
-    }
-    
-    if (!manifest.apiVersion && !manifest.mvmntVersion) {
-        errors.push('Missing or invalid "apiVersion" field');
-    } else if (manifest.mvmntVersion && !manifest.apiVersion) {
-        console.warn('[build-plugin] "mvmntVersion" is deprecated. Rename it to "apiVersion" in your plugin.json.');
-    }
-    
-    if (!manifest.elements || !Array.isArray(manifest.elements) || manifest.elements.length === 0) {
-        errors.push('Missing or empty "elements" array');
-    } else {
-        // Validate each element
-        const elementTypes = new Set();
-        
-        manifest.elements.forEach((element, index) => {
-            const elementPrefix = `Element ${index + 1}`;
-            
-            // Required element fields
-            if (!element.type || typeof element.type !== 'string') {
-                errors.push(`${elementPrefix}: Missing or invalid "type" field`);
-            } else {
-                if (!/^[a-z][a-z0-9-]*$/.test(element.type)) {
-                    errors.push(`${elementPrefix}: Invalid "type": must start with a letter and contain only lowercase letters, numbers, and hyphens`);
-                }
-                
-                // Check for duplicate types within this plugin
-                if (elementTypes.has(element.type)) {
-                    errors.push(`${elementPrefix}: Duplicate element type "${element.type}" in this plugin`);
-                }
-                elementTypes.add(element.type);
-                
-                // Check for collisions with built-in types
-                if (BUILTIN_ELEMENT_TYPES.includes(element.type)) {
-                    errors.push(`${elementPrefix}: Element type "${element.type}" conflicts with a built-in element`);
-                }
-            }
-            
-            if (!element.entry || typeof element.entry !== 'string') {
-                errors.push(`${elementPrefix}: Missing or invalid "entry" field`);
-            } else {
-                if (!/\.(js|mjs|ts)$/.test(element.entry)) {
-                    errors.push(`${elementPrefix}: Invalid "entry": must end with .js, .mjs, or .ts`);
-                }
-                
-                // Check if entry file exists
-                const entryPath = path.join(pluginDir, element.entry);
-                if (!fs.existsSync(entryPath)) {
-                    errors.push(`${elementPrefix}: Entry file not found: ${element.entry}`);
-                }
-            }
-            
-        });
-    }
-    
-    return errors;
+    return validateManifestContract(manifest, pluginDir, BUILTIN_ELEMENT_TYPES);
 }
 
 /**
@@ -203,17 +55,7 @@ async function bundleElement(element, pluginDir, outputDir) {
             target: 'es2020',
             minify: true,
             sourcemap: false,
-            external: [
-                '@mvmnt/plugin-sdk',
-                'react',
-                'react-dom',
-                '@core/*',
-                '@audio/*',
-                '@utils/*',
-                '@state/*',
-                '@types/*',
-                '@constants/*',
-            ],
+            external: [...PLUGIN_EXTERNALS],
         });
         
         return outputFileName;
@@ -280,6 +122,10 @@ async function createPluginBundle(manifest, buildDir, outputPath) {
  */
 function validateElementClass(elementCode, elementName) {
     const errors = [];
+    if (elementCode.includes('definePluginElement')) {
+        if (!elementCode.includes('render')) errors.push(`${elementName}: SDK 2.x definition must provide render()`);
+        return errors;
+    }
     
     // Check for getConfigSchema static method (with or without override keyword)
     if (!elementCode.includes('static getConfigSchema()') && 
@@ -367,7 +213,7 @@ async function buildPlugin(pluginDir, outPath = null) {
     for (const element of manifest.elements) {
         const entryPath = path.join(pluginDir, element.entry);
         const elementCode = fs.readFileSync(entryPath, 'utf8');
-        const { errors, warnings } = validateElementImports(elementCode, element.type);
+        const { errors, warnings } = validateElementImports(elementCode, element.type, manifest.apiVersion);
         importValidationErrors.push(...errors);
         importValidationWarnings.push(...warnings);
     }

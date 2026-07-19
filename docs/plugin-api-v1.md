@@ -1,4 +1,8 @@
-# Plugin API v1
+# Plugin API v1 (compatibility only)
+
+New plugins must use SDK 2 and `definePluginElement()`; start with
+[`plugin-quickstart.md`](plugin-quickstart.md). This document describes the frozen runtime
+supplied only to bundles whose `apiVersion` selects the supported `^1.x` line.
 
 _Last Updated: 16 April 2026_
 
@@ -17,7 +21,8 @@ Plugin code should treat internal aliases (`@core/*`, `@audio/*`, `@state/*`, et
 
 ## Development Setup
 
-`@mvmnt/plugin-sdk` is **not published to npm**. It is a TypeScript path alias defined in the project's `tsconfig.json` that resolves to `src/core/scene/plugins/plugin-sdk.ts` at compile time, and to a live module injected via `PLUGIN_RUNTIME_MODULES` at runtime.
+SDK 1 is no longer an authoring package. Supported installed v1 bundles receive a frozen live
+module map selected by their manifest range. The npm-ready workspace package contains SDK 2.
 
 **To author plugins, you must either:**
 

@@ -69,4 +69,19 @@ describe('clip-aware raw audio reads', () => {
         expect(samples).toHaveLength(sampleRate);
         expect(samples?.[0]).toBeCloseTo(0.25);
     });
+
+    it('honours cancellation during expensive raw PCM copies', () => {
+        const sampleRate = 100_000;
+        const state = {
+            timeline: { globalBpm: 120, beatsPerBar: 4 },
+            tracks: { audio: { id: 'audio', type: 'audio', audioSourceId: 'source', offsetTicks: 0, regionStartTick: 0 } },
+            audioCache: { source: { audioBuffer: buffer(0.25, sampleRate) } },
+        } as any;
+        const host = createPluginHostApi({ timelineStore: { getState: () => state } }).api;
+        let checks = 0;
+        const signal = { get aborted() { checks += 1; return checks > 3; } } as AbortSignal;
+
+        expect(host.audio.getRawSamples({ trackId: 'audio', startSec: 0, endSec: 1, signal })).toBeNull();
+        expect(checks).toBeGreaterThan(3);
+    });
 });

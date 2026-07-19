@@ -1,0 +1,82 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import packageManifest from '../../../../../packages/plugin-sdk/package.json';
+import sdkManifest from '../../../../../packages/plugin-sdk/sdk-manifest.json';
+import {
+    SDK_RUNTIME_MODULE_IDS,
+    capabilityDeclarationsMatch,
+    getPluginApiLine,
+    validateArchivePaths,
+    validatePluginManifest,
+} from '../plugin-contract';
+import { getPluginRuntimeExportNames, getPluginRuntimeModuleIds } from '../plugin-loader';
+
+const validManifest = () => ({
+    id: 'com.example.v2',
+    name: 'V2',
+    version: '1.0.0',
+    apiVersion: '^2.0.0',
+    elements: [{
+        type: 'example',
+        entry: 'elements/example.js',
+        capabilities: { required: ['timeline.read'], optional: ['audio.features.read'] },
+    }],
+});
+
+describe('plugin SDK v2 contract', () => {
+    it('keeps package exports, runtime modules, manifest, and docs in parity', () => {
+        const packageSubpaths = Object.keys(packageManifest.exports)
+            .filter((key) => !['./manifest', './package.json'].includes(key))
+            .map((key) => key === '.' ? '@mvmnt/plugin-sdk' : `@mvmnt/plugin-sdk/${key.slice(2)}`);
+        expect(packageSubpaths).toEqual(sdkManifest.runtimeModules);
+        expect(SDK_RUNTIME_MODULE_IDS).toEqual(sdkManifest.runtimeModules);
+        expect(getPluginRuntimeModuleIds(2)).toEqual(sdkManifest.runtimeModules);
+        expect(SDK_RUNTIME_MODULE_IDS).toContain('@mvmnt/plugin-sdk/visual-assets');
+        for (const [subpath, exports] of Object.entries(sdkManifest.publicExports)) {
+            const moduleId = subpath === '.' ? '@mvmnt/plugin-sdk' : `@mvmnt/plugin-sdk/${subpath}`;
+            expect([...getPluginRuntimeExportNames(2, moduleId)].sort()).toEqual([...exports].sort());
+        }
+
+        const docs = readFileSync(resolve(__dirname, '../../../../../docs/plugin-sdk-api-inventory.md'), 'utf8');
+        for (const subpath of sdkManifest.subpaths.filter((value) => value !== '.')) {
+            expect(docs).toContain(`/${subpath}`);
+        }
+    });
+
+    it('negotiates both frozen v1 and v2 API lines', () => {
+        expect(getPluginApiLine('^1.0.0')).toBe(1);
+        expect(getPluginApiLine('>=1.0.0 <2.0.0')).toBe(1);
+        expect(getPluginApiLine('^2.0.0')).toBe(2);
+        expect(getPluginApiLine('^3.0.0')).toBeNull();
+    });
+
+    it('rejects unknown, duplicate, missing, and unsafe v2 declarations', () => {
+        const unknown = validManifest();
+        (unknown.elements[0].capabilities.required as string[]).push('network');
+        expect(validatePluginManifest(unknown).join(' ')).toContain('unknown capability');
+
+        const duplicate = validManifest();
+        duplicate.elements[0].capabilities.optional.push('timeline.read');
+        expect(validatePluginManifest(duplicate).join(' ')).toContain('duplicates');
+
+        const missing = validManifest();
+        delete (missing.elements[0] as any).capabilities;
+        expect(validatePluginManifest(missing).join(' ')).toContain('capabilities must be an object');
+
+        const traversal = validManifest();
+        traversal.elements[0].entry = '../escape.js';
+        expect(validatePluginManifest(traversal).join(' ')).toContain('safe relative archive path');
+        expect(validateArchivePaths(['manifest.json', '../escape.js'])).toEqual([
+            "Unsafe plugin archive path '../escape.js'",
+        ]);
+    });
+
+    it('requires exact manifest/definition capability parity', () => {
+        const element = validManifest().elements[0] as any;
+        expect(capabilityDeclarationsMatch(element, element)).toBe(true);
+        expect(capabilityDeclarationsMatch(element, {
+            capabilities: { required: ['timeline.read', 'audio.features.read'], optional: [] },
+        })).toBe(false);
+    });
+});

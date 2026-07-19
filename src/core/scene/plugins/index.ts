@@ -27,4 +27,5 @@ export {
     type PluginHostApiResolution,
     type PluginHostApiStatus,
 } from './host-api/get-plugin-host-api';
-export { PLUGIN_API_VERSION } from './api-version';
+export { PLUGIN_API_VERSION, PLUGIN_SDK_VERSION, SUPPORTED_PLUGIN_API_RANGES } from './api-version';
+export { getPluginApiLine } from './plugin-contract';

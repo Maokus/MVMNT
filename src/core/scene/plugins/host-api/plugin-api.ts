@@ -88,7 +88,9 @@ function getClipRawSamples(
     startSec: number,
     endSec: number,
     channel: 'mono' | 'left' | 'right' | number,
+    signal?: AbortSignal,
 ): Float32Array | null {
+    if (signal?.aborted) return null;
     const sampleRate = getClipRawSampleRate(state, trackId);
     if (!sampleRate) return null;
     const count = Math.ceil((endSec - startSec) * sampleRate);
@@ -105,6 +107,7 @@ function getClipRawSamples(
         const first = Math.max(0, Math.floor((overlapStart - startSec) * sampleRate));
         const last = Math.min(count, Math.ceil((overlapEnd - startSec) * sampleRate));
         for (let i = first; i < last; i += 1) {
+            if ((i & 0x3fff) === 0 && signal?.aborted) return null;
             const timelineSeconds = startSec + i / sampleRate;
             const sourceSeconds = timelineSeconds - placementSeconds;
             if (sourceSeconds < segment.sourceStartSeconds || sourceSeconds >= segment.sourceEndSeconds) continue;
@@ -204,6 +207,7 @@ export interface PluginAudioApi {
         startSec: number;
         endSec: number;
         channel?: 'mono' | 'left' | 'right' | number;
+        signal?: AbortSignal;
     }): Float32Array | null;
 
     /**
@@ -566,14 +570,15 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                     samplingOptions ?? null
                 );
             },
-            getRawSamples({ trackId, startSec, endSec, channel = 'mono' }) {
+            getRawSamples({ trackId, startSec, endSec, channel = 'mono', signal }) {
                 if (!hasAudioRawRead || !timelineStore) return null;
+                if (signal?.aborted) return null;
                 if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) return null;
                 const state = timelineStore.getState();
                 const track = state.tracks[trackId];
                 if (!track || track.type !== 'audio') return null;
                 if (isModernAudioClipTrack(track)) {
-                    return getClipRawSamples(state, trackId, startSec, endSec, channel);
+                    return getClipRawSamples(state, trackId, startSec, endSec, channel, signal);
                 }
                 const sourceId = track.audioSourceId ?? track.id;
                 const entry = state.audioCache[sourceId];
@@ -601,6 +606,7 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                     for (let ch = 0; ch < numChannels; ch++) {
                         const data = audioBuffer.getChannelData(ch);
                         for (let i = 0; i < count; i++) {
+                            if ((i & 0x3fff) === 0 && signal?.aborted) return null;
                             result[i] += data[startSample + i] ?? 0;
                         }
                     }
@@ -615,6 +621,7 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                         : channel === 'right'
                           ? Math.min(1, numChannels - 1)
                           : Math.max(0, Math.min(numChannels - 1, channel));
+                if (signal?.aborted) return null;
                 return audioBuffer.getChannelData(chIdx).slice(startSample, endSample);
             },
             getRmsInWindow({ trackId, startSec, endSec }) {

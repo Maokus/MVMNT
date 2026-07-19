@@ -23,6 +23,7 @@ import http from 'http';
 import { fileURLToPath } from 'url';
 import { build } from 'esbuild';
 import * as fflate from 'fflate';
+import { PLUGIN_EXTERNALS, validateElementImports, validateManifestContract } from './plugin-contract.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -85,6 +86,18 @@ try {
     process.exit(1);
 }
 
+const manifestErrors = validateManifestContract(manifest, pluginDir);
+for (const element of manifest.elements ?? []) {
+    const sourcePath = path.join(pluginDir, element.entry ?? '');
+    if (fs.existsSync(sourcePath)) {
+        manifestErrors.push(...validateElementImports(fs.readFileSync(sourcePath, 'utf8'), element.type, manifest.apiVersion).errors);
+    }
+}
+if (manifestErrors.length > 0) {
+    console.error(`Error: invalid plugin contract\n${manifestErrors.map((error) => `  - ${error}`).join('\n')}`);
+    process.exit(1);
+}
+
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
@@ -112,17 +125,7 @@ async function bundleElement(element, buildDir) {
         target: 'es2020',
         minify: false,       // readable output helps during development
         sourcemap: false,
-        external: [
-            '@mvmnt/plugin-sdk',
-            'react',
-            'react-dom',
-            '@core/*',
-            '@audio/*',
-            '@utils/*',
-            '@state/*',
-            '@types/*',
-            '@constants/*',
-        ],
+        external: [...PLUGIN_EXTERNALS],
     });
 
     return outputFileName;

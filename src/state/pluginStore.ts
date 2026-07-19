@@ -26,7 +26,24 @@ export interface PluginElementManifest {
     entry: string;
     icon?: string;
     thumbnail?: string;
-    capabilities?: Array<'audio-analysis' | 'midi-events' | 'network' | 'storage'>;
+    capabilities?: {
+        required?: Array<
+            | 'timeline.read'
+            | 'audio.features.read'
+            | 'audio.raw.read'
+            | 'timing.conversion'
+            | 'midi.utils'
+            | 'audio.calculators.register'
+        >;
+        optional?: Array<
+            | 'timeline.read'
+            | 'audio.features.read'
+            | 'audio.raw.read'
+            | 'timing.conversion'
+            | 'midi.utils'
+            | 'audio.calculators.register'
+        >;
+    };
     tags?: string[];
 }
 

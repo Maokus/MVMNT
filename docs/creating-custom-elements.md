@@ -1,5 +1,9 @@
 # Creating Custom Elements
 
+> This guide contains host-element and SDK 1 class examples retained for compatibility.
+> New external plugins must follow [Plugin SDK 2 quickstart](plugin-quickstart.md), use
+> `definePluginElement()`, and declare `^2.0.0` capabilities in both code and manifest.
+
 _Last Updated: 7 May 2026_
 
 If you are new, it is recommended you first read the [Plugin Quickstart Guide](./plugin-quickstart.md).

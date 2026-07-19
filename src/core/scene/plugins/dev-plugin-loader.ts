@@ -15,9 +15,11 @@
 
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import { debugLog } from '@utils/debug-log';
-import { satisfiesVersion } from './version-check';
-import { PLUGIN_API_VERSION } from './api-version';
 import { registerElementAssetLoader } from './bundled-asset-registry';
+import { capabilityDeclarationsMatch, getPluginApiLine, normalizeElementCapabilities, validatePluginManifest } from './plugin-contract';
+import { createPluginDefinitionScope } from './v2-runtime';
+import { isPluginElementDefinition } from './sdk/scene';
+import { getPluginHostApi } from './host-api/get-plugin-host-api';
 
 interface PluginManifest {
     id: string;
@@ -34,6 +36,7 @@ interface PluginManifest {
 interface PluginElementDefinition {
     type: string;
     entry: string;
+    capabilities?: { required?: string[]; optional?: string[] };
 }
 
 interface LoadResult {
@@ -108,7 +111,7 @@ async function loadPluginManifest(pluginPath: string): Promise<PluginManifest | 
 
         const manifest = await response.json();
 
-        if (!validateManifest(manifest)) {
+        if (!validateManifest(manifest) || validatePluginManifest(manifest).length > 0) {
             console.error(`[DevPluginLoader] Invalid manifest structure in ${pluginPath}`);
             return null;
         }
@@ -127,7 +130,8 @@ async function loadElement(
     pluginPath: string,
     element: PluginElementDefinition,
     pluginId: string,
-    pluginName: string
+    pluginName: string,
+    apiLine: 1 | 2,
 ): Promise<{ success: boolean; error?: string }> {
     try {
         // Construct the module path
@@ -143,9 +147,9 @@ async function loadElement(
 
         // Find the exported element class
         // Try common export patterns
+        const definition = Object.values(module).find(isPluginElementDefinition);
         const elementKey = Object.keys(module).find((key) => key.endsWith('Element'));
-        const ElementClass =
-            module.default || (elementKey ? module[elementKey] : null) || module[Object.keys(module)[0]];
+        let ElementClass = module.default || definition || (elementKey ? module[elementKey] : null) || module[Object.keys(module)[0]];
 
         if (!ElementClass) {
             return {
@@ -154,8 +158,25 @@ async function loadElement(
             };
         }
 
-        // Check if it has the required getConfigSchema method
-        if (typeof ElementClass.getConfigSchema !== 'function') {
+        if (apiLine === 2) {
+            if (!isPluginElementDefinition(ElementClass)) {
+                return { success: false, error: 'SDK 2.x elements must export definePluginElement(...)' };
+            }
+            if (!capabilityDeclarationsMatch(element as any, ElementClass)) {
+                return { success: false, error: `Capability declaration mismatch for '${element.type}'` };
+            }
+            const host = getPluginHostApi();
+            const available = new Set(host.api?.capabilities ?? []);
+            const missing = normalizeElementCapabilities(element as any).required.filter((capability) => !available.has(capability as any));
+            if (missing.length > 0) return { success: false, error: `Required capabilities unavailable: ${missing.join(', ')}` };
+            const scope = createPluginDefinitionScope(ElementClass, {
+                pluginId,
+                loadAsset: async (assetPath) => `${pluginPath}/assets/${assetPath}`,
+                report: (diagnostic) => console.warn(`[DevPluginLoader] ${pluginId}/${element.type}: ${diagnostic.code}: ${diagnostic.message}`),
+            });
+            if (!(await scope.ready)) return { success: false, error: scope.failure?.message ?? 'Definition load failed' };
+            ElementClass = scope.createElementClass();
+        } else if (typeof ElementClass.getConfigSchema !== 'function') {
             return {
                 success: false,
                 error: `Element class missing getConfigSchema() method`,
@@ -197,17 +218,18 @@ async function loadPlugin(pluginPath: string): Promise<LoadResult | null> {
 
     // Check version compatibility so dev-mode failures mirror production
     const versionRange = manifest.apiVersion ?? manifest.mvmntVersion;
-    if (versionRange && !satisfiesVersion(PLUGIN_API_VERSION, versionRange)) {
+    const apiLine = versionRange ? getPluginApiLine(versionRange) : null;
+    if (!apiLine) {
         console.error(
             `[DevPluginLoader] Plugin '${manifest.id}' requires API version ${versionRange}, ` +
-                `but current API version is ${PLUGIN_API_VERSION}. Plugin will not be loaded.`
+                `which is not a supported API line. Plugin will not be loaded.`
         );
         return {
             success: false,
             pluginId: manifest.id,
             pluginName: manifest.name,
             elementsLoaded: 0,
-            errors: [`Requires API version ${versionRange}, host provides ${PLUGIN_API_VERSION}`],
+            errors: [`Unsupported API version ${versionRange}`],
         };
     }
 
@@ -218,7 +240,7 @@ async function loadPlugin(pluginPath: string): Promise<LoadResult | null> {
 
     // Load each element
     for (const element of manifest.elements) {
-        const result = await loadElement(pluginPath, element, manifest.id, manifest.name);
+        const result = await loadElement(pluginPath, element, manifest.id, manifest.name, apiLine);
 
         if (result.success) {
             elementsLoaded++;

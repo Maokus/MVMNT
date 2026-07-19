@@ -11,12 +11,28 @@ import * as pluginSdkSceneModule from '@core/scene/plugins/sdk/scene';
 import * as pluginSdkTimelineModule from '@core/scene/plugins/sdk/timeline';
 import * as pluginSdkTimingModule from '@core/scene/plugins/sdk/timing';
 import * as pluginSdkUtilsModule from '@core/scene/plugins/sdk/utils';
+import * as pluginSdkVisualAssetsModule from '@core/scene/plugins/sdk/visual-assets';
+import * as pluginSdkV2ApiModule from '../../../../packages/plugin-sdk/src/api';
+import * as pluginSdkV2AnimationModule from '../../../../packages/plugin-sdk/src/animation';
+import * as pluginSdkV2SafetyModule from '../../../../packages/plugin-sdk/src/safety';
+import * as pluginSdkV2UtilsModule from '../../../../packages/plugin-sdk/src/utils';
+import { definePluginElement, isPluginElementDefinition as isV2Definition } from '../../../../packages/plugin-sdk/src/scene';
 import { usePluginStore, type PluginManifest } from '@state/pluginStore';
 import { PluginBinaryStore } from '@persistence/plugin-binary-store';
 import { PluginSettingsStore } from '@persistence/plugin-settings-store';
 import { satisfiesVersion } from './version-check';
 import { PLUGIN_API_VERSION } from './api-version';
 import { registerElementAssetLoader } from './bundled-asset-registry';
+import { isPluginElementDefinition } from './sdk/scene';
+import { createPluginDefinitionScope, type PluginDefinitionScope } from './v2-runtime';
+import {
+    capabilityDeclarationsMatch,
+    getPluginApiLine,
+    normalizeElementCapabilities,
+    validateArchivePaths,
+    validatePluginManifest,
+} from './plugin-contract';
+import { getPluginHostApi } from './host-api/get-plugin-host-api';
 
 export interface PluginLoadResult {
     success: boolean;
@@ -36,7 +52,7 @@ interface LoadPluginOptions {
     allowDowngrade?: boolean;
 }
 
-const PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
+const V1_PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
     '@mvmnt/plugin-sdk': pluginSdkModule,
     '@mvmnt/plugin-sdk/animation': pluginSdkAnimationModule,
     '@mvmnt/plugin-sdk/api': pluginSdkApiModule,
@@ -47,7 +63,67 @@ const PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
     '@mvmnt/plugin-sdk/timeline': pluginSdkTimelineModule,
     '@mvmnt/plugin-sdk/timing': pluginSdkTimingModule,
     '@mvmnt/plugin-sdk/utils': pluginSdkUtilsModule,
+    '@mvmnt/plugin-sdk/visual-assets': pluginSdkVisualAssetsModule,
 };
+
+// V2 intentionally omits global capability accessors from domain modules. The current
+// render/schema implementations are host-provided; definition callbacks receive data APIs.
+const pluginSdkV2SceneModule = { definePluginElement, isPluginElementDefinition: isV2Definition };
+const pluginSdkV2RenderModule = {
+    RenderObject: pluginSdkRenderModule.RenderObject,
+    BoxRenderObject: pluginSdkRenderModule.BoxRenderObject,
+    EmptyRenderObject: pluginSdkRenderModule.EmptyRenderObject,
+    Rectangle: pluginSdkRenderModule.Rectangle,
+    Text: pluginSdkRenderModule.Text,
+    Line: pluginSdkRenderModule.Line,
+    Arc: pluginSdkRenderModule.Arc,
+    Poly: pluginSdkRenderModule.Poly,
+    BezierPath: pluginSdkRenderModule.BezierPath,
+    GlowLayer: pluginSdkRenderModule.GlowLayer,
+    CompositeLayer: pluginSdkRenderModule.CompositeLayer,
+    ClipLayer: pluginSdkRenderModule.ClipLayer,
+    VisualMedia: pluginSdkRenderModule.VisualMedia,
+    PixelGrid: pluginSdkRenderModule.PixelGrid,
+};
+const pluginSdkV2RootModule = {
+    ...pluginSdkV2ApiModule,
+    ...pluginSdkV2AnimationModule,
+    ...pluginSdkV2RenderModule,
+    ...pluginSdkV2SceneModule,
+    ...pluginSdkV2SafetyModule,
+    ...pluginSdkV2UtilsModule,
+};
+const V2_PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
+    '@mvmnt/plugin-sdk': pluginSdkV2RootModule,
+    '@mvmnt/plugin-sdk/api': pluginSdkV2ApiModule,
+    '@mvmnt/plugin-sdk/animation': pluginSdkV2AnimationModule,
+    '@mvmnt/plugin-sdk/audio': Object.freeze({}),
+    '@mvmnt/plugin-sdk/render': pluginSdkV2RenderModule,
+    '@mvmnt/plugin-sdk/scene': pluginSdkV2SceneModule,
+    '@mvmnt/plugin-sdk/safety': pluginSdkV2SafetyModule,
+    '@mvmnt/plugin-sdk/timeline': Object.freeze({}),
+    '@mvmnt/plugin-sdk/timing': Object.freeze({}),
+    '@mvmnt/plugin-sdk/utils': pluginSdkV2UtilsModule,
+    '@mvmnt/plugin-sdk/visual-assets': Object.freeze({}),
+};
+
+export function getPluginRuntimeModuleIds(apiLine: 1 | 2): readonly string[] {
+    return Object.freeze(Object.keys(apiLine === 2 ? V2_PLUGIN_RUNTIME_MODULES : V1_PLUGIN_RUNTIME_MODULES));
+}
+
+export function getPluginRuntimeExportNames(apiLine: 1 | 2, moduleId: string): readonly string[] {
+    const moduleMap = apiLine === 2 ? V2_PLUGIN_RUNTIME_MODULES : V1_PLUGIN_RUNTIME_MODULES;
+    const runtimeModule = moduleMap[moduleId];
+    return Object.freeze(runtimeModule && typeof runtimeModule === 'object' ? Object.keys(runtimeModule) : []);
+}
+
+const pluginDefinitionScopes = new Map<string, PluginDefinitionScope[]>();
+
+async function disposePluginDefinitionScopes(pluginId: string): Promise<void> {
+    const scopes = pluginDefinitionScopes.get(pluginId) ?? [];
+    pluginDefinitionScopes.delete(pluginId);
+    await Promise.allSettled(scopes.map((scope) => scope.dispose()));
+}
 
 const LEGACY_INTERNAL_PREFIXES = ['@core/', '@audio/', '@utils/'];
 const warnedLegacyImports = new Set<string>();
@@ -168,6 +244,8 @@ export async function loadPlugin(
         // Unzip the bundle
         const uint8Data = new Uint8Array(bundleData);
         const files = unzipSync(uint8Data);
+        const archivePathErrors = validateArchivePaths(Object.keys(files));
+        if (archivePathErrors.length > 0) return { success: false, error: archivePathErrors.join('; ') };
 
         // Read manifest
         const manifestData = files['manifest.json'];
@@ -179,28 +257,23 @@ export async function loadPlugin(
         const manifest: PluginManifest = JSON.parse(manifestText);
 
         // Validate manifest
-        const validationError = validateManifest(manifest);
-        if (validationError) {
-            return { success: false, error: validationError };
+        const validationErrors = validatePluginManifest(manifest);
+        if (validationErrors.length > 0) {
+            return { success: false, error: validationErrors.join('; ') };
         }
+
+        const versionRange = manifest.apiVersion ?? manifest.mvmntVersion!;
+        const apiLine = getPluginApiLine(versionRange)!;
 
         // Check version compatibility
         if (!options.skipVersionCheck) {
-            const versionRange = manifest.apiVersion ?? manifest.mvmntVersion;
             if (manifest.mvmntVersion && !manifest.apiVersion) {
                 console.warn(
                     `[PluginLoader] Plugin '${manifest.id}' uses deprecated 'mvmntVersion'. ` +
                     `Update its manifest to use 'apiVersion' instead.`
                 );
             }
-            if (!satisfiesVersion(PLUGIN_API_VERSION, versionRange!)) {
-                return {
-                    success: false,
-                    manifest,
-                    pluginId: manifest.id,
-                    error: `Plugin requires API version ${versionRange}, but current API version is ${PLUGIN_API_VERSION}`,
-                };
-            }
+            // validatePluginManifest already negotiated the supported v1/v2 runtime line.
         }
 
         // Check if plugin is already loaded
@@ -241,7 +314,18 @@ export async function loadPlugin(
         const skippedElements: string[] = [];
 
         for (const elementManifest of manifest.elements) {
+            let definitionScope: PluginDefinitionScope | undefined;
             try {
+                if (apiLine === 2) {
+                    const host = getPluginHostApi();
+                    const available = new Set(host.api?.capabilities ?? []);
+                    const missing = normalizeElementCapabilities(elementManifest).required.filter((capability) => !available.has(capability as any));
+                    if (missing.length > 0) {
+                        loadErrors.push(`Element '${elementManifest.type}' requires unavailable capabilities: ${missing.join(', ')}`);
+                        skippedElements.push(elementManifest.type);
+                        continue;
+                    }
+                }
                 // Get the bundled element code
                 const entryData = files[elementManifest.entry];
                 if (!entryData) {
@@ -253,7 +337,27 @@ export async function loadPlugin(
                 const code = new TextDecoder().decode(entryData);
 
                 // Load the element class dynamically
-                const ElementClass = await loadElementFromCode(code, elementManifest.type, manifest.id);
+                const loadedExport = await loadElementFromCode(code, elementManifest.type, manifest.id, apiLine);
+                let ElementClass = loadedExport;
+                if (apiLine === 2) {
+                    if (!isPluginElementDefinition(loadedExport)) {
+                        throw new Error(`SDK 2.x element '${elementManifest.type}' must export definePluginElement(...)`);
+                    }
+                    if (loadedExport.type !== elementManifest.type) {
+                        throw new Error(`Definition type '${loadedExport.type}' does not match manifest type '${elementManifest.type}'`);
+                    }
+                    if (!capabilityDeclarationsMatch(elementManifest, loadedExport)) {
+                        throw new Error(`Capability declaration mismatch for '${elementManifest.type}'`);
+                    }
+                    const scope = createPluginDefinitionScope(loadedExport, {
+                        pluginId: manifest.id,
+                        loadAsset: (path) => loadBundledAssetForPlugin(manifest.id, path),
+                        report: (diagnostic) => console.warn(`[PluginLoader] ${manifest.id}/${elementManifest.type}: ${diagnostic.code}: ${diagnostic.message}`),
+                    });
+                    if (!(await scope.ready)) throw new Error(scope.failure?.message ?? 'Definition load failed');
+                    definitionScope = scope;
+                    ElementClass = scope.createElementClass();
+                }
 
                 // Register the element. The registry returns the actual key used
                 // (composite pluginId:type for plugin elements).
@@ -270,8 +374,15 @@ export async function loadPlugin(
                 const pluginId = manifest.id;
                 registerElementAssetLoader(registryKey, (path) => loadBundledAssetForPlugin(pluginId, path));
 
+                if (definitionScope) {
+                    const scopes = pluginDefinitionScopes.get(manifest.id) ?? [];
+                    scopes.push(definitionScope);
+                    pluginDefinitionScopes.set(manifest.id, scopes);
+                }
+
                 registeredTypes.push(registryKey);
             } catch (error) {
+                if (definitionScope) await definitionScope.dispose();
                 const errorMsg = error instanceof Error ? error.message : String(error);
                 loadErrors.push(`Failed to load element '${elementManifest.type}': ${errorMsg}`);
                 skippedElements.push(elementManifest.type);
@@ -280,6 +391,9 @@ export async function loadPlugin(
 
         // If all elements failed to load, consider it a failure
         if (registeredTypes.length === 0) {
+            await disposePluginDefinitionScopes(manifest.id);
+            revokePluginAssets(manifest.id);
+            await PluginBinaryStore.delete(manifest.id);
             return {
                 success: false,
                 manifest,
@@ -331,6 +445,7 @@ export async function unloadPlugin(pluginId: string): Promise<{ success: boolean
 
         // Unregister all elements from the registry
         const unregistered = sceneElementRegistry.unregisterPlugin(pluginId);
+        await disposePluginDefinitionScopes(pluginId);
 
         // Remove from plugin store
         usePluginStore.getState().removePlugin(pluginId);
@@ -368,6 +483,8 @@ export async function disablePlugin(pluginId: string): Promise<{ success: boolea
         }
 
         const unregistered = sceneElementRegistry.unregisterPlugin(pluginId);
+        await disposePluginDefinitionScopes(pluginId);
+        revokePluginAssets(pluginId);
         usePluginStore.getState().disablePlugin(pluginId);
         PluginSettingsStore.setEnabled(pluginId, false);
 
@@ -410,6 +527,8 @@ export async function upgradePlugin(bundleData: ArrayBuffer): Promise<PluginLoad
     try {
         const uint8Data = new Uint8Array(bundleData);
         const files = unzipSync(uint8Data);
+        const archivePathErrors = validateArchivePaths(Object.keys(files));
+        if (archivePathErrors.length > 0) return { success: false, error: archivePathErrors.join('; ') };
 
         const manifestData = files['manifest.json'];
         if (!manifestData) {
@@ -419,9 +538,9 @@ export async function upgradePlugin(bundleData: ArrayBuffer): Promise<PluginLoad
         const manifestText = new TextDecoder().decode(manifestData);
         const manifest: PluginManifest = JSON.parse(manifestText);
 
-        const validationError = validateManifest(manifest);
-        if (validationError) {
-            return { success: false, manifest, error: validationError };
+        const validationErrors = validatePluginManifest(manifest);
+        if (validationErrors.length > 0) {
+            return { success: false, manifest, error: validationErrors.join('; ') };
         }
 
         const existingPlugin = usePluginStore.getState().plugins[manifest.id];
@@ -509,51 +628,18 @@ export async function loadAllPluginsFromStorage(): Promise<void> {
 /**
  * Validate plugin manifest structure
  */
-function validateManifest(manifest: any): string | null {
-    if (!manifest || typeof manifest !== 'object') {
-        return 'Invalid manifest: not an object';
-    }
-
-    const required = ['id', 'name', 'version', 'elements'];
-    for (const field of required) {
-        if (!manifest[field]) {
-            return `Invalid manifest: missing required field '${field}'`;
-        }
-    }
-
-    if (!manifest.apiVersion && !manifest.mvmntVersion) {
-        return `Invalid manifest: missing required field 'apiVersion'`;
-    }
-
-    if (!Array.isArray(manifest.elements) || manifest.elements.length === 0) {
-        return 'Invalid manifest: elements must be a non-empty array';
-    }
-
-    // Validate each element
-    for (const element of manifest.elements) {
-        const elemRequired = ['type', 'entry'];
-        for (const field of elemRequired) {
-            if (!element[field]) {
-                return `Invalid manifest: element missing required field '${field}'`;
-            }
-        }
-    }
-
-    return null;
-}
-
 /**
  * Dynamically load an element class from bundled code
  */
-async function loadElementFromCode(code: string, elementType: string, pluginId: string): Promise<any> {
+async function loadElementFromCode(code: string, elementType: string, pluginId: string, apiLine: 1 | 2): Promise<any> {
     try {
-        return evaluateCommonJsModule(code, elementType, pluginId);
+        return evaluateCommonJsModule(code, elementType, pluginId, apiLine);
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (/import declarations may only appear/.test(message) || /Unexpected token 'export'/.test(message)) {
             try {
                 const transformed = transformEsModuleToCommonJs(code);
-                return evaluateCommonJsModule(transformed, elementType, pluginId);
+                return evaluateCommonJsModule(transformed, elementType, pluginId, apiLine);
             } catch (fallbackError) {
                 const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
                 throw new Error(`Failed to load element code: ${fallbackMessage}`);
@@ -563,7 +649,7 @@ async function loadElementFromCode(code: string, elementType: string, pluginId: 
     }
 }
 
-function evaluateCommonJsModule(code: string, elementType: string, pluginId: string): any {
+function evaluateCommonJsModule(code: string, elementType: string, pluginId: string, apiLine: 1 | 2): any {
     const module: any = { exports: {} };
     const loadFn = new Function('module', 'exports', 'require', code);
 
@@ -571,14 +657,15 @@ function evaluateCommonJsModule(code: string, elementType: string, pluginId: str
         warnLegacyPluginImport(id);
 
         if (id === '@mvmnt/plugin-sdk') {
-            // Inject a per-plugin loadBundledAsset bound to this plugin's asset registry.
+            if (apiLine === 2) return V2_PLUGIN_RUNTIME_MODULES[id];
+            // Frozen v1 convenience bound to this plugin's asset registry.
             return {
                 ...pluginSdkModule,
                 loadBundledAsset: (path: string) => loadBundledAssetForPlugin(pluginId, path),
             };
         }
 
-        const directModule = PLUGIN_RUNTIME_MODULES[id];
+        const directModule = (apiLine === 2 ? V2_PLUGIN_RUNTIME_MODULES : V1_PLUGIN_RUNTIME_MODULES)[id];
         if (directModule) {
             return directModule;
         }
@@ -628,9 +715,13 @@ function evaluateCommonJsModule(code: string, elementType: string, pluginId: str
 
 function resolveElementExport(exportsObj: any, elementType: string): any {
     if (!exportsObj) return null;
+    if (isPluginElementDefinition(exportsObj)) return exportsObj;
     if (typeof exportsObj === 'function') return exportsObj;
     if (exportsObj.default) return exportsObj.default;
     if (exportsObj[elementType]) return exportsObj[elementType];
+
+    const definition = Object.values(exportsObj).find(isPluginElementDefinition);
+    if (definition) return definition;
 
     const normalizedType = normalizeElementType(elementType);
     const candidateKeys = [normalizedType, `${normalizedType}Element`];

@@ -4,7 +4,11 @@
     "description": "A React-based Music Visualization application for creating social media videos from MIDI files",
     "private": true,
     "type": "module",
+    "workspaces": [
+        "packages/*"
+    ],
     "dependencies": {
+        "@mvmnt/plugin-sdk": "file:packages/plugin-sdk",
         "@floating-ui/react": "^0.27.16",
         "@mediabunny/aac-encoder": "^1.40.1",
         "@mediabunny/mp3-encoder": "^1.18.0",
@@ -65,6 +69,9 @@
         "create-example": "node scripts/create-example.mjs",
         "build-plugin": "node scripts/build-plugin.mjs",
         "dev-plugin": "node scripts/dev-plugin.mjs",
+        "build:plugin-sdk": "npm run build --workspace @mvmnt/plugin-sdk",
+        "pack:plugin-sdk": "npm pack --workspace @mvmnt/plugin-sdk",
+        "verify:plugin-sdk-pack": "node scripts/verify-plugin-sdk-pack.mjs",
         "orphan": "bash -c 'set -a && source .env && npx tsx \"$@\"' --",
         "linuxlock": "npm_config_platform=linux npm_config_arch=x64 npm_config_libc=glibc   npm install --package-lock-only --include=optional",
         "knip": "knip"

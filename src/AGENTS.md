@@ -4,4 +4,4 @@
 - Keep comments focused on current behavior—do not mention deprecated migration phases or future roadmaps.
 - Favor small, pure helpers over large multi-purpose functions. If a change affects runtime behavior, add or update tests in the matching `__tests__` folder.
 - Use existing path aliases (e.g., `@state/...`, `@persistence/...`) for intra-project imports.
-- Scene elements and plugins use the `@mvmnt/plugin-sdk` path alias (resolves to `src/core/scene/plugins/plugin-sdk.ts`). Never import internal aliases (`@core/`, `@state/`, etc.) inside scene element files — those are application-private and unavailable at plugin runtime.
+- Scene elements and plugins use the workspace `@mvmnt/plugin-sdk` package. Plugin bundles receive host-injected runtime modules. Never import internal aliases (`@core/`, `@state/`, etc.) inside external scene element files—they are application-private and unavailable at plugin runtime.

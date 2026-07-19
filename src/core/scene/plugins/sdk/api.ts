@@ -33,3 +33,16 @@ export {
     type RequiredPluginApiOk,
     type RequiredPluginApiFailure,
 } from '@core/scene/plugins/host-api/required-plugin-api';
+
+export {
+    SDK_VERSION,
+    PluginContractError,
+    ok,
+    err,
+} from '../../../../../packages/plugin-sdk/src/api';
+export type {
+    DiagnosticsApi,
+    PluginDiagnostic,
+    PluginDiagnosticCode,
+    Result,
+} from '../../../../../packages/plugin-sdk/src/api';

@@ -1,0 +1,14 @@
+{
+  "id": "com.mvmnt.sdk-v2-fixture",
+  "name": "SDK 2 Fixture",
+  "version": "1.0.0",
+  "apiVersion": "^2.0.0",
+  "elements": [{
+    "type": "sdk-v2-fixture",
+    "entry": "element.ts",
+    "capabilities": {
+      "required": ["timeline.read"],
+      "optional": ["audio.features.read"]
+    }
+  }]
+}

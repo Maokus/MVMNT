@@ -35,3 +35,17 @@ export type {
     PropertyGroupPreset,
     PropertyVisibilityCondition,
 } from '@core/types';
+
+// SDK 2.x authoring contract. It is package-owned so published declarations never
+// reference application modules; MVMNT supplies the callback context at runtime.
+export {
+    definePluginElement,
+    isPluginElementDefinition,
+} from '../../../../../packages/plugin-sdk/src/scene';
+export type {
+    CapabilityContext,
+    ElementCapabilities,
+    ElementMetadata,
+    PluginElementDefinition,
+    PluginElementDefinitionInput,
+} from '../../../../../packages/plugin-sdk/src/scene';

@@ -1,44 +1,32 @@
-// Template: Minimal Element
-// The simplest possible scene element — a good starting point for anything custom.
-// Renders a single colored rectangle. Replace the rendering logic with your own.
-import { SceneElement, prop, insertElementConfig, tab, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk';
-import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
+// Template: SDK 2 minimal element
+import { definePluginElement } from '@mvmnt/plugin-sdk';
+import { Rectangle } from '@mvmnt/plugin-sdk/render';
 
-export class MinimalElement extends SceneElement {
-    constructor(id: string = 'myElement', config: Record<string, unknown> = {}) {
-        super('my-element', id, config);
-    }
-
-    static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementConfig(
-            super.getConfigSchema(),
-            {
-                name: 'My Element',
-                description: 'A minimal scene element',
-                category: 'Custom',
-            },
-            [
-                tab.properties([
-                    {
-                        id: 'appearance',
-                        label: 'Appearance',
-                        collapsed: false,
-                        properties: [
-                            prop.colorAlpha('color', 'Color', '#3B82F6FF'),
-                            prop.number('size', 'Size', 100, { min: 10, max: 500, step: 1 }),
-                        ],
-                    },
-                ]),
-            ]
-        );
-    }
-
-    protected override _buildRenderObjects(_config: unknown, _targetTime: number): RenderObject[] {
-        const props = this.getSchemaProps();
-
-        if (!props.visible) return [];
-
-        const half = (props.size as number) / 2;
-        return [new Rectangle(-half, -half, props.size, props.size, { fillColor: props.color })];
-    }
+interface MinimalProps extends Readonly<Record<string, unknown>> {
+    readonly color: string;
+    readonly width: number;
+    readonly height: number;
 }
+
+export const minimal = definePluginElement<MinimalProps, undefined>({
+    type: 'my-element',
+    metadata: { name: 'My Element', description: 'A minimal SDK 2 element', category: 'Custom' },
+    schema: {
+        tabs: [{
+            id: 'properties', label: 'Properties', groups: [{
+                id: 'appearance', label: 'Appearance', collapsed: false,
+                properties: [
+                    { key: 'color', label: 'Color', type: 'colorAlpha', default: '#3B82F6FF' },
+                    { key: 'width', label: 'Width', type: 'number', default: 100, min: 1 },
+                    { key: 'height', label: 'Height', type: 'number', default: 100, min: 1 },
+                ],
+            }],
+        }],
+    },
+    capabilities: { required: [], optional: [] },
+    render(props) {
+        return [new Rectangle(-props.width / 2, -props.height / 2, props.width, props.height, {
+            fillColor: props.color,
+        })];
+    },
+});

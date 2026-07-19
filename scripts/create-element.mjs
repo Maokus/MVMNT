@@ -25,43 +25,6 @@ const TEMPLATES = {
         className: 'MinimalElement',
         description: 'The simplest possible element — blank slate with a color and size property',
     },
-    'basic-shape': {
-        file: 'basic-shape.ts',
-        className: 'BasicShapeElement',
-        description: 'Renders a basic shape (e.g., rectangle or circle)',
-    },
-    'audio-reactive': {
-        file: 'audio-reactive.ts',
-        className: 'AudioReactiveElement',
-        description: 'Reacts to audio input (e.g., visualizes frequency spectrum or volume)',
-    },
-    'midi-notes': {
-        file: 'midi-notes.ts',
-        className: 'MidiNotesElement',
-        description: 'Visualizes MIDI notes (e.g., piano roll or falling notes)',
-    },
-    'text-display': {
-        file: 'text-display.ts',
-        className: 'TextDisplayElement',
-        description: 'Displays customizable text (e.g., song title, artist, or custom messages)',
-    },
-    'image-simple': {
-        file: 'image-simple.ts',
-        className: 'SimpleImageElement',
-        description: 'Displays a static image or animated GIF from a file upload',
-    },
-    'image-atlas': {
-        file: 'image-atlas.ts',
-        className: 'AtlasImageElement',
-        description: 'Animates a Sparrow atlas with a bundled default (BOYFRIEND.png + BOYFRIEND.xml)',
-        assets: 'image-atlas',
-    },
-    'bundled-image': {
-        file: 'bundled-image.ts',
-        className: 'BundledImageElement',
-        description: 'Displays a bundled image or GIF with optional user override',
-        assets: 'bundled-image',
-    },
 };
 
 // Helper to prompt user input
@@ -180,13 +143,14 @@ function generatePluginJson(pluginId, pluginName, elementType, entryFile) {
         id: pluginId,
         name: pluginName,
         version: '1.0.0',
-        apiVersion: `^1.1.0`,
+        apiVersion: `^2.0.0`,
         description: `Custom plugin`,
         author: 'Your Name',
         elements: [
             {
                 type: elementType,
                 entry: entryFile,
+                capabilities: { required: [], optional: [] },
             },
         ],
     };
@@ -205,6 +169,7 @@ function addElementToPlugin(pluginJsonPath, elementType, entryFile) {
     pluginJson.elements.push({
         type: elementType,
         entry: entryFile,
+        capabilities: { required: [], optional: [] },
     });
 
     fs.writeFileSync(pluginJsonPath, JSON.stringify(pluginJson, null, 2));
@@ -214,9 +179,7 @@ function addElementToPlugin(pluginJsonPath, elementType, entryFile) {
 // Customize template content
 function customizeTemplate(templateContent, elementType, className, pluginId, elementName, elementDescription) {
     return templateContent
-        .replace(/export class \w+Element/g, `export class ${className}`)
-        .replace(/super\('[\w-]+'/g, `super('${elementType}'`)
-        .replace(/constructor\(id: string = '\w+'/g, `constructor(id: string = '${elementType}'`)
+        .replace(/type: 'my-element'/, `type: '${elementType}'`)
         .replace(/category: '[^']+'/g, `category: '${pluginId}'`)
         .replace(/name: '[^']+'/, `name: '${elementName}'`)
         .replace(/description: '[^']+'/, `description: '${elementDescription}'`);

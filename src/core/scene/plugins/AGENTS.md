@@ -1,12 +1,12 @@
 # Plugin / Scene Element System
 
-This directory implements the plugin host API and the public `@mvmnt/plugin-sdk` surface that scene elements and external plugins consume.
+This directory implements host runtime adapters for the public `packages/plugin-sdk` contract. SDK 2 definitions use callback-scoped contexts; SDK 1 classes and global accessors are compatibility-only.
 
 ## Key Files
 
 | File                              | Role                                                                                                                  |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `plugin-sdk.ts`                   | **Top-level barrel.** Re-exports everything from `sdk/` submodules; the sole target of the `@mvmnt/plugin-sdk` alias. |
+| `plugin-sdk.ts`                   | Host runtime barrel used for injected modules and the frozen v1 compatibility map. |
 | `sdk/`                            | **Domain submodules.** Each file is independently importable via `@mvmnt/plugin-sdk/<domain>`.                        |
 | `sdk/animation.ts`                | `clamp`, `lerp`, `invLerp`, `remap`, `FloatCurve`, `EasingFn`, `easings` (31 named functions).                        |
 | `sdk/render.ts`                   | All canvas render primitives (`Rectangle`, `Text`, `Arc`, `BezierPath`, …).                                           |
@@ -36,20 +36,26 @@ Six capabilities are defined in `PLUGIN_CAPABILITIES` (in `host-api/plugin-api.t
 - `midiUtils` — MIDI note utilities (always available)
 - `audioCalculatorsRegister` — register custom audio calculators (always available)
 
-See `docs/plugin-api-v1.md` for the full API surface, access patterns, and error handling reference.
+See `docs/plugin-capabilities.md` and `docs/plugin-lifecycle.md` for SDK 2. `docs/plugin-api-v1.md` is the compatibility reference.
 
-## Standard Access Pattern (scene elements)
+## SDK 2 access pattern
 
 ```typescript
-import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { definePluginElement } from '@mvmnt/plugin-sdk';
 
-const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
-if (!host.ok) return host.renderFallback();
-
-const notes = host.api.timeline.selectNotesInWindow({ trackIds: [...], startSec, endSec });
+export const element = definePluginElement({
+    type: 'example',
+    metadata: { name: 'Example' },
+    schema: { tabs: [] },
+    capabilities: { required: ['timeline.read'], optional: [] },
+    render(_props, _state, _time, context) {
+        const notes = context.timeline.selectNotes({ startSeconds: 0, endSeconds: 1 });
+        return notes.ok ? [] : [];
+    },
+});
 ```
 
-The element reference (`this`) is required — it is used for future manifest-driven capability resolution. `renderFallback()` returns `[]` so it can be used inline as a return value.
+Manifest and definition capability declarations must match. Required facets are guaranteed after loader validation; optional facets may be absent.
 
 ## Adding a New Capability (checklist)
 

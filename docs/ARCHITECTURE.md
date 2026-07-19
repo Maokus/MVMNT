@@ -63,9 +63,11 @@ Music theory helpers and MIDI parsing live under `core/midi/` alongside the play
 
 ## Plugin System (`core/scene/plugins/`)
 
-Plugins are the primary extensibility mechanism. The public API surface is `@mvmnt/plugin-sdk` (resolved via `tsconfig.json` path alias to `core/scene/plugins/plugin-sdk.ts` and `core/scene/plugins/sdk/*`).
+Plugins are the primary extensibility mechanism. The public API is the versioned
+`packages/plugin-sdk` workspace package. Plugin bundles externalize its modules and the loader
+injects the v1 compatibility or v2 callback runtime according to `apiVersion`.
 
-**Current API version:** 1.1.0 (`api-version.ts`)
+**Supported API lines:** frozen `^1.x` compatibility and SDK `^2.x`.
 
 ### SDK Domains
 

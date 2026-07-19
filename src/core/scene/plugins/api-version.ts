@@ -11,4 +11,8 @@
  */
 export const PLUGIN_API_VERSION = '1.1.0';
 
+/** Plugin API lines accepted by the loader. Runtime modules are selected per line. */
+export const SUPPORTED_PLUGIN_API_RANGES = Object.freeze(['^1.0.0', '^2.0.0'] as const);
+export const PLUGIN_SDK_VERSION = '2.0.0' as const;
+
 export default PLUGIN_API_VERSION;

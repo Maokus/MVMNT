@@ -1,5 +1,10 @@
 # Runtime Plugin Loading API
 
+The loader accepts both the frozen SDK 1 compatibility line and SDK 2. The manifest's
+`apiVersion` selects the runtime module map; see
+[Plugin compatibility policy](plugin-compatibility-policy.md). Examples below using classes or
+`^1.x` describe compatibility bundles rather than the recommended authoring workflow.
+
 The runtime plugin loading system allows loading and managing `.mvmnt-plugin` bundles at runtime.
 
 ## Usage

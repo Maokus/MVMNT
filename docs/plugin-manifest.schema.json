@@ -24,7 +24,7 @@
         },
         "apiVersion": {
             "type": "string",
-            "description": "Compatible MVMNT plugin API version range (semver range, e.g., ^1.0.0, >=1.0.0 <2.0.0)",
+            "description": "Compatible MVMNT plugin API version range. New plugins use ^2.0.0; supported legacy bundles use ^1.x.",
             "minLength": 1
         },
         "mvmntVersion": {
@@ -66,7 +66,16 @@
                     "entry": {
                         "type": "string",
                         "description": "Path to element entry point relative to plugin root (e.g., elements/my-element.ts)",
-                        "pattern": "\\.(js|mjs|ts)$"
+                        "pattern": "^(?!/)(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).*\\.(js|mjs|ts)$"
+                    },
+                    "capabilities": {
+                        "type": "object",
+                        "description": "SDK 2.x capability declaration. It must exactly match definePluginElement().",
+                        "additionalProperties": false,
+                        "properties": {
+                            "required": { "$ref": "#/definitions/capabilityList" },
+                            "optional": { "$ref": "#/definitions/capabilityList" }
+                        }
                     }
                 }
             }
@@ -76,6 +85,35 @@
             "description": "Optional peer dependencies (other plugins required)",
             "additionalProperties": {
                 "type": "string"
+            }
+        }
+    },
+    "allOf": [{
+        "if": {
+            "properties": { "apiVersion": { "pattern": "(?:^|[^0-9])2\\." } },
+            "required": ["apiVersion"]
+        },
+        "then": {
+            "properties": {
+                "elements": {
+                    "items": { "required": ["type", "entry", "capabilities"] }
+                }
+            }
+        }
+    }],
+    "definitions": {
+        "capabilityList": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+                "enum": [
+                    "timeline.read",
+                    "audio.features.read",
+                    "audio.raw.read",
+                    "timing.conversion",
+                    "midi.utils",
+                    "audio.calculators.register"
+                ]
             }
         }
     }

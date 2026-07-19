@@ -32,6 +32,6 @@ When asked to "implement phase x" of a plan, read through the requirements and g
 
 ## Plugin / Scene Element System
 
-Scene elements are the visual building blocks of a scene. First-party defaults live in `src/core/scene/elements/`. Elements import from `@mvmnt/plugin-sdk` — a TypeScript path alias (not an npm package) that resolves to `src/core/scene/plugins/plugin-sdk.ts` at compile time and is injected at runtime.
+Scene elements are the visual building blocks of a scene. First-party defaults live in `src/core/scene/elements/`. The public `@mvmnt/plugin-sdk` is a versioned workspace package in `packages/plugin-sdk`; plugin bundles externalize it and the loader injects the runtime selected by `apiVersion`.
 
-See `docs/plugin-api-v1.md` for the full API reference and `docs/creating-custom-elements.md` to author new elements.
+Start with `docs/plugin-quickstart.md`. `docs/plugin-api-v1.md` documents only the frozen compatibility surface.
