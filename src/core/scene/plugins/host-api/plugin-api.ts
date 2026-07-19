@@ -13,6 +13,7 @@ import {
     getFeatureData as getFeatureDataFromScene,
     getFeatureDataRange as getFeatureDataRangeFromScene,
     type FeatureDataResult,
+    type FeatureDataRangeResult,
     type FeatureInput,
 } from '@audio/features/sceneApi';
 import type {
@@ -43,9 +44,6 @@ export const PLUGIN_CAPABILITIES = {
     midiUtils: 'midi.utils',
     audioCalculatorsRegister: 'audio.calculators.register',
 } as const;
-
-/** Maximum number of raw PCM samples returned by getRawSamples in a single call. */
-export const MAX_RAW_SAMPLES = 8192;
 
 const CLIP_RAW_FALLBACK_SAMPLE_RATE = 48_000;
 
@@ -94,7 +92,7 @@ function getClipRawSamples(
     const sampleRate = getClipRawSampleRate(state, trackId);
     if (!sampleRate) return null;
     const count = Math.ceil((endSec - startSec) * sampleRate);
-    if (count <= 0 || count > MAX_RAW_SAMPLES) return null;
+    if (count <= 0) return null;
     const timing = createTimingContext(state.timeline);
     const segments = getAudioClipSegmentsInSeconds(state, trackId, startSec, endSec, timing);
     const result = new Float32Array(count);
@@ -190,13 +188,13 @@ export interface PluginAudioApi {
         endTime: number;
         stepSec: number;
         samplingOptions?: AudioSamplingOptions | null;
-    }): FeatureDataResult[];
+    }): FeatureDataRangeResult[];
 
     /**
      * Return a copy of the decoded PCM samples for a time window on a specific channel.
      * Returns null if the track is not loaded, the window is invalid, or the sample
-     * count in the window exceeds MAX_RAW_SAMPLES. Request a smaller window, use
-     * getRmsInWindow, or use the feature pipeline for large time ranges.
+     * decoded sample count for the requested window. Large windows allocate a correspondingly
+     * large result, so use getRmsInWindow or the feature pipeline when PCM detail is unnecessary.
      *
      * channel: 'left' = channel 0, 'right' = channel 1 (falls back to 0 for mono),
      *          'mono' (default) = average of all channels, number = explicit index.
@@ -229,6 +227,8 @@ export interface PluginTimingApi {
     beatsToSeconds(beats: number): number | null;
     beatsToTicks(beats: number): number;
     ticksToBeats(ticks: number): number;
+    /** Current global timeline meter. The returned value is a defensive copy. */
+    getTimeSignature(): { numerator: number; denominator: number } | null;
 }
 
 export interface PluginUtilityApi {
@@ -595,7 +595,6 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                 const endSample = Math.min(audioBuffer.length, Math.ceil(fileEndSec * sampleRate));
                 if (endSample <= startSample) return null;
                 const count = endSample - startSample;
-                if (count > MAX_RAW_SAMPLES) return null;
                 const numChannels = audioBuffer.numberOfChannels;
                 if (channel === 'mono') {
                     const result = new Float32Array(count);
@@ -705,6 +704,11 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
             },
             beatsToTicks,
             ticksToBeats,
+            getTimeSignature() {
+                if (!timelineStore || typeof timelineStore.getState !== 'function') return null;
+                const { beatsPerBar } = timelineStore.getState().timeline;
+                return { numerator: beatsPerBar, denominator: 4 };
+            },
         },
         utilities: {
             midiNoteToName(noteNumber) {

@@ -93,8 +93,6 @@ you never need to subtract the track's start position yourself.
 
 - the track is not loaded
 - the window is invalid (`endSec ≤ startSec`)
-- the sample count in the window exceeds `MAX_RAW_SAMPLES` (8192) — use a smaller window or switch
-  to the feature pipeline for longer views
 
 For RMS amplitude without pre-computed feature tracks, use `getRmsInWindow`:
 

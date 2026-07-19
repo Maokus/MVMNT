@@ -454,7 +454,7 @@ export class OscilloscopeElement extends SceneElement {
 }
 ```
 
-`getRawSamples` returns `null` if the window exceeds `MAX_RAW_SAMPLES` (8192 samples). For longer windows, use `sampleFeatureRange` with feature `'waveform'` instead.
+`getRawSamples` has no fixed request cap. It returns `null` only when the track is unavailable or the window is invalid; request only as much PCM as the visual needs.
 
 ### Reading MIDI Events
 

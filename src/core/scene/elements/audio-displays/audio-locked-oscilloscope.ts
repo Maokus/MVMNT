@@ -13,8 +13,7 @@ const { descriptor: PITCH_GUIDE_DESCRIPTOR } = createFeatureDescriptor({ feature
 const DEFAULT_LINE_COLOR = '#F472B6';
 const DEFAULT_BACKGROUND_COLOR = '#0F172A';
 
-// Conservative upper bound on raw window duration to stay within MAX_RAW_SAMPLES at 44.1 kHz.
-// 8192 / 44100 ≈ 185ms; we use 175ms to leave headroom for higher sample rates.
+// Keep the oscilloscope window short for a clear, responsive display.
 const MAX_WINDOW_SEC = 0.175;
 
 registerFeatureRequirements('audioLockedOscilloscope', [{ feature: 'pitchGuide' }]);

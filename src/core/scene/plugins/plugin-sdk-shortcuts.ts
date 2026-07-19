@@ -12,7 +12,7 @@ import { getPluginHostApi } from './host-api/get-plugin-host-api';
 import type { AudioSamplingOptions } from '@audio/features/audioFeatureTypes';
 import type { TimelineNoteEvent } from '@core/timing/types';
 import type { TimelineCCEvent } from '@core/timing/types';
-import type { FeatureInput, FeatureDataResult } from '@audio/features/sceneApi';
+import type { FeatureInput, FeatureDataResult, FeatureDataRangeResult } from '@audio/features/sceneApi';
 
 /**
  * Select notes in a specific time window
@@ -170,7 +170,7 @@ export function sampleAudioRange(
     endTime: number,
     stepSec: number,
     options?: { element?: object; samplingOptions?: AudioSamplingOptions | null } | null
-): FeatureDataResult[] {
+): FeatureDataRangeResult[] {
     const { api } = getPluginHostApi();
     if (!api) {
         return [];

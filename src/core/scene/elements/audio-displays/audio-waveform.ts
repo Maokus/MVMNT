@@ -6,7 +6,7 @@ import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 
-/** Maximum sample count that can be requested — must not exceed MAX_RAW_SAMPLES. */
+/** UI limit for a responsive waveform trace. The raw PCM API itself has no fixed cap. */
 const MAX_SAMPLE_COUNT = 8192;
 
 const DEFAULT_PRIMARY_LINE_COLOR = '#22D3EE';

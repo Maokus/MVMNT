@@ -123,8 +123,11 @@ describe('plugin host api', () => {
                 const results: any[] = [];
                 for (let t = startTime; t <= endTime + 1e-9; t += stepSec) {
                     results.push({
-                        values: [0.5],
-                        metadata: { descriptor: { featureKey: 'rms' }, frame: { values: [0.5] }, channels: 1 },
+                        time: t,
+                        result: {
+                            values: [0.5],
+                            metadata: { descriptor: { featureKey: 'rms' }, frame: { values: [0.5] }, channels: 1 },
+                        },
                     });
                 }
                 return results;
@@ -161,7 +164,9 @@ describe('plugin host api', () => {
             stepSec: 0.1,
         });
         expect(sampledRange).toHaveLength(3);
+        expect(sampledRange.map((entry) => entry.time)).toEqual([0, 0.1, 0.2]);
         expect(api.timing.beatsToTicks(2)).toBe(1920);
+        expect(api.timing.getTimeSignature()).toEqual({ numerator: 4, denominator: 4 });
         expect(api.utilities.midiNoteToName(60)).toBe('C4');
     });
 

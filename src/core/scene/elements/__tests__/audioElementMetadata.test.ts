@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
     getFeatureRequirements,
     registerFeatureRequirements,
+    registerFeatureRequirementsForElement,
     resetFeatureRequirementsForTests,
 } from '@audio/audioElementMetadata';
 
@@ -33,5 +34,13 @@ describe('audioElementMetadata', () => {
         (resolved as any).feature = 'mutated';
         const [next] = getFeatureRequirements('meter');
         expect(next).toEqual(requirement);
+    });
+
+    it('registers requirements from an element constructor type', () => {
+        class TestElement {
+            static readonly elementType = 'typedElement' as const;
+        }
+        registerFeatureRequirementsForElement(TestElement, [{ feature: 'rms' }]);
+        expect(getFeatureRequirements('typedElement')).toEqual([{ feature: 'rms' }]);
     });
 });

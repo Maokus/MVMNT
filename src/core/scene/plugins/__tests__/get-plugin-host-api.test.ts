@@ -34,6 +34,7 @@ function makeApi(overrides: Partial<PluginHostApi> = {}): PluginHostApi {
             beatsToSeconds: () => null,
             beatsToTicks: () => 0,
             ticksToBeats: () => 0,
+            getTimeSignature: () => ({ numerator: 4, denominator: 4 }),
         },
         utilities: {
             midiNoteToName: () => 'C4',

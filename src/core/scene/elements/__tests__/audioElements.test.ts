@@ -27,7 +27,12 @@ function makePluginApiResult(
         api: {
             audio: {
                 sampleFeatureAtTime: overrides.sampleFeatureAtTime ?? (() => null),
-                sampleFeatureRange: overrides.sampleFeatureRange ?? (() => []),
+                sampleFeatureRange: (args: { startTime: number; stepSec: number }) =>
+                    (overrides.sampleFeatureRange?.(args) ?? []).map((entry: any, index: number) =>
+                        entry && typeof entry === 'object' && 'result' in entry
+                            ? entry
+                            : { time: args.startTime + index * args.stepSec, result: entry }
+                    ),
                 getRawSamples: overrides.getRawSamples ?? (() => null),
                 getRmsInWindow: overrides.getRmsInWindow ?? (() => null),
                 getSampleRate: overrides.getSampleRate ?? (() => null),

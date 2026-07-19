@@ -35,6 +35,12 @@ export interface FeatureDataResult {
     metadata: FeatureDataMetadata;
 }
 
+/** A feature result paired with the exact timeline time that was requested. */
+export interface FeatureDataRangeResult {
+    time: number;
+    result: FeatureDataResult;
+}
+
 export interface ElementSubscriptionSnapshot {
     trackId: string;
     descriptor: AudioFeatureDescriptor;
@@ -114,7 +120,7 @@ export function getFeatureDataRange(
     endTime: number,
     stepSec: number,
     samplingOptions?: AudioSamplingOptions | null
-): FeatureDataResult[] {
+): FeatureDataRangeResult[] {
     if (stepSec <= 0 || endTime < startTime) return [];
 
     const builtDescriptor = buildDescriptor(feature);
@@ -133,20 +139,23 @@ export function getFeatureDataRange(
     );
 
     const opts = samplingOptions ?? undefined;
-    const results: FeatureDataResult[] = [];
+    const results: FeatureDataRangeResult[] = [];
     const nSteps = Math.round((endTime - startTime) / stepSec);
     for (let i = 0; i <= nSteps; i++) {
         const t = startTime + i * stepSec;
         const sample = sampleFeatureFrame(normalizedTrackId, descriptor, t, opts);
         if (sample) {
             results.push({
-                values: sample.values,
-                metadata: {
-                    descriptor,
-                    frame: sample,
-                    channels: Math.max(1, sample.channels || sample.channelValues?.length || 0),
-                    channelAliases: sample.channelAliases ?? sample.channelLayout?.aliases ?? null,
-                    channelLayout: sample.channelLayout ?? null,
+                time: t,
+                result: {
+                    values: sample.values,
+                    metadata: {
+                        descriptor,
+                        frame: sample,
+                        channels: Math.max(1, sample.channels || sample.channelValues?.length || 0),
+                        channelAliases: sample.channelAliases ?? sample.channelLayout?.aliases ?? null,
+                        channelLayout: sample.channelLayout ?? null,
+                    },
                 },
             });
         }

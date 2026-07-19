@@ -20,7 +20,6 @@ export { audioApi } from '@core/scene/plugins/plugin-sdk-capabilities';
 
 // Raw PCM access proxy — throws descriptively if capability is missing
 export { audioRawApi } from '@core/scene/plugins/plugin-sdk-capabilities';
-export { MAX_RAW_SAMPLES } from '@core/scene/plugins/host-api/plugin-api';
 
 // Calculator registration API
 export { audioCalculatorsApi } from '@core/scene/plugins/plugin-sdk-capabilities';
@@ -40,8 +39,8 @@ export { sampleAudio, sampleAudioRange } from '@core/scene/plugins/plugin-sdk-sh
 export { getFeatureDataRange } from '@audio/features/sceneApi';
 
 // Feature requirement registration (used in element class bodies)
-export { registerFeatureRequirements } from '@audio/audioElementMetadata';
-export type { AudioFeatureRequirement } from '@audio/audioElementMetadata';
+export { registerFeatureRequirements, registerFeatureRequirementsForElement } from '@audio/audioElementMetadata';
+export type { AudioFeatureRequirement, TypedSceneElementConstructor } from '@audio/audioElementMetadata';
 
 // Feature data types
-export type { FeatureDataResult, FeatureInput } from '@audio/features/sceneApi';
+export type { FeatureDataResult, FeatureDataRangeResult, FeatureInput } from '@audio/features/sceneApi';

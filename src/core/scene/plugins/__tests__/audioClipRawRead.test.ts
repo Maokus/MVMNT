@@ -40,4 +40,33 @@ describe('clip-aware raw audio reads', () => {
         expect(Array.from(samples!.slice(10))).toEqual([-0.5, -0.5]);
         expect(host.audio.getRmsInWindow({ trackId: 'clips', startSec: 1, endSec: 2 })).toEqual(new Float32Array([0]));
     });
+
+    it('allows raw PCM windows larger than the former fixed request cap', () => {
+        const sampleRate = 10_000;
+        const state = {
+            timeline: { globalBpm: 120, beatsPerBar: 4, masterTempoMap: undefined },
+            tracks: {
+                clips: {
+                    id: 'clips', type: 'audio', name: 'Clips', enabled: true, mute: false, solo: false, gain: 1,
+                    clips: [{ id: 'a', type: 'audio', sourceId: 'a', offsetTicks: 0, sourceStartSeconds: 0, sourceEndSeconds: 1 }],
+                },
+            },
+            audioCache: {
+                a: {
+                    durationSeconds: 3,
+                    durationTicks: 5760,
+                    sampleRate,
+                    channels: 1,
+                    durationSamples: sampleRate * 3,
+                    audioBuffer: buffer(0.25, sampleRate),
+                },
+            },
+        } as any;
+        const host = createPluginHostApi({ timelineStore: { getState: () => state } }).api;
+
+        const samples = host.audio.getRawSamples({ trackId: 'clips', startSec: 0, endSec: 1 });
+
+        expect(samples).toHaveLength(sampleRate);
+        expect(samples?.[0]).toBeCloseTo(0.25);
+    });
 });

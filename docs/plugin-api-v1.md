@@ -236,7 +236,7 @@ const bpm = state?.timeline.globalBpm ?? 120;
 Requires `audio.features.read` capability.
 
 - `sampleFeatureAtTime({ element?, trackId, feature, time, samplingOptions? }): FeatureDataResult | null`
-- `sampleFeatureRange({ element?, trackId, feature, startTime, endTime, stepSec, samplingOptions? }): FeatureDataResult[]`
+- `sampleFeatureRange({ element?, trackId, feature, startTime, endTime, stepSec, samplingOptions? }): Array<{ time, result }>`
 
 ```ts
 const spectrum = api.audio.sampleFeatureAtTime({
@@ -266,7 +266,19 @@ const frames = host.api.audio.sampleFeatureRange({
     endTime: targetTime + windowSec * (1 - startOffset),
     stepSec: windowSec / sampleCount,
 });
-const values = frames.map((f) => f.values?.[0] ?? 0);
+const values = frames.map(({ result }) => result.values?.[0] ?? 0);
+```
+
+Each entry's `time` is the actual request timestamp, so callers do not need to reconstruct it when unavailable frames are omitted.
+
+For static feature declarations, prefer the typed helper over a separate loose element-type string:
+
+```ts
+export class MyElement extends SceneElement {
+    static readonly elementType = 'my-element' as const;
+    // ...
+}
+registerFeatureRequirementsForElement(MyElement, [{ feature: 'rms' }]);
 ```
 
 ### `audioRaw`
@@ -279,7 +291,7 @@ Requires `audio.raw.read` capability. Use for short, sample-accurate time window
 
 `channel` accepts `'left'`, `'right'`, `'mono'`, or a channel index number.
 
-`getRawSamples` returns `null` if the track is not loaded, the window is invalid, or the sample count exceeds `MAX_RAW_SAMPLES` (8192). For longer windows switch to `sampleFeatureRange` with feature `'waveform'`.
+`getRawSamples` returns `null` if the track is not loaded or the window is invalid. It has no fixed request cap; because it returns a PCM copy, keep large requests intentional and use feature sampling or `getRmsInWindow` when sample-level detail is unnecessary.
 
 ```ts
 const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioRawRead]);
@@ -300,9 +312,11 @@ Requires `timing.conversion` capability (always available).
 - `beatsToSeconds(beats): number | null`
 - `beatsToTicks(beats): number`
 - `ticksToBeats(ticks): number`
+- `getTimeSignature(): { numerator, denominator } | null`
 
 ```ts
 const beats = api.timing.secondsToBeats(targetTime) ?? 0;
+const beatsPerBar = api.timing.getTimeSignature()?.numerator ?? 4;
 ```
 
 ### `utilities`

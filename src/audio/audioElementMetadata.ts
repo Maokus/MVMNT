@@ -19,6 +19,11 @@ export interface AudioFeatureRequirement {
 
 const ELEMENT_FEATURE_REQUIREMENTS = new Map<string, AudioFeatureRequirement[]>();
 
+/** Constructor shape used by plugin element definitions with a stable, literal type. */
+export interface TypedSceneElementConstructor<TType extends string = string> {
+    readonly elementType: TType;
+}
+
 function cloneRequirement(requirement: AudioFeatureRequirement): AudioFeatureRequirement {
     const { feature, bandIndex, calculatorId, profile, profileParams } = requirement;
     const cloned: AudioFeatureRequirement = { feature };
@@ -45,6 +50,20 @@ export function registerFeatureRequirements(elementType: string, requirements: A
         .filter((requirement): requirement is AudioFeatureRequirement => Boolean(requirement))
         .map((requirement) => cloneRequirement(requirement));
     ELEMENT_FEATURE_REQUIREMENTS.set(elementType, sanitized);
+}
+
+/**
+ * Register requirements using an element constructor's declared type.
+ *
+ * Define `static readonly elementType = 'my-plugin-element' as const` on the element class,
+ * then pass that class here. This keeps the requirements registration tied to the same typed
+ * definition used by the plugin rather than repeating a loose string at the call site.
+ */
+export function registerFeatureRequirementsForElement<TType extends string>(
+    ElementClass: TypedSceneElementConstructor<TType>,
+    requirements: AudioFeatureRequirement[]
+): void {
+    registerFeatureRequirements(ElementClass.elementType, requirements);
 }
 
 /**

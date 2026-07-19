@@ -502,7 +502,7 @@ export class AudioPeaksElement extends SceneElement {
                 samplingOptions: { interpolation: 'nearest' },
             });
             if (samples.length !== range.end - range.start + 1) continue;
-            samples.forEach((sample, offset) => this._peakSamples.set(range.start + offset, sample));
+            samples.forEach(({ result }, offset) => this._peakSamples.set(range.start + offset, result));
         }
 
         const samples: Array<FeatureDataResult | null> = [];
