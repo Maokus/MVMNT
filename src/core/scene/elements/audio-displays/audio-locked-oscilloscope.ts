@@ -2,12 +2,11 @@ import { SceneElement, asNumber } from '../base';
 import { Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
-import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { applyOpacity } from '@utils/color';
-import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
 import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
-import { defineHostAdaptedBuiltIn } from '@core/scene/plugins/built-in-definition';
+import { defineHostAdaptedBuiltIn, getEnginePrivateHostApi } from '@core/scene/plugins/built-in-definition';
 
 const { descriptor: PITCH_GUIDE_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchGuide' });
 
@@ -17,15 +16,12 @@ const DEFAULT_BACKGROUND_COLOR = '#0F172A';
 // Keep the oscilloscope window short for a clear, responsive display.
 const MAX_WINDOW_SEC = 0.175;
 
-registerFeatureRequirements('audioLockedOscilloscope', [{ feature: 'pitchGuide' }]);
-
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
     if (value < min) return min;
     if (value > max) return max;
     return value;
 }
-
 
 function resampleLinear(samples: Float32Array, count: number): number[] {
     if (samples.length === 0) return new Array<number>(count).fill(0);
@@ -180,7 +176,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
             return pushMessage('Select an audio track');
         }
 
-        const host = getRequiredPluginApi(this, [
+        const host = getEnginePrivateHostApi(this, [
             PLUGIN_CAPABILITIES.audioFeaturesRead,
             PLUGIN_CAPABILITIES.audioRawRead,
         ]);
@@ -354,4 +350,16 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
     }
 }
 
-export const audioLockedOscilloscope = defineHostAdaptedBuiltIn({ type: 'audioLockedOscilloscope', metadata: { name: 'Audio Locked Oscilloscope', description: 'Pitch-locked raw waveform', category: 'Audio Displays' }, capabilities: { required: ['audio.features.read', 'audio.raw.read'], optional: [] } }, AudioLockedOscilloscopeElement);
+export const audioLockedOscilloscope = defineHostAdaptedBuiltIn(
+    {
+        type: 'audioLockedOscilloscope',
+        metadata: {
+            name: 'Audio Locked Oscilloscope',
+            description: 'Pitch-locked raw waveform',
+            category: 'Audio Displays',
+        },
+        capabilities: { required: ['audio.features.read', 'audio.raw.read'], optional: [] },
+        featureRequirements: [{ feature: 'pitchGuide' }],
+    },
+    AudioLockedOscilloscopeElement
+);

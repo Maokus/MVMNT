@@ -13,6 +13,11 @@ To hot-reload this plugin, run MVMNT from its checkout in one terminal and then 
 npm run dev-plugin -- /absolute/path/to/{{ELEMENT_TYPE}}
 ```
 
+MVMNT must itself be running through `npm run dev`, not a production build. The default dev-plugin
+port is 7741. The initial bundle is installed when the browser connects, and later successful
+rebuilds unload and replace it without requiring a version bump. Restart the dev-plugin command
+after changing `plugin.json`; refresh MVMNT if it was opened before the dev-plugin server.
+
 Build a distributable bundle with:
 
 ```sh

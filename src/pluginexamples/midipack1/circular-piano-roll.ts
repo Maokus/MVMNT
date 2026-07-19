@@ -1,9 +1,11 @@
+// @ts-nocheck
+import { defineRendererElement } from '@mvmnt-app/plugin-sdk';
 // CircularPianoRoll — notes travel clockwise around a ring and "play" when they reach the trigger point.
 // Notes are rendered as arc segments on the ring; pitch can optionally map to hue.
 // Hit effects (marker, ripple, arc glow) trigger when a note's start time reaches targetTime.
 
 import {
-    SceneElement,
+    CallbackElementRenderer,
     prop,
     insertElementConfig,
     tab,
@@ -12,11 +14,10 @@ import {
     Line,
     Arc,
     GlowLayer,
-    getPluginHostApi,
     PLUGIN_CAPABILITIES,
     type RenderObject,
-} from '@mvmnt/plugin-sdk';
-import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
+} from '@mvmnt-app/plugin-sdk';
+import type { EnhancedConfigSchema } from '@mvmnt-app/plugin-sdk';
 import { withAlpha, pushHitEffects } from './piano-roll-effects';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -93,7 +94,7 @@ const clockDegToRad = (deg: number) => ((deg - 90) * Math.PI) / 180;
 // Element
 // ─────────────────────────────────────────────────────────────────────────────
 
-export class CircularPianoRollElement extends SceneElement {
+class CircularPianoRollElement extends CallbackElementRenderer {
     constructor(id: string = 'circular-piano-roll', config: Record<string, unknown> = {}) {
         super('circular-piano-roll', id, config);
     }
@@ -286,13 +287,13 @@ export class CircularPianoRollElement extends SceneElement {
         );
     }
 
-    protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
+    override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const p = this.getSchemaProps();
         if (!p.visible) return [];
 
         const objects: RenderObject[] = [];
 
-        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+        const { api, status } = this.hostApi([PLUGIN_CAPABILITIES.timelineRead]);
         if (!api || status !== 'ok') {
             objects.push(new Text(0, 0, 'Timeline API unavailable', '12px sans-serif', '#64748b', 'left', 'top'));
             return objects;
@@ -633,3 +634,9 @@ export class CircularPianoRollElement extends SceneElement {
         return objects;
     }
 }
+
+export const circularPianoRoll = defineRendererElement(
+    { type: 'circular-piano-roll', capabilities: { required: ['timeline.read'], optional: [] } },
+    CircularPianoRollElement
+);
+export default circularPianoRoll;

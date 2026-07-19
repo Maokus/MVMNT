@@ -13,7 +13,9 @@
 import { loadPlugin, unloadPlugin } from './plugin-loader';
 import { usePluginStore } from '@state/pluginStore';
 
-const DEV_PLUGIN_SERVER_PORT = 7741;
+const configuredPort = Number((import.meta as any).env?.VITE_DEV_PLUGIN_PORT);
+const DEV_PLUGIN_SERVER_PORT =
+    Number.isInteger(configuredPort) && configuredPort > 0 && configuredPort <= 65535 ? configuredPort : 7741;
 
 /**
  * Start listening for hot-reload events from the dev-plugin server.
@@ -29,18 +31,21 @@ export function startDevPluginWatcher(): void {
 
     eventSource.onopen = () => {
         hasConnected = true;
-        // Fetch status to log which plugin the dev server is serving.
+        // Fetch and install the current bundle. The initial rebuild may have
+        // completed before the SSE connection opened, so waiting for a later
+        // save would otherwise leave the plugin unloaded.
         fetch(`http://localhost:${DEV_PLUGIN_SERVER_PORT}/status`)
-            .then((r) => r.json())
+            .then((response) => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.json();
+            })
             .then((status: { pluginId?: string; ready?: boolean }) => {
-                if (status.pluginId) {
-                    console.log(
-                        `[DevPluginWatcher] Connected — serving plugin '${status.pluginId}'. ` +
-                        `Save a source file to trigger a hot reload.`
-                    );
+                if (status.pluginId && status.ready) {
+                    console.log(`[DevPluginWatcher] Connected — loading plugin '${status.pluginId}'.`);
+                    void hotReloadPlugin(status.pluginId);
                 }
             })
-            .catch(() => {});
+            .catch((error) => console.warn('[DevPluginWatcher] Could not load the initial plugin bundle:', error));
     };
 
     eventSource.onmessage = (event) => {
@@ -56,8 +61,8 @@ export function startDevPluginWatcher(): void {
 
     eventSource.onerror = () => {
         if (!hasConnected) {
-            // Server not running — close quietly. The watcher can be re-activated
-            // by refreshing the page after starting `npm run dev-plugin`.
+            // Server not running — close quietly. Refresh after starting the
+            // plugin server to establish a fresh connection.
             eventSource.close();
         }
     };
@@ -83,8 +88,7 @@ async function hotReloadPlugin(pluginId: string): Promise<void> {
         const result = await loadPlugin(buffer);
         if (result.success) {
             console.log(
-                `[DevPluginWatcher] Hot reloaded '${pluginId}' ` +
-                `(${result.registeredTypes?.length ?? 0} element(s))`
+                `[DevPluginWatcher] Hot reloaded '${pluginId}' ` + `(${result.registeredTypes?.length ?? 0} element(s))`
             );
         } else {
             console.error(`[DevPluginWatcher] Failed to reload '${pluginId}':`, result.error);

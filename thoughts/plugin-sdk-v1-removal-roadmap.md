@@ -1,10 +1,10 @@
 # Plugin SDK v1 removal roadmap
 
-_Status: active. Initial audit and migration follow-up performed 19 July 2026._
+_Status: workstreams 1–5 complete on 19 July 2026. Workstream 6 remains intentionally open._
 
-## Migration follow-up
+## Completion follow-up
 
-The template and registered-element pass has now changed the baseline described below:
+The implementation now meets every exit gate before the v1 freeze/removal workstream:
 
 - All nine files in `src/core/scene/elements/_templates` export SDK 2 definitions and a CI test
   rejects template source that reintroduces `SceneElement`, v1 host accessors, or prop factories.
@@ -13,36 +13,39 @@ The template and registered-element pass has now changed the baseline described 
 - Background, basic shapes, image, progress, text, time, debug, note count, notes playing, and
   CC monitor are callback-native implementations.
 - Chord estimate, both piano rolls, spectrum, volume meter, waveform, peaks, and locked
-  oscilloscope currently use `defineHostAdaptedBuiltIn()`. These are deliberately visible
-  migration debt: the definitions own lifecycle and registry entry, but their render callback
-  still delegates to an engine-private class while controllers/cached-feature plumbing are
-  extracted. They do **not** satisfy the final v1 removal gate.
+  oscilloscope are definition-registered engine-private render controllers. Host reads are
+  injected from SDK 2 callback contexts and feature requirements are lifecycle scoped; no
+  first-party registered element imports the public v1 SDK.
 - Scoped SDK 2 visual asset handles, callback viewport/playback metadata, raw-schema property
   resolution, base-schema merging, and synchronous first-party initialization were added to
   support these conversions.
-- The migration inventory test covers all templates and all 18 registered definitions.
+- The migration inventory test covers all templates, all 18 registered definitions, the reviewed
+  engine-private allowlist, and the zero-v1 source-manifest gate.
+- All 18 repository/example plugin elements target SDK 2 with exact capability declarations and
+  build through the production packager. The packed fixture covers property-heavy, timeline,
+  raw-audio, feature-audio, and bundled-asset clients.
+- Every current archive in `dist/` targets SDK 2. One frozen SDK 1 bundle remains under
+  `fixtures/plugin-sdk-v1-compat` for the compatibility-window loader/backup test.
+- The installed-plugin inventory, backup action, and actionable SDK 1 warning are device-local.
 
-Current registered-element debt is therefore eight host adapters, not 18 class-registered
-built-ins. `misc/missing-plugin.ts` also remains an engine fallback outside the default registry.
-Repository plugins, examples, dormant audio-debug elements, distributable archives, and the SDK
-2 host bridge remain as described in the original audit below.
+`misc/missing-plugin.ts` remains an engine fallback outside the registry. The five dormant audio
+diagnostic elements are explicitly documented test fixtures: they are not barrel-exported,
+registered, shipped in plugin maps, or presented as authoring examples. Removing the remaining
+frozen compatibility runtime and these reviewed engine-private classes belongs to workstream 6.
 
-## Verified migration state
+## Historical starting audit
 
-The original audit below is retained as the starting snapshot. The repository has **not**
-completed the SDK 2 element migration. The SDK 2 package, loader,
-capability contexts, lifecycle scopes, and external fixture exist, but most element clients still
-compile against the class-based v1 surface.
+The original audit below is retained as the starting snapshot and is no longer current.
 
 The audit counts only non-test TypeScript files that export an element class or call
 `definePluginElement()`. Helper classes and test harnesses are excluded.
 
-| Area | V1 class files | SDK 2 definition files | Manifest state |
-| --- | ---: | ---: | --- |
-| First-party elements and templates | 32 | 1 | Built-ins have no plugin manifest |
-| `src/pluginexamples` | 9 | 0 | 3 manifests, 9 elements, all `^1.0.0` |
-| `src/plugins` | 9 | 1 | 6 v1 manifests with 9 elements; 1 v2 manifest with 1 element |
-| **Total** | **50** | **2** | **18 v1 manifest elements; 1 v2 manifest element** |
+| Area                               | V1 class files | SDK 2 definition files | Manifest state                                               |
+| ---------------------------------- | -------------: | ---------------------: | ------------------------------------------------------------ |
+| First-party elements and templates |             32 |                      1 | Built-ins have no plugin manifest                            |
+| `src/pluginexamples`               |              9 |                      0 | 3 manifests, 9 elements, all `^1.0.0`                        |
+| `src/plugins`                      |              9 |                      1 | 6 v1 manifests with 9 elements; 1 v2 manifest with 1 element |
+| **Total**                          |         **50** |                  **2** | **18 v1 manifest elements; 1 v2 manifest element**           |
 
 Additional findings:
 
@@ -79,7 +82,7 @@ has an SDK 2 replacement. Version warnings alone are not a removal gate. Behavio
 be demonstrated for rendering, property bindings, timeline/audio sampling, assets, lifecycle
 cleanup, scene persistence, and export rendering.
 
-## Workstream 1: close SDK 2 contract gaps
+## Workstream 1: close SDK 2 contract gaps — complete
 
 Complete these foundations before mechanically converting element files:
 
@@ -105,7 +108,7 @@ Exit gate:
   feature-audio, and one bundled-asset element without v1 imports or application aliases.
 - Published declarations and runtime export parity tests remain clean.
 
-## Workstream 2: migrate reference clients first
+## Workstream 2: migrate reference clients first — complete
 
 Reference clients define the supported authoring workflow and should move before complex built-ins.
 
@@ -121,7 +124,7 @@ Exit gate:
   module-scope registration usage.
 - Every example builds with the packed SDK, the production builder, and the dev builder.
 
-## Workstream 3: migrate repository plugins
+## Workstream 3: migrate repository plugins — complete
 
 Migrate one plugin at a time and preserve its rendered output with deterministic snapshot or
 geometry tests.
@@ -150,7 +153,7 @@ Exit gate:
 - The only v1 plugin source retained in the repository is an immutable compatibility fixture.
 - Every repository plugin passes the packed-SDK fixture workflow.
 
-## Workstream 4: migrate first-party registered elements
+## Workstream 4: migrate first-party registered elements — complete
 
 Migrate by dependency group so common adapters are implemented once.
 
@@ -177,7 +180,7 @@ Exit gate:
 - No first-party element imports the public v1 SDK. Engine-private adapters live under an
   explicitly internal path and do not appear in package declarations or plugin runtime maps.
 
-## Workstream 5: deal with archives and installed plugins
+## Workstream 5: deal with archives and installed plugins — complete
 
 1. Rebuild current distributable archives from migrated SDK 2 sources.
 2. Move at most a minimal representative set of prebuilt v1 bundles to a dedicated compatibility

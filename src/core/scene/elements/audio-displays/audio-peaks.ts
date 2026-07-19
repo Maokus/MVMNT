@@ -2,17 +2,11 @@ import { SceneElement, asNumber, asTrimmedString } from '../base';
 import { Line, Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
-import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
-import {
-    getRequiredPluginApi,
-    PLUGIN_CAPABILITIES,
-    type FeatureDataResult,
-    type RequiredPluginApiResult,
-} from '@mvmnt/plugin-sdk';
+import { PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
 import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
-import { defineHostAdaptedBuiltIn } from '@core/scene/plugins/built-in-definition';
+import { defineHostAdaptedBuiltIn, getEnginePrivateHostApi } from '@core/scene/plugins/built-in-definition';
 
 const { descriptor: PEAKS_DESCRIPTOR } = createFeatureDescriptor({ feature: 'peaks' });
 
@@ -25,7 +19,8 @@ type PeaksChannel = 'left' | 'right' | 'mid' | 'side';
 const DEFAULT_PRIMARY_CHANNEL: PeaksChannel = 'left';
 const DEFAULT_SECONDARY_CHANNEL: PeaksChannel = 'right';
 
-registerFeatureRequirements('audioPeaks', [{ feature: 'peaks' }]);
+type FeatureDataResult = { values: number[]; metadata: any };
+type RequiredPluginApiResult = any;
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -33,7 +28,6 @@ function clamp(value: number, min: number, max: number): number {
     if (value > max) return max;
     return value;
 }
-
 
 function normalizePeaksChannel(value: unknown, fallback: PeaksChannel): PeaksChannel {
     if (value === 'left' || value === 'right' || value === 'mid' || value === 'side') {
@@ -449,7 +443,7 @@ export class AudioPeaksElement extends SceneElement {
             return pushMessage('Select an audio track');
         }
 
-        const host = getRequiredPluginApi(this, [
+        const host = getEnginePrivateHostApi(this, [
             PLUGIN_CAPABILITIES.audioFeaturesRead,
             PLUGIN_CAPABILITIES.timelineRead,
             PLUGIN_CAPABILITIES.timingConversion,
@@ -504,7 +498,9 @@ export class AudioPeaksElement extends SceneElement {
                 samplingOptions: { interpolation: 'nearest' },
             });
             if (samples.length !== range.end - range.start + 1) continue;
-            samples.forEach(({ result }, offset) => this._peakSamples.set(range.start + offset, result));
+            samples.forEach(({ result }: { result: FeatureDataResult }, offset: number) =>
+                this._peakSamples.set(range.start + offset, result)
+            );
         }
 
         const samples: Array<FeatureDataResult | null> = [];
@@ -517,14 +513,32 @@ export class AudioPeaksElement extends SceneElement {
         }
 
         const primarySeries = aggregatePeakSeries(
-            samples, firstSampleIndex, firstBucketIndex, lastBucketIndex, samplesPerBucket,
-            bucketSeconds, startSeconds, windowSeconds, width, primaryChannel, gain
+            samples,
+            firstSampleIndex,
+            firstBucketIndex,
+            lastBucketIndex,
+            samplesPerBucket,
+            bucketSeconds,
+            startSeconds,
+            windowSeconds,
+            width,
+            primaryChannel,
+            gain
         );
         const secondarySeries =
             secondaryChannel !== primaryChannel
                 ? aggregatePeakSeries(
-                      samples, firstSampleIndex, firstBucketIndex, lastBucketIndex, samplesPerBucket,
-                      bucketSeconds, startSeconds, windowSeconds, width, secondaryChannel, gain
+                      samples,
+                      firstSampleIndex,
+                      firstBucketIndex,
+                      lastBucketIndex,
+                      samplesPerBucket,
+                      bucketSeconds,
+                      startSeconds,
+                      windowSeconds,
+                      width,
+                      secondaryChannel,
+                      gain
                   )
                 : null;
 
@@ -553,7 +567,7 @@ export class AudioPeaksElement extends SceneElement {
                             height
                         );
                         const lineColor = applyOpacity(
-                            isBar ? props.barLineColor ?? '#94A3B8' : props.beatLineColor ?? '#64748B',
+                            isBar ? (props.barLineColor ?? '#94A3B8') : (props.beatLineColor ?? '#64748B'),
                             props.beatGridOpacity ?? 0.45
                         );
                         const lineY = (height - lineLength) / 2;
@@ -614,4 +628,12 @@ export class AudioPeaksElement extends SceneElement {
     }
 }
 
-export const audioPeaks = defineHostAdaptedBuiltIn({ type: 'audioPeaks', metadata: { name: 'Audio Peaks', description: 'Audio peak history display', category: 'Audio Displays' }, capabilities: { required: ['audio.features.read', 'timeline.read'], optional: ['timing.conversion'] } }, AudioPeaksElement);
+export const audioPeaks = defineHostAdaptedBuiltIn(
+    {
+        type: 'audioPeaks',
+        metadata: { name: 'Audio Peaks', description: 'Audio peak history display', category: 'Audio Displays' },
+        capabilities: { required: ['audio.features.read', 'timeline.read'], optional: ['timing.conversion'] },
+        featureRequirements: [{ feature: 'peaks' }],
+    },
+    AudioPeaksElement
+);

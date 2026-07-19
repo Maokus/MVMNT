@@ -57,7 +57,8 @@ export class SceneElementRegistry {
     }
 
     registerElementFromDefinition(type: string, definition: PluginElementDefinition<any, any>) {
-        if (definition.type !== type) throw new Error(`Built-in definition type '${definition.type}' does not match '${type}'`);
+        if (definition.type !== type)
+            throw new Error(`Built-in definition type '${definition.type}' does not match '${type}'`);
         this.registerElementFromClass(type, createBuiltInDefinitionElementClass(definition));
     }
 
@@ -232,11 +233,6 @@ export class SceneElementRegistry {
         this.registerElementFromDefinition('audioPeaks', elements.audioPeaks);
         this.registerElementFromDefinition('audioLockedOscilloscope', elements.audioLockedOscilloscope);
 
-        // this.registerElementFromClass('audioMinimal', elements.AudioMinimalElement);
-        // this.registerElementFromClass('audioOddProfile', elements.AudioOddProfileElement);
-        // this.registerElementFromClass('audioAdhocProfile', elements.AudioAdhocProfileElement);
-        // this.registerElementFromClass('audioBadReq', elements.AudioBadReqElement);
-        // this.registerElementFromClass('audioDebug', elements.AudioDebugElement);
         this.registerElementFromDefinition('debug', elements.debug);
     }
 }

@@ -2,12 +2,11 @@ import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from 
 import { Arc, Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import type { FeatureDataResult } from '@audio/features/sceneApi';
-import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { applyOpacity } from '@utils/color';
-import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
 import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
-import { defineHostAdaptedBuiltIn } from '@core/scene/plugins/built-in-definition';
+import { defineHostAdaptedBuiltIn, getEnginePrivateHostApi } from '@core/scene/plugins/built-in-definition';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -15,7 +14,6 @@ function clamp(value: number, min: number, max: number): number {
     if (value > max) return max;
     return value;
 }
-
 
 const DEFAULT_BAR_COLOR = '#60A5FA';
 const DEFAULT_BACKGROUND_COLOR = '#0F172A';
@@ -31,8 +29,6 @@ export type AudioSpectrumDisplayMode = (typeof SPECTRUM_DISPLAY_MODES)[number];
 
 const spectrumScaleSet = new Set<string>(SPECTRUM_SCALES);
 const spectrumDisplaySet = new Set<string>(SPECTRUM_DISPLAY_MODES);
-
-registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
 
 const normalizeSpectrumScale: PropertyTransform<AudioSpectrumScale, SceneElementInterface> = (value, element) => {
     const normalized = (asTrimmedString(value, element) ?? '').toLowerCase();
@@ -350,7 +346,7 @@ export class AudioSpectrumElement extends SceneElement {
             return pushMessage('Select an audio track');
         }
 
-        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioFeaturesRead]);
+        const host = getEnginePrivateHostApi(this, [PLUGIN_CAPABILITIES.audioFeaturesRead]);
         const sample = host.ok
             ? host.api.audio.sampleFeatureAtTime({
                   element: this,
@@ -449,4 +445,12 @@ export class AudioSpectrumElement extends SceneElement {
     }
 }
 
-export const audioSpectrum = defineHostAdaptedBuiltIn({ type: 'audioSpectrum', metadata: { name: 'Audio Spectrum', description: 'Frequency spectrum display', category: 'Audio Displays' }, capabilities: { required: ['audio.features.read'], optional: [] } }, AudioSpectrumElement);
+export const audioSpectrum = defineHostAdaptedBuiltIn(
+    {
+        type: 'audioSpectrum',
+        metadata: { name: 'Audio Spectrum', description: 'Frequency spectrum display', category: 'Audio Displays' },
+        capabilities: { required: ['audio.features.read'], optional: [] },
+        featureRequirements: [{ feature: 'spectrogram' }],
+    },
+    AudioSpectrumElement
+);

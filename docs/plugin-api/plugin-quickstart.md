@@ -132,6 +132,10 @@ export const pulse = definePluginElement({
 });
 ```
 
+The checked-in `src/pluginexamples` directories are the canonical larger examples and are built
+by the same production and development builders used for plugin releases. Documentation links to
+those sources instead of maintaining divergent copies.
+
 Then type-check it from the plugin folder:
 
 ```sh
@@ -217,13 +221,31 @@ For hot reload while running MVMNT in development mode:
 npm run dev
 
 # Terminal 2, in the MVMNT checkout
-npm run dev-plugin /absolute/path/to/pulse-plugin
+npm run dev-plugin -- /absolute/path/to/pulse-plugin
 ```
 
-The development plugin server rebuilds on save and serves the latest bundle over its local SSE
-endpoint. When MVMNT is running in Vite development mode, it connects to the default local port
-automatically and replaces the plugin definition without a full application reload. If MVMNT was
-already open when you started `dev-plugin`, refresh it once to establish the connection.
+The development server performs a real SDK 2 build and archive load; it does not import source
+files directly into Vite. The browser connects on port 7741, loads the initial in-memory archive,
+and replaces the registered plugin after each successful rebuild. If MVMNT tried to connect before
+the server was running, refresh the browser once.
+
+See the [development loading guide](dev-plugin-workflow.md) for the complete request flow,
+non-default ports, state and asset behavior, manifest changes, persistence, and troubleshooting.
+
+### Font properties
+
+Declare selectable fonts with a schema property whose `type` is `font`. MVMNT requests each
+selected family and weight as soon as the scene instance is created and invalidates the canvas
+when it becomes available; opening the Appearance inspector is not required. Use
+`parseFontSelection()` to build a canvas font string because stored selections can represent a
+Google font or a scene-managed custom-font asset:
+
+```ts
+import { parseFontSelection } from '@mvmnt-app/plugin-sdk/utils';
+
+const selected = parseFontSelection(props.fontFamily);
+const font = `${selected.weight ?? 400} 32px "${selected.family}", sans-serif`;
+```
 
 ## Assets, audio, and next steps
 

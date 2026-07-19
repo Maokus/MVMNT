@@ -1,12 +1,8 @@
-import {
-    SceneElement,
-    asNumber,
-    asTrimmedString,
-    type EnhancedConfigSchema,
-    insertElementConfig,
-    tab,
-} from '@mvmnt/plugin-sdk';
-import { Rectangle, Text, type RenderObject } from '@mvmnt/plugin-sdk/render';
+import { SceneElement, asNumber, asTrimmedString } from '../base';
+import type { EnhancedConfigSchema } from '@core/types';
+import { insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 
 export class MissingPluginElement extends SceneElement {
     constructor(id: string = 'missingPlugin', config: { [key: string]: any } = {}) {

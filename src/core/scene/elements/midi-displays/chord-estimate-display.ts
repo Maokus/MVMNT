@@ -15,8 +15,8 @@ import {
     type EstimatedChord,
     type MusicpyChordResult,
 } from '@core/midi/music-theory/chord-estimator';
-import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
-import { defineHostAdaptedBuiltIn } from '@core/scene/plugins/built-in-definition';
+import { PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
+import { defineHostAdaptedBuiltIn, getEnginePrivateHostApi } from '@core/scene/plugins/built-in-definition';
 
 const clampWindowSeconds: PropertyTransform<number, SceneElementInterface> = (value, element) => {
     const numeric = asNumber(value, element);
@@ -426,7 +426,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
         // Active notes and chroma via plugin host API
         const noteEvents: { note: number; channel: number; startTime: number; endTime: number; velocity: number }[] =
             [];
-        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
+        const host = getEnginePrivateHostApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
         if (midiTrackId && host.ok) {
             const notes = host.api.timeline.selectNotesInWindow({
                 trackIds: [midiTrackId],
@@ -683,4 +683,15 @@ export class ChordEstimateDisplayElement extends SceneElement {
     }
 }
 
-export const chordEstimateDisplay = defineHostAdaptedBuiltIn({ type: 'chordEstimateDisplay', metadata: { name: 'Chord Estimate Display', description: 'Timeline-backed chord estimation', category: 'MIDI Displays' }, capabilities: { required: ['timeline.read'], optional: [] } }, ChordEstimateDisplayElement);
+export const chordEstimateDisplay = defineHostAdaptedBuiltIn(
+    {
+        type: 'chordEstimateDisplay',
+        metadata: {
+            name: 'Chord Estimate Display',
+            description: 'Timeline-backed chord estimation',
+            category: 'MIDI Displays',
+        },
+        capabilities: { required: ['timeline.read'], optional: [] },
+    },
+    ChordEstimateDisplayElement
+);

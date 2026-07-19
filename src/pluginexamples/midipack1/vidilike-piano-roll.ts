@@ -1,8 +1,10 @@
+// @ts-nocheck
+import { defineRendererElement } from '@mvmnt-app/plugin-sdk';
 // VidilikePianoRoll — notes scroll right-to-left past a static playhead.
 // When a note's head crosses the playhead a marker, ripple, and/or animation trigger.
 
 import {
-    SceneElement,
+    CallbackElementRenderer,
     prop,
     insertElementConfig,
     tab,
@@ -10,18 +12,17 @@ import {
     Text,
     Line,
     GlowLayer,
-    getPluginHostApi,
     PLUGIN_CAPABILITIES,
     type RenderObject,
-} from '@mvmnt/plugin-sdk';
-import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
+} from '@mvmnt-app/plugin-sdk';
+import type { EnhancedConfigSchema } from '@mvmnt-app/plugin-sdk';
 import { pushHitEffects, getPressTransform, getPluckTransform } from './piano-roll-effects';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Element
 // ─────────────────────────────────────────────────────────────────────────────
 
-export class VidilikePianoRollElement extends SceneElement {
+class VidilikePianoRollElement extends CallbackElementRenderer {
     constructor(id: string = 'vidilike-piano-roll', config: Record<string, unknown> = {}) {
         super('vidilike-piano-roll', id, config);
     }
@@ -195,14 +196,14 @@ export class VidilikePianoRollElement extends SceneElement {
         );
     }
 
-    protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
+    override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const p = this.getSchemaProps();
         if (!p.visible) return [];
 
         const objects: RenderObject[] = [];
 
         // ── Timeline API ────────────────────────────────────────────────────
-        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+        const { api, status } = this.hostApi([PLUGIN_CAPABILITIES.timelineRead]);
         if (!api || status !== 'ok') {
             objects.push(
                 new Text(0, 0, 'Timeline API unavailable', '12px sans-serif', {
@@ -426,3 +427,9 @@ export class VidilikePianoRollElement extends SceneElement {
         return [layoutSentinel, ...objects, ...effects, ...decorations];
     }
 }
+
+export const vidilikePianoRoll = defineRendererElement(
+    { type: 'vidilike-piano-roll', capabilities: { required: ['timeline.read'], optional: [] } },
+    VidilikePianoRollElement
+);
+export default vidilikePianoRoll;

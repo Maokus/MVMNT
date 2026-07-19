@@ -7,12 +7,12 @@ import { AnimationController } from './animation-controller';
 import { getAnimationSelectOptions } from '@core/scene/elements/midi-displays/note-animations';
 import { NoteBlock } from './note-block';
 import { TimingManager } from '@core/timing/timing-manager';
-import { getRequiredPluginApi, PLUGIN_CAPABILITIES, noteName } from '@mvmnt/plugin-sdk';
+import { PLUGIN_CAPABILITIES, midiNoteToName as noteName } from '@mvmnt-app/plugin-sdk';
 import { debugLog } from '@utils/debug-log';
 import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
 import { insertElementConfig, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
-import { defineHostAdaptedBuiltIn } from '@core/scene/plugins/built-in-definition';
+import { defineHostAdaptedBuiltIn, getEnginePrivateHostApi } from '@core/scene/plugins/built-in-definition';
 
 const DEFAULT_ROLL_WIDTH = 800;
 const DEFAULT_NOTE_COLOR = '#FF6B6B';
@@ -464,7 +464,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const beatLabelOffsetX = props.beatLabelOffsetX as number;
         const beatLabelOpacity = props.beatLabelOpacity as number;
         const attackDuration = props.attackDuration as number;
-        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
+        const host = getEnginePrivateHostApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
         const timelineState = host.ok ? host.api.timeline.getStateSnapshot() : null;
         if (noteLabelFontFamily) ensureFontLoaded(noteLabelFontFamily, noteLabelFontWeight);
         if (beatLabelFontFamily) ensureFontLoaded(beatLabelFontFamily, beatLabelFontWeight);
@@ -563,7 +563,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                           endSec: queryEnd,
                       })
                     : [];
-                sourceNotes = events.map((e) => ({
+                sourceNotes = events.map((e: any) => ({
                     note: e.note,
                     channel: e.channel,
                     velocity: e.velocity || 0,
@@ -976,4 +976,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
     }
 }
 
-export const timeUnitPianoRoll = defineHostAdaptedBuiltIn({ type: 'timeUnitPianoRoll', metadata: { name: 'Time Unit Piano Roll', description: 'Time-unit MIDI piano roll', category: 'MIDI Displays' }, capabilities: { required: ['timeline.read'], optional: ['timing.conversion'] } }, TimeUnitPianoRollElement);
+export const timeUnitPianoRoll = defineHostAdaptedBuiltIn(
+    {
+        type: 'timeUnitPianoRoll',
+        metadata: { name: 'Time Unit Piano Roll', description: 'Time-unit MIDI piano roll', category: 'MIDI Displays' },
+        capabilities: { required: ['timeline.read'], optional: ['timing.conversion'] },
+    },
+    TimeUnitPianoRollElement
+);

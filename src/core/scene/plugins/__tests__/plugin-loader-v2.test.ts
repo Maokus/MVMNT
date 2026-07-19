@@ -15,21 +15,23 @@ function bundle(): ArrayBuffer {
         name: 'Loader v2 fixture',
         version: '1.0.0',
         apiVersion: '^2.0.0',
-        elements: [{
-            type: 'loader-v2',
-            entry: 'elements/loader-v2.js',
-            capabilities: { required: [], optional: [] },
-        }],
+        elements: [
+            {
+                type: 'loader-v2',
+                entry: 'elements/loader-v2.js',
+                capabilities: { required: [], optional: [] },
+            },
+        ],
     };
     const code = `
-const { definePluginElement } = require('@mvmnt-app/plugin-sdk');
-module.exports = definePluginElement({
-  type: 'loader-v2',
-  metadata: { name: 'Loader v2' },
-  schema: { tabs: [] },
-  capabilities: { required: [], optional: [] },
-  render() { return []; }
-});`;
+const { CallbackElementRenderer, defineRendererElement } = require('@mvmnt-app/plugin-sdk');
+class LoaderRenderer extends CallbackElementRenderer {
+  static getConfigSchema() { return { name: 'Loader v2', description: '', tabs: [] }; }
+  _buildRenderObjects() { return []; }
+}
+module.exports = defineRendererElement({
+  type: 'loader-v2', capabilities: { required: [], optional: [] }
+}, LoaderRenderer);`;
     const bytes = zipSync({
         'manifest.json': new TextEncoder().encode(JSON.stringify(manifest)),
         'elements/loader-v2.js': new TextEncoder().encode(code),
@@ -39,7 +41,10 @@ module.exports = definePluginElement({
 
 function v1Bundle(): ArrayBuffer {
     const manifest = {
-        id: v1PluginId, name: 'Loader v1 fixture', version: '1.0.0', apiVersion: '^1.0.0',
+        id: v1PluginId,
+        name: 'Loader v1 fixture',
+        version: '1.0.0',
+        apiVersion: '^1.0.0',
         elements: [{ type: 'loader-v1', entry: 'elements/loader-v1.js' }],
     };
     const code = `
@@ -85,12 +90,15 @@ describe('v2 plugin loader fixture', () => {
         const bytes = bundle();
         const archive = await import('fflate').then(({ unzipSync, zipSync }) => {
             const files = unzipSync(new Uint8Array(bytes));
-            const code = new TextDecoder().decode(files['elements/loader-v2.js'])
+            const code = new TextDecoder()
+                .decode(files['elements/loader-v2.js'])
                 .replace('optional: []', "optional: ['midi.utils']");
             files['elements/loader-v2.js'] = new TextEncoder().encode(code);
             return zipSync(files);
         });
-        const result = await loadPlugin(archive.buffer.slice(archive.byteOffset, archive.byteOffset + archive.byteLength) as ArrayBuffer);
+        const result = await loadPlugin(
+            archive.buffer.slice(archive.byteOffset, archive.byteOffset + archive.byteLength) as ArrayBuffer
+        );
         expect(result.success).toBe(false);
         expect(result.error).toContain('Capability declaration mismatch');
     });

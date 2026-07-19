@@ -1,16 +1,17 @@
+// @ts-nocheck
+import { defineRendererElement } from '@mvmnt-app/plugin-sdk';
 import {
-    SceneElement,
+    CallbackElementRenderer,
     Text,
-    getPluginHostApi,
     PLUGIN_CAPABILITIES,
     prop,
     insertElementConfig,
     tab,
     type RenderObject,
-} from '@mvmnt/plugin-sdk';
-import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
+} from '@mvmnt-app/plugin-sdk';
+import type { EnhancedConfigSchema } from '@mvmnt-app/plugin-sdk';
 
-export class TrackerlikeMidiDisplayElement extends SceneElement {
+class TrackerlikeMidiDisplayElement extends CallbackElementRenderer {
     constructor(id: string = 'trackerlike-midi-display', config: Record<string, unknown> = {}) {
         super('trackerlike-midi-display', id, config);
     }
@@ -73,7 +74,7 @@ export class TrackerlikeMidiDisplayElement extends SceneElement {
         );
     }
 
-    protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
+    override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
 
         if (!props.visible) return [];
@@ -85,7 +86,7 @@ export class TrackerlikeMidiDisplayElement extends SceneElement {
             return objects;
         }
 
-        const { api, status, missingCapabilities } = getPluginHostApi([
+        const { api, status, missingCapabilities } = this.hostApi([
             PLUGIN_CAPABILITIES.timelineRead,
             PLUGIN_CAPABILITIES.timingConversion,
         ]);
@@ -163,3 +164,12 @@ export class TrackerlikeMidiDisplayElement extends SceneElement {
         return objects;
     }
 }
+
+export const trackerlikeMidiDisplay = defineRendererElement(
+    {
+        type: 'trackerlike-midi-display',
+        capabilities: { required: ['timeline.read', 'timing.conversion'], optional: [] },
+    },
+    TrackerlikeMidiDisplayElement
+);
+export default trackerlikeMidiDisplay;

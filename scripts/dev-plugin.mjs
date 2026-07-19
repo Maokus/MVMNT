@@ -23,7 +23,12 @@ import http from 'http';
 import { fileURLToPath } from 'url';
 import { build } from 'esbuild';
 import * as fflate from 'fflate';
-import { PLUGIN_EXTERNALS, targetsFrozenV1, validateElementImports, validateManifestContract } from './plugin-contract.mjs';
+import {
+    PLUGIN_EXTERNALS,
+    targetsFrozenV1,
+    validateElementImports,
+    validateManifestContract,
+} from './plugin-contract.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -81,7 +86,9 @@ try {
 }
 
 if (targetsFrozenV1(manifest)) {
-    console.error(`Error: ${manifest.id} targets ${manifest.apiVersion ?? manifest.mvmntVersion}. The dev builder only accepts SDK ^2.0.0 source; installed v1 bundles remain loadable during the compatibility window.`);
+    console.error(
+        `Error: ${manifest.id} targets ${manifest.apiVersion ?? manifest.mvmntVersion}. The dev builder only accepts SDK ^2.0.0 source; installed v1 bundles remain loadable during the compatibility window.`
+    );
     process.exit(1);
 }
 
@@ -89,7 +96,9 @@ const manifestErrors = validateManifestContract(manifest, pluginDir);
 for (const element of manifest.elements ?? []) {
     const sourcePath = path.join(pluginDir, element.entry ?? '');
     if (fs.existsSync(sourcePath)) {
-        manifestErrors.push(...validateElementImports(fs.readFileSync(sourcePath, 'utf8'), element.type, manifest.apiVersion).errors);
+        manifestErrors.push(
+            ...validateElementImports(fs.readFileSync(sourcePath, 'utf8'), element.type, manifest.apiVersion).errors
+        );
     }
 }
 if (manifestErrors.length > 0) {
@@ -122,7 +131,7 @@ async function bundleElement(element, buildDir) {
         outfile: outputPath,
         platform: 'browser',
         target: 'es2020',
-        minify: false,       // readable output helps during development
+        minify: false, // readable output helps during development
         sourcemap: false,
         external: [...PLUGIN_EXTERNALS],
     });
@@ -154,7 +163,7 @@ function packageBundle(bundledManifest, buildDir) {
 
     return Buffer.from(
         fflate.zipSync(files, {
-            level: 1,   // fast compression for dev
+            level: 1, // fast compression for dev
             comment: `MVMNT dev plugin: ${bundledManifest.name}`,
         })
     );
@@ -216,7 +225,11 @@ function emitRebuild() {
     const data = JSON.stringify({ type: 'rebuild', pluginId: manifest.id, timestamp: Date.now() });
     const msg = `data: ${data}\n\n`;
     for (const client of sseClients) {
-        try { client.write(msg); } catch { /* ignore closed sockets */ }
+        try {
+            client.write(msg);
+        } catch {
+            /* ignore closed sockets */
+        }
     }
 }
 
@@ -235,7 +248,7 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
+            Connection: 'keep-alive',
         });
         res.write(':connected\n\n');
         sseClients.add(res);
@@ -272,7 +285,9 @@ let rebuildTimer = null;
 
 function scheduleRebuild() {
     clearTimeout(rebuildTimer);
-    rebuildTimer = setTimeout(() => { void doRebuild(); }, DEBOUNCE_MS);
+    rebuildTimer = setTimeout(() => {
+        void doRebuild();
+    }, DEBOUNCE_MS);
 }
 
 function startWatcher() {
@@ -280,7 +295,15 @@ function startWatcher() {
         fs.watch(pluginDir, { recursive: true }, (_, filename) => {
             if (!filename) return;
             // Ignore build artefacts and editor temp files
-            if (filename.includes('.build') || filename.startsWith('.') || filename.endsWith('~')) return;
+            const parts = filename.replaceAll('\\', '/').split('/');
+            if (
+                parts.some(
+                    (part) => part === 'node_modules' || part === 'dist' || part === '.build' || part === '.git'
+                ) ||
+                parts.some((part) => part.startsWith('.')) ||
+                filename.endsWith('~')
+            )
+                return;
             scheduleRebuild();
         });
     } catch {

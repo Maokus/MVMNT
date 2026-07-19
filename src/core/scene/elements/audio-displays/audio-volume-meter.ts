@@ -2,16 +2,15 @@ import { SceneElement, asNumber, type PropertyTransform } from '../base';
 import { Rectangle, Text, Line, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { applyOpacity } from '@utils/color';
-import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
 import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
-import { defineHostAdaptedBuiltIn } from '@core/scene/plugins/built-in-definition';
+import { defineHostAdaptedBuiltIn, getEnginePrivateHostApi } from '@core/scene/plugins/built-in-definition';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
     return Math.max(min, Math.min(max, value));
 }
-
 
 function linearToDb(linear: number): number {
     if (linear <= 0) return -Infinity;
@@ -196,7 +195,7 @@ export class AudioVolumeMeterElement extends SceneElement {
             return objects;
         }
 
-        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioRawRead]);
+        const host = getEnginePrivateHostApi(this, [PLUGIN_CAPABILITIES.audioRawRead]);
         const meterMode = (props.meterMode ?? 'rms') as 'rms' | 'peak';
         const smoothing = props.smoothing ?? 0;
         // Window size: 25ms base + 10ms per smoothing unit (0→25ms, 64→665ms)
@@ -623,4 +622,11 @@ export class AudioVolumeMeterElement extends SceneElement {
     }
 }
 
-export const audioVolumeMeter = defineHostAdaptedBuiltIn({ type: 'audioVolumeMeter', metadata: { name: 'Audio Volume Meter', description: 'Raw-audio level meter', category: 'Audio Displays' }, capabilities: { required: ['audio.raw.read'], optional: [] } }, AudioVolumeMeterElement);
+export const audioVolumeMeter = defineHostAdaptedBuiltIn(
+    {
+        type: 'audioVolumeMeter',
+        metadata: { name: 'Audio Volume Meter', description: 'Raw-audio level meter', category: 'Audio Displays' },
+        capabilities: { required: ['audio.raw.read'], optional: [] },
+    },
+    AudioVolumeMeterElement
+);

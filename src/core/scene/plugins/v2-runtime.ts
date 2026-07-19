@@ -6,17 +6,16 @@ import { BundledGridAtlasHandle, BundledSparrowHandle, BundledSprite } from '@co
 import { VisualResourceHandle } from '@core/resources/visual-resource-handle';
 import { resolveProjectAssetDescriptor } from '@state/visualAssetRegistryStore';
 import { PLUGIN_CAPABILITIES, type PluginHostApi, type PluginHostCapability } from './host-api/plugin-api';
-import type {
-    CapabilityContext,
-    PluginElementDefinition,
-} from '../../../../packages/plugin-sdk/src/scene';
+import type { CapabilityContext, PluginElementDefinition } from '../../../../packages/plugin-sdk/src/scene';
 import { err, ok, type PluginDiagnostic, type Result } from '../../../../packages/plugin-sdk/src/api';
+import { registerScopedFeatureRequirements } from '@audio/audioElementMetadata';
+import { ensureFontLoaded } from '@fonts/font-loader';
 
 const diagnostic = (
     code: PluginDiagnostic['code'],
     message: string,
     operation?: string,
-    capability?: PluginHostCapability,
+    capability?: PluginHostCapability
 ): PluginDiagnostic => Object.freeze({ code, message, operation, capability });
 
 const finiteRange = (start: number, end: number, operation: string): Result<true> =>
@@ -27,13 +26,14 @@ const finiteRange = (start: number, end: number, operation: string): Result<true
 const frozenArray = <T extends object>(items: readonly T[]): readonly Readonly<T>[] =>
     Object.freeze(items.map((item) => Object.freeze({ ...item })));
 
-const trackSummary = (track: any) => Object.freeze({
-    id: String(track.id),
-    name: String(track.name ?? track.id),
-    type: ['midi', 'audio', 'automation'].includes(track.type) ? track.type : 'unknown',
-    muted: Boolean(track.muted),
-    ...(typeof track.color === 'string' ? { color: track.color } : {}),
-});
+const trackSummary = (track: any) =>
+    Object.freeze({
+        id: String(track.id),
+        name: String(track.name ?? track.id),
+        type: ['midi', 'audio', 'automation'].includes(track.type) ? track.type : 'unknown',
+        muted: Boolean(track.muted),
+        ...(typeof track.color === 'string' ? { color: track.color } : {}),
+    });
 
 export interface ScopeOptions {
     pluginId: string;
@@ -59,7 +59,7 @@ function createContext(
     definition: PluginElementDefinition<any, any>,
     controller: AbortController,
     options: ScopeOptions,
-    cleanups: Set<() => void>,
+    cleanups: Set<() => void>
 ): CapabilityContext {
     const host = options.services;
     const declared = new Set([
@@ -87,9 +87,12 @@ function createContext(
         diagnostics: Object.freeze({ report: options.report }),
         assets: Object.freeze({
             async load(path: string) {
-                if (controller.signal.aborted) return err(diagnostic('ABORTED', 'Asset load was aborted', 'assets.load'));
+                if (controller.signal.aborted)
+                    return err(diagnostic('ABORTED', 'Asset load was aborted', 'assets.load'));
                 if (!path || path.includes('..') || path.startsWith('/')) {
-                    return err(diagnostic('INVALID_ARGUMENT', 'Asset path must be a relative archive path', 'assets.load'));
+                    return err(
+                        diagnostic('INVALID_ARGUMENT', 'Asset path must be a relative archive path', 'assets.load')
+                    );
                 }
                 try {
                     const url = await options.loadAsset(path);
@@ -103,7 +106,9 @@ function createContext(
                     cleanups.add(dispose);
                     return ok(Object.freeze({ url, dispose }));
                 } catch (error) {
-                    return err(diagnostic('NOT_FOUND', error instanceof Error ? error.message : String(error), 'assets.load'));
+                    return err(
+                        diagnostic('NOT_FOUND', error instanceof Error ? error.message : String(error), 'assets.load')
+                    );
                 }
             },
             project() {
@@ -123,13 +128,9 @@ function createContext(
                 });
             },
             bundledSparrow(imagePath: string, xmlPath: string, defaultFps?: number) {
-                const tracked = trackVisualHandle(new BundledSparrowHandle(
-                    imagePath,
-                    xmlPath,
-                    options.loadAsset,
-                    undefined,
-                    defaultFps,
-                ));
+                const tracked = trackVisualHandle(
+                    new BundledSparrowHandle(imagePath, xmlPath, options.loadAsset, undefined, defaultFps)
+                );
                 return Object.freeze({
                     get: () => Object.freeze({ ...tracked.handle.get() }),
                     dispose: tracked.dispose,
@@ -149,21 +150,26 @@ function createContext(
         (context as any).timeline = Object.freeze({
             getMetadata() {
                 const snapshot = host.timeline.getStateSnapshot();
-                if (!snapshot) return err(diagnostic('RESOURCE_UNAVAILABLE', 'Timeline is unavailable', 'timeline.getMetadata'));
+                if (!snapshot)
+                    return err(diagnostic('RESOURCE_UNAVAILABLE', 'Timeline is unavailable', 'timeline.getMetadata'));
                 const durationSeconds = host.timeline.getTimelineDuration();
                 const signature = host.timing.getTimeSignature() ?? { numerator: 4, denominator: 4 };
-                return ok(Object.freeze({
-                    durationSeconds,
-                    playbackStartSeconds: 0,
-                    playbackEndSeconds: durationSeconds,
-                    tempoBpm: Number(snapshot.timeline?.globalBpm ?? 120),
-                    timeSignature: Object.freeze({ ...signature }),
-                }));
+                return ok(
+                    Object.freeze({
+                        durationSeconds,
+                        playbackStartSeconds: 0,
+                        playbackEndSeconds: durationSeconds,
+                        tempoBpm: Number(snapshot.timeline?.globalBpm ?? 120),
+                        timeSignature: Object.freeze({ ...signature }),
+                    })
+                );
             },
             getTrack(trackId: string) {
                 if (!trackId) return err(diagnostic('INVALID_ARGUMENT', 'trackId is required', 'timeline.getTrack'));
                 const track = host.timeline.getTrackById(trackId);
-                return track ? ok(trackSummary(track)) : err(diagnostic('NOT_FOUND', `Track '${trackId}' was not found`, 'timeline.getTrack'));
+                return track
+                    ? ok(trackSummary(track))
+                    : err(diagnostic('NOT_FOUND', `Track '${trackId}' was not found`, 'timeline.getTrack'));
             },
             getTracks(trackIds?: readonly string[]) {
                 const tracks = trackIds ? host.timeline.getTracksByIds([...trackIds]) : host.timeline.getMidiTracks();
@@ -172,15 +178,36 @@ function createContext(
             selectNotes(args: { trackIds?: readonly string[]; startSeconds: number; endSeconds: number }) {
                 const valid = finiteRange(args.startSeconds, args.endSeconds, 'timeline.selectNotes');
                 if (!valid.ok) return valid;
-                const trackIds = args.trackIds ? [...args.trackIds] : host.timeline.getMidiTracks().map((track) => track.id);
-                const notes = host.timeline.selectNotesInWindow({ trackIds, startSec: args.startSeconds, endSec: args.endSeconds });
-                return ok(frozenArray(notes.map((note) => ({
-                    trackId: note.trackId, channel: note.channel, note: note.note, velocity: note.velocity,
-                    startSeconds: note.startTime, endSeconds: note.endTime, durationSeconds: note.duration,
-                    clipId: note.clipId, sourceId: note.sourceId,
-                }))));
+                const trackIds = args.trackIds
+                    ? [...args.trackIds]
+                    : host.timeline.getMidiTracks().map((track) => track.id);
+                const notes = host.timeline.selectNotesInWindow({
+                    trackIds,
+                    startSec: args.startSeconds,
+                    endSec: args.endSeconds,
+                });
+                return ok(
+                    frozenArray(
+                        notes.map((note) => ({
+                            trackId: note.trackId,
+                            channel: note.channel,
+                            note: note.note,
+                            velocity: note.velocity,
+                            startSeconds: note.startTime,
+                            endSeconds: note.endTime,
+                            durationSeconds: note.duration,
+                            clipId: note.clipId,
+                            sourceId: note.sourceId,
+                        }))
+                    )
+                );
             },
-            selectCC(args: { trackIds?: readonly string[]; controller?: number; startSeconds: number; endSeconds: number }) {
+            selectCC(args: {
+                trackIds?: readonly string[];
+                controller?: number;
+                startSeconds: number;
+                endSeconds: number;
+            }) {
                 const valid = finiteRange(args.startSeconds, args.endSeconds, 'timeline.selectCC');
                 if (!valid.ok) return valid;
                 const events = host.timeline.selectCCInWindow({
@@ -192,58 +219,163 @@ function createContext(
                 return ok(frozenArray(events.map((event) => ({ ...event, timeSeconds: event.timeSec }))));
             },
             getSustain(args: { trackIds?: readonly string[]; timeSeconds: number }) {
-                if (!Number.isFinite(args.timeSeconds)) return err(diagnostic('INVALID_ARGUMENT', 'timeSeconds must be finite', 'timeline.getSustain'));
-                return ok(host.timeline.getSustainStateAtTime({ trackIds: args.trackIds ? [...args.trackIds] : undefined, timeSec: args.timeSeconds }));
+                if (!Number.isFinite(args.timeSeconds))
+                    return err(diagnostic('INVALID_ARGUMENT', 'timeSeconds must be finite', 'timeline.getSustain'));
+                return ok(
+                    host.timeline.getSustainStateAtTime({
+                        trackIds: args.trackIds ? [...args.trackIds] : undefined,
+                        timeSec: args.timeSeconds,
+                    })
+                );
             },
         });
     }
 
     if (host && (granted(PLUGIN_CAPABILITIES.audioFeaturesRead) || granted(PLUGIN_CAPABILITIES.audioRawRead))) {
         (context as any).audio = Object.freeze({
+            requireFeatures(requirements: readonly any[]) {
+                if (!granted(PLUGIN_CAPABILITIES.audioFeaturesRead))
+                    return unavailable(PLUGIN_CAPABILITIES.audioFeaturesRead, 'audio.requireFeatures');
+                if (
+                    !Array.isArray(requirements) ||
+                    requirements.some((requirement) => !requirement || typeof requirement.feature !== 'string')
+                ) {
+                    return err(
+                        diagnostic(
+                            'INVALID_ARGUMENT',
+                            'Feature requirements must contain a feature key',
+                            'audio.requireFeatures'
+                        )
+                    );
+                }
+                const unregister = registerScopedFeatureRequirements(definition.type, requirements);
+                let disposed = false;
+                const dispose = () => {
+                    if (disposed) return;
+                    disposed = true;
+                    unregister();
+                    cleanups.delete(dispose);
+                };
+                cleanups.add(dispose);
+                return ok(Object.freeze({ dispose }));
+            },
             getChannelMetadata(trackId: string) {
-                if (!granted(PLUGIN_CAPABILITIES.audioRawRead)) return unavailable(PLUGIN_CAPABILITIES.audioRawRead, 'audio.getChannelMetadata');
+                if (!granted(PLUGIN_CAPABILITIES.audioRawRead))
+                    return unavailable(PLUGIN_CAPABILITIES.audioRawRead, 'audio.getChannelMetadata');
                 const sampleRate = host.audio.getSampleRate({ trackId });
-                if (!sampleRate) return err(diagnostic('RESOURCE_UNAVAILABLE', `Audio track '${trackId}' is unavailable`, 'audio.getChannelMetadata'));
-                return ok(Object.freeze({ sampleRate, channelCount: 1, durationSeconds: host.timeline.getTimelineDuration(), channelLabels: Object.freeze(['mono']) }));
+                if (!sampleRate)
+                    return err(
+                        diagnostic(
+                            'RESOURCE_UNAVAILABLE',
+                            `Audio track '${trackId}' is unavailable`,
+                            'audio.getChannelMetadata'
+                        )
+                    );
+                return ok(
+                    Object.freeze({
+                        sampleRate,
+                        channelCount: 1,
+                        durationSeconds: host.timeline.getTimelineDuration(),
+                        channelLabels: Object.freeze(['mono']),
+                    })
+                );
             },
             sampleFeature(args: { trackId: string; feature: any; timeSeconds: number }) {
-                if (!granted(PLUGIN_CAPABILITIES.audioFeaturesRead)) return unavailable(PLUGIN_CAPABILITIES.audioFeaturesRead, 'audio.sampleFeature');
-                if (!Number.isFinite(args.timeSeconds)) return err(diagnostic('INVALID_ARGUMENT', 'timeSeconds must be finite', 'audio.sampleFeature'));
-                const frame = host.audio.sampleFeatureAtTime({ trackId: args.trackId, feature: args.feature, time: args.timeSeconds });
-                return frame == null ? err(diagnostic('RESOURCE_UNAVAILABLE', 'Audio feature is unavailable', 'audio.sampleFeature')) : ok(Object.freeze({ timeSeconds: args.timeSeconds, value: Object.freeze([...frame.values]) }));
+                if (!granted(PLUGIN_CAPABILITIES.audioFeaturesRead))
+                    return unavailable(PLUGIN_CAPABILITIES.audioFeaturesRead, 'audio.sampleFeature');
+                if (!Number.isFinite(args.timeSeconds))
+                    return err(diagnostic('INVALID_ARGUMENT', 'timeSeconds must be finite', 'audio.sampleFeature'));
+                const frame = host.audio.sampleFeatureAtTime({
+                    trackId: args.trackId,
+                    feature: args.feature,
+                    time: args.timeSeconds,
+                });
+                return frame == null
+                    ? err(diagnostic('RESOURCE_UNAVAILABLE', 'Audio feature is unavailable', 'audio.sampleFeature'))
+                    : ok(Object.freeze({ timeSeconds: args.timeSeconds, value: Object.freeze([...frame.values]) }));
             },
-            sampleFeatureRange(args: { trackId: string; feature: any; startSeconds: number; endSeconds: number; stepSeconds: number }) {
-                if (!granted(PLUGIN_CAPABILITIES.audioFeaturesRead)) return unavailable(PLUGIN_CAPABILITIES.audioFeaturesRead, 'audio.sampleFeatureRange');
+            sampleFeatureRange(args: {
+                trackId: string;
+                feature: any;
+                startSeconds: number;
+                endSeconds: number;
+                stepSeconds: number;
+            }) {
+                if (!granted(PLUGIN_CAPABILITIES.audioFeaturesRead))
+                    return unavailable(PLUGIN_CAPABILITIES.audioFeaturesRead, 'audio.sampleFeatureRange');
                 const valid = finiteRange(args.startSeconds, args.endSeconds, 'audio.sampleFeatureRange');
                 if (!valid.ok) return valid;
-                if (!Number.isFinite(args.stepSeconds) || args.stepSeconds <= 0) return err(diagnostic('INVALID_ARGUMENT', 'stepSeconds must be positive and finite', 'audio.sampleFeatureRange'));
-                const frames = host.audio.sampleFeatureRange({ trackId: args.trackId, feature: args.feature, startTime: args.startSeconds, endTime: args.endSeconds, stepSec: args.stepSeconds });
-                return ok(Object.freeze(frames.map((frame) => Object.freeze({ timeSeconds: frame.time, value: Object.freeze([...frame.result.values]) }))));
+                if (!Number.isFinite(args.stepSeconds) || args.stepSeconds <= 0)
+                    return err(
+                        diagnostic(
+                            'INVALID_ARGUMENT',
+                            'stepSeconds must be positive and finite',
+                            'audio.sampleFeatureRange'
+                        )
+                    );
+                const frames = host.audio.sampleFeatureRange({
+                    trackId: args.trackId,
+                    feature: args.feature,
+                    startTime: args.startSeconds,
+                    endTime: args.endSeconds,
+                    stepSec: args.stepSeconds,
+                });
+                return ok(
+                    Object.freeze(
+                        frames.map((frame) =>
+                            Object.freeze({ timeSeconds: frame.time, value: Object.freeze([...frame.result.values]) })
+                        )
+                    )
+                );
             },
             getRawSamples(args: { trackId: string; startSeconds: number; endSeconds: number; channel?: any }) {
-                if (!granted(PLUGIN_CAPABILITIES.audioRawRead)) return unavailable(PLUGIN_CAPABILITIES.audioRawRead, 'audio.getRawSamples');
+                if (!granted(PLUGIN_CAPABILITIES.audioRawRead))
+                    return unavailable(PLUGIN_CAPABILITIES.audioRawRead, 'audio.getRawSamples');
                 const valid = finiteRange(args.startSeconds, args.endSeconds, 'audio.getRawSamples');
-                if (!valid.ok || args.endSeconds === args.startSeconds) return valid.ok ? err(diagnostic('INVALID_ARGUMENT', 'Raw PCM range must be non-empty', 'audio.getRawSamples')) : valid;
-                if (controller.signal.aborted) return err(diagnostic('ABORTED', 'Raw PCM read was aborted', 'audio.getRawSamples'));
-                const samples = host.audio.getRawSamples({ trackId: args.trackId, startSec: args.startSeconds, endSec: args.endSeconds, channel: args.channel, signal: controller.signal });
-                if (controller.signal.aborted) return err(diagnostic('ABORTED', 'Raw PCM read was aborted', 'audio.getRawSamples'));
-                return samples ? ok(samples.slice()) : err(diagnostic('RESOURCE_UNAVAILABLE', 'Raw PCM is unavailable', 'audio.getRawSamples'));
+                if (!valid.ok || args.endSeconds === args.startSeconds)
+                    return valid.ok
+                        ? err(diagnostic('INVALID_ARGUMENT', 'Raw PCM range must be non-empty', 'audio.getRawSamples'))
+                        : valid;
+                if (controller.signal.aborted)
+                    return err(diagnostic('ABORTED', 'Raw PCM read was aborted', 'audio.getRawSamples'));
+                const samples = host.audio.getRawSamples({
+                    trackId: args.trackId,
+                    startSec: args.startSeconds,
+                    endSec: args.endSeconds,
+                    channel: args.channel,
+                    signal: controller.signal,
+                });
+                if (controller.signal.aborted)
+                    return err(diagnostic('ABORTED', 'Raw PCM read was aborted', 'audio.getRawSamples'));
+                return samples
+                    ? ok(samples.slice())
+                    : err(diagnostic('RESOURCE_UNAVAILABLE', 'Raw PCM is unavailable', 'audio.getRawSamples'));
             },
             getRms(args: { trackId: string; startSeconds: number; endSeconds: number }) {
-                if (!granted(PLUGIN_CAPABILITIES.audioRawRead)) return unavailable(PLUGIN_CAPABILITIES.audioRawRead, 'audio.getRms');
+                if (!granted(PLUGIN_CAPABILITIES.audioRawRead))
+                    return unavailable(PLUGIN_CAPABILITIES.audioRawRead, 'audio.getRms');
                 const valid = finiteRange(args.startSeconds, args.endSeconds, 'audio.getRms');
                 if (!valid.ok) return valid;
-                const value = host.audio.getRmsInWindow({ trackId: args.trackId, startSec: args.startSeconds, endSec: args.endSeconds });
-                return value ? ok(value.slice()) : err(diagnostic('RESOURCE_UNAVAILABLE', 'Audio RMS is unavailable', 'audio.getRms'));
+                const value = host.audio.getRmsInWindow({
+                    trackId: args.trackId,
+                    startSec: args.startSeconds,
+                    endSec: args.endSeconds,
+                });
+                return value
+                    ? ok(value.slice())
+                    : err(diagnostic('RESOURCE_UNAVAILABLE', 'Audio RMS is unavailable', 'audio.getRms'));
             },
         });
     }
 
     if (host && granted(PLUGIN_CAPABILITIES.timingConversion)) {
         const conversion = (operation: string, value: number, fn: (value: number) => number | null): Result<number> => {
-            if (!Number.isFinite(value)) return err(diagnostic('INVALID_ARGUMENT', 'Timing value must be finite', operation));
+            if (!Number.isFinite(value))
+                return err(diagnostic('INVALID_ARGUMENT', 'Timing value must be finite', operation));
             const result = fn(value);
-            return result == null ? err(diagnostic('RESOURCE_UNAVAILABLE', 'Timing data is unavailable', operation)) : ok(result);
+            return result == null
+                ? err(diagnostic('RESOURCE_UNAVAILABLE', 'Timing data is unavailable', operation))
+                : ok(result);
         };
         (context as any).timing = Object.freeze({
             secondsToTicks: (v: number) => conversion('timing.secondsToTicks', v, host.timing.secondsToTicks),
@@ -254,36 +386,55 @@ function createContext(
             ticksToBeats: (v: number) => conversion('timing.ticksToBeats', v, host.timing.ticksToBeats),
             getTimeSignature: () => {
                 const value = host.timing.getTimeSignature();
-                return value ? ok(Object.freeze({ ...value })) : err(diagnostic('RESOURCE_UNAVAILABLE', 'Time signature is unavailable', 'timing.getTimeSignature'));
+                return value
+                    ? ok(Object.freeze({ ...value }))
+                    : err(
+                          diagnostic('RESOURCE_UNAVAILABLE', 'Time signature is unavailable', 'timing.getTimeSignature')
+                      );
             },
         });
     }
 
-    if (host && granted(PLUGIN_CAPABILITIES.midiUtils)) (context as any).midi = Object.freeze({ noteName: host.utilities.midiNoteToName });
+    if (host && granted(PLUGIN_CAPABILITIES.midiUtils))
+        (context as any).midi = Object.freeze({ noteName: host.utilities.midiNoteToName });
     if (host && granted(PLUGIN_CAPABILITIES.audioCalculatorsRegister)) {
-        (context as any).audioCalculators = Object.freeze({ register(calculator: any) {
-            host.audioCalculators.register(calculator);
-            let disposed = false;
-            const dispose = () => {
-                if (disposed) return;
-                disposed = true;
-                host.audioCalculators.unregister(calculator.id);
-                cleanups.delete(dispose);
-            };
-            cleanups.add(dispose);
-            return ok(Object.freeze({ dispose }));
-        } });
+        (context as any).audioCalculators = Object.freeze({
+            register(calculator: any) {
+                host.audioCalculators.register(calculator);
+                let disposed = false;
+                const dispose = () => {
+                    if (disposed) return;
+                    disposed = true;
+                    host.audioCalculators.unregister(calculator.id);
+                    cleanups.delete(dispose);
+                };
+                cleanups.add(dispose);
+                return ok(Object.freeze({ dispose }));
+            },
+        });
     }
     return Object.freeze(context);
 }
 
 export function createPluginDefinitionScope(
     definition: PluginElementDefinition<any, any>,
-    options: ScopeOptions,
+    options: ScopeOptions
 ): PluginDefinitionScope {
     const controller = new AbortController();
     const cleanups = new Set<() => void>();
     const context = createContext(definition, controller, options, cleanups);
+    const fontPropertyKeys = new Set<string>();
+    const runtimeSchema =
+        definition.schema && typeof definition.schema === 'object'
+            ? (definition.schema as EnhancedConfigSchema)
+            : undefined;
+    for (const tab of runtimeSchema?.tabs ?? []) {
+        for (const group of tab.groups ?? []) {
+            for (const property of group.properties ?? []) {
+                if (property?.type === 'font' && property.key) fontPropertyKeys.add(property.key);
+            }
+        }
+    }
     let failure: PluginDiagnostic | undefined;
     let synchronouslyReady = false;
     let ready: Promise<boolean>;
@@ -296,7 +447,11 @@ export function createPluginDefinitionScope(
             synchronouslyReady = true;
             ready = Promise.resolve(true);
         } catch (error) {
-            failure = diagnostic('INITIALIZATION_FAILED', error instanceof Error ? error.message : String(error), 'element.load');
+            failure = diagnostic(
+                'INITIALIZATION_FAILED',
+                error instanceof Error ? error.message : String(error),
+                'element.load'
+            );
             options.report(failure);
             ready = Promise.resolve(false);
         }
@@ -305,7 +460,11 @@ export function createPluginDefinitionScope(
             .then(() => definition.load?.(context))
             .then(() => true)
             .catch((error) => {
-                failure = diagnostic('INITIALIZATION_FAILED', error instanceof Error ? error.message : String(error), 'element.load');
+                failure = diagnostic(
+                    'INITIALIZATION_FAILED',
+                    error instanceof Error ? error.message : String(error),
+                    'element.load'
+                );
                 options.report(failure);
                 return false;
             });
@@ -314,15 +473,22 @@ export function createPluginDefinitionScope(
     class V2SceneElement extends SceneElement {
         private readonly instanceController = new AbortController();
         private readonly instanceCleanups = new Set<() => void>();
-        private readonly instanceContext = createContext(definition, this.instanceController, options, this.instanceCleanups);
+        private readonly instanceContext = createContext(
+            definition,
+            this.instanceController,
+            options,
+            this.instanceCleanups
+        );
         private state: any = undefined;
         private initialized = false;
         private initializationFailed = false;
+        private readonly requestedFonts = new Map<string, string>();
 
         private getDefinitionProps(): Readonly<Record<string, unknown>> {
-            const schema = definition.schema && typeof definition.schema === 'object'
-                ? definition.schema as EnhancedConfigSchema
-                : undefined;
+            const schema =
+                definition.schema && typeof definition.schema === 'object'
+                    ? (definition.schema as EnhancedConfigSchema)
+                    : undefined;
             const props: Record<string, unknown> = {};
             for (const tab of schema?.tabs ?? []) {
                 for (const group of tab.groups ?? []) {
@@ -334,11 +500,30 @@ export function createPluginDefinitionScope(
             return Object.freeze(props);
         }
 
+        private requestDefinitionFonts(props: Readonly<Record<string, unknown>>): void {
+            for (const key of fontPropertyKeys) {
+                const selection = props[key];
+                if (typeof selection !== 'string' || !selection || this.requestedFonts.get(key) === selection) continue;
+                this.requestedFonts.set(key, selection);
+                void ensureFontLoaded(selection).catch((error) => {
+                    options.report(
+                        diagnostic(
+                            'RESOURCE_UNAVAILABLE',
+                            error instanceof Error ? error.message : String(error),
+                            `font.${key}`
+                        )
+                    );
+                });
+            }
+        }
+
         constructor(id: string = definition.type, config: Record<string, unknown> = {}) {
-            const definitionSchema = definition.schema && typeof definition.schema === 'object'
-                ? definition.schema as { defaultConfig?: Record<string, unknown> }
-                : undefined;
+            const definitionSchema =
+                definition.schema && typeof definition.schema === 'object'
+                    ? (definition.schema as { defaultConfig?: Record<string, unknown> })
+                    : undefined;
             super(definition.type, id, { ...(definitionSchema?.defaultConfig ?? {}), ...config });
+            this.requestDefinitionFonts(this.getDefinitionProps());
             if (options.synchronousInitialization && synchronouslyReady) {
                 try {
                     const created = definition.create?.(this.getDefinitionProps(), this.instanceContext);
@@ -349,7 +534,13 @@ export function createPluginDefinitionScope(
                     this.initialized = true;
                 } catch (error) {
                     this.initializationFailed = true;
-                    options.report(diagnostic('INITIALIZATION_FAILED', error instanceof Error ? error.message : String(error), 'element.create'));
+                    options.report(
+                        diagnostic(
+                            'INITIALIZATION_FAILED',
+                            error instanceof Error ? error.message : String(error),
+                            'element.create'
+                        )
+                    );
                 }
                 return;
             }
@@ -361,23 +552,38 @@ export function createPluginDefinitionScope(
                     this.initialized = !this.instanceController.signal.aborted;
                 } catch (error) {
                     this.initializationFailed = true;
-                    options.report(diagnostic('INITIALIZATION_FAILED', error instanceof Error ? error.message : String(error), 'element.create'));
+                    options.report(
+                        diagnostic(
+                            'INITIALIZATION_FAILED',
+                            error instanceof Error ? error.message : String(error),
+                            'element.create'
+                        )
+                    );
                 }
             });
         }
 
         static override getConfigSchema(): EnhancedConfigSchema {
-            const schema = definition.schema && typeof definition.schema === 'object' ? definition.schema as Partial<EnhancedConfigSchema> : {};
-            return insertElementConfig(SceneElement.getConfigSchema(), {
-                name: definition.metadata.name,
-                description: definition.metadata.description ?? '',
-                category: definition.metadata.category ?? 'Plugins',
-            }, schema.tabs ?? []);
+            const schema =
+                definition.schema && typeof definition.schema === 'object'
+                    ? (definition.schema as Partial<EnhancedConfigSchema>)
+                    : {};
+            const merged = insertElementConfig(
+                SceneElement.getConfigSchema(),
+                {
+                    name: definition.metadata.name,
+                    description: definition.metadata.description ?? '',
+                    category: definition.metadata.category ?? 'Plugins',
+                },
+                schema.tabs ?? []
+            );
+            return { ...merged, ...(schema.presets ? { presets: schema.presets } : {}) };
         }
 
         protected override _buildRenderObjects(_config: any, targetTime: number): RenderObject[] {
             if (!this.initialized || this.initializationFailed || this.instanceController.signal.aborted) return [];
             const props = this.getDefinitionProps();
+            this.requestDefinitionFonts(props);
             const beats = this.instanceContext.timing?.secondsToBeats(targetTime);
             const ticks = this.instanceContext.timing?.secondsToTicks(targetTime);
             const time = Object.freeze({
@@ -385,9 +591,13 @@ export function createPluginDefinitionScope(
                 beats: beats?.ok ? beats.value : null,
                 ticks: ticks?.ok ? ticks.value : null,
                 frame: null,
-                ...(_config?.canvas ? { viewport: Object.freeze({ width: _config.canvas.width, height: _config.canvas.height }) } : {}),
+                ...(_config?.canvas
+                    ? { viewport: Object.freeze({ width: _config.canvas.width, height: _config.canvas.height }) }
+                    : {}),
                 ...(Number.isFinite(_config?.duration) ? { durationSeconds: _config.duration } : {}),
-                ...(Number.isFinite(_config?.playRangeStartSec) ? { playbackStartSeconds: _config.playRangeStartSec } : {}),
+                ...(Number.isFinite(_config?.playRangeStartSec)
+                    ? { playbackStartSeconds: _config.playRangeStartSec }
+                    : {}),
                 ...(Number.isFinite(_config?.playRangeEndSec) ? { playbackEndSeconds: _config.playRangeEndSec } : {}),
             });
             return [...definition.render(props, this.state, time, this.instanceContext)] as RenderObject[];
@@ -403,7 +613,9 @@ export function createPluginDefinitionScope(
     return {
         definition,
         ready,
-        get failure() { return failure; },
+        get failure() {
+            return failure;
+        },
         createElementClass: () => V2SceneElement,
         async dispose() {
             controller.abort();

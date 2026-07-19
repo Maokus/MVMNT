@@ -16,7 +16,12 @@ import * as pluginSdkV2ApiModule from '../../../../packages/plugin-sdk/src/api';
 import * as pluginSdkV2AnimationModule from '../../../../packages/plugin-sdk/src/animation';
 import * as pluginSdkV2SafetyModule from '../../../../packages/plugin-sdk/src/safety';
 import * as pluginSdkV2UtilsModule from '../../../../packages/plugin-sdk/src/utils';
-import { definePluginElement, isPluginElementDefinition as isV2Definition } from '../../../../packages/plugin-sdk/src/scene';
+import * as pluginSdkV2SceneModule from '../../../../packages/plugin-sdk/src/scene';
+import * as pluginSdkV2VisualAssetsModule from '../../../../packages/plugin-sdk/src/visual-assets';
+import {
+    ensureFontLoaded as ensureHostFontLoaded,
+    parseFontSelection as parseHostFontSelection,
+} from '@fonts/font-loader';
 import { usePluginStore, type PluginManifest } from '@state/pluginStore';
 import { PluginBinaryStore } from '@persistence/plugin-binary-store';
 import { PluginSettingsStore } from '@persistence/plugin-settings-store';
@@ -68,7 +73,6 @@ const V1_PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
 
 // V2 intentionally omits global capability accessors from domain modules. The current
 // render/schema implementations are host-provided; definition callbacks receive data APIs.
-const pluginSdkV2SceneModule = { definePluginElement, isPluginElementDefinition: isV2Definition };
 const pluginSdkV2RenderModule = {
     RenderObject: pluginSdkRenderModule.RenderObject,
     BoxRenderObject: pluginSdkRenderModule.BoxRenderObject,
@@ -85,16 +89,22 @@ const pluginSdkV2RenderModule = {
     VisualMedia: pluginSdkRenderModule.VisualMedia,
     PixelGrid: pluginSdkRenderModule.PixelGrid,
 };
+const pluginSdkV2UtilsRuntimeModule = Object.freeze({
+    ...pluginSdkV2UtilsModule,
+    ensureFontLoaded: ensureHostFontLoaded,
+    parseFontSelection: parseHostFontSelection,
+});
 const pluginSdkV2RootModule = {
     ...pluginSdkV2ApiModule,
     ...pluginSdkV2AnimationModule,
     ...pluginSdkV2RenderModule,
     ...pluginSdkV2SceneModule,
     ...pluginSdkV2SafetyModule,
-    ...pluginSdkV2UtilsModule,
+    ...pluginSdkV2UtilsRuntimeModule,
+    ...pluginSdkV2VisualAssetsModule,
 };
 const V2_PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
-    '@mvmnt-app/plugin-sdk': pluginSdkV2RootModule,
+    '@mvmnt-app/plugin-sdk': Object.freeze({ ...pluginSdkV2RootModule, ...pluginSdkV2RenderModule }),
     '@mvmnt-app/plugin-sdk/api': pluginSdkV2ApiModule,
     '@mvmnt-app/plugin-sdk/animation': pluginSdkV2AnimationModule,
     '@mvmnt-app/plugin-sdk/audio': Object.freeze({}),
@@ -103,8 +113,8 @@ const V2_PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
     '@mvmnt-app/plugin-sdk/safety': pluginSdkV2SafetyModule,
     '@mvmnt-app/plugin-sdk/timeline': Object.freeze({}),
     '@mvmnt-app/plugin-sdk/timing': Object.freeze({}),
-    '@mvmnt-app/plugin-sdk/utils': pluginSdkV2UtilsModule,
-    '@mvmnt-app/plugin-sdk/visual-assets': Object.freeze({}),
+    '@mvmnt-app/plugin-sdk/utils': pluginSdkV2UtilsRuntimeModule,
+    '@mvmnt-app/plugin-sdk/visual-assets': pluginSdkV2VisualAssetsModule,
 };
 
 export function getPluginRuntimeModuleIds(apiLine: 1 | 2): readonly string[] {
@@ -236,10 +246,7 @@ function dispatchPluginAvailabilityEvent(detail: {
 /**
  * Load a plugin from a .mvmnt-plugin bundle (ZIP file)
  */
-export async function loadPlugin(
-    bundleData: ArrayBuffer,
-    options: LoadPluginOptions = {}
-): Promise<PluginLoadResult> {
+export async function loadPlugin(bundleData: ArrayBuffer, options: LoadPluginOptions = {}): Promise<PluginLoadResult> {
     try {
         // Unzip the bundle
         const uint8Data = new Uint8Array(bundleData);
@@ -270,7 +277,7 @@ export async function loadPlugin(
             if (manifest.mvmntVersion && !manifest.apiVersion) {
                 console.warn(
                     `[PluginLoader] Plugin '${manifest.id}' uses deprecated 'mvmntVersion'. ` +
-                    `Update its manifest to use 'apiVersion' instead.`
+                        `Update its manifest to use 'apiVersion' instead.`
                 );
             }
             // validatePluginManifest already negotiated the supported v1/v2 runtime line.
@@ -319,9 +326,13 @@ export async function loadPlugin(
                 if (apiLine === 2) {
                     const host = getPluginHostApi();
                     const available = new Set(host.api?.capabilities ?? []);
-                    const missing = normalizeElementCapabilities(elementManifest).required.filter((capability) => !available.has(capability as any));
+                    const missing = normalizeElementCapabilities(elementManifest).required.filter(
+                        (capability) => !available.has(capability as any)
+                    );
                     if (missing.length > 0) {
-                        loadErrors.push(`Element '${elementManifest.type}' requires unavailable capabilities: ${missing.join(', ')}`);
+                        loadErrors.push(
+                            `Element '${elementManifest.type}' requires unavailable capabilities: ${missing.join(', ')}`
+                        );
                         skippedElements.push(elementManifest.type);
                         continue;
                     }
@@ -329,7 +340,9 @@ export async function loadPlugin(
                 // Get the bundled element code
                 const entryData = files[elementManifest.entry];
                 if (!entryData) {
-                    loadErrors.push(`Missing entry file '${elementManifest.entry}' for element '${elementManifest.type}'`);
+                    loadErrors.push(
+                        `Missing entry file '${elementManifest.entry}' for element '${elementManifest.type}'`
+                    );
                     skippedElements.push(elementManifest.type);
                     continue;
                 }
@@ -341,10 +354,14 @@ export async function loadPlugin(
                 let ElementClass = loadedExport;
                 if (apiLine === 2) {
                     if (!isPluginElementDefinition(loadedExport)) {
-                        throw new Error(`SDK 2.x element '${elementManifest.type}' must export definePluginElement(...)`);
+                        throw new Error(
+                            `SDK 2.x element '${elementManifest.type}' must export definePluginElement(...)`
+                        );
                     }
                     if (loadedExport.type !== elementManifest.type) {
-                        throw new Error(`Definition type '${loadedExport.type}' does not match manifest type '${elementManifest.type}'`);
+                        throw new Error(
+                            `Definition type '${loadedExport.type}' does not match manifest type '${elementManifest.type}'`
+                        );
                     }
                     if (!capabilityDeclarationsMatch(elementManifest, loadedExport)) {
                         throw new Error(`Capability declaration mismatch for '${elementManifest.type}'`);
@@ -353,7 +370,10 @@ export async function loadPlugin(
                         pluginId: manifest.id,
                         services: getPluginHostApi().api,
                         loadAsset: (path) => loadBundledAssetForPlugin(manifest.id, path),
-                        report: (diagnostic) => console.warn(`[PluginLoader] ${manifest.id}/${elementManifest.type}: ${diagnostic.code}: ${diagnostic.message}`),
+                        report: (diagnostic) =>
+                            console.warn(
+                                `[PluginLoader] ${manifest.id}/${elementManifest.type}: ${diagnostic.code}: ${diagnostic.message}`
+                            ),
                     });
                     if (!(await scope.ready)) throw new Error(scope.failure?.message ?? 'Definition load failed');
                     definitionScope = scope;
@@ -362,14 +382,10 @@ export async function loadPlugin(
 
                 // Register the element. The registry returns the actual key used
                 // (composite pluginId:type for plugin elements).
-                const registryKey = sceneElementRegistry.registerCustomElement(
-                    elementManifest.type,
-                    ElementClass,
-                    {
-                        pluginId: manifest.id,
-                        overrideCategory: manifest.name,
-                    }
-                );
+                const registryKey = sceneElementRegistry.registerCustomElement(elementManifest.type, ElementClass, {
+                    pluginId: manifest.id,
+                    overrideCategory: manifest.name,
+                });
 
                 // Wire loadBundledAsset() for this element type.
                 const pluginId = manifest.id;
@@ -659,7 +675,9 @@ function evaluateCommonJsModule(code: string, elementType: string, pluginId: str
 
         if (id === '@mvmnt/plugin-sdk') {
             if (apiLine === 2) {
-                throw new Error("Module '@mvmnt/plugin-sdk' is the frozen SDK 1 surface. SDK 2 plugins must import '@mvmnt-app/plugin-sdk'.");
+                throw new Error(
+                    "Module '@mvmnt/plugin-sdk' is the frozen SDK 1 surface. SDK 2 plugins must import '@mvmnt-app/plugin-sdk'."
+                );
             }
             // Frozen v1 convenience bound to this plugin's asset registry.
             return {
@@ -689,7 +707,8 @@ function evaluateCommonJsModule(code: string, elementType: string, pluginId: str
             // Legacy compatibility: attempt to resolve internal aliases via the globalThis.MVMNT
             // namespace. This will fail in normal packaged-plugin contexts since those globals are
             // not populated. SDK 2 plugins should import exclusively from '@mvmnt-app/plugin-sdk'.
-            const path = id.replace(/^@core\//, 'MVMNT.core.')
+            const path = id
+                .replace(/^@core\//, 'MVMNT.core.')
                 .replace(/^@audio\//, 'MVMNT.audio.')
                 .replace(/^@utils\//, 'MVMNT.utils.')
                 .replace(/\//g, '.');
@@ -822,10 +841,7 @@ function transformEsModuleToCommonJs(code: string): string {
                     for (const d of decl.declarations) {
                         if (d.id.type === 'Identifier') names.push(d.id.name as string);
                     }
-                } else if (
-                    (decl.type === 'FunctionDeclaration' || decl.type === 'ClassDeclaration') &&
-                    decl.id
-                ) {
+                } else if ((decl.type === 'FunctionDeclaration' || decl.type === 'ClassDeclaration') && decl.id) {
                     names.push(decl.id.name as string);
                 }
                 // Remove 'export ' prefix; append exports assignments after the declaration.
@@ -853,9 +869,7 @@ function transformEsModuleToCommonJs(code: string): string {
                     const assignments = specs.map((s: any) => {
                         const exp = (s.exported as any).name as string;
                         const loc = (s.local as any).name as string;
-                        return exp === 'default'
-                            ? `module.exports.default = ${loc};`
-                            : `exports.${exp} = ${loc};`;
+                        return exp === 'default' ? `module.exports.default = ${loc};` : `exports.${exp} = ${loc};`;
                     });
                     patches.push([start, end, assignments.join('\n')]);
                 }
@@ -866,7 +880,11 @@ function transformEsModuleToCommonJs(code: string): string {
             const exported = (node as any).exported;
             const v = `__mvmnt_import_${importIndex++}`;
             if (exported) {
-                patches.push([start, end, `const ${v} = require("${srcVal}");\nexports.${(exported as any).name as string} = ${v};`]);
+                patches.push([
+                    start,
+                    end,
+                    `const ${v} = require("${srcVal}");\nexports.${(exported as any).name as string} = ${v};`,
+                ]);
             } else {
                 patches.push([start, end, `Object.assign(exports, require("${srcVal}"));`]);
             }

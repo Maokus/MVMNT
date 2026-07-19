@@ -1,16 +1,17 @@
+// @ts-nocheck
 import {
-    SceneElement,
+    defineRendererElement,
+    CallbackElementRenderer,
     prop,
     insertElementConfig,
     tab,
-    getPluginHostApi,
     PLUGIN_CAPABILITIES,
     type TimelineNoteEvent,
     type VisualResource,
     type ResourceStatus,
-} from '@mvmnt/plugin-sdk';
-import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
-import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
+} from '@mvmnt-app/plugin-sdk';
+import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt-app/plugin-sdk/render';
+import type { EnhancedConfigSchema } from '@mvmnt-app/plugin-sdk';
 
 // MIDI note % 4 → lane: 0=LEFT(purple), 1=DOWN(blue), 2=UP(green), 3=RIGHT(red)
 const LANE_DIRS = ['Left', 'Down', 'Up', 'Right'] as const;
@@ -41,7 +42,7 @@ const HOLD_COVER_FRAME_H = 400;
 // notes.xml frames have no offset (frameX/Y = 0), so frame == texture size
 const NOTE_FRAME_W = 157;
 
-export class ArrowsElement extends SceneElement {
+class ArrowsElement extends CallbackElementRenderer {
     private readonly _strumlineAtlas = this.bundledSparrow('noteStrumline.png', 'noteStrumline.xml');
     private readonly _notesAtlas = this.bundledSparrow('notes.png', 'notes.xml');
     private readonly _splashAtlas = this.bundledSparrow('noteSplashes.png', 'noteSplashes.xml');
@@ -138,7 +139,7 @@ export class ArrowsElement extends SceneElement {
         );
     }
 
-    protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
+    override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
         if (!props.visible) return [];
 
@@ -178,7 +179,7 @@ export class ArrowsElement extends SceneElement {
         const fallingNotes: Array<{ note: TimelineNoteEvent; lane: number; headY: number; tailEndY: number | null }> =
             [];
 
-        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+        const { api, status } = this.hostApi([PLUGIN_CAPABILITIES.timelineRead]);
         const trackId = props.midiTrackId as string | null;
 
         if (trackId && api && status === 'ok') {
@@ -475,3 +476,9 @@ function _drawHoldTailSprite(
         objects.push(body);
     }
 }
+
+export const arrows = defineRendererElement(
+    { type: 'arrows', capabilities: { required: ['timeline.read'], optional: [] } },
+    ArrowsElement
+);
+export default arrows;

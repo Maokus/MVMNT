@@ -88,7 +88,7 @@ function getClipRawSamples(
     startSec: number,
     endSec: number,
     channel: 'mono' | 'left' | 'right' | number,
-    signal?: AbortSignal,
+    signal?: AbortSignal
 ): Float32Array | null {
     if (signal?.aborted) return null;
     const sampleRate = getClipRawSampleRate(state, trackId);
@@ -117,12 +117,20 @@ function getClipRawSamples(
     return result;
 }
 
-function getClipRmsInWindow(state: TimelineState, trackId: string, startSec: number, endSec: number): Float32Array | null {
+function getClipRmsInWindow(
+    state: TimelineState,
+    trackId: string,
+    startSec: number,
+    endSec: number
+): Float32Array | null {
     const track = state.tracks[trackId] as AudioTrack | undefined;
     if (!track || !isModernAudioClipTrack(track)) return null;
     const timing = createTimingContext(state.timeline);
     const segments = getAudioClipSegmentsInSeconds(state, trackId, startSec, endSec, timing);
-    const channels = Math.max(1, ...segments.map((segment) => state.audioCache[segment.sourceId]?.audioBuffer?.numberOfChannels ?? 0));
+    const channels = Math.max(
+        1,
+        ...segments.map((segment) => state.audioCache[segment.sourceId]?.audioBuffer?.numberOfChannels ?? 0)
+    );
     const result = new Float32Array(channels);
     for (let channel = 0; channel < channels; channel += 1) {
         const samples = getClipRawSamples(state, trackId, startSec, endSec, channel);
@@ -506,7 +514,8 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
             getTimelineDuration() {
                 if (!hasTimelineRead || !timelineStore) return 0;
                 const state = timelineStore.getState();
-                const endTick = state.playbackRange?.endTick ?? state.timelineView.endTick;
+                const endTick =
+                    state.playbackRange?.endTick ?? state.timelineView?.endTick ?? state.timeline?.currentTick ?? 0;
                 const context = createTimingContext(state.timeline);
                 return ticksToSeconds(context, endTick) ?? 0;
             },

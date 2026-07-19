@@ -10,25 +10,30 @@ import type { TimingApi } from '@mvmnt-app/plugin-sdk/timing';
 import { midiNoteToName } from '@mvmnt-app/plugin-sdk/utils';
 import type { AssetApi } from '@mvmnt-app/plugin-sdk/visual-assets';
 
-void (null as unknown as AudioApi | TimelineApi | TimingApi | AssetApi | CapabilityContext | PluginDiagnostic | Result<number>);
+void (null as unknown as
+    | AudioApi
+    | TimelineApi
+    | TimingApi
+    | AssetApi
+    | CapabilityContext
+    | PluginDiagnostic
+    | Result<number>);
 void SDK_VERSION;
 void PLUGIN_CAPABILITIES;
 void midiNoteToName(60);
 
 export const sdkV2Fixture = definePluginElement<{ readonly color: string }, undefined>({
-  type: 'sdk-v2-fixture',
-  metadata: { name: 'SDK 2 Fixture', category: 'Fixtures' },
-  schema: { tabs: [] },
-  capabilities: {
-    required: ['timeline.read'],
-    optional: ['audio.features.read'],
-  },
-  render(props, _state, time, context) {
-    const metadata = context.timeline!.getMetadata();
-    if (!metadata.ok) return [];
-    const size = clamp(20 + time.seconds, 20, 100);
-    return limitRenderObjects([
-      new Rectangle(0, 0, size, size, { fillColor: props.color }),
-    ], 10);
-  },
+    type: 'sdk-v2-fixture',
+    metadata: { name: 'SDK 2 Fixture', category: 'Fixtures' },
+    schema: { tabs: [] },
+    capabilities: {
+        required: ['timeline.read'],
+        optional: ['audio.features.read'],
+    },
+    render(props, _state, time, context) {
+        const metadata = context.timeline!.getMetadata();
+        if (!metadata.ok) return [];
+        const size = clamp(20 + time.seconds, 20, 100);
+        return limitRenderObjects([new Rectangle(0, 0, size, size, { fillColor: props.color })], 10);
+    },
 });

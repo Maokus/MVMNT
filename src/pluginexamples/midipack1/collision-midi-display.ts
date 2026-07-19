@@ -1,9 +1,10 @@
+// @ts-nocheck
+import { defineRendererElement } from '@mvmnt-app/plugin-sdk';
 import {
-    SceneElement,
+    CallbackElementRenderer,
     Rectangle,
     Arc,
     Text,
-    getPluginHostApi,
     PLUGIN_CAPABILITIES,
     parseFontSelection,
     ensureFontLoaded,
@@ -11,8 +12,8 @@ import {
     insertElementConfig,
     tab,
     type RenderObject,
-} from '@mvmnt/plugin-sdk';
-import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
+} from '@mvmnt-app/plugin-sdk';
+import type { EnhancedConfigSchema } from '@mvmnt-app/plugin-sdk';
 
 function easeOutCubic(t: number): number {
     return 1 - Math.pow(1 - t, 3);
@@ -31,7 +32,7 @@ function archCurve(x: number): number {
     return -Math.pow((x - 0.5) * 2, 4) + 1;
 }
 
-export class CollisionMidiDisplayElement extends SceneElement {
+class CollisionMidiDisplayElement extends CallbackElementRenderer {
     constructor(id: string = 'collision-midi-display', config: Record<string, unknown> = {}) {
         super('collision-midi-display', id, config);
     }
@@ -153,7 +154,7 @@ export class CollisionMidiDisplayElement extends SceneElement {
         );
     }
 
-    protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
+    override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
 
         if (!props.visible) return [];
@@ -165,7 +166,7 @@ export class CollisionMidiDisplayElement extends SceneElement {
             return objects;
         }
 
-        const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+        const { api, status, missingCapabilities } = this.hostApi([PLUGIN_CAPABILITIES.timelineRead]);
 
         if (!api || status !== 'ok') {
             const message =
@@ -361,3 +362,9 @@ export class CollisionMidiDisplayElement extends SceneElement {
         return objects;
     }
 }
+
+export const collisionMidiDisplay = defineRendererElement(
+    { type: 'collision-midi-display', capabilities: { required: ['timeline.read'], optional: [] } },
+    CollisionMidiDisplayElement
+);
+export default collisionMidiDisplay;

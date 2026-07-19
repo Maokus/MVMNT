@@ -90,10 +90,10 @@
         "core/scene/plugins/sdk/*"
       ],
       "@mvmnt-app/plugin-sdk": [
-        "core/scene/plugins/plugin-sdk"
+        "../packages/plugin-sdk/src/index.ts"
       ],
       "@mvmnt-app/plugin-sdk/*": [
-        "core/scene/plugins/sdk/*"
+        "../packages/plugin-sdk/src/*"
       ]
     }
   },

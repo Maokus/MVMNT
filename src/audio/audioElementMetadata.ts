@@ -18,6 +18,7 @@ export interface AudioFeatureRequirement {
 }
 
 const ELEMENT_FEATURE_REQUIREMENTS = new Map<string, AudioFeatureRequirement[]>();
+const SCOPED_FEATURE_REQUIREMENTS = new Map<string, Map<symbol, AudioFeatureRequirement[]>>();
 
 /** Constructor shape used by plugin element definitions with a stable, literal type. */
 export interface TypedSceneElementConstructor<TType extends string = string> {
@@ -52,6 +53,28 @@ export function registerFeatureRequirements(elementType: string, requirements: A
     ELEMENT_FEATURE_REQUIREMENTS.set(elementType, sanitized);
 }
 
+/** Registers requirements for one SDK callback lifecycle and returns an idempotent cleanup. */
+export function registerScopedFeatureRequirements(
+    elementType: string,
+    requirements: readonly AudioFeatureRequirement[]
+): () => void {
+    const token = Symbol(elementType);
+    const entries = SCOPED_FEATURE_REQUIREMENTS.get(elementType) ?? new Map();
+    entries.set(
+        token,
+        requirements.map((requirement) => cloneRequirement(requirement))
+    );
+    SCOPED_FEATURE_REQUIREMENTS.set(elementType, entries);
+    let disposed = false;
+    return () => {
+        if (disposed) return;
+        disposed = true;
+        const current = SCOPED_FEATURE_REQUIREMENTS.get(elementType);
+        current?.delete(token);
+        if (current?.size === 0) SCOPED_FEATURE_REQUIREMENTS.delete(elementType);
+    };
+}
+
 /**
  * Register requirements using an element constructor's declared type.
  *
@@ -72,10 +95,10 @@ export function registerFeatureRequirementsForElement<TType extends string>(
  * Returns a defensive copy so callers can mutate the result without affecting the registry.
  */
 export function getFeatureRequirements(elementType: string): AudioFeatureRequirement[] {
-    const entries = ELEMENT_FEATURE_REQUIREMENTS.get(elementType);
-    if (!entries || entries.length === 0) {
-        return [];
-    }
+    const entries = [
+        ...(ELEMENT_FEATURE_REQUIREMENTS.get(elementType) ?? []),
+        ...[...(SCOPED_FEATURE_REQUIREMENTS.get(elementType)?.values() ?? [])].flat(),
+    ];
     return entries.map((entry) => cloneRequirement(entry));
 }
 
@@ -86,4 +109,5 @@ export function getFeatureRequirements(elementType: string): AudioFeatureRequire
  */
 export function resetFeatureRequirementsForTests(): void {
     ELEMENT_FEATURE_REQUIREMENTS.clear();
+    SCOPED_FEATURE_REQUIREMENTS.clear();
 }

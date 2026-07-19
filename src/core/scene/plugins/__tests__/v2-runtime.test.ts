@@ -12,7 +12,10 @@ afterEach(() => {
 function installHost() {
     const state = {
         timeline: { id: 'timeline', name: 'Timeline', currentTick: 0, globalBpm: 120, beatsPerBar: 4 },
-        tracks: {}, tracksOrder: [], audioCache: {}, timelineView: { startTick: 0, endTick: 1920 },
+        tracks: {},
+        tracksOrder: [],
+        audioCache: {},
+        timelineView: { startTick: 0, endTick: 1920 },
     } as any;
     const host = createPluginHostApi({
         timelineStore: { getState: () => state },
@@ -28,21 +31,75 @@ function installHost() {
 }
 
 describe('SDK v2 runtime', () => {
+    it('loads schema-declared fonts before the appearance inspector is opened', async () => {
+        const host = installHost();
+        const definition = definePluginElement({
+            type: 'font-load-test',
+            metadata: { name: 'Font load test' },
+            schema: {
+                tabs: [
+                    {
+                        id: 'appearance',
+                        label: 'Appearance',
+                        groups: [
+                            {
+                                id: 'typography',
+                                label: 'Typography',
+                                properties: [
+                                    { key: 'fontFamily', label: 'Font', type: 'font', default: 'SDK Runtime Font|600' },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+            capabilities: { required: [], optional: [] },
+            render() {
+                return [];
+            },
+        });
+        const scope = createPluginDefinitionScope(definition, {
+            pluginId: 'test',
+            services: host,
+            synchronousInitialization: true,
+            loadAsset: async () => 'blob:test',
+            report: vi.fn(),
+        });
+        const ElementClass = scope.createElementClass();
+        const instance = new ElementClass('font-test', {});
+
+        const link = document.getElementById('gf-SDK+Runtime+Font') as HTMLLinkElement | null;
+        expect(link?.href).toContain('family=SDK+Runtime+Font:wght@600');
+
+        instance.dispose();
+        await scope.dispose();
+        link?.remove();
+    });
+
     it('keeps undeclared operations away from internal services', async () => {
         const host = installHost();
         const rawSpy = vi.spyOn(host.audio, 'getRawSamples');
         let context!: CapabilityContext;
         const definition = definePluginElement({
-            type: 'capability-test', metadata: { name: 'Capability test' }, schema: { tabs: [] },
+            type: 'capability-test',
+            metadata: { name: 'Capability test' },
+            schema: { tabs: [] },
             capabilities: { required: [PLUGIN_CAPABILITIES.audioFeaturesRead], optional: [] },
-            load(value) { context = value; },
-            render() { return []; },
+            load(value) {
+                context = value;
+            },
+            render() {
+                return [];
+            },
         });
         // The callback runtime receives the host directly. It must not fall
         // back to the frozen SDK 1 global accessor after scope construction.
         (globalThis as any).MVMNT = undefined;
         const scope = createPluginDefinitionScope(definition, {
-            pluginId: 'test', services: host, loadAsset: async () => 'blob:test', report: vi.fn(),
+            pluginId: 'test',
+            services: host,
+            loadAsset: async () => 'blob:test',
+            report: vi.fn(),
         });
         expect(await scope.ready).toBe(true);
 
@@ -57,13 +114,21 @@ describe('SDK v2 runtime', () => {
         let finishCreate!: () => void;
         const render = vi.fn(() => []);
         const definition = definePluginElement({
-            type: 'async-test', metadata: { name: 'Async test' }, schema: { tabs: [] },
+            type: 'async-test',
+            metadata: { name: 'Async test' },
+            schema: { tabs: [] },
             capabilities: { required: [], optional: [] },
-            create: () => new Promise<void>((resolve) => { finishCreate = resolve; }),
+            create: () =>
+                new Promise<void>((resolve) => {
+                    finishCreate = resolve;
+                }),
             render,
         });
         const scope = createPluginDefinitionScope(definition, {
-            pluginId: 'test', services: host, loadAsset: async () => 'blob:test', report: vi.fn(),
+            pluginId: 'test',
+            services: host,
+            loadAsset: async () => 'blob:test',
+            report: vi.fn(),
         });
         await scope.ready;
         const ElementClass = scope.createElementClass();
@@ -82,15 +147,29 @@ describe('SDK v2 runtime', () => {
 
     it('cleans scoped calculator registrations on unload', async () => {
         const host = installHost();
-        const calculator = { id: 'test.scoped', version: 1, featureKey: 'scoped', calculate: () => ({ frameCount: 0, channels: 1, format: 'float32' as const, data: new Float32Array() }) };
+        const calculator = {
+            id: 'test.scoped',
+            version: 1,
+            featureKey: 'scoped',
+            calculate: () => ({ frameCount: 0, channels: 1, format: 'float32' as const, data: new Float32Array() }),
+        };
         const definition = definePluginElement({
-            type: 'cleanup-test', metadata: { name: 'Cleanup test' }, schema: { tabs: [] },
+            type: 'cleanup-test',
+            metadata: { name: 'Cleanup test' },
+            schema: { tabs: [] },
             capabilities: { required: [PLUGIN_CAPABILITIES.audioCalculatorsRegister], optional: [] },
-            load(context) { context.audioCalculators!.register(calculator); },
-            render() { return []; },
+            load(context) {
+                context.audioCalculators!.register(calculator);
+            },
+            render() {
+                return [];
+            },
         });
         const scope = createPluginDefinitionScope(definition, {
-            pluginId: 'test', services: host, loadAsset: async () => 'blob:test', report: vi.fn(),
+            pluginId: 'test',
+            services: host,
+            loadAsset: async () => 'blob:test',
+            report: vi.fn(),
         });
         await scope.ready;
         expect(host.audioCalculators.list().some((entry) => entry.id === calculator.id)).toBe(true);

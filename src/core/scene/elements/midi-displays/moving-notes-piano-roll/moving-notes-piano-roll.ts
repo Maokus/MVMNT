@@ -5,11 +5,11 @@ import { Line, EmptyRenderObject, RenderObject, Rectangle, GlowLayer } from '@co
 import { getAnimationSelectOptions } from '@core/scene/elements/midi-displays/note-animations';
 import { normalizeColorAlphaValue, ensureEightDigitHex, applyOpacity } from '@utils/color';
 import { MovingNotesAnimationController } from './animation-controller';
-import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
 import { TimingManager } from '@core/timing';
 import { insertElementConfig, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
-import { defineHostAdaptedBuiltIn } from '@core/scene/plugins/built-in-definition';
+import { defineHostAdaptedBuiltIn, getEnginePrivateHostApi } from '@core/scene/plugins/built-in-definition';
 
 const DEFAULT_NOTE_COLOR = '#FF6B6B';
 
@@ -270,7 +270,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const pianoRightBorderColor = props.pianoRightBorderColor as string;
         const pianoRightBorderWidth = props.pianoRightBorderWidth as number;
         const effectivePianoWidth = showPiano ? pianoWidth : 0;
-        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
+        const host = getEnginePrivateHostApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
         const timelineState = host.ok ? host.api.timeline.getStateSnapshot() : null;
 
         const autoRange = props.autoRange as boolean;
@@ -342,7 +342,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                           startSec: windowStart,
                           endSec: windowEnd,
                       })
-                      .map((n) => ({
+                      .map((n: any) => ({
                           note: n.note,
                           channel: n.channel,
                           velocity: n.velocity || 0,
@@ -486,4 +486,15 @@ export class MovingNotesPianoRollElement extends SceneElement {
     }
 }
 
-export const movingNotesPianoRoll = defineHostAdaptedBuiltIn({ type: 'movingNotesPianoRoll', metadata: { name: 'Moving Notes Piano Roll', description: 'Scrolling timeline piano roll', category: 'MIDI Displays' }, capabilities: { required: ['timeline.read'], optional: ['timing.conversion'] } }, MovingNotesPianoRollElement);
+export const movingNotesPianoRoll = defineHostAdaptedBuiltIn(
+    {
+        type: 'movingNotesPianoRoll',
+        metadata: {
+            name: 'Moving Notes Piano Roll',
+            description: 'Scrolling timeline piano roll',
+            category: 'MIDI Displays',
+        },
+        capabilities: { required: ['timeline.read'], optional: ['timing.conversion'] },
+    },
+    MovingNotesPianoRollElement
+);

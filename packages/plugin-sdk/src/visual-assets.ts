@@ -1,8 +1,8 @@
 import type { Result } from './api.js';
 
 export interface AssetHandle {
-  readonly url: string;
-  dispose(): void;
+    readonly url: string;
+    dispose(): void;
 }
 
 export type VisualAssetStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -13,31 +13,44 @@ export type VisualAssetStatus = 'idle' | 'loading' | 'ready' | 'error';
  * inspect or retain the application's decoded media objects.
  */
 export interface VisualAssetSnapshot {
-  readonly resource: unknown | null;
-  readonly status: VisualAssetStatus;
-  readonly errorMessage?: string;
+    readonly resource: unknown | null;
+    readonly status: VisualAssetStatus;
+    readonly errorMessage?: string;
 }
 
 export interface ProjectVisualAssetHandle {
-  update(assetId: string | null): VisualAssetSnapshot;
-  dispose(): void;
+    update(assetId: string | null): VisualAssetSnapshot;
+    dispose(): void;
 }
 
 export interface BundledVisualAssetHandle {
-  get(): VisualAssetSnapshot;
-  dispose(): void;
+    get(): VisualAssetSnapshot;
+    dispose(): void;
 }
 
 export interface GridAtlasLayout {
-  readonly columns: number;
-  readonly rows: number;
-  readonly frameDurationMs?: number;
+    readonly columns: number;
+    readonly rows: number;
+    readonly frameDurationMs?: number;
 }
 
 export interface AssetApi {
-  load(path: string): Promise<Result<AssetHandle>>;
-  project(): ProjectVisualAssetHandle;
-  bundledImage(path: string): BundledVisualAssetHandle;
-  bundledSparrow(imagePath: string, xmlPath: string, defaultFps?: number): BundledVisualAssetHandle;
-  bundledGridAtlas(imagePath: string, layout: GridAtlasLayout): BundledVisualAssetHandle;
+    load(path: string): Promise<Result<AssetHandle>>;
+    project(): ProjectVisualAssetHandle;
+    bundledImage(path: string): BundledVisualAssetHandle;
+    bundledSparrow(imagePath: string, xmlPath: string, defaultFps?: number): BundledVisualAssetHandle;
+    bundledGridAtlas(imagePath: string, layout: GridAtlasLayout): BundledVisualAssetHandle;
 }
+
+export class VisualMediaPlayback {
+    speed = 1;
+    startOffset = 0;
+    computeLocalTime(sceneTimeSeconds: number): number {
+        return Math.max(0, sceneTimeSeconds - this.startOffset) * this.speed;
+    }
+}
+
+export type ResourceStatus = VisualAssetStatus;
+export type ResourceHandleResult = VisualAssetSnapshot;
+export type VisualResource = any;
+export type BundledSprite = BundledVisualAssetHandle & Readonly<{ destroy(): void }>;

@@ -11,9 +11,7 @@ import { exportScene } from './export';
 import { importScene, type ImportSceneOptions } from './import';
 import { LocalFileStore } from './local-file-store';
 
-export type LocalSaveResult =
-    | { ok: true }
-    | { ok: false; error: string; fallbackToFileExport?: boolean };
+export type LocalSaveResult = { ok: true } | { ok: false; error: string; fallbackToFileExport?: boolean };
 
 export type LocalLoadResult =
     /** File loaded and applied to app state. */

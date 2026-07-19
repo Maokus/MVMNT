@@ -1,14 +1,36 @@
 {
-  "id": "com.mvmnt.sdk-v2-fixture",
-  "name": "SDK 2 Fixture",
-  "version": "1.0.0",
-  "apiVersion": "^2.0.0",
-  "elements": [{
-    "type": "sdk-v2-fixture",
-    "entry": "element.ts",
-    "capabilities": {
-      "required": ["timeline.read"],
-      "optional": ["audio.features.read"]
-    }
-  }]
+    "id": "com.mvmnt.sdk-v2-fixture",
+    "name": "SDK 2 Fixture",
+    "version": "1.0.0",
+    "apiVersion": "^2.0.0",
+    "elements": [
+        {
+            "type": "sdk-v2-fixture",
+            "entry": "element.ts",
+            "capabilities": {
+                "required": ["timeline.read"],
+                "optional": ["audio.features.read"]
+            }
+        },
+        {
+            "type": "sdk-v2-properties",
+            "entry": "property-heavy.ts",
+            "capabilities": { "required": [], "optional": [] }
+        },
+        {
+            "type": "sdk-v2-raw-audio",
+            "entry": "raw-audio.ts",
+            "capabilities": { "required": ["audio.raw.read"], "optional": [] }
+        },
+        {
+            "type": "sdk-v2-feature-audio",
+            "entry": "feature-audio.ts",
+            "capabilities": { "required": ["audio.features.read"], "optional": [] }
+        },
+        {
+            "type": "sdk-v2-bundled-asset",
+            "entry": "bundled-asset.ts",
+            "capabilities": { "required": [], "optional": [] }
+        }
+    ]
 }

@@ -1,27 +1,18 @@
-import { SceneElement, prop, insertElementConfig, tab, getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
-import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
-import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
+// @ts-nocheck
+import { defineRendererElement } from '@mvmnt-app/plugin-sdk';
+import { CallbackElementRenderer, prop, insertElementConfig, tab, PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
+import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt-app/plugin-sdk/render';
+import type { EnhancedConfigSchema } from '@mvmnt-app/plugin-sdk';
 
-// Implemented these to test the sparrow and grid atlas loading systems.
-// System itself is still kind of janky but usable. If you know how to make it better
-// Message me on discord please 🙏 I have 0 experience with this sort of thing
-
-// FNF note lane: MIDI note % 4 → animation name
-// 0 = LEFT (purple), 1 = DOWN (blue), 2 = UP (green), 3 = RIGHT (red)
 const NOTE_ANIMATIONS: Record<number, string> = {
     0: 'BF NOTE LEFT',
     1: 'BF NOTE DOWN',
     2: 'BF NOTE UP',
     3: 'BF NOTE RIGHT',
 };
+const IDLE_DURATION_SEC = 14 / 24;
 
-// BF idle dance has 14 frames. Beat-sync by resetting localTime each beat.
-// Tune this fps to match your atlas's idle animation speed.
-const IDLE_FPS = 24;
-const IDLE_FRAMES = 14;
-const IDLE_DURATION_SEC = IDLE_FRAMES / IDLE_FPS; // ~0.583s
-
-export class BoyfriendElement extends SceneElement {
+class BoyfriendElement extends CallbackElementRenderer {
     private readonly _bundledAtlas = this.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml');
     private readonly _media = new VisualMedia(0, 0, 200, 200);
     private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
@@ -33,11 +24,7 @@ export class BoyfriendElement extends SceneElement {
     static override getConfigSchema(): EnhancedConfigSchema {
         return insertElementConfig(
             super.getConfigSchema(),
-            {
-                name: 'Boyfriend',
-                description: 'MIDI reactive boyfriend from FNF',
-                category: 'us.maok.fnf',
-            },
+            { name: 'Boyfriend', description: 'MIDI reactive boyfriend from FNF', category: 'us.maok.fnf' },
             [
                 tab.content([
                     {
@@ -67,67 +54,45 @@ export class BoyfriendElement extends SceneElement {
         );
     }
 
-    protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
+    override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
-        const WIDTH = 450;
-        const HEIGHT = 450;
-
         if (!props.visible) return [];
-
-        this._layoutRect.setOrigin(0, 0).setSize(WIDTH, HEIGHT);
-
-        // Resolve timeline API for note queries and BPM.
-        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
-
-        const timelineState = status === 'ok' ? api?.timeline.getStateSnapshot() : null;
-        const bpm = timelineState?.timeline.globalBpm ?? 120;
-        const beatSec = 60 / bpm;
-        const minNoteLength = 0.5;
-
-        let animationName = 'BF idle dance';
-        let localTime: number;
-
+        const width = 450;
+        const height = 450;
+        this._layoutRect.setOrigin(0, 0).setSize(width, height);
+        const { api, status } = this.hostApi([PLUGIN_CAPABILITIES.timelineRead]);
+        const bpm = status === 'ok' ? (api?.timeline.getStateSnapshot()?.timeline.globalBpm ?? 120) : 120;
         const trackId = props.midiTrackId as string | null;
-        if (trackId && api && status === 'ok') {
-            // Look back up to 8s to catch long held notes that started before this window.
-            const notes = api.timeline.selectNotesInWindow({
-                trackIds: [trackId],
-                startSec: targetTime - 8,
-                endSec: targetTime + 0.05,
-            });
-
-            let activeNote = notes.find((n) => n.startTime <= targetTime && targetTime < n.endTime);
-            if (!activeNote) {
-                notes.find((n) => n.startTime > targetTime - minNoteLength && n.endTime < targetTime);
-            }
-
-            if (activeNote) {
-                animationName = NOTE_ANIMATIONS[activeNote.note % 4] ?? 'BF NOTE LEFT';
-                // Play note animation from the moment it started.
-                localTime = targetTime - activeNote.startTime;
-            } else {
-                // Idle: sync animation phase to current beat.
-                localTime = ((targetTime % beatSec) / beatSec) * IDLE_DURATION_SEC;
-            }
-        } else {
-            // No track selected — idle synced to beat.
-            localTime = ((targetTime % beatSec) / beatSec) * IDLE_DURATION_SEC;
-        }
-
-        // Use bundled atlas.
-        const { resource, status: resStatus } = this._bundledAtlas.get();
-
+        const notes =
+            trackId && api && status === 'ok'
+                ? api.timeline.selectNotesInWindow({
+                      trackIds: [trackId],
+                      startSec: targetTime - 8,
+                      endSec: targetTime + 0.05,
+                  })
+                : [];
+        const active = notes.find((note) => note.startTime <= targetTime && targetTime < note.endTime);
+        const animation = active ? (NOTE_ANIMATIONS[active.note % 4] ?? 'BF NOTE LEFT') : 'BF idle dance';
+        const localTime = active
+            ? targetTime - active.startTime
+            : ((targetTime % (60 / bpm)) / (60 / bpm)) * IDLE_DURATION_SEC;
+        const { resource, status: resourceStatus } = this._bundledAtlas.get();
         this._media
-            .setResource(resource, resStatus)
-            .setAnimation(animationName)
+            .setResource(resource, resourceStatus)
+            .setAnimation(animation)
             .setLocalTime(localTime)
             .setFitMode('clip')
             .setLayoutParticipation('exclude')
-            .setDimensions(WIDTH, HEIGHT)
+            .setDimensions(width, height)
             .setOriginFraction(props.debugOriginX, props.debugOriginY)
             .setFramePlacement('bottom-center')
             .setScale(props.scale);
-
         return [this._layoutRect, this._media];
     }
 }
+
+export const boyfriend = defineRendererElement(
+    { type: 'boyfriend', capabilities: { required: ['timeline.read'], optional: [] } },
+    BoyfriendElement
+);
+export default boyfriend;

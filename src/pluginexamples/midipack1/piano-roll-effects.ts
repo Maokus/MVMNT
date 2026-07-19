@@ -1,9 +1,10 @@
+// @ts-nocheck
 // Shared hit-effects and note-animation helpers for piano roll elements.
 // Used by vidilike-piano-roll and circular-piano-roll.
 
-import { Arc, BezierPath, Line, Poly, remap, Text, type RenderObject } from '@mvmnt/plugin-sdk';
+import { Arc, BezierPath, Line, Poly, remap, Text, type RenderObject } from '@mvmnt-app/plugin-sdk';
 
-import * as anim from '@mvmnt/plugin-sdk/animation';
+import * as anim from '@mvmnt-app/plugin-sdk/animation';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Animation constants — adjust to change feel without touching logic

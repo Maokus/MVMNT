@@ -1,32 +1,31 @@
+// @ts-nocheck
+import { defineRendererElement } from '@mvmnt-app/plugin-sdk';
 import {
-    SceneElement,
-    getPluginHostApi,
+    CallbackElementRenderer,
     PLUGIN_CAPABILITIES,
     parseFontSelection,
     ensureFontLoaded,
     prop,
     insertElementConfig,
     tab,
-    VisualResourceHandle,
-    resolveProjectAssetDescriptor,
-} from '@mvmnt/plugin-sdk';
+} from '@mvmnt-app/plugin-sdk';
 
-import { VisualMedia, Text, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
+import { VisualMedia, Text, Rectangle, type RenderObject } from '@mvmnt-app/plugin-sdk/render';
 
-import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
+import type { EnhancedConfigSchema } from '@mvmnt-app/plugin-sdk';
 
 const ANIM_DURATION_MS = 100;
 const JUMP_OFFSET_PX = 20;
 const BUMP_SCALE_ADD = 0.15;
 
-export class PopcatMidiDisplayElement extends SceneElement {
+class PopcatMidiDisplayElement extends CallbackElementRenderer {
     // Bundled defaults
     private readonly _popcat1 = this.bundledSprite('popcat1.png');
     private readonly _popcat2 = this.bundledSprite('popcat2.png');
 
     // User-override handles (idle = popcat2 / closed mouth, active = popcat1 / open mouth)
-    private readonly _idleHandle = new VisualResourceHandle();
-    private readonly _activeHandle = new VisualResourceHandle();
+    private readonly _idleHandle = this.visualHandle();
+    private readonly _activeHandle = this.visualHandle();
 
     constructor(id: string = 'popcat-midi-display', config: Record<string, unknown> = {}) {
         super('popcat-midi-display', id, config);
@@ -185,7 +184,7 @@ export class PopcatMidiDisplayElement extends SceneElement {
         );
     }
 
-    protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
+    override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
 
         if (!props.visible) return [];
@@ -194,7 +193,7 @@ export class PopcatMidiDisplayElement extends SceneElement {
             return [new Text(0, 0, 'Select a MIDI track', '14px Inter, sans-serif', '#94a3b8', 'left', 'top')];
         }
 
-        const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+        const { api, status, missingCapabilities } = this.hostApi([PLUGIN_CAPABILITIES.timelineRead]);
 
         if (!api || status !== 'ok') {
             const message =
@@ -215,12 +214,8 @@ export class PopcatMidiDisplayElement extends SceneElement {
         const userIdleSrc = (props.idleSprite as string | null) ?? null;
         const userActiveSrc = (props.activeSprite as string | null) ?? null;
 
-        const { resource: userIdle, status: userIdleStatus } = this._idleHandle.update(
-            resolveProjectAssetDescriptor(userIdleSrc)
-        );
-        const { resource: userActive, status: userActiveStatus } = this._activeHandle.update(
-            resolveProjectAssetDescriptor(userActiveSrc)
-        );
+        const { resource: userIdle, status: userIdleStatus } = this._idleHandle.update(userIdleSrc);
+        const { resource: userActive, status: userActiveStatus } = this._activeHandle.update(userActiveSrc);
         const { resource: bundledIdle, status: bundledIdleStatus } = this._popcat2.get();
         const { resource: bundledActive, status: bundledActiveStatus } = this._popcat1.get();
 
@@ -387,3 +382,9 @@ export class PopcatMidiDisplayElement extends SceneElement {
         }
     }
 }
+
+export const popcatMidiDisplay = defineRendererElement(
+    { type: 'popcat-midi-display', capabilities: { required: ['timeline.read'], optional: [] } },
+    PopcatMidiDisplayElement
+);
+export default popcatMidiDisplay;

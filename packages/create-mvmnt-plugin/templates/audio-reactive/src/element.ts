@@ -1,0 +1,86 @@
+import { definePluginElement } from '@mvmnt-app/plugin-sdk';
+import { Rectangle } from '@mvmnt-app/plugin-sdk/render';
+export const audioReactive = definePluginElement({
+    type: 'audio-reactive',
+    metadata: { name: 'Audio Reactive', description: 'Shape that reacts to audio volume', category: 'Custom' },
+    schema: {
+        tabs: [
+            {
+                id: 'content',
+                label: 'Content',
+                groups: [
+                    {
+                        id: 'audioSource',
+                        label: 'Audio Source',
+                        collapsed: false,
+                        properties: [
+                            {
+                                key: 'audioTrackId',
+                                label: 'Audio Track',
+                                type: 'timelineTrackRef',
+                                allowedTrackTypes: ['audio'],
+                                default: null,
+                            },
+                            {
+                                key: 'smoothing',
+                                label: 'Smoothing',
+                                type: 'number',
+                                default: 4,
+                                min: 0,
+                                max: 64,
+                                step: 1,
+                            },
+                        ],
+                    },
+                ],
+            },
+            {
+                id: 'appearance',
+                label: 'Appearance',
+                groups: [
+                    {
+                        id: 'reactiveAppearance',
+                        label: 'Appearance',
+                        collapsed: false,
+                        properties: [
+                            {
+                                key: 'baseSize',
+                                label: 'Base Size',
+                                type: 'number',
+                                default: 50,
+                                min: 10,
+                                max: 500,
+                                step: 1,
+                            },
+                            {
+                                key: 'reactivityScale',
+                                label: 'Reactivity',
+                                type: 'number',
+                                default: 200,
+                                min: 0,
+                                max: 1000,
+                                step: 10,
+                            },
+                            { key: 'shapeColor', label: 'Color', type: 'colorAlpha', default: '#F472B6FF' },
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
+    capabilities: { required: ['audio.raw.read'], optional: [] },
+    render(props, _state, time, context) {
+        const windowSeconds = Math.max(0.025, props.smoothing * 0.01);
+        const rms = props.audioTrackId
+            ? context.audio!.getRms({
+                  trackId: props.audioTrackId,
+                  startSeconds: time.seconds - windowSeconds / 2,
+                  endSeconds: time.seconds + windowSeconds / 2,
+              })
+            : null;
+        const values = rms?.ok ? rms.value : [];
+        const volume = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+        const size = props.baseSize + volume * props.reactivityScale;
+        return [new Rectangle(-size / 2, -size / 2, size, size, { fillColor: props.shapeColor })];
+    },
+});

@@ -2,10 +2,10 @@ import { SceneElement, asNumber, asTrimmedString } from '../base';
 import { Arc, Poly, Rectangle, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
-import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
 import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
-import { defineHostAdaptedBuiltIn } from '@core/scene/plugins/built-in-definition';
+import { defineHostAdaptedBuiltIn, getEnginePrivateHostApi } from '@core/scene/plugins/built-in-definition';
 
 /** UI limit for a responsive waveform trace. The raw PCM API itself has no fixed cap. */
 const MAX_SAMPLE_COUNT = 8192;
@@ -29,7 +29,6 @@ function clamp(value: number, min: number, max: number): number {
     if (value > max) return max;
     return value;
 }
-
 
 function lerp(a: number, b: number, t: number): number {
     return a + (b - a) * t;
@@ -601,7 +600,7 @@ export class AudioWaveformElement extends SceneElement {
             return pushFlatLine();
         }
 
-        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.audioRawRead]);
+        const host = getEnginePrivateHostApi(this, [PLUGIN_CAPABILITIES.audioRawRead]);
 
         if (!host.ok) {
             return pushFlatLine();
@@ -714,4 +713,11 @@ export class AudioWaveformElement extends SceneElement {
     }
 }
 
-export const audioWaveform = defineHostAdaptedBuiltIn({ type: 'audioWaveform', metadata: { name: 'Audio Waveform', description: 'Raw waveform display', category: 'Audio Displays' }, capabilities: { required: ['audio.raw.read'], optional: [] } }, AudioWaveformElement);
+export const audioWaveform = defineHostAdaptedBuiltIn(
+    {
+        type: 'audioWaveform',
+        metadata: { name: 'Audio Waveform', description: 'Raw waveform display', category: 'Audio Displays' },
+        capabilities: { required: ['audio.raw.read'], optional: [] },
+    },
+    AudioWaveformElement
+);

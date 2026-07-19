@@ -18,7 +18,10 @@ export { TextOverlayElement, textOverlay } from './misc/text-overlay';
 export { TimeDisplayElement, timeDisplay } from './misc/time-display';
 export { DebugElement, debug } from './misc/debug';
 export { TimeUnitPianoRollElement, timeUnitPianoRoll } from './midi-displays/time-unit-piano-roll/time-unit-piano-roll';
-export { MovingNotesPianoRollElement, movingNotesPianoRoll } from './midi-displays/moving-notes-piano-roll/moving-notes-piano-roll';
+export {
+    MovingNotesPianoRollElement,
+    movingNotesPianoRoll,
+} from './midi-displays/moving-notes-piano-roll/moving-notes-piano-roll';
 export { NoteCountTrackerElement, notesPlayedTracker } from './midi-displays/note-count-tracker';
 export { NotesPlayingDisplayElement, notesPlayingDisplay } from './midi-displays/notes-playing-display';
 export { ChordEstimateDisplayElement, chordEstimateDisplay } from './midi-displays/chord-estimate-display';
@@ -28,8 +31,3 @@ export { AudioVolumeMeterElement, audioVolumeMeter } from './audio-displays/audi
 export { AudioWaveformElement, audioWaveform } from './audio-displays/audio-waveform';
 export { AudioPeaksElement, audioPeaks } from './audio-displays/audio-peaks';
 export { AudioLockedOscilloscopeElement, audioLockedOscilloscope } from './audio-displays/audio-locked-oscilloscope';
-export { AudioAdhocProfileElement } from './audio-debug/audio-adhoc-profile';
-export { AudioMinimalElement } from './audio-debug/audio-minimal';
-export { AudioOddProfileElement } from './audio-debug/audio-odd-profile';
-export { AudioDebugElement } from './audio-debug/audio-debug';
-export { AudioBadReqElement } from './audio-debug/audio-bad-req';
