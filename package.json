@@ -8,7 +8,7 @@
         "packages/*"
     ],
     "dependencies": {
-        "@mvmnt/plugin-sdk": "file:packages/plugin-sdk",
+        "@mvmnt-app/plugin-sdk": "file:packages/plugin-sdk",
         "@floating-ui/react": "^0.27.16",
         "@mediabunny/aac-encoder": "^1.40.1",
         "@mediabunny/mp3-encoder": "^1.18.0",
@@ -56,7 +56,6 @@
     },
     "scripts": {
         "dev": "vite",
-        "dev:examples": "vite --mode examples",
         "previewprod": "npm run build -- --base /; npx serve build -s -l 5001",
         "start": "vite",
         "build": "vite build",
@@ -65,12 +64,11 @@
         "test": "vitest run",
         "test:watch": "vitest --watch",
         "compile": "npx tsc --noEmit",
-        "create-element": "node scripts/create-element.mjs",
-        "create-example": "node scripts/create-example.mjs",
         "build-plugin": "node scripts/build-plugin.mjs",
         "dev-plugin": "node scripts/dev-plugin.mjs",
-        "build:plugin-sdk": "npm run build --workspace @mvmnt/plugin-sdk",
-        "pack:plugin-sdk": "npm pack --workspace @mvmnt/plugin-sdk",
+        "create-plugin": "node packages/create-mvmnt-plugin/bin/create-mvmnt-plugin.mjs",
+        "build:plugin-sdk": "npm run build --workspace @mvmnt-app/plugin-sdk",
+        "pack:plugin-sdk": "npm pack --workspace @mvmnt-app/plugin-sdk",
         "verify:plugin-sdk-pack": "node scripts/verify-plugin-sdk-pack.mjs",
         "orphan": "bash -c 'set -a && source .env && npx tsx \"$@\"' --",
         "linuxlock": "npm_config_platform=linux npm_config_arch=x64 npm_config_libc=glibc   npm install --package-lock-only --include=optional",

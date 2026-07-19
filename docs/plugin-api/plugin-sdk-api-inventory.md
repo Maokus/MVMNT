@@ -5,7 +5,7 @@ machine-readable source used by loader and builder parity tests.
 
 | Import | Runtime exports |
 | --- | --- |
-| `@mvmnt/plugin-sdk` | `definePluginElement`, diagnostics/results, animation and render helpers |
+| `@mvmnt-app/plugin-sdk` | `definePluginElement`, diagnostics/results, animation and render helpers |
 | `/api` | version, capability names, `PluginContractError`, `ok`, `err` |
 | `/animation` | `clamp`, `lerp`, `invLerp`, `remap`, `easings` |
 | `/audio` | callback-facet and audio DTO types |

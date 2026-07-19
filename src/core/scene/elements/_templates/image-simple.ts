@@ -1,16 +1,8 @@
 // Template: SDK 2 project image/GIF element.
-import { definePluginElement, type ProjectVisualAssetHandle } from '@mvmnt/plugin-sdk';
-import { Rectangle, VisualMedia } from '@mvmnt/plugin-sdk/render';
+import { definePluginElement } from '@mvmnt-app/plugin-sdk';
+import { Rectangle, VisualMedia } from '@mvmnt-app/plugin-sdk/render';
 
-interface ImageProps extends Readonly<Record<string, unknown>> {
-    readonly imageSource: string | null;
-    readonly width: number;
-    readonly height: number;
-    readonly fitMode: 'contain' | 'cover' | 'fill' | 'clip';
-}
-interface ImageState { readonly handle: ProjectVisualAssetHandle; readonly media: VisualMedia; readonly bounds: Rectangle }
-
-export const simpleImage = definePluginElement<ImageProps, ImageState>({
+export const simpleImage = definePluginElement({
     type: 'simple-image',
     metadata: { name: 'Simple Image', description: 'Displays an image or animated GIF', category: 'Custom' },
     schema: { tabs: [{ id: 'properties', label: 'Properties', groups: [{ id: 'imageSource', label: 'Image', collapsed: false, properties: [

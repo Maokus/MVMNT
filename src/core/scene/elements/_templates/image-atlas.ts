@@ -1,11 +1,8 @@
 // Template: SDK 2 animated Sparrow atlas with bundled defaults.
-import { definePluginElement, type BundledVisualAssetHandle, type ProjectVisualAssetHandle } from '@mvmnt/plugin-sdk';
-import { Rectangle, VisualMedia } from '@mvmnt/plugin-sdk/render';
+import { definePluginElement } from '@mvmnt-app/plugin-sdk';
+import { Rectangle, VisualMedia } from '@mvmnt-app/plugin-sdk/render';
 
-interface Props extends Readonly<Record<string, unknown>> { readonly atlas: string | null; readonly width: number; readonly height: number }
-interface State { readonly atlas: BundledVisualAssetHandle; readonly background: BundledVisualAssetHandle; readonly override: ProjectVisualAssetHandle; readonly media: VisualMedia; readonly bg: VisualMedia; readonly bounds: Rectangle }
-
-export const atlasImage = definePluginElement<Props, State>({
+export const atlasImage = definePluginElement({
     type: 'atlas-image',
     metadata: { name: 'Atlas Image', description: 'Sparrow atlas animation with a bundled default', category: 'Custom' },
     schema: { tabs: [{ id: 'properties', label: 'Properties', groups: [{ id: 'atlasSource', label: 'Atlas', collapsed: false, properties: [

@@ -28,17 +28,17 @@ describe('plugin SDK v2 contract', () => {
     it('keeps package exports, runtime modules, manifest, and docs in parity', () => {
         const packageSubpaths = Object.keys(packageManifest.exports)
             .filter((key) => !['./manifest', './package.json'].includes(key))
-            .map((key) => key === '.' ? '@mvmnt/plugin-sdk' : `@mvmnt/plugin-sdk/${key.slice(2)}`);
+            .map((key) => key === '.' ? '@mvmnt-app/plugin-sdk' : `@mvmnt-app/plugin-sdk/${key.slice(2)}`);
         expect(packageSubpaths).toEqual(sdkManifest.runtimeModules);
         expect(SDK_RUNTIME_MODULE_IDS).toEqual(sdkManifest.runtimeModules);
         expect(getPluginRuntimeModuleIds(2)).toEqual(sdkManifest.runtimeModules);
-        expect(SDK_RUNTIME_MODULE_IDS).toContain('@mvmnt/plugin-sdk/visual-assets');
+        expect(SDK_RUNTIME_MODULE_IDS).toContain('@mvmnt-app/plugin-sdk/visual-assets');
         for (const [subpath, exports] of Object.entries(sdkManifest.publicExports)) {
-            const moduleId = subpath === '.' ? '@mvmnt/plugin-sdk' : `@mvmnt/plugin-sdk/${subpath}`;
+            const moduleId = subpath === '.' ? '@mvmnt-app/plugin-sdk' : `@mvmnt-app/plugin-sdk/${subpath}`;
             expect([...getPluginRuntimeExportNames(2, moduleId)].sort()).toEqual([...exports].sort());
         }
 
-        const docs = readFileSync(resolve(__dirname, '../../../../../docs/plugin-sdk-api-inventory.md'), 'utf8');
+        const docs = readFileSync(resolve(__dirname, '../../../../../docs/plugin-api/plugin-sdk-api-inventory.md'), 'utf8');
         for (const subpath of sdkManifest.subpaths.filter((value) => value !== '.')) {
             expect(docs).toContain(`/${subpath}`);
         }

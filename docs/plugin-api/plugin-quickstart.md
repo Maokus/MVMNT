@@ -1,37 +1,66 @@
 # Plugin SDK 2 quickstart
 
-MVMNT plugins use the independently consumable `@mvmnt/plugin-sdk` package. SDK 2 elements
-are definitions rather than subclasses. MVMNT supplies a capability-scoped context to each
-lifecycle and render callback.
+This guide takes a new plugin from an empty folder to an element available in MVMNT.
+SDK 2 plugins export `definePluginElement()` definitions. They do not subclass `SceneElement`
+or import MVMNT application aliases such as `@core/*` or `@state/*`.
 
-## Define an element
+## Before you begin
 
-```ts
-import { definePluginElement } from '@mvmnt/plugin-sdk/scene';
-import { Rectangle } from '@mvmnt/plugin-sdk/render';
+You need Node.js and npm. Start a plugin project and install the published SDK:
 
-export const pulse = definePluginElement<{ color: string }, undefined>({
-    type: 'pulse',
-    metadata: { name: 'Pulse', category: 'Examples' },
-    schema: { tabs: [] },
-    capabilities: {
-        required: ['timeline.read'],
-        optional: ['audio.features.read'],
-    },
-    render(props, _state, time, context) {
-        const duration = context.timeline.getMetadata();
-        if (!duration.ok) return [];
-        const size = 40 + 20 * Math.sin(time.seconds * Math.PI * 2);
-        return [new Rectangle(-size / 2, -size / 2, size, size, { fillColor: props.color })];
-    },
-});
+```sh
+mkdir pulse-plugin
+cd pulse-plugin
+npm init -y
+npm install @mvmnt-app/plugin-sdk
+npm install --save-dev typescript
 ```
 
-Required facets are present in callbacks because the loader skips the element when the host
-cannot grant them. Optional facets are `undefined` when unavailable. Expected failures return
-`Result<T, PluginDiagnostic>`; check `ok` before reading `value`.
+For unreleased SDK changes from a local MVMNT checkout, build and install the local package instead:
 
-## Add the manifest
+```sh
+# In the MVMNT checkout
+npm install
+npm run build:plugin-sdk
+
+# In an existing plugin project
+npm init -y
+npm install /absolute/path/to/MVMNT/packages/plugin-sdk
+npm install --save-dev typescript
+```
+
+Create this layout:
+
+```text
+pulse-plugin/
+├── package.json
+├── tsconfig.json
+├── plugin.json
+└── pulse.ts
+```
+
+Use this `tsconfig.json` for type-checking:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["*.ts"]
+}
+```
+
+## Create the manifest
+
+`plugin.json` identifies the plugin and maps each scene-element type to its source entry. New
+plugins use `^2.0.0`. The capability lists must match the corresponding definition exactly,
+including whether each capability is required or optional.
 
 ```json
 {
@@ -39,6 +68,7 @@ cannot grant them. Optional facets are `undefined` when unavailable. Expected fa
   "name": "Pulse",
   "version": "1.0.0",
   "apiVersion": "^2.0.0",
+  "description": "A small animated pulse element.",
   "elements": [{
     "type": "pulse",
     "entry": "pulse.ts",
@@ -50,22 +80,162 @@ cannot grant them. Optional facets are `undefined` when unavailable. Expected fa
 }
 ```
 
-Manifest and definition capability lists must match exactly, including required/optional
-classification and order. Unknown and duplicate capabilities are rejected before execution.
+Use a unique lowercase, hyphenated element type. Plugin IDs conventionally use reverse-domain
+notation. The builder rejects duplicate types, private application imports, path traversal, and
+capability mismatches before it evaluates plugin code.
 
-## Build and develop
+## Define the element
 
-```sh
-npm install
-npm run build-plugin path/to/plugin
-npm run dev-plugin path/to/plugin
+Put this in `pulse.ts`:
+
+```ts
+import { definePluginElement } from '@mvmnt-app/plugin-sdk/scene';
+import { Rectangle } from '@mvmnt-app/plugin-sdk/render';
+
+export const pulse = definePluginElement({
+    type: 'pulse',
+    metadata: {
+        name: 'Pulse',
+        description: 'A pulsing square',
+        category: 'Examples',
+    },
+    schema: {
+        tabs: [{
+            id: 'properties',
+            label: 'Properties',
+            groups: [{
+                id: 'appearance',
+                label: 'Appearance',
+                collapsed: false,
+                properties: [
+                    { key: 'color', label: 'Color', type: 'colorAlpha', default: '#3B82F6FF' },
+                    { key: 'minSize', label: 'Minimum Size', type: 'number', default: 40, min: 1 },
+                    { key: 'maxSize', label: 'Maximum Size', type: 'number', default: 100, min: 1 }
+                ]
+            }]
+        }]
+    },
+    capabilities: {
+        required: ['timeline.read'],
+        optional: ['audio.features.read']
+    },
+    render(props, _state, time, context) {
+        // Required capability facets are available at runtime. The non-null assertion
+        // only tells TypeScript about the capability declared above.
+        const metadata = context.timeline!.getMetadata();
+        if (!metadata.ok) return [];
+
+        const phase = (Math.sin(time.seconds * Math.PI * 2) + 1) / 2;
+        const size = props.minSize + (props.maxSize - props.minSize) * phase;
+        return [new Rectangle(-size / 2, -size / 2, size, size, { fillColor: props.color })];
+    }
+});
 ```
 
-The builder keeps all SDK root and domain imports external and produces CJS bundles. Application
-aliases such as `@core/*`, `@state/*`, and `@audio/*` are not public and are rejected for v2.
+Then type-check it from the plugin folder:
 
-Raw PCM reads are synchronous and return a new `Float32Array`. They intentionally have no sample
-cap, so long ranges may allocate significant memory. Use feature sampling when PCM detail is not
-necessary and observe the callback `AbortSignal` during asynchronous work.
+```sh
+npx tsc --noEmit
+```
 
-The compilable source for this guide is maintained in `fixtures/plugin-sdk-v2`.
+### Schema-first props
+
+The schema is both runtime inspector data and the source of TypeScript types for `props` in
+`create`, `render`, and `dispose`. MVMNT infers property keys and standard values from the
+property `type`, so changing a schema property updates the callback type automatically. Select
+values are inferred from their declared `options`; use `as const` if a schema is stored in a
+separate variable and you want its select values preserved as a literal union.
+
+Use the explicit `definePluginElement<Props, State>()` form only when a plugin needs props that
+cannot be represented by the inspector schema, such as a discriminated union or derived field.
+When `create()` returns an object, its state type is inferred for `render()` and `dispose()`.
+
+## Use capabilities and lifecycle correctly
+
+Capabilities are declared per element, not globally:
+
+- Put data essential to rendering in `required`. If the host cannot provide it, MVMNT skips that
+  element and reports a diagnostic.
+- Put enhancements in `optional`. Its context facet is `undefined` when unavailable, so branch
+  before using it.
+- API operations that can fail return `Result<T, PluginDiagnostic>`. Test `result.ok` before
+  reading `result.value`.
+
+Use lifecycle callbacks when the element needs state or setup:
+
+```ts
+const statefulPulse = definePluginElement({
+    // type, metadata, schema, and capabilities omitted here
+    type: 'stateful-pulse',
+    metadata: { name: 'Stateful Pulse' },
+    schema: { tabs: [] },
+    capabilities: { required: [], optional: [] },
+    create() {
+        return { frames: 0 };
+    },
+    render(_props, state) {
+        state.frames += 1;
+        return [];
+    },
+    dispose(state) {
+        // Release plugin-owned resources associated with this instance.
+        void state;
+    }
+});
+```
+
+`load` runs once per loaded definition, `create` once per scene instance, `dispose` once per
+instance, and `unload` once when the definition is removed or reloaded. `load` and `create` may
+be asynchronous. Context-provided asset handles and calculator registrations are automatically
+cleaned up; stop your own asynchronous work when `context.signal` aborts. See the
+[lifecycle guide](plugin-lifecycle.md) and [capability guide](plugin-capabilities.md) for the
+full rules.
+
+## Build and import the plugin
+
+The MVMNT checkout contains the plugin builder. From that checkout, point it at your plugin
+folder:
+
+```sh
+npm run build-plugin /absolute/path/to/pulse-plugin
+```
+
+This validates the manifest and imports, bundles each entry as CJS with SDK modules external,
+and creates:
+
+```text
+MVMNT/dist/com.example.pulse-1.0.0.mvmnt-plugin
+```
+
+Open MVMNT and use **Settings → Plugins → Import** to select that `.mvmnt-plugin` file. The
+element appears in the scene-element picker under its configured category.
+
+For hot reload while running MVMNT in development mode:
+
+```sh
+# Terminal 1, in the MVMNT checkout
+npm run dev
+
+# Terminal 2, in the MVMNT checkout
+npm run dev-plugin /absolute/path/to/pulse-plugin
+```
+
+The development plugin server rebuilds on save and serves the latest bundle over its local SSE
+endpoint. When MVMNT is running in Vite development mode, it connects to the default local port
+automatically and replaces the plugin definition without a full application reload. If MVMNT was
+already open when you started `dev-plugin`, refresh it once to establish the connection.
+
+## Assets, audio, and next steps
+
+Place bundled files under `assets/` beside `plugin.json`. Access them through
+`context.assets`, not browser-relative URLs or MVMNT stores. Use `context.assets.project()` for
+a user-selected visual asset and `context.assets.bundledImage()` or atlas helpers for packaged
+assets.
+
+Raw PCM reads are synchronous, return a defensive `Float32Array` copy, and have no sample-count
+cap. Keep ranges short, account for allocation cost, and use feature sampling for history or
+spectral data. Check `context.signal.aborted` around expensive asynchronous work.
+
+For complete API names and supported subpaths, see the [SDK API inventory](plugin-sdk-api-inventory.md).
+For existing SDK 1 plugins, use the [v1-to-v2 migration guide](plugin-v1-to-v2.md).
+The checked-in, compilable fixture is [fixtures/plugin-sdk-v2](../../fixtures/plugin-sdk-v2).

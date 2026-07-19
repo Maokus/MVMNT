@@ -88,6 +88,12 @@
       ],
       "@mvmnt/plugin-sdk/*": [
         "core/scene/plugins/sdk/*"
+      ],
+      "@mvmnt-app/plugin-sdk": [
+        "core/scene/plugins/plugin-sdk"
+      ],
+      "@mvmnt-app/plugin-sdk/*": [
+        "core/scene/plugins/sdk/*"
       ]
     }
   },

@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@mvmnt/plugin-sdk": "file:../../packages/plugin-sdk"
+    "@mvmnt-app/plugin-sdk": "file:../../packages/plugin-sdk"
   }
 }

@@ -5,7 +5,6 @@ import type { RenderObject } from '@core/render/render-objects';
 import { BundledGridAtlasHandle, BundledSparrowHandle, BundledSprite } from '@core/resources/bundled-sprite';
 import { VisualResourceHandle } from '@core/resources/visual-resource-handle';
 import { resolveProjectAssetDescriptor } from '@state/visualAssetRegistryStore';
-import { getPluginHostApi } from './host-api/get-plugin-host-api';
 import { PLUGIN_CAPABILITIES, type PluginHostApi, type PluginHostCapability } from './host-api/plugin-api';
 import type {
     CapabilityContext,
@@ -38,10 +37,15 @@ const trackSummary = (track: any) => Object.freeze({
 
 export interface ScopeOptions {
     pluginId: string;
+    /** Engine-private dependency injected at the loader/registry boundary. */
+    services: PluginHostServices | null;
     loadAsset(path: string): Promise<string>;
     report(diagnostic: PluginDiagnostic): void;
     synchronousInitialization?: boolean;
 }
+
+/** Engine-private host services used to construct SDK 2 callback contexts. */
+export type PluginHostServices = PluginHostApi;
 
 export interface PluginDefinitionScope {
     readonly definition: PluginElementDefinition<any, any>;
@@ -51,18 +55,13 @@ export interface PluginDefinitionScope {
     dispose(): Promise<void>;
 }
 
-function resolveHost(): PluginHostApi | null {
-    const result = getPluginHostApi();
-    return result.status === 'ok' ? result.api : null;
-}
-
 function createContext(
     definition: PluginElementDefinition<any, any>,
     controller: AbortController,
     options: ScopeOptions,
     cleanups: Set<() => void>,
 ): CapabilityContext {
-    const host = resolveHost();
+    const host = options.services;
     const declared = new Set([
         ...(definition.capabilities.required ?? []),
         ...(definition.capabilities.optional ?? []),

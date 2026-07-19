@@ -1,14 +1,14 @@
-import { definePluginElement, type PluginDiagnostic, type Result } from '@mvmnt/plugin-sdk';
-import { SDK_VERSION, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk/api';
-import { clamp } from '@mvmnt/plugin-sdk/animation';
-import type { AudioApi } from '@mvmnt/plugin-sdk/audio';
-import { Rectangle } from '@mvmnt/plugin-sdk/render';
-import type { CapabilityContext } from '@mvmnt/plugin-sdk/scene';
-import { limitRenderObjects } from '@mvmnt/plugin-sdk/safety';
-import type { TimelineApi } from '@mvmnt/plugin-sdk/timeline';
-import type { TimingApi } from '@mvmnt/plugin-sdk/timing';
-import { midiNoteToName } from '@mvmnt/plugin-sdk/utils';
-import type { AssetApi } from '@mvmnt/plugin-sdk/visual-assets';
+import { definePluginElement, type PluginDiagnostic, type Result } from '@mvmnt-app/plugin-sdk';
+import { SDK_VERSION, PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk/api';
+import { clamp } from '@mvmnt-app/plugin-sdk/animation';
+import type { AudioApi } from '@mvmnt-app/plugin-sdk/audio';
+import { Rectangle } from '@mvmnt-app/plugin-sdk/render';
+import type { CapabilityContext } from '@mvmnt-app/plugin-sdk/scene';
+import { limitRenderObjects } from '@mvmnt-app/plugin-sdk/safety';
+import type { TimelineApi } from '@mvmnt-app/plugin-sdk/timeline';
+import type { TimingApi } from '@mvmnt-app/plugin-sdk/timing';
+import { midiNoteToName } from '@mvmnt-app/plugin-sdk/utils';
+import type { AssetApi } from '@mvmnt-app/plugin-sdk/visual-assets';
 
 void (null as unknown as AudioApi | TimelineApi | TimingApi | AssetApi | CapabilityContext | PluginDiagnostic | Result<number>);
 void SDK_VERSION;

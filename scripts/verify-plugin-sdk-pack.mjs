@@ -11,10 +11,10 @@ const npmEnvironment = { ...process.env, npm_config_cache: join(work, '.npm-cach
 cpSync(resolve(projectRoot, 'fixtures/plugin-sdk-v2'), fixture, { recursive: true });
 
 execFileSync('npm', ['pack', resolve(projectRoot, 'packages/plugin-sdk'), '--pack-destination', work], { stdio: 'inherit', env: npmEnvironment });
-const tarball = join(work, 'mvmnt-plugin-sdk-2.0.0.tgz');
+const tarball = join(work, 'mvmnt-app-plugin-sdk-2.0.0.tgz');
 const fixturePackagePath = join(fixture, 'package.json');
 const fixturePackage = JSON.parse(readFileSync(fixturePackagePath, 'utf8'));
-fixturePackage.dependencies['@mvmnt/plugin-sdk'] = `file:${tarball}`;
+fixturePackage.dependencies['@mvmnt-app/plugin-sdk'] = `file:${tarball}`;
 writeFileSync(fixturePackagePath, `${JSON.stringify(fixturePackage, null, 2)}\n`);
 
 execFileSync('npm', ['install', '--ignore-scripts'], { cwd: fixture, stdio: 'inherit', env: npmEnvironment });

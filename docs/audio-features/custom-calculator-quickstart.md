@@ -24,7 +24,7 @@ the file, outside any class or function) so they run the moment the file is impo
 audio analysis can start.
 
 ```ts
-// src/plugins/my-zero-crossing/zero-crossing-element.ts
+// my-mvmnt-plugin/zero-crossing-element.ts
 
 import {
     audioCalculatorsApi,

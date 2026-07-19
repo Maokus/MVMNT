@@ -22,7 +22,7 @@ function bundle(): ArrayBuffer {
         }],
     };
     const code = `
-const { definePluginElement } = require('@mvmnt/plugin-sdk');
+const { definePluginElement } = require('@mvmnt-app/plugin-sdk');
 module.exports = definePluginElement({
   type: 'loader-v2',
   metadata: { name: 'Loader v2' },

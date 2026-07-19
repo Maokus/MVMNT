@@ -1,139 +1,54 @@
-import {
-    SceneElement,
-    prop,
-    insertElementConfig,
-    tab,
-    Rectangle,
-    ClipLayer,
-    type RenderObject,
-} from '@mvmnt/plugin-sdk';
-import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
+import { definePluginElement } from '@mvmnt-app/plugin-sdk';
+import { ClipLayer, Rectangle } from '@mvmnt-app/plugin-sdk/render';
 
-export class CheckersPatternElement extends SceneElement {
-    constructor(id: string = 'checkers-pattern', config: Record<string, unknown> = {}) {
-        super('checkers-pattern', id, config);
-    }
+interface CheckersProps extends Readonly<Record<string, unknown>> {
+    readonly patternWidth: number;
+    readonly patternHeight: number;
+    readonly squareWidth: number;
+    readonly squareHeight: number;
+    readonly color1: string;
+    readonly color2: string;
+    readonly motionAngle: number;
+    readonly motionSpeed: number;
+}
 
-    static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementConfig(
-            super.getConfigSchema(),
-            {
-                name: 'Checkers Pattern',
-                description: 'A scrolling checkerboard background pattern',
-            },
-            [
-                tab.appearance([
-                    {
-                        id: 'checkerAppearance',
-                        label: 'Appearance',
-                        collapsed: false,
-                        description: 'Checkerboard colors and square size',
-                        properties: [
-                            prop.number('patternWidth', 'Width', 640, { step: 1 }),
-                            prop.number('patternHeight', 'Height', 360, { step: 1 }),
-                            prop.number('squareWidth', 'Square Width', 80, { step: 1 }),
-                            prop.number('squareHeight', 'Square Height', 80, { step: 1 }),
-                            prop.colorAlpha('color1', 'Color 1', '#222222FF'),
-                            prop.colorAlpha('color2', 'Color 2', '#444444FF'),
-                        ],
-                        presets: [
-                            {
-                                id: 'blackWhite',
-                                label: 'Black & White',
-                                values: {
-                                    patternWidth: 640,
-                                    patternHeight: 360,
-                                    squareWidth: 80,
-                                    squareHeight: 80,
-                                    color1: '#000000FF',
-                                    color2: '#FFFFFFFF',
-                                },
-                            },
-                            {
-                                id: 'blueGold',
-                                label: 'Blue & Gold',
-                                values: {
-                                    patternWidth: 640,
-                                    patternHeight: 360,
-                                    squareWidth: 60,
-                                    squareHeight: 60,
-                                    color1: '#1E3A8AFF',
-                                    color2: '#F59E0BFF',
-                                },
-                            },
-                        ],
-                    },
-                    {
-                        id: 'checkerMotion',
-                        label: 'Motion',
-                        collapsed: false,
-                        description: 'Pan direction and speed',
-                        properties: [
-                            prop.number('motionAngle', 'Motion Angle (deg)', 0, {
-                                min: 0,
-                                max: 360,
-                                step: 1,
-                                description: '0 = right, 90 = down',
-                            }),
-                            prop.number('motionSpeed', 'Motion Speed (px/s)', 60, { step: 1 }),
-                        ],
-                        presets: [],
-                    },
-                ]),
-            ]
-        );
-    }
-
-    protected override _buildRenderObjects(_config: unknown, _targetTime: number): RenderObject[] {
-        const props = this.getSchemaProps();
-        if (!props.visible) return [];
-
-        const w: number = props.patternWidth;
-        const h: number = props.patternHeight;
-        const squareW: number = props.squareWidth;
-        const squareH: number = props.squareHeight;
-        const color1: string = props.color1;
-        const color2: string = props.color2;
-        const angleRad = (props.motionAngle * Math.PI) / 180;
-        const speed: number = props.motionSpeed;
-
-        // Layout anchor — invisible rectangle that defines the element's bounds
-        const layoutRect = new Rectangle(0, 0, w, h, null, null, 0);
+/** Capability-free SDK 2 reference element. */
+export const checkersPattern = definePluginElement<CheckersProps, undefined>({
+    type: 'checkers-pattern',
+    metadata: { name: 'Checkers Pattern', description: 'A scrolling checkerboard background pattern', category: 'Patterns Pack 1' },
+    schema: { tabs: [{ id: 'appearance', label: 'Appearance', groups: [
+        { id: 'checkerAppearance', label: 'Appearance', collapsed: false, description: 'Checkerboard colors and square size', properties: [
+            { key: 'patternWidth', label: 'Width', type: 'number', default: 640, step: 1 },
+            { key: 'patternHeight', label: 'Height', type: 'number', default: 360, step: 1 },
+            { key: 'squareWidth', label: 'Square Width', type: 'number', default: 80, step: 1 },
+            { key: 'squareHeight', label: 'Square Height', type: 'number', default: 80, step: 1 },
+            { key: 'color1', label: 'Color 1', type: 'colorAlpha', default: '#222222FF' },
+            { key: 'color2', label: 'Color 2', type: 'colorAlpha', default: '#444444FF' },
+        ], presets: [
+            { id: 'blackWhite', label: 'Black & White', values: { patternWidth: 640, patternHeight: 360, squareWidth: 80, squareHeight: 80, color1: '#000000FF', color2: '#FFFFFFFF' } },
+            { id: 'blueGold', label: 'Blue & Gold', values: { patternWidth: 640, patternHeight: 360, squareWidth: 60, squareHeight: 60, color1: '#1E3A8AFF', color2: '#F59E0BFF' } },
+        ] },
+        { id: 'checkerMotion', label: 'Motion', collapsed: false, description: 'Pan direction and speed', properties: [
+            { key: 'motionAngle', label: 'Motion Angle (deg)', type: 'number', default: 0, min: 0, max: 360, step: 1, description: '0 = right, 90 = down' },
+            { key: 'motionSpeed', label: 'Motion Speed (px/s)', type: 'number', default: 60, step: 1 },
+        ] },
+    ] }] },
+    capabilities: { required: [], optional: [] },
+    render(props, _state, time) {
+        const layoutRect = new Rectangle(0, 0, props.patternWidth, props.patternHeight, { fillColor: undefined });
         layoutRect.setLayoutParticipation('include');
-
-        // Pan offset at current time, wrapped to one 2-square period
-        const dist = _targetTime * speed;
-        const offsetX = Math.cos(angleRad) * dist;
-        const offsetY = Math.sin(angleRad) * dist;
-        const wrapX = ((offsetX % (squareW * 2)) + squareW * 2) % (squareW * 2);
-        const wrapY = ((offsetY % (squareH * 2)) + squareH * 2) % (squareH * 2);
-
-        // Tile grid — enough to cover the element plus one bleed period for wrap seam
-        const cols = Math.ceil(w / squareW) + 3;
-        const rows = Math.ceil(h / squareH) + 3;
-
-        const clip = new ClipLayer(w, h);
+        const angleRad = (props.motionAngle * Math.PI) / 180;
+        const wrapX = ((Math.cos(angleRad) * time.seconds * props.motionSpeed % (props.squareWidth * 2)) + props.squareWidth * 2) % (props.squareWidth * 2);
+        const wrapY = ((Math.sin(angleRad) * time.seconds * props.motionSpeed % (props.squareHeight * 2)) + props.squareHeight * 2) % (props.squareHeight * 2);
+        const clip = new ClipLayer(props.patternWidth, props.patternHeight);
         clip.setLayoutParticipation('exclude');
-
-        for (let row = -1; row < rows; row++) {
-            for (let col = -1; col < cols; col++) {
-                const color = (row + col) % 2 !== 0 ? color2 : color1;
+        for (let row = -1; row < Math.ceil(props.patternHeight / props.squareHeight) + 3; row++) {
+            for (let col = -1; col < Math.ceil(props.patternWidth / props.squareWidth) + 3; col++) {
+                const color = (row + col) % 2 !== 0 ? props.color2 : props.color1;
                 if (!color || color.endsWith('00')) continue;
-
-                const tile = new Rectangle(
-                    col * squareW - wrapX,
-                    row * squareH - wrapY,
-                    squareW,
-                    squareH,
-                    color,
-                    null,
-                    0,
-                    { layoutParticipation: 'exclude' }
-                );
-                clip.addChild(tile);
+                clip.addChild(new Rectangle(col * props.squareWidth - wrapX, row * props.squareHeight - wrapY, props.squareWidth, props.squareHeight, { fillColor: color }).setLayoutParticipation('exclude'));
             }
         }
-
         return [layoutRect, clip];
-    }
-}
+    },
+});

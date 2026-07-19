@@ -25,7 +25,7 @@ const sampleManifest = {
 
 describe('plugin manifest schema', () => {
 	it('loads the schema file', () => {
-		const schemaPath = resolve(__dirname, '../../../docs/plugin-manifest.schema.json');
+		const schemaPath = resolve(__dirname, '../../../docs/plugin-api/plugin-manifest.schema.json');
 		const schemaContent = readFileSync(schemaPath, 'utf-8');
 		const schema = JSON.parse(schemaContent);
 
@@ -35,7 +35,7 @@ describe('plugin manifest schema', () => {
 	});
 
 	it('schema has required fields defined', () => {
-		const schemaPath = resolve(__dirname, '../../../docs/plugin-manifest.schema.json');
+		const schemaPath = resolve(__dirname, '../../../docs/plugin-api/plugin-manifest.schema.json');
 		const schemaContent = readFileSync(schemaPath, 'utf-8');
 		const schema = JSON.parse(schemaContent);
 
@@ -47,7 +47,7 @@ describe('plugin manifest schema', () => {
 	});
 
 	it('schema defines element structure', () => {
-		const schemaPath = resolve(__dirname, '../../../docs/plugin-manifest.schema.json');
+		const schemaPath = resolve(__dirname, '../../../docs/plugin-api/plugin-manifest.schema.json');
 		const schemaContent = readFileSync(schemaPath, 'utf-8');
 		const schema = JSON.parse(schemaContent);
 

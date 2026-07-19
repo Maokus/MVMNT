@@ -1,6 +1,6 @@
 # Element Templates
 
-This directory contains template implementations for creating new custom elements. Use `npm run create-element` to scaffold a new element from a template, or copy a template file manually as a starting point.
+This directory contains SDK 2 template implementations for the future external plugin generator. Until that generator is published, copy a template into an external plugin project and adapt its manifest and metadata.
 
 ## Available Templates
 

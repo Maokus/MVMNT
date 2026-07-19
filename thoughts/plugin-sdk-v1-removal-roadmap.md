@@ -92,9 +92,10 @@ Complete these foundations before mechanically converting element files:
    `registerFeatureRequirements*()` and unsubscribe automatically.
 4. Complete scoped visual-asset and font operations needed by image, atlas, GIF, and text
    elements. Do not expose the visual asset registry store.
-5. Replace the SDK 2 adapter's call to `getPluginHostApi()` with a private `PluginHostServices`
+5. ~~Replace the SDK 2 adapter's call to `getPluginHostApi()` with a private `PluginHostServices`
    dependency supplied directly by the loader. V2 must not traverse `globalThis.MVMNT.plugins`
-   or use v1 DTOs internally.
+   or use v1 DTOs internally.~~ Completed: the production loader, dev loader, and built-in
+   boundary inject the host dependency; the callback runtime no longer imports the v1 accessor.
 6. Add definition registration directly to the scene element registry. Built-ins should not
    need a synthetic class merely to enter the registry.
 
@@ -109,7 +110,7 @@ Exit gate:
 Reference clients define the supported authoring workflow and should move before complex built-ins.
 
 1. ~~Convert the remaining eight files in `src/core/scene/elements/_templates`.~~ Completed.
-2. Convert both `patternspack1` elements, then its manifest, as the capability-free example.
+2. ~~Convert both `patternspack1` elements, then its manifest, as the capability-free example.~~ Completed.
 3. Convert the two `fnf` and five `midipack1` elements using `timeline.read`.
 4. Change all three example manifests to `^2.0.0` with exact required/optional declarations.
 5. Compile documentation examples from these same source files.
@@ -184,8 +185,10 @@ Exit gate:
 3. Add a local installed-plugin inventory showing which plugin IDs still request v1. No plugin
    code or usage telemetry should leave the device.
 4. Add an export/backup action and an actionable warning before the removal release.
-5. Reject newly built v1 source in the production/dev builders while continuing to load already
-   installed v1 bundles during the announced compatibility window.
+5. ~~Reject newly built v1 source in the production/dev builders while continuing to load already
+   installed v1 bundles during the announced compatibility window.~~ Completed: the production
+   and dev builders reject `^1.x` source manifests before bundling; the runtime loader continues
+   to accept frozen installed v1 archives.
 
 Exit gate:
 

@@ -1,17 +1,8 @@
 // Template: SDK 2 MIDI notes element.
-import { definePluginElement } from '@mvmnt/plugin-sdk';
-import { Rectangle, Text, type RenderObject } from '@mvmnt/plugin-sdk/render';
+import { definePluginElement } from '@mvmnt-app/plugin-sdk';
+import { Rectangle, Text, type RenderObject } from '@mvmnt-app/plugin-sdk/render';
 
-interface MidiNotesProps extends Readonly<Record<string, unknown>> {
-    readonly midiTrackId: string | null;
-    readonly noteWidth: number;
-    readonly noteHeight: number;
-    readonly noteSpacing: number;
-    readonly noteColor: string;
-    readonly showNoteNames: boolean;
-}
-
-export const midiNotes = definePluginElement<MidiNotesProps, undefined>({
+export const midiNotes = definePluginElement({
     type: 'midi-notes',
     metadata: { name: 'MIDI Notes', description: 'Display currently playing MIDI notes', category: 'Custom' },
     schema: { tabs: [

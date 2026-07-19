@@ -8,8 +8,8 @@
  *
  * Usage:
  *   npm run dev-plugin <pluginDir>
- *   npm run dev-plugin src/plugins/myplugin
- *   npm run dev-plugin myplugin          # short name, resolved under src/plugins/
+ *   npm run dev-plugin /absolute/path/to/myplugin
+ *   npm run dev-plugin ../my-mvmnt-plugins/myplugin
  *   npm run dev-plugin myplugin --port 7741
  *
  * The app must be open in a browser with Vite dev mode active. On each rebuild
@@ -23,7 +23,7 @@ import http from 'http';
 import { fileURLToPath } from 'url';
 import { build } from 'esbuild';
 import * as fflate from 'fflate';
-import { PLUGIN_EXTERNALS, validateElementImports, validateManifestContract } from './plugin-contract.mjs';
+import { PLUGIN_EXTERNALS, targetsFrozenV1, validateElementImports, validateManifestContract } from './plugin-contract.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,12 +59,6 @@ if (!path.isAbsolute(inputPluginDir)) {
     pluginDir = path.join(projectRoot, inputPluginDir);
 }
 
-// Also try resolving as a bare name under src/plugins/
-if (!fs.existsSync(pluginDir ?? inputPluginDir)) {
-    const candidate = path.join(projectRoot, 'src/plugins', inputPluginDir);
-    if (fs.existsSync(candidate)) pluginDir = candidate;
-}
-
 pluginDir ??= inputPluginDir;
 
 if (!fs.existsSync(pluginDir)) {
@@ -83,6 +77,11 @@ try {
     manifest = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
 } catch (err) {
     console.error(`Error: failed to parse plugin.json — ${err.message}`);
+    process.exit(1);
+}
+
+if (targetsFrozenV1(manifest)) {
+    console.error(`Error: ${manifest.id} targets ${manifest.apiVersion ?? manifest.mvmntVersion}. The dev builder only accepts SDK ^2.0.0 source; installed v1 bundles remain loadable during the compatibility window.`);
     process.exit(1);
 }
 

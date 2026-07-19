@@ -38,8 +38,11 @@ describe('SDK v2 runtime', () => {
             load(value) { context = value; },
             render() { return []; },
         });
+        // The callback runtime receives the host directly. It must not fall
+        // back to the frozen SDK 1 global accessor after scope construction.
+        (globalThis as any).MVMNT = undefined;
         const scope = createPluginDefinitionScope(definition, {
-            pluginId: 'test', loadAsset: async () => 'blob:test', report: vi.fn(),
+            pluginId: 'test', services: host, loadAsset: async () => 'blob:test', report: vi.fn(),
         });
         expect(await scope.ready).toBe(true);
 
@@ -50,7 +53,7 @@ describe('SDK v2 runtime', () => {
     });
 
     it('waits for asynchronous initialization and cancels on disposal', async () => {
-        installHost();
+        const host = installHost();
         let finishCreate!: () => void;
         const render = vi.fn(() => []);
         const definition = definePluginElement({
@@ -60,7 +63,7 @@ describe('SDK v2 runtime', () => {
             render,
         });
         const scope = createPluginDefinitionScope(definition, {
-            pluginId: 'test', loadAsset: async () => 'blob:test', report: vi.fn(),
+            pluginId: 'test', services: host, loadAsset: async () => 'blob:test', report: vi.fn(),
         });
         await scope.ready;
         const ElementClass = scope.createElementClass();
@@ -87,7 +90,7 @@ describe('SDK v2 runtime', () => {
             render() { return []; },
         });
         const scope = createPluginDefinitionScope(definition, {
-            pluginId: 'test', loadAsset: async () => 'blob:test', report: vi.fn(),
+            pluginId: 'test', services: host, loadAsset: async () => 'blob:test', report: vi.fn(),
         });
         await scope.ready;
         expect(host.audioCalculators.list().some((entry) => entry.id === calculator.id)).toBe(true);

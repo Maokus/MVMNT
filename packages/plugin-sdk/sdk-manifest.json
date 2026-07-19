@@ -1,22 +1,22 @@
 {
-  "package": "@mvmnt/plugin-sdk",
+  "package": "@mvmnt-app/plugin-sdk",
   "version": "2.0.0",
   "runtimeFormat": "commonjs",
   "subpaths": [
     ".", "api", "animation", "audio", "render", "scene", "safety", "timeline", "timing", "utils", "visual-assets"
   ],
   "runtimeModules": [
-    "@mvmnt/plugin-sdk",
-    "@mvmnt/plugin-sdk/api",
-    "@mvmnt/plugin-sdk/animation",
-    "@mvmnt/plugin-sdk/audio",
-    "@mvmnt/plugin-sdk/render",
-    "@mvmnt/plugin-sdk/scene",
-    "@mvmnt/plugin-sdk/safety",
-    "@mvmnt/plugin-sdk/timeline",
-    "@mvmnt/plugin-sdk/timing",
-    "@mvmnt/plugin-sdk/utils",
-    "@mvmnt/plugin-sdk/visual-assets"
+    "@mvmnt-app/plugin-sdk",
+    "@mvmnt-app/plugin-sdk/api",
+    "@mvmnt-app/plugin-sdk/animation",
+    "@mvmnt-app/plugin-sdk/audio",
+    "@mvmnt-app/plugin-sdk/render",
+    "@mvmnt-app/plugin-sdk/scene",
+    "@mvmnt-app/plugin-sdk/safety",
+    "@mvmnt-app/plugin-sdk/timeline",
+    "@mvmnt-app/plugin-sdk/timing",
+    "@mvmnt-app/plugin-sdk/utils",
+    "@mvmnt-app/plugin-sdk/visual-assets"
   ],
   "capabilities": [
     "timeline.read",

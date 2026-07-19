@@ -94,17 +94,17 @@ const pluginSdkV2RootModule = {
     ...pluginSdkV2UtilsModule,
 };
 const V2_PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
-    '@mvmnt/plugin-sdk': pluginSdkV2RootModule,
-    '@mvmnt/plugin-sdk/api': pluginSdkV2ApiModule,
-    '@mvmnt/plugin-sdk/animation': pluginSdkV2AnimationModule,
-    '@mvmnt/plugin-sdk/audio': Object.freeze({}),
-    '@mvmnt/plugin-sdk/render': pluginSdkV2RenderModule,
-    '@mvmnt/plugin-sdk/scene': pluginSdkV2SceneModule,
-    '@mvmnt/plugin-sdk/safety': pluginSdkV2SafetyModule,
-    '@mvmnt/plugin-sdk/timeline': Object.freeze({}),
-    '@mvmnt/plugin-sdk/timing': Object.freeze({}),
-    '@mvmnt/plugin-sdk/utils': pluginSdkV2UtilsModule,
-    '@mvmnt/plugin-sdk/visual-assets': Object.freeze({}),
+    '@mvmnt-app/plugin-sdk': pluginSdkV2RootModule,
+    '@mvmnt-app/plugin-sdk/api': pluginSdkV2ApiModule,
+    '@mvmnt-app/plugin-sdk/animation': pluginSdkV2AnimationModule,
+    '@mvmnt-app/plugin-sdk/audio': Object.freeze({}),
+    '@mvmnt-app/plugin-sdk/render': pluginSdkV2RenderModule,
+    '@mvmnt-app/plugin-sdk/scene': pluginSdkV2SceneModule,
+    '@mvmnt-app/plugin-sdk/safety': pluginSdkV2SafetyModule,
+    '@mvmnt-app/plugin-sdk/timeline': Object.freeze({}),
+    '@mvmnt-app/plugin-sdk/timing': Object.freeze({}),
+    '@mvmnt-app/plugin-sdk/utils': pluginSdkV2UtilsModule,
+    '@mvmnt-app/plugin-sdk/visual-assets': Object.freeze({}),
 };
 
 export function getPluginRuntimeModuleIds(apiLine: 1 | 2): readonly string[] {
@@ -215,7 +215,7 @@ function warnLegacyPluginImport(id: string): void {
         return;
     }
     warnedLegacyImports.add(id);
-    console.warn(`[PluginLoader] Legacy plugin import detected: '${id}'. Prefer '@mvmnt/plugin-sdk'.`);
+    console.warn(`[PluginLoader] Legacy plugin import detected: '${id}'. Prefer '@mvmnt-app/plugin-sdk'.`);
 }
 
 function dispatchPluginAvailabilityEvent(detail: {
@@ -351,6 +351,7 @@ export async function loadPlugin(
                     }
                     const scope = createPluginDefinitionScope(loadedExport, {
                         pluginId: manifest.id,
+                        services: getPluginHostApi().api,
                         loadAsset: (path) => loadBundledAssetForPlugin(manifest.id, path),
                         report: (diagnostic) => console.warn(`[PluginLoader] ${manifest.id}/${elementManifest.type}: ${diagnostic.code}: ${diagnostic.message}`),
                     });
@@ -657,7 +658,9 @@ function evaluateCommonJsModule(code: string, elementType: string, pluginId: str
         warnLegacyPluginImport(id);
 
         if (id === '@mvmnt/plugin-sdk') {
-            if (apiLine === 2) return V2_PLUGIN_RUNTIME_MODULES[id];
+            if (apiLine === 2) {
+                throw new Error("Module '@mvmnt/plugin-sdk' is the frozen SDK 1 surface. SDK 2 plugins must import '@mvmnt-app/plugin-sdk'.");
+            }
             // Frozen v1 convenience bound to this plugin's asset registry.
             return {
                 ...pluginSdkModule,
@@ -685,7 +688,7 @@ function evaluateCommonJsModule(code: string, elementType: string, pluginId: str
         if (id.startsWith('@core/') || id.startsWith('@audio/') || id.startsWith('@utils/')) {
             // Legacy compatibility: attempt to resolve internal aliases via the globalThis.MVMNT
             // namespace. This will fail in normal packaged-plugin contexts since those globals are
-            // not populated. Plugins should import exclusively from '@mvmnt/plugin-sdk'.
+            // not populated. SDK 2 plugins should import exclusively from '@mvmnt-app/plugin-sdk'.
             const path = id.replace(/^@core\//, 'MVMNT.core.')
                 .replace(/^@audio\//, 'MVMNT.audio.')
                 .replace(/^@utils\//, 'MVMNT.utils.')

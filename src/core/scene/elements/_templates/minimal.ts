@@ -1,14 +1,8 @@
 // Template: SDK 2 minimal element
-import { definePluginElement } from '@mvmnt/plugin-sdk';
-import { Rectangle } from '@mvmnt/plugin-sdk/render';
+import { definePluginElement } from '@mvmnt-app/plugin-sdk';
+import { Rectangle } from '@mvmnt-app/plugin-sdk/render';
 
-interface MinimalProps extends Readonly<Record<string, unknown>> {
-    readonly color: string;
-    readonly width: number;
-    readonly height: number;
-}
-
-export const minimal = definePluginElement<MinimalProps, undefined>({
+export const minimal = definePluginElement({
     type: 'my-element',
     metadata: { name: 'My Element', description: 'A minimal SDK 2 element', category: 'Custom' },
     schema: {

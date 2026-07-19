@@ -4,13 +4,7 @@ This directory contains complete, runnable plugins that illustrate specific deve
 
 ## Using an Example
 
-Run the scaffold script and follow the prompts:
-
-```bash
-npm run create-example
-```
-
-This copies your chosen example into `src/plugins/<your-id>/` and updates `plugin.json` with your plugin ID. The element source file is copied verbatim — rename the class and customise from there.
+Examples will be distributed through the external plugin generator. This directory currently has no runnable example projects.
 
 ## See Also
 

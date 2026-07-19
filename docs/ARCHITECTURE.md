@@ -9,7 +9,6 @@
 - **export/** – Video/image exporters and audio mixdown.
 - **math/** – Generic math, geometry, and numeric helpers.
 - **persistence/** – Import/export, document gateway, local save service, and scene packaging.
-- **plugins/** – Bundled/active plugin directory.
 - **pluginexamples/** – Reference plugin implementations (`fnf`, `midipack1`, `patternspack1`).
 - **state/** – Zustand stores, selectors, and middleware. Hosts the canonical timeline and scene stores plus command/undo infrastructure.
 - **utils/** – Shared utilities (logging, throttling, feature flag helpers, etc.).
@@ -52,7 +51,7 @@ Music theory helpers and MIDI parsing live under `core/midi/` alongside the play
 
 - `SceneElement` base class (`base.ts`) defines the lifecycle, property system, and render object API all elements inherit.
 - Elements live in subdirectories by category: `audio-displays/`, `midi-displays/`, `misc/`.
-- Scaffolded via `npm run create-element`.
+- Third-party elements are authored as external SDK plugin projects; see the [plugin quickstart](plugin-api/plugin-quickstart.md).
 
 ### Visual Asset Registry (`core/resources/`)
 
@@ -127,8 +126,6 @@ See also: [docs/plugin-api-v1.md](plugin-api-v1.md), [docs/plugin-quickstart.md]
 | `npm run build`          | Production build → `./build/`     |
 | `npm run test`           | Vitest suite                      |
 | `npm run compile`        | TypeScript check (`tsc --noEmit`) |
-| `npm run create-element` | Scaffold a new scene element      |
-| `npm run create-example` | Scaffold a plugin example         |
 | `npm run build-plugin`   | Build an external plugin          |
 
 Path aliases are defined in `tsconfig.json` (`@core/*`, `@state/*`, `@audio/*`, `@workspace/*`, `@mvmnt/plugin-sdk`, etc.) and resolved at runtime via `PLUGIN_RUNTIME_MODULES`.

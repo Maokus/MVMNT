@@ -2,11 +2,13 @@ import type { PluginElementDefinition } from '../../../../packages/plugin-sdk/sr
 import { loadBundledAssetForElement } from './bundled-asset-registry';
 import { createPluginDefinitionScope } from './v2-runtime';
 import { definePluginElement, type PluginElementDefinitionInput } from '../../../../packages/plugin-sdk/src/scene';
+import { getPluginHostApi } from './host-api/get-plugin-host-api';
 
 /** Host-only adapter used by the class-oriented scene registry and old constructor tests. */
 export function createBuiltInDefinitionElementClass(definition: PluginElementDefinition<any, any>): any {
     const scope = createPluginDefinitionScope(definition, {
         pluginId: 'mvmnt.builtin',
+        services: getPluginHostApi().api,
         synchronousInitialization: true,
         loadAsset: (path) => loadBundledAssetForElement(definition.type, path),
         report: (diagnostic) => console.error(`[${definition.type}] ${diagnostic.code}: ${diagnostic.message}`),

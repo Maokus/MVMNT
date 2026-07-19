@@ -1,16 +1,8 @@
 // Template: SDK 2 audio-reactive element using defensive raw-audio access.
-import { definePluginElement } from '@mvmnt/plugin-sdk';
-import { Rectangle } from '@mvmnt/plugin-sdk/render';
+import { definePluginElement } from '@mvmnt-app/plugin-sdk';
+import { Rectangle } from '@mvmnt-app/plugin-sdk/render';
 
-interface AudioReactiveProps extends Readonly<Record<string, unknown>> {
-    readonly audioTrackId: string | null;
-    readonly smoothing: number;
-    readonly baseSize: number;
-    readonly reactivityScale: number;
-    readonly shapeColor: string;
-}
-
-export const audioReactive = definePluginElement<AudioReactiveProps, undefined>({
+export const audioReactive = definePluginElement({
     type: 'audio-reactive',
     metadata: { name: 'Audio Reactive', description: 'Shape that reacts to audio volume', category: 'Custom' },
     schema: { tabs: [

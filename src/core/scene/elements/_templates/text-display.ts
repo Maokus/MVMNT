@@ -1,25 +1,13 @@
 // Template: SDK 2 text display element.
-import { definePluginElement } from '@mvmnt/plugin-sdk';
-import { Rectangle, Text, type RenderObject } from '@mvmnt/plugin-sdk/render';
-
-interface TextDisplayProps extends Readonly<Record<string, unknown>> {
-    readonly textContent: string;
-    readonly fontSize: number;
-    readonly fontFamily: string;
-    readonly textColor: string;
-    readonly textAlign: 'left' | 'center' | 'right';
-    readonly textBaseline: 'top' | 'middle' | 'bottom';
-    readonly showBackground: boolean;
-    readonly backgroundColor: string;
-    readonly backgroundPadding: number;
-}
+import { definePluginElement } from '@mvmnt-app/plugin-sdk';
+import { Rectangle, Text, type RenderObject } from '@mvmnt-app/plugin-sdk/render';
 
 const parseFont = (selection: string): { family: string; weight: string } => {
     const [family = 'Inter', weight = '400'] = selection.split('|');
     return { family: family.trim() || 'Inter', weight: weight.trim() || '400' };
 };
 
-export const textDisplay = definePluginElement<TextDisplayProps, undefined>({
+export const textDisplay = definePluginElement({
     type: 'text-display',
     metadata: { name: 'Text Display', description: 'Display customizable text', category: 'Custom' },
     schema: { tabs: [{ id: 'properties', label: 'Properties', groups: [

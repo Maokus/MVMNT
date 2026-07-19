@@ -20,6 +20,7 @@ import * as fflate from 'fflate';
 import { BUILTIN_ELEMENT_TYPES } from './built-in-element-types.mjs';
 import {
     PLUGIN_EXTERNALS,
+    targetsFrozenV1,
     validateElementImports,
     validateManifestContract,
 } from './plugin-contract.mjs';
@@ -177,6 +178,12 @@ async function buildPlugin(pluginDir, outPath = null) {
     console.log(`Plugin ID: ${manifest.id}`);
     console.log(`Elements: ${manifest.elements?.length || 0}`);
     console.log();
+
+    if (targetsFrozenV1(manifest)) {
+        throw new Error(
+            `Plugin '${manifest.id}' targets ${manifest.apiVersion ?? manifest.mvmntVersion}. New builds must target SDK ^2.0.0; existing installed v1 bundles remain loadable during the compatibility window.`
+        );
+    }
     
     // Validate manifest
     console.log('Validating manifest...');
@@ -333,41 +340,11 @@ async function main() {
         args.splice(outFlagIndex, 2);
     }
 
-    // Detect available plugins
-
-    const pluginsDir = path.join(projectRoot, 'src/plugins');
-
-    if (!fs.existsSync(pluginsDir)) {
-        console.error('Error: No plugins directory found. Run "npm run create-element" to create a plugin.');
-        process.exit(1);
-    }
-
-    const pluginDirs = fs.readdirSync(pluginsDir, { withFileTypes: true })
-        .filter(dirent => dirent.isDirectory())
-        .filter(dir => fs.existsSync(path.join(pluginsDir, dir.name, 'plugin.json')));
-    
-    // If no argument provided, list available plugins
+    // A plugin is always supplied by path. Plugins are external projects rather
+    // than subdirectories of this application repository.
     if (args.length === 0) {
-        
-        
-        if (pluginDirs.length === 0) {
-            console.error('Error: No valid plugins found. Run "npm run create-element" to create a plugin.');
-            process.exit(1);
-        }
-        
-        console.log('Detected plugins:');
-        pluginDirs.forEach(dir => {
-            const pluginJsonPath = path.join(pluginsDir, dir.name, 'plugin.json');
-            try {
-                const manifest = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
-                console.log(`  ${dir.name} - ${manifest.name} v${manifest.version} (${manifest.elements?.length || 0} elements)`);
-            } catch (error) {
-                console.log(`  ${dir.name} - (invalid plugin.json)`);
-            }
-        });
-        console.log();
-        console.log('Usage: npm run build-plugin <plugin-dir>');
-        console.log('Example: npm run build-plugin src/plugins/myplugin');
+        console.error('Usage: npm run build-plugin -- <plugin-directory> [--out <bundle-path>]');
+        console.error('Example: npm run build-plugin -- /absolute/path/to/myplugin');
         process.exit(0);
     }
     
@@ -382,14 +359,6 @@ async function main() {
         pluginDir = inputPluginDir;
     }
 
-    if (!fs.existsSync(pluginDir)) {
-        // Check if it's a plugin name in the plugins directory
-        const matchedPluginDirs = pluginDirs.filter(dir => dir.name === inputPluginDir);
-        if (matchedPluginDirs.length > 0) {
-            pluginDir = path.join(pluginsDir, matchedPluginDirs[0].name);
-        }
-    }
-    
     if (!fs.existsSync(pluginDir)) {
         console.error(`Error: Plugin directory not found: ${inputPluginDir}`);
         process.exit(1);

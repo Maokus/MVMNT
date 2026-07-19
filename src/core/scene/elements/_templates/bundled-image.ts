@@ -1,11 +1,8 @@
 // Template: SDK 2 bundled image/GIF with an optional project override.
-import { definePluginElement, type BundledVisualAssetHandle, type ProjectVisualAssetHandle } from '@mvmnt/plugin-sdk';
-import { Rectangle, VisualMedia } from '@mvmnt/plugin-sdk/render';
+import { definePluginElement } from '@mvmnt-app/plugin-sdk';
+import { Rectangle, VisualMedia } from '@mvmnt-app/plugin-sdk/render';
 
-interface Props extends Readonly<Record<string, unknown>> { readonly imageSource: string | null; readonly width: number; readonly height: number; readonly fitMode: 'contain' | 'cover' | 'fill' | 'clip' }
-interface State { readonly bundled: BundledVisualAssetHandle; readonly override: ProjectVisualAssetHandle; readonly media: VisualMedia; readonly bounds: Rectangle }
-
-export const bundledImage = definePluginElement<Props, State>({
+export const bundledImage = definePluginElement({
     type: 'bundled-image',
     metadata: { name: 'Bundled Image', description: 'Displays a bundled image with optional user override', category: 'Custom' },
     schema: { tabs: [{ id: 'properties', label: 'Properties', groups: [{ id: 'imageSource', label: 'Image', collapsed: false, properties: [

@@ -1,8 +1,7 @@
 /**
  * Per-element-type asset loader registry.
  *
- * Both plugin-loader.ts (production ZIP path) and dev-plugin-loader.ts (Vite native import
- * path) register a loader here for each element type they load. SceneElement.loadBundledAsset
+ * The bundled-plugin loader registers a loader here for each element type it loads. SceneElement.loadBundledAsset
  * calls loadBundledAssetForElement(this.type, path) via a direct import — no require() needed
  * and no circular dependency.
  */

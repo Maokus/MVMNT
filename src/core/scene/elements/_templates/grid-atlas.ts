@@ -1,13 +1,10 @@
 // Template: SDK 2 bundled grid-atlas element.
-import { definePluginElement, type BundledVisualAssetHandle } from '@mvmnt/plugin-sdk';
-import { Rectangle, VisualMedia } from '@mvmnt/plugin-sdk/render';
+import { definePluginElement } from '@mvmnt-app/plugin-sdk';
+import { Rectangle, VisualMedia } from '@mvmnt-app/plugin-sdk/render';
 
 const COLUMNS = 4;
 const ROWS = 2;
-interface Props extends Readonly<Record<string, unknown>> { readonly frameIndex: number; readonly size: number }
-interface State { readonly sheet: BundledVisualAssetHandle; readonly media: VisualMedia; readonly bounds: Rectangle }
-
-export const gridAtlas = definePluginElement<Props, State>({
+export const gridAtlas = definePluginElement({
     type: 'grid-atlas',
     metadata: { name: 'Grid Atlas', description: 'Displays a single frame from a grid-layout spritesheet', category: 'Custom' },
     schema: { tabs: [{ id: 'properties', label: 'Properties', groups: [{ id: 'atlasSettings', label: 'Atlas', collapsed: false, properties: [

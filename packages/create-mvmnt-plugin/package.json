@@ -1,0 +1,21 @@
+{
+  "name": "create-mvmnt-plugin",
+  "version": "0.1.0",
+  "description": "Scaffold an SDK 2 MVMNT plugin project",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "create-mvmnt-plugin": "./bin/create-mvmnt-plugin.mjs"
+  },
+  "files": [
+    "bin",
+    "templates",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

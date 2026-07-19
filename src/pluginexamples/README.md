@@ -1,3 +1,2 @@
-copy these files into ../plugins to see them when you run `npm run dev`!
-
-Alternatively, run `npm run dev:examples` to load them in by default.
+These are reference sources only. Copy an example into an external plugin project, then run
+`npm run dev-plugin /absolute/path/to/that-project` from the MVMNT checkout.

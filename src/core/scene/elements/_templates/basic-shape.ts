@@ -1,14 +1,8 @@
 // Template: SDK 2 basic shape element.
-import { definePluginElement } from '@mvmnt/plugin-sdk';
-import { Arc, Rectangle } from '@mvmnt/plugin-sdk/render';
+import { definePluginElement } from '@mvmnt-app/plugin-sdk';
+import { Arc, Rectangle } from '@mvmnt-app/plugin-sdk/render';
 
-interface BasicShapeProps extends Readonly<Record<string, unknown>> {
-    readonly shapeType: 'circle' | 'rectangle';
-    readonly shapeSize: number;
-    readonly shapeColor: string;
-}
-
-export const basicShape = definePluginElement<BasicShapeProps, undefined>({
+export const basicShape = definePluginElement({
     type: 'basic-shape',
     metadata: { name: 'Basic Shape', description: 'A customizable geometric shape', category: 'Custom' },
     schema: { tabs: [{ id: 'properties', label: 'Properties', groups: [{

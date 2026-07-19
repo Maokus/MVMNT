@@ -4,7 +4,6 @@ import path from 'path';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig(({ mode }) => {
-    const includeExamples = mode === 'examples';
     return {
         // Use a dynamic base so the app can be hosted under a sub-path in production
         // Production target path: https://maok.us/playbox/projects/mvmnt/
@@ -27,10 +26,7 @@ export default defineConfig(({ mode }) => {
             outDir: 'build',
             sourcemap: true,
         },
-        define: {
-            'process.env': {}, // lightweight shim
-            __INCLUDE_EXAMPLES__: includeExamples,
-        },
+        define: { 'process.env': {} }, // lightweight shim
         test: {
             environment: 'jsdom',
             setupFiles: ['./src/setupTests.ts'],

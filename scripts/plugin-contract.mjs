@@ -16,6 +16,11 @@ export const PLUGIN_EXTERNALS = Object.freeze([
     'react/jsx-dev-runtime',
 ]);
 
+/** New source builds are SDK 2-only; the host loader keeps frozen v1 bundles loadable. */
+export function targetsFrozenV1(manifest) {
+    return /(?:\^|>=)?1\./.test(manifest?.apiVersion ?? manifest?.mvmntVersion ?? '');
+}
+
 const PRIVATE_PREFIXES = [
     '@core/', '@audio/', '@utils/', '@state/', '@selectors/', '@persistence/',
     '@constants/', '@types/', '@app/', '@workspace/', '@context/', '@fonts/',
@@ -43,8 +48,12 @@ export function validateElementImports(sourceCode, elementName, apiVersion = '^2
     for (const specifier of extractModuleSpecifiers(sourceCode)) {
         if (!specifier || specifier.startsWith('.') || specifier.startsWith('/')) continue;
         if (PLUGIN_EXTERNALS.includes(specifier)) continue;
+        if (/\^?2\./.test(apiVersion) && (specifier === '@mvmnt/plugin-sdk' || specifier.startsWith('@mvmnt/plugin-sdk/'))) {
+            errors.push(`${elementName}: SDK 2 plugins must import '@mvmnt-app/plugin-sdk', not '${specifier}'.`);
+            continue;
+        }
         if (PRIVATE_PREFIXES.some((prefix) => specifier.startsWith(prefix))) {
-            const message = `${elementName}: Import '${specifier}' is application-private. Use '@mvmnt/plugin-sdk'.`;
+            const message = `${elementName}: Import '${specifier}' is application-private. Use '@mvmnt-app/plugin-sdk'.`;
             if (/\^?1\./.test(apiVersion)) warnings.push(message);
             else errors.push(message);
         }

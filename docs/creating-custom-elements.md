@@ -551,12 +551,19 @@ Custom calculators can add new feature keys. See the [Custom Calculator Quicksta
 
 ### Local Development
 
-Custom elements in the `src/plugins/` directory are automatically loaded during development:
+Author each plugin in its own directory outside the MVMNT checkout. Start MVMNT and the
+external plugin watcher in separate terminals:
 
-1. **Create element** with `npm run create-element`
-2. **Start dev server**: `npm run dev`
-3. **Open app** and add your element to a scene
-4. **Edit code** - changes hot-reload automatically
+```bash
+# MVMNT checkout
+npm run dev
+
+# MVMNT checkout, pointing to an external plugin project
+npm run dev-plugin /absolute/path/to/my-mvmnt-plugin
+```
+
+The plugin watcher rebuilds and hot-reloads the external project on each save. See the SDK 2
+[plugin quickstart](plugin-api/plugin-quickstart.md) for the project layout and authoring API.
 
 ### Debugging Tips
 
@@ -636,11 +643,8 @@ protected override onPropertyChanged(key: string, oldValue: unknown, newValue: u
 Use the build script to create a distributable `.mvmnt-plugin` bundle:
 
 ```bash
-# Build a specific plugin
-npm run build-plugin src/plugins/my-plugin
-
-# List available plugins
-npm run build-plugin
+# Build a specific external plugin
+npm run build-plugin /absolute/path/to/my-mvmnt-plugin
 ```
 
 This will:

@@ -1,8 +1,11 @@
 {
-  "name": "@mvmnt/plugin-sdk",
+  "name": "@mvmnt-app/plugin-sdk",
   "version": "2.0.0",
   "description": "Public authoring SDK for MVMNT scene element plugins",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "sideEffects": false,
   "files": [

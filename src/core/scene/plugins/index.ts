@@ -29,3 +29,9 @@ export {
 } from './host-api/get-plugin-host-api';
 export { PLUGIN_API_VERSION, PLUGIN_SDK_VERSION, SUPPORTED_PLUGIN_API_RANGES } from './api-version';
 export { getPluginApiLine } from './plugin-contract';
+export {
+    exportInstalledPluginBackup,
+    getInstalledLegacyPluginInventory,
+    isLegacyPluginManifest,
+    type LegacyPluginInventoryEntry,
+} from './plugin-compatibility-inventory';

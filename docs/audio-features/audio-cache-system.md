@@ -181,7 +181,7 @@ analysis work even if they originate from different UI components, reducing dupl
 
 Calculators are plain objects — no factory pattern required. Register before analysis runs.
 
-**Plugin authors** (code in `src/plugins/` or external packages): use `audioCalculatorsApi` from `@mvmnt/plugin-sdk`. This is the stable public surface — it accepts the narrower `PluginAudioCalculator` interface and bridges to the internal registry automatically.
+**Plugin authors**: use `audioCalculatorsApi` from `@mvmnt/plugin-sdk`. This is the stable public surface — it accepts the narrower `PluginAudioCalculator` interface and bridges to the internal registry automatically.
 
 ```ts
 import {
