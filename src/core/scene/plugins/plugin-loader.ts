@@ -38,6 +38,7 @@ import {
     validatePluginManifest,
 } from './plugin-contract';
 import { getPluginHostApi } from './host-api/get-plugin-host-api';
+import { HostCallbackElementRenderer } from './legacy-callback-renderer';
 
 export interface PluginLoadResult {
     success: boolean;
@@ -94,11 +95,15 @@ const pluginSdkV2UtilsRuntimeModule = Object.freeze({
     ensureFontLoaded: ensureHostFontLoaded,
     parseFontSelection: parseHostFontSelection,
 });
+const pluginSdkV2SceneRuntimeModule = Object.freeze({
+    ...pluginSdkV2SceneModule,
+    CallbackElementRenderer: HostCallbackElementRenderer,
+});
 const pluginSdkV2RootModule = {
     ...pluginSdkV2ApiModule,
     ...pluginSdkV2AnimationModule,
     ...pluginSdkV2RenderModule,
-    ...pluginSdkV2SceneModule,
+    ...pluginSdkV2SceneRuntimeModule,
     ...pluginSdkV2SafetyModule,
     ...pluginSdkV2UtilsRuntimeModule,
     ...pluginSdkV2VisualAssetsModule,
@@ -109,7 +114,7 @@ const V2_PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
     '@mvmnt-app/plugin-sdk/animation': pluginSdkV2AnimationModule,
     '@mvmnt-app/plugin-sdk/audio': Object.freeze({}),
     '@mvmnt-app/plugin-sdk/render': pluginSdkV2RenderModule,
-    '@mvmnt-app/plugin-sdk/scene': pluginSdkV2SceneModule,
+    '@mvmnt-app/plugin-sdk/scene': pluginSdkV2SceneRuntimeModule,
     '@mvmnt-app/plugin-sdk/safety': pluginSdkV2SafetyModule,
     '@mvmnt-app/plugin-sdk/timeline': Object.freeze({}),
     '@mvmnt-app/plugin-sdk/timing': Object.freeze({}),

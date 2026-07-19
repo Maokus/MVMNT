@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
 
 const cliPath = resolve(process.cwd(), 'packages/create-mvmnt-plugin/bin/create-mvmnt-plugin.mjs');
 const temporaryDirectories: string[] = [];

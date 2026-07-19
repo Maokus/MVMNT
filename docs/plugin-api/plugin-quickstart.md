@@ -1,263 +1,105 @@
 # Plugin SDK 2 quickstart
 
-This guide takes a new plugin from an empty folder to an element available in MVMNT.
-SDK 2 plugins export `definePluginElement()` definitions. They do not subclass `SceneElement`
-or import MVMNT application aliases such as `@core/*` or `@state/*`.
+This guide creates an external MVMNT plugin, previews it with hot reload, and packages it for
+import. You need Node.js 18 or newer, npm, and a local MVMNT checkout.
 
-## Before you begin
+## Create a plugin
 
-You need Node.js and npm. Start a plugin project and install the published SDK:
-
-```sh
-mkdir pulse-plugin
-cd pulse-plugin
-npm init -y
-npm install @mvmnt-app/plugin-sdk
-npm install --save-dev typescript
-```
-
-For unreleased SDK changes from a local MVMNT checkout, build and install the local package instead:
+Run the generator from the directory where you keep your projects:
 
 ```sh
-# In the MVMNT checkout
+npm create mvmnt-plugin@latest -- --name com.example.pulse --template minimal
+cd pulse
 npm install
-npm run build:plugin-sdk
-
-# In an existing plugin project
-npm init -y
-npm install /absolute/path/to/MVMNT/packages/plugin-sdk
-npm install --save-dev typescript
+npm run typecheck
 ```
 
-Create this layout:
+The final part of the plugin ID becomes both the directory and first element type. The generated
+project contains everything needed to start:
 
 ```text
-pulse-plugin/
+pulse/
+├── assets/
+├── src/pulse.ts
 ├── package.json
-├── tsconfig.json
 ├── plugin.json
-└── pulse.ts
+└── tsconfig.json
 ```
 
-Use this `tsconfig.json` for type-checking:
+Use a reverse-domain plugin ID that you control. Run the generator with `--help` to see the other
+starter templates and options for display names, descriptions, and output directories.
 
-```json
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "lib": ["ES2020", "DOM"],
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "strict": true,
-    "noEmit": true,
-    "skipLibCheck": true
-  },
-  "include": ["*.ts"]
-}
-```
+## Edit the element
 
-## Create the manifest
+Open `src/pulse.ts`. The generated element already renders and type-checks, so you can change it
+incrementally. Its main parts are:
 
-`plugin.json` identifies the plugin and maps each scene-element type to its source entry. New
-plugins use `^2.0.0`. The capability lists must match the corresponding definition exactly,
-including whether each capability is required or optional.
+- `metadata`: the name, description, and picker category.
+- `schema`: editable properties shown by MVMNT. It also determines the TypeScript type of `props`.
+- `capabilities`: host APIs the element uses.
+- `render`: returns the render objects displayed for the current frame.
 
-```json
-{
-  "id": "com.example.pulse",
-  "name": "Pulse",
-  "version": "1.0.0",
-  "apiVersion": "^2.0.0",
-  "description": "A small animated pulse element.",
-  "elements": [{
-    "type": "pulse",
-    "entry": "pulse.ts",
-    "capabilities": {
-      "required": ["timeline.read"],
-      "optional": ["audio.features.read"]
-    }
-  }]
-}
-```
-
-Use a unique lowercase, hyphenated element type. Plugin IDs conventionally use reverse-domain
-notation. The builder rejects duplicate types, private application imports, path traversal, and
-capability mismatches before it evaluates plugin code.
-
-## Define the element
-
-Put this in `pulse.ts`:
-
-```ts
-import { definePluginElement } from '@mvmnt-app/plugin-sdk/scene';
-import { Rectangle } from '@mvmnt-app/plugin-sdk/render';
-
-export const pulse = definePluginElement({
-    type: 'pulse',
-    metadata: {
-        name: 'Pulse',
-        description: 'A pulsing square',
-        category: 'Examples',
-    },
-    schema: {
-        tabs: [{
-            id: 'properties',
-            label: 'Properties',
-            groups: [{
-                id: 'appearance',
-                label: 'Appearance',
-                collapsed: false,
-                properties: [
-                    { key: 'color', label: 'Color', type: 'colorAlpha', default: '#3B82F6FF' },
-                    { key: 'minSize', label: 'Minimum Size', type: 'number', default: 40, min: 1 },
-                    { key: 'maxSize', label: 'Maximum Size', type: 'number', default: 100, min: 1 }
-                ]
-            }]
-        }]
-    },
-    capabilities: {
-        required: ['timeline.read'],
-        optional: ['audio.features.read']
-    },
-    render(props, _state, time, context) {
-        // Required capability facets are available at runtime. The non-null assertion
-        // only tells TypeScript about the capability declared above.
-        const metadata = context.timeline!.getMetadata();
-        if (!metadata.ok) return [];
-
-        const phase = (Math.sin(time.seconds * Math.PI * 2) + 1) / 2;
-        const size = props.minSize + (props.maxSize - props.minSize) * phase;
-        return [new Rectangle(-size / 2, -size / 2, size, size, { fillColor: props.color })];
-    }
-});
-```
-
-The checked-in `src/pluginexamples` directories are the canonical larger examples and are built
-by the same production and development builders used for plugin releases. Documentation links to
-those sources instead of maintaining divergent copies.
-
-Then type-check it from the plugin folder:
+Keep the element's `type` equal to its entry in `plugin.json`. Capability lists in the source and
+manifest must also match exactly. Run this after editing:
 
 ```sh
-npx tsc --noEmit
+npm run typecheck
 ```
 
-### Schema-first props
+SDK 2 plugins use `definePluginElement()` and imports from `@mvmnt-app/plugin-sdk`. Do not import
+MVMNT application aliases such as `@core/*` or `@state/*`.
 
-The schema is both runtime inspector data and the source of TypeScript types for `props` in
-`create`, `render`, and `dispose`. MVMNT infers property keys and standard values from the
-property `type`, so changing a schema property updates the callback type automatically. Select
-values are inferred from their declared `options`; use `as const` if a schema is stored in a
-separate variable and you want its select values preserved as a literal union.
+## Preview with hot reload
 
-Use the explicit `definePluginElement<Props, State>()` form only when a plugin needs props that
-cannot be represented by the inspector schema, such as a discriminated union or derived field.
-When `create()` returns an object, its state type is inferred for `render()` and `dispose()`.
-
-## Use capabilities and lifecycle correctly
-
-Capabilities are declared per element, not globally:
-
-- Put data essential to rendering in `required`. If the host cannot provide it, MVMNT skips that
-  element and reports a diagnostic.
-- Put enhancements in `optional`. Its context facet is `undefined` when unavailable, so branch
-  before using it.
-- API operations that can fail return `Result<T, PluginDiagnostic>`. Test `result.ok` before
-  reading `result.value`.
-
-Use lifecycle callbacks when the element needs state or setup:
-
-```ts
-const statefulPulse = definePluginElement({
-    // type, metadata, schema, and capabilities omitted here
-    type: 'stateful-pulse',
-    metadata: { name: 'Stateful Pulse' },
-    schema: { tabs: [] },
-    capabilities: { required: [], optional: [] },
-    create() {
-        return { frames: 0 };
-    },
-    render(_props, state) {
-        state.frames += 1;
-        return [];
-    },
-    dispose(state) {
-        // Release plugin-owned resources associated with this instance.
-        void state;
-    }
-});
-```
-
-`load` runs once per loaded definition, `create` once per scene instance, `dispose` once per
-instance, and `unload` once when the definition is removed or reloaded. `load` and `create` may
-be asynchronous. Context-provided asset handles and calculator registrations are automatically
-cleaned up; stop your own asynchronous work when `context.signal` aborts. See the
-[lifecycle guide](plugin-lifecycle.md) and [capability guide](plugin-capabilities.md) for the
-full rules.
-
-## Build and import the plugin
-
-The MVMNT checkout contains the plugin builder. From that checkout, point it at your plugin
-folder:
+Run these commands from the MVMNT checkout:
 
 ```sh
-npm run build-plugin /absolute/path/to/pulse-plugin
-```
-
-This validates the manifest and imports, bundles each entry as CJS with SDK modules external,
-and creates:
-
-```text
-MVMNT/dist/com.example.pulse-1.0.0.mvmnt-plugin
-```
-
-Open MVMNT and use **Settings → Plugins → Import** to select that `.mvmnt-plugin` file. The
-element appears in the scene-element picker under its configured category.
-
-For hot reload while running MVMNT in development mode:
-
-```sh
-# Terminal 1, in the MVMNT checkout
+# Terminal 1
 npm run dev
 
-# Terminal 2, in the MVMNT checkout
-npm run dev-plugin -- /absolute/path/to/pulse-plugin
+# Terminal 2
+npm run dev-plugin -- /absolute/path/to/pulse
 ```
 
-The development server performs a real SDK 2 build and archive load; it does not import source
-files directly into Vite. The browser connects on port 7741, loads the initial in-memory archive,
-and replaces the registered plugin after each successful rebuild. If MVMNT tried to connect before
-the server was running, refresh the browser once.
+Open MVMNT in the browser. The plugin loads automatically and its element appears in the scene
+element picker. Saving a source or asset file rebuilds and reloads the plugin. If the browser was
+opened before the plugin watcher started, refresh it once.
 
-See the [development loading guide](dev-plugin-workflow.md) for the complete request flow,
-non-default ports, state and asset behavior, manifest changes, persistence, and troubleshooting.
+Restart `dev-plugin` after changing `plugin.json`. See the
+[development workflow](dev-plugin-workflow.md) for ports, reload behavior, and troubleshooting.
 
-### Font properties
+## Add another element
 
-Declare selectable fonts with a schema property whose `type` is `font`. MVMNT requests each
-selected family and weight as soon as the scene instance is created and invalidates the canvas
-when it becomes available; opening the Appearance inspector is not required. Use
-`parseFontSelection()` to build a canvas font string because stored selections can represent a
-Google font or a scene-managed custom-font asset:
+Run the generator again from the plugin directory:
 
-```ts
-import { parseFontSelection } from '@mvmnt-app/plugin-sdk/utils';
-
-const selected = parseFontSelection(props.fontFamily);
-const font = `${selected.weight ?? 400} 32px "${selected.family}", sans-serif`;
+```sh
+cd /absolute/path/to/pulse
+npm create mvmnt-plugin@latest -- add rings --template minimal
+npm run typecheck
 ```
 
-## Assets, audio, and next steps
+This creates `src/rings.ts` and adds it to `plugin.json`. Restart `dev-plugin` so it reads the new
+manifest entry.
 
-Place bundled files under `assets/` beside `plugin.json`. Access them through
-`context.assets`, not browser-relative URLs or MVMNT stores. Use `context.assets.project()` for
-a user-selected visual asset and `context.assets.bundledImage()` or atlas helpers for packaged
-assets.
+## Package and import
 
-Raw PCM reads are synchronous, return a defensive `Float32Array` copy, and have no sample-count
-cap. Keep ranges short, account for allocation cost, and use feature sampling for history or
-spectral data. Check `context.signal.aborted` around expensive asynchronous work.
+From the MVMNT checkout, build the distributable archive:
 
-For complete API names and supported subpaths, see the [SDK API inventory](plugin-sdk-api-inventory.md).
-For existing SDK 1 plugins, use the [v1-to-v2 migration guide](plugin-v1-to-v2.md).
-The checked-in, compilable fixture is [fixtures/plugin-sdk-v2](../../fixtures/plugin-sdk-v2).
+```sh
+npm run build-plugin -- /absolute/path/to/pulse
+```
+
+The bundle is written to `dist/com.example.pulse-0.1.0.mvmnt-plugin`. In MVMNT, open
+**Settings → Plugins → Import** and select that file.
+
+## Where to go next
+
+- [Capabilities](plugin-capabilities.md): required and optional host APIs.
+- [Lifecycle](plugin-lifecycle.md): setup, state, cleanup, and abort signals.
+- [SDK API inventory](plugin-sdk-api-inventory.md): exports and supported import paths.
+- [Plugin manifest schema](plugin-manifest.schema.json): all `plugin.json` fields.
+- [SDK 1 to SDK 2 migration](plugin-v1-to-v2.md): update an existing legacy plugin.
+- [Compilable examples](../../src/pluginexamples/README.md): larger MIDI, image, and animation
+  plugins.
+
+Place packaged files under `assets/` and access them through `context.assets`.

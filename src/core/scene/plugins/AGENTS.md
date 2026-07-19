@@ -23,6 +23,7 @@ This directory implements host runtime adapters for the public `packages/plugin-
 | `plugin-sdk-shortcuts.ts`         | Shorthand helpers (`selectNotes`, `sampleAudio`, `timeToBeats`, `noteName`, …).                                       |
 | `plugin-safety.ts`                | `withRenderSafety`, `limitRenderObjects`, `checkCapability`, and related safety utilities.                            |
 | `plugin-loader.ts`                | Runtime plugin loader; emits warnings for legacy `@core/` requires.                                                   |
+| `legacy-callback-renderer.ts`     | Host-owned migration facade for class-oriented renderers; never duplicate this behavior in the public SDK package.   |
 | `version-check.ts`                | Semver compatibility check between plugin and host API versions.                                                      |
 
 ## Capabilities
@@ -76,5 +77,6 @@ All tests live in `__tests__/`:
 - `plugin-api.test.ts` – Host API factory and capability behavior.
 - `plugin-safety.test.ts` – Safety wrapper and render object limits.
 - `version-check.test.ts` – Semver range logic.
+- `sdk-boundary-drift.test.ts` – Verifies shared helpers have one implementation and migration behavior stays host-owned.
 
 Run: `npm run test` (Vitest).

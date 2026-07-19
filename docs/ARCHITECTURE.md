@@ -110,6 +110,12 @@ if (api && status === 'ok') {
 
 `plugin-sdk.ts` uses a `satisfies` check mapping every `PLUGIN_CAPABILITIES` key to its exported proxy. Adding a capability without exporting it from the SDK is a compile-time error. `__tests__/api-drift.test.ts` covers all capabilities with runtime assertions.
 
+The SDK package is the canonical owner of public DTOs and portable helpers, not a clone of
+the application. App compatibility barrels re-export SDK-owned helpers so both built-ins and
+plugins execute the same implementation. Conversely, render objects, capability services,
+and the class-renderer migration facade are host-owned and injected by `plugin-loader.ts`.
+`sdk-boundary-drift.test.ts` verifies these ownership rules behaviorally.
+
 See also: [docs/plugin-api-v1.md](plugin-api-v1.md), [docs/plugin-quickstart.md](plugin-quickstart.md), `core/scene/plugins/AGENTS.md`.
 
 ## State & Selector Guidelines

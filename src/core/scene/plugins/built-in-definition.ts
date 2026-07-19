@@ -4,7 +4,8 @@ import { createPluginDefinitionScope } from './v2-runtime';
 import { definePluginElement, type PluginElementDefinitionInput } from '../../../../packages/plugin-sdk/src/scene';
 import { createPluginHostApi } from './host-api/plugin-api';
 import { getRequiredPluginApi } from './plugin-sdk';
-import { CallbackElementRenderer, type CapabilityContext } from '../../../../packages/plugin-sdk/src/scene';
+import type { CapabilityContext } from '../../../../packages/plugin-sdk/src/scene';
+import { HostCallbackElementRenderer } from './legacy-callback-renderer';
 import type { AudioFeatureRequirement } from '../../../../packages/plugin-sdk/src/audio';
 import { registerScopedFeatureRequirements } from '@audio/audioElementMetadata';
 
@@ -13,7 +14,7 @@ import { registerScopedFeatureRequirements } from '@audio/audioElementMetadata';
 // depend on module/bootstrap ordering.
 const builtInHostServices = createPluginHostApi().api;
 
-class BuiltInContextBridge extends CallbackElementRenderer {
+class BuiltInContextBridge extends HostCallbackElementRenderer {
     override _buildRenderObjects(): readonly never[] {
         return [];
     }

@@ -1,6 +1,6 @@
 {
     "name": "create-mvmnt-plugin",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "Scaffold an SDK 2 MVMNT plugin project",
     "license": "MIT",
     "type": "module",
