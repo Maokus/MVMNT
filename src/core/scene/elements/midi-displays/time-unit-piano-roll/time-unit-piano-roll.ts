@@ -12,6 +12,7 @@ import { debugLog } from '@utils/debug-log';
 import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
 import { insertElementConfig, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { defineHostAdaptedBuiltIn } from '@core/scene/plugins/built-in-definition';
 
 const DEFAULT_ROLL_WIDTH = 800;
 const DEFAULT_NOTE_COLOR = '#FF6B6B';
@@ -974,3 +975,5 @@ export class TimeUnitPianoRollElement extends SceneElement {
         });
     }
 }
+
+export const timeUnitPianoRoll = defineHostAdaptedBuiltIn({ type: 'timeUnitPianoRoll', metadata: { name: 'Time Unit Piano Roll', description: 'Time-unit MIDI piano roll', category: 'MIDI Displays' }, capabilities: { required: ['timeline.read'], optional: ['timing.conversion'] } }, TimeUnitPianoRollElement);

@@ -1,243 +1,51 @@
-// Note Count Tracker element: shows counts of played notes and events from a MIDI file
-import { SceneElement } from '../base';
-import type { EnhancedConfigSchema } from '@core/types.js';
-import { RenderObject, Text, Rectangle } from '@core/render/render-objects';
-// Timeline-backed migration: remove per-element MidiManager usage
-import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
-import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
-import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
-import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { definePluginElement } from '@mvmnt/plugin-sdk';
+import { Rectangle, Text, type RenderObject } from '@mvmnt/plugin-sdk/render';
 import { applyOpacity } from '@utils/color';
+import { createBuiltInDefinitionElementClass } from '@core/scene/plugins/built-in-definition';
 
-export class NoteCountTrackerElement extends SceneElement {
-    // Phase 3 reference pattern: intentionally consume timeline data through the public plugin API.
-    constructor(id: string = 'notesPlayedTracker', config: { [key: string]: any } = {}) {
-        super('notesPlayedTracker', id, config);
-    }
-
-    static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementConfig(
-            super.getConfigSchema(),
-            {
-                name: 'Note Count Tracker',
-                description: 'Displays how many notes/events have played so far (timeline-backed)',
-                category: 'MIDI Displays',
-                presets: [
-                    {
-                        id: 'resetDefault',
-                        label: 'Reset to Default',
-                        values: {
-                            formatString:
-                                'Num played notes: #playedNotes/#totalNotes (#percentNotes%)\nNum played events: #playedEvents/#totalEvents (#percentEvents%)',
-                        },
-                    },
-                ],
-            },
-            [
-                tab.content([
-                    propGroup.midiSource(),
-                    {
-                        id: 'formatting',
-                        label: 'Formatting',
-                        collapsed: false,
-                        description: 'Customize the display string using tokens like #playedNotes.',
-                        properties: [
-                            prop.longString(
-                                'formatString',
-                                'Format String',
-                                'Num played notes: #playedNotes/#totalNotes (#percentNotes%)\nNum played events: #playedEvents/#totalEvents (#percentEvents%)',
-                                {
-                                    description:
-                                        'Tokens substituted: #playedNotes, #totalNotes, #percentNotes — note counts; #playedEvents, #totalEvents, #percentEvents — all events including CC messages.',
-                                }
-                            ),
-                        ],
-                    },
-                ]),
-                tab.appearance([
-                    propGroup.appearance(),
-                    {
-                        id: 'typography',
-                        label: 'Typography',
-                        collapsed: false,
-                        description: 'Adjust alignment and styling for the counters.',
-                        properties: [
-                            prop.font('fontFamily', 'Font Family', 'Inter'),
-                            prop.number('fontSize', 'Font Size (px)', 30, { min: 6, max: 72, step: 1 }),
-                            prop.select('textAlign', 'Text Alignment', 'left', [
-                                { value: 'left', label: 'Left' },
-                                { value: 'center', label: 'Center' },
-                                { value: 'right', label: 'Right' },
-                            ]),
-                            prop.number('lineSpacing', 'Line Spacing (px)', 4, { min: 0, max: 40, step: 1 }),
-                        ],
-                    },
-                    propGroup.container(),
-                ]),
-            ]
-        );
-    }
-
-    protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        const props = this.getSchemaProps();
-
-        if (!props.visible) return [];
-
-        const renderObjects: RenderObject[] = [];
-
-        const effectiveTime = Math.max(0, targetTime);
-        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
-
-        // Compute counts from notes via timeline
-        const trackId = props.midiTrackId;
-        // To compute totals, we need all notes; if service doesn't expose a direct getter, approximate using a large window
-        let totalNotes = 0;
-        let playedNotes = 0;
-        let playedEvents = 0;
-        let totalCCEvents = 0;
-        if (trackId && !host.ok) {
-            const message =
-                host.status === 'unsupported-version'
-                    ? 'Plugin API version unsupported'
-                    : host.missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
-                      ? 'Timeline API unavailable (requires timeline.read)'
-                      : 'Plugin host API unavailable';
-            renderObjects.push(new Text(0, 0, message, '12px Inter, sans-serif', { color: '#64748b' }));
-            return renderObjects;
+interface Props extends Readonly<Record<string, any>> {}
+const defaultFormat = 'Num played notes: #playedNotes/#totalNotes (#percentNotes%)\nNum played events: #playedEvents/#totalEvents (#percentEvents%)';
+const substitute = (template: string, values: Record<string, string>) => template.replace(/#(playedNotes|totalNotes|percentNotes|playedEvents|totalEvents|percentEvents)/g, (_, key) => values[key] ?? '');
+export const notesPlayedTracker = definePluginElement<Props, undefined>({
+    type: 'notesPlayedTracker', metadata: { name: 'Note Count Tracker', description: 'Displays how many notes/events have played so far', category: 'MIDI Displays' },
+    schema: { tabs: [
+        { id: 'content', label: 'Content', groups: [
+            { id: 'midiSource', label: 'MIDI Source', collapsed: false, properties: [{ key: 'midiTrackId', label: 'MIDI Track', type: 'timelineTrackRef', allowedTrackTypes: ['midi'], default: null }] },
+            { id: 'formatting', label: 'Formatting', collapsed: false, properties: [{ key: 'formatString', label: 'Format String', type: 'longString', default: defaultFormat }] },
+        ] },
+        { id: 'appearance', label: 'Appearance', groups: [
+            { id: 'appearance', label: 'Appearance', collapsed: false, properties: [{ key: 'color', label: 'Color', type: 'colorAlpha', default: '#CCCCCCFF' }, { key: 'opacity', label: 'Opacity', type: 'range', default: 1, min: 0, max: 1 }] },
+            { id: 'typography', label: 'Typography', collapsed: false, properties: [
+                { key: 'fontFamily', label: 'Font Family', type: 'font', default: 'Inter|400' }, { key: 'fontSize', label: 'Font Size', type: 'number', default: 30 },
+                { key: 'textAlign', label: 'Text Alignment', type: 'select', default: 'left', options: [{ value: 'left', label: 'Left' }, { value: 'center', label: 'Center' }, { value: 'right', label: 'Right' }] },
+                { key: 'lineSpacing', label: 'Line Spacing', type: 'number', default: 4 },
+            ] },
+            { id: 'container', label: 'Container', collapsed: true, properties: [
+                { key: 'showBackground', label: 'Show Background', type: 'boolean', default: false }, { key: 'backgroundColor', label: 'Background', type: 'colorAlpha', default: '#000000FF' },
+                { key: 'backgroundOpacity', label: 'Background Opacity', type: 'range', default: 0.8, min: 0, max: 1 }, { key: 'backgroundPaddingX', label: 'Horizontal Padding', type: 'number', default: 8 },
+                { key: 'backgroundPaddingY', label: 'Vertical Padding', type: 'number', default: 4 }, { key: 'backgroundCornerRadius', label: 'Corner Radius', type: 'number', default: 4 },
+            ] },
+        ] },
+    ] }, capabilities: { required: ['timeline.read'], optional: [] },
+    render(props, _state, time, context) {
+        let notes: readonly any[] = []; let cc: readonly any[] = [];
+        if (props.midiTrackId) {
+            const meta = context.timeline!.getMetadata(); const end = meta.ok ? meta.value.durationSeconds : Math.max(0, time.seconds);
+            const noteResult = context.timeline!.selectNotes({ trackIds: [props.midiTrackId], startSeconds: 0, endSeconds: end });
+            const ccResult = context.timeline!.selectCC({ trackIds: [props.midiTrackId], startSeconds: 0, endSeconds: end });
+            if (noteResult.ok) notes = noteResult.value; if (ccResult.ok) cc = ccResult.value;
         }
-        if (trackId && host.ok) {
-            const all = host.api.timeline.selectNotesInWindow({
-                trackIds: [trackId],
-                startSec: 0,
-                endSec: Number.POSITIVE_INFINITY,
-            });
-            totalNotes = all.length;
-            const allCC = host.api.timeline.selectCCInWindow({
-                trackIds: [trackId],
-                startSec: 0,
-                endSec: Number.POSITIVE_INFINITY,
-            });
-            totalCCEvents = allCC.length;
-            if (targetTime >= 0) {
-                for (const note of all) {
-                    if ((note.startTime ?? 0) <= effectiveTime) {
-                        playedNotes += 1;
-                        playedEvents += 1;
-                    }
-                    if ((note.endTime ?? 0) <= effectiveTime) {
-                        playedEvents += 1;
-                    }
-                }
-                for (const cc of allCC) {
-                    if (cc.timeSec <= effectiveTime) {
-                        playedEvents += 1;
-                    }
-                }
-            }
-        }
-        const totalEvents = totalNotes * 2 + totalCCEvents;
-
-        const pctNotes = totalNotes > 0 ? (playedNotes / totalNotes) * 100 : 0;
-        const pctEvents = totalEvents > 0 ? (playedEvents / totalEvents) * 100 : 0;
-
-        // Appearance
-        const fontSelection = props.fontFamily ?? 'Inter';
-        const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
-        const fontWeight = (weightPart || '400').toString();
-        const fontSize = props.fontSize ?? 30;
-        const color = applyOpacity(props.color ?? '#cccccc', props.opacity ?? 1);
-        const lineSpacing = props.lineSpacing ?? 4;
-        if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
-        const font = `${fontWeight} ${fontSize}px ${fontFamily || 'Inter'}, sans-serif`;
-
-        const formatTemplate = (template: string, values: Record<string, string>) =>
-            template.replace(
-                /#(playedNotes|totalNotes|percentNotes|playedEvents|totalEvents|percentEvents)/g,
-                (_, token) => values[token] ?? ''
-            );
-
-        const displayValues = {
-            playedNotes: playedNotes.toString(),
-            totalNotes: totalNotes.toString(),
-            percentNotes: pctNotes.toFixed(2),
-            playedEvents: playedEvents.toString(),
-            totalEvents: totalEvents.toString(),
-            percentEvents: pctEvents.toFixed(2),
-        };
-        const layoutValues = {
-            playedNotes: totalNotes.toString(),
-            totalNotes: totalNotes.toString(),
-            percentNotes: '100.00',
-            playedEvents: totalEvents.toString(),
-            totalEvents: totalEvents.toString(),
-            percentEvents: '100.00',
-        };
-        const template =
-            (props.formatString as string) ??
-            'Num played notes: #playedNotes/#totalNotes (#percentNotes%)\nNum played events: #playedEvents/#totalEvents (#percentEvents%)';
-        const displayText = formatTemplate(template, displayValues);
-        const layoutText = formatTemplate(template, layoutValues);
-
-        const measureWidth = (text: string, fontStr: string): number => {
-            try {
-                if (typeof OffscreenCanvas !== 'undefined') {
-                    const c = new OffscreenCanvas(1, 1);
-                    const ctx = c.getContext('2d') as CanvasRenderingContext2D | null;
-                    if (ctx) {
-                        ctx.font = fontStr;
-                        return ctx.measureText(text).width || 0;
-                    }
-                }
-                if (typeof document !== 'undefined') {
-                    const c = document.createElement('canvas');
-                    const ctx = c.getContext('2d');
-                    if (ctx) {
-                        ctx.font = fontStr;
-                        return ctx.measureText(text).width || 0;
-                    }
-                }
-            } catch {}
-            const m = fontStr.match(/(\d*\.?\d+)px/);
-            const fs = m ? parseFloat(m[1]) : 16;
-            return text.length * fs * 0.6;
-        };
-
-        const displayLines = displayText.split(/\r?\n/);
-        const layoutLines = layoutText.split(/\r?\n/);
-        const layoutWidth = Math.max(1, ...layoutLines.map((line) => measureWidth(line, font)));
-        const layoutHeight =
-            layoutLines.length > 0
-                ? layoutLines.length * fontSize + Math.max(0, layoutLines.length - 1) * lineSpacing
-                : fontSize;
-        const justification = (props.textAlign ?? props.textJustification ?? 'left') as CanvasTextAlign;
-        const layoutX = justification === 'center' ? -layoutWidth / 2 : justification === 'right' ? -layoutWidth : 0;
-
-        const layoutRect = new Rectangle(layoutX, 0, layoutWidth, layoutHeight, { fillColor: null });
-        layoutRect.setIncludeInLayoutBounds(true);
-        renderObjects.push(layoutRect);
-
-        displayLines.forEach((line, index) => {
-            const y = index * (fontSize + lineSpacing);
-            const textObj = new Text(0, y, line, font, { color, align: justification, layoutParticipation: 'exclude' });
-            renderObjects.push(textObj);
-        });
-
-        if (props.showBackground) {
-            const paddingX = props.backgroundPaddingX ?? 8;
-            const paddingY = props.backgroundPaddingY ?? 4;
-            const bgColor = applyOpacity(props.backgroundColor ?? '#000000', props.backgroundOpacity ?? 0.8);
-            const bgWidth = layoutWidth + paddingX * 2;
-            const bgHeight = layoutHeight + paddingY * 2;
-            const bg = new Rectangle(layoutX - paddingX, -paddingY, bgWidth, bgHeight, { fillColor: bgColor });
-            if (props.backgroundCornerRadius) bg.cornerRadius = props.backgroundCornerRadius;
-            bg.setIncludeInLayoutBounds?.(false);
-            renderObjects.unshift(bg);
-        }
-
-        return renderObjects;
-    }
-
-    dispose(): void {
-        super.dispose();
-    }
-}
+        const playedNotes = notes.filter((note) => note.startSeconds <= time.seconds).length;
+        const playedEvents = playedNotes + notes.filter((note) => note.endSeconds <= time.seconds).length + cc.filter((event) => event.timeSeconds <= time.seconds).length;
+        const totalEvents = notes.length * 2 + cc.length;
+        const values = { playedNotes: String(playedNotes), totalNotes: String(notes.length), percentNotes: (notes.length ? playedNotes / notes.length * 100 : 0).toFixed(2), playedEvents: String(playedEvents), totalEvents: String(totalEvents), percentEvents: (totalEvents ? playedEvents / totalEvents * 100 : 0).toFixed(2) };
+        const lines = substitute(props.formatString, values).split(/\r?\n/); const [family, weight = '400'] = String(props.fontFamily).split('|');
+        const font = `${weight} ${props.fontSize}px ${family}, sans-serif`; const width = Math.max(1, ...lines.map((line) => line.length * props.fontSize * 0.6));
+        const height = lines.length * props.fontSize + Math.max(0, lines.length - 1) * props.lineSpacing; const x = props.textAlign === 'center' ? -width / 2 : props.textAlign === 'right' ? -width : 0;
+        const objects: RenderObject[] = [new Rectangle(x, 0, width, height, { fillColor: null })];
+        lines.forEach((line, index) => objects.push(new Text(0, index * (props.fontSize + props.lineSpacing), line, font, { color: applyOpacity(props.color, props.opacity), align: props.textAlign })));
+        if (props.showBackground) { const bg = new Rectangle(x - props.backgroundPaddingX, -props.backgroundPaddingY, width + props.backgroundPaddingX * 2, height + props.backgroundPaddingY * 2, { fillColor: applyOpacity(props.backgroundColor, props.backgroundOpacity) }); bg.cornerRadius = props.backgroundCornerRadius; objects.unshift(bg); }
+        return objects;
+    },
+});
+export const NoteCountTrackerElement = createBuiltInDefinitionElementClass(notesPlayedTracker);

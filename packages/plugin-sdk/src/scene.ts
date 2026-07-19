@@ -56,7 +56,8 @@ export function definePluginElement<Props extends Readonly<Record<string, unknow
   input: PluginElementDefinitionInput<Props, State>,
 ): PluginElementDefinition<Props, State> {
   if (!input || typeof input !== 'object') throw new PluginContractError('definePluginElement() requires a definition object');
-  if (!/^[a-z][a-z0-9-]*$/.test(input.type)) throw new PluginContractError(`Invalid element type: ${input.type}`);
+  // Camel-case remains valid for stable built-in type IDs created before SDK 2.
+  if (!/^[a-z][a-zA-Z0-9-]*$/.test(input.type)) throw new PluginContractError(`Invalid element type: ${input.type}`);
   if (typeof input.render !== 'function') throw new PluginContractError(`Element '${input.type}' must define render()`);
   validateCapabilities(input.capabilities);
   return Object.freeze({ ...input, kind: 'mvmnt.plugin-element.v2' as const });

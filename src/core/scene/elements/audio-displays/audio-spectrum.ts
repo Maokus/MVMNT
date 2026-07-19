@@ -7,6 +7,7 @@ import { applyOpacity } from '@utils/color';
 import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { defineHostAdaptedBuiltIn } from '@core/scene/plugins/built-in-definition';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -14,6 +15,7 @@ function clamp(value: number, min: number, max: number): number {
     if (value > max) return max;
     return value;
 }
+
 
 const DEFAULT_BAR_COLOR = '#60A5FA';
 const DEFAULT_BACKGROUND_COLOR = '#0F172A';
@@ -446,3 +448,5 @@ export class AudioSpectrumElement extends SceneElement {
         return objects;
     }
 }
+
+export const audioSpectrum = defineHostAdaptedBuiltIn({ type: 'audioSpectrum', metadata: { name: 'Audio Spectrum', description: 'Frequency spectrum display', category: 'Audio Displays' }, capabilities: { required: ['audio.features.read'], optional: [] } }, AudioSpectrumElement);

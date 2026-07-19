@@ -1,305 +1,52 @@
-// Progress display element for showing playback progress with property bindings
-import {
-    SceneElement,
-    asNumber,
-    type PropertyTransform,
-    type EnhancedConfigSchema,
-    type SceneElementInterface,
-    prop,
-    insertElementConfig,
-    parseFontSelection,
-    ensureFontLoaded,
-    propGroup,
-    colorSlotProps,
-    tab,
-} from '@mvmnt/plugin-sdk';
-import { Rectangle, type RenderObject, Text } from '@mvmnt/plugin-sdk/render';
+import { definePluginElement } from '@mvmnt/plugin-sdk';
+import { Rectangle, Text, type RenderObject } from '@mvmnt/plugin-sdk/render';
+import { applyOpacity } from '@utils/color';
+import { createBuiltInDefinitionElementClass } from '@core/scene/plugins/built-in-definition';
 
-const clampNonNegative: PropertyTransform<number, SceneElementInterface> = (value, element) => {
-    const numeric = asNumber(value, element);
-    if (numeric === undefined) return undefined;
-    return Math.max(0, numeric);
-};
-
-export class ProgressDisplayElement extends SceneElement {
-    // Helper to convert hex color to rgba string
-    private _hexToRgba(hex: string, opacity: number): string {
-        hex = hex.replace('#', '');
-        let r = 255,
-            g = 255,
-            b = 255;
-        if (hex.length === 3) {
-            r = parseInt(hex[0] + hex[0], 16);
-            g = parseInt(hex[1] + hex[1], 16);
-            b = parseInt(hex[2] + hex[2], 16);
-        } else if (hex.length === 6) {
-            r = parseInt(hex.substring(0, 2), 16);
-            g = parseInt(hex.substring(2, 4), 16);
-            b = parseInt(hex.substring(4, 6), 16);
+interface Props extends Readonly<Record<string, any>> {}
+const formatTime = (seconds: number) => `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
+export const progressDisplay = definePluginElement<Props, undefined>({
+    type: 'progressDisplay', metadata: { name: 'Progress Display', description: 'Playback progress bar and statistics', category: 'Misc' },
+    schema: { tabs: [
+        { id: 'content', label: 'Content', groups: [{ id: 'progressBasics', label: 'Progress & Stats', collapsed: false, properties: [
+            { key: 'showBar', label: 'Show Progress Bar', type: 'boolean', default: true },
+            { key: 'showStats', label: 'Show Statistics', type: 'boolean', default: true },
+            { key: 'countDown', label: 'Count Down', type: 'boolean', default: false },
+            { key: 'barWidth', label: 'Bar Width (px)', type: 'number', default: 400, min: 100, max: 1200, step: 5 },
+            { key: 'height', label: 'Bar Height (px)', type: 'number', default: 20, min: 10, max: 80, step: 5 },
+        ] }] },
+        { id: 'appearance', label: 'Appearance', groups: [
+            { id: 'colors', label: 'Colors', collapsed: true, properties: [
+                { key: 'barColor', label: 'Bar Color', type: 'colorAlpha', default: '#CCCCCCFF' }, { key: 'barOpacity', label: 'Bar Opacity', type: 'range', default: 1, min: 0, max: 1 },
+                { key: 'barBgColor', label: 'Background Color', type: 'colorAlpha', default: '#FFFFFFFF' }, { key: 'barBgOpacity', label: 'Background Opacity', type: 'range', default: 0.1, min: 0, max: 1 },
+                { key: 'borderColor', label: 'Border Color', type: 'colorAlpha', default: '#FFFFFFFF' }, { key: 'borderOpacity', label: 'Border Opacity', type: 'range', default: 0.3, min: 0, max: 1 },
+                { key: 'statsTextColor', label: 'Stats Text', type: 'colorAlpha', default: '#CCCCCCFF' }, { key: 'statsTextOpacity', label: 'Text Opacity', type: 'range', default: 1, min: 0, max: 1 },
+            ] },
+            { id: 'typography', label: 'Typography', collapsed: false, properties: [
+                { key: 'fontFamily', label: 'Font', type: 'font', default: 'Arial|400' }, { key: 'fontSize', label: 'Font Size', type: 'number', default: 12 },
+                { key: 'textAlign', label: 'Alignment', type: 'select', default: 'left', options: [{ value: 'left', label: 'Left' }, { value: 'center', label: 'Center' }, { value: 'right', label: 'Right' }] },
+                { key: 'letterSpacing', label: 'Letter Spacing', type: 'number', default: 0 },
+            ] },
+        ] },
+    ] }, capabilities: { required: [], optional: [] },
+    render(props, _state, time) {
+        const objects: RenderObject[] = []; const start = time.playbackStartSeconds ?? 0;
+        const duration = time.playbackEndSeconds != null ? Math.max(0, time.playbackEndSeconds - start) : (time.durationSeconds ?? 0);
+        const relative = time.seconds - start; const progress = duration > 0 ? Math.max(0, Math.min(1, relative / duration)) : 0;
+        const width = Math.max(0, props.barWidth); const height = Math.max(0, props.height);
+        if (props.showBar) {
+            objects.push(new Rectangle(0, 0, width, height, { fillColor: applyOpacity(props.barBgColor, props.barBgOpacity) }));
+            objects.push(new Rectangle(0, 0, width * progress, height, { fillColor: applyOpacity(props.barColor, props.barOpacity) }));
+            const border = applyOpacity(props.borderColor, props.borderOpacity);
+            objects.push(new Rectangle(0, 0, width, 1, { fillColor: border }), new Rectangle(0, height - 1, width, 1, { fillColor: border }), new Rectangle(0, 0, 1, height, { fillColor: border }), new Rectangle(width - 1, 0, 1, height, { fillColor: border }));
         }
-        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-    }
-    constructor(id: string = 'progressDisplay', config: { [key: string]: any } = {}) {
-        super('progressDisplay', id, config);
-    }
-
-    static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementConfig(
-            super.getConfigSchema(),
-            {
-                name: 'Progress Display',
-                description: 'Playback progress bar and statistics',
-                category: 'Misc',
-                presets: [
-                    {
-                        id: 'fullPanel',
-                        label: 'Full Panel',
-                        values: { showBar: true, showStats: true, barWidth: 480, height: 24 },
-                    },
-                    {
-                        id: 'barOnly',
-                        label: 'Bar Only',
-                        values: { showBar: true, showStats: false, barWidth: 560, height: 18 },
-                    },
-                    {
-                        id: 'statsOverlay',
-                        label: 'Stats Overlay',
-                        values: { showBar: false, showStats: true },
-                    },
-                    {
-                        id: 'glass',
-                        label: 'Glass Overlay',
-                        values: {
-                            barColor: '#38bdf8',
-                            barOpacity: 0.8,
-                            barBgColor: '#0f172a',
-                            barBgOpacity: 0.35,
-                            borderColor: '#38bdf8',
-                            borderOpacity: 0.5,
-                            statsTextColor: '#f8fafc',
-                            statsTextOpacity: 0.9,
-                        },
-                    },
-                    {
-                        id: 'minimal',
-                        label: 'Minimal Line',
-                        values: {
-                            barColor: '#e2e8f0',
-                            barOpacity: 0.6,
-                            barBgColor: '#ffffff',
-                            barBgOpacity: 0.08,
-                            borderColor: '#ffffff',
-                            borderOpacity: 0.2,
-                            statsTextColor: '#cbd5f5',
-                            statsTextOpacity: 0.8,
-                        },
-                    },
-                    {
-                        id: 'clubNight',
-                        label: 'Club Night',
-                        values: {
-                            barColor: '#f97316',
-                            barOpacity: 0.9,
-                            barBgColor: '#111827',
-                            barBgOpacity: 0.4,
-                            borderColor: '#f59e0b',
-                            borderOpacity: 0.6,
-                            statsTextColor: '#f8fafc',
-                            statsTextOpacity: 1,
-                        },
-                    },
-                ],
-            },
-            [
-                tab.content([
-                    {
-                        id: 'progressBasics',
-                        label: 'Progress & Stats',
-                        collapsed: false,
-                        description: 'Decide which UI elements to show and size the progress bar.',
-                        properties: [
-                            prop.boolean('showBar', 'Show Progress Bar', true),
-                            prop.boolean('showStats', 'Show Statistics', true),
-                            prop.boolean('countDown', 'Count Down', false, {
-                                visibleWhen: [{ key: 'showStats', truthy: true }],
-                                description: 'When on, shows remaining time instead of current/total.',
-                            }),
-                            {
-                                key: 'barWidth',
-                                type: 'number',
-                                label: 'Bar Width (px)',
-                                default: 400,
-                                min: 100,
-                                max: 1200,
-                                step: 5,
-                                visibleWhen: [{ key: 'showBar', truthy: true }],
-                                runtime: { transform: clampNonNegative, defaultValue: 400 },
-                            },
-                            {
-                                key: 'height',
-                                type: 'number',
-                                label: 'Bar Height (px)',
-                                default: 20,
-                                min: 10,
-                                max: 80,
-                                step: 5,
-                                visibleWhen: [{ key: 'showBar', truthy: true }],
-                                runtime: { transform: clampNonNegative, defaultValue: 20 },
-                            },
-                        ],
-                    },
-                ]),
-                tab.appearance([
-                    {
-                        id: 'appearance',
-                        label: 'Colors',
-                        collapsed: true,
-                        description: 'Fine-tune bar and statistics styling.',
-                        properties: [
-                            ...colorSlotProps('bar', 'Bar', '#cccccc', {
-                                visibleWhen: [{ key: 'showBar', truthy: true }],
-                                step: 0.05,
-                            }),
-                            ...colorSlotProps('barBg', 'Bar Background', '#ffffff', {
-                                opacityDefault: 0.1,
-                                visibleWhen: [{ key: 'showBar', truthy: true }],
-                                step: 0.05,
-                            }),
-                            ...colorSlotProps('border', 'Border', '#ffffff', {
-                                opacityDefault: 0.3,
-                                visibleWhen: [{ key: 'showBar', truthy: true }],
-                                step: 0.05,
-                            }),
-                            ...colorSlotProps('statsText', 'Stats Text', '#cccccc', {
-                                visibleWhen: [{ key: 'showStats', truthy: true }],
-                                step: 0.05,
-                            }),
-                        ],
-                    },
-                    propGroup.typography(),
-                ]),
-            ]
-        );
-    }
-
-    protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        const props = this.getSchemaProps();
-
-        if (!props.visible) return [];
-
-        const renderObjects: RenderObject[] = [];
-        const { duration, playRangeStartSec, playRangeEndSec } = config as any;
-        const effectiveTime = targetTime;
-
-        // Get properties from bindings
-        const showBar = props.showBar;
-        const showStats = props.showStats;
-        const barHeight = props.height ?? 20;
-
-        // Use explicit playback window when provided (user-defined), fallback to full duration
-        const totalDuration =
-            isFinite(playRangeEndSec) && isFinite(playRangeStartSec)
-                ? Math.max(0, (playRangeEndSec as number) - (playRangeStartSec as number))
-                : duration;
-
-        // Calculate progress based on the total scene duration relative to playRangeStart
-        const relTime = isFinite(playRangeStartSec) ? effectiveTime - (playRangeStartSec as number) : effectiveTime;
-        const progress = totalDuration > 0 ? Math.max(0, Math.min(1, relTime / totalDuration)) : 0;
-
-        // Fixed width for progress bar (positioning handled by transform system)
-        const margin = 0;
-        const barY = 0;
-        const textY = barHeight + 5;
-
-        // Progress bar background
-        if (showBar) {
-            // Get config values or defaults
-            const barColor = props.barColor ?? '#cccccc';
-            const barOpacity = props.barOpacity;
-            const barBgColor = props.barBgColor ?? '#ffffff';
-            const barBgOpacity = props.barBgOpacity;
-            const borderColorRaw = props.borderColor ?? '#ffffff';
-            const borderOpacity = props.borderOpacity;
-            const barWidth = props.barWidth ?? 400;
-
-            // Progress bar background
-            const progressBg = new Rectangle(margin, barY, barWidth, barHeight, {
-                fillColor: this._hexToRgba(barBgColor, barBgOpacity),
-            });
-            renderObjects.push(progressBg);
-
-            // Progress bar fill
-            const progressFill = new Rectangle(margin, barY, barWidth * progress, barHeight, {
-                fillColor: this._hexToRgba(barColor, barOpacity),
-            });
-            renderObjects.push(progressFill);
-
-            // Border (create as a thin rectangle outline)
-            const borderWidth = 1;
-            const borderColor = this._hexToRgba(borderColorRaw, borderOpacity);
-
-            // Top border
-            const topBorder = new Rectangle(margin, barY, barWidth, borderWidth, { fillColor: borderColor });
-            // Bottom border
-            const bottomBorder = new Rectangle(margin, barY + barHeight - borderWidth, barWidth, borderWidth, {
-                fillColor: borderColor,
-            });
-            // Left border
-            const leftBorder = new Rectangle(margin, barY, borderWidth, barHeight, { fillColor: borderColor });
-            // Right border
-            const rightBorder = new Rectangle(margin + barWidth - borderWidth, barY, borderWidth, barHeight, {
-                fillColor: borderColor,
-            });
-
-            renderObjects.push(topBorder, bottomBorder, leftBorder, rightBorder);
+        if (props.showStats) {
+            const [family, weight = '400'] = String(props.fontFamily).split('|'); const x = props.textAlign === 'right' ? width : props.textAlign === 'center' ? width / 2 : 0;
+            const text = props.countDown ? formatTime(Math.max(0, duration - relative)) : `${formatTime(Math.max(0, relative))} / ${formatTime(duration)}`;
+            const label = new Text(x, height + 5, text, `${weight} ${props.fontSize}px ${family}, sans-serif`, { color: applyOpacity(props.statsTextColor, props.statsTextOpacity), align: props.textAlign, baseline: 'top' });
+            label.letterSpacing = props.letterSpacing; objects.push(label);
         }
-
-        // Statistics text
-        if (showStats) {
-            const fontSize = props.fontSize ?? 12;
-            const fontSelection = props.fontFamily ?? 'Arial';
-            const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
-            const fontWeight = (weightPart || '400').toString();
-            // Ensure chosen weight is available (especially for thin weights like 100)
-            if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
-            const font = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
-            const statsTextColorRaw = props.statsTextColor ?? '#cccccc';
-            const statsTextOpacity = props.statsTextOpacity ?? 1;
-            const textAlign = (props.textAlign ?? 'left') as CanvasTextAlign;
-            const letterSpacing = props.letterSpacing ?? 0;
-            const countDown = props.countDown ?? false;
-            const barWidth = props.barWidth ?? 400;
-            const textX = textAlign === 'right' ? barWidth : textAlign === 'center' ? barWidth / 2 : margin;
-
-            let timeText: string;
-            if (countDown) {
-                const remaining = Math.max(0, totalDuration - relTime);
-                timeText = this._formatTime(remaining);
-            } else {
-                const currentTimeText = this._formatTime(Math.max(0, relTime));
-                const durationText = this._formatTime(totalDuration);
-                timeText = `${currentTimeText} / ${durationText}`;
-            }
-
-            const timeLabel = new Text(
-                textX,
-                textY,
-                timeText,
-                font,
-                this._hexToRgba(statsTextColorRaw, statsTextOpacity),
-                textAlign,
-                'top'
-            );
-            timeLabel.letterSpacing = letterSpacing;
-            renderObjects.push(timeLabel);
-        }
-
-        return renderObjects;
-    }
-
-    private _formatTime(seconds: number): string {
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    }
-}
+        return objects;
+    },
+});
+export const ProgressDisplayElement = createBuiltInDefinitionElementClass(progressDisplay);

@@ -5,6 +5,39 @@ export interface AssetHandle {
   dispose(): void;
 }
 
+export type VisualAssetStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+/**
+ * Opaque snapshot that can be passed directly to VisualMedia.setResource().
+ * The resource is deliberately host-owned: plugins may render it but cannot
+ * inspect or retain the application's decoded media objects.
+ */
+export interface VisualAssetSnapshot {
+  readonly resource: unknown | null;
+  readonly status: VisualAssetStatus;
+  readonly errorMessage?: string;
+}
+
+export interface ProjectVisualAssetHandle {
+  update(assetId: string | null): VisualAssetSnapshot;
+  dispose(): void;
+}
+
+export interface BundledVisualAssetHandle {
+  get(): VisualAssetSnapshot;
+  dispose(): void;
+}
+
+export interface GridAtlasLayout {
+  readonly columns: number;
+  readonly rows: number;
+  readonly frameDurationMs?: number;
+}
+
 export interface AssetApi {
   load(path: string): Promise<Result<AssetHandle>>;
+  project(): ProjectVisualAssetHandle;
+  bundledImage(path: string): BundledVisualAssetHandle;
+  bundledSparrow(imagePath: string, xmlPath: string, defaultFps?: number): BundledVisualAssetHandle;
+  bundledGridAtlas(imagePath: string, layout: GridAtlasLayout): BundledVisualAssetHandle;
 }

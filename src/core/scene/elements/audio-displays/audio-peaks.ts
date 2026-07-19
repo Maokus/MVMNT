@@ -12,6 +12,7 @@ import {
 } from '@mvmnt/plugin-sdk';
 import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { defineHostAdaptedBuiltIn } from '@core/scene/plugins/built-in-definition';
 
 const { descriptor: PEAKS_DESCRIPTOR } = createFeatureDescriptor({ feature: 'peaks' });
 
@@ -32,6 +33,7 @@ function clamp(value: number, min: number, max: number): number {
     if (value > max) return max;
     return value;
 }
+
 
 function normalizePeaksChannel(value: unknown, fallback: PeaksChannel): PeaksChannel {
     if (value === 'left' || value === 'right' || value === 'mid' || value === 'side') {
@@ -611,3 +613,5 @@ export class AudioPeaksElement extends SceneElement {
         return objects;
     }
 }
+
+export const audioPeaks = defineHostAdaptedBuiltIn({ type: 'audioPeaks', metadata: { name: 'Audio Peaks', description: 'Audio peak history display', category: 'Audio Displays' }, capabilities: { required: ['audio.features.read', 'timeline.read'], optional: ['timing.conversion'] } }, AudioPeaksElement);

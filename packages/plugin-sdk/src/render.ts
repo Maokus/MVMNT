@@ -3,6 +3,10 @@ export interface RenderTime {
   readonly beats: number | null;
   readonly ticks: number | null;
   readonly frame: number | null;
+  readonly viewport?: Readonly<{ width: number; height: number }>;
+  readonly durationSeconds?: number;
+  readonly playbackStartSeconds?: number;
+  readonly playbackEndSeconds?: number;
 }
 
 export declare abstract class RenderObject {
@@ -23,12 +27,14 @@ export declare class EmptyRenderObject implements RenderObject {
 export interface FillStyle { readonly fillColor?: string; readonly opacity?: number }
 
 export declare class Rectangle implements RenderObject {
+  width: number;
+  height: number;
   constructor(x: number, y: number, width: number, height: number, style?: FillStyle);
   setLayoutParticipation(value: 'include' | 'exclude'): this;
 }
 
 export declare class Text implements RenderObject {
-  constructor(text: string, x: number, y: number, options?: Readonly<Record<string, unknown>>);
+  constructor(x: number, y: number, text: string, font?: string, options?: Readonly<Record<string, unknown>>);
   setLayoutParticipation(value: 'include' | 'exclude'): this;
 }
 
@@ -47,7 +53,15 @@ export declare class BezierPath implements RenderObject { constructor(...args: a
 export declare class GlowLayer implements RenderObject { constructor(...args: any[]); addChild(child: RenderObject): this; setLayoutParticipation(value: 'include' | 'exclude'): this }
 export declare class CompositeLayer implements RenderObject { constructor(...args: any[]); addChild(child: RenderObject): this; setLayoutParticipation(value: 'include' | 'exclude'): this }
 export declare class ClipLayer implements RenderObject { constructor(...args: any[]); addChild(child: RenderObject): this; setLayoutParticipation(value: 'include' | 'exclude'): this }
-export declare class VisualMedia implements RenderObject { constructor(...args: any[]); setLayoutParticipation(value: 'include' | 'exclude'): this }
+export declare class VisualMedia implements RenderObject {
+  constructor(x: number, y: number, width: number, height: number, options?: VisualMediaOptions);
+  setResource(resource: unknown | null, status?: 'idle' | 'loading' | 'ready' | 'error'): this;
+  setLocalTime(seconds: number): this;
+  setAnimation(name: string | null): this;
+  setFitMode(mode: 'contain' | 'cover' | 'fill' | 'clip'): this;
+  setDimensions(width: number, height: number): this;
+  setLayoutParticipation(value: 'include' | 'exclude'): this;
+}
 export declare class PixelGrid implements RenderObject { constructor(...args: any[]); setLayoutParticipation(value: 'include' | 'exclude'): this }
 
 export interface FramePlacementCustom { readonly x: number; readonly y: number; readonly width?: number; readonly height?: number }

@@ -9,6 +9,7 @@ import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { TimingManager } from '@core/timing';
 import { insertElementConfig, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { defineHostAdaptedBuiltIn } from '@core/scene/plugins/built-in-definition';
 
 const DEFAULT_NOTE_COLOR = '#FF6B6B';
 
@@ -484,3 +485,5 @@ export class MovingNotesPianoRollElement extends SceneElement {
         });
     }
 }
+
+export const movingNotesPianoRoll = defineHostAdaptedBuiltIn({ type: 'movingNotesPianoRoll', metadata: { name: 'Moving Notes Piano Roll', description: 'Scrolling timeline piano roll', category: 'MIDI Displays' }, capabilities: { required: ['timeline.read'], optional: ['timing.conversion'] } }, MovingNotesPianoRollElement);

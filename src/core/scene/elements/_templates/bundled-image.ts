@@ -1,93 +1,31 @@
-// Template: Bundled Image / GIF Element
-// Displays a bundled image or animated GIF that ships with the plugin's assets/
-// directory. The default asset is loaded automatically — no user configuration
-// required. Users can optionally override it with any image from their Asset Manager.
-//
-// Assets required in your plugin's assets/ directory:
-//   assets/cooltext491233707844001.gif   — the default bundled image/GIF
-//
-// All handles created via this.bundledSprite() and this.visualHandle() are
-// auto-tracked and destroyed on dispose — no onDestroy() override needed.
-import {
-    SceneElement,
-    prop,
-    insertElementConfig,
-    tab,
-    VisualMediaPlayback,
-    resolveProjectAssetDescriptor,
-} from '@mvmnt/plugin-sdk';
-import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
-import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
+// Template: SDK 2 bundled image/GIF with an optional project override.
+import { definePluginElement, type BundledVisualAssetHandle, type ProjectVisualAssetHandle } from '@mvmnt/plugin-sdk';
+import { Rectangle, VisualMedia } from '@mvmnt/plugin-sdk/render';
 
-export class BundledImageElement extends SceneElement {
-    // Bundled asset — loaded from assets/cooltext491233707844001.gif.
-    // Automatically registered in the Asset Manager on first render.
-    private readonly _bundled = this.bundledSprite('cooltext491233707844001.gif');
-    // Handle for an optional user-selected image override.
-    private readonly _overrideHandle = this.visualHandle();
-    private readonly _playback = new VisualMediaPlayback();
-    private readonly _media = new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' });
-    private readonly _layoutRect = new Rectangle(0, 0, 200, 200, { fillColor: null });
+interface Props extends Readonly<Record<string, unknown>> { readonly imageSource: string | null; readonly width: number; readonly height: number; readonly fitMode: 'contain' | 'cover' | 'fill' | 'clip' }
+interface State { readonly bundled: BundledVisualAssetHandle; readonly override: ProjectVisualAssetHandle; readonly media: VisualMedia; readonly bounds: Rectangle }
 
-    constructor(id: string = 'bundledImage', config: Record<string, unknown> = {}) {
-        super('bundled-image', id, config);
-    }
-
-    static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementConfig(
-            super.getConfigSchema(),
-            {
-                name: 'Bundled Image',
-                description: 'Displays a bundled image with optional user override',
-                category: 'Custom',
-            },
-            [
-                tab.properties([
-                    {
-                        id: 'imageSource',
-                        label: 'Image',
-                        collapsed: false,
-                        properties: [
-                            prop.imageAsset('imageSource', 'Override Image', {
-                                description: 'Leave empty to use the bundled default.',
-                            }),
-                            prop.number('width', 'Width', 200, { step: 10 }),
-                            prop.number('height', 'Height', 200, { step: 10 }),
-                            prop.select('fitMode', 'Fit Mode', 'contain', [
-                                { value: 'contain', label: 'Contain' },
-                                { value: 'cover', label: 'Cover' },
-                                { value: 'fill', label: 'Fill' },
-                                { value: 'clip', label: 'Clip (native size)' },
-                            ]),
-                        ],
-                    },
-                ]),
-            ]
-        );
-    }
-
-    protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
-        const props = this.getSchemaProps();
-        if (!props.visible) return [];
-
-        const w = (props.width as number) ?? 200;
-        const h = (props.height as number) ?? 200;
-        const fitMode = (props.fitMode as 'contain' | 'cover' | 'fill' | 'clip') ?? 'contain';
-
-        this._layoutRect.width = w;
-        this._layoutRect.height = h;
-
-        const overrideId = props.imageSource as string | null;
-        const { resource, status } = overrideId
-            ? this._overrideHandle.update(resolveProjectAssetDescriptor(overrideId))
-            : this._bundled.get();
-
-        this._media
-            .setResource(resource, status)
-            .setLocalTime(this._playback.computeLocalTime(targetTime))
-            .setDimensions(w, h)
-            .setFitMode(fitMode);
-
-        return [this._layoutRect, this._media];
-    }
-}
+export const bundledImage = definePluginElement<Props, State>({
+    type: 'bundled-image',
+    metadata: { name: 'Bundled Image', description: 'Displays a bundled image with optional user override', category: 'Custom' },
+    schema: { tabs: [{ id: 'properties', label: 'Properties', groups: [{ id: 'imageSource', label: 'Image', collapsed: false, properties: [
+        { key: 'imageSource', label: 'Override Image', type: 'assetRef', allowedAssetTypes: ['image', 'gif'], default: null },
+        { key: 'width', label: 'Width', type: 'number', default: 200, step: 10 },
+        { key: 'height', label: 'Height', type: 'number', default: 200, step: 10 },
+        { key: 'fitMode', label: 'Fit Mode', type: 'select', default: 'contain', options: [
+            { value: 'contain', label: 'Contain' }, { value: 'cover', label: 'Cover' },
+            { value: 'fill', label: 'Fill' }, { value: 'clip', label: 'Clip (native size)' },
+        ] },
+    ] }] }] },
+    capabilities: { required: [], optional: [] },
+    create(_props, context) { return {
+        bundled: context.assets.bundledImage('cooltext491233707844001.gif'), override: context.assets.project(),
+        media: new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' }), bounds: new Rectangle(0, 0, 200, 200),
+    }; },
+    render(props, state, time) {
+        state.bounds.width = props.width; state.bounds.height = props.height;
+        const asset = props.imageSource ? state.override.update(props.imageSource) : state.bundled.get();
+        state.media.setResource(asset.resource as never, asset.status).setLocalTime(time.seconds).setDimensions(props.width, props.height).setFitMode(props.fitMode);
+        return [state.bounds, state.media];
+    },
+});

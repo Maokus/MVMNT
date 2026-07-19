@@ -5,11 +5,13 @@ import { applyOpacity } from '@utils/color';
 import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { defineHostAdaptedBuiltIn } from '@core/scene/plugins/built-in-definition';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
     return Math.max(min, Math.min(max, value));
 }
+
 
 function linearToDb(linear: number): number {
     if (linear <= 0) return -Infinity;
@@ -620,3 +622,5 @@ export class AudioVolumeMeterElement extends SceneElement {
         }
     }
 }
+
+export const audioVolumeMeter = defineHostAdaptedBuiltIn({ type: 'audioVolumeMeter', metadata: { name: 'Audio Volume Meter', description: 'Raw-audio level meter', category: 'Audio Displays' }, capabilities: { required: ['audio.raw.read'], optional: [] } }, AudioVolumeMeterElement);

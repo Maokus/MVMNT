@@ -16,6 +16,7 @@ import {
     type MusicpyChordResult,
 } from '@core/midi/music-theory/chord-estimator';
 import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { defineHostAdaptedBuiltIn } from '@core/scene/plugins/built-in-definition';
 
 const clampWindowSeconds: PropertyTransform<number, SceneElementInterface> = (value, element) => {
     const numeric = asNumber(value, element);
@@ -681,3 +682,5 @@ export class ChordEstimateDisplayElement extends SceneElement {
         super.dispose();
     }
 }
+
+export const chordEstimateDisplay = defineHostAdaptedBuiltIn({ type: 'chordEstimateDisplay', metadata: { name: 'Chord Estimate Display', description: 'Timeline-backed chord estimation', category: 'MIDI Displays' }, capabilities: { required: ['timeline.read'], optional: [] } }, ChordEstimateDisplayElement);

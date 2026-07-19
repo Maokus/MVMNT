@@ -1,114 +1,49 @@
-// Template: MIDI Notes Element
-// Displays currently playing MIDI notes as colored bars
-import {
-    SceneElement,
-    prop,
-    insertElementConfig,
-    tab,
-    Rectangle,
-    Text,
-    getRequiredPluginApi,
-    PLUGIN_CAPABILITIES,
-    type RenderObject,
-} from '@mvmnt/plugin-sdk';
-import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
+// Template: SDK 2 MIDI notes element.
+import { definePluginElement } from '@mvmnt/plugin-sdk';
+import { Rectangle, Text, type RenderObject } from '@mvmnt/plugin-sdk/render';
 
-export class MidiNotesElement extends SceneElement {
-    constructor(id: string = 'midiNotes', config: Record<string, unknown> = {}) {
-        super('midi-notes', id, config);
-    }
-
-    static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementConfig(
-            super.getConfigSchema(),
-            {
-                name: 'MIDI Notes',
-                description: 'Display currently playing MIDI notes',
-                category: 'Custom',
-            },
-            [
-                tab.content([
-                    {
-                        id: 'midiSource',
-                        label: 'MIDI Source',
-                        collapsed: false,
-                        properties: [
-                            prop.midiTrack('midiTrackId', 'MIDI Track', { description: 'MIDI track to display' }),
-                        ],
-                    },
-                ]),
-                tab.appearance([
-                    {
-                        id: 'notesAppearance',
-                        label: 'Appearance',
-                        collapsed: false,
-                        properties: [
-                            prop.number('noteWidth', 'Note Width', 40, { min: 10, max: 200, step: 1 }),
-                            prop.number('noteHeight', 'Note Height', 100, { min: 20, max: 500, step: 1 }),
-                            prop.number('noteSpacing', 'Note Spacing', 8, { min: 0, max: 50, step: 1 }),
-                            prop.colorAlpha('noteColor', 'Note Color', '#10B981FF'),
-                            prop.boolean('showNoteNames', 'Show Note Names', true),
-                        ],
-                    },
-                ]),
-            ]
-        );
-    }
-
-    protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
-        const props = this.getSchemaProps();
-
-        if (!props.visible) return [];
-
-        const objects: RenderObject[] = [];
-
-        if (!props.midiTrackId) {
-            // Show message when no track selected
-            objects.push(new Text(0, 0, 'Select a MIDI track', '14px Inter, sans-serif', '#94a3b8', 'left', 'top'));
-            return objects;
-        }
-
-        // Get MIDI data at current time from public host plugin API
-        const EPS = 1e-3; // Small epsilon to get notes at current time
-        const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
-        if (!host.ok) return host.renderFallback();
-
-        const activeNotes = host.api.timeline.selectNotesInWindow({
-            trackIds: [props.midiTrackId],
-            startSec: targetTime - EPS,
-            endSec: targetTime + EPS,
-        });
-
-        if (activeNotes.length === 0) {
-            // Show message when no notes playing
-            objects.push(new Text(0, 0, 'No notes playing', '12px Inter, sans-serif', '#64748b', 'left', 'top'));
-            return objects;
-        }
-
-        // Render each active note
-        activeNotes.forEach((noteData, index: number) => {
-            const x = index * (props.noteWidth + props.noteSpacing);
-
-            // Draw note bar
-            objects.push(new Rectangle(x, 0, props.noteWidth, props.noteHeight, { fillColor: props.noteColor }));
-
-            // Draw note name if enabled
-            if (props.showNoteNames) {
-                const noteName = host.api.utilities.midiNoteToName(noteData.note);
-                objects.push(
-                    new Text(
-                        x + props.noteWidth / 2,
-                        props.noteHeight / 2,
-                        noteName,
-                        '14px Inter, sans-serif',
-                        '#ffffff',
-                        'center',
-                        'middle'
-                    )
-                );
-            }
-        });
-
-        return objects;
-    }
+interface MidiNotesProps extends Readonly<Record<string, unknown>> {
+    readonly midiTrackId: string | null;
+    readonly noteWidth: number;
+    readonly noteHeight: number;
+    readonly noteSpacing: number;
+    readonly noteColor: string;
+    readonly showNoteNames: boolean;
 }
+
+export const midiNotes = definePluginElement<MidiNotesProps, undefined>({
+    type: 'midi-notes',
+    metadata: { name: 'MIDI Notes', description: 'Display currently playing MIDI notes', category: 'Custom' },
+    schema: { tabs: [
+        { id: 'content', label: 'Content', groups: [{ id: 'midiSource', label: 'MIDI Source', collapsed: false, properties: [
+            { key: 'midiTrackId', label: 'MIDI Track', type: 'timelineTrackRef', allowedTrackTypes: ['midi'], default: null },
+        ] }] },
+        { id: 'appearance', label: 'Appearance', groups: [{ id: 'notesAppearance', label: 'Appearance', collapsed: false, properties: [
+            { key: 'noteWidth', label: 'Note Width', type: 'number', default: 40, min: 10, max: 200, step: 1 },
+            { key: 'noteHeight', label: 'Note Height', type: 'number', default: 100, min: 20, max: 500, step: 1 },
+            { key: 'noteSpacing', label: 'Note Spacing', type: 'number', default: 8, min: 0, max: 50, step: 1 },
+            { key: 'noteColor', label: 'Note Color', type: 'colorAlpha', default: '#10B981FF' },
+            { key: 'showNoteNames', label: 'Show Note Names', type: 'boolean', default: true },
+        ] }] },
+    ] },
+    capabilities: { required: ['timeline.read', 'midi.utils'], optional: [] },
+    render(props, _state, time, context) {
+        if (!props.midiTrackId) return [new Text(0, 0, 'Select a MIDI track', '14px Inter, sans-serif', { color: '#94a3b8' })];
+        const active = context.timeline!.selectNotes({
+            trackIds: [props.midiTrackId], startSeconds: time.seconds - 1e-3, endSeconds: time.seconds + 1e-3,
+        });
+        if (!active.ok || active.value.length === 0) {
+            return [new Text(0, 0, 'No notes playing', '12px Inter, sans-serif', { color: '#64748b' })];
+        }
+        const objects: RenderObject[] = [];
+        active.value.forEach((note, index) => {
+            const x = index * (props.noteWidth + props.noteSpacing);
+            objects.push(new Rectangle(x, 0, props.noteWidth, props.noteHeight, { fillColor: props.noteColor }));
+            if (props.showNoteNames) objects.push(new Text(
+                x + props.noteWidth / 2, props.noteHeight / 2, context.midi!.noteName(note.note),
+                '14px Inter, sans-serif', { color: '#ffffff', align: 'center', baseline: 'middle' },
+            ));
+        });
+        return objects;
+    },
+});

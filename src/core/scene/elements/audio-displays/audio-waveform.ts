@@ -5,6 +5,7 @@ import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
 import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { defineHostAdaptedBuiltIn } from '@core/scene/plugins/built-in-definition';
 
 /** UI limit for a responsive waveform trace. The raw PCM API itself has no fixed cap. */
 const MAX_SAMPLE_COUNT = 8192;
@@ -28,6 +29,7 @@ function clamp(value: number, min: number, max: number): number {
     if (value > max) return max;
     return value;
 }
+
 
 function lerp(a: number, b: number, t: number): number {
     return a + (b - a) * t;
@@ -711,3 +713,5 @@ export class AudioWaveformElement extends SceneElement {
         return objects;
     }
 }
+
+export const audioWaveform = defineHostAdaptedBuiltIn({ type: 'audioWaveform', metadata: { name: 'Audio Waveform', description: 'Raw waveform display', category: 'Audio Displays' }, capabilities: { required: ['audio.raw.read'], optional: [] } }, AudioWaveformElement);

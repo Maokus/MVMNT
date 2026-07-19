@@ -7,6 +7,7 @@ import { applyOpacity } from '@utils/color';
 import { getRequiredPluginApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
+import { defineHostAdaptedBuiltIn } from '@core/scene/plugins/built-in-definition';
 
 const { descriptor: PITCH_GUIDE_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchGuide' });
 
@@ -24,6 +25,7 @@ function clamp(value: number, min: number, max: number): number {
     if (value > max) return max;
     return value;
 }
+
 
 function resampleLinear(samples: Float32Array, count: number): number[] {
     if (samples.length === 0) return new Array<number>(count).fill(0);
@@ -351,3 +353,5 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
         return pushFlatLine(userOpacity * MIN_OPACITY_FLOOR * 0.5);
     }
 }
+
+export const audioLockedOscilloscope = defineHostAdaptedBuiltIn({ type: 'audioLockedOscilloscope', metadata: { name: 'Audio Locked Oscilloscope', description: 'Pitch-locked raw waveform', category: 'Audio Displays' }, capabilities: { required: ['audio.features.read', 'audio.raw.read'], optional: [] } }, AudioLockedOscilloscopeElement);

@@ -1,6 +1,10 @@
 import { SceneElement } from '@core/scene/elements/base';
 import type { EnhancedConfigSchema } from '@core/types';
+import { insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import type { RenderObject } from '@core/render/render-objects';
+import { BundledGridAtlasHandle, BundledSparrowHandle, BundledSprite } from '@core/resources/bundled-sprite';
+import { VisualResourceHandle } from '@core/resources/visual-resource-handle';
+import { resolveProjectAssetDescriptor } from '@state/visualAssetRegistryStore';
 import { getPluginHostApi } from './host-api/get-plugin-host-api';
 import { PLUGIN_CAPABILITIES, type PluginHostApi, type PluginHostCapability } from './host-api/plugin-api';
 import type {
@@ -32,10 +36,11 @@ const trackSummary = (track: any) => Object.freeze({
     ...(typeof track.color === 'string' ? { color: track.color } : {}),
 });
 
-interface ScopeOptions {
+export interface ScopeOptions {
     pluginId: string;
     loadAsset(path: string): Promise<string>;
     report(diagnostic: PluginDiagnostic): void;
+    synchronousInitialization?: boolean;
 }
 
 export interface PluginDefinitionScope {
@@ -66,6 +71,17 @@ function createContext(
     const granted = (capability: PluginHostCapability) => declared.has(capability) && available.has(capability);
     const unavailable = <T>(capability: PluginHostCapability, operation: string): Result<T> =>
         err(diagnostic('CAPABILITY_UNAVAILABLE', `Capability '${capability}' is unavailable`, operation, capability));
+    const trackVisualHandle = <T extends { destroy(): void }>(handle: T) => {
+        let disposed = false;
+        const dispose = () => {
+            if (disposed) return;
+            disposed = true;
+            handle.destroy();
+            cleanups.delete(dispose);
+        };
+        cleanups.add(dispose);
+        return { handle, dispose };
+    };
 
     const context: CapabilityContext = {
         signal: controller.signal,
@@ -90,6 +106,42 @@ function createContext(
                 } catch (error) {
                     return err(diagnostic('NOT_FOUND', error instanceof Error ? error.message : String(error), 'assets.load'));
                 }
+            },
+            project() {
+                const tracked = trackVisualHandle(new VisualResourceHandle());
+                return Object.freeze({
+                    update(assetId: string | null) {
+                        return Object.freeze({ ...tracked.handle.update(resolveProjectAssetDescriptor(assetId)) });
+                    },
+                    dispose: tracked.dispose,
+                });
+            },
+            bundledImage(path: string) {
+                const tracked = trackVisualHandle(new BundledSprite(path, options.loadAsset));
+                return Object.freeze({
+                    get: () => Object.freeze({ ...tracked.handle.get() }),
+                    dispose: tracked.dispose,
+                });
+            },
+            bundledSparrow(imagePath: string, xmlPath: string, defaultFps?: number) {
+                const tracked = trackVisualHandle(new BundledSparrowHandle(
+                    imagePath,
+                    xmlPath,
+                    options.loadAsset,
+                    undefined,
+                    defaultFps,
+                ));
+                return Object.freeze({
+                    get: () => Object.freeze({ ...tracked.handle.get() }),
+                    dispose: tracked.dispose,
+                });
+            },
+            bundledGridAtlas(imagePath: string, layout: { columns: number; rows: number; frameDurationMs?: number }) {
+                const tracked = trackVisualHandle(new BundledGridAtlasHandle(imagePath, layout, options.loadAsset));
+                return Object.freeze({
+                    get: () => Object.freeze({ ...tracked.handle.get() }),
+                    dispose: tracked.dispose,
+                });
             },
         }),
     };
@@ -234,14 +286,31 @@ export function createPluginDefinitionScope(
     const cleanups = new Set<() => void>();
     const context = createContext(definition, controller, options, cleanups);
     let failure: PluginDiagnostic | undefined;
-    const ready = Promise.resolve()
-        .then(() => definition.load?.(context))
-        .then(() => true)
-        .catch((error) => {
+    let synchronouslyReady = false;
+    let ready: Promise<boolean>;
+    if (options.synchronousInitialization) {
+        try {
+            const loaded = definition.load?.(context);
+            if (loaded && typeof (loaded as PromiseLike<void>).then === 'function') {
+                throw new Error('Built-in definition load() must be synchronous');
+            }
+            synchronouslyReady = true;
+            ready = Promise.resolve(true);
+        } catch (error) {
             failure = diagnostic('INITIALIZATION_FAILED', error instanceof Error ? error.message : String(error), 'element.load');
             options.report(failure);
-            return false;
-        });
+            ready = Promise.resolve(false);
+        }
+    } else {
+        ready = Promise.resolve()
+            .then(() => definition.load?.(context))
+            .then(() => true)
+            .catch((error) => {
+                failure = diagnostic('INITIALIZATION_FAILED', error instanceof Error ? error.message : String(error), 'element.load');
+                options.report(failure);
+                return false;
+            });
+    }
 
     class V2SceneElement extends SceneElement {
         private readonly instanceController = new AbortController();
@@ -251,12 +320,44 @@ export function createPluginDefinitionScope(
         private initialized = false;
         private initializationFailed = false;
 
+        private getDefinitionProps(): Readonly<Record<string, unknown>> {
+            const schema = definition.schema && typeof definition.schema === 'object'
+                ? definition.schema as EnhancedConfigSchema
+                : undefined;
+            const props: Record<string, unknown> = {};
+            for (const tab of schema?.tabs ?? []) {
+                for (const group of tab.groups ?? []) {
+                    for (const property of group.properties ?? []) {
+                        if (property?.key) props[property.key] = this.getProperty(property.key);
+                    }
+                }
+            }
+            return Object.freeze(props);
+        }
+
         constructor(id: string = definition.type, config: Record<string, unknown> = {}) {
-            super(definition.type, id, config);
+            const definitionSchema = definition.schema && typeof definition.schema === 'object'
+                ? definition.schema as { defaultConfig?: Record<string, unknown> }
+                : undefined;
+            super(definition.type, id, { ...(definitionSchema?.defaultConfig ?? {}), ...config });
+            if (options.synchronousInitialization && synchronouslyReady) {
+                try {
+                    const created = definition.create?.(this.getDefinitionProps(), this.instanceContext);
+                    if (created && typeof (created as PromiseLike<unknown>).then === 'function') {
+                        throw new Error('Built-in definition create() must be synchronous');
+                    }
+                    this.state = created;
+                    this.initialized = true;
+                } catch (error) {
+                    this.initializationFailed = true;
+                    options.report(diagnostic('INITIALIZATION_FAILED', error instanceof Error ? error.message : String(error), 'element.create'));
+                }
+                return;
+            }
             void ready.then(async (scopeReady) => {
                 if (!scopeReady || this.instanceController.signal.aborted) return;
                 try {
-                    const props = Object.freeze({ ...this.getSchemaProps() });
+                    const props = this.getDefinitionProps();
                     this.state = await definition.create?.(props, this.instanceContext);
                     this.initialized = !this.instanceController.signal.aborted;
                 } catch (error) {
@@ -268,17 +369,16 @@ export function createPluginDefinitionScope(
 
         static override getConfigSchema(): EnhancedConfigSchema {
             const schema = definition.schema && typeof definition.schema === 'object' ? definition.schema as Partial<EnhancedConfigSchema> : {};
-            return {
+            return insertElementConfig(SceneElement.getConfigSchema(), {
                 name: definition.metadata.name,
                 description: definition.metadata.description ?? '',
                 category: definition.metadata.category ?? 'Plugins',
-                tabs: schema.tabs ?? [],
-            };
+            }, schema.tabs ?? []);
         }
 
-        protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
+        protected override _buildRenderObjects(_config: any, targetTime: number): RenderObject[] {
             if (!this.initialized || this.initializationFailed || this.instanceController.signal.aborted) return [];
-            const props = Object.freeze({ ...this.getSchemaProps() });
+            const props = this.getDefinitionProps();
             const beats = this.instanceContext.timing?.secondsToBeats(targetTime);
             const ticks = this.instanceContext.timing?.secondsToTicks(targetTime);
             const time = Object.freeze({
@@ -286,6 +386,10 @@ export function createPluginDefinitionScope(
                 beats: beats?.ok ? beats.value : null,
                 ticks: ticks?.ok ? ticks.value : null,
                 frame: null,
+                ...(_config?.canvas ? { viewport: Object.freeze({ width: _config.canvas.width, height: _config.canvas.height }) } : {}),
+                ...(Number.isFinite(_config?.duration) ? { durationSeconds: _config.duration } : {}),
+                ...(Number.isFinite(_config?.playRangeStartSec) ? { playbackStartSeconds: _config.playRangeStartSec } : {}),
+                ...(Number.isFinite(_config?.playRangeEndSec) ? { playbackEndSeconds: _config.playRangeEndSec } : {}),
             });
             return [...definition.render(props, this.state, time, this.instanceContext)] as RenderObject[];
         }

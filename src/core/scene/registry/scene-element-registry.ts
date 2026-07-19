@@ -1,6 +1,8 @@
 /* Minimal typing (improve later) */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as elements from '@core/scene/elements';
+import type { PluginElementDefinition } from '../../../../packages/plugin-sdk/src/scene';
+import { createBuiltInDefinitionElementClass } from '@core/scene/plugins/built-in-definition';
 
 export interface SceneElementFactorySchema {
     name?: string;
@@ -52,6 +54,11 @@ export class SceneElementRegistry {
             (config) => new ElementClass(config.id || type, config),
             ElementClass.getConfigSchema()
         );
+    }
+
+    registerElementFromDefinition(type: string, definition: PluginElementDefinition<any, any>) {
+        if (definition.type !== type) throw new Error(`Built-in definition type '${definition.type}' does not match '${type}'`);
+        this.registerElementFromClass(type, createBuiltInDefinitionElementClass(definition));
     }
 
     /**
@@ -205,32 +212,32 @@ export class SceneElementRegistry {
     }
 
     private registerDefaultElements() {
-        this.registerElementFromClass('background', elements.BackgroundElement);
-        this.registerElementFromClass('basicShapes', elements.BasicShapesElement);
-        this.registerElementFromClass('image', elements.ImageElement);
-        this.registerElementFromClass('progressDisplay', elements.ProgressDisplayElement);
-        this.registerElementFromClass('textOverlay', elements.TextOverlayElement);
-        this.registerElementFromClass('timeDisplay', elements.TimeDisplayElement);
+        this.registerElementFromDefinition('background', elements.background);
+        this.registerElementFromDefinition('basicShapes', elements.basicShapes);
+        this.registerElementFromDefinition('image', elements.image);
+        this.registerElementFromDefinition('progressDisplay', elements.progressDisplay);
+        this.registerElementFromDefinition('textOverlay', elements.textOverlay);
+        this.registerElementFromDefinition('timeDisplay', elements.timeDisplay);
 
-        this.registerElementFromClass('timeUnitPianoRoll', elements.TimeUnitPianoRollElement);
-        this.registerElementFromClass('movingNotesPianoRoll', elements.MovingNotesPianoRollElement);
-        this.registerElementFromClass('notesPlayedTracker', elements.NoteCountTrackerElement);
-        this.registerElementFromClass('notesPlayingDisplay', elements.NotesPlayingDisplayElement);
-        this.registerElementFromClass('chordEstimateDisplay', elements.ChordEstimateDisplayElement);
-        this.registerElementFromClass('ccMonitor', elements.CCMonitorElement);
+        this.registerElementFromDefinition('timeUnitPianoRoll', elements.timeUnitPianoRoll);
+        this.registerElementFromDefinition('movingNotesPianoRoll', elements.movingNotesPianoRoll);
+        this.registerElementFromDefinition('notesPlayedTracker', elements.notesPlayedTracker);
+        this.registerElementFromDefinition('notesPlayingDisplay', elements.notesPlayingDisplay);
+        this.registerElementFromDefinition('chordEstimateDisplay', elements.chordEstimateDisplay);
+        this.registerElementFromDefinition('ccMonitor', elements.ccMonitor);
 
-        this.registerElementFromClass('audioSpectrum', elements.AudioSpectrumElement);
-        this.registerElementFromClass('audioVolumeMeter', elements.AudioVolumeMeterElement);
-        this.registerElementFromClass('audioWaveform', elements.AudioWaveformElement);
-        this.registerElementFromClass('audioPeaks', elements.AudioPeaksElement);
-        this.registerElementFromClass('audioLockedOscilloscope', elements.AudioLockedOscilloscopeElement);
+        this.registerElementFromDefinition('audioSpectrum', elements.audioSpectrum);
+        this.registerElementFromDefinition('audioVolumeMeter', elements.audioVolumeMeter);
+        this.registerElementFromDefinition('audioWaveform', elements.audioWaveform);
+        this.registerElementFromDefinition('audioPeaks', elements.audioPeaks);
+        this.registerElementFromDefinition('audioLockedOscilloscope', elements.audioLockedOscilloscope);
 
         // this.registerElementFromClass('audioMinimal', elements.AudioMinimalElement);
         // this.registerElementFromClass('audioOddProfile', elements.AudioOddProfileElement);
         // this.registerElementFromClass('audioAdhocProfile', elements.AudioAdhocProfileElement);
         // this.registerElementFromClass('audioBadReq', elements.AudioBadReqElement);
         // this.registerElementFromClass('audioDebug', elements.AudioDebugElement);
-        this.registerElementFromClass('debug', elements.DebugElement);
+        this.registerElementFromDefinition('debug', elements.debug);
     }
 }
 

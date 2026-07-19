@@ -1,162 +1,78 @@
-// Image scene element — displays still images and animated GIFs via the
-// unified visual resource system. For sprite atlas / spritesheet support, use
-// the atlas-image template instead.
-import {
-    SceneElement,
-    type EnhancedConfigSchema,
-    insertElementConfig,
-    prop,
-    VisualMediaPlayback,
-    propGroup,
-    tab,
-} from '@mvmnt/plugin-sdk';
+import { definePluginElement, type ProjectVisualAssetHandle } from '@mvmnt/plugin-sdk';
+import { Rectangle, VisualMedia, type RenderObject } from '@mvmnt/plugin-sdk/render';
+import { createBuiltInDefinitionElementClass } from '@core/scene/plugins/built-in-definition';
 
-import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
-import { VisualResourceHandle } from '@core/resources/visual-resource-handle';
-import { resolveProjectAssetDescriptor } from '@state/visualAssetRegistryStore';
+interface ImageProps extends Readonly<Record<string, unknown>> {
+    readonly imageSource: string | null; readonly playbackSpeed: number; readonly width: number; readonly height: number;
+    readonly fitMode: 'contain' | 'cover' | 'fill' | 'clip'; readonly preserveAspectRatio: boolean;
+    readonly opacity: number; readonly blendMode: GlobalCompositeOperation; readonly showBorder: boolean;
+    readonly borderColor: string; readonly borderWidth: number; readonly cornerRadius: number;
+    readonly shadowEnabled: boolean; readonly shadowColor: string; readonly shadowBlur: number;
+    readonly shadowOffsetX: number; readonly shadowOffsetY: number;
+}
+interface ImageState { readonly handle: ProjectVisualAssetHandle; readonly media: VisualMedia; readonly bounds: Rectangle }
 
-export class ImageElement extends SceneElement {
-    private _renderObject: VisualMedia | null = null;
-    private _layoutRect: Rectangle | null = null;
-    private readonly _playback = new VisualMediaPlayback();
-    private readonly _assetHandle = new VisualResourceHandle();
-
-    constructor(id: string = 'image', config: { [key: string]: any } = {}) {
-        super('image', id, config);
-    }
-
-    static getConfigSchema(): EnhancedConfigSchema {
-        return insertElementConfig(
-            super.getConfigSchema(),
-            {
-                name: 'Image',
-                description: 'Display an image with transformations',
-                category: 'Misc',
-            },
-            [
-                tab.content([
-                    {
-                        id: 'imageSource',
-                        label: 'Image Source',
-                        collapsed: false,
-                        description: 'Pick the artwork and playback speed for animated assets.',
-                        properties: [
-                            prop.imageAsset('imageSource', 'Image'),
-                            prop.number('playbackSpeed', 'Playback Speed (×)', 1, { step: 0.1 }),
-                        ],
-                    },
-                    {
-                        id: 'imageLayout',
-                        label: 'Layout',
-                        collapsed: false,
-                        description: 'Size and crop behaviour for the image frame.',
-                        properties: [
-                            prop.number('width', 'Width (px)', 200, { step: 10 }),
-                            prop.number('height', 'Height (px)', 200, { step: 10 }),
-                            prop.select('fitMode', 'Fit Mode', 'cover', [
-                                { value: 'contain', label: 'Contain (fit within bounds)' },
-                                { value: 'cover', label: 'Cover (fill bounds, may crop)' },
-                                { value: 'fill', label: 'Fill (stretch to fit)' },
-                                { value: 'clip', label: 'Clip (native pixel size)' },
-                            ]),
-                            prop.boolean('preserveAspectRatio', 'Preserve Aspect Ratio', true, {
-                                visibleWhen: [{ key: 'fitMode', notEquals: 'fill' }],
-                            }),
-                        ],
-                    },
-                ]),
-                tab.appearance([
-                    propGroup.appearance({ blendMode: true }),
-                    {
-                        id: 'border',
-                        label: 'Border',
-                        collapsed: true,
-                        properties: [
-                            prop.boolean('showBorder', 'Show Border', false),
-                            prop.color('borderColor', 'Border Color', '#ffffff', {
-                                visibleWhen: [{ key: 'showBorder', truthy: true }],
-                            }),
-                            prop.range('borderWidth', 'Border Width', 1, {
-                                min: 0,
-                                max: 50,
-                                step: 0.5,
-                                visibleWhen: [{ key: 'showBorder', truthy: true }],
-                            }),
-                            prop.range('cornerRadius', 'Corner Radius', 0, {
-                                min: 0,
-                                max: 200,
-                                step: 1,
-                                visibleWhen: [{ key: 'showBorder', truthy: true }],
-                            }),
-                        ],
-                    },
-                    propGroup.shadow(),
-                ]),
-            ]
-        );
-    }
-
-    protected override onDestroy(): void {
-        this._assetHandle.destroy();
-        super.onDestroy();
-    }
-
-    protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        const props = this.getSchemaProps();
-
-        if (!props.visible) return [];
-
-        if (!this._renderObject) {
-            this._renderObject = new VisualMedia(0, 0, props.width, props.height, { layoutBoundsMode: 'none' });
-        }
-
-        if (!this._layoutRect) {
-            this._layoutRect = new Rectangle(0, 0, props.width, props.height, { fillColor: null });
-        } else {
-            this._layoutRect.width = props.width;
-            this._layoutRect.height = props.height;
-        }
-
-        this._playback.speed = props.playbackSpeed ?? 1;
-
-        const descriptor = resolveProjectAssetDescriptor(props.imageSource as string | null);
-        const { resource, status } = this._assetHandle.update(descriptor);
-
-        this._renderObject
-            .setResource(resource, status)
-            .setLocalTime(this._playback.computeLocalTime(targetTime))
-            .setDimensions(props.width, props.height)
-            .setFitMode(props.fitMode ?? 'cover')
-            .setPreserveAspectRatio(props.preserveAspectRatio ?? true);
-
-        this._renderObject.opacity = props.opacity ?? 1;
-        const bm = (props.blendMode ?? 'source-over') as GlobalCompositeOperation;
-        this._renderObject.blendMode = bm === 'source-over' ? null : bm;
-
-        if (props.shadowEnabled) {
-            const shadowColor = props.shadowColor ?? '#000000';
-            this._renderObject.setShadow(
-                shadowColor,
-                props.shadowBlur ?? 8,
-                props.shadowOffsetX ?? 2,
-                props.shadowOffsetY ?? 2
-            );
-        } else {
-            this._renderObject.setShadow(null, 0, 0, 0);
-        }
-
-        const result: RenderObject[] = [this._layoutRect, this._renderObject];
-        const showBorder = props.showBorder ?? false;
-        const borderWidth = props.borderWidth ?? 0;
-        if (showBorder && borderWidth > 0) {
-            const borderRect = new Rectangle(0, 0, props.width, props.height, {
-                fillColor: null,
-                strokeColor: props.borderColor ?? '#ffffff',
-                strokeWidth: borderWidth,
-            });
-            borderRect.cornerRadius = props.cornerRadius ?? 0;
-            result.push(borderRect);
+export const image = definePluginElement<ImageProps, ImageState>({
+    type: 'image',
+    metadata: { name: 'Image', description: 'Display an image with transformations', category: 'Misc' },
+    schema: { tabs: [
+        { id: 'content', label: 'Content', groups: [
+            { id: 'imageSource', label: 'Image Source', collapsed: false, properties: [
+                { key: 'imageSource', label: 'Image', type: 'assetRef', allowedAssetTypes: ['image', 'gif'], default: null },
+                { key: 'playbackSpeed', label: 'Playback Speed (×)', type: 'number', default: 1, step: 0.1 },
+            ] },
+            { id: 'imageLayout', label: 'Layout', collapsed: false, properties: [
+                { key: 'width', label: 'Width (px)', type: 'number', default: 200, step: 10 },
+                { key: 'height', label: 'Height (px)', type: 'number', default: 200, step: 10 },
+                { key: 'fitMode', label: 'Fit Mode', type: 'select', default: 'cover', options: [
+                    { value: 'contain', label: 'Contain' }, { value: 'cover', label: 'Cover' },
+                    { value: 'fill', label: 'Fill' }, { value: 'clip', label: 'Clip' },
+                ] },
+                { key: 'preserveAspectRatio', label: 'Preserve Aspect Ratio', type: 'boolean', default: true },
+            ] },
+        ] },
+        { id: 'appearance', label: 'Appearance', groups: [
+            { id: 'appearance', label: 'Appearance', collapsed: false, properties: [
+                { key: 'opacity', label: 'Opacity', type: 'range', default: 1, min: 0, max: 1, step: 0.01 },
+                { key: 'blendMode', label: 'Blend Mode', type: 'select', default: 'source-over', options: [{ value: 'source-over', label: 'Normal' }, { value: 'screen', label: 'Screen' }, { value: 'multiply', label: 'Multiply' }] },
+            ] },
+            { id: 'border', label: 'Border', collapsed: true, properties: [
+                { key: 'showBorder', label: 'Show Border', type: 'boolean', default: false },
+                { key: 'borderColor', label: 'Border Color', type: 'colorAlpha', default: '#FFFFFFFF' },
+                { key: 'borderWidth', label: 'Border Width', type: 'range', default: 1, min: 0, max: 50, step: 0.5 },
+                { key: 'cornerRadius', label: 'Corner Radius', type: 'range', default: 0, min: 0, max: 200, step: 1 },
+            ] },
+            { id: 'shadow', label: 'Shadow', collapsed: true, properties: [
+                { key: 'shadowEnabled', label: 'Enable Shadow', type: 'boolean', default: false },
+                { key: 'shadowColor', label: 'Shadow Color', type: 'colorAlpha', default: '#000000FF' },
+                { key: 'shadowBlur', label: 'Shadow Blur', type: 'number', default: 8 },
+                { key: 'shadowOffsetX', label: 'Shadow X', type: 'number', default: 2 },
+                { key: 'shadowOffsetY', label: 'Shadow Y', type: 'number', default: 2 },
+            ] },
+        ] },
+    ] },
+    capabilities: { required: [], optional: [] },
+    create(_props, context) { return {
+        handle: context.assets.project(), media: new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' }),
+        bounds: new Rectangle(0, 0, 200, 200, { fillColor: null }),
+    }; },
+    render(props, state, time) {
+        state.bounds.width = props.width; state.bounds.height = props.height;
+        const asset = state.handle.update(props.imageSource);
+        state.media.setResource(asset.resource as never, asset.status).setLocalTime(time.seconds * props.playbackSpeed)
+            .setDimensions(props.width, props.height).setFitMode(props.fitMode).setPreserveAspectRatio(props.preserveAspectRatio);
+        state.media.opacity = props.opacity;
+        state.media.blendMode = props.blendMode === 'source-over' ? null : props.blendMode;
+        if (props.shadowEnabled) state.media.setShadow(props.shadowColor, props.shadowBlur, props.shadowOffsetX, props.shadowOffsetY);
+        else state.media.setShadow(null, 0, 0, 0);
+        const result: RenderObject[] = [state.bounds, state.media];
+        if (props.showBorder && props.borderWidth > 0) {
+            const border = new Rectangle(0, 0, props.width, props.height, { fillColor: null, strokeColor: props.borderColor, strokeWidth: props.borderWidth });
+            border.cornerRadius = props.cornerRadius;
+            result.push(border);
         }
         return result;
-    }
-}
+    },
+});
+
+export const ImageElement = createBuiltInDefinitionElementClass(image);

@@ -1,79 +1,35 @@
-// Template: Image / GIF Element
-// Displays a static image or animated GIF from the visual asset registry.
-// Copy this file into your plugin and adapt as needed.
-import {
-    SceneElement,
-    prop,
-    insertElementConfig,
-    tab,
-    VisualMediaPlayback,
-    resolveProjectAssetDescriptor,
-} from '@mvmnt/plugin-sdk';
-import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk/render';
-import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
+// Template: SDK 2 project image/GIF element.
+import { definePluginElement, type ProjectVisualAssetHandle } from '@mvmnt/plugin-sdk';
+import { Rectangle, VisualMedia } from '@mvmnt/plugin-sdk/render';
 
-export class SimpleImageElement extends SceneElement {
-    // visualHandle() creates a VisualResourceHandle and auto-destroys it on dispose().
-    // No onDestroy() override needed.
-    private readonly _handle = this.visualHandle();
-    private readonly _playback = new VisualMediaPlayback();
-    private readonly _media = new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' });
-    private readonly _layoutRect = new Rectangle(0, 0, 200, 200, { fillColor: null });
-
-    constructor(id: string = 'simpleImage', config: Record<string, unknown> = {}) {
-        super('simple-image', id, config);
-    }
-
-    static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementConfig(
-            super.getConfigSchema(),
-            {
-                name: 'Simple Image',
-                description: 'Displays an image or animated GIF',
-                category: 'Custom',
-            },
-            [
-                tab.properties([
-                    {
-                        id: 'imageSource',
-                        label: 'Image',
-                        collapsed: false,
-                        properties: [
-                            prop.imageAsset('imageSource', 'Image'),
-                            prop.number('width', 'Width', 200, { step: 10 }),
-                            prop.number('height', 'Height', 200, { step: 10 }),
-                            prop.select('fitMode', 'Fit Mode', 'contain', [
-                                { value: 'contain', label: 'Contain' },
-                                { value: 'cover', label: 'Cover' },
-                                { value: 'fill', label: 'Fill' },
-                                { value: 'clip', label: 'Clip (native size)' },
-                            ]),
-                        ],
-                    },
-                ]),
-            ]
-        );
-    }
-
-    protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
-        const props = this.getSchemaProps();
-        if (!props.visible) return [];
-
-        const w = (props.width as number) ?? 200;
-        const h = (props.height as number) ?? 200;
-
-        this._layoutRect.width = w;
-        this._layoutRect.height = h;
-
-        const descriptor = resolveProjectAssetDescriptor(props.imageSource as string | null);
-        const { resource, status } = this._handle.update(descriptor);
-
-        this._media
-            .setResource(resource, status)
-            .setLocalTime(this._playback.computeLocalTime(targetTime))
-            .setDimensions(w, h)
-            .setFitMode((props.fitMode as any) ?? 'contain');
-
-        return [this._layoutRect, this._media];
-    }
+interface ImageProps extends Readonly<Record<string, unknown>> {
+    readonly imageSource: string | null;
+    readonly width: number;
+    readonly height: number;
+    readonly fitMode: 'contain' | 'cover' | 'fill' | 'clip';
 }
+interface ImageState { readonly handle: ProjectVisualAssetHandle; readonly media: VisualMedia; readonly bounds: Rectangle }
+
+export const simpleImage = definePluginElement<ImageProps, ImageState>({
+    type: 'simple-image',
+    metadata: { name: 'Simple Image', description: 'Displays an image or animated GIF', category: 'Custom' },
+    schema: { tabs: [{ id: 'properties', label: 'Properties', groups: [{ id: 'imageSource', label: 'Image', collapsed: false, properties: [
+        { key: 'imageSource', label: 'Image', type: 'assetRef', allowedAssetTypes: ['image', 'gif'], default: null },
+        { key: 'width', label: 'Width', type: 'number', default: 200, step: 10 },
+        { key: 'height', label: 'Height', type: 'number', default: 200, step: 10 },
+        { key: 'fitMode', label: 'Fit Mode', type: 'select', default: 'contain', options: [
+            { value: 'contain', label: 'Contain' }, { value: 'cover', label: 'Cover' },
+            { value: 'fill', label: 'Fill' }, { value: 'clip', label: 'Clip (native size)' },
+        ] },
+    ] }] }] },
+    capabilities: { required: [], optional: [] },
+    create(_props, context) {
+        return { handle: context.assets.project(), media: new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' }), bounds: new Rectangle(0, 0, 200, 200, { fillColor: undefined }) };
+    },
+    render(props, state, time) {
+        state.bounds.width = props.width; state.bounds.height = props.height;
+        const asset = state.handle.update(props.imageSource);
+        state.media.setResource(asset.resource as never, asset.status).setLocalTime(time.seconds).setDimensions(props.width, props.height).setFitMode(props.fitMode);
+        return [state.bounds, state.media];
+    },
+});

@@ -1,10 +1,36 @@
 # Plugin SDK v1 removal roadmap
 
-_Status: proposed. Audit performed 19 July 2026._
+_Status: active. Initial audit and migration follow-up performed 19 July 2026._
+
+## Migration follow-up
+
+The template and registered-element pass has now changed the baseline described below:
+
+- All nine files in `src/core/scene/elements/_templates` export SDK 2 definitions and a CI test
+  rejects template source that reintroduces `SceneElement`, v1 host accessors, or prop factories.
+- All 18 default registry IDs are backed by canonical definitions, and
+  `registerDefaultElements()` now registers definitions rather than classes.
+- Background, basic shapes, image, progress, text, time, debug, note count, notes playing, and
+  CC monitor are callback-native implementations.
+- Chord estimate, both piano rolls, spectrum, volume meter, waveform, peaks, and locked
+  oscilloscope currently use `defineHostAdaptedBuiltIn()`. These are deliberately visible
+  migration debt: the definitions own lifecycle and registry entry, but their render callback
+  still delegates to an engine-private class while controllers/cached-feature plumbing are
+  extracted. They do **not** satisfy the final v1 removal gate.
+- Scoped SDK 2 visual asset handles, callback viewport/playback metadata, raw-schema property
+  resolution, base-schema merging, and synchronous first-party initialization were added to
+  support these conversions.
+- The migration inventory test covers all templates and all 18 registered definitions.
+
+Current registered-element debt is therefore eight host adapters, not 18 class-registered
+built-ins. `misc/missing-plugin.ts` also remains an engine fallback outside the default registry.
+Repository plugins, examples, dormant audio-debug elements, distributable archives, and the SDK
+2 host bridge remain as described in the original audit below.
 
 ## Verified migration state
 
-The repository has **not** completed the SDK 2 element migration. The SDK 2 package, loader,
+The original audit below is retained as the starting snapshot. The repository has **not**
+completed the SDK 2 element migration. The SDK 2 package, loader,
 capability contexts, lifecycle scopes, and external fixture exist, but most element clients still
 compile against the class-based v1 surface.
 
@@ -82,7 +108,7 @@ Exit gate:
 
 Reference clients define the supported authoring workflow and should move before complex built-ins.
 
-1. Convert the remaining eight files in `src/core/scene/elements/_templates`.
+1. ~~Convert the remaining eight files in `src/core/scene/elements/_templates`.~~ Completed.
 2. Convert both `patternspack1` elements, then its manifest, as the capability-free example.
 3. Convert the two `fnf` and five `midipack1` elements using `timeline.read`.
 4. Change all three example manifests to `^2.0.0` with exact required/optional declarations.
@@ -127,10 +153,12 @@ Exit gate:
 
 Migrate by dependency group so common adapters are implemented once.
 
-1. Miscellaneous elements: background, basic shapes, debug, progress, text, time, and image.
-2. Timeline/MIDI elements: CC monitor, chord estimate, both piano rolls, note count, and notes
-   playing display.
-3. Audio elements: spectrum, volume meter, waveform, peaks, and locked oscilloscope.
+1. ~~Miscellaneous elements: background, basic shapes, debug, progress, text, time, and image.~~
+   Callback-native and definition-registered.
+2. Timeline/MIDI elements: CC monitor, note count, and notes playing are callback-native. Chord
+   estimate and both piano rolls remain explicit host adapters.
+3. Audio elements: spectrum, volume meter, waveform, peaks, and locked oscilloscope are
+   definition-registered host adapters; move their feature/raw-audio reads into callback context.
 4. Dormant audio-debug elements and the missing-plugin fallback. Either migrate them or formally
    classify and test them as engine-private—not silently leave them on the public v1 SDK.
 

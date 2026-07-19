@@ -46,3 +46,15 @@ export {
     getSparrowFrameInfo,
     type SparrowFrameInfo,
 } from '@core/resources/sparrow-atlas-view';
+
+// SDK 2.x exposes lifecycle-scoped, opaque handles rather than the host resource
+// cache and descriptor types above. The legacy exports remain v1 compatibility-only.
+export type {
+    AssetApi,
+    AssetHandle,
+    BundledVisualAssetHandle,
+    GridAtlasLayout,
+    ProjectVisualAssetHandle,
+    VisualAssetSnapshot,
+    VisualAssetStatus,
+} from '../../../../../packages/plugin-sdk/src/visual-assets';
