@@ -6,6 +6,7 @@ import type { TempoKeyframe } from '@core/timing/types';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import { exportScene, importScene } from '@persistence/index';
 import type { ImportSceneResult } from '@persistence/index';
+import type { ImportSceneInput } from '@persistence/import';
 import {
     getTimingState,
     setGlobalBpm,
@@ -23,15 +24,10 @@ function runSceneCommand(command: SceneCommand, options?: SceneCommandOptions): 
     return dispatchSceneCommand(command, options);
 }
 
-function normalizeImportPayload(payload: unknown): string | null {
-    if (typeof payload === 'string') return payload;
-    if (!payload) return null;
-    try {
-        return JSON.stringify(payload);
-    } catch (error) {
-        console.error('[mvmntTools] Failed to stringify payload for importScene', error);
-        return null;
-    }
+function normalizeImportPayload(payload: unknown): ImportSceneInput | null {
+    if (payload instanceof Uint8Array || payload instanceof ArrayBuffer) return payload;
+    if (typeof Blob !== 'undefined' && payload instanceof Blob) return payload;
+    return null;
 }
 
 type UndoControllerLike = {

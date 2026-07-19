@@ -35,11 +35,11 @@ describe('Persistence skeleton', () => {
         expect(res.ok).toBe(true);
     });
 
-    it('importScene accepts a legacy inline JSON envelope', async () => {
+    it('rejects an inline JSON envelope', async () => {
         const exp = await exportScene();
         if (!exp.ok) throw new Error('Expected packaged export result');
-        const res = await importScene(JSON.stringify(exp.envelope));
-        expect(res.ok).toBe(true);
+        const res = await importScene(new TextEncoder().encode(JSON.stringify(exp.envelope)));
+        expect(res).toMatchObject({ ok: false, errors: [{ code: 'ERR_PACKAGE_FORMAT' }] });
     });
 
     it('undo controller initializes and can reset', () => {

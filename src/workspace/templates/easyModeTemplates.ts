@@ -17,17 +17,6 @@ async function toUint8Array(value: unknown): Promise<Uint8Array> {
     if (typeof Blob !== 'undefined' && value instanceof Blob) {
         return new Uint8Array(await value.arrayBuffer());
     }
-    if (typeof value === 'string') {
-        if (typeof fetch !== 'function') {
-            throw new Error('Unable to resolve template asset URL');
-        }
-        const response = await fetch(value);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch template asset: ${response.status} ${response.statusText}`);
-        }
-        const buffer = await response.arrayBuffer();
-        return new Uint8Array(buffer);
-    }
     throw new Error('Unsupported template module format');
 }
 

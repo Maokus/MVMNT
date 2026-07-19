@@ -444,16 +444,6 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                     onActivate: () => onConfigChange(elementId, preset.values),
                 });
             });
-            // Group-level presets (deprecated, kept for transition)
-            enhancedSchema.tabs.flatMap((t) => t.groups).forEach((group) => {
-                group.presets?.forEach((preset) => {
-                    presetActions.push({
-                        label: preset.label,
-                        dividerBefore: presetActions.length === 0,
-                        onActivate: () => onConfigChange(elementId, preset.values),
-                    });
-                });
-            });
             actions.push(...presetActions);
         }
 

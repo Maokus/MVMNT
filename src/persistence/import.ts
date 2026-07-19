@@ -10,7 +10,6 @@ import {
     type SerializedAudioFeatureTrack,
     type SerializedAudioFeatureTrackDataRef,
 } from '@audio/features/audioFeatureAnalysis';
-import { base64ToUint8Array } from '@utils/base64';
 import { AudioAssetStore, createAudioAssetId } from './audio-asset-store';
 import { sha256Hex } from '@utils/hash/sha256';
 import { FontBinaryStore } from './font-binary-store';
@@ -19,7 +18,7 @@ import { loadPlugin, satisfiesVersion } from '@core/scene/plugins';
 import { usePluginStore } from '@state/pluginStore';
 import { ensureFontVariantsRegistered } from '@fonts/font-loader';
 import type { FontAsset } from '@state/scene/fonts';
-import { decodeSceneText, parseLegacyInlineScene, parseScenePackage, ScenePackageError } from './scene-package';
+import { decodeSceneText, parseScenePackage, ScenePackageError } from './scene-package';
 import { isTestEnvironment } from '@utils/env';
 import { useVisualAssetRegistryStore, type ProjectAsset } from '@state/visualAssetRegistryStore';
 import { useSceneStore } from '@state/sceneStore';
@@ -57,7 +56,7 @@ export interface ImportResultFailureEnabled {
 }
 
 export type ImportSceneResult = ImportResultSuccess | ImportResultFailureEnabled;
-export type ImportSceneInput = string | ArrayBuffer | Uint8Array | Blob;
+export type ImportSceneInput = ArrayBuffer | Uint8Array | Blob;
 export interface ImportSceneOptions {
     signal?: AbortSignal;
     onProgress?: (progress: number, text?: string) => void;
@@ -92,35 +91,13 @@ function throwIfAborted(signal?: AbortSignal): void {
 async function parseArtifact(input: ImportSceneInput, options: ImportSceneOptions = {}): Promise<ParsedArtifact | { error: ImportError }> {
     throwIfAborted(options.signal);
     options.onProgress?.(0.1, 'Reading scene file…');
-    if (typeof input === 'string') {
-        try {
-            if (!isTestEnvironment()) {
-                console.warn(
-                    '[importScene] Inline JSON scene imports are deprecated. Please re-export scenes as packaged .mvt files.'
-                );
-            }
-            const legacy = parseLegacyInlineScene(input);
-            return {
-                envelope: legacy.envelope,
-                warnings: legacy.warnings,
-                audioPayloads: legacy.audioPayloads,
-                midiPayloads: legacy.midiPayloads,
-                fontPayloads: legacy.fontPayloads,
-                visualPayloads: legacy.visualPayloads,
-                waveformPayloads: legacy.waveformPayloads,
-                audioFeaturePayloads: legacy.audioFeaturePayloads,
-                pluginPayloads: legacy.pluginPayloads,
-            };
-        } catch (error: any) {
-            return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + error.message } };
-        }
-    }
-
     let bytes: Uint8Array | null = null;
     if (input instanceof ArrayBuffer) {
         bytes = new Uint8Array(input);
     } else if (input instanceof Uint8Array) {
         bytes = input;
+    } else if (ArrayBuffer.isView(input)) {
+        bytes = new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
     } else if (typeof Blob !== 'undefined' && input instanceof Blob) {
         bytes = new Uint8Array(await input.arrayBuffer());
     }
@@ -134,32 +111,9 @@ async function parseArtifact(input: ImportSceneInput, options: ImportSceneOption
         options.onProgress?.(0.2, 'Parsing scene package…');
         return parseScenePackage(bytes);
     } catch (error) {
-        if (error instanceof ScenePackageError) {
-            if (error.code === 'ERR_PACKAGE_FORMAT') {
-                try {
-                    const text = decodeSceneText(bytes);
-                    if (!isTestEnvironment()) {
-                        console.warn(
-                            '[importScene] Inline JSON scene imports are deprecated. Please re-export scenes as packaged .mvt files.'
-                        );
-                    }
-                    const legacy = parseLegacyInlineScene(text);
-                    return {
-                        envelope: legacy.envelope,
-                        warnings: legacy.warnings,
-                        audioPayloads: legacy.audioPayloads,
-                        midiPayloads: legacy.midiPayloads,
-                        fontPayloads: legacy.fontPayloads,
-                        visualPayloads: legacy.visualPayloads,
-                        waveformPayloads: legacy.waveformPayloads,
-                        audioFeaturePayloads: legacy.audioFeaturePayloads,
-                        pluginPayloads: legacy.pluginPayloads,
-                    };
-                } catch (inner: any) {
-                    return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + inner.message } };
-                }
-            }
-            return { error: { code: error.code, message: error.message } };
+        if (error instanceof ScenePackageError || (error as { code?: unknown }).code) {
+            const packageError = error as ScenePackageError;
+            return { error: { code: packageError.code, message: packageError.message } };
         }
         return { error: { code: 'ERR_PACKAGE_FORMAT', message: (error as Error).message } };
     }
@@ -821,14 +775,7 @@ async function hydrateAudioAssets(
     for (const [assetId, record] of Object.entries(audioById)) {
         throwIfAborted(options.signal);
         let bytes: Uint8Array | undefined;
-        if (record.dataBase64) {
-            try {
-                bytes = base64ToUint8Array(record.dataBase64);
-            } catch {
-                warnings.push(`Failed to decode base64 for asset ${assetId}`);
-                continue;
-            }
-        } else if (assetPayloads.has(assetId)) {
+        if (assetPayloads.has(assetId)) {
             bytes = assetPayloads.get(assetId)!;
         }
         if (!bytes) {

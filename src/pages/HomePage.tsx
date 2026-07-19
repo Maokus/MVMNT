@@ -4,7 +4,7 @@ import logo from '@assets/Logo_Transparent.png';
 import pfp from '@assets/Logo_Pfp_white.png';
 import './homepage.css';
 import { FaFileCirclePlus } from 'react-icons/fa6';
-import { isZipBytes, writeStoredImportPayload } from '@utils/importPayloadStorage';
+import { writeStoredImportPayload } from '@utils/importPayloadStorage';
 
 /**
  * Home / Landing page
@@ -23,24 +23,14 @@ const HomePage: React.FC = () => {
     const handleLoadFile = () => {
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = '.mvt,.json';
+        input.accept = '.mvt';
         input.onchange = async (e: any) => {
             const file = e.target.files?.[0];
             if (!file) return;
             try {
                 const buffer = await file.arrayBuffer();
                 const bytes = new Uint8Array(buffer);
-                if (isZipBytes(bytes)) {
-                    writeStoredImportPayload(bytes);
-                } else {
-                    let text: string;
-                    try {
-                        text = new TextDecoder().decode(bytes);
-                    } catch {
-                        text = await file.text();
-                    }
-                    writeStoredImportPayload(text);
-                }
+                writeStoredImportPayload(bytes);
                 navigate('/workspace', { state: { importScene: true } });
             } catch (e) {
                 alert('Failed to read file');

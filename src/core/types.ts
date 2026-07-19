@@ -316,21 +316,12 @@ export interface PropertyDefinition {
     runtime?: PropertyRuntimeConfig;
 }
 
-export interface PropertyGroupPreset {
-    id: string;
-    label: string;
-    description?: string;
-    values: Record<string, any>;
-}
-
 export interface PropertyGroup {
     id: string;
     label: string;
     collapsed: boolean;
     description?: string;
     properties: PropertyDefinition[];
-    /** @deprecated Move presets to the top-level `presets` field on `EnhancedConfigSchema`. */
-    presets?: PropertyGroupPreset[];
 }
 
 export interface PropertyTab {

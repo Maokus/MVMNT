@@ -19,8 +19,6 @@ export interface AudioAssetRecord {
     sampleRate: number;
     channels: number;
     durationSamples: number;
-    /** @deprecated Legacy inline JSON payload data. */
-    dataBase64?: string;
 }
 
 export interface WaveformDataReference {

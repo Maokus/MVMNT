@@ -3,7 +3,6 @@ import { Routes, Route } from 'react-router-dom';
 
 // Tailwind styles are loaded via index.tsx
 const MidiVisualizer = lazy(() => import('@workspace/overlays/MidiVisualizer'));
-const EasyModePage = lazy(() => import('../easymode/EasyModePage'));
 const AnimationTestPage = lazy(() => import('@pages/AnimationTestPage'));
 const AboutPage = lazy(() => import('@pages/AboutPage'));
 const ChangelogPage = lazy(() => import('@pages/ChangelogPage'));
@@ -170,7 +169,6 @@ export function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/workspace" element={<MidiVisualizer />} />
-          <Route path="/easymode" element={<EasyModePage />} />
           <Route path="/animation-test" element={<AnimationTestPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/changelog" element={<ChangelogPage />} />

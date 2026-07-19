@@ -2,15 +2,10 @@ import { importScene } from '@persistence/import';
 import { useSceneStore, type SceneMacroDefinition, type SceneSettingsState } from '@state/sceneStore';
 import type { SceneMetadataState } from '@state/sceneMetadataStore';
 import { useTimelineStore } from '@state/timelineStore';
-import {
-    decodeSceneText,
-    parseLegacyInlineScene,
-    parseScenePackage,
-    ScenePackageError,
-} from '@persistence/scene-package';
+import { parseScenePackage } from '@persistence/scene-package';
 
 interface DefaultSceneCache {
-    sceneData: string | Uint8Array;
+    sceneData: Uint8Array;
     settings?: Partial<SceneSettingsState>;
     metadata?: Partial<SceneMetadataState>;
 }
@@ -20,13 +15,6 @@ let defaultSceneCachePromise: Promise<DefaultSceneCache | null> | null = null;
 function toUint8Array(value: unknown): Uint8Array | null {
     if (value instanceof Uint8Array) return value;
     if (value instanceof ArrayBuffer) return new Uint8Array(value);
-    if (typeof value === 'string') {
-        const out = new Uint8Array(value.length);
-        for (let i = 0; i < value.length; i++) {
-            out[i] = value.charCodeAt(i) & 0xff;
-        }
-        return out;
-    }
     return null;
 }
 
@@ -79,24 +67,6 @@ async function resolveDefaultSceneCache(): Promise<DefaultSceneCache | null> {
                 const metadata = envelope?.metadata ? { ...envelope.metadata } : undefined;
                 return { sceneData: bytes, settings, metadata };
             } catch (error) {
-                if (error instanceof ScenePackageError && error.code === 'ERR_PACKAGE_FORMAT') {
-                    try {
-                        const text = decodeSceneText(bytes);
-                        const legacy = parseLegacyInlineScene(text);
-                        const envelope = legacy.envelope;
-                        const settings = envelope?.scene?.sceneSettings
-                            ? { ...envelope.scene.sceneSettings }
-                            : undefined;
-                        const metadata = envelope?.metadata ? { ...envelope.metadata } : undefined;
-                        return { sceneData: text, settings, metadata };
-                    } catch (legacyError) {
-                        console.error(
-                            '[default-scene-loader] Failed to parse legacy default scene payload',
-                            legacyError
-                        );
-                        return null;
-                    }
-                }
                 console.error('[default-scene-loader] Failed to parse packaged default.mvt', error);
                 return null;
             }

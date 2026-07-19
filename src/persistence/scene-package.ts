@@ -163,45 +163,10 @@ export function parseScenePackage(bytes: Uint8Array): ScenePackageContents {
     };
 }
 
-/**
- * @deprecated Legacy inline JSON scene payloads are deprecated. Use packaged .mvt exports instead.
- */
-export function parseLegacyInlineScene(jsonText: string): ScenePackageContents {
-    const envelope = JSON.parse(jsonText) as SceneEnvelope;
-    return {
-        envelope,
-        audioPayloads: new Map(),
-        midiPayloads: new Map(),
-        fontPayloads: new Map(),
-        visualPayloads: new Map(),
-        waveformPayloads: new Map(),
-        audioFeaturePayloads: new Map(),
-        pluginPayloads: new Map(),
-        warnings: [
-            {
-                message: 'Legacy inline JSON scene payloads are deprecated. Please re-export as a packaged .mvt scene.',
-            },
-        ],
-    };
-}
-
 export function extractSceneMetadataFromArtifact(
-    data: Uint8Array | string
+    data: Uint8Array
 ): { name?: string; author?: string; description?: string } | undefined {
     try {
-        if (typeof data === 'string') {
-            const legacy = parseLegacyInlineScene(data);
-            const metadata = legacy.envelope?.metadata;
-            if (metadata && typeof metadata === 'object') {
-                return {
-                    name: typeof metadata.name === 'string' ? metadata.name : undefined,
-                    author: typeof metadata.author === 'string' ? metadata.author : undefined,
-                    description: typeof metadata.description === 'string' ? metadata.description : undefined,
-                };
-            }
-            return undefined;
-        }
-
         const { envelope } = parseScenePackage(data);
         const metadata = envelope?.metadata;
         if (!metadata || typeof metadata !== 'object') {

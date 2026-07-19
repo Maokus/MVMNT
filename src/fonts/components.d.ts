@@ -80,13 +80,6 @@ export interface PropertyDefinition {
     runtime?: PropertyRuntimeConfig;
 }
 
-export interface PropertyGroupPreset {
-    id: string;
-    label: string;
-    description?: string;
-    values: Record<string, any>;
-}
-
 export interface PropertyGroup {
     id: string;
     label: string;
@@ -94,7 +87,6 @@ export interface PropertyGroup {
     variant?: 'basic' | 'advanced';
     description?: string;
     properties: PropertyDefinition[];
-    presets?: PropertyGroupPreset[];
 }
 
 export interface EnhancedConfigSchema {

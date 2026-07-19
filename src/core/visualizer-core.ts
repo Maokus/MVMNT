@@ -388,7 +388,7 @@ export class MIDIVisualizerCore {
                 const ros: any[] = el.buildRenderObjects(config, targetTime);
                 if (ros && ros.length) {
                     const container: any = ros[0];
-                    if (container?.getBounds) {
+                    if (container?.getVisualBounds) {
                         const b = container.getVisualBounds();
                         if (b && isFinite(b.x) && isFinite(b.y) && isFinite(b.width) && isFinite(b.height)) {
                             const corners = container._worldCorners

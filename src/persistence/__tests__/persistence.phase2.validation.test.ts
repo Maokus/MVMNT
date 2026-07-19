@@ -68,11 +68,11 @@ describe('Persistence validation extended', () => {
         expect(r.errors.some((e) => e.code === 'ERR_GLOBAL_BPM_RANGE')).toBe(true);
     });
 
-    it('importScene fails gracefully on malformed JSON', async () => {
-        const res = await importScene('{ invalid');
+    it('importScene rejects an unpackaged scene artifact', async () => {
+        const res = await importScene(new TextEncoder().encode('{ invalid'));
         expect(res.ok).toBe(false);
         if (!res.ok) {
-            expect(res.errors.some((e) => e.code === 'ERR_JSON_PARSE')).toBe(true);
+            expect(res.errors.some((e) => e.code === 'ERR_PACKAGE_FORMAT')).toBe(true);
         }
     });
 
