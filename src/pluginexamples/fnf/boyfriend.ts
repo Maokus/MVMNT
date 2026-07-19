@@ -15,7 +15,7 @@ const IDLE_DURATION_SEC = 14 / 24;
 class BoyfriendElement extends CallbackElementRenderer {
     private readonly _bundledAtlas = this.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml');
     private readonly _media = new VisualMedia(0, 0, 200, 200);
-    private readonly _layoutRect = new Rectangle(0, 0, 200, 200, null, null);
+    private readonly _layoutRect = new Rectangle(0, 0, 200, 200, { fillColor: null, strokeColor: null });
 
     constructor(id: string = 'boyfriend', config: Record<string, unknown> = {}) {
         super('boyfriend', id, config);

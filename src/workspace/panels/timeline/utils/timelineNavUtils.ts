@@ -1,6 +1,8 @@
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { getMidiClipTimelineBounds, getMidiClipsForTrack } from '@state/timeline/midiClips';
+import { getAudioClipTimelineBounds, getAudioClipsForTrack } from '@state/timeline/audioClips';
+import { createTimelineTimingContext } from '@state/timeline/timelineShared';
 
 export const MIN_RANGE = 4; // 4 ticks (~1/120 beat at PPQ=480)
 export const MAX_RANGE = CANONICAL_PPQ * 60 * 10;
@@ -26,6 +28,7 @@ export function zoomAround(startTick: number, endTick: number, pivotTick: number
 /** Return the last content tick across all tracks (MIDI + audio). */
 export function getContentEndTick(state: ReturnType<typeof useTimelineStore.getState>): number {
     let maxTick = 0;
+    const timing = createTimelineTimingContext(state);
     for (const id of state.tracksOrder) {
         const track = state.tracks[id] as any;
         if (!track) continue;
@@ -37,11 +40,11 @@ export function getContentEndTick(state: ReturnType<typeof useTimelineStore.getS
                     maxTick = Math.max(maxTick, bounds.endTick);
                 }
             }
-        } else {
-            const offset: number = track.offsetTicks ?? 0;
-            const entry = (state as any).audioCache?.[id];
-            if (entry?.durationTicks) {
-                maxTick = Math.max(maxTick, offset + entry.durationTicks);
+        } else if (track.type === 'audio') {
+            for (const clip of getAudioClipsForTrack(track)) {
+                if (clip.enabled === false) continue;
+                const bounds = getAudioClipTimelineBounds(state.audioCache, clip, timing);
+                if (bounds) maxTick = Math.max(maxTick, bounds.endTick);
             }
         }
     }

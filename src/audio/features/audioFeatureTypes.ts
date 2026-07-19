@@ -106,8 +106,6 @@ export interface AudioFeatureTrack<Data = AudioFeatureTrackData> {
     analysisParams?: Record<string, unknown>;
     /** Data encoding hint to help downstream consumers deserialize. */
     format: AudioFeatureTrackFormat;
-    /** @deprecated Use channelLayout.aliases instead. */
-    channelAliases?: string[] | null;
     /** Optional metadata describing the channel layout for downstream filtering. */
     channelLayout?: ChannelLayoutMeta | null;
     /** Identifier of the analysis profile used to generate this track. */
@@ -148,8 +146,8 @@ export interface AudioFeatureCache {
     analysisProfiles?: Record<string, AudioFeatureAnalysisProfileDescriptor>;
     /** Default profile identifier for downstream consumers. */
     defaultAnalysisProfileId?: string | null;
-    /** Optional aliases describing the canonical channel order. */
-    channelAliases?: string[] | null;
+    /** Optional source-wide channel layout used when a track has no override. */
+    channelLayout?: ChannelLayoutMeta | null;
 }
 
 export type AudioFeatureCacheStatusState = 'idle' | 'pending' | 'ready' | 'failed' | 'stale';

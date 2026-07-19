@@ -9,10 +9,6 @@ export interface AudioClip {
     sourceStartSeconds?: number;
     /** Exclusive offset into the immutable media source. Omitted means the source end. */
     sourceEndSeconds?: number;
-    /** @deprecated Legacy source-local tick trim. Migrated scenes use source seconds. */
-    regionStartTick?: number;
-    /** @deprecated Legacy source-local tick trim. Migrated scenes use source seconds. */
-    regionEndTick?: number;
     name?: string;
     enabled?: boolean;
     gain?: number;
@@ -25,11 +21,7 @@ export interface AudioTrack {
     enabled: boolean;
     mute: boolean;
     solo: boolean;
-    clips?: AudioClip[];
-    offsetTicks?: number; // legacy track-level position on the canonical timeline
-    regionStartTick?: number; // legacy optional trim start within buffer
-    regionEndTick?: number; // legacy optional trim end
-    audioSourceId?: string; // legacy key into audioCache
+    clips: AudioClip[];
     gain: number; // linear 0..2 (default 1)
 }
 
@@ -51,8 +43,6 @@ export interface AudioCacheWaveform {
 
 export interface AudioCacheEntry {
     audioBuffer?: AudioBuffer;
-    /** @deprecated A compatibility value for legacy scenes only; never use as source authority. */
-    durationTicks: number;
     sampleRate: number;
     channels: number;
     durationSeconds: number;

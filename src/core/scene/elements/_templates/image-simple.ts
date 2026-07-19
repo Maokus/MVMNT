@@ -16,7 +16,7 @@ export const simpleImage = definePluginElement({
     ] }] }] },
     capabilities: { required: [], optional: [] },
     create(_props, context) {
-        return { handle: context.assets.project(), media: new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' }), bounds: new Rectangle(0, 0, 200, 200, { fillColor: undefined }) };
+        return { handle: context.assets.project(), media: new VisualMedia(0, 0, 200, 200, { layoutParticipation: 'exclude' }), bounds: new Rectangle(0, 0, 200, 200, { fillColor: undefined }) };
     },
     render(props, state, time) {
         state.bounds.width = props.width; state.bounds.height = props.height;

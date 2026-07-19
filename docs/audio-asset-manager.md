@@ -10,8 +10,9 @@ timeline import and scene import/export.
 
 ## State Model
 
-Audio track metadata lives in the timeline store. A track points at decoded/cache state
-with `audioSourceId`; when unset, the track id is used as the source id.
+Audio track metadata lives in the timeline store. Every audio track owns a `clips` array,
+and each clip points at decoded/cache state with its required `sourceId`. A source may be
+referenced by multiple clips or tracks.
 
 Each source id indexes `audioCache`, whose entries contain:
 

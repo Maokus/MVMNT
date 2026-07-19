@@ -22,7 +22,12 @@ export const basicShape = definePluginElement({
     capabilities: { required: [], optional: [] },
     render(props) {
         if (props.shapeType === 'circle') {
-            return [new Arc(0, 0, props.shapeSize, 0, Math.PI * 2, false, { fillColor: props.shapeColor, strokeColor: null })];
+            return [new Arc(0, 0, props.shapeSize, {
+                startAngle: 0,
+                endAngle: Math.PI * 2,
+                fillColor: props.shapeColor,
+                strokeColor: null,
+            })];
         }
         return [new Rectangle(-props.shapeSize / 2, -props.shapeSize / 2, props.shapeSize, props.shapeSize, {
             fillColor: props.shapeColor,

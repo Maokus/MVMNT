@@ -17,7 +17,7 @@ export const bundledImage = definePluginElement({
     capabilities: { required: [], optional: [] },
     create(_props, context) { return {
         bundled: context.assets.bundledImage('cooltext491233707844001.gif'), override: context.assets.project(),
-        media: new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' }), bounds: new Rectangle(0, 0, 200, 200),
+        media: new VisualMedia(0, 0, 200, 200, { layoutParticipation: 'exclude' }), bounds: new Rectangle(0, 0, 200, 200),
     }; },
     render(props, state, time) {
         state.bounds.width = props.width; state.bounds.height = props.height;

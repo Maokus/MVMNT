@@ -80,7 +80,7 @@ export type SerializedAudioFeatureTrack = {
 };
 
 export interface SerializedAudioFeatureCache {
-    version: 3;
+    version: 3 | 4;
     audioSourceId: string;
     hopSeconds: number;
     startTimeSeconds: number;
@@ -91,6 +91,7 @@ export interface SerializedAudioFeatureCache {
     analysisProfiles: Record<string, AudioFeatureAnalysisProfileDescriptor>;
     defaultAnalysisProfileId: string;
     channelAliases?: string[];
+    channelLayout?: ChannelLayoutMeta | null;
 }
 
 const DEFAULT_WINDOW_SIZE = 2048;
@@ -422,7 +423,6 @@ function serializeTrack(track: AudioFeatureTrack): SerializedAudioFeatureTrack {
         format: track.format,
         metadata: track.metadata,
         analysisParams: track.analysisParams,
-        channelAliases: track.channelAliases ?? undefined,
         channelLayout,
         analysisProfileId: track.analysisProfileId ?? undefined,
         data,
@@ -474,8 +474,9 @@ function deserializeTrack(track: SerializedAudioFeatureTrack): AudioFeatureTrack
         format: track.format,
         metadata: track.metadata,
         analysisParams: track.analysisParams,
-        channelAliases: track.channelAliases ?? null,
-        channelLayout: track.channelLayout === undefined ? undefined : (track.channelLayout ?? null),
+        channelLayout: track.channelLayout === undefined
+            ? (track.channelAliases ? { aliases: track.channelAliases.slice() } : undefined)
+            : (track.channelLayout ?? null),
         analysisProfileId: track.analysisProfileId ?? null,
         data: payload,
     };
@@ -497,12 +498,8 @@ export function serializeAudioFeatureCache(cache: AudioFeatureCache): Serialized
         typeof cache.defaultAnalysisProfileId === 'string' && cache.defaultAnalysisProfileId.trim().length > 0
             ? cache.defaultAnalysisProfileId
             : DEFAULT_ANALYSIS_PROFILE_ID;
-    const channelAliases =
-        Array.isArray(cache.channelAliases) && cache.channelAliases.length > 0
-            ? cache.channelAliases.slice()
-            : undefined;
     const serialized: SerializedAudioFeatureCache = {
-        version: 3,
+        version: 4,
         audioSourceId: cache.audioSourceId,
         hopSeconds: cache.hopSeconds,
         startTimeSeconds: cache.startTimeSeconds ?? 0,
@@ -512,7 +509,7 @@ export function serializeAudioFeatureCache(cache: AudioFeatureCache): Serialized
         tempoProjection: toSerializedTempoProjection(cache.tempoProjection),
         analysisProfiles: normalizedProfiles,
         defaultAnalysisProfileId: defaultProfileId,
-        channelAliases,
+        channelLayout: cache.channelLayout ?? undefined,
     };
     return serialized;
 }
@@ -521,7 +518,8 @@ export function deserializeAudioFeatureCache(serialized: SerializedAudioFeatureC
     if (!serialized || typeof serialized !== 'object') {
         throw new Error('Invalid audio feature cache payload');
     }
-    if (serialized.version !== 3) {
+    const serializedVersion = Number(serialized.version);
+    if (serializedVersion !== 3 && serializedVersion !== 4) {
         throw new Error(`Unsupported audio feature cache version: ${serialized.version}`);
     }
     const featureTracks: Record<string, AudioFeatureTrack> = {};
@@ -541,7 +539,7 @@ export function deserializeAudioFeatureCache(serialized: SerializedAudioFeatureC
         hopSeconds: serialized.hopSeconds,
     });
     return {
-        version: 3,
+        version: 4,
         audioSourceId: serialized.audioSourceId,
         hopTicks,
         hopSeconds: serialized.hopSeconds,
@@ -555,7 +553,7 @@ export function deserializeAudioFeatureCache(serialized: SerializedAudioFeatureC
                 ? clonePlainObject(serialized.analysisProfiles)
                 : buildDefaultProfile(serialized.analysisParams),
         defaultAnalysisProfileId: serialized.defaultAnalysisProfileId || DEFAULT_ANALYSIS_PROFILE_ID,
-        channelAliases: serialized.channelAliases ? serialized.channelAliases.slice() : undefined,
+        channelLayout: serialized.channelLayout ?? (serialized.channelAliases ? { aliases: serialized.channelAliases.slice() } : undefined),
     };
 }
 
@@ -713,21 +711,13 @@ export async function analyzeAudioBufferFeatures(
                 : cloneTempoProjection(tempoProjection, projectedHopTicks);
             const resolvedTrackProfile = sanitizeAnalysisProfileId(track.analysisProfileId) ?? requestedProfileId;
             track.analysisProfileId = resolvedTrackProfile;
-            if (track.channelAliases === undefined) {
-                if (track.channels > 1 && track.channels <= 8) {
-                    track.channelAliases = inferChannelAliases(track.channels);
-                } else if (track.channels <= 1) {
-                    track.channelAliases = inferChannelAliases(options.audioBuffer.numberOfChannels || 1);
-                } else {
-                    track.channelAliases = null;
-                }
-            }
             if (track.channelLayout === undefined) {
-                if (Array.isArray(track.channelAliases) && track.channelAliases.length) {
-                    track.channelLayout = { aliases: track.channelAliases.slice() };
-                } else if (track.channelAliases === null) {
-                    track.channelLayout = null;
-                }
+                const aliases = track.channels > 1 && track.channels <= 8
+                    ? inferChannelAliases(track.channels)
+                    : track.channels <= 1
+                      ? inferChannelAliases(options.audioBuffer.numberOfChannels || 1)
+                      : null;
+                track.channelLayout = aliases ? { aliases } : null;
             }
             const trackIdentity = parseFeatureTrackKey(track.key);
             const baseFeatureKey = trackIdentity.featureKey || calculator.featureKey || track.key;
@@ -752,10 +742,10 @@ export async function analyzeAudioBufferFeatures(
             id: DEFAULT_ANALYSIS_PROFILE_ID,
         };
     }
-    const channelAliases = inferChannelAliases(options.audioBuffer.numberOfChannels || 1);
+    const channelLayout = { aliases: inferChannelAliases(options.audioBuffer.numberOfChannels || 1) };
     return {
         cache: {
-            version: 3,
+            version: 4,
             audioSourceId: options.audioSourceId,
             hopTicks,
             hopSeconds,
@@ -766,7 +756,7 @@ export async function analyzeAudioBufferFeatures(
             analysisParams,
             analysisProfiles,
             defaultAnalysisProfileId: requestedProfileId,
-            channelAliases,
+            channelLayout,
         },
     };
 }

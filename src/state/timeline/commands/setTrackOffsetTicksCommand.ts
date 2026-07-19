@@ -41,10 +41,14 @@ export function createSetTrackOffsetTicksCommand(
                     },
                 };
             }
-            const previousOffset = (track as any).offsetTicks ?? 0;
+            const previousOffset = track.type === 'audio'
+                ? (track.clips[0]?.offsetTicks ?? 0)
+                : (track.offsetTicks ?? 0);
             context.setState((current) => {
                 const currentTrack = current.tracks[payload.trackId];
-                const nextTrack: any = { ...currentTrack, offsetTicks: payload.offsetTicks };
+                const nextTrack: any = currentTrack?.type === 'audio'
+                    ? { ...currentTrack }
+                    : { ...currentTrack, offsetTicks: payload.offsetTicks };
                 if ((nextTrack.type === 'midi' || nextTrack.type === 'audio') && Array.isArray(nextTrack.clips)) {
                     if (nextTrack.clips.length === 1) {
                         nextTrack.clips = [{ ...nextTrack.clips[0], offsetTicks: payload.offsetTicks }];
@@ -56,24 +60,12 @@ export function createSetTrackOffsetTicksCommand(
                         }));
                     }
                 }
-                const next: any = {
+                return {
                     tracks: {
                         ...current.tracks,
                         [payload.trackId]: nextTrack,
                     },
                 };
-                // Recompute durationTicks for audio tracks so clip width reflects tempo at the new position
-                const cacheKey = (track as any).audioSourceId || payload.trackId;
-                const cacheEntry = current.audioCache[cacheKey];
-                if ((track as any).type === 'audio' && cacheEntry?.audioBuffer) {
-                    const ctx = createTimelineTimingContext(current);
-                    const newDurationTicks = Math.round(secondsToTicksAt(ctx, cacheEntry.audioBuffer.duration, payload.offsetTicks));
-                    next.audioCache = {
-                        ...current.audioCache,
-                        [cacheKey]: { ...cacheEntry, durationTicks: newDurationTicks },
-                    };
-                }
-                return next;
             });
             autoAdjustSceneRangeIfNeeded(context.getState, context.setState);
             const patch: TimelineCommandPatch = {

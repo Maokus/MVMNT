@@ -35,7 +35,7 @@ function registerAudioTrack(trackId: string) {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [{ id: `${trackId}__clip`, type: 'audio', sourceId: trackId, offsetTicks: 0 }],
                     gain: 1,
                 },
             },
@@ -69,13 +69,19 @@ function createCache(trackId: string, track: AudioFeatureTrack): AudioFeatureCac
             [DEFAULT_PROFILE]: BASE_PROFILE,
         },
         defaultAnalysisProfileId: DEFAULT_PROFILE,
-        channelAliases: null,
+        channelLayout: null,
     };
 }
 
 function ingestTrack(trackId: string, track: AudioFeatureTrack) {
     registerAudioTrack(trackId);
     const cache = createCache(trackId, track);
+    useTimelineStore.setState((state) => ({
+        audioCache: {
+            ...state.audioCache,
+            [trackId]: { sampleRate: 48_000, channels: 1, durationSeconds: 2, durationSamples: 96_000 },
+        },
+    }));
     useTimelineStore.getState().ingestAudioFeatureCache(trackId, cache);
 }
 
@@ -106,7 +112,7 @@ describe('tempoAlignedViewAdapter silence padding', () => {
             format: 'float32',
             data,
             analysisProfileId: DEFAULT_PROFILE,
-            channelAliases: null,
+            channelLayout: null,
         } as AudioFeatureTrack);
 
         const state = useTimelineStore.getState();
@@ -149,7 +155,7 @@ describe('tempoAlignedViewAdapter silence padding', () => {
             data: { min: minValues, max: maxValues },
             metadata: { hopSize: 128 },
             analysisProfileId: DEFAULT_PROFILE,
-            channelAliases: null,
+            channelLayout: null,
         } as AudioFeatureTrack);
 
         const state = useTimelineStore.getState();
@@ -197,7 +203,7 @@ describe('tempoAlignedViewAdapter silence padding', () => {
                 maxFrameLength: frameLength,
             },
             analysisProfileId: DEFAULT_PROFILE,
-            channelAliases: null,
+            channelLayout: null,
         } as AudioFeatureTrack);
 
         const state = useTimelineStore.getState();
@@ -243,7 +249,7 @@ describe('tempoAlignedViewAdapter silence padding', () => {
                 maxFrameLength: frameLength,
             },
             analysisProfileId: DEFAULT_PROFILE,
-            channelAliases: null,
+            channelLayout: null,
         } as AudioFeatureTrack);
 
         const state = useTimelineStore.getState();

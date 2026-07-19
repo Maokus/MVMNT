@@ -167,14 +167,14 @@ Bounds include stroke-width padding.
 ### Line
 
 ```typescript
-new Line(x, y, deltaX, deltaY, options?: LineOptions)
+new Line(x1, y1, x2, y2, options?: LineOptions)
 ```
 
-Endpoints are expressed as a start point `(x, y)` plus a delta `(deltaX, deltaY)` so the whole object translates correctly.
+The constructor accepts start and end points. Internally the end point is stored as a delta so translating the object keeps the line shape intact.
 
 | Option                             | Type            | Default  |
 | ---------------------------------- | --------------- | -------- |
-| `color`                            | `string`        | `'#000'` |
+| `color`                            | `string`        | `'#FFFFFF'` |
 | `lineWidth`                        | `number`        | `1`      |
 | `lineCap`                          | `CanvasLineCap` | `'butt'` |
 | `lineDash`                         | `number[]`      | `[]`     |
@@ -258,9 +258,9 @@ new Text(x, y, text: string, font: string, options?: TextOptions)
 
 | Option          | Type                                | Default        |
 | --------------- | ----------------------------------- | -------------- |
-| `color`         | `string`                            | `'#000'`       |
+| `color`         | `string`                            | `'#FFFFFF'`    |
 | `align`         | `CanvasTextAlign`                   | `'left'`       |
-| `baseline`      | `CanvasTextBaseline`                | `'alphabetic'` |
+| `baseline`      | `CanvasTextBaseline`                | `'top'`        |
 | `strokeColor`   | `string`                            | —              |
 | `strokeWidth`   | `number`                            | `1`            |
 | `maxWidth`      | `number`                            | —              |
@@ -278,7 +278,7 @@ Bounds use an offscreen canvas for accurate `TextMetrics`. Falls back to a heuri
 ### Poly
 
 ```typescript
-new Poly(x, y, points, options?: PolyOptions)
+new Poly(points, options?: PolyOptions)
 ```
 
 Flexible point input — all three formats are accepted:
@@ -399,8 +399,10 @@ new VisualMedia(x, y, width, height, options?: VisualMediaOptions)
 | `'contain'` | Scale to fit within box, preserve aspect ratio. Letterbox bars visible. | Scaled image rect |
 | `'cover'`   | Scale to fill box, preserve aspect ratio. Overflow is clipped.          | Full container    |
 | `'fill'`    | Stretch to fill (may distort).                                          | Full container    |
-| `'none'`    | 1:1 pixel scale, centered, clipped to container.                        | Drawn region      |
 | `'clip'`    | 1:1 pixel scale, position controlled by `framePlacement`.               | Drawn region      |
+
+`selfBoundsMode` selects either the actual `'drawn'` region or the full `'container'` rect. Set
+`layoutParticipation: 'exclude'` when the media should not contribute to element layout.
 
 #### Frame placement (clip mode)
 
@@ -537,21 +539,3 @@ media.setResource(resource, status);
 media.setLocalTime(time.seconds);
 media.setAnimation('idle');
 ```
-
----
-
-## Deprecated APIs
-
-These still work but should not be used in new code.
-
-| Deprecated                                | Replacement                                          |
-| ----------------------------------------- | ---------------------------------------------------- |
-| `globalAlpha`                             | `opacity`                                            |
-| `includeInLayoutBounds`                   | `layoutParticipation`                                |
-| `setPivot(x, y)`                          | `setOrigin(x, y)`                                    |
-| `setPivotFraction(x, y)`                  | `setOriginFraction(x, y)`                            |
-| `setFillColor(c)`                         | `setFill(c)`                                         |
-| `VisualMedia.setContentAnchor(x, y)`      | `setFramePlacement(...)`                             |
-| `VisualMedia.setFrameAnchor(x, y)`        | `setFramePlacement(...)`                             |
-| `VisualMedia.setLayoutBoundsMode(m)`      | `setSelfBoundsMode(m)` + `setLayoutParticipation(p)` |
-| `EmptyRenderObject.setAnchorOffset(x, y)` | `setOriginFraction(x, y)`                            |

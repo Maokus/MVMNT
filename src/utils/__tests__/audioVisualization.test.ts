@@ -96,9 +96,8 @@ describe('audio visualization utilities', () => {
             enabled: true,
             mute: false,
             solo: false,
-            offsetTicks: 0,
+            clips: [{ id: 'clip-a', type: 'audio', sourceId: 'track-a', offsetTicks: 0 }],
             gain: 1,
-            audioSourceId: 'track-a',
         };
         resolveFeatureContext.mockReturnValue({
             cache,
@@ -149,9 +148,8 @@ describe('audio visualization utilities', () => {
             enabled: true,
             mute: false,
             solo: false,
-            offsetTicks: 0,
+            clips: [{ id: 'clip-b', type: 'audio', sourceId: 'track-b', offsetTicks: 0 }],
             gain: 1,
-            audioSourceId: 'track-b',
         };
         resolveFeatureContext.mockReturnValue({
             cache,

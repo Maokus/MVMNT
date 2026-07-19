@@ -45,7 +45,7 @@ export const simpleImage = definePluginElement({
     create(_props, context) {
         return {
             handle: context.assets.project(),
-            media: new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' }),
+            media: new VisualMedia(0, 0, 200, 200, { layoutParticipation: 'exclude' }),
             bounds: new Rectangle(0, 0, 200, 200),
         };
     },

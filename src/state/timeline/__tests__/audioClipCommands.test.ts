@@ -3,9 +3,8 @@ import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { timelineCommandGateway, useTimelineStore } from '@state/timelineStore';
 import { applyTimelinePatchActions } from '../patches';
 
-function audioCacheEntry(durationTicks = CANONICAL_PPQ) {
+function audioCacheEntry() {
     return {
-        durationTicks,
         sampleRate: 48000,
         channels: 2,
         durationSeconds: 1,
@@ -64,7 +63,7 @@ describe('audio clip timeline commands', () => {
         let clips = (useTimelineStore.getState().tracks.track1 as any).clips;
         expect(result.result?.clipId).toBe('clip2');
         expect(clips.map((clip: any) => clip.id)).toEqual(['clip1', 'clip2']);
-        expect(clips[0].regionEndTick).toBe(CANONICAL_PPQ / 2);
+        expect(clips[0].sourceEndSeconds).toBeCloseTo(0.25);
 
         applyUndo(result.patches);
         clips = (useTimelineStore.getState().tracks.track1 as any).clips;
@@ -88,7 +87,7 @@ describe('audio clip timeline commands', () => {
 
         const clips = (useTimelineStore.getState().tracks.track1 as any).clips;
         expect(clips.map((clip: any) => clip.id)).toEqual(['clip1', 'clip2']);
-        expect(clips[0].regionEndTick).toBe(CANONICAL_PPQ / 2);
+        expect(clips[0].sourceEndSeconds).toBeCloseTo(0.25);
     });
 
     it('removes audio clips without deleting shared source data until the final reference is gone', async () => {

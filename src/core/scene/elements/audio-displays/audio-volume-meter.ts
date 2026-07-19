@@ -189,7 +189,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                 new Text(8, height / 2, 'Select an audio track', '12px Inter, sans-serif', {
                     color: '#94a3b8',
                     baseline: 'middle',
-                }).setIncludeInLayoutBounds(false)
+                }).setLayoutParticipation('exclude')
             );
             return objects;
         }
@@ -276,7 +276,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                     new Text(0, labelY, dbLabel, '12px Inter, sans-serif', {
                         color: '#e2e8f0',
                         baseline: 'middle',
-                    }).setIncludeInLayoutBounds(false)
+                    }).setLayoutParticipation('exclude')
                 );
             }
         }
@@ -365,13 +365,13 @@ export class AudioVolumeMeterElement extends SceneElement {
                 new Text(xL + barW / 2, 8, 'L', labelFont, {
                     color: 'rgba(255,255,255,0.5)',
                     align: 'center',
-                }).setIncludeInLayoutBounds(false)
+                }).setLayoutParticipation('exclude')
             );
             objects.push(
                 new Text(xR + barW / 2, 8, 'R', labelFont, {
                     color: 'rgba(255,255,255,0.5)',
                     align: 'center',
-                }).setIncludeInLayoutBounds(false)
+                }).setLayoutParticipation('exclude')
             );
 
             if (props.showValue) {
@@ -383,14 +383,14 @@ export class AudioVolumeMeterElement extends SceneElement {
                     new Text(xL, labelY, labelL, labelFont2, {
                         color: '#e2e8f0',
                         baseline: 'middle',
-                    }).setIncludeInLayoutBounds(false)
+                    }).setLayoutParticipation('exclude')
                 );
                 objects.push(
                     new Text(xR + barW, labelY, labelR, labelFont2, {
                         color: '#e2e8f0',
                         align: 'right',
                         baseline: 'middle',
-                    }).setIncludeInLayoutBounds(false)
+                    }).setLayoutParticipation('exclude')
                 );
             }
         } else {
@@ -433,13 +433,13 @@ export class AudioVolumeMeterElement extends SceneElement {
                 new Text(4, yL + barH / 2, 'L', labelFont, {
                     color: 'rgba(255,255,255,0.5)',
                     baseline: 'middle',
-                }).setIncludeInLayoutBounds(false)
+                }).setLayoutParticipation('exclude')
             );
             objects.push(
                 new Text(4, yR + barH / 2, 'R', labelFont, {
                     color: 'rgba(255,255,255,0.5)',
                     baseline: 'middle',
-                }).setIncludeInLayoutBounds(false)
+                }).setLayoutParticipation('exclude')
             );
 
             if (props.showValue) {
@@ -450,13 +450,13 @@ export class AudioVolumeMeterElement extends SceneElement {
                     new Text(width + 4, yL + barH / 2, labelL, labelFont2, {
                         color: '#e2e8f0',
                         baseline: 'middle',
-                    }).setIncludeInLayoutBounds(false)
+                    }).setLayoutParticipation('exclude')
                 );
                 objects.push(
                     new Text(width + 4, yR + barH / 2, labelR, labelFont2, {
                         color: '#e2e8f0',
                         baseline: 'middle',
-                    }).setIncludeInLayoutBounds(false)
+                    }).setLayoutParticipation('exclude')
                 );
             }
         }
@@ -491,26 +491,24 @@ export class AudioVolumeMeterElement extends SceneElement {
             if (isVertical) {
                 const lineY = height - refNorm * height;
                 objects.push(
-                    new Line(0, lineY, width, lineY, { color: lineColor, lineWidth: 1 }).setIncludeInLayoutBounds(false)
+                    new Line(0, lineY, width, lineY, { color: lineColor, lineWidth: 1 }).setLayoutParticipation('exclude')
                 );
                 objects.push(
                     new Text(width + 4, lineY, label, labelFont, {
                         color: REF_LABEL_COLOR,
                         baseline: 'middle',
-                    }).setIncludeInLayoutBounds(false)
+                    }).setLayoutParticipation('exclude')
                 );
             } else {
                 const lineX = refNorm * width;
                 objects.push(
-                    new Line(lineX, 0, lineX, height, { color: lineColor, lineWidth: 1 }).setIncludeInLayoutBounds(
-                        false
-                    )
+                    new Line(lineX, 0, lineX, height, { color: lineColor, lineWidth: 1 }).setLayoutParticipation('exclude')
                 );
                 objects.push(
                     new Text(lineX, height + 4, label, labelFont, {
                         color: REF_LABEL_COLOR,
                         align: 'center',
-                    }).setIncludeInLayoutBounds(false)
+                    }).setLayoutParticipation('exclude')
                 );
             }
         }
@@ -543,7 +541,7 @@ export class AudioVolumeMeterElement extends SceneElement {
             const lineColor = refDb >= -3 ? REF_LINE_COLOR_CLIP : REF_LINE_COLOR;
             const lineX = x + refNorm * w;
             objects.push(
-                new Line(lineX, y, lineX, y + h, { color: lineColor, lineWidth: 1 }).setIncludeInLayoutBounds(false)
+                new Line(lineX, y, lineX, y + h, { color: lineColor, lineWidth: 1 }).setLayoutParticipation('exclude')
             );
         }
     }
@@ -571,11 +569,11 @@ export class AudioVolumeMeterElement extends SceneElement {
         if (isVertical) {
             const fillH = normalized * h;
             objects.push(
-                new Rectangle(x, y + h - fillH, w, fillH, { fillColor: meterColor }).setIncludeInLayoutBounds(false)
+                new Rectangle(x, y + h - fillH, w, fillH, { fillColor: meterColor }).setLayoutParticipation('exclude')
             );
         } else {
             objects.push(
-                new Rectangle(x, y, normalized * w, h, { fillColor: meterColor }).setIncludeInLayoutBounds(false)
+                new Rectangle(x, y, normalized * w, h, { fillColor: meterColor }).setLayoutParticipation('exclude')
             );
         }
     }
@@ -610,7 +608,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                 new Line(x, peakY, x + w, peakY, {
                     color: DEFAULT_PEAK_HOLD_COLOR,
                     lineWidth: 2,
-                }).setIncludeInLayoutBounds(false)
+                }).setLayoutParticipation('exclude')
             );
         } else {
             const peakX = x + peakNorm * w;
@@ -618,7 +616,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                 new Line(peakX, y, peakX, y + h, {
                     color: DEFAULT_PEAK_HOLD_COLOR,
                     lineWidth: 2,
-                }).setIncludeInLayoutBounds(false)
+                }).setLayoutParticipation('exclude')
             );
         }
     }

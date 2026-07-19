@@ -1,4 +1,4 @@
-import { RenderObject, RenderConfig, Bounds, type LayoutParticipation } from './base';
+import { RenderObject, RenderConfig, Bounds, type RenderObjectOptions } from './base';
 import { applyShadow, clearShadow, applyDash, clearDash } from './style-helpers';
 
 interface Point {
@@ -6,13 +6,10 @@ interface Point {
     y: number;
 }
 
-export interface PolyOptions {
+export interface PolyOptions extends RenderObjectOptions {
     fillColor?: string | null;
     strokeColor?: string | null;
     strokeWidth?: number;
-    layoutParticipation?: LayoutParticipation;
-    /** @deprecated compatibility only. Use layoutParticipation. */
-    includeInLayoutBounds?: boolean;
 }
 
 export class Poly extends RenderObject {
@@ -31,38 +28,12 @@ export class Poly extends RenderObject {
     shadowOffsetX: number;
     shadowOffsetY: number;
 
-    constructor(points?: unknown, options?: PolyOptions);
-    /** @deprecated Use Poly(points, options) instead. */
-    constructor(
-        points: unknown,
-        fillColor: string | null,
-        strokeColor: string | null,
-        strokeWidth: number,
-        options?: { layoutParticipation?: LayoutParticipation; includeInLayoutBounds?: boolean }
-    );
-    constructor(
-        points: unknown = [],
-        fillColorOrOptions?: string | null | PolyOptions,
-        strokeColor?: string | null,
-        strokeWidth?: number,
-        legacyOptions?: { layoutParticipation?: LayoutParticipation; includeInLayoutBounds?: boolean }
-    ) {
-        let opts: PolyOptions;
-        if (typeof fillColorOrOptions === 'string' || fillColorOrOptions === null) {
-            opts = {
-                fillColor: fillColorOrOptions,
-                strokeColor: strokeColor ?? '#FFFFFF',
-                strokeWidth: strokeWidth ?? 1,
-                ...legacyOptions,
-            };
-        } else {
-            opts = fillColorOrOptions ?? {};
-        }
-        super(0, 0, 1, 1, 1, opts);
+    constructor(points: unknown = [], options: PolyOptions = {}) {
+        super(0, 0, 1, 1, 1, options);
         this.points = this.#normalizePoints(points);
-        this.fillColor = opts.fillColor ?? null;
-        this.strokeColor = opts.strokeColor ?? '#FFFFFF';
-        this.strokeWidth = opts.strokeWidth ?? 1;
+        this.fillColor = options.fillColor ?? null;
+        this.strokeColor = options.strokeColor ?? '#FFFFFF';
+        this.strokeWidth = options.strokeWidth ?? 1;
         this.closed = true;
         this.lineJoin = 'miter';
         this.lineCap = 'butt';
@@ -107,10 +78,6 @@ export class Poly extends RenderObject {
     setFill(color: string | null): this {
         this.fillColor = color;
         return this;
-    }
-    /** @deprecated Use setFill(). */
-    setFillColor(color: string | null): this {
-        return this.setFill(color);
     }
     setStroke(color: string | null, width = this.strokeWidth): this {
         this.strokeColor = color;

@@ -139,7 +139,12 @@ function renderPeaksEnvelope(
         points.push({ x, y });
     }
 
-    const poly = new Poly(points, color, null, 0, { includeInLayoutBounds: false });
+    const poly = new Poly(points, {
+        fillColor: color,
+        strokeColor: null,
+        strokeWidth: 0,
+        layoutParticipation: 'exclude',
+    });
     poly.setClosed(true);
     objects.push(poly);
 }
@@ -581,7 +586,7 @@ export class AudioPeaksElement extends SceneElement {
                             new Line(x, lineY, x, lineY + lineLength, {
                                 color: lineColor,
                                 lineWidth,
-                                includeInLayoutBounds: false,
+                                layoutParticipation: 'exclude',
                             })
                         );
                     }
@@ -616,10 +621,7 @@ export class AudioPeaksElement extends SceneElement {
                     { x: playheadX, y: 0 },
                     { x: playheadX, y: height },
                 ],
-                null,
-                primaryColor,
-                1,
-                { includeInLayoutBounds: false }
+                { fillColor: null, strokeColor: primaryColor, strokeWidth: 1, layoutParticipation: 'exclude' }
             );
             playheadLine.setClosed(false).setLineJoin('round').setLineCap('round');
             objects.push(playheadLine);

@@ -47,7 +47,12 @@ export const particlesPattern = definePluginElement<ParticlesProps, undefined>({
             const speed = 0.5 + random(seed + 3);
             const x = vx ? mod(random(seed) * props.elementWidth + random(seed + 5) * props.elementWidth + vx * speed * time.seconds, props.elementWidth) : random(seed) * props.elementWidth;
             const y = vy ? mod(random(seed + 1) * props.elementHeight + random(seed + 5) * props.elementHeight + vy * speed * time.seconds, props.elementHeight) : random(seed + 1) * props.elementHeight;
-            const particle = new Arc(-props.elementWidth / 2 + x, -props.elementHeight / 2 + y, radius, 0, Math.PI * 2, false, { fillColor: color, strokeColor: null });
+            const particle = new Arc(-props.elementWidth / 2 + x, -props.elementHeight / 2 + y, radius, {
+                startAngle: 0,
+                endAngle: Math.PI * 2,
+                fillColor: color,
+                strokeColor: null,
+            });
             particle.opacity = props.particleOpacity * (0.4 + random(seed + 4) * 0.6);
             particle.setLayoutParticipation('exclude');
             objects.push(particle);

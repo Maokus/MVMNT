@@ -405,7 +405,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
         const layoutWidth = (props as any).layoutWidth ?? 400;
         const layoutHeight = (props as any).layoutHeight ?? 100;
         const layoutRect = new Rectangle(0, 0, layoutWidth, layoutHeight, { fillColor: null });
-        layoutRect.setIncludeInLayoutBounds(true);
+        layoutRect.setLayoutParticipation('include');
 
         const renderObjects: RenderObject[] = [layoutRect];
 
@@ -523,8 +523,8 @@ export class ChordEstimateDisplayElement extends SceneElement {
         };
         const textX = textXForJustify(justify);
 
-        const title = new Text(textX, y, label, fontChord, color, justify, 'top');
-        title.setIncludeInLayoutBounds(false);
+        const title = new Text(textX, y, label, fontChord, { color, align: justify, baseline: 'top' });
+        title.setLayoutParticipation('exclude');
         renderObjects.push(title);
         y += chordFontSize + lineSpacing;
 
@@ -551,8 +551,8 @@ export class ChordEstimateDisplayElement extends SceneElement {
             const noteLine = uniqueNotes.length
                 ? `Notes: ${uniqueNotes.map((n) => noteName(n)).join(' ')}`
                 : 'Notes: —';
-            const ln = new Text(textX, y, noteLine, fontDetails, color, justify, 'top');
-            ln.setIncludeInLayoutBounds(false);
+            const ln = new Text(textX, y, noteLine, fontDetails, { color, align: justify, baseline: 'top' });
+            ln.setLayoutParticipation('exclude');
             renderObjects.push(ln);
             y += detailsFontSize + lineSpacing;
         }
@@ -573,7 +573,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                 const rect = new Rectangle(rectX, y, rectWidth, 20, {
                     fillColor: applyOpacity(chromaColorRaw, chroma[i] * chromaOpacityScale),
                 });
-                rect.setIncludeInLayoutBounds(false);
+                rect.setLayoutParticipation('exclude');
                 renderObjects.push(rect);
             }
             y += 20 + lineSpacing;
@@ -588,7 +588,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                 fillColor: bgColor,
             });
             if (props.backgroundCornerRadius) bg.cornerRadius = props.backgroundCornerRadius;
-            bg.setIncludeInLayoutBounds(false);
+            bg.setLayoutParticipation('exclude');
             renderObjects.splice(1, 0, bg);
         }
 

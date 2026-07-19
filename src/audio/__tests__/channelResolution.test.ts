@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { AudioFeatureTrack } from '@audio/features/audioFeatureTypes';
 import { resolveChannel } from '@audio/features/channelResolution';
 
-const track: Pick<AudioFeatureTrack, 'channels' | 'channelAliases'> = {
+const track: Pick<AudioFeatureTrack, 'channels' | 'channelLayout'> = {
     channels: 2,
-    channelAliases: ['Left', 'Right'],
+    channelLayout: { aliases: ['Left', 'Right'] },
 };
 
 describe('resolveChannel', () => {
@@ -24,11 +24,11 @@ describe('resolveChannel', () => {
     it('resolves aliases from cache fallback', () => {
         expect(
             resolveChannel('center', {
-                track: { channels: 3, channelAliases: ['L', 'R', 'C'] } as Pick<
+                track: { channels: 3, channelLayout: { aliases: ['L', 'R', 'C'] } } as Pick<
                     AudioFeatureTrack,
-                    'channels' | 'channelAliases'
+                    'channels' | 'channelLayout'
                 >,
-                cacheAliases: ['Left', 'Right', 'Center'],
+                cacheLayout: { aliases: ['Left', 'Right', 'Center'] },
             }),
         ).toBe(2);
     });

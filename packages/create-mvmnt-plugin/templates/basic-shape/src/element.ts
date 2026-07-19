@@ -36,7 +36,9 @@ export const basicShape = definePluginElement({
     render(props) {
         return props.shapeType === 'circle'
             ? [
-                  new Arc(0, 0, props.shapeSize, 0, Math.PI * 2, false, {
+                  new Arc(0, 0, props.shapeSize, {
+                      startAngle: 0,
+                      endAngle: Math.PI * 2,
                       fillColor: props.shapeColor,
                       strokeColor: null,
                   }),

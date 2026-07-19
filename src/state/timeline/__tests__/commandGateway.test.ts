@@ -108,7 +108,9 @@ describe('timeline command gateway', () => {
 
         const state = useTimelineStore.getState();
         expect(state.tracks[trackId]?.mute).toBe(true);
-        expect(state.tracks[trackId]?.regionStartTick).toBe(120);
+        const track = state.tracks[trackId];
+        expect(track?.type).toBe('midi');
+        expect(track?.type === 'midi' ? track.regionStartTick : undefined).toBe(120);
     });
 
     it('reorders tracks via command dispatch', async () => {

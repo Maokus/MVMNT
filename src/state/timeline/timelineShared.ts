@@ -51,22 +51,24 @@ function computeContentEndTick(state: TimelineState): number {
                 }
             }
         } else if (t.type === 'audio') {
-            const cacheKey = t.audioSourceId ?? id;
-            const acache = state.audioCache[cacheKey];
-            if (!acache) {
-                const featureCache = (state as any).audioFeatureCaches?.[cacheKey] as
-                    | import('@audio/features/audioFeatureTypes').AudioFeatureCache
-                    | undefined;
-                if (!featureCache) continue;
-                const hopTicks = featureCache.hopTicks ?? featureCache.tempoProjection?.hopTicks ?? 0;
-                const clipEnd = featureCache.frameCount * hopTicks + t.offsetTicks;
-                if (clipEnd > max) max = clipEnd;
-                continue;
-            }
             const timing = createTimelineTimingContext(state);
             for (const clip of getAudioClipsForTrack(t)) {
                 if (clip.enabled === false) continue;
-                const bounds = getAudioClipTimelineBounds(state.audioCache, clip, timing);
+                const featureCache = state.audioFeatureCaches[clip.sourceId];
+                const sourceCache = state.audioCache[clip.sourceId]
+                    ? state.audioCache
+                    : featureCache
+                      ? {
+                            ...state.audioCache,
+                            [clip.sourceId]: {
+                                sampleRate: featureCache.analysisParams.sampleRate,
+                                channels: 1,
+                                durationSeconds: featureCache.startTimeSeconds + featureCache.frameCount * featureCache.hopSeconds,
+                                durationSamples: 0,
+                            },
+                        }
+                      : state.audioCache;
+                const bounds = getAudioClipTimelineBounds(sourceCache, clip, timing);
                 if (bounds && bounds.endTick > max) max = bounds.endTick;
             }
         }
@@ -88,21 +90,24 @@ function computeContentStartTick(state: TimelineState): number {
                 }
             }
         } else if (t.type === 'audio') {
-            const cacheKey = t.audioSourceId ?? id;
-            const acache = state.audioCache[cacheKey];
-            if (!acache) {
-                const featureCache = (state as any).audioFeatureCaches?.[cacheKey] as
-                    | import('@audio/features/audioFeatureTypes').AudioFeatureCache
-                    | undefined;
-                if (!featureCache) continue;
-                const clipStart = t.offsetTicks;
-                if (clipStart < min) min = clipStart;
-                continue;
-            }
             const timing = createTimelineTimingContext(state);
             for (const clip of getAudioClipsForTrack(t)) {
                 if (clip.enabled === false) continue;
-                const bounds = getAudioClipTimelineBounds(state.audioCache, clip, timing);
+                const featureCache = state.audioFeatureCaches[clip.sourceId];
+                const sourceCache = state.audioCache[clip.sourceId]
+                    ? state.audioCache
+                    : featureCache
+                      ? {
+                            ...state.audioCache,
+                            [clip.sourceId]: {
+                                sampleRate: featureCache.analysisParams.sampleRate,
+                                channels: 1,
+                                durationSeconds: featureCache.startTimeSeconds + featureCache.frameCount * featureCache.hopSeconds,
+                                durationSamples: 0,
+                            },
+                        }
+                      : state.audioCache;
+                const bounds = getAudioClipTimelineBounds(sourceCache, clip, timing);
                 if (bounds && bounds.startTick < min) min = bounds.startTick;
             }
         }

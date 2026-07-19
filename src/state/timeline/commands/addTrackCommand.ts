@@ -261,11 +261,9 @@ function buildRedoPayload(
         }
     } else if (track.type === 'audio') {
         const audioTrack = track as AudioTrack;
-        const key = audioTrack.audioSourceId ?? trackId;
+        const key = audioTrack.clips?.[0]?.sourceId ?? trackId;
         const cache = state.audioCache[key];
-        if (cache) {
-            payload.audioCache = { key, value: buildUndoAudioCacheEntry(cache) };
-        }
+        if (cache) payload.audioCache = { key, value: buildUndoAudioCacheEntry(cache) };
         const featureCache = state.audioFeatureCaches?.[key];
         if (featureCache && estimateFeatureCacheBytes(featureCache) <= LARGE_UNDO_FEATURE_CACHE_BYTES) {
             payload.audioFeatureCache = { key, value: featureCache };
@@ -291,7 +289,7 @@ function buildUndoPayload(
         }
     } else if (track?.type === 'audio') {
         const audioTrack = track as AudioTrack;
-        const key = audioTrack.audioSourceId ?? trackId;
+        const key = audioTrack.clips?.[0]?.sourceId ?? trackId;
         if (state.audioCache[key]) {
             audioCacheKeys.push(key);
         }
@@ -354,7 +352,6 @@ export function createAddTrackCommand(
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: payload.offsetTicks ?? 0,
                     clips: [buildInitialAudioClip(id, payload.name || 'Audio Track', payload.offsetTicks ?? 0)],
                     gain: 1,
                 };

@@ -53,12 +53,12 @@ function createCache(trackId: string): AudioFeatureCache {
                 format: 'float32',
                 data,
                 analysisProfileId: defaultProfile,
-                channelAliases: null,
+                channelLayout: null,
             },
         },
         analysisProfiles: { default: analysisProfile },
         defaultAnalysisProfileId: defaultProfile,
-        channelAliases: undefined,
+        channelLayout: undefined,
     };
 }
 
@@ -74,11 +74,14 @@ beforeEach(() => {
                 enabled: true,
                 mute: false,
                 solo: false,
-                offsetTicks: 0,
+                clips: [{ id: 'audioClip', type: 'audio', sourceId: 'audioTrack', offsetTicks: 0 }],
                 gain: 1,
             },
         },
         tracksOrder: ['audioTrack'],
+        audioCache: {
+            audioTrack: { sampleRate: 48_000, channels: 1, durationSeconds: 1, durationSamples: 48_000 },
+        },
     }));
     const cache = createCache('audioTrack');
     useTimelineStore.getState().ingestAudioFeatureCache('audioTrack', cache);
@@ -142,10 +145,10 @@ describe('audio feature sampling selectors', () => {
 
     it('includes silence when sampling ranges beyond track bounds', () => {
         const state = useTimelineStore.getState();
-        const range = sampleAudioFeatureRange(state, 'audioTrack', 'rms', 720, 960);
+        const range = sampleAudioFeatureRange(state, 'audioTrack', 'rms', 1920, 2160);
         expect(range).toBeDefined();
-        expect(range?.frameCount).toBe(3);
-        expect(Array.from(range?.data ?? [])).toEqual([0, 0, 0]);
+        expect(range?.frameCount).toBe(2);
+        expect(Array.from(range?.data ?? [])).toEqual([0, 0]);
         expect(range?.frameTicks.length).toBe(range?.frameCount ?? 0);
         expect(range?.windowStartTick).toBeLessThanOrEqual(range?.windowEndTick ?? 0);
         expect(range?.windowEndTick).toBeGreaterThanOrEqual(range?.trackEndTick ?? 0);
@@ -170,11 +173,15 @@ describe('audio feature sampling selectors', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [{ id: 'altClip', type: 'audio', sourceId: 'altTrack', offsetTicks: 0 }],
                     gain: 1,
                 },
             },
             tracksOrder: [...state.tracksOrder, 'altTrack'],
+            audioCache: {
+                ...state.audioCache,
+                altTrack: { sampleRate: 48_000, channels: 1, durationSeconds: 1, durationSamples: 48_000 },
+            },
         }));
         useTimelineStore.getState().ingestAudioFeatureCache('altTrack', cache);
         const state = useTimelineStore.getState();
@@ -196,7 +203,7 @@ describe('audio feature sampling selectors', () => {
         expect(result.diagnostics.mapperDurationNs).toBeGreaterThan(0);
     });
 
-    it('falls back to legacy sampling when the adapter is disabled', () => {
+    it('keeps clip-aware sampling when the retired adapter toggle is disabled', () => {
         const store = useTimelineStore.getState();
         store.setHybridCacheAdapterEnabled(false, 'test-disable');
         const nextState = useTimelineStore.getState();
@@ -207,7 +214,7 @@ describe('audio feature sampling selectors', () => {
             tick: 120,
         });
         expect(result.sample).toBeDefined();
-        expect(result.diagnostics.fallbackReason).toBe('adapter-disabled');
+        expect(result.diagnostics.fallbackReason).toBeUndefined();
         expect(result.diagnostics.cacheHit).toBe(true);
     });
 });

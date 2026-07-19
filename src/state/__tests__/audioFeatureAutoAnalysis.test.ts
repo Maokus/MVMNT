@@ -36,7 +36,7 @@ describe('timeline audio feature analysis scheduling', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [],
                     gain: 1,
                 },
             },

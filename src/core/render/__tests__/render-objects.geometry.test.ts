@@ -31,11 +31,11 @@ describe('BezierPath render object', () => {
     it('computes bounds for quadratic curves including interior extrema', () => {
         const path = new BezierPath();
         path.setStroke(null, 0);
-        path.setFillColor(null);
+        path.setFill(null);
         path.moveTo(0, 0);
         path.quadraticCurveTo(5, 10, 10, 0);
 
-        const bounds = path.getBounds();
+        const bounds = path.getVisualBounds();
         expect(bounds.x).toBeCloseTo(0, 6);
         expect(bounds.y).toBeCloseTo(0, 6);
         expect(bounds.width).toBeCloseTo(10, 6);
@@ -45,11 +45,11 @@ describe('BezierPath render object', () => {
     it('includes cubic curve interior extrema in bounds', () => {
         const path = new BezierPath();
         path.setStroke(null, 0);
-        path.setFillColor(null);
+        path.setFill(null);
         path.moveTo(0, 0);
         path.bezierCurveTo(100, 150, -100, 150, 0, 0);
 
-        const bounds = path.getBounds();
+        const bounds = path.getVisualBounds();
         const samples = sampleCubic(
             { x: 0, y: 0 },
             { x: 100, y: 150 },
@@ -71,10 +71,10 @@ describe('BezierPath render object', () => {
 
 describe('Arc render object', () => {
     it('computes bounds for quarter-circle arcs', () => {
-        const arc = new Arc(0, 0, 10, 0, Math.PI / 2);
+        const arc = new Arc(0, 0, 10, { startAngle: 0, endAngle: Math.PI / 2 });
         arc.setStroke(null, 0);
-        arc.setFillColor(null);
-        const bounds = arc.getBounds();
+        arc.setFill(null);
+        const bounds = arc.getVisualBounds();
         expect(bounds.x).toBeCloseTo(0, 6);
         expect(bounds.y).toBeCloseTo(0, 6);
         expect(bounds.width).toBeCloseTo(10, 6);
@@ -84,11 +84,11 @@ describe('Arc render object', () => {
     it('accounts for translation when computing bounds', () => {
         const arc = new Arc(0, 0, 5);
         arc.setStroke(null, 0);
-        arc.setFillColor('#FF0000');
+        arc.setFill('#FF0000');
         arc.setAngles(Math.PI / 2, 0, true);
         arc.x = 20;
         arc.y = -10;
-        const bounds = arc.getBounds();
+        const bounds = arc.getVisualBounds();
         expect(bounds.x).toBeCloseTo(20, 6);
         expect(bounds.y).toBeCloseTo(-10, 6);
         expect(bounds.width).toBeCloseTo(5, 6);
@@ -96,10 +96,10 @@ describe('Arc render object', () => {
     });
 
     it('returns full circle bounds when sweep covers entire circle', () => {
-        const arc = new Arc(2, -3, 7, 0, 8 * Math.PI);
+        const arc = new Arc(2, -3, 7, { startAngle: 0, endAngle: 8 * Math.PI });
         arc.setStroke(null, 0);
-        arc.setFillColor('#00FF00');
-        const bounds = arc.getBounds();
+        arc.setFill('#00FF00');
+        const bounds = arc.getVisualBounds();
         expect(bounds.x).toBeCloseTo(2 - 7, 6);
         expect(bounds.y).toBeCloseTo(-3 - 7, 6);
         expect(bounds.width).toBeCloseTo(14, 6);

@@ -1,16 +1,13 @@
 import { useTimelineStore } from '@state/timelineStore';
 import type { AudioCacheEntry } from '@audio/audioTypes';
 import { encodeAudioBufferToWavFloat32 } from '@audio/wav/encode-audio-buffer';
-import { uint8ArrayToBase64 } from '@utils/base64';
 import { sha256Hex } from '@utils/hash/sha256';
 import { serializeStable } from './stable-stringify';
 import { strToU8 } from 'fflate';
 import { AudioAssetStore } from './audio-asset-store';
 import { findReferencedAudioSourceIds, getAudioClipsForTrack } from '@state/timeline/audioClips';
 
-export type AssetStorageMode =
-    | 'zip-package'
-    | /** @deprecated Legacy inline JSON exports are deprecated. Use packaged exports instead. */ 'inline-json';
+export type AssetStorageMode = 'zip-package';
 
 export interface AudioAssetRecord {
     kind: 'original' | 'wav';
@@ -57,15 +54,9 @@ export interface CollectedAudioAssets {
     totalBytes: number;
     warnings: string[];
     missingIds: string[];
-    inlineRejected?: boolean;
-    inlineOversizedAssets?: string[];
 }
 
 export interface CollectAssetsOptions {
-    mode: AssetStorageMode;
-    maxInlineBytes: number;
-    inlineWarnBytes: number;
-    maxInlineAssetBytes: number;
     onProgress?: (value: number, label?: string) => void;
 }
 
@@ -108,23 +99,6 @@ function findCacheIdForReferencedAudioSource(
 ): string {
     if (state.audioCache[sourceId]) {
         return sourceId;
-    }
-
-    for (const [trackId, track] of Object.entries(state.tracks)) {
-        if (!track || track.type !== 'audio') {
-            continue;
-        }
-        const clips = getAudioClipsForTrack(track);
-        if (!clips.some((clip) => clip.sourceId === sourceId)) {
-            continue;
-        }
-        const audioSourceId = track.audioSourceId;
-        if (audioSourceId && state.audioCache[audioSourceId]) {
-            return audioSourceId;
-        }
-        if (state.audioCache[trackId]) {
-            return trackId;
-        }
     }
 
     const hashMatch = unreferencedCacheIds.find((cacheId) => state.audioCache[cacheId]?.originalFile?.hash === sourceId);
@@ -174,7 +148,6 @@ export async function collectAudioAssets(options: CollectAssetsOptions): Promise
     const audioIdMap: Record<string, string> = {};
     const warnings: string[] = [];
     const missingIds: string[] = [];
-    const oversizedInlineAssets: string[] = [];
 
     let processed = 0;
     let totalBytes = 0;
@@ -207,12 +180,6 @@ export async function collectAudioAssets(options: CollectAssetsOptions): Promise
                 channels: entry.channels,
                 durationSamples: entry.durationSamples ?? entry.audioBuffer?.length ?? 0,
             };
-            if (options.mode === 'inline-json') {
-                if (bytes.byteLength > options.maxInlineAssetBytes) {
-                    oversizedInlineAssets.push(audioId);
-                }
-                record.dataBase64 = uint8ArrayToBase64(bytes);
-            }
             audioById[hash] = record;
             assetPayloads.set(hash, { bytes, filename, mimeType });
             totalBytes += bytes.byteLength;
@@ -225,7 +192,7 @@ export async function collectAudioAssets(options: CollectAssetsOptions): Promise
             const peaksArray = entry.waveform.channelPeaks;
             const sampleStep = entry.waveform.sampleStep;
             const channelCount = entry.channels ?? 1;
-            if (options.mode === 'zip-package') {
+            {
                 const assetId = hash;
                 const assetRef = `assets/waveforms/${assetId}/${WAVEFORM_ASSET_FILENAME}`;
                 const valueCount = peaksArray.length;
@@ -255,22 +222,7 @@ export async function collectAudioAssets(options: CollectAssetsOptions): Promise
                     filename: WAVEFORM_BINARY_FILENAME,
                     mimeType: 'application/octet-stream',
                 });
-            } else {
-                waveforms[hash] = {
-                    version: 1,
-                    channelPeaks: Array.from(peaksArray),
-                    sampleStep,
-                    channelCount,
-                };
             }
-        }
-    }
-
-    if (options.mode === 'inline-json') {
-        if (totalBytes > options.inlineWarnBytes) {
-            warnings.push(
-                `Inline audio payload is ${(totalBytes / (1024 * 1024)).toFixed(1)} MB which exceeds the warning threshold.`
-            );
         }
     }
 
@@ -283,7 +235,5 @@ export async function collectAudioAssets(options: CollectAssetsOptions): Promise
         totalBytes,
         warnings,
         missingIds,
-        inlineRejected: options.mode === 'inline-json' && totalBytes > options.maxInlineBytes,
-        inlineOversizedAssets: oversizedInlineAssets.length ? oversizedInlineAssets : undefined,
     };
 }

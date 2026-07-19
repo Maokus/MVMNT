@@ -14,7 +14,7 @@ export const gridAtlas = definePluginElement({
     capabilities: { required: [], optional: [] },
     create(_props, context) { return {
         sheet: context.assets.bundledGridAtlas('sprites.png', { columns: COLUMNS, rows: ROWS, frameDurationMs: 1000 }),
-        media: new VisualMedia(0, 0, 128, 128, { layoutBoundsMode: 'none' }), bounds: new Rectangle(0, 0, 128, 128),
+        media: new VisualMedia(0, 0, 128, 128, { layoutParticipation: 'exclude' }), bounds: new Rectangle(0, 0, 128, 128),
     }; },
     render(props, state) {
         state.bounds.width = props.size; state.bounds.height = props.size;

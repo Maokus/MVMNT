@@ -14,8 +14,8 @@ export const atlasImage = definePluginElement({
     create(_props, context) { return {
         atlas: context.assets.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml'),
         background: context.assets.bundledImage('BOYFRIEND.png'), override: context.assets.project(),
-        media: new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' }),
-        bg: new VisualMedia(0, 0, 200, 200, { layoutBoundsMode: 'none' }), bounds: new Rectangle(0, 0, 200, 200),
+        media: new VisualMedia(0, 0, 200, 200, { layoutParticipation: 'exclude' }),
+        bg: new VisualMedia(0, 0, 200, 200, { layoutParticipation: 'exclude' }), bounds: new Rectangle(0, 0, 200, 200),
     }; },
     render(props, state, time) {
         state.bounds.width = props.width; state.bounds.height = props.height;

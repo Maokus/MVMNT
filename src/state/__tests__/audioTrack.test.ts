@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { useTimelineStore } from '@state/timelineStore';
-import { sharedTimingManager } from '@state/timelineStore';
 
 // Helper to create a dummy AudioBuffer (Web Audio API not fully available in test; use minimal polyfill)
 function makeTestAudioBuffer(durationSeconds: number, sampleRate = 48000, channels = 1): AudioBuffer {
@@ -28,10 +27,7 @@ function makeTestAudioBuffer(durationSeconds: number, sampleRate = 48000, channe
 }
 
 describe('Audio Track', () => {
-    it('adds audio track and computes durationTicks', async () => {
-        const bpm = useTimelineStore.getState().timeline.globalBpm;
-        const ppq = sharedTimingManager.ticksPerQuarter;
-        const ticksPerSecond = (bpm * ppq) / 60;
+    it('adds an audio track with immutable source duration metadata', async () => {
         const buffer = makeTestAudioBuffer(2.5); // 2.5 seconds
         const id = await useTimelineStore.getState().addAudioTrack({ name: 'Audio One', buffer });
         // Ingest happens async microtask; give it a tick
@@ -39,8 +35,7 @@ describe('Audio Track', () => {
         const s = useTimelineStore.getState();
         const cache = s.audioCache[id];
         expect(cache).toBeTruthy();
-        const expectedTicks = Math.round(2.5 * ticksPerSecond);
-        expect(cache.durationTicks).toBe(expectedTicks);
+        expect(cache.durationSeconds).toBeCloseTo(2.5);
         const track = s.tracks[id] as any;
         expect(track.type).toBe('audio');
         expect(track.gain).toBe(1);

@@ -138,28 +138,10 @@ export function publishAnalysisIntent(
     trackRef: string | null,
     descriptors: DescriptorList,
     options?: PublishAnalysisIntentOptions
-): void;
-export function publishAnalysisIntent(
-    elementId: string | null | undefined,
-    elementType: string,
-    trackRef: string | null,
-    profile: string | null,
-    descriptors: DescriptorList
-): void;
-export function publishAnalysisIntent(
-    elementId: string | null | undefined,
-    elementType: string,
-    trackRef: string | null,
-    descriptorsOrProfile: DescriptorList | string | null | undefined,
-    maybeOptionsOrDescriptors?: PublishAnalysisIntentOptions | DescriptorList
 ): void {
     if (!elementId) {
         if (process.env.NODE_ENV !== 'production') {
-            const descriptorCount = Array.isArray(descriptorsOrProfile)
-                ? descriptorsOrProfile.filter(Boolean).length
-                : Array.isArray(maybeOptionsOrDescriptors)
-                ? (maybeOptionsOrDescriptors as DescriptorList).filter(Boolean).length
-                : 0;
+            const descriptorCount = descriptors.filter(Boolean).length;
             console.warn(
                 `[analysisIntents] Dropping publish for element type "${elementType}" because elementId is missing`,
                 {
@@ -170,27 +152,6 @@ export function publishAnalysisIntent(
         }
         return;
     }
-    let descriptors: DescriptorList = [];
-    let options: PublishAnalysisIntentOptions | undefined;
-    const legacySignature =
-        !Array.isArray(descriptorsOrProfile) &&
-        (typeof descriptorsOrProfile === 'string' || descriptorsOrProfile == null) &&
-        Array.isArray(maybeOptionsOrDescriptors);
-
-    if (legacySignature) {
-        descriptors = (maybeOptionsOrDescriptors ?? []) as DescriptorList;
-        options = { profile: descriptorsOrProfile ?? undefined };
-        if (process.env.NODE_ENV !== 'production') {
-            console.warn(
-                '[analysisIntents] publishAnalysisIntent(elementId, type, trackRef, profile, descriptors) is deprecated. ' +
-                    'Pass descriptors as the fourth argument and provide the profile via options.profile.'
-            );
-        }
-    } else {
-        descriptors = (descriptorsOrProfile ?? []) as DescriptorList;
-        options = (maybeOptionsOrDescriptors as PublishAnalysisIntentOptions | undefined) ?? undefined;
-    }
-
     if (!trackRef || !descriptors.length) {
         lastIntentHashes.delete(elementId);
         bus.clear(elementId);

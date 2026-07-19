@@ -116,8 +116,8 @@ const formatChannelSummary = (detail: CacheDescriptorDetail | undefined): string
     if (semantics) {
         parts.push(semantics);
     }
-    if (detail.channelAliases && detail.channelAliases.length) {
-        parts.push(`aliases: ${detail.channelAliases.join(', ')}`);
+    if (detail.channelLayout?.aliases?.length) {
+        parts.push(`aliases: ${detail.channelLayout.aliases.join(', ')}`);
     }
     return parts.length ? parts.join(' · ') : null;
 };

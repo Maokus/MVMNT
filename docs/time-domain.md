@@ -11,12 +11,22 @@ computed through the shared `TimingManager` using the tempo map + global BPM fal
 | Loop Range                    | `transport.loopStartTick`, `transport.loopEndTick`     | Optional; inclusive start, exclusive end semantics for comparisons. |
 | Timeline View Window          | `timelineView.startTick`, `timelineView.endTick`       | UI pan/zoom.                                                        |
 | Playback Range (Scene Bounds) | `playbackRange.startTick`, `playbackRange.endTick`     | Optional explicit scene trimming.                                   |
-| Track Offsets                 | `tracks[id].offsetTicks`                               | Applied additively to note start/end ticks for global position.     |
+| MIDI track offsets            | `tracks[id].offsetTicks`                               | Applied additively to note start/end ticks for global position.     |
 | Notes                         | `note.startTick`, `note.endTick`, `note.durationTicks` | Ingest normalizes to canonical PPQ.                                 |
 | Audio clip placement          | `audioClip.offsetTicks`                                | Musical start of source time zero.                                  |
 | Audio source and clip trim    | `durationSeconds`, `sourceStartSeconds`, `sourceEndSeconds` | Immutable media-time offsets; never tempo-scaled.               |
 
 No seconds (`currentTimeSec`, `loopStartSec`, `offsetSec`, etc.) or beats fields are persisted in state. Beats/seconds are computed on demand.
+
+Audio tracks use clips exclusively. Track-level `offsetTicks`, `regionStartTick`,
+`regionEndTick`, and `audioSourceId` are not part of the runtime or schema V10 model.
+Audio clips keep musical placement in `offsetTicks`, but trims use immutable source time
+(`sourceStartSeconds`/`sourceEndSeconds`). Source cache entries likewise store duration in
+seconds and samples, not tempo-dependent `durationTicks`.
+
+Schema V10 scenes are packaged `.mvt` ZIP files. Export no longer produces inline JSON.
+Import still migrates older scene schemas, including inline assets and tick-based audio trims,
+before V10 validation and hydration.
 
 ## Conversion Flow
 

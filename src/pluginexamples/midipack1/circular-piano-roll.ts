@@ -72,7 +72,9 @@ function drawPolarGrid(
     const laneHeight = (outerRadius - innerRadius) / totalNotes;
     for (let i = 0; i <= totalNotes; i++) {
         const r = innerRadius + i * laneHeight;
-        const separator = new Arc(cx, cy, r, arcStart, arcEnd, false, {
+        const separator = new Arc(cx, cy, r, {
+            startAngle: arcStart,
+            endAngle: arcEnd,
             fillColor: null,
             strokeColor: color,
             strokeWidth: 0.5,
@@ -294,11 +296,15 @@ class CircularPianoRollElement extends CallbackElementRenderer {
 
         const timeline = this.context.timeline;
         if (!timeline) {
-            objects.push(new Text(0, 0, 'Timeline API unavailable', '12px sans-serif', '#64748b', 'left', 'top'));
+            objects.push(new Text(0, 0, 'Timeline API unavailable', '12px sans-serif', {
+                color: '#64748b', align: 'left', baseline: 'top',
+            }));
             return objects;
         }
         if (!p.midiTrackId) {
-            objects.push(new Text(0, 0, 'Select a MIDI track', '14px sans-serif', '#94a3b8', 'left', 'top'));
+            objects.push(new Text(0, 0, 'Select a MIDI track', '14px sans-serif', {
+                color: '#94a3b8', align: 'left', baseline: 'top',
+            }));
             return objects;
         }
 
@@ -406,7 +412,9 @@ class CircularPianoRollElement extends CallbackElementRenderer {
         if (ringMode === 'ring') {
             // Background ring
             if (showRing) {
-                const bg = new Arc(cx, cy, ringRadius, startAngleRad, endAngleRad, false, {
+                const bg = new Arc(cx, cy, ringRadius, {
+                    startAngle: startAngleRad,
+                    endAngle: endAngleRad,
                     fillColor: null,
                     strokeColor: ringColor,
                     strokeWidth: ringWidth,
@@ -446,7 +454,9 @@ class CircularPianoRollElement extends CallbackElementRenderer {
                             arcStrokeWidth = ringWidth * (1 + (PULSE_ANIM.widthScale - 1) * env);
                         }
 
-                        const arc = new Arc(cx, cy, ringRadius, clampedStart, clampedEnd, false, {
+                        const arc = new Arc(cx, cy, ringRadius, {
+                            startAngle: clampedStart,
+                            endAngle: clampedEnd,
                             fillColor: null,
                             strokeColor: noteStrokeColor,
                             strokeWidth: arcStrokeWidth,
@@ -485,8 +495,7 @@ class CircularPianoRollElement extends CallbackElementRenderer {
                     cy + sin * innerR,
                     cx + cos * outerR,
                     cy + sin * outerR,
-                    triggerColor,
-                    2
+                    { color: triggerColor, lineWidth: 2 }
                 );
                 ind.setLayoutParticipation('exclude');
                 objects.push(ind);
@@ -511,7 +520,9 @@ class CircularPianoRollElement extends CallbackElementRenderer {
             if (showRing) {
                 // Draw as a wide arc centred on the midpoint radius
                 const midRadius = (innerRadius + ringRadius) / 2;
-                const bg = new Arc(cx, cy, midRadius, startAngleRad, endAngleRad, false, {
+                const bg = new Arc(cx, cy, midRadius, {
+                    startAngle: startAngleRad,
+                    endAngle: endAngleRad,
                     fillColor: null,
                     strokeColor: ringColor,
                     strokeWidth: radialSpan,
@@ -576,7 +587,9 @@ class CircularPianoRollElement extends CallbackElementRenderer {
                             arcStrokeWidth = arcStrokeWidth * (1 + (PULSE_ANIM.widthScale - 1) * env);
                         }
 
-                        const arc = new Arc(cx, cy, noteRadius, clampedStart, clampedEnd, false, {
+                        const arc = new Arc(cx, cy, noteRadius, {
+                            startAngle: clampedStart,
+                            endAngle: clampedEnd,
                             fillColor: null,
                             strokeColor: noteStrokeColor,
                             strokeWidth: arcStrokeWidth,
@@ -611,7 +624,10 @@ class CircularPianoRollElement extends CallbackElementRenderer {
 
             // Trigger radial line
             if (showTriggerIndicator) {
-                const ind = new Line(triggerInnerX, triggerInnerY, triggerX, triggerY, triggerColor, 2);
+                const ind = new Line(triggerInnerX, triggerInnerY, triggerX, triggerY, {
+                    color: triggerColor,
+                    lineWidth: 2,
+                });
                 ind.setLayoutParticipation('exclude');
                 objects.push(ind);
             }
@@ -619,7 +635,11 @@ class CircularPianoRollElement extends CallbackElementRenderer {
 
         // ── Layout sentinel ──────────────────────────────────────────────────
         const d = ringRadius + ringWidth / 2 + triggerIndicatorLength + 10;
-        const layoutSentinel = new Rectangle(-d, -d, d * 2, d * 2, null, null, 0);
+        const layoutSentinel = new Rectangle(-d, -d, d * 2, d * 2, {
+            fillColor: null,
+            strokeColor: null,
+            strokeWidth: 0,
+        });
         layoutSentinel.setLayoutParticipation('include');
 
         if (bloomRadius > 0) {

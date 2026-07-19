@@ -89,16 +89,16 @@ describe('MIDI clips schema V8 persistence', () => {
             midiCache: { source1: midiCacheEntry() },
         }));
 
-        const exported = await exportScene(undefined, { storage: 'inline-json' });
-        if (!exported.ok || exported.mode !== 'inline-json') throw new Error('Expected inline export');
+        const exported = await exportScene();
+        if (!exported.ok) throw new Error('Expected packaged export');
         const exportedTrack = exported.envelope.timeline.tracks.track1;
 
-        expect(exported.envelope.schemaVersion).toBe(9);
+        expect(exported.envelope.schemaVersion).toBe(10);
         expect(exportedTrack.clips).toHaveLength(2);
         expect(exportedTrack.offsetTicks).toBeUndefined();
         expect(exportedTrack.midiSourceId).toBeUndefined();
 
-        const imported = await importScene(exported.json);
+        const imported = await importScene(exported.zip);
         expect(imported.ok).toBe(true);
         const restoredTrack = useTimelineStore.getState().tracks.track1 as any;
         expect(restoredTrack.clips.map((clip: any) => clip.id)).toEqual(['clip1', 'clip2']);

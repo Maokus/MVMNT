@@ -18,21 +18,32 @@ const ChangelogPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-10">
-                    <ChangelogEntry version="0.15.5" date="13-7-26" notes={[
+                    <ChangelogEntry version="0.16.0" date="21-7-26" notes={[
                         "Overhauled clip timeline",
                         [
                             "Track-clip seperation for both midi and audio (more than one clip per track!)",
                             "Clip selection and manipulation (standard copy, paste, whatnot)",
                             "Clip resolver for same track selection semantics"
                         ],
-                        "Bulk edit keyframe interpolation",
-                        "MIDI Audio synthesized preview",
-                        "Progress bar for audio feature calculation",
-                        "Allow arbitrary time division snapping (joserizzal req)",
-                        "Double click to manually enter tempo values in tempo automation",
-                        "Change duplicate element name behaviour (no more _copy chains, ivlayz req)",
+                        "API 2.0",
+                        [
+                            "Removed API 1.0 support (all elements must be updated to API 2.0)",
+                            "Published mvmnt-app/plugin-sdk and cli helpers to npm",
+                            "Better documented seperation between system internals and plugin API should make vibecoding easier",
+                            "Honestly I don't know how to write this changelog basically the whole thing changed..."
+                        ],
+                        "Features", [
+                            "Bulk edit keyframe interpolation",
+                            "MIDI Audio synthesized preview",
+                            "Progress bar for audio feature calculation",
+                            "Arbitrary time division snapping (joserizzal req)",
+                            "Double click to manually enter tempo values in tempo automation",
+                            "Change duplicate element name behaviour (no more _copy chains, ivlayz req)",
+                        ],
                         "Audio optimisation",
                         [
+                            "Removed deprecated inline scene export, track-level audio placement, and legacy audio sampling paths",
+                            "Audio feature caches now write V4 channelLayout metadata (V3 scenes are migrated on import)",
                             "Moved document audio to indexeddb (halve audio memory usage)",
                             "Removed audio data from undo payloads (deleting an audio track should actually clear memory now)",
                             "Decreased save and export peak memory usage (decreases browser crash and lockup chances)",

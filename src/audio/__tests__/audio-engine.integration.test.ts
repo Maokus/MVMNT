@@ -110,7 +110,6 @@ describe('AudioEngine + TransportCoordinator integration (mocked)', () => {
             tracksOrder: ['audio1'],
             audioCache: {
                 audio1: {
-                    durationTicks: 960,
                     durationSeconds: 1,
                     durationSamples: 44100,
                     sampleRate: 44100,

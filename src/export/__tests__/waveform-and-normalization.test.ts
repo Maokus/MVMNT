@@ -65,7 +65,7 @@ describe('Offline mix normalization', () => {
         const track: any = {
             id: 'aud1',
             type: 'audio',
-            offsetTicks: 0,
+            clips: [{ id: 'clip-aud1', type: 'audio', sourceId: 'aud1', offsetTicks: 0 }],
             gain: 1,
             mute: false,
             solo: false,

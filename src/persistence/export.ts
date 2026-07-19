@@ -17,7 +17,6 @@ import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { usePluginStore } from '@state/pluginStore';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import { PluginBinaryStore } from './plugin-binary-store';
-import { isTestEnvironment } from '@utils/env';
 import iconDataUrl from '@assets/Icon.icns?inline';
 import { sha256Hex } from '@utils/hash/sha256';
 import {
@@ -144,6 +143,10 @@ export interface SceneExportEnvelopeV9 extends Omit<SceneExportEnvelopeV6, 'sche
     schemaVersion: 9;
 }
 
+export interface SceneExportEnvelopeV10 extends Omit<SceneExportEnvelopeV6, 'schemaVersion'> {
+    schemaVersion: 10;
+}
+
 export type SceneExportEnvelope =
     | SceneExportEnvelopeV2
     | SceneExportEnvelopeV4
@@ -151,7 +154,8 @@ export type SceneExportEnvelope =
     | SceneExportEnvelopeV6
     | SceneExportEnvelopeV7
     | SceneExportEnvelopeV8
-    | SceneExportEnvelopeV9;
+    | SceneExportEnvelopeV9
+    | SceneExportEnvelopeV10;
 
 interface AudioFeatureCacheAssetReference {
     assetId: string;
@@ -161,10 +165,6 @@ interface AudioFeatureCacheAssetReference {
 const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 
 export interface ExportSceneOptions {
-    storage?: AssetStorageMode;
-    maxInlineBytes?: number;
-    inlineWarnBytes?: number;
-    maxInlineAssetBytes?: number;
     onProgress?: (value: number, label?: string) => void;
     embedPlugins?: boolean;
     includeLargeAudioFeatureCaches?: boolean;
@@ -175,19 +175,10 @@ interface ExportResultBase {
     warnings: string[];
 }
 
-/** @deprecated Legacy inline JSON export result. */
-export interface ExportSceneResultInline extends ExportResultBase {
-    ok: true;
-    mode: 'inline-json';
-    envelope: SceneExportEnvelopeV9;
-    json: string;
-    blob?: Blob;
-}
-
 export interface ExportSceneResultZip extends ExportResultBase {
     ok: true;
     mode: 'zip-package';
-    envelope: SceneExportEnvelopeV9;
+    envelope: SceneExportEnvelopeV10;
     zip: Uint8Array<ArrayBuffer>;
     blob?: Blob;
 }
@@ -197,11 +188,7 @@ export interface ExportSceneResultFailure extends ExportResultBase {
     errors: { message: string }[];
 }
 
-export type ExportSceneResult = ExportSceneResultInline | ExportSceneResultZip | ExportSceneResultFailure;
-
-const DEFAULT_MAX_INLINE_BYTES = 50 * 1024 * 1024; // 50 MB
-const DEFAULT_INLINE_WARN_BYTES = 25 * 1024 * 1024; // 25 MB
-const DEFAULT_MAX_INLINE_ASSET_BYTES = 10 * 1024 * 1024; // 10 MB
+export type ExportSceneResult = ExportSceneResultZip | ExportSceneResultFailure;
 const DEFAULT_MAX_AUDIO_FEATURE_CACHE_BYTES = 128 * 1024 * 1024;
 
 function buildCompatibilityWarnings(messages: string[]): { warnings: { message: string }[] } | undefined {
@@ -212,9 +199,32 @@ function buildCompatibilityWarnings(messages: string[]): { warnings: { message: 
 function serializeTimelineTracksV8(tracks: Record<string, any>): Record<string, any> {
     const next: Record<string, any> = {};
     for (const [id, track] of Object.entries(tracks || {})) {
-        next[id] = track?.type === 'midi'
-            ? stripLegacyMidiPlacementFields(migrateTimelineTrackMidiClipsV8(track))
-            : track;
+        if (track?.type === 'midi') {
+            next[id] = stripLegacyMidiPlacementFields(migrateTimelineTrackMidiClipsV8(track));
+            continue;
+        }
+        if (track?.type === 'audio') {
+            const {
+                offsetTicks: _offsetTicks,
+                regionStartTick: _regionStartTick,
+                regionEndTick: _regionEndTick,
+                audioSourceId: _audioSourceId,
+                ...audioTrack
+            } = track;
+            next[id] = {
+                ...audioTrack,
+                clips: (Array.isArray(track.clips) ? track.clips : []).map((clip: any) => {
+                    const {
+                        regionStartTick: _clipRegionStartTick,
+                        regionEndTick: _clipRegionEndTick,
+                        ...currentClip
+                    } = clip ?? {};
+                    return currentClip;
+                }),
+            };
+            continue;
+        }
+        next[id] = track;
     }
     return next;
 }
@@ -292,7 +302,7 @@ function base64ToUint8Array(base64: string): Uint8Array {
 
 async function collectPluginDependencies(
     elements: Array<{ type?: string }> | Record<string, { type?: string }> | undefined,
-    options: { embedPlugins: boolean; storage: AssetStorageMode }
+    options: { embedPlugins: boolean }
 ): Promise<{
     dependencies: ScenePluginDependency[];
     pluginAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>;
@@ -356,7 +366,7 @@ async function collectPluginDependencies(
             /* ignore hash failures */
         }
 
-        if (options.embedPlugins && options.storage === 'zip-package') {
+        if (options.embedPlugins) {
             if (bundleBytes) {
                 embedded = true;
                 pluginAssets.set(pluginId, {
@@ -367,8 +377,6 @@ async function collectPluginDependencies(
             } else {
                 warnings.push(`Plugin bundle missing for ${pluginId}; embedding skipped.`);
             }
-        } else if (options.embedPlugins && options.storage !== 'zip-package') {
-            warnings.push('Plugin embedding is only supported for packaged .mvt exports.');
         }
 
         dependencies.push({
@@ -416,17 +424,11 @@ function resolveUniqueFilename(base: string, extension: string, used: Set<string
     return attempt;
 }
 
-function prepareMidiAssets(
-    midiCache: Record<string, any> | undefined,
-    mode: AssetStorageMode
-): {
+function prepareMidiAssets(midiCache: Record<string, any> | undefined): {
     timelineMidiCache: Record<string, any>;
     assetPayloads: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>;
 } {
     const cache = midiCache || {};
-    if (mode !== 'zip-package') {
-        return { timelineMidiCache: cache, assetPayloads: new Map() };
-    }
     const timelineMidiCache: Record<string, any> = {};
     const assetPayloads = new Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>();
     for (const [cacheId, entry] of Object.entries(cache)) {
@@ -551,7 +553,6 @@ function buildZip(
 
 function prepareAudioFeatureCaches(
     caches: Record<string, any> | undefined,
-    mode: AssetStorageMode,
     options: { includeLargeAudioFeatureCaches?: boolean; maxAudioFeatureCacheBytes: number }
 ): {
     timelineCaches: Record<string, SerializedAudioFeatureCache | AudioFeatureCacheAssetReference>;
@@ -619,7 +620,7 @@ function prepareAudioFeatureCaches(
                 continue;
             }
             const serialized = serializeAudioFeatureCache(cache);
-            if (mode === 'zip-package') {
+            {
                 const assetId = encodeURIComponent(sourceId);
                 const assetRef = `assets/audio-features/${assetId}/${AUDIO_FEATURE_ASSET_FILENAME}`;
                 const metadata: SerializedAudioFeatureCache = {
@@ -706,8 +707,6 @@ function prepareAudioFeatureCaches(
                     mimeType: 'application/json',
                 });
                 timelineCaches[sourceId] = { assetId, assetRef };
-            } else {
-                timelineCaches[sourceId] = serialized;
             }
         } catch (error) {
             console.warn('[exportScene] failed to serialize audio feature cache', sourceId, error);
@@ -725,16 +724,6 @@ export async function exportScene(
         options.onProgress?.(Math.max(0, Math.min(1, value)), label);
     };
     reportProgress(0.02, 'Preparing scene…');
-    const storage: AssetStorageMode = options.storage ?? 'zip-package';
-    const preflightWarnings: string[] = [];
-    if (storage === 'inline-json') {
-        const message =
-            'Legacy inline JSON export mode is deprecated. Packaged .mvt exports are recommended for future compatibility.';
-        if (!isTestEnvironment()) {
-            console.warn(`[exportScene] ${message}`);
-        }
-        preflightWarnings.push(message);
-    }
     const doc = DocumentGateway.build();
     const docWarnings: string[] = (doc as any)._warnings ?? [];
     const state = useTimelineStore.getState();
@@ -773,10 +762,6 @@ export async function exportScene(
     }
 
     const collectResult = await collectAudioAssets({
-        mode: storage,
-        maxInlineBytes: options.maxInlineBytes ?? DEFAULT_MAX_INLINE_BYTES,
-        inlineWarnBytes: options.inlineWarnBytes ?? DEFAULT_INLINE_WARN_BYTES,
-        maxInlineAssetBytes: options.maxInlineAssetBytes ?? DEFAULT_MAX_INLINE_ASSET_BYTES,
         onProgress: (progress, label) => reportProgress(0.05 + progress * 0.5, label ?? 'Preparing audio…'),
     });
 
@@ -785,16 +770,9 @@ export async function exportScene(
     reportProgress(0.66, 'Preparing visual assets…');
     const visualResult = await collectVisualAssets();
 
-    const warnings: string[] = [...preflightWarnings, ...docWarnings, ...collectResult.warnings];
+    const warnings: string[] = [...docWarnings, ...collectResult.warnings];
     if (collectResult.missingIds.length) {
         warnings.push(`Audio cache entries missing for: ${collectResult.missingIds.join(', ')}`);
-    }
-    if (collectResult.inlineOversizedAssets?.length) {
-        warnings.push(
-            `Assets ${collectResult.inlineOversizedAssets.join(', ')} exceed the inline size cap of ${Math.round(
-                (options.maxInlineAssetBytes ?? DEFAULT_MAX_INLINE_ASSET_BYTES) / (1024 * 1024)
-            )} MB.`
-        );
     }
     if (fontResult.missing.length) {
         warnings.push(`Font binaries missing for: ${fontResult.missing.join(', ')}`);
@@ -806,25 +784,11 @@ export async function exportScene(
     reportProgress(0.72, 'Preparing plugins…');
     const pluginResult = await collectPluginDependencies(doc.scene?.elements, {
         embedPlugins: options.embedPlugins === true,
-        storage,
     });
     warnings.push(...pluginResult.warnings);
 
-    if (storage === 'inline-json' && collectResult.inlineRejected) {
-        const limitMb = ((options.maxInlineBytes ?? DEFAULT_MAX_INLINE_BYTES) / (1024 * 1024)).toFixed(1);
-        return {
-            ok: false,
-            errors: [
-                {
-                    message: `Inline export exceeds the ${limitMb} MB limit. Use ZIP export instead.`,
-                },
-            ],
-            warnings,
-        };
-    }
-
     const assetsSection: SceneExportEnvelopeV5['assets'] = {
-        storage,
+        storage: 'zip-package',
         createdWith: `mvmnt/${pkg.version ?? 'dev'}`,
         minAppVersion: SCHEMA_TO_MIN_APP_VERSION[CURRENT_SCHEMA_VERSION],
         audio: { byId: collectResult.audioById },
@@ -862,8 +826,8 @@ export async function exportScene(
         }
     }
 
-    const midiAssets = prepareMidiAssets(doc.midiCache, storage);
-    const featureAssets = prepareAudioFeatureCaches(doc.audioFeatureCaches, storage, {
+    const midiAssets = prepareMidiAssets(doc.midiCache);
+    const featureAssets = prepareAudioFeatureCaches(doc.audioFeatureCaches, {
         includeLargeAudioFeatureCaches: options.includeLargeAudioFeatureCaches === true,
         maxAudioFeatureCacheBytes: options.maxAudioFeatureCacheBytes ?? DEFAULT_MAX_AUDIO_FEATURE_CACHE_BYTES,
     });
@@ -889,7 +853,7 @@ export async function exportScene(
         }
     }
 
-    const envelope: SceneExportEnvelopeV9 = {
+    const envelope: SceneExportEnvelopeV10 = {
         schemaVersion: CURRENT_SCHEMA_VERSION,
         format: 'mvmnt.scene',
         metadata,
@@ -924,20 +888,6 @@ export async function exportScene(
         visualAssetRegistry: buildVisualAssetRegistry(),
         compatibility: buildCompatibilityWarnings(warnings),
     };
-
-    if (storage === 'inline-json') {
-        reportProgress(0.92, 'Serializing scene…');
-        const json = serializeStable(envelope);
-        reportProgress(1, 'Scene ready.');
-        return {
-            ok: true,
-            mode: 'inline-json',
-            envelope,
-            json,
-            blob: createBlob([json], 'application/json'),
-            warnings,
-        };
-    }
 
     let zip: Uint8Array<ArrayBuffer>;
     try {

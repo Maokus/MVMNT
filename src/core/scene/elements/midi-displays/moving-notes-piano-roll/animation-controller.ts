@@ -108,7 +108,7 @@ export class MovingNotesAnimationController {
 
             if (!animationEnabled) {
                 const rect = new Rectangle(x, y, width, noteHeight, { fillColor: color });
-                (rect as any).setIncludeInLayoutBounds?.(false);
+                rect.setLayoutParticipation('exclude');
                 renderObjects.push(rect);
                 continue;
             }

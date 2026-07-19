@@ -124,13 +124,14 @@ const rmsDescriptor: AudioFeatureDescriptor = {
 
 - `AudioFeatureTrack.channelLayout` mirrors the runtime contract by exposing optional alias arrays
   and semantics (e.g., `'stereo'`, `'mid-side'`).【F:src/audio/features/audioFeatureTypes.ts†L42-L88】
-- Calculators populate `channelLayout.aliases` alongside legacy `channelAliases` so downstream
-  consumers can migrate gradually.
+- Calculators populate `channelLayout.aliases`; runtime feature tracks and caches no longer expose
+  a parallel `channelAliases` field.
 - Sampling utilities (`getFeatureData`, `sampleFeatureHistory`) now return full channel vectors.
   Scene elements pick the desired channel index at render time using the metadata attached to the
   cache or track.
-- Cache-level `channelAliases` remain available for backwards compatibility and continue to
-  describe the canonical ordering when per-track metadata is missing.
+- Cache-level `channelLayout` describes the canonical ordering when per-track metadata is missing.
+  The V3 deserializer maps old `channelAliases` payloads into this field, while serialization always
+  emits cache format V4 without aliases at the top level.
 
 ### Match Keys and Deduplication
 

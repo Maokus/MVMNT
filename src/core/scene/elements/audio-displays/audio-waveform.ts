@@ -239,7 +239,12 @@ function renderWaveformSeries(values: number[], options: RenderWaveformSeriesOpt
 function renderWaveformLine(points: { x: number; y: number }[], options: RenderWaveformSeriesOptions) {
     const strokeWidth = Math.max(0, options.lineWidth);
     const linePoints = points.length === 1 ? [...points, { ...points[0], x: points[0].x + 0.001 }] : points;
-    const poly = new Poly(linePoints, null, options.color, strokeWidth, { includeInLayoutBounds: false });
+    const poly = new Poly(linePoints, {
+        fillColor: null,
+        strokeColor: options.color,
+        strokeWidth,
+        layoutParticipation: 'exclude',
+    });
     poly.setClosed(false).setLineJoin('round').setLineCap('round');
     options.objects.push(poly);
 }
@@ -262,7 +267,10 @@ function renderWaveformBars(points: { x: number; y: number }[], options: RenderW
 function renderWaveformDots(points: { x: number; y: number }[], options: RenderWaveformSeriesOptions) {
     const radius = Math.max(0.5, options.lineWidth / 2);
     points.forEach(({ x, y }) => {
-        const dot = new Arc(x, y, radius, 0, Math.PI * 2, false, {
+        const dot = new Arc(x, y, radius, {
+            startAngle: 0,
+            endAngle: Math.PI * 2,
+            anticlockwise: false,
             fillColor: options.color,
             strokeColor: '#FFFFFF00',
         });
@@ -585,10 +593,12 @@ export class AudioWaveformElement extends SceneElement {
                     { x: 0, y: centerY },
                     { x: width, y: centerY },
                 ],
-                null,
-                primaryColor,
-                Math.max(1, lineWidth),
-                { includeInLayoutBounds: false }
+                {
+                    fillColor: null,
+                    strokeColor: primaryColor,
+                    strokeWidth: Math.max(1, lineWidth),
+                    layoutParticipation: 'exclude',
+                }
             );
             line.setClosed(false).setLineJoin('round').setLineCap('round');
             objects.push(line);
@@ -700,10 +710,12 @@ export class AudioWaveformElement extends SceneElement {
                     { x: playheadX, y: 0 },
                     { x: playheadX, y: height },
                 ],
-                null,
-                primaryColor,
-                Math.max(1, lineWidth),
-                { includeInLayoutBounds: false }
+                {
+                    fillColor: null,
+                    strokeColor: primaryColor,
+                    strokeWidth: Math.max(1, lineWidth),
+                    layoutParticipation: 'exclude',
+                }
             );
             playheadLine.setClosed(false).setLineJoin('round').setLineCap('round');
             objects.push(playheadLine);

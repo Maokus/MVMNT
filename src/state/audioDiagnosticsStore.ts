@@ -49,7 +49,6 @@ interface RequirementDiagnostic {
 export interface CacheDescriptorDetail {
     descriptor: AudioFeatureDescriptor;
     channelCount: number | null;
-    channelAliases: string[] | null;
     channelLayout: ChannelLayoutMeta | null;
     analysisProfileId: string | null;
 }
@@ -176,13 +175,10 @@ function resolveAudioSourceId(trackRef: string, state: Pick<TimelineState, 'trac
 }
 
 function resolveAudioSourceIds(trackRef: string, state: Pick<TimelineState, 'tracks'>): string[] {
-    const track = state.tracks[trackRef] as { id: string; type: string; audioSourceId?: string } | undefined;
+    const track = state.tracks[trackRef];
     if (track && track.type === 'audio') {
-        if (Array.isArray((track as any).clips)) {
-            const ids = getAudioTrackSourceIds(track as any);
-            if (ids.length) return ids;
-        }
-        return [track.audioSourceId ?? track.id];
+        const ids = getAudioTrackSourceIds(track);
+        return ids.length ? ids : [trackRef];
     }
     return [trackRef];
 }
@@ -284,23 +280,21 @@ interface CachedDescriptorInfo {
     requestKey: string;
     profileOverridesHash: string | null;
     channelCount: number | null;
-    channelAliases: string[] | null;
     channelLayout: ChannelLayoutMeta | null;
 }
 
 function resolveChannelMetadata(
     featureTrack:
-        | { channels?: number; channelAliases?: string[] | null; channelLayout?: ChannelLayoutMeta | null }
+        | { channels?: number; channelLayout?: ChannelLayoutMeta | null }
         | undefined,
     cache: AudioFeatureCache | undefined
-): { channelCount: number | null; channelAliases: string[] | null; channelLayout: ChannelLayoutMeta | null } {
+): { channelCount: number | null; channelLayout: ChannelLayoutMeta | null } {
     if (!featureTrack) {
-        return { channelCount: null, channelAliases: null, channelLayout: null };
+        return { channelCount: null, channelLayout: null };
     }
     const channelCount = Number.isFinite(featureTrack.channels) ? Number(featureTrack.channels) : null;
-    const layout = featureTrack.channelLayout ?? null;
-    const aliases = layout?.aliases ?? featureTrack.channelAliases ?? cache?.channelAliases ?? null;
-    return { channelCount, channelAliases: aliases ?? null, channelLayout: layout };
+    const layout = featureTrack.channelLayout ?? cache?.channelLayout ?? null;
+    return { channelCount, channelLayout: layout };
 }
 
 function collectCachedDescriptorInfos(cache: AudioFeatureCache | undefined): CachedDescriptorInfo[] {
@@ -337,7 +331,6 @@ function collectCachedDescriptorInfos(cache: AudioFeatureCache | undefined): Cac
             requestKey,
             profileOverridesHash,
             channelCount: meta.channelCount,
-            channelAliases: meta.channelAliases,
             channelLayout: meta.channelLayout,
         });
     }
@@ -360,7 +353,6 @@ function createDescriptorDetail(
     return {
         descriptor,
         channelCount: overrides?.channelCount ?? meta.channelCount,
-        channelAliases: overrides?.channelAliases ?? meta.channelAliases,
         channelLayout: overrides?.channelLayout ?? meta.channelLayout,
         analysisProfileId: profileId,
     };
@@ -529,7 +521,6 @@ function computeCacheDiffs(
             if (!descriptorDetails[info.requestKey]) {
                 const cachedDetail = createDescriptorDetail(info.descriptor, cache, info.profileId, {
                     channelCount: info.channelCount,
-                    channelAliases: info.channelAliases,
                     channelLayout: info.channelLayout,
                 });
                 if (cachedDetail) {
@@ -668,7 +659,6 @@ function computeCacheDiffs(
             for (const info of infos) {
                 const detail = createDescriptorDetail(info.descriptor, cache, info.profileId, {
                     channelCount: info.channelCount,
-                    channelAliases: info.channelAliases,
                     channelLayout: info.channelLayout,
                 });
                 if (detail) {

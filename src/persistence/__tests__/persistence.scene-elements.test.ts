@@ -81,11 +81,9 @@ describe('Scene element + macro persistence', () => {
             keyframe: createKeyframe(120, 100),
         });
 
-        const res = await exportScene(undefined, { storage: 'inline-json' });
+        const res = await exportScene();
         expect(res.ok).toBe(true);
-        if (!res.ok || res.mode !== 'inline-json') {
-            throw new Error('Expected inline-json export for automation regression test');
-        }
+        if (!res.ok) throw new Error('Expected packaged export for automation regression test');
 
         expect(res.envelope.scene.automation?.channels['el1.offsetX']?.keyframes).toHaveLength(2);
     });

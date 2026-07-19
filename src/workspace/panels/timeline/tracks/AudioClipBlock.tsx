@@ -322,8 +322,6 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
                         sourceId: c?.sourceId ?? '',
                         sourceStartSeconds: c?.sourceStartSeconds,
                         sourceEndSeconds: c?.sourceEndSeconds,
-                        regionStartTick: c?.regionStartTick,
-                        regionEndTick: c?.regionEndTick,
                     };
                 })
                 .filter((p) => !!p.sourceId);
@@ -389,8 +387,6 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
                         sourceStartSeconds={previewSourceBounds.startSeconds}
                         sourceEndSeconds={previewSourceBounds.endSeconds}
                         sourceDurationSeconds={audioCacheEntry?.durationSeconds}
-                        regionStartTick={localStartTick}
-                        regionEndTick={localEndTick}
                         height={clipHeight - 4}
                         regionStartTickAbs={absStartTick}
                         regionEndTickAbs={absEndTick}

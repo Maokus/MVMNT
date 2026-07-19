@@ -61,7 +61,6 @@ describe('audio decoded residency', () => {
             ...state,
             audioCache: {
                 staleSource: {
-                    durationTicks: 960,
                     durationSeconds: 1,
                     durationSamples: 100,
                     sampleRate: 44100,

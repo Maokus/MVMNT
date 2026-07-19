@@ -53,7 +53,7 @@ describe('audio diagnostics store', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [],
                     gain: 1,
                 },
             },
@@ -80,7 +80,7 @@ describe('audio diagnostics store', () => {
         const detail = diff.descriptorDetails[descriptorKey];
         expect(detail.descriptor.featureKey).toBe('spectrogram');
         expect(detail.channelCount).toBeNull();
-        expect(detail.channelAliases).toBeNull();
+        expect(detail.channelLayout).toBeNull();
         expect(detail.channelLayout).toBeNull();
         expect(detail.analysisProfileId).toBe('default');
     });
@@ -95,7 +95,7 @@ describe('audio diagnostics store', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [],
                     gain: 1,
                 },
             },
@@ -150,7 +150,7 @@ describe('audio diagnostics store', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [],
                     gain: 1,
                 },
             },
@@ -223,7 +223,7 @@ describe('audio diagnostics store', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [],
                     gain: 1,
                 },
             },
@@ -263,7 +263,7 @@ describe('audio diagnostics store', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [],
                     gain: 1,
                 },
             },
@@ -331,7 +331,7 @@ describe('audio diagnostics store', () => {
         const detail = diff?.descriptorDetails[descriptorKey];
         expect(detail).toBeDefined();
         expect(detail?.channelCount).toBe(2);
-        expect(detail?.channelAliases).toEqual(['Left', 'Right']);
+        expect(detail?.channelLayout?.aliases).toEqual(['Left', 'Right']);
         expect(detail?.channelLayout?.semantics).toBe('stereo');
         expect(detail?.analysisProfileId).toBe('default');
     });
@@ -346,7 +346,7 @@ describe('audio diagnostics store', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [],
                     gain: 1,
                 },
                 linkedTrack: {
@@ -356,9 +356,8 @@ describe('audio diagnostics store', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [{ id: 'linkedClip', type: 'audio', sourceId: 'sourceTrack', offsetTicks: 0 }],
                     gain: 1,
-                    audioSourceId: 'sourceTrack',
                 },
             },
             tracksOrder: ['sourceTrack', 'linkedTrack'],
@@ -403,7 +402,7 @@ describe('audio diagnostics store', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [],
                     gain: 1,
                 },
             },
@@ -505,7 +504,7 @@ describe('audio diagnostics store', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [],
                     gain: 1,
                 },
             },
@@ -606,9 +605,8 @@ describe('audio diagnostics store', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [{ id: 'audioClip', type: 'audio', sourceId: 'audioSource', offsetTicks: 0 }],
                     gain: 1,
-                    audioSourceId: 'audioSource',
                 },
             },
             tracksOrder: ['audioTrack'],
@@ -687,7 +685,6 @@ describe('audio diagnostics store', () => {
                         [extraneousKey]: {
                             descriptor: descriptor as any,
                             channelCount: 1,
-                            channelAliases: null,
                             channelLayout: null,
                             analysisProfileId: 'adhoc-profile',
                         },
@@ -717,7 +714,7 @@ describe('audio diagnostics store', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [],
                     gain: 1,
                 },
             },
@@ -796,7 +793,7 @@ describe('audio diagnostics store', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [],
                     gain: 1,
                 },
             },

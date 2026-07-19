@@ -288,8 +288,6 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
                                       type: 'audio',
                                       sourceId: preview.sourceId,
                                       offsetTicks: preview.previewOffsetTicks,
-                                      regionStartTick: preview.regionStartTick,
-                                      regionEndTick: preview.regionEndTick,
                                       sourceStartSeconds: (preview as any).sourceStartSeconds,
                                       sourceEndSeconds: (preview as any).sourceEndSeconds,
                                   }, createTimingContext(timelineTiming));

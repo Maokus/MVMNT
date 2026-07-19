@@ -511,7 +511,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         // Add an invisible rectangle that establishes the layout bounds to roughly cover the content area
         // This prevents jitter when other decorative elements toggle or animations change.
         const layoutBoundsRect = new Rectangle(0, 0, totalWidth, totalHeight, { fillColor: null });
-        (layoutBoundsRect as any).setIncludeInLayoutBounds?.(true);
+        layoutBoundsRect.setLayoutParticipation('include');
         // No fill/stroke, so it's not drawn, but it contributes to layout bounds via getBounds().
         renderObjects.push(layoutBoundsRect);
 
@@ -609,7 +609,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             (animatedRenderObjects as any[]).forEach((obj) => {
                 if (!obj) return;
                 // Animation-generated objects should not affect layout bounds
-                (obj as any).setIncludeInLayoutBounds?.(false);
+                obj.setLayoutParticipation('exclude');
                 if (typeof obj.setCornerRadius === 'function' && noteCornerRadius > 0) {
                     obj.setCornerRadius(noteCornerRadius);
                 }
@@ -728,7 +728,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 playheadColor as string
             );
             (ph as any[]).forEach((l) => {
-                (l as any).setIncludeInLayoutBounds?.(false);
+                l.setLayoutParticipation('exclude');
             });
             renderObjects.push(...ph);
         }
@@ -770,7 +770,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 });
                 lbl.rotation = -Math.PI / 2;
             }
-            (lbl as any).setIncludeInLayoutBounds?.(false);
+            lbl.setLayoutParticipation('exclude');
             renderObjects.push(lbl);
         }
 
@@ -794,7 +794,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         for (let i = 0; i <= maxNote - minNote; i++) {
             const y = i * noteHeight;
             const ln = new Line(x1, y, x2, y, { color: '#333333', lineWidth: 1 });
-            (ln as any).setIncludeInLayoutBounds?.(false);
+            ln.setLayoutParticipation('exclude');
             lines.push(ln);
         }
         return lines;
@@ -822,7 +822,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 color: isBar ? '#666666' : '#444444',
                 lineWidth: isBar ? 2 : 1,
             });
-            (ln as any).setIncludeInLayoutBounds?.(false);
+            ln.setLayoutParticipation('exclude');
             lines.push(ln);
         }
         return lines;
@@ -847,7 +847,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 align: 'right',
                 baseline: 'middle',
             });
-            (label as any).setIncludeInLayoutBounds?.(false);
+            label.setLayoutParticipation('exclude');
             labels.push(label);
         }
         return labels;
@@ -872,7 +872,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             const x = pianoWidth + rel * rollWidth;
             const bar = b.barNumber;
             const label = new Text(x + 5, -5, `Bar ${bar}`, '12px Arial', { color: '#ffffff', baseline: 'bottom' });
-            (label as any).setIncludeInLayoutBounds?.(false);
+            label.setLayoutParticipation('exclude');
             labels.push(label);
         }
 

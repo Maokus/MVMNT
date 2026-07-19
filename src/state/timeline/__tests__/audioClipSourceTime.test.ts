@@ -8,7 +8,6 @@ describe('audio clip source-time timing', () => {
         source: {
             durationSeconds: 3,
             durationSamples: 144000,
-            durationTicks: 5760,
             sampleRate: 48000,
             channels: 1,
         },

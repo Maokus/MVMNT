@@ -281,8 +281,12 @@ function applySetTrackOffset(
     setState((state) => {
         const track = state.tracks[payload.trackId];
         if (!track) return state;
-        const previousOffset = (track as any).offsetTicks ?? 0;
-        const nextTrack: any = { ...track, offsetTicks: payload.offsetTicks };
+        const previousOffset = track.type === 'audio'
+            ? (track.clips[0]?.offsetTicks ?? 0)
+            : (track.offsetTicks ?? 0);
+        const nextTrack: any = track.type === 'audio'
+            ? { ...track }
+            : { ...track, offsetTicks: payload.offsetTicks };
         if ((nextTrack.type === 'midi' || nextTrack.type === 'audio') && Array.isArray(nextTrack.clips)) {
             if (nextTrack.clips.length === 1) {
                 nextTrack.clips = [{ ...nextTrack.clips[0], offsetTicks: payload.offsetTicks }];

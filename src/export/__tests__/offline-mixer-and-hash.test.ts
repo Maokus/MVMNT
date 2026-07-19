@@ -53,7 +53,7 @@ describe('Offline mixer & reproducibility hash', () => {
             enabled: true,
             mute: false,
             solo: false,
-            offsetTicks: 0,
+            clips: [{ id: 'clip-a1', type: 'audio', sourceId: 'a1', offsetTicks: 0 }],
             gain: 1,
         } as any;
         const audioCache = {
@@ -105,9 +105,7 @@ describe('Offline mixer & reproducibility hash', () => {
             a1: {
                 id: 'a1',
                 type: 'audio',
-                offsetTicks: 10,
-                regionStartTick: 0,
-                regionEndTick: 1000,
+                clips: [{ id: 'clip-a1', type: 'audio', sourceId: 'a1', offsetTicks: 10, sourceStartSeconds: 0, sourceEndSeconds: 1 }],
                 gain: 1,
                 mute: false,
                 solo: false,
@@ -143,7 +141,7 @@ describe('Offline mixer & reproducibility hash', () => {
             enabled: true,
             mute: false,
             solo: false,
-            offsetTicks: 0,
+            clips: [{ id: 'clip-resample1', type: 'audio', sourceId: 'resample1', offsetTicks: 0 }],
             gain: 1,
         } as any;
         const audioCache = {

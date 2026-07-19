@@ -4,7 +4,7 @@ import type { TimelineState } from '@state/timelineStore';
 import {
     enforceNonOverlappingAudioClips,
     findReferencedAudioSourceIds,
-    getAudioClipLocalBounds,
+    getAudioClipSourceBounds,
     getAudioClipTimelineBounds,
     getAudioClipsForTrack,
     getPrimaryAudioClip,
@@ -12,208 +12,134 @@ import {
 } from '../audioClips';
 import { createTimingContext } from '@state/timelineTime';
 
-function cacheFor(durationTicks: number): TimelineState['audioCache'] {
+function cacheFor(durationSeconds = 1): TimelineState['audioCache'] {
     return {
         sourceA: {
-            durationTicks,
-            sampleRate: 48000,
+            sampleRate: 48_000,
             channels: 2,
-            durationSeconds: 1,
-            durationSamples: 48000,
+            durationSeconds,
+            durationSamples: durationSeconds * 48_000,
         },
         sourceB: {
-            durationTicks: 480,
-            sampleRate: 48000,
+            sampleRate: 48_000,
             channels: 2,
             durationSeconds: 0.5,
-            durationSamples: 24000,
+            durationSamples: 24_000,
         },
     };
 }
 
+const timing = createTimingContext({ globalBpm: 120, beatsPerBar: 4 });
+
+function trackWith(clips: AudioClip[]): AudioTrack {
+    return {
+        id: 'track1',
+        name: 'Track',
+        type: 'audio',
+        enabled: true,
+        mute: false,
+        solo: false,
+        gain: 1,
+        clips,
+    };
+}
+
 describe('audio clip helpers', () => {
-    it('adapts legacy audio track placement to a stable synthetic clip', () => {
-        const track: AudioTrack = {
-            id: 'track1',
-            name: 'Legacy',
-            type: 'audio',
-            enabled: true,
-            mute: false,
-            solo: false,
-            gain: 1,
-            offsetTicks: 240,
-            regionStartTick: 120,
-            regionEndTick: 960,
-            audioSourceId: 'sourceA',
-        };
-
-        expect(getAudioClipsForTrack(track)).toEqual([
-            {
-                id: 'track1__legacy_audio_clip',
-                type: 'audio',
-                sourceId: 'sourceA',
-                offsetTicks: 240,
-                regionStartTick: 120,
-                regionEndTick: 960,
-                name: 'Legacy',
-                enabled: true,
-            },
-        ]);
-    });
-
-    it('passes through real clips and returns the first enabled clip as primary', () => {
+    it('uses clips as the only audio-track placement model', () => {
         const clips: AudioClip[] = [
             { id: 'disabled', type: 'audio', sourceId: 'sourceA', offsetTicks: 0, enabled: false },
             { id: 'enabled', type: 'audio', sourceId: 'sourceB', offsetTicks: 480 },
         ];
-        const track: AudioTrack = {
-            id: 'track1',
-            name: 'Track',
-            type: 'audio',
-            enabled: true,
-            mute: false,
-            solo: false,
-            gain: 1,
-            clips,
-        };
+        const track = trackWith(clips);
 
         expect(getAudioClipsForTrack(track)).toBe(clips);
         expect(getPrimaryAudioClip(track)?.id).toBe('enabled');
     });
 
-    it('computes local and timeline clip bounds from cache and regions', () => {
-        const cache = cacheFor(900);
+    it('computes source-time trims and derives timeline bounds from timing', () => {
+        const cache = cacheFor(1);
         const clip: AudioClip = {
             id: 'clip1',
             type: 'audio',
             sourceId: 'sourceA',
-            offsetTicks: 2000,
-            regionStartTick: 200,
-            regionEndTick: 700,
+            offsetTicks: 1920,
+            sourceStartSeconds: 0.25,
+            sourceEndSeconds: 0.75,
         };
 
-        expect(getAudioClipLocalBounds(cache, clip)).toEqual({ startTick: 200, endTick: 700 });
-        expect(getAudioClipTimelineBounds(cache, clip)).toEqual({ startTick: 2200, endTick: 2700 });
+        expect(getAudioClipSourceBounds(cache, clip)).toEqual({ startSeconds: 0.25, endSeconds: 0.75 });
+        expect(getAudioClipTimelineBounds(cache, clip, timing)).toEqual({ startTick: 2400, endTick: 3360 });
     });
 
-    it('finds all audio source ids referenced by legacy and real clips', () => {
+    it('finds every source referenced by clips', () => {
         const state = {
             tracks: {
-                legacy: {
-                    id: 'legacy',
-                    name: 'Legacy',
-                    type: 'audio',
-                    enabled: true,
-                    mute: false,
-                    solo: false,
-                    gain: 1,
-                    audioSourceId: 'sourceA',
-                    offsetTicks: 0,
-                },
-                modern: {
-                    id: 'modern',
-                    name: 'Modern',
-                    type: 'audio',
-                    enabled: true,
-                    mute: false,
-                    solo: false,
-                    gain: 1,
-                    clips: [{ id: 'clip2', type: 'audio', sourceId: 'sourceB', offsetTicks: 0 }],
-                },
+                first: trackWith([{ id: 'a', type: 'audio', sourceId: 'sourceA', offsetTicks: 0 }]),
+                second: { ...trackWith([{ id: 'b', type: 'audio', sourceId: 'sourceB', offsetTicks: 0 }]), id: 'second' },
             },
         } as unknown as TimelineState;
 
         expect([...findReferencedAudioSourceIds(state)].sort()).toEqual(['sourceA', 'sourceB']);
     });
 
-    it('crops and removes overlapping clips around an edited clip', () => {
-        const cache = cacheFor(100);
-        const track: AudioTrack = {
-            id: 'track1',
-            name: 'Track',
-            type: 'audio',
-            enabled: true,
-            mute: false,
-            solo: false,
-            gain: 1,
-            clips: [
-                { id: 'left', type: 'audio', sourceId: 'sourceA', offsetTicks: 0 },
-                { id: 'covered', type: 'audio', sourceId: 'sourceA', offsetTicks: 120 },
-                { id: 'right', type: 'audio', sourceId: 'sourceA', offsetTicks: 180 },
-            ],
-        };
+    it('crops and removes overlapping clips using source seconds', () => {
+        const cache = cacheFor(1);
+        const track = trackWith([
+            { id: 'left', type: 'audio', sourceId: 'sourceA', offsetTicks: 0 },
+            { id: 'covered', type: 'audio', sourceId: 'sourceA', offsetTicks: 1200, sourceEndSeconds: 0.5 },
+            { id: 'right', type: 'audio', sourceId: 'sourceA', offsetTicks: 2400 },
+        ]);
         const edited: AudioClip = {
             id: 'edited',
             type: 'audio',
             sourceId: 'sourceA',
-            offsetTicks: 60,
-            regionStartTick: 0,
-            regionEndTick: 200,
+            offsetTicks: 960,
+            sourceEndSeconds: 1,
         };
 
-        const resolved = resolveAudioClipOverlapWithCache(track, edited, cache);
+        const resolved = resolveAudioClipOverlapWithCache(track, edited, cache, timing);
 
         expect(resolved.map((clip) => clip.id)).toEqual(['left', 'edited', 'right']);
-        expect(resolved.find((clip) => clip.id === 'left')?.regionEndTick).toBe(60);
-        expect(resolved.find((clip) => clip.id === 'right')?.regionStartTick).toBe(80);
+        expect(resolved.find((clip) => clip.id === 'left')?.sourceEndSeconds).toBeCloseTo(0.5);
+        expect(resolved.find((clip) => clip.id === 'right')?.sourceStartSeconds).toBeCloseTo(0.25);
     });
 
     it('enforces non-overlap from earliest to latest clip', () => {
-        const cache = cacheFor(100);
-        const track: AudioTrack = {
-            id: 'track1',
-            name: 'Track',
-            type: 'audio',
-            enabled: true,
-            mute: false,
-            solo: false,
-            gain: 1,
-            clips: [
-                { id: 'a', type: 'audio', sourceId: 'sourceA', offsetTicks: 0 },
-                { id: 'b', type: 'audio', sourceId: 'sourceA', offsetTicks: 50 },
-            ],
-        };
+        const cache = cacheFor(1);
+        const track = trackWith([
+            { id: 'a', type: 'audio', sourceId: 'sourceA', offsetTicks: 0 },
+            { id: 'b', type: 'audio', sourceId: 'sourceA', offsetTicks: 960 },
+        ]);
 
-        const resolved = enforceNonOverlappingAudioClips(track, cache);
+        const resolved = enforceNonOverlappingAudioClips(track, cache, timing);
 
         expect(resolved.map((clip) => clip.id)).toEqual(['a', 'b']);
-        expect(resolved[0].regionEndTick).toBe(50);
+        expect(resolved[0].sourceEndSeconds).toBeCloseTo(0.5);
     });
 
-    it('trims in source seconds when resolving overlap across a tempo change', () => {
-        const cache = {
-            sourceA: {
-                durationTicks: 3840,
-                durationSeconds: 4,
-                durationSamples: 192000,
-                sampleRate: 48000,
-                channels: 2,
-            },
-        } as TimelineState['audioCache'];
-        const timing = createTimingContext({
+    it('trims in source seconds across a tempo change', () => {
+        const cache = cacheFor(4);
+        const variableTiming = createTimingContext({
             globalBpm: 120,
             beatsPerBar: 4,
             masterTempoMap: [{ time: 0, bpm: 120 }, { time: 2, bpm: 60 }],
         });
-        const track: AudioTrack = {
-            id: 'track1', name: 'Track', type: 'audio', enabled: true, mute: false, solo: false, gain: 1,
-            clips: [
-                { id: 'left', type: 'audio', sourceId: 'sourceA', offsetTicks: 0 },
-                { id: 'right', type: 'audio', sourceId: 'sourceA', offsetTicks: 3600 },
-            ],
-        };
+        const track = trackWith([
+            { id: 'left', type: 'audio', sourceId: 'sourceA', offsetTicks: 0 },
+            { id: 'right', type: 'audio', sourceId: 'sourceA', offsetTicks: 3600 },
+        ]);
         const edited: AudioClip = {
             id: 'edited', type: 'audio', sourceId: 'sourceA', offsetTicks: 2880,
             sourceStartSeconds: 0, sourceEndSeconds: 0.75,
         };
 
-        const resolved = resolveAudioClipOverlapWithCache(track, edited, cache, timing);
+        const resolved = resolveAudioClipOverlapWithCache(track, edited, cache, variableTiming);
         const left = resolved.find((clip) => clip.id === 'left')!;
         const right = resolved.find((clip) => clip.id === 'right')!;
 
         expect(left.sourceEndSeconds).toBeCloseTo(1.5, 5);
         expect(right.sourceStartSeconds).toBeCloseTo(0.375, 5);
-        expect(getAudioClipTimelineBounds(cache, left, timing)?.endTick).toBe(2880);
-        expect(getAudioClipTimelineBounds(cache, right, timing)?.startTick).toBe(4080);
+        expect(getAudioClipTimelineBounds(cache, left, variableTiming)?.endTick).toBe(2880);
+        expect(getAudioClipTimelineBounds(cache, right, variableTiming)?.startTick).toBe(4080);
     });
 });

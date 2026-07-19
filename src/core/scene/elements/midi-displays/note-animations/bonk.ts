@@ -14,7 +14,12 @@ export class BonkAnimation extends BaseNoteAnimation {
         const info = `${(progress * 100).toFixed(0)}%`;
         
         let master = new EmptyRenderObject(x, y);
-        let mainCircle = new Arc(0,0,height,0,Math.PI*2,false,{fillColor: color, strokeColor: 'transparent'});
+        let mainCircle = new Arc(0, 0, height, {
+            startAngle: 0,
+            endAngle: Math.PI * 2,
+            fillColor: color,
+            strokeColor: 'transparent',
+        });
         master.addChild(mainCircle);
 
         const initialAccentProgress = new af.FloatCurve([

@@ -60,14 +60,13 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
                 tempoProjection,
                 format: 'float32',
                 data,
-                channelAliases,
                 channelLayout: { aliases: channelAliases, semantics: 'multi-channel' },
                 analysisProfileId: defaultProfile,
             },
         },
         analysisProfiles,
         defaultAnalysisProfileId: defaultProfile,
-        channelAliases,
+        channelLayout: { aliases: channelAliases, semantics: 'multi-channel' },
     };
 }
 
@@ -101,11 +100,14 @@ describe('audio feature export parity', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [{ id: 'audioClip', type: 'audio', sourceId: 'audioTrack', offsetTicks: 0 }],
                     gain: 1,
                 },
             },
             tracksOrder: ['audioTrack'],
+            audioCache: {
+                audioTrack: { sampleRate: 48_000, channels: 3, durationSeconds: 1, durationSamples: 48_000 },
+            },
         }));
 
         useTimelineStore.getState().ingestAudioFeatureCache('audioTrack', cache);
@@ -136,7 +138,7 @@ describe('audio feature export parity', () => {
             runtimeVectors.push([...(runtimeSample?.values ?? [])]);
             expect(runtimeSample?.channels).toBe(rmsTrack.channels);
             expect(runtimeSample?.channelValues.length).toBe(rmsTrack.channels);
-            expect(runtimeSample?.channelAliases).toEqual(rmsTrack.channelAliases);
+            expect(runtimeSample?.channelLayout).toEqual(rmsTrack.channelLayout);
 
             const state = useTimelineStore.getState();
             const selectorSample = selectAudioFeatureFrame(state, 'audioTrack', 'rms', tm.secondsToTicks(time));
@@ -144,7 +146,7 @@ describe('audio feature export parity', () => {
             selectorVectors.push([...(selectorSample?.values ?? [])]);
             expect(selectorSample?.channels).toBe(rmsTrack.channels);
             expect(selectorSample?.channelValues.length).toBe(rmsTrack.channels);
-            expect(selectorSample?.channelAliases).toEqual(rmsTrack.channelAliases);
+            expect(selectorSample?.channelLayout).toEqual(rmsTrack.channelLayout);
             expect(selectorSample?.channelValues).toEqual(runtimeSample?.channelValues);
         }
 

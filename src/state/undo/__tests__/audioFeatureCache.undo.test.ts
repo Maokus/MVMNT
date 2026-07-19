@@ -66,12 +66,12 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
                 format: 'waveform-minmax',
                 data: { min: new Float32Array(frameCount).fill(-0.25), max: new Float32Array(frameCount).fill(0.25) },
                 analysisProfileId: 'default',
-                channelAliases: null,
+                channelLayout: null,
             },
         },
         analysisProfiles: { default: analysisProfile },
         defaultAnalysisProfileId: 'default',
-        channelAliases: undefined,
+        channelLayout: undefined,
     };
 }
 

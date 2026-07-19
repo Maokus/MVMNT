@@ -22,6 +22,8 @@ describe('track offset consistency (ticks only)', () => {
             await s().setTrackOffsetTicks(id, oneBarTicks);
         });
         const tr = s().tracks[id];
+        expect(tr.type).toBe('midi');
+        if (tr.type !== 'midi') throw new Error('Expected MIDI track');
         expect(tr.offsetTicks).toBe(oneBarTicks);
     });
 
@@ -36,6 +38,8 @@ describe('track offset consistency (ticks only)', () => {
                 await s().setTrackOffsetTicks(id, ticks);
             });
             const tr = s().tracks[id];
+            expect(tr.type).toBe('midi');
+            if (tr.type !== 'midi') throw new Error('Expected MIDI track');
             expect(tr.offsetTicks).toBe(ticks);
         }
     });

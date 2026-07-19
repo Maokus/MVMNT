@@ -56,13 +56,16 @@ describe('Tick-domain transport: looping, bpm change consistency, offsets', () =
         const api = useTimelineStore.getState();
         // Add MIDI track with zero offset
         const trackId = await api.addMidiTrack({ name: 'Offset Test' });
-        const ticksBefore = useTimelineStore.getState().tracks[trackId].offsetTicks || 0;
+        const before = useTimelineStore.getState().tracks[trackId];
+        if (before.type !== 'midi') throw new Error('Expected MIDI track');
+        const ticksBefore = before.offsetTicks || 0;
         expect(ticksBefore).toBe(0);
         // Set offset to 2 beats
         const offsetBeats = 2;
         const offsetTicks = offsetBeats * TPQ;
         await api.setTrackOffsetTicks(trackId, offsetTicks);
         const tr = useTimelineStore.getState().tracks[trackId];
+        if (tr.type !== 'midi') throw new Error('Expected MIDI track');
         expect(tr.offsetTicks).toBe(offsetTicks);
         // Derived seconds should match beats * secondsPerBeat (120 bpm => 0.5 sec/beat)
         const secondsPerBeat = 60 / useTimelineStore.getState().timeline.globalBpm;

@@ -1,9 +1,9 @@
-import { RenderObject, RenderConfig, Bounds, type LayoutParticipation } from './base';
+import { RenderObject, RenderConfig, Bounds, type RenderObjectOptions } from './base';
 import { applyShadow, clearShadow, applyDash, clearDash } from './style-helpers';
 
 type LineCap = CanvasLineCap; // 'butt' | 'round' | 'square'
 
-export interface LineOptions {
+export interface LineOptions extends RenderObjectOptions {
     color?: string;
     lineWidth?: number;
     lineCap?: LineCap;
@@ -13,9 +13,6 @@ export interface LineOptions {
     shadowBlur?: number;
     shadowOffsetX?: number;
     shadowOffsetY?: number;
-    layoutParticipation?: LayoutParticipation;
-    /** @deprecated Use layoutParticipation. */
-    includeInLayoutBounds?: boolean;
 }
 
 export class Line extends RenderObject {
@@ -31,32 +28,25 @@ export class Line extends RenderObject {
     shadowOffsetX: number;
     shadowOffsetY: number;
 
-    constructor(x1: number, y1: number, x2: number, y2: number, options?: LineOptions);
-    /** @deprecated Pass style properties via the options object. */
-    constructor(x1: number, y1: number, x2: number, y2: number, color: string, lineWidth?: number, options?: LineOptions);
     constructor(
         x1: number,
         y1: number,
         x2: number,
         y2: number,
-        colorOrOptions?: string | LineOptions,
-        lineWidth?: number,
-        options?: LineOptions
+        options: LineOptions = {}
     ) {
-        const isOpts = typeof colorOrOptions === 'object' && colorOrOptions !== null;
-        const opts: LineOptions = isOpts ? (colorOrOptions as LineOptions) : (options ?? {});
-        super(x1, y1, 1, 1, 1, opts);
+        super(x1, y1, 1, 1, 1, options);
         this.deltaX = x2 - x1;
         this.deltaY = y2 - y1;
-        this.color = isOpts ? (opts.color ?? '#FFFFFF') : ((colorOrOptions as string | undefined) ?? '#FFFFFF');
-        this.lineWidth = isOpts ? (opts.lineWidth ?? 1) : (lineWidth ?? 1);
-        this.lineCap = opts.lineCap ?? 'butt';
-        this.lineDash = opts.lineDash ?? [];
-        this.lineDashOffset = opts.lineDashOffset ?? 0;
-        this.shadowColor = opts.shadowColor ?? null;
-        this.shadowBlur = opts.shadowBlur ?? 0;
-        this.shadowOffsetX = opts.shadowOffsetX ?? 0;
-        this.shadowOffsetY = opts.shadowOffsetY ?? 0;
+        this.color = options.color ?? '#FFFFFF';
+        this.lineWidth = options.lineWidth ?? 1;
+        this.lineCap = options.lineCap ?? 'butt';
+        this.lineDash = options.lineDash ?? [];
+        this.lineDashOffset = options.lineDashOffset ?? 0;
+        this.shadowColor = options.shadowColor ?? null;
+        this.shadowBlur = options.shadowBlur ?? 0;
+        this.shadowOffsetX = options.shadowOffsetX ?? 0;
+        this.shadowOffsetY = options.shadowOffsetY ?? 0;
     }
 
     protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _time: number): void {

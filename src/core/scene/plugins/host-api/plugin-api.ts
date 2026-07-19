@@ -380,7 +380,6 @@ function adaptPluginCalculator(plugin: PluginAudioCalculator): InternalAudioFeat
                 format: result.format,
                 data: result.data,
                 channelLayout: result.channelLayout ?? null,
-                channelAliases: result.channelLayout?.aliases ?? null,
                 analysisProfileId: ctx.analysisProfileId,
             };
         },
@@ -566,52 +565,7 @@ export function createPluginHostServices(
                 const state = timelineStore.getState();
                 const track = state.tracks[trackId];
                 if (!track || track.type !== 'audio') return null;
-                if (isModernAudioClipTrack(track)) {
-                    return getClipRawSamples(state, trackId, startSec, endSec, channel, signal);
-                }
-                const sourceId = track.audioSourceId ?? track.id;
-                const entry = state.audioCache[sourceId];
-                if (!entry) return null;
-                const { audioBuffer } = entry;
-                if (!audioBuffer) return null;
-                const sampleRate = audioBuffer.sampleRate;
-                // Convert timeline seconds to audio-file-local seconds, accounting for track offset and region trim.
-                const timingCtx = createTimingContext(state.timeline);
-                const trackOffsetTicks = track.offsetTicks ?? 0;
-                const regionStartTick = track.regionStartTick ?? 0;
-                const rawStartTick = secondsToTicks(timingCtx, startSec);
-                const rawEndTick = secondsToTicks(timingCtx, endSec);
-                if (rawStartTick === null || rawEndTick === null) return null;
-                const fileStartSec = ticksToSeconds(timingCtx, rawStartTick - trackOffsetTicks + regionStartTick);
-                const fileEndSec = ticksToSeconds(timingCtx, rawEndTick - trackOffsetTicks + regionStartTick);
-                if (fileStartSec === null || fileEndSec === null) return null;
-                const startSample = Math.max(0, Math.floor(fileStartSec * sampleRate));
-                const endSample = Math.min(audioBuffer.length, Math.ceil(fileEndSec * sampleRate));
-                if (endSample <= startSample) return null;
-                const count = endSample - startSample;
-                const numChannels = audioBuffer.numberOfChannels;
-                if (channel === 'mono') {
-                    const result = new Float32Array(count);
-                    for (let ch = 0; ch < numChannels; ch++) {
-                        const data = audioBuffer.getChannelData(ch);
-                        for (let i = 0; i < count; i++) {
-                            if ((i & 0x3fff) === 0 && signal?.aborted) return null;
-                            result[i] += data[startSample + i] ?? 0;
-                        }
-                    }
-                    if (numChannels > 1) {
-                        for (let i = 0; i < count; i++) result[i] /= numChannels;
-                    }
-                    return result;
-                }
-                const chIdx =
-                    channel === 'left'
-                        ? 0
-                        : channel === 'right'
-                          ? Math.min(1, numChannels - 1)
-                          : Math.max(0, Math.min(numChannels - 1, channel));
-                if (signal?.aborted) return null;
-                return audioBuffer.getChannelData(chIdx).slice(startSample, endSample);
+                return getClipRawSamples(state, trackId, startSec, endSec, channel, signal);
             },
             getRmsInWindow({ trackId, startSec, endSec }) {
                 if (!hasAudioRawRead || !timelineStore) return null;
@@ -619,54 +573,14 @@ export function createPluginHostServices(
                 const state = timelineStore.getState();
                 const track = state.tracks[trackId];
                 if (!track || track.type !== 'audio') return null;
-                if (isModernAudioClipTrack(track)) {
-                    return getClipRmsInWindow(state, trackId, startSec, endSec);
-                }
-                const sourceId = track.audioSourceId ?? track.id;
-                const entry = state.audioCache[sourceId];
-                if (!entry) return null;
-                const { audioBuffer } = entry;
-                if (!audioBuffer) return null;
-                const sampleRate = audioBuffer.sampleRate;
-                // Convert timeline seconds to audio-file-local seconds, accounting for track offset and region trim.
-                const timingCtx = createTimingContext(state.timeline);
-                const trackOffsetTicks = track.offsetTicks ?? 0;
-                const regionStartTick = track.regionStartTick ?? 0;
-                const rawStartTick = secondsToTicks(timingCtx, startSec);
-                const rawEndTick = secondsToTicks(timingCtx, endSec);
-                if (rawStartTick === null || rawEndTick === null) return null;
-                const fileStartSec = ticksToSeconds(timingCtx, rawStartTick - trackOffsetTicks + regionStartTick);
-                const fileEndSec = ticksToSeconds(timingCtx, rawEndTick - trackOffsetTicks + regionStartTick);
-                if (fileStartSec === null || fileEndSec === null) return null;
-                const startSample = Math.max(0, Math.floor(fileStartSec * sampleRate));
-                const endSample = Math.min(audioBuffer.length, Math.ceil(fileEndSec * sampleRate));
-                if (endSample <= startSample) return null;
-                const count = endSample - startSample;
-                const numChannels = audioBuffer.numberOfChannels;
-                const result = new Float32Array(numChannels);
-                for (let ch = 0; ch < numChannels; ch++) {
-                    const data = audioBuffer.getChannelData(ch);
-                    let sumSquares = 0;
-                    for (let i = startSample; i < endSample; i++) {
-                        const s = data[i] ?? 0;
-                        sumSquares += s * s;
-                    }
-                    result[ch] = Math.sqrt(sumSquares / count);
-                }
-                return result;
+                return getClipRmsInWindow(state, trackId, startSec, endSec);
             },
             getSampleRate({ trackId }) {
                 if (!hasAudioRawRead || !timelineStore) return null;
                 const state = timelineStore.getState();
                 const track = state.tracks[trackId];
                 if (!track || track.type !== 'audio') return null;
-                if (isModernAudioClipTrack(track)) {
-                    return getClipRawSampleRate(state, trackId);
-                }
-                const sourceId = track.audioSourceId ?? track.id;
-                const entry = state.audioCache[sourceId];
-                if (!entry?.audioBuffer) return null;
-                return entry.audioBuffer.sampleRate;
+                return getClipRawSampleRate(state, trackId);
             },
         },
         timing: {

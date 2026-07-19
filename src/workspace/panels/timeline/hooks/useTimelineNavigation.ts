@@ -6,6 +6,7 @@ import { type QuantizeSetting } from '@state/timeline/quantize';
 import { zoomAround, getContentEndTick, isEditableTarget } from '../utils/timelineNavUtils';
 import { getMidiClipTimelineBounds, getMidiClipsForTrack } from '@state/timeline/midiClips';
 import { getAudioClipTimelineBounds, getAudioClipsForTrack } from '@state/timeline/audioClips';
+import { createTimelineTimingContext } from '@state/timeline/timelineShared';
 import {
     copyTimelineSelectionToClipboard,
     getTimelineClipDuplicateDestination,
@@ -46,6 +47,7 @@ export function useTimelineNavigation() {
 
         let minTick = Infinity,
             maxTick = -Infinity;
+        const timing = createTimelineTimingContext(state);
 
         for (const id of selectedIds) {
             const track = state.tracks[id] as any;
@@ -63,7 +65,7 @@ export function useTimelineNavigation() {
             } else if (track.type === 'audio') {
                 for (const clip of getAudioClipsForTrack(track)) {
                     if (clip.enabled === false) continue;
-                    const bounds = getAudioClipTimelineBounds(state.audioCache, clip);
+                    const bounds = getAudioClipTimelineBounds(state.audioCache, clip, timing);
                     if (bounds) {
                         minTick = Math.min(minTick, bounds.startTick);
                         maxTick = Math.max(maxTick, bounds.endTick);
@@ -98,7 +100,7 @@ export function useTimelineNavigation() {
                 const bounds =
                     kind === 'midi'
                         ? getMidiClipTimelineBounds(state.midiCache, clip as any)
-                        : getAudioClipTimelineBounds(state.audioCache, clip as any);
+                        : getAudioClipTimelineBounds(state.audioCache, clip as any, timing);
                 if (bounds) {
                     minTick = Math.min(minTick, bounds.startTick);
                     maxTick = Math.max(maxTick, bounds.endTick);

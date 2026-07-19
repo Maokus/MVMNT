@@ -53,7 +53,7 @@ export class ExplodeAnimation extends BaseNoteAnimation {
                 let renderObjs: RenderObject[] = [];
 
                 let burst = new EmptyRenderObject();
-                (burst as any).setIncludeInLayoutBounds?.(false);
+                burst.setLayoutParticipation('exclude');
                 for (let i = 0; i < objs.length; i++) {
                     let renderObj;
                     if (objs[i].shape == 0) {
@@ -71,11 +71,11 @@ export class ExplodeAnimation extends BaseNoteAnimation {
                         renderObj = new Rectangle(0, 0, 20, 10);
                         renderObj.fillColor = color;
                     }
-                    let objBounds = renderObj.getBounds();
+                    let objBounds = renderObj.getVisualBounds();
                     renderObj.x = -objBounds.width / 2;
                     renderObj.y = -objBounds.height / 2;
                     let parent = new EmptyRenderObject();
-                    (parent as any).setIncludeInLayoutBounds?.(false);
+                    parent.setLayoutParticipation('exclude');
                     parent.addChild(renderObj);
                     parent.x = af.lerp(x, objs[i].endX, easingFunctions.easeOutExpo(progress));
                     parent.y = af.lerp(y, objs[i].endY, easingFunctions.easeOutExpo(progress));

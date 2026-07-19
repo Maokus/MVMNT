@@ -1,4 +1,4 @@
-import { RenderObject, type Bounds, type LayoutParticipation } from './base';
+import { RenderObject, type Bounds, type RenderObjectOptions } from './base';
 
 /**
  * Abstract base for render objects with a known rectangular extent (width × height).
@@ -17,11 +17,7 @@ export abstract class BoxRenderObject extends RenderObject {
         y: number,
         width: number,
         height: number,
-        options?: {
-            layoutParticipation?: LayoutParticipation;
-            /** @deprecated compatibility only. Use layoutParticipation. */
-            includeInLayoutBounds?: boolean | undefined;
-        }
+        options?: RenderObjectOptions
     ) {
         super(x, y, 1, 1, 1, options);
         this.width = Math.max(0, width);

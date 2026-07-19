@@ -54,7 +54,6 @@ describe('clip-aware raw audio reads', () => {
             audioCache: {
                 a: {
                     durationSeconds: 3,
-                    durationTicks: 5760,
                     sampleRate,
                     channels: 1,
                     durationSamples: sampleRate * 3,
@@ -74,8 +73,18 @@ describe('clip-aware raw audio reads', () => {
         const sampleRate = 100_000;
         const state = {
             timeline: { globalBpm: 120, beatsPerBar: 4 },
-            tracks: { audio: { id: 'audio', type: 'audio', audioSourceId: 'source', offsetTicks: 0, regionStartTick: 0 } },
-            audioCache: { source: { audioBuffer: buffer(0.25, sampleRate) } },
+            tracks: {
+                audio: {
+                    id: 'audio', type: 'audio', name: 'Audio', enabled: true, mute: false, solo: false, gain: 1,
+                    clips: [{ id: 'clip', type: 'audio', sourceId: 'source', offsetTicks: 0 }],
+                },
+            },
+            audioCache: {
+                source: {
+                    audioBuffer: buffer(0.25, sampleRate), durationSeconds: 3,
+                    durationSamples: sampleRate * 3, sampleRate, channels: 1,
+                },
+            },
         } as any;
         const host = createPluginHostServices({ timelineStore: { getState: () => state } }).services;
         let checks = 0;

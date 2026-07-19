@@ -67,6 +67,10 @@ export interface AudioCalculatorResult {
     readonly channels: number;
     readonly format: 'float32' | 'uint8';
     readonly data: Float32Array | Uint8Array;
+    readonly channelLayout?: Readonly<{
+        aliases?: readonly string[];
+        semantics?: string;
+    }>;
 }
 
 export interface AudioCalculator {

@@ -399,7 +399,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
         {
             const totalHeight = (maxNote - minNote + 1) * noteHeight;
             const layoutRect = new Rectangle(0, 0, effectivePianoWidth + rollWidth, totalHeight, { fillColor: null });
-            (layoutRect as any).setIncludeInLayoutBounds?.(true);
+            layoutRect.setLayoutParticipation('include');
             renderObjects.push(layoutRect);
         }
 
@@ -414,7 +414,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                 playheadOffset as number
             );
             (ph as any[]).forEach((l) => {
-                (l as any).setIncludeInLayoutBounds?.(false);
+                l.setLayoutParticipation('exclude');
             });
             renderObjects.push(...ph);
         }

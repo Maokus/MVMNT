@@ -408,7 +408,6 @@ export function createPitchGuideCalculator({
                     yinWindowSize,
                     sampleRate,
                 },
-                channelAliases: ['f0', 'confidence', 'rms', 'anchorSec', 'candidateF0'],
                 channelLayout: { aliases: ['f0', 'confidence', 'rms', 'anchorSec', 'candidateF0'] },
                 analysisProfileId: context.analysisProfileId,
             };

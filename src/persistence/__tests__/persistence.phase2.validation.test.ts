@@ -2,21 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { exportScene, importScene } from '../index';
 import { serializeStable } from '../stable-stringify';
 import { validateSceneEnvelope } from '../validate';
-import type { ExportSceneResultInline } from '../export';
-
-async function exportInlineScene(): Promise<ExportSceneResultInline> {
-    const result = await exportScene(undefined, { storage: 'inline-json' });
-    if (!result.ok || result.mode !== 'inline-json') {
-        throw new Error('Expected inline-json export result');
-    }
-    return result;
-}
 
 // Helper to produce a minimal valid envelope baseline to mutate
-async function makeValidEnvelope() {
-    const exp = await exportInlineScene();
+async function makeValidEnvelope(): Promise<any> {
+    const exp = await exportScene();
     if (!exp.ok) throw new Error('Export failed during validation tests');
-    return JSON.parse(exp.json);
+    return structuredClone(exp.envelope);
 }
 
 describe('Persistence validation extended', () => {
@@ -135,6 +126,34 @@ describe('Persistence validation extended', () => {
         const overlap = structuredClone(env);
         overlap.timeline.tracks.track1.clips.push({ id: 'clip2', type: 'midi', sourceId: 'source1', offsetTicks: 100 });
         expect(validateSceneEnvelope(overlap).errors[0].code).toBe('ERR_MIDI_CLIP_OVERLAP');
+    });
+
+    it('requires the V10 clips-only, source-time audio shape', async () => {
+        const env = await makeValidEnvelope();
+        env.timeline.tracks = {
+            audio1: {
+                id: 'audio1', name: 'Audio', type: 'audio', enabled: true, mute: false, solo: false, gain: 1,
+                clips: [{ id: 'clip1', type: 'audio', sourceId: 'source1', offsetTicks: 0, sourceStartSeconds: 0.25, sourceEndSeconds: 1 }],
+            },
+        };
+        env.timeline.tracksOrder = ['audio1'];
+        expect(validateSceneEnvelope(env).ok).toBe(true);
+
+        const trackLegacy = structuredClone(env);
+        trackLegacy.timeline.tracks.audio1.audioSourceId = 'source1';
+        expect(validateSceneEnvelope(trackLegacy).errors[0].code).toBe('ERR_AUDIO_LEGACY_FIELD');
+
+        const clipLegacy = structuredClone(env);
+        clipLegacy.timeline.tracks.audio1.clips[0].regionStartTick = 120;
+        expect(validateSceneEnvelope(clipLegacy).errors[0].code).toBe('ERR_AUDIO_LEGACY_FIELD');
+
+        const invalidTrim = structuredClone(env);
+        invalidTrim.timeline.tracks.audio1.clips[0].sourceEndSeconds = 0.1;
+        expect(validateSceneEnvelope(invalidTrim).errors[0].code).toBe('ERR_AUDIO_CLIP_SHAPE');
+
+        const inline = structuredClone(env);
+        inline.assets.storage = 'inline-json';
+        expect(validateSceneEnvelope(inline).ok).toBe(false);
     });
 
     it('allows repeated object references that are not circular', () => {

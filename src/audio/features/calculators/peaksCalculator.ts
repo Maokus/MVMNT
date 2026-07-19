@@ -128,7 +128,6 @@ export function createPeaksCalculator({
                     hopSize: peaksHopSamples,
                     oversampleFactor: PEAKS_OVERSAMPLE_FACTOR,
                 },
-                channelAliases: aliases,
                 channelLayout: semantics ? { aliases, semantics } : { aliases },
                 analysisProfileId: context.analysisProfileId,
             };

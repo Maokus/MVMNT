@@ -389,7 +389,7 @@ export class MIDIVisualizerCore {
                 if (ros && ros.length) {
                     const container: any = ros[0];
                     if (container?.getBounds) {
-                        const b = container.getBounds();
+                        const b = container.getVisualBounds();
                         if (b && isFinite(b.x) && isFinite(b.y) && isFinite(b.width) && isFinite(b.height)) {
                             const corners = container._worldCorners
                                 ? container._worldCorners.map((p: any) => ({ x: p.x, y: p.y }))

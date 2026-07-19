@@ -23,7 +23,7 @@ export abstract class BaseNoteAnimation {
     // Helper to mark all returned render objects as non-layout by default
     protected markNonLayout<T extends RenderObject>(objs: T[] | null | undefined): T[] {
         if (!objs) return [] as T[];
-        for (const o of objs) (o as any).setIncludeInLayoutBounds?.(false);
+        for (const object of objs) object.setLayoutParticipation('exclude');
         return objs;
     }
 

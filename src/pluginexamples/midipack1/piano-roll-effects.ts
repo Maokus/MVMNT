@@ -126,7 +126,11 @@ export function drawDiamondMarker(
     scale: number
 ): RenderObject[] {
     const s = (size / 2) * scale;
-    const d = new Poly([cx, cy - s, cx + s, cy, cx, cy + s, cx - s, cy], withAlpha(color, alpha), null, 0);
+    const d = new Poly([cx, cy - s, cx + s, cy, cx, cy + s, cx - s, cy], {
+        fillColor: withAlpha(color, alpha),
+        strokeColor: null,
+        strokeWidth: 0,
+    });
     d.setLayoutParticipation('exclude');
     return [d];
 }
@@ -140,7 +144,9 @@ export function drawHeartMarker(
     scale: number
 ): RenderObject[] {
     const fontSize = Math.max(10, Math.round(size * scale));
-    const t = new Text(cx, cy, '❤', `bold ${fontSize}px sans-serif`, withAlpha(color, alpha), 'center', 'middle');
+    const t = new Text(cx, cy, '❤', `bold ${fontSize}px sans-serif`, {
+        color: withAlpha(color, alpha), align: 'center', baseline: 'middle',
+    });
     t.setLayoutParticipation('exclude');
     return [t];
 }
@@ -155,7 +161,9 @@ export function drawTextMarker(
     scale: number
 ): RenderObject[] {
     const fontSize = Math.max(10, Math.round(size * 0.8 * scale));
-    const t = new Text(cx, cy, label, `bold ${fontSize}px sans-serif`, withAlpha(color, alpha), 'center', 'middle');
+    const t = new Text(cx, cy, label, `bold ${fontSize}px sans-serif`, {
+        color: withAlpha(color, alpha), align: 'center', baseline: 'middle',
+    });
     t.setLayoutParticipation('exclude');
     return [t];
 }
@@ -180,7 +188,9 @@ export function drawCircleRipple(
     const alpha = anim.remap(fadeFrom, 1, 1, 0, progress);
     if (alpha <= 0) return [];
     const radius = rippleRadius * (startFraction + (endFraction - startFraction) * anim.easings.easeOutCubic(progress));
-    const ring = new Arc(cx, cy, radius, 0, Math.PI * 2, false, {
+    const ring = new Arc(cx, cy, radius, {
+        startAngle: 0,
+        endAngle: Math.PI * 2,
         fillColor: null,
         strokeColor: withAlpha(color, alpha),
         strokeWidth,
@@ -275,8 +285,7 @@ export function drawLineBurstRipple(
             cy + sin * inner,
             cx + cos * outer,
             cy + sin * outer,
-            rayColor,
-            strokeWidth
+            { color: rayColor, lineWidth: strokeWidth }
         );
         line.setLayoutParticipation('exclude');
         out.push(line);

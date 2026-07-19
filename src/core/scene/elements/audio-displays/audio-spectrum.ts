@@ -298,10 +298,8 @@ export class AudioSpectrumElement extends SceneElement {
                     props.height / 2,
                     message,
                     '12px Inter, sans-serif',
-                    '#94a3b8',
-                    'left',
-                    'middle'
-                ).setIncludeInLayoutBounds(false)
+                    { color: '#94a3b8', align: 'left', baseline: 'middle' }
+                ).setLayoutParticipation('exclude')
             );
             return objects;
         };
@@ -372,7 +370,12 @@ export class AudioSpectrumElement extends SceneElement {
             if (points.length === 1) {
                 points.push({ ...points[0] });
             }
-            const poly = new Poly(points, null, drawColor, shapeThickness, { includeInLayoutBounds: false });
+            const poly = new Poly(points, {
+                fillColor: null,
+                strokeColor: drawColor,
+                strokeWidth: shapeThickness,
+                layoutParticipation: 'exclude',
+            });
             poly.setClosed(false).setLineJoin('round').setLineCap('round');
             poly.blendMode = blendMode === 'source-over' ? null : blendMode;
             objects.push(poly);
@@ -383,11 +386,14 @@ export class AudioSpectrumElement extends SceneElement {
             normalized.forEach((ratio, index) => {
                 const x = binCenter(index);
                 const y = peakY(ratio);
-                const arc = new Arc(x, y, radius, 0, Math.PI * 2, false, {
+                const arc = new Arc(x, y, radius, {
+                    startAngle: 0,
+                    endAngle: Math.PI * 2,
+                    anticlockwise: false,
                     fillColor: drawColor,
                     strokeColor: '#FFFFFF00',
                 });
-                arc.setIncludeInLayoutBounds(false);
+                arc.setLayoutParticipation('exclude');
                 if (blendMode !== 'source-over') arc.blendMode = blendMode;
                 objects.push(arc);
             });

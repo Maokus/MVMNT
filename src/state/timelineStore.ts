@@ -443,7 +443,6 @@ async function rehydrateAudioSourceInternal(
     }));
     try {
         const buffer = await decodeAudioBytes(bytes);
-        const durationTicks = Math.round(buffer.duration * CANONICAL_PPQ * 2);
         set((current: TimelineState) => {
             const existing = current.audioCache[id];
             if (!existing) return current;
@@ -453,7 +452,6 @@ async function rehydrateAudioSourceInternal(
                     [id]: {
                         ...existing,
                         audioBuffer: buffer,
-                        durationTicks,
                         sampleRate: buffer.sampleRate,
                         channels: buffer.numberOfChannels,
                         durationSeconds: buffer.duration,
@@ -1283,9 +1281,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         options?: { originalFile?: AudioCacheOriginalFile; waveform?: AudioCacheWaveform; skipAutoAnalysis?: boolean }
     ) {
         cancelActiveAudioFeatureJob(id);
-        // Compute duration in ticks using shared timing manager (position-aware for tempo maps)
         try {
-            const durationTicks = Math.round(buffer.duration * CANONICAL_PPQ * 2);
             set((s: TimelineState) => {
                 const existingTrack = s.tracks[id] as AudioTrack | undefined;
                 const updates: Partial<TimelineState> = {
@@ -1293,7 +1289,6 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                         ...s.audioCache,
                         [id]: {
                             audioBuffer: buffer,
-                            durationTicks,
                             sampleRate: buffer.sampleRate,
                             channels: buffer.numberOfChannels,
                             durationSeconds: buffer.duration,
@@ -1310,20 +1305,19 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                                   ...s.tracks,
                                   [id]: {
                                       ...existingTrack,
-                                      audioSourceId: id,
                                       clips:
-                                          Array.isArray(existingTrack.clips) && existingTrack.clips.length === 0
+                                          (existingTrack.clips?.length ?? 0) === 0
                                               ? [
                                                     {
                                                         id: `${id}__audio_clip`,
                                                         type: 'audio',
                                                         sourceId: id,
-                                                        offsetTicks: existingTrack.offsetTicks ?? 0,
+                                                        offsetTicks: 0,
                                                         name: existingTrack.name,
                                                         enabled: true,
                                                     },
                                                 ]
-                                              : existingTrack.clips,
+                                              : existingTrack.clips ?? [],
                                   },
                               }
                             : s.tracks,
@@ -1436,14 +1430,15 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     ingestAudioFeatureCache(id: string, cache: AudioFeatureCache) {
         cancelActiveAudioFeatureJob(id);
-        if (cache.version !== 3) {
+        if (cache.version !== 3 && cache.version !== 4) {
             throw new Error(`Unsupported audio feature cache version: ${cache.version}`);
         }
         const normalized: AudioFeatureCache = {
             ...cache,
+            version: 4,
             featureTracks: { ...cache.featureTracks },
             analysisProfiles: cache.analysisProfiles ? { ...cache.analysisProfiles } : undefined,
-            channelAliases: cache.channelAliases ? cache.channelAliases.slice() : undefined,
+            channelLayout: cache.channelLayout ? { ...cache.channelLayout, aliases: cache.channelLayout.aliases?.slice() } : cache.channelLayout,
         };
         const sourceHash = computeFeatureCacheSourceHash(normalized);
         set((s: TimelineState) => ({

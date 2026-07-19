@@ -55,7 +55,6 @@ describe('audio-spectrum element', () => {
                         values,
                         channelValues: [values],
                         channels: 1,
-                        channelAliases: null,
                         channelLayout: null,
                         frameIndex: 0,
                         fractionalIndex: 0,
@@ -63,7 +62,6 @@ describe('audio-spectrum element', () => {
                         format: 'float32',
                     },
                     channels: 1,
-                    channelAliases: null,
                     channelLayout: null,
                 },
             }))
@@ -99,7 +97,6 @@ describe('audio-spectrum element', () => {
                     values: new Array(8).fill(-40),
                     channelValues: [new Array(8).fill(-40)],
                     channels: 1,
-                    channelAliases: null,
                     channelLayout: null,
                     frameIndex: 0,
                     fractionalIndex: 0,
@@ -107,7 +104,6 @@ describe('audio-spectrum element', () => {
                     format: 'float32',
                 },
                 channels: 1,
-                channelAliases: null,
                 channelLayout: null,
             },
         });

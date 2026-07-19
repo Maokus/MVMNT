@@ -1,8 +1,8 @@
 import type { AudioFeatureTrack } from './audioFeatureTypes';
 
 export interface TrackChannelConfig {
-    track?: Pick<AudioFeatureTrack, 'channelAliases' | 'channels'> | null;
-    cacheAliases?: string[] | null;
+    track?: Pick<AudioFeatureTrack, 'channelLayout' | 'channels'> | null;
+    cacheLayout?: AudioFeatureTrack['channelLayout'];
 }
 
 function clampChannel(index: number, channelCount: number | null | undefined): number {
@@ -72,11 +72,11 @@ export function resolveChannel(
             return clampChannel(Math.trunc(numeric), channelCount);
         }
         const normalized = trimmed.toLowerCase();
-        const fromTrackAliases = tryResolveFromAliases(normalized, trackConfig.track?.channelAliases ?? null);
+        const fromTrackAliases = tryResolveFromAliases(normalized, trackConfig.track?.channelLayout?.aliases ?? null);
         if (fromTrackAliases != null) {
             return clampChannel(fromTrackAliases, channelCount);
         }
-        const fromCacheAliases = tryResolveFromAliases(normalized, trackConfig.cacheAliases ?? null);
+        const fromCacheAliases = tryResolveFromAliases(normalized, trackConfig.cacheLayout?.aliases ?? null);
         if (fromCacheAliases != null) {
             return clampChannel(fromCacheAliases, channelCount);
         }
@@ -93,8 +93,8 @@ export function resolveChannel(
         }
         throw new Error(
             `[channelResolution] Unknown channel alias \"${channel}\". Available aliases: ${[
-                ...((trackConfig.track?.channelAliases ?? []) as string[]),
-                ...((trackConfig.cacheAliases ?? []) as string[]),
+                ...((trackConfig.track?.channelLayout?.aliases ?? []) as string[]),
+                ...((trackConfig.cacheLayout?.aliases ?? []) as string[]),
             ]
                 .filter(Boolean)
                 .join(', ') || 'none'}.`,

@@ -164,7 +164,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                 new Text(8, height / 2, msg, '12px Inter, sans-serif', {
                     color: '#94a3b8',
                     baseline: 'middle',
-                }).setIncludeInLayoutBounds(false)
+                }).setLayoutParticipation('exclude')
             );
             return objects;
         };
@@ -196,7 +196,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
             objects.push(
                 new Text(0, 0, `F0: ${f0.toFixed(1)} Hz`, '12px Inter, sans-serif', {
                     color: '#94a3b8',
-                }).setIncludeInLayoutBounds(false)
+                }).setLayoutParticipation('exclude')
             );
             objects.push(
                 new Text(0, 20, `Candidate F0: ${candidateF0.toFixed(1)} Hz`, '12px Inter, sans-serif', {
@@ -206,12 +206,12 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
             objects.push(
                 new Text(0, 40, `Confidence: ${confidence.toFixed(2)}`, '12px Inter, sans-serif', {
                     color: '#94a3b8',
-                }).setIncludeInLayoutBounds(false)
+                }).setLayoutParticipation('exclude')
             );
             objects.push(
                 new Text(0, 60, `Anchor: ${anchorSec.toFixed(2)} sec`, '12px Inter, sans-serif', {
                     color: '#94a3b8',
-                }).setIncludeInLayoutBounds(false)
+                }).setLayoutParticipation('exclude')
             );
         }
 
@@ -226,8 +226,11 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
         const rawLineOpacity = disableConfidenceFade ? userOpacity : userOpacity * (MIN_OPACITY_FLOOR + 0.1);
 
         const makePoly = (points: { x: number; y: number }[], opacity: number) => {
-            const poly = new Poly(points, null, applyOpacity(baseColor, opacity), props.lineWidth ?? 2, {
-                includeInLayoutBounds: false,
+            const poly = new Poly(points, {
+                fillColor: null,
+                strokeColor: applyOpacity(baseColor, opacity),
+                strokeWidth: props.lineWidth ?? 2,
+                layoutParticipation: 'exclude',
             });
             poly.setClosed(false);
             poly.blendMode = blendMode === 'source-over' ? null : blendMode;

@@ -8,7 +8,7 @@
  *  - Range checks for rowHeight (if present) & globalBpm > 0
  */
 
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 10;
 
 /**
  * Maps schema version to the minimum app version required to open files at that version.
@@ -24,6 +24,7 @@ export const SCHEMA_TO_MIN_APP_VERSION: Record<number, string> = {
     7: '0.15.4',
     8: '0.15.4',
     9: '0.15.5',
+    10: '0.16.0',
 };
 
 export type ValidationErrorCode =
@@ -50,6 +51,9 @@ export type ValidationErrorCode =
     | 'ERR_MIDI_CLIP_SOURCE'
     | 'ERR_MIDI_CLIP_DUPLICATE'
     | 'ERR_MIDI_CLIP_OVERLAP'
+    | 'ERR_AUDIO_TRACK_SHAPE'
+    | 'ERR_AUDIO_CLIP_SHAPE'
+    | 'ERR_AUDIO_LEGACY_FIELD'
     | 'ERR_TIMELINE_NUMERIC'
     | 'ERR_ROW_HEIGHT_RANGE'
     | 'ERR_GLOBAL_BPM_RANGE'
@@ -104,7 +108,7 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
     }
     if (!root.scene || typeof root.scene !== 'object') {
         errors.push(err('ERR_SCENE_MISSING', 'Missing scene object', 'scene'));
-    } else if (schemaVersion === 6 || schemaVersion === 7 || schemaVersion === 8 || schemaVersion === 9) {
+    } else if (schemaVersion === 6 || schemaVersion === 7 || schemaVersion === 8 || schemaVersion === 9 || schemaVersion === 10) {
         // V6+: elements is a Record keyed by ID, elementsOrder is the ordering array
         if (typeof root.scene.elements !== 'object' || root.scene.elements === null || Array.isArray(root.scene.elements)) {
             errors.push(err('ERR_SCENE_ELEMENTS_TYPE', 'scene.elements must be an object in schema v6', 'scene.elements'));
@@ -221,6 +225,10 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
                     validateMidiTrackClips(tr, tl.midiCache, `timeline.tracks.${k}`, errors);
                     if (errors.length) break;
                 }
+                if (schemaVersion >= 10 && tr.type === 'audio') {
+                    validateAudioTrackClips(tr, `timeline.tracks.${k}`, errors);
+                    if (errors.length) break;
+                }
             }
         }
         // Numeric range checks (non-fatal design but still enforced here)
@@ -236,12 +244,15 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
         }
     }
 
-    if (schemaVersion === 2 || schemaVersion === 4 || schemaVersion === 5 || schemaVersion === 6 || schemaVersion === 7 || schemaVersion === 8 || schemaVersion === 9) {
+    if (schemaVersion === 2 || schemaVersion === 4 || schemaVersion === 5 || schemaVersion === 6 || schemaVersion === 7 || schemaVersion === 8 || schemaVersion === 9 || schemaVersion === 10) {
         if (!root.assets || typeof root.assets !== 'object') {
             errors.push(err('ERR_ASSETS_MISSING', 'Missing assets block', 'assets'));
         } else {
             const storage = root.assets.storage;
-            if (storage !== 'inline-json' && storage !== 'zip-package') {
+            if (
+                (schemaVersion >= 10 && storage !== 'zip-package') ||
+                (schemaVersion < 10 && storage !== 'inline-json' && storage !== 'zip-package')
+            ) {
                 errors.push(err('ERR_ASSETS_MISSING', 'Invalid assets.storage value', 'assets.storage'));
             }
             const audio = root.assets.audio;
@@ -263,6 +274,62 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
     }
 
     return { ok: errors.length === 0, errors, warnings };
+}
+
+function validateAudioTrackClips(track: any, path: string, errors: ValidationError[]): void {
+    for (const field of ['offsetTicks', 'regionStartTick', 'regionEndTick', 'audioSourceId']) {
+        if (Object.prototype.hasOwnProperty.call(track, field)) {
+            errors.push(err('ERR_AUDIO_LEGACY_FIELD', `Audio track contains removed field ${field}`, `${path}.${field}`));
+            return;
+        }
+    }
+    if (!Array.isArray(track.clips)) {
+        errors.push(err('ERR_AUDIO_TRACK_SHAPE', 'Audio track clips must be an array', `${path}.clips`));
+        return;
+    }
+    const ids = new Set<string>();
+    for (let index = 0; index < track.clips.length; index += 1) {
+        const clip = track.clips[index];
+        const clipPath = `${path}.clips[${index}]`;
+        if (!clip || typeof clip !== 'object' || clip.type !== 'audio') {
+            errors.push(err('ERR_AUDIO_CLIP_SHAPE', 'Invalid audio clip shape', clipPath));
+            return;
+        }
+        if (
+            typeof clip.id !== 'string' ||
+            typeof clip.sourceId !== 'string' ||
+            typeof clip.offsetTicks !== 'number' ||
+            !Number.isFinite(clip.offsetTicks)
+        ) {
+            errors.push(err('ERR_AUDIO_CLIP_SHAPE', 'Audio clip requires string id/sourceId and finite offsetTicks', clipPath));
+            return;
+        }
+        if (ids.has(clip.id)) {
+            errors.push(err('ERR_AUDIO_CLIP_SHAPE', `Duplicate audio clip id ${clip.id}`, `${clipPath}.id`));
+            return;
+        }
+        ids.add(clip.id);
+        for (const field of ['regionStartTick', 'regionEndTick']) {
+            if (Object.prototype.hasOwnProperty.call(clip, field)) {
+                errors.push(err('ERR_AUDIO_LEGACY_FIELD', `Audio clip contains removed field ${field}`, `${clipPath}.${field}`));
+                return;
+            }
+        }
+        const start = clip.sourceStartSeconds;
+        const end = clip.sourceEndSeconds;
+        if (start !== undefined && (typeof start !== 'number' || !Number.isFinite(start) || start < 0)) {
+            errors.push(err('ERR_AUDIO_CLIP_SHAPE', 'sourceStartSeconds must be a finite non-negative number', `${clipPath}.sourceStartSeconds`));
+            return;
+        }
+        if (end !== undefined && (typeof end !== 'number' || !Number.isFinite(end) || end < 0)) {
+            errors.push(err('ERR_AUDIO_CLIP_SHAPE', 'sourceEndSeconds must be a finite non-negative number', `${clipPath}.sourceEndSeconds`));
+            return;
+        }
+        if (typeof start === 'number' && typeof end === 'number' && end <= start) {
+            errors.push(err('ERR_AUDIO_CLIP_SHAPE', 'sourceEndSeconds must be greater than sourceStartSeconds', clipPath));
+            return;
+        }
+    }
 }
 
 function getClipTimelineBounds(midiCache: any, clip: any): { startTick: number; endTick: number } | null {

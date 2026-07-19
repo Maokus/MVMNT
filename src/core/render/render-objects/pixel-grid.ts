@@ -1,13 +1,8 @@
 import { BoxRenderObject } from './box';
-import { type RenderConfig, type LayoutParticipation } from './base';
+import { type RenderConfig, type RenderObjectOptions } from './base';
 
-export interface PixelGridOptions {
+export interface PixelGridOptions extends RenderObjectOptions {
     pixels?: Uint8ClampedArray;
-    layoutParticipation?: LayoutParticipation;
-    /** @deprecated Use layoutParticipation. */
-    includeInLayoutBounds?: boolean;
-    originX?: number;
-    originY?: number;
 }
 
 /**

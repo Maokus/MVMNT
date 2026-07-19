@@ -189,12 +189,16 @@ class PopcatMidiDisplayElement extends CallbackElementRenderer {
         if (!props.visible) return [];
 
         if (!props.midiTrackId) {
-            return [new Text(0, 0, 'Select a MIDI track', '14px Inter, sans-serif', '#94a3b8', 'left', 'top')];
+            return [new Text(0, 0, 'Select a MIDI track', '14px Inter, sans-serif', {
+                color: '#94a3b8', align: 'left', baseline: 'top',
+            })];
         }
 
         const timeline = this.context.timeline;
         if (!timeline) {
-            return [new Text(0, 0, 'Timeline API unavailable', '12px Inter, sans-serif', '#64748b', 'left', 'top')];
+            return [new Text(0, 0, 'Timeline API unavailable', '12px Inter, sans-serif', {
+                color: '#64748b', align: 'left', baseline: 'top',
+            })];
         }
 
         const manyCats = props.manyCats as boolean;
@@ -257,7 +261,9 @@ class PopcatMidiDisplayElement extends CallbackElementRenderer {
             const catsToShow = allPitches.slice(offset, offset + totalCats);
 
             if (catsToShow.length === 0) {
-                return [new Text(0, 0, 'No notes in range', '12px Inter, sans-serif', '#64748b', 'left', 'top')];
+                return [new Text(0, 0, 'No notes in range', '12px Inter, sans-serif', {
+                    color: '#64748b', align: 'left', baseline: 'top',
+                })];
             }
 
             // Distribute cats evenly across rows, bottom rows get extras
@@ -300,9 +306,7 @@ class PopcatMidiDisplayElement extends CallbackElementRenderer {
                     -totalHeight / 2 - padding,
                     totalWidth + 2 * padding,
                     totalHeight + 2 * padding,
-                    null,
-                    'transparent',
-                    1
+                    { fillColor: null, strokeColor: 'transparent', strokeWidth: 1 }
                 ),
             ];
 
@@ -340,7 +344,9 @@ class PopcatMidiDisplayElement extends CallbackElementRenderer {
                         const noteName = this.context.midi?.noteName(pitch) ?? String(pitch);
                         const labelX = slotCenterX;
                         const labelY = rowCenterY + baseHeight / 2 + 4;
-                        objects.push(new Text(labelX, labelY, noteName, labelFontString, '#94a3b8', 'center', 'top'));
+                        objects.push(new Text(labelX, labelY, noteName, labelFontString, {
+                            color: '#94a3b8', align: 'center', baseline: 'top',
+                        }));
                     }
                 }
             }
@@ -378,7 +384,11 @@ class PopcatMidiDisplayElement extends CallbackElementRenderer {
                 : { x: 0, y: 0, w: baseWidth, h: baseHeight };
 
             return [
-                new Rectangle(0, 0, baseWidth, baseHeight, null, 'transparent', 1),
+                new Rectangle(0, 0, baseWidth, baseHeight, {
+                    fillColor: null,
+                    strokeColor: 'transparent',
+                    strokeWidth: 1,
+                }),
                 makeVisualMedia(imgX, imgY, imgW, imgH, isPlaying),
             ];
         }

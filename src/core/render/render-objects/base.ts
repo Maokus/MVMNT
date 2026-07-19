@@ -8,6 +8,12 @@
  */
 export type LayoutParticipation = 'auto' | 'include' | 'exclude';
 
+export interface RenderObjectOptions {
+    layoutParticipation?: LayoutParticipation;
+    originX?: number;
+    originY?: number;
+}
+
 export interface RenderConfig {
     canvas?: HTMLCanvasElement; // Many callers provide canvas for sizing logic
     showAnchorPoints?: boolean;
@@ -59,13 +65,7 @@ export abstract class RenderObject {
         scaleX = 1,
         scaleY = 1,
         opacity = 1,
-        options?: {
-            layoutParticipation?: LayoutParticipation;
-            /** @deprecated Use layoutParticipation instead. */
-            includeInLayoutBounds?: boolean | undefined;
-            originX?: number;
-            originY?: number;
-        }
+        options?: RenderObjectOptions
     ) {
         this.x = x;
         this.y = y;
@@ -79,15 +79,7 @@ export abstract class RenderObject {
         this.originX = options?.originX ?? 0;
         this.originY = options?.originY ?? 0;
         this.children = []; // Array of child render objects
-        if (options?.layoutParticipation !== undefined) {
-            this.layoutParticipation = options.layoutParticipation;
-        } else if (options?.includeInLayoutBounds === true) {
-            this.layoutParticipation = 'include';
-        } else if (options?.includeInLayoutBounds === false) {
-            this.layoutParticipation = 'exclude';
-        } else {
-            this.layoutParticipation = 'auto';
-        }
+        this.layoutParticipation = options?.layoutParticipation ?? 'auto';
         this.blendMode = null;
         this.filter = null;
     }
@@ -120,16 +112,6 @@ export abstract class RenderObject {
         this._originFractionX = x;
         this._originFractionY = y;
         return this;
-    }
-
-    /** @deprecated Use setOrigin instead. */
-    setPivot(x: number, y: number): this {
-        return this.setOrigin(x, y);
-    }
-
-    /** @deprecated Use setOriginFraction instead. */
-    setPivotFraction(x: number, y: number): this {
-        return this.setOriginFraction(x, y);
     }
 
     /** Recompute originX/Y from stored fractions for the given dimensions. */
@@ -183,38 +165,10 @@ export abstract class RenderObject {
         return this;
     }
 
-    /** @deprecated Use opacity directly or setOpacity(). */
-    get globalAlpha(): number {
-        return this.opacity;
-    }
-    /** @deprecated Use opacity directly or setOpacity(). */
-    set globalAlpha(v: number) {
-        this.opacity = v;
-    }
-    /** @deprecated Use setOpacity(). */
-    setGlobalAlpha(alpha: number): this {
-        return this.setOpacity(alpha);
-    }
-
     /** Control layout participation for this object and its descendants. */
     setLayoutParticipation(p: LayoutParticipation): this {
         this.layoutParticipation = p;
         return this;
-    }
-    /** @deprecated Use setLayoutParticipation() */
-    setIncludeInLayoutBounds(include: boolean | undefined): this {
-        this.layoutParticipation = include === true ? 'include' : include === false ? 'exclude' : 'auto';
-        return this;
-    }
-    /** @deprecated Use layoutParticipation */
-    get includeInLayoutBounds(): boolean | undefined {
-        if (this.layoutParticipation === 'include') return true;
-        if (this.layoutParticipation === 'exclude') return false;
-        return undefined;
-    }
-    /** @deprecated Use layoutParticipation */
-    set includeInLayoutBounds(v: boolean | undefined) {
-        this.layoutParticipation = v === true ? 'include' : v === false ? 'exclude' : 'auto';
     }
     /** Set the Canvas 2D composite operation for this object's render scope. */
     setBlendMode(mode: GlobalCompositeOperation | null): this {
@@ -273,7 +227,7 @@ export abstract class RenderObject {
         return this;
     }
     /**
-     * Visual bounds of this object including its children (ignores includeInLayoutBounds flags).
+     * Visual bounds of this object including its children.
      */
     getVisualBounds(): Bounds {
         let union: Bounds | null = this._getSelfBounds();
@@ -298,11 +252,6 @@ export abstract class RenderObject {
                   ? 'force-exclude'
                   : 'respect';
         return this._getLayoutBoundsRecursive(policy);
-    }
-
-    /** Back-compat: default getBounds to visual bounds. */
-    getBounds(): Bounds {
-        return this.getVisualBounds();
     }
 
     /**

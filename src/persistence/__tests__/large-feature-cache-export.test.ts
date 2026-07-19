@@ -60,16 +60,14 @@ describe('large feature cache export', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [{ id: 'clip-audio1', type: 'audio', sourceId: 'audio1', offsetTicks: 0 }],
                     gain: 1,
-                    audioSourceId: 'audio1',
                 },
             },
             tracksOrder: ['audio1'],
             audioCache: {
                 audio1: {
                     audioBuffer: makeBuffer(),
-                    durationTicks: 960,
                     sampleRate: 100,
                     channels: 1,
                     durationSeconds: 1,

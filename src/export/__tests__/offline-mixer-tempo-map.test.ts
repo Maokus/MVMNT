@@ -58,7 +58,7 @@ describe('offlineMix with tempo map', () => {
             enabled: true,
             mute: false,
             solo: false,
-            offsetTicks: 0,
+            clips: [{ id: 'clip-a1', type: 'audio', sourceId: 'a1', offsetTicks: 0 }],
             gain: 1,
         };
 
@@ -131,7 +131,7 @@ describe('offlineMix with tempo map', () => {
             enabled: true,
             mute: false,
             solo: false,
-            offsetTicks: clipOffsetTicks,
+            clips: [{ id: 'clip-b1', type: 'audio', sourceId: 'b1', offsetTicks: clipOffsetTicks }],
             gain: 1,
         };
 

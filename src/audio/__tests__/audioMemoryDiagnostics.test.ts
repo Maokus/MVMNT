@@ -5,7 +5,6 @@ import type { AudioCacheEntry } from '@audio/audioTypes';
 function makeAudioEntry(partial: Partial<AudioCacheEntry>): AudioCacheEntry {
     return {
         audioBuffer: { length: 100, numberOfChannels: 2, duration: 1, sampleRate: 100 } as AudioBuffer,
-        durationTicks: 960,
         sampleRate: 100,
         channels: 2,
         durationSeconds: 1,

@@ -3,17 +3,8 @@ import { useTimelineStore } from '@state/timelineStore';
 import { canonicalizeElements } from '../ordering';
 import { serializeStable } from '../stable-stringify';
 import { describe, expect, it, test } from 'vitest';
-import type { ExportSceneResultInline } from '../export';
 import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
-
-async function exportInlineScene(): Promise<ExportSceneResultInline> {
-    const result = await exportScene(undefined, { storage: 'inline-json' });
-    if (!result.ok || result.mode !== 'inline-json') {
-        throw new Error('Expected inline-json export result');
-    }
-    return result;
-}
 
 describe('Persistence', () => {
     test('Stable stringify deterministic for object key order', () => {
@@ -35,16 +26,17 @@ describe('Persistence', () => {
     });
 
     test('Export -> Import -> Export round-trip stable ignoring modifiedAt', async () => {
-        const first = await exportInlineScene();
+        const first = await exportScene();
+        if (!first.ok) throw new Error('First export failed');
         expect(first.ok).toBe(true);
-        expect(first.envelope.schemaVersion).toBe(9);
-        const json1 = first.json;
-        const imp = await importScene(json1);
+        expect(first.envelope.schemaVersion).toBe(10);
+        const json1 = serializeStable(first.envelope);
+        const imp = await importScene(first.zip);
         expect(imp.ok).toBe(true);
-        const second = await exportInlineScene();
+        const second = await exportScene();
         if (!second.ok) throw new Error('Second export failed');
         const env1 = JSON.parse(json1);
-        const env2 = JSON.parse(second.json);
+        const env2: any = second.envelope;
         // Remove volatile fields (createdAt/modifiedAt, macro exportedAt may differ)
         delete env1.metadata?.modifiedAt;
         delete env2.metadata?.modifiedAt;
@@ -53,6 +45,33 @@ describe('Persistence', () => {
         if (env1.scene?.macros) delete env1.scene.macros.exportedAt;
         if (env2.scene?.macros) delete env2.scene.macros.exportedAt;
         expect(serializeStable(env1)).toEqual(serializeStable(env2));
+    });
+
+    test('V10 export strips deprecated audio placement fields defensively', async () => {
+        useTimelineStore.setState({
+            tracks: {
+                legacyAudio: {
+                    id: 'legacyAudio', name: 'Legacy Audio', type: 'audio', enabled: true, mute: false, solo: false, gain: 1,
+                    offsetTicks: 120, regionStartTick: 10, regionEndTick: 200, audioSourceId: 'source1',
+                    clips: [{
+                        id: 'clip1', type: 'audio', sourceId: 'source1', offsetTicks: 120,
+                        regionStartTick: 10, regionEndTick: 200, sourceStartSeconds: 0.1, sourceEndSeconds: 1,
+                    }],
+                } as any,
+            },
+            tracksOrder: ['legacyAudio'],
+        });
+
+        const result = await exportScene();
+        if (!result.ok) throw new Error('Export failed');
+        const track: any = result.envelope.timeline.tracks.legacyAudio;
+        expect(track.offsetTicks).toBeUndefined();
+        expect(track.regionStartTick).toBeUndefined();
+        expect(track.regionEndTick).toBeUndefined();
+        expect(track.audioSourceId).toBeUndefined();
+        expect(track.clips[0].regionStartTick).toBeUndefined();
+        expect(track.clips[0].regionEndTick).toBeUndefined();
+        useTimelineStore.getState().resetTimeline();
     });
 
     test('Undo controller tracks scene commands and can undo/redo', () => {

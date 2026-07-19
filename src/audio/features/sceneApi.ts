@@ -26,7 +26,6 @@ export interface FeatureDataMetadata {
     descriptor: AudioFeatureDescriptor;
     frame: AudioFeatureFrameSample;
     channels: number;
-    channelAliases?: string[] | null;
     channelLayout?: ChannelLayoutMeta | null;
 }
 
@@ -97,7 +96,6 @@ export function getFeatureData(
             descriptor,
             frame: sample,
             channels: Math.max(1, sample.channels || sample.channelValues?.length || 0),
-            channelAliases: sample.channelAliases ?? sample.channelLayout?.aliases ?? null,
             channelLayout: sample.channelLayout ?? null,
         },
     };
@@ -153,7 +151,6 @@ export function getFeatureDataRange(
                         descriptor,
                         frame: sample,
                         channels: Math.max(1, sample.channels || sample.channelValues?.length || 0),
-                        channelAliases: sample.channelAliases ?? sample.channelLayout?.aliases ?? null,
                         channelLayout: sample.channelLayout ?? null,
                     },
                 },

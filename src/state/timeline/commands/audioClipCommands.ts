@@ -88,10 +88,6 @@ function sanitizeOffsetTicks(value: unknown): number {
     return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : 0;
 }
 
-function sanitizeRegionTick(value: unknown): number | undefined {
-    return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.round(value)) : undefined;
-}
-
 function sanitizeSourceSeconds(value: unknown): number | undefined {
     return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : undefined;
 }
@@ -110,8 +106,6 @@ function buildClip(input: AddAudioClipPayload['clip']): AudioClip {
         offsetTicks: sanitizeOffsetTicks(input.offsetTicks),
         sourceStartSeconds: sanitizeSourceSeconds(input.sourceStartSeconds),
         sourceEndSeconds: sanitizeSourceSeconds(input.sourceEndSeconds),
-        regionStartTick: sanitizeRegionTick(input.regionStartTick),
-        regionEndTick: sanitizeRegionTick(input.regionEndTick),
         name: input.name,
         enabled: input.enabled,
         gain: sanitizeGain(input.gain),
@@ -201,14 +195,6 @@ export function createUpdateAudioClipsCommand(
                             update.patch.offsetTicks !== undefined
                                 ? sanitizeOffsetTicks(update.patch.offsetTicks)
                                 : existing.offsetTicks,
-                        regionStartTick:
-                            'regionStartTick' in update.patch
-                                ? sanitizeRegionTick(update.patch.regionStartTick)
-                                : existing.regionStartTick,
-                        regionEndTick:
-                            'regionEndTick' in update.patch
-                                ? sanitizeRegionTick(update.patch.regionEndTick)
-                                : existing.regionEndTick,
                         sourceStartSeconds:
                             'sourceStartSeconds' in update.patch
                                 ? sanitizeSourceSeconds(update.patch.sourceStartSeconds)

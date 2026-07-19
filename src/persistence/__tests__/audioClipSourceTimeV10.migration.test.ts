@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { migrateSceneAudioClipSourceTimeV9 } from '../migrations/audioClipSourceTimeV9';
+import { migrateSceneAudioClipSourceTimeV10 } from '../migrations/audioClipSourceTimeV10';
 
-describe('audio clip source-time V9 migration', () => {
+describe('audio clip source-time V10 migration', () => {
     it('converts a crossing legacy trim using the saved tempo map and clip placement', () => {
-        const migrated = migrateSceneAudioClipSourceTimeV9({
+        const migrated = migrateSceneAudioClipSourceTimeV10({
             schemaVersion: 8,
             timeline: {
                 timeline: {
@@ -21,7 +21,7 @@ describe('audio clip source-time V9 migration', () => {
             },
         });
         const clip: any = migrated.timeline.tracks.track.clips[0];
-        expect(migrated.schemaVersion).toBe(9);
+        expect(migrated.schemaVersion).toBe(10);
         expect(clip.sourceStartSeconds).toBe(0);
         // Starts at 1.5s; its three beats cross the 2s tempo step: 0.5s + 2s.
         expect(clip.sourceEndSeconds).toBeCloseTo(2.5, 6);

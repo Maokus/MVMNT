@@ -1,0 +1,4 @@
+External or user-authored plugin sources may be placed in this directory.
+
+The versioned SDK lives in packages/plugin-sdk; first-party scene elements live in
+src/core/scene/elements.

@@ -32,8 +32,7 @@ import { findReferencedAudioSourceIds, getAudioClipsForTrack } from '@state/time
 import type { AudioCacheEntry } from '@audio/audioTypes';
 import { migrateSceneRotationUnitsV7 } from './migrations/rotationUnitsV7';
 import { migrateSceneMidiClipsV8 } from './migrations/midiClipsV8';
-import { migrateSceneAudioClipSourceTimeV9 } from './migrations/audioClipSourceTimeV9';
-import { createTimingContext, secondsToTicks } from '@state/timelineTime';
+import { migrateSceneAudioClipSourceTimeV10 } from './migrations/audioClipSourceTimeV10';
 
 const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
@@ -692,7 +691,6 @@ function buildLightweightAudioCacheEntry(record: any, originalFile: {
             ? record.durationSamples
             : Math.max(0, Math.round(durationSeconds * sampleRate));
     return {
-        durationTicks: Math.round(secondsToTicks(createTimingContext(useTimelineStore.getState().timeline), durationSeconds)),
         durationSeconds,
         durationSamples,
         sampleRate,
@@ -776,22 +774,6 @@ function findAudioAssetIdForReferencedSource(
 ): string | undefined {
     if (audioById[sourceId]) {
         return sourceId;
-    }
-
-    for (const [trackId, track] of Object.entries(state.tracks)) {
-        if (!track || track.type !== 'audio') {
-            continue;
-        }
-        const clips = getAudioClipsForTrack(track);
-        if (!clips.some((clip) => clip.sourceId === sourceId)) {
-            continue;
-        }
-        if (track.audioSourceId && audioById[track.audioSourceId]) {
-            return track.audioSourceId;
-        }
-        if (audioById[trackId]) {
-            return trackId;
-        }
     }
 
     return assetIds.length === 1 ? assetIds[0] : undefined;
@@ -1032,7 +1014,7 @@ export async function importScene(input: ImportSceneInput, options: ImportSceneO
         pluginPayloads,
     } = parsed;
     options.onProgress?.(0.35, 'Validating scene…');
-    const migratedEnvelope = migrateSceneAudioClipSourceTimeV9(
+    const migratedEnvelope = migrateSceneAudioClipSourceTimeV10(
         migrateSceneMidiClipsV8(migrateSceneRotationUnitsV7(envelope))
     );
     const validation = validateSceneEnvelope(migratedEnvelope);
@@ -1116,7 +1098,8 @@ export async function importScene(input: ImportSceneInput, options: ImportSceneO
             migratedEnvelope.schemaVersion === 6 ||
             migratedEnvelope.schemaVersion === 7 ||
             migratedEnvelope.schemaVersion === 8 ||
-            migratedEnvelope.schemaVersion === 9) &&
+            migratedEnvelope.schemaVersion === 9 ||
+            migratedEnvelope.schemaVersion === 10) &&
         migratedEnvelope.assets
     ) {
         options.onProgress?.(0.82, 'Restoring audio assets…');

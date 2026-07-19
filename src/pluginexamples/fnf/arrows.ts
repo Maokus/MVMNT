@@ -63,7 +63,7 @@ class ArrowsElement extends CallbackElementRenderer {
         this.bundledSparrow('holdCoverRed.png', 'holdCoverRed.xml'),
     ];
 
-    private readonly _layoutRect = new Rectangle(0, 0, 680, 600, '#00000000');
+    private readonly _layoutRect = new Rectangle(0, 0, 680, 600, { fillColor: '#00000000' });
 
     // One VisualMedia per lane for each sprite layer
     private readonly _receptors: VisualMedia[] = Array.from({ length: 4 }, () =>

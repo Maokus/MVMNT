@@ -88,7 +88,7 @@ describe('audio diagnostics missing popup logic', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [],
                     gain: 1,
                 },
             },

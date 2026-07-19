@@ -28,7 +28,6 @@ export interface ChannelSampleSelection {
     channelIndex: number;
     channelCount: number;
     alias?: string | null;
-    channelAliases?: string[] | null;
     channelLayout?: ChannelLayoutMeta | null;
 }
 
@@ -145,7 +144,7 @@ export function selectChannelSample(
     if (!sample) {
         return null;
     }
-    const aliasSource = sample.channelAliases ?? sample.channelLayout?.aliases ?? null;
+    const aliasSource = sample.channelLayout?.aliases ?? null;
     const layout = sample.channelLayout ?? null;
     const fallbackChannels = Math.max(1, sample.channels || aliasSource?.length || 0);
     const channelValues =
@@ -163,7 +162,6 @@ export function selectChannelSample(
         channelIndex: resolvedIndex,
         channelCount,
         alias: alias ?? null,
-        channelAliases: aliasSource ?? null,
         channelLayout: layout,
     };
 }
@@ -188,9 +186,7 @@ export function resolveFeatureContext(
     const state = useTimelineStore.getState();
     const entry = state.tracks[trackId] as TimelineTrackEntry | undefined;
     if (!entry || entry.type !== 'audio') return null;
-    const sourceIds = Array.isArray(entry.clips)
-        ? getAudioClipsForTrack(entry).filter((clip) => clip.enabled !== false).map((clip) => clip.sourceId)
-        : [entry.audioSourceId ?? entry.id];
+    const sourceIds = getAudioClipsForTrack(entry).filter((clip) => clip.enabled !== false).map((clip) => clip.sourceId);
     for (const sourceId of sourceIds) {
         const cache = state.audioFeatureCaches[sourceId];
         const { track: featureTrack } = resolveFeatureTrackFromCache(cache, featureKey, {
@@ -255,11 +251,9 @@ export function sampleFeatureFrame(
     const { featureTrack } = context;
     const timing = createTimingContext(state.timeline, getSharedTimingManager().ticksPerQuarter);
     const tick = secondsToTicks(timing, Math.max(0, targetTime));
-    const placementSignature = Array.isArray(context.track.clips)
-        ? context.track.clips
-              .map((clip) => `${clip.id}:${clip.sourceId}:${clip.offsetTicks}:${clip.sourceStartSeconds ?? ''}:${clip.sourceEndSeconds ?? ''}:${clip.enabled !== false}`)
-              .join(',')
-        : `${context.track.offsetTicks ?? 0}:${context.track.regionStartTick ?? 0}:${context.track.regionEndTick ?? ''}`;
+    const placementSignature = getAudioClipsForTrack(context.track)
+        .map((clip) => `${clip.id}:${clip.sourceId}:${clip.offsetTicks}:${clip.sourceStartSeconds ?? ''}:${clip.sourceEndSeconds ?? ''}:${clip.enabled !== false}`)
+        .join(',');
     const cacheKey = buildSampleCacheKey(trackId, placementSignature, tick, descriptor, analysisProfileId);
     let trackCache = featureSampleCache.get(featureTrack);
     if (!trackCache) {

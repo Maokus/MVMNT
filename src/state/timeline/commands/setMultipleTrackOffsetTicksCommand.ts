@@ -35,7 +35,9 @@ export function createSetMultipleTrackOffsetTicksCommand(
             for (const { trackId, offsetTicks } of payload.offsets) {
                 const track = state.tracks[trackId];
                 if (!track) continue;
-                const previousOffset = (track as any).offsetTicks ?? 0;
+                const previousOffset = track.type === 'audio'
+                    ? (track.clips[0]?.offsetTicks ?? 0)
+                    : (track.offsetTicks ?? 0);
 
                 redoActions.push({
                     action: 'timeline/SET_TRACK_OFFSET_TICKS',
@@ -57,8 +59,10 @@ export function createSetMultipleTrackOffsetTicksCommand(
                 for (const { trackId, offsetTicks } of payload.offsets) {
                     const track = current.tracks[trackId];
                     if (!track) continue;
-                    const previousOffset = (track as any).offsetTicks ?? 0;
-                    const nextTrack: any = { ...track, offsetTicks };
+                    const previousOffset = track.type === 'audio'
+                        ? (track.clips[0]?.offsetTicks ?? 0)
+                        : (track.offsetTicks ?? 0);
+                    const nextTrack: any = track.type === 'audio' ? { ...track } : { ...track, offsetTicks };
                     if ((nextTrack.type === 'midi' || nextTrack.type === 'audio') && Array.isArray(nextTrack.clips)) {
                         if (nextTrack.clips.length === 1) {
                             nextTrack.clips = [{ ...nextTrack.clips[0], offsetTicks }];
@@ -71,15 +75,6 @@ export function createSetMultipleTrackOffsetTicksCommand(
                         }
                     }
                     next.tracks[trackId] = nextTrack;
-                    // Recompute durationTicks for audio tracks
-                    const cacheKey = (track as any).audioSourceId || trackId;
-                    const cacheEntry = current.audioCache[cacheKey];
-                    if ((track as any).type === 'audio' && cacheEntry?.audioBuffer) {
-                        const ctx = createTimelineTimingContext(current);
-                        const newDurationTicks = Math.round(secondsToTicksAt(ctx, cacheEntry.audioBuffer.duration, offsetTicks));
-                        if (!next.audioCache) next.audioCache = { ...current.audioCache };
-                        next.audioCache[cacheKey] = { ...cacheEntry, durationTicks: newDurationTicks };
-                    }
                 }
                 return next;
             });

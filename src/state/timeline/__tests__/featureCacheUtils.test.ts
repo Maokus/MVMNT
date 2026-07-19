@@ -57,13 +57,13 @@ function createCache(options: {
                 tempoProjection: { hopTicks, startTick: 0 },
                 format: 'float32',
                 data: new Float32Array(frameCount),
-                channelAliases,
+                channelLayout: { aliases: channelAliases },
                 analysisProfileId: defaultProfile,
             },
         },
         analysisProfiles,
         defaultAnalysisProfileId: defaultProfile,
-        channelAliases,
+        channelLayout: { aliases: channelAliases },
     };
 }
 

@@ -23,7 +23,7 @@ describe('SceneElement bounds', () => {
         });
 
         const [container] = element.buildRenderObjects({}, 0);
-        const bounds = container.getBounds();
+        const bounds = container.getVisualBounds();
 
         expect(bounds).toEqual({ x: 400, y: 250, width: 200, height: 100 });
     });

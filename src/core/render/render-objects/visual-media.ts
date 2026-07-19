@@ -1,5 +1,5 @@
 import { BoxRenderObject } from './box';
-import { type RenderConfig, type Bounds, type LayoutParticipation } from './base';
+import { type RenderConfig, type Bounds, type RenderObjectOptions } from './base';
 import { applyShadow, clearShadow } from './style-helpers';
 import { type VisualResource, type ResourceStatus, getFrameAtTime } from '@core/resources/visual-resource';
 
@@ -82,14 +82,10 @@ export type SelfBoundsMode = 'drawn' | 'container';
  * **`framePlacement`** — where the image sits *inside* the box.
  * Only applies to `fitMode: 'clip'`. Default `'center'`.
  *
- * ## Layout bounds
- *
- * `layoutBoundsMode` replaces the old `includeInLayoutBounds` boolean:
- *   - `'drawn'`     Bounds = actual drawn / scaled image region (default).
- *   - `'container'` Bounds = full container rect (width × height).
- *   - `'none'`      Excluded from layout bounds entirely.
+ * Use `selfBoundsMode` to choose the media's bounding rect and
+ * `layoutParticipation` to include or exclude it from layout.
  */
-export type VisualMediaOptions = {
+export interface VisualMediaOptions extends RenderObjectOptions {
     /**
      * How the image fits in the container.
      * - `'contain'` Scale to fit within the box, preserving aspect ratio. Bars visible.
@@ -99,36 +95,22 @@ export type VisualMediaOptions = {
      */
     fitMode?: 'contain' | 'cover' | 'fill' | 'clip';
     preserveAspectRatio?: boolean;
-    /** @deprecated Use `layoutBoundsMode: 'none'` instead. */
-    includeInLayoutBounds?: boolean;
-    layoutBoundsMode?: 'container' | 'drawn' | 'none';
+    selfBoundsMode?: SelfBoundsMode;
     /** Transform origin X as fraction of container width (0–1). Default 0 (left). */
     originX?: number;
     /** Transform origin Y as fraction of container height (0–1). Default 0 (top). */
     originY?: number;
-    /** @deprecated Use `originX` instead. */
-    pivotFractionX?: number;
-    /** @deprecated Use `originY` instead. */
-    pivotFractionY?: number;
     /**
      * Where the image frame is positioned inside the container box.
      * Only applies to `fitMode: 'clip'`. Default `'center'`.
      */
     framePlacement?: FramePlacement;
-    /** @deprecated Use `framePlacement` instead. */
-    contentAnchorX?: number;
-    /** @deprecated Use `framePlacement` instead. */
-    contentAnchorY?: number;
-    /** @deprecated Use `framePlacement` instead. */
-    frameAnchorX?: number;
-    /** @deprecated Use `framePlacement` instead. */
-    frameAnchorY?: number;
     /**
      * Draw a debug overlay each frame showing the container outline, drawn-region
      * border, origin point, and frame placement anchor.
      */
     showDebug?: boolean;
-};
+}
 
 // ─── VisualMedia ─────────────────────────────────────────────────────────────
 
@@ -167,7 +149,8 @@ export type VisualMediaOptions = {
  *
  * - `setOriginFraction(x, y)`  — transform origin of the box as fractions of its size.
  * - `setFramePlacement(p)`     — positions the frame inside the box ('clip' mode only).
- * - `setLayoutBoundsMode(mode)` — 'drawn' | 'container' | 'none'.
+ * - `setSelfBoundsMode(mode)` — chooses the drawn or container bounds.
+ * - `setLayoutParticipation(mode)` — includes or excludes media from layout.
  * - `showDebug = true`          — overlays container, drawn region, origin, and frame anchor.
  */
 export class VisualMedia extends BoxRenderObject {
@@ -208,7 +191,7 @@ export class VisualMedia extends BoxRenderObject {
     selfBoundsMode: SelfBoundsMode = 'drawn';
 
     constructor(x: number, y: number, width: number, height: number, options: VisualMediaOptions = {}) {
-        super(x, y, width, height);
+        super(x, y, width, height, { layoutParticipation: options.layoutParticipation });
         this.fitMode = options.fitMode ?? 'contain';
         this.preserveAspectRatio = options.preserveAspectRatio ?? true;
         this.showDebug = options.showDebug ?? false;
@@ -217,34 +200,15 @@ export class VisualMedia extends BoxRenderObject {
         this.shadowOffsetX = 0;
         this.shadowOffsetY = 0;
 
-        // layoutBoundsMode wins; fall back to includeInLayoutBounds for compat.
-        if (options.layoutBoundsMode) {
-            this.setLayoutBoundsMode(options.layoutBoundsMode);
-        } else if (options.includeInLayoutBounds === false) {
-            this.setLayoutBoundsMode('none');
-        }
+        this.selfBoundsMode = options.selfBoundsMode ?? 'drawn';
 
-        // framePlacement wins over individual contentAnchor/frameAnchor options.
         if (options.framePlacement) {
             this.setFramePlacement(options.framePlacement);
-        } else {
-            if (options.contentAnchorX !== undefined) this._contentAnchorX = options.contentAnchorX;
-            if (options.contentAnchorY !== undefined) this._contentAnchorY = options.contentAnchorY;
-            if (options.frameAnchorX !== undefined) this._frameAnchorX = options.frameAnchorX;
-            if (options.frameAnchorY !== undefined) this._frameAnchorY = options.frameAnchorY;
         }
 
-        // originX/Y wins over deprecated pivotFractionX/Y.
-        const ox = options.originX ?? options.pivotFractionX;
-        const oy = options.originY ?? options.pivotFractionY;
-        if (ox !== undefined || oy !== undefined) {
-            this.setOriginFraction(ox ?? 0, oy ?? 0);
+        if (options.originX !== undefined || options.originY !== undefined) {
+            this.setOriginFraction(options.originX ?? 0, options.originY ?? 0);
         }
-    }
-
-    /** @deprecated Use setOriginFraction instead. */
-    override setPivotFraction(x: number, y: number): this {
-        return this.setOriginFraction(x, y);
     }
 
     /**
@@ -329,56 +293,9 @@ export class VisualMedia extends BoxRenderObject {
         return this;
     }
 
-    /**
-     * @deprecated Use setFramePlacement instead.
-     * Set where in the container box the image frame is placed (0–1 fractions).
-     */
-    setContentAnchor(x: number, y: number): this {
-        this._contentAnchorX = x;
-        this._contentAnchorY = y;
-        return this;
-    }
-
-    /**
-     * @deprecated Use setFramePlacement instead.
-     * Set which point on the image frame maps to the content anchor (0–1 fractions).
-     */
-    setFrameAnchor(x: number, y: number): this {
-        this._frameAnchorX = x;
-        this._frameAnchorY = y;
-        return this;
-    }
-
     /** Set which rect VisualMedia uses for its own bounding contribution. */
     setSelfBoundsMode(mode: SelfBoundsMode): this {
         this.selfBoundsMode = mode;
-        return this;
-    }
-
-    /**
-     * @deprecated Use setSelfBoundsMode() + setLayoutParticipation() instead.
-     * Set the layout bounds policy:
-     * - `'drawn'`     Layout bounds track the actual drawn/scaled image region (default).
-     * - `'container'` Layout bounds equal the full container rect.
-     * - `'none'`      Excluded from layout bounds entirely.
-     */
-    setLayoutBoundsMode(mode: 'container' | 'drawn' | 'none'): this {
-        if (mode === 'none') {
-            this.layoutParticipation = 'exclude';
-        } else {
-            if (this.layoutParticipation === 'exclude') this.layoutParticipation = 'auto';
-            this.selfBoundsMode = mode;
-        }
-        return this;
-    }
-
-    override setIncludeInLayoutBounds(include: boolean | undefined): this {
-        if (include === false) {
-            this.layoutParticipation = 'exclude';
-            return this;
-        }
-        if (this.layoutParticipation === 'exclude') this.layoutParticipation = 'auto';
-        super.setIncludeInLayoutBounds(include);
         return this;
     }
 

@@ -40,11 +40,10 @@ export class CytusishAnimation extends BaseNoteAnimation {
         let outerCircle = new Arc(
             0,
             0, 
-            height, 
-            0, 
-            Math.PI*2,
-            false,
+            height,
             { 
+                startAngle: 0,
+                endAngle: Math.PI * 2,
                 fillColor: "#0000", 
                 strokeColor: color, 
                 strokeWidth: 2
@@ -55,11 +54,10 @@ export class CytusishAnimation extends BaseNoteAnimation {
         let shockCircle = new Arc(
             0,
             0, 
-            height + 4, 
-            0, 
-            Math.PI*2,
-            false,
+            height + 4,
             { 
+                startAngle: 0,
+                endAngle: Math.PI * 2,
                 fillColor: "#0000", 
                 strokeColor: color, 
                 strokeWidth: 4
@@ -70,11 +68,10 @@ export class CytusishAnimation extends BaseNoteAnimation {
         let innerCircle = new Arc(
             0,
             0,
-            height*0.6,
-            0,
-            Math.PI * 2,
-            false,
+            height * 0.6,
             {
+                startAngle: 0,
+                endAngle: Math.PI * 2,
                 fillColor: color,
                 strokeColor: "#0000",
             }
@@ -87,14 +84,13 @@ export class CytusishAnimation extends BaseNoteAnimation {
                     0,
                     0,
                     height * 1.2,
-                    angle,
-                    angle+LEN_ARCS,
-                    false,
                     {
+                        startAngle: angle,
+                        endAngle: angle + LEN_ARCS,
                         fillColor: "#0000",
                         strokeColor: color,
                         strokeWidth: 2,
-                        includeInLayoutBounds: false
+                        layoutParticipation: 'exclude'
                     }
                 );
             })
@@ -177,4 +173,3 @@ export class CytusishAnimation extends BaseNoteAnimation {
 }
 
 registerAnimation({ name: 'cytusish', label: 'Cytusish', class: CytusishAnimation });
-

@@ -52,13 +52,11 @@ describe('AudioWaveform integration in TrackLanes', () => {
                     id: 'audio1',
                     name: 'Audio Track 1',
                     type: 'audio',
-                    offsetTicks: 0,
+                    clips: [{ id: 'clip1', type: 'audio', sourceId: 'audio1', offsetTicks: 0 }],
                     enabled: true,
                     mute: false,
                     solo: false,
                     gain: 1,
-                    regionStartTick: 0,
-                    regionEndTick: 400,
                 }
             },
             audioCache: {
@@ -72,7 +70,6 @@ describe('AudioWaveform integration in TrackLanes', () => {
                         ),
                         sampleStep: 1024,
                     },
-                    durationTicks: 400,
                     durationSeconds: 1,
                     durationSamples: 44100,
                     audioBuffer: fakeAudioBuffer,

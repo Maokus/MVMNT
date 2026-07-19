@@ -81,14 +81,18 @@ class TrackerlikeMidiDisplayElement extends CallbackElementRenderer {
         const objects: RenderObject[] = [];
 
         if (!props.midiTrackId) {
-            objects.push(new Text(0, 0, 'Select a MIDI track', '14px monospace', '#94a3b8', 'left', 'top'));
+            objects.push(new Text(0, 0, 'Select a MIDI track', '14px monospace', {
+                color: '#94a3b8', align: 'left', baseline: 'top',
+            }));
             return objects;
         }
 
         const timeline = this.context.timeline;
         const timing = this.context.timing;
         if (!timeline || !timing) {
-            objects.push(new Text(0, 0, 'Timeline API unavailable', '12px monospace', '#64748b', 'left', 'top'));
+            objects.push(new Text(0, 0, 'Timeline API unavailable', '12px monospace', {
+                color: '#64748b', align: 'left', baseline: 'top',
+            }));
             return objects;
         }
 
@@ -114,7 +118,9 @@ class TrackerlikeMidiDisplayElement extends CallbackElementRenderer {
         if (props.showTrackName) {
             const track = timeline.getTrack(props.midiTrackId);
             const trackLabel = track.ok ? track.value.name : '?';
-            objects.push(new Text(0, 0, ` T> ${trackLabel}`, font, props.headerColor, 'left', 'top'));
+            objects.push(new Text(0, 0, ` T> ${trackLabel}`, font, {
+                color: props.headerColor, align: 'left', baseline: 'top',
+            }));
             yOffset = lineHeight;
         }
 
@@ -151,7 +157,7 @@ class TrackerlikeMidiDisplayElement extends CallbackElementRenderer {
 
             const color = isActive ? props.activeColor : props.textColor;
             const y = yOffset + lineHeight * i;
-            objects.push(new Text(0, y, line, font, color, 'left', 'top'));
+            objects.push(new Text(0, y, line, font, { color, align: 'left', baseline: 'top' }));
         }
 
         return objects;

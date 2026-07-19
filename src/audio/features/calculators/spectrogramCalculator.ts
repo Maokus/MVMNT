@@ -105,7 +105,6 @@ export function createSpectrogramCalculator({
                     window: 'hann',
                 },
                 analysisProfileId: context.analysisProfileId,
-                channelAliases: null,
                 channelLayout: null,
             };
 

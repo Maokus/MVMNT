@@ -136,13 +136,8 @@ export const useMenuBar = ({
                 }
             }
             const safeName = nameToUse.replace(/[^a-zA-Z0-9]/g, '_') || 'scene';
-            const { blob, mode } = res;
-            const exportBlob =
-                blob ||
-                (mode === 'zip-package'
-                    ? new Blob([toArrayBuffer(res.zip)], { type: 'application/zip' })
-                    : new Blob([res.json], { type: 'application/json' }));
-            const extension = mode === 'zip-package' ? '.mvt' : '.json';
+            const exportBlob = res.blob || new Blob([toArrayBuffer(res.zip)], { type: 'application/zip' });
+            const extension = '.mvt';
             useTemplateStatusStore.getState().updateLoading({ progress: 1, message: 'Starting download…' });
             const url = URL.createObjectURL(exportBlob);
             const link = document.createElement('a');

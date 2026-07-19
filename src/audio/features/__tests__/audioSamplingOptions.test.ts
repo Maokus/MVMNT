@@ -46,7 +46,7 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
                 format: 'float32',
                 data: new Float32Array(frameCount),
                 analysisProfileId: 'default',
-                channelAliases: null,
+                channelLayout: null,
             },
         },
         analysisProfiles: {
@@ -59,7 +59,7 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
             },
         },
         defaultAnalysisProfileId: 'default',
-        channelAliases: null,
+        channelLayout: null,
     };
 }
 
@@ -85,7 +85,6 @@ describe('audio sampling options cache behaviour', () => {
                     values: [value],
                     channels: 1,
                     channelValues: [[value]],
-                    channelAliases: null,
                     channelLayout: null,
                     format: 'float32' as const,
                 },
@@ -121,11 +120,14 @@ describe('audio sampling options cache behaviour', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [{ id: 'audioClip', type: 'audio', sourceId: 'audioTrack', offsetTicks: 0 }],
                     gain: 1,
                 },
             },
             tracksOrder: ['audioTrack'],
+            audioCache: {
+                audioTrack: { sampleRate: 48_000, channels: 1, durationSeconds: 1, durationSamples: 48_000 },
+            },
         }));
 
         const cache = createFeatureCache('audioTrack');

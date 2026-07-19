@@ -63,7 +63,6 @@ function setSceneWithClipAudioSource() {
         audioCache: {
             source1: {
                 audioBuffer: makeAudioBufferStub(),
-                durationTicks: 960,
                 durationSeconds: 1,
                 durationSamples: 100,
                 sampleRate: 44100,
@@ -163,7 +162,6 @@ describe('audio clip source persistence', () => {
                 ...state.audioCache,
                 source2: {
                     audioBuffer: makeAudioBufferStub(),
-                    durationTicks: 960,
                     durationSeconds: 1,
                     durationSamples: 100,
                     sampleRate: 44100,
@@ -204,7 +202,7 @@ describe('audio clip source persistence', () => {
         expect(resolveDecode).toBeDefined();
         const loadingEntry = useTimelineStore.getState().audioCache.source1;
         expect(loadingEntry).toMatchObject({ decodedState: 'decoding' });
-        expect(loadingEntry.durationTicks).toBeGreaterThan(0);
+        expect(loadingEntry.durationSeconds).toBeGreaterThan(0);
         expect(useTimelineStore.getState().audioCache.source2).toMatchObject({ decodedState: 'decoding' });
 
         useTimelineStore.getState().resetTimeline();
@@ -309,7 +307,6 @@ describe('audio clip source persistence', () => {
             audioCache: {
                 assetHashOnly: {
                     audioBuffer: makeAudioBufferStub(),
-                    durationTicks: 960,
                     durationSeconds: 1,
                     durationSamples: 100,
                     sampleRate: 44100,
@@ -331,7 +328,7 @@ describe('audio clip source persistence', () => {
         expect(exported.envelope.references?.audioIdMap.source1).toBeDefined();
     });
 
-    it('repairs clip sources from track audioSourceId aliases when saving multiple audio tracks', async () => {
+    it('packages multiple audio sources referenced directly by clips', async () => {
         useTimelineStore.setState((state) => ({
             ...state,
             tracks: {
@@ -343,8 +340,7 @@ describe('audio clip source persistence', () => {
                     mute: false,
                     solo: false,
                     gain: 1,
-                    audioSourceId: 'cacheA',
-                    clips: [{ id: 'clip1', type: 'audio', sourceId: 'source1', offsetTicks: 0, enabled: true }],
+                    clips: [{ id: 'clip1', type: 'audio', sourceId: 'cacheA', offsetTicks: 0, enabled: true }],
                 },
                 audioTrack2: {
                     id: 'audioTrack2',
@@ -354,15 +350,13 @@ describe('audio clip source persistence', () => {
                     mute: false,
                     solo: false,
                     gain: 1,
-                    audioSourceId: 'cacheB',
-                    clips: [{ id: 'clip2', type: 'audio', sourceId: 'source2', offsetTicks: 0, enabled: true }],
+                    clips: [{ id: 'clip2', type: 'audio', sourceId: 'cacheB', offsetTicks: 0, enabled: true }],
                 },
             },
             tracksOrder: ['audioTrack1', 'audioTrack2'],
             audioCache: {
                 cacheA: {
                     audioBuffer: makeAudioBufferStub(),
-                    durationTicks: 960,
                     durationSeconds: 1,
                     durationSamples: 100,
                     sampleRate: 44100,
@@ -376,7 +370,6 @@ describe('audio clip source persistence', () => {
                 },
                 cacheB: {
                     audioBuffer: makeAudioBufferStub(),
-                    durationTicks: 960,
                     durationSeconds: 1,
                     durationSamples: 100,
                     sampleRate: 44100,
@@ -412,9 +405,9 @@ describe('audio clip source persistence', () => {
         expect(loaded.loaded).toBe(true);
 
         const state = useTimelineStore.getState();
-        expect(state.audioCache.source1.originalFile?.byteLength).toBe(4);
-        expect(state.audioCache.source2.originalFile?.byteLength).toBe(4);
-        expect((state.tracks.audioTrack1 as any).clips?.[0]?.sourceId).toBe('source1');
-        expect((state.tracks.audioTrack2 as any).clips?.[0]?.sourceId).toBe('source2');
+        expect(state.audioCache.cacheA.originalFile?.byteLength).toBe(4);
+        expect(state.audioCache.cacheB.originalFile?.byteLength).toBe(4);
+        expect((state.tracks.audioTrack1 as any).clips?.[0]?.sourceId).toBe('cacheA');
+        expect((state.tracks.audioTrack2 as any).clips?.[0]?.sourceId).toBe('cacheB');
     });
 });

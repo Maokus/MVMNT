@@ -9,7 +9,11 @@ import type {
 } from './audioFeatureTypes';
 import { parseFeatureTrackKey, resolveFeatureTrackFromCache } from './featureTrackIdentity';
 import { normalizeHopTicks, quantizeHopTicks } from './hopQuantization';
-import { getAudioClipTimelineSegments, resolveAudioClipAtTick } from '@state/timeline/audioClips';
+import {
+    getAudioClipsForTrack,
+    getAudioClipTimelineSegments,
+    resolveAudioClipAtTick,
+} from '@state/timeline/audioClips';
 import { createTimingContext } from '@state/timelineTime';
 import type { AudioTrack } from '@audio/audioTypes';
 
@@ -184,7 +188,6 @@ export interface TempoAlignedFrameSample {
     values: number[];
     channels: number;
     channelValues: number[][];
-    channelAliases?: string[] | null;
     channelLayout?: ChannelLayoutMeta | null;
     format: AudioFeatureTrackFormat;
     frameLength?: number;
@@ -198,7 +201,6 @@ export interface TempoAlignedRangeSample {
     data: Float32Array;
     frameTicks: Float64Array;
     frameSeconds?: Float64Array;
-    channelAliases?: string[] | null;
     channelLayout?: ChannelLayoutMeta | null;
     requestedStartTick: number;
     requestedEndTick: number;
@@ -264,11 +266,9 @@ function nowNs(): number {
 }
 
 function resolveAudioSourceTrack(state: TimelineState, trackId: string) {
-    const track = state.tracks[trackId] as
-        | (TimelineState['tracks'][string] & { type: 'audio'; audioSourceId?: string })
-        | undefined;
+    const track = state.tracks[trackId] as AudioTrack | undefined;
     if (!track || track.type !== 'audio') return undefined;
-    const sourceId = track.audioSourceId ?? trackId;
+    const sourceId = getAudioClipsForTrack(track)[0]?.sourceId ?? trackId;
     return { track, sourceId } as const;
 }
 
@@ -343,18 +343,16 @@ function buildChannelMetadata(track: AudioFeatureTrack, cache: AudioFeatureCache
     const channels = Math.max(1, Math.floor(track.channels ?? 0) || 1);
     const trackLayout = track.channelLayout ?? null;
     const trackLayoutAliases = trackLayout?.aliases ?? null;
-    const trackAliases = track.channelAliases ?? null;
-    const cacheAliases = cache.channelAliases ?? null;
-    const aliasesSource = trackLayoutAliases ?? trackAliases ?? cacheAliases ?? null;
+    const cacheAliases = cache.channelLayout?.aliases ?? null;
+    const aliasesSource = trackLayoutAliases ?? cacheAliases ?? null;
     const normalizedTrackLayout = trackLayout
         ? {
               ...trackLayout,
               aliases: Array.isArray(trackLayout.aliases) ? [...trackLayout.aliases] : trackLayout.aliases ?? null,
           }
         : null;
-    const fallbackFromTrack = trackAliases ? { aliases: [...trackAliases] } : null;
     const fallbackFromCache = cacheAliases ? { aliases: [...cacheAliases] } : null;
-    const layout = (normalizedTrackLayout ?? fallbackFromTrack ?? fallbackFromCache) as ChannelLayoutMeta | null;
+    const layout = (normalizedTrackLayout ?? fallbackFromCache) as ChannelLayoutMeta | null;
     return {
         channels,
         aliases: aliasesSource ? [...aliasesSource] : null,
@@ -622,82 +620,6 @@ function interpolateVectors(
     return [...base];
 }
 
-function sampleLegacyFrame(
-    track: AudioFeatureTrack,
-    cache: AudioFeatureCache,
-    relativeTick: number,
-    hopTicks: number,
-    options: TempoAlignedFrameOptions
-): TempoAlignedFrameSample | undefined {
-    if (!Number.isFinite(relativeTick)) {
-        return undefined;
-    }
-    const channelMeta = buildChannelMetadata(track, cache);
-    const startTick = track.tempoProjection?.startTick ?? cache.tempoProjection?.startTick ?? 0;
-    const fractionalIndex = (relativeTick - startTick) / Math.max(1, hopTicks);
-    const baseIndex = Math.floor(fractionalIndex);
-    const frameIndex = Math.max(0, Math.min(track.frameCount - 1, baseIndex));
-    if (!Number.isFinite(fractionalIndex)) {
-        const silent = buildSilentVector(track, options);
-        return {
-            frameIndex,
-            fractionalIndex,
-            hopTicks,
-            values: [...silent.flatValues],
-            channels: silent.channelValues.length,
-            channelValues: silent.channelValues.map((channel) => [...channel]),
-            channelAliases: channelMeta.aliases,
-            channelLayout: channelMeta.layout,
-            format: track.format,
-            frameLength: silent.frameLength ?? 0,
-        };
-    }
-    if (fractionalIndex < 0 || fractionalIndex >= track.frameCount) {
-        const silent = buildSilentVector(track, options);
-        return {
-            frameIndex,
-            fractionalIndex,
-            hopTicks,
-            values: [...silent.flatValues],
-            channels: silent.channelValues.length,
-            channelValues: silent.channelValues.map((channel) => [...channel]),
-            channelAliases: channelMeta.aliases,
-            channelLayout: channelMeta.layout,
-            format: track.format,
-            frameLength: silent.frameLength ?? 0,
-        };
-    }
-    const frac = fractionalIndex - baseIndex;
-    const baseInfo = buildFrameVectorInfo(track, frameIndex, options);
-    const baseVector = baseInfo.flatValues;
-    const profile = options.interpolation ?? DEFAULT_INTERPOLATION;
-    let values = [...baseVector];
-    if (profile !== 'hold') {
-        const prevVector = buildFrameVector(track, frameIndex - 1, options);
-        const nextVector = buildFrameVector(track, frameIndex + 1, options);
-        const nextNextVector = buildFrameVector(track, frameIndex + 2, options);
-        values = interpolateVectors(profile, baseVector, prevVector, nextVector, nextNextVector, frac);
-    }
-    const channelValues = splitValuesBySizes(values, baseInfo.channelSizes);
-    return {
-        frameIndex,
-        fractionalIndex,
-        hopTicks,
-        values,
-        channels: channelValues.length,
-        channelValues,
-        channelAliases: channelMeta.aliases,
-        channelLayout: channelMeta.layout,
-        format: track.format,
-        frameLength: baseInfo.frameLength,
-    };
-}
-
-function resolveAdapterToggle(state: TimelineState): boolean {
-    const enabled = state.hybridCacheRollout?.adapterEnabled;
-    return enabled !== false;
-}
-
 function buildDiagnostics(
     request: TempoAlignedFrameRequest | TempoAlignedRangeRequest,
     sourceId: string | undefined,
@@ -784,7 +706,6 @@ function getClipAwareFrame(state: TimelineState, request: TempoAlignedFrameReque
             values: [...silent.flatValues],
             channels: silent.channelValues.length,
             channelValues: silent.channelValues.map((channel) => [...channel]),
-            channelAliases: channelMeta.aliases,
             channelLayout: channelMeta.layout,
             format: featureTrack!.format,
             frameLength: silent.frameLength ?? 0,
@@ -827,7 +748,6 @@ function getClipAwareFrame(state: TimelineState, request: TempoAlignedFrameReque
             values,
             channels: channelValues.length,
             channelValues,
-            channelAliases: channelMeta.aliases,
             channelLayout: channelMeta.layout,
             format: featureTrack.format,
             frameLength: baseInfo.frameLength,
@@ -899,7 +819,6 @@ function getClipAwareRange(state: TimelineState, request: TempoAlignedRangeReque
             data,
             frameTicks,
             frameSeconds,
-            channelAliases: firstFrame.channelAliases ?? null,
             channelLayout: firstFrame.channelLayout ?? null,
             requestedStartTick: request.startTick,
             requestedEndTick: request.endTick,
@@ -914,438 +833,25 @@ function getClipAwareRange(state: TimelineState, request: TempoAlignedRangeReque
 }
 
 export function getTempoAlignedFrame(state: TimelineState, request: TempoAlignedFrameRequest): TempoAlignedFrameResult {
-    const options = request.options ?? {};
-    const interpolation = options.interpolation ?? DEFAULT_INTERPOLATION;
     const resolved = resolveAudioSourceTrack(state, request.trackId);
     if (!resolved) {
+        const interpolation = request.options?.interpolation ?? DEFAULT_INTERPOLATION;
         return {
             sample: undefined,
             diagnostics: buildDiagnostics(request, undefined, false, interpolation, 0, 0, 'track-missing'),
         };
     }
-    if (Array.isArray((resolved.track as AudioTrack).clips)) {
-        return getClipAwareFrame(state, request);
-    }
-    const { track, sourceId } = resolved;
-    const cache = state.audioFeatureCaches[sourceId];
-    if (!cache) {
-        return {
-            sample: undefined,
-            diagnostics: buildDiagnostics(request, sourceId, false, interpolation, 0, 0, 'cache-missing'),
-        };
-    }
-    const { track: featureTrack, key: resolvedFeatureKey } = resolveFeatureTrackFromCache(cache, request.featureKey, {
-        analysisProfileId: request.analysisProfileId,
-    });
-    const diagnosticsRequest = resolvedFeatureKey ? { ...request, featureKey: resolvedFeatureKey } : request;
-    if (!featureTrack || featureTrack.frameCount <= 0) {
-        return {
-            sample: undefined,
-            diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, false, interpolation, 0, 0, 'feature-missing'),
-        };
-    }
-
-    const hopSeconds = resolveHopSeconds(featureTrack, cache);
-    if (hopSeconds <= 0) {
-        return {
-            sample: undefined,
-            diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, true, interpolation, 0, 0, 'invalid-hop'),
-        };
-    }
-
-    const channelMeta = buildChannelMetadata(featureTrack, cache);
-    const startSeconds = resolveStartSeconds(featureTrack, cache);
-    const adapterEnabled = resolveAdapterToggle(state);
-    const offsetTicks = track.offsetTicks ?? 0;
-    const regionStart = track.regionStartTick ?? 0;
-    const relativeTick = request.tick - offsetTicks + regionStart;
-
-    if (!adapterEnabled) {
-        const hopTicksLegacy = featureTrack.hopTicks ?? cache.hopTicks ?? 0;
-        const sample = sampleLegacyFrame(featureTrack, cache, relativeTick, hopTicksLegacy, options);
-        return {
-            sample,
-            diagnostics: buildDiagnostics(
-                diagnosticsRequest,
-                sourceId,
-                true,
-                interpolation,
-                0,
-                sample ? 1 : 0,
-                'adapter-disabled'
-            ),
-        };
-    }
-
-    const tempoMapper = resolveTempoMapper(state);
-    const hopTicks = resolveHopTicks(featureTrack, cache, tempoMapper);
-    const mapperStart = nowNs();
-    const startTick = tempoMapper.secondsToTicks(startSeconds);
-
-    const buildSilentSample = (fractionalIndex: number): TempoAlignedFrameSample => {
-        const base = Number.isFinite(fractionalIndex) ? Math.floor(fractionalIndex) : 0;
-        const silent = buildSilentVector(featureTrack, options);
-        return {
-            frameIndex: Math.max(0, Math.min(featureTrack.frameCount - 1, base)),
-            fractionalIndex,
-            hopTicks,
-            values: [...silent.flatValues],
-            channels: silent.channelValues.length,
-            channelValues: silent.channelValues.map((channel) => [...channel]),
-            channelAliases: channelMeta.aliases,
-            channelLayout: channelMeta.layout,
-            format: featureTrack.format,
-            frameLength: silent.frameLength ?? 0,
-        };
-    };
-
-    if (!Number.isFinite(relativeTick) || relativeTick < startTick) {
-        const fractionalIndex = (relativeTick - startTick) / Math.max(1, hopTicks);
-        const mapperDurationNs = nowNs() - mapperStart;
-        const sample = buildSilentSample(fractionalIndex);
-        return {
-            sample,
-            diagnostics: buildDiagnostics(
-                diagnosticsRequest,
-                sourceId,
-                true,
-                interpolation,
-                mapperDurationNs,
-                1,
-                undefined
-            ),
-        };
-    }
-
-    const relativeSeconds = tempoMapper.ticksToSeconds(relativeTick);
-    const frameFloat = (relativeSeconds - startSeconds) / hopSeconds;
-    const mapperDurationNs = nowNs() - mapperStart;
-    if (!Number.isFinite(frameFloat) || frameFloat < 0 || frameFloat >= featureTrack.frameCount) {
-        const sample = buildSilentSample(frameFloat);
-        return {
-            sample,
-            diagnostics: buildDiagnostics(
-                diagnosticsRequest,
-                sourceId,
-                true,
-                interpolation,
-                mapperDurationNs,
-                1,
-                undefined
-            ),
-        };
-    }
-
-    const baseIndex = Math.floor(frameFloat);
-    const frac = frameFloat - baseIndex;
-    const radius = Math.max(0, Math.floor(options.smoothing ?? 0));
-    const samples: number[][] = [];
-    const getVectorInfo = (index: number): FrameVectorInfo => {
-        if (index < 0 || index >= featureTrack.frameCount) {
-            return buildSilentVector(featureTrack, options);
-        }
-        return buildFrameVectorInfo(featureTrack, index, options);
-    };
-    for (let i = -radius; i <= radius; i += 1) {
-        const idx = baseIndex + i;
-        samples.push(getVectorInfo(idx).flatValues);
-    }
-    if (!samples.length) {
-        samples.push(getVectorInfo(baseIndex).flatValues);
-    }
-    const baseInfo = getVectorInfo(baseIndex);
-    let values = applySmoothingWindow(samples, radius);
-    if (radius === 0) {
-        const prevVector = getVectorInfo(baseIndex - 1).flatValues;
-        const baseVector = baseInfo.flatValues;
-        const nextVector = getVectorInfo(baseIndex + 1).flatValues;
-        const nextNextVector = getVectorInfo(baseIndex + 2).flatValues;
-        values = interpolateVectors(interpolation, baseVector, prevVector, nextVector, nextNextVector, frac);
-    }
-
-    const channelValues = splitValuesBySizes(values, baseInfo.channelSizes);
-    const sample: TempoAlignedFrameSample = {
-        frameIndex: Math.max(0, Math.min(featureTrack.frameCount - 1, baseIndex)),
-        fractionalIndex: frameFloat,
-        hopTicks,
-        values,
-        channels: channelValues.length,
-        channelValues,
-        channelAliases: channelMeta.aliases,
-        channelLayout: channelMeta.layout,
-        format: featureTrack.format,
-        frameLength: baseInfo.frameLength,
-    };
-
-    return {
-        sample,
-        diagnostics: buildDiagnostics(
-            diagnosticsRequest,
-            sourceId,
-            true,
-            interpolation,
-            mapperDurationNs,
-            1,
-            undefined
-        ),
-    };
+    return getClipAwareFrame(state, request);
 }
 
 export function getTempoAlignedRange(state: TimelineState, request: TempoAlignedRangeRequest): TempoAlignedRangeResult {
-    const options = request.options ?? {};
-    const interpolation = options.interpolation ?? DEFAULT_INTERPOLATION;
     const resolved = resolveAudioSourceTrack(state, request.trackId);
     if (!resolved) {
+        const interpolation = request.options?.interpolation ?? DEFAULT_INTERPOLATION;
         return {
             range: undefined,
             diagnostics: buildDiagnostics(request, undefined, false, interpolation, 0, 0, 'track-missing'),
         };
     }
-    if (Array.isArray((resolved.track as AudioTrack).clips)) {
-        return getClipAwareRange(state, request);
-    }
-    const { track, sourceId } = resolved;
-    const cache = state.audioFeatureCaches[sourceId];
-    if (!cache) {
-        return {
-            range: undefined,
-            diagnostics: buildDiagnostics(request, sourceId, false, interpolation, 0, 0, 'cache-missing'),
-        };
-    }
-    const { track: featureTrack, key: resolvedFeatureKey } = resolveFeatureTrackFromCache(cache, request.featureKey, {
-        analysisProfileId: request.analysisProfileId,
-    });
-    const diagnosticsRequest = resolvedFeatureKey ? { ...request, featureKey: resolvedFeatureKey } : request;
-    if (!featureTrack || featureTrack.frameCount <= 0) {
-        return {
-            range: undefined,
-            diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, false, interpolation, 0, 0, 'feature-missing'),
-        };
-    }
-
-    const hopSeconds = resolveHopSeconds(featureTrack, cache);
-    if (hopSeconds <= 0) {
-        return {
-            range: undefined,
-            diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, true, interpolation, 0, 0, 'invalid-hop'),
-        };
-    }
-
-    const channelMeta = buildChannelMetadata(featureTrack, cache);
-    const adapterEnabled = resolveAdapterToggle(state);
-    const offsetTicks = track.offsetTicks ?? 0;
-    const regionStart = track.regionStartTick ?? 0;
-    const regionEnd = (() => {
-        if (typeof track.regionEndTick === 'number' && Number.isFinite(track.regionEndTick)) {
-            return track.regionEndTick;
-        }
-        const cacheEntry = state.audioCache?.[sourceId];
-        if (cacheEntry && typeof cacheEntry.durationTicks === 'number') {
-            return cacheEntry.durationTicks;
-        }
-        return undefined;
-    })();
-    const regionLength = (() => {
-        if (typeof regionEnd === 'number') {
-            return Math.max(0, regionEnd - regionStart);
-        }
-        const startSeconds = resolveStartSeconds(featureTrack, cache);
-        const totalSeconds = startSeconds + featureTrack.frameCount * hopSeconds;
-        const tempoMapper = resolveTempoMapper(state);
-        const startTick = tempoMapper.secondsToTicks(startSeconds);
-        const endTick = tempoMapper.secondsToTicks(totalSeconds);
-        return Math.max(0, Math.round(endTick - startTick));
-    })();
-    const trackStartTick = offsetTicks;
-    const trackEndTick = trackStartTick + regionLength;
-    const localStart = request.startTick - offsetTicks + regionStart;
-    const localEnd = request.endTick - offsetTicks + regionStart;
-
-    if (!adapterEnabled) {
-        const hopTicksLegacy = featureTrack.hopTicks ?? cache.hopTicks ?? 0;
-        if (hopTicksLegacy <= 0) {
-            return {
-                range: undefined,
-                diagnostics: buildDiagnostics(
-                    diagnosticsRequest,
-                    sourceId,
-                    true,
-                    interpolation,
-                    0,
-                    0,
-                    'adapter-disabled'
-                ),
-            };
-        }
-        const padding = Math.max(0, Math.floor(options.framePadding ?? 0));
-        const startTick = featureTrack.tempoProjection?.startTick ?? cache.tempoProjection?.startTick ?? 0;
-        const frameStart = Math.floor((Math.min(localStart, localEnd) - startTick) / hopTicksLegacy) - padding;
-        const frameEnd = Math.floor((Math.max(localStart, localEnd) - startTick) / hopTicksLegacy) + padding;
-        const firstFrame = Math.max(0, Math.min(featureTrack.frameCount - 1, frameStart));
-        const lastFrame = Math.max(firstFrame, Math.min(featureTrack.frameCount - 1, frameEnd));
-        const frameCount = lastFrame - firstFrame + 1;
-        const isWaveformMinMax = featureTrack.format === 'waveform-minmax';
-        const isWaveformPeriodic = featureTrack.format === 'waveform-periodic';
-        const waveformVectorLength = isWaveformMinMax
-            ? resolveWaveformVectorLength(featureTrack)
-            : isWaveformPeriodic
-            ? resolvePeriodicWaveformLength(featureTrack)
-            : 0;
-        const canonicalShape = ensureFrameShape(featureTrack, options);
-        const vectorWidth = Math.max(
-            0,
-            canonicalShape.flatLength ||
-                (isWaveformMinMax || isWaveformPeriodic
-                    ? waveformVectorLength
-                    : options.bandIndex != null
-                    ? 1
-                    : Math.max(1, featureTrack.channels))
-        );
-        const data = new Float32Array(frameCount * Math.max(0, vectorWidth));
-        const frameTicks = new Float64Array(frameCount);
-        let writeIndex = 0;
-        for (let frame = 0; frame < frameCount; frame += 1) {
-            const sampleIndex = firstFrame + frame;
-            const vectorInfo =
-                sampleIndex < 0 || sampleIndex >= featureTrack.frameCount
-                    ? buildSilentVector(featureTrack, options)
-                    : buildFrameVectorInfo(featureTrack, sampleIndex, options);
-            const flat = vectorInfo.flatValues;
-            frameTicks[frame] = trackStartTick + (startTick + sampleIndex * hopTicksLegacy);
-            for (let i = 0; i < vectorWidth; i += 1) {
-                data[writeIndex++] = flat[i] ?? 0;
-            }
-        }
-        const range: TempoAlignedRangeSample = {
-            hopTicks: hopTicksLegacy,
-            frameCount,
-            channels: vectorWidth,
-            format: featureTrack.format,
-            data,
-            frameTicks,
-            channelAliases: channelMeta.aliases,
-            channelLayout: channelMeta.layout,
-            requestedStartTick: request.startTick,
-            requestedEndTick: request.endTick,
-            windowStartTick: Math.min(request.startTick, request.endTick),
-            windowEndTick: Math.max(request.startTick, request.endTick),
-            trackStartTick,
-            trackEndTick,
-            sourceId,
-        };
-        return {
-            range,
-            diagnostics: buildDiagnostics(
-                diagnosticsRequest,
-                sourceId,
-                true,
-                interpolation,
-                0,
-                frameCount,
-                'adapter-disabled'
-            ),
-        };
-    }
-
-    const tempoMapper = resolveTempoMapper(state);
-    const hopTicks = resolveHopTicks(featureTrack, cache, tempoMapper);
-    const mapperStart = nowNs();
-    const startSeconds = resolveStartSeconds(featureTrack, cache);
-    const localStartSeconds = tempoMapper.ticksToSeconds(localStart);
-    const localEndSeconds = tempoMapper.ticksToSeconds(localEnd);
-    const normalizedStartSeconds = (Math.min(localStartSeconds, localEndSeconds) - startSeconds) / hopSeconds;
-    const normalizedEndSeconds = (Math.max(localStartSeconds, localEndSeconds) - startSeconds) / hopSeconds;
-    const frameStart = Math.floor(normalizedStartSeconds);
-    const frameEnd = Math.floor(normalizedEndSeconds);
-    const padding = Math.max(0, Math.floor(options.framePadding ?? 0));
-    const firstFrame = frameStart - padding;
-    const lastFrame = frameEnd + padding;
-    const frameCount = Math.max(0, lastFrame - firstFrame + 1);
-    if (frameCount <= 0) {
-        const mapperDurationNs = nowNs() - mapperStart;
-        return {
-            range: undefined,
-            diagnostics: buildDiagnostics(
-                diagnosticsRequest,
-                sourceId,
-                true,
-                interpolation,
-                mapperDurationNs,
-                0,
-                undefined
-            ),
-        };
-    }
-
-    const isWaveformMinMax = featureTrack.format === 'waveform-minmax';
-    const isWaveformPeriodic = featureTrack.format === 'waveform-periodic';
-    const waveformVectorLength = isWaveformMinMax
-        ? resolveWaveformVectorLength(featureTrack)
-        : isWaveformPeriodic
-        ? resolvePeriodicWaveformLength(featureTrack)
-        : 0;
-    const canonicalShape = ensureFrameShape(featureTrack, options);
-    const vectorWidth = Math.max(
-        0,
-        canonicalShape.flatLength ||
-            (isWaveformMinMax || isWaveformPeriodic
-                ? waveformVectorLength
-                : options.bandIndex != null
-                ? 1
-                : Math.max(1, featureTrack.channels))
-    );
-    const data = new Float32Array(frameCount * Math.max(0, vectorWidth));
-    const frameSeconds = new Float64Array(frameCount);
-    const baseTick = offsetTicks - regionStart;
-    const halfHopSeconds = hopSeconds / 2;
-    let writeIndex = 0;
-    for (let frame = 0; frame < frameCount; frame += 1) {
-        const sampleIndex = firstFrame + frame;
-        const vectorInfo =
-            sampleIndex < 0 || sampleIndex >= featureTrack.frameCount
-                ? buildSilentVector(featureTrack, options)
-                : buildFrameVectorInfo(featureTrack, sampleIndex, options);
-        const flat = vectorInfo.flatValues;
-        frameSeconds[frame] = startSeconds + sampleIndex * hopSeconds + halfHopSeconds;
-        for (let i = 0; i < vectorWidth; i += 1) {
-            data[writeIndex++] = flat[i] ?? 0;
-        }
-    }
-    const projectedTicks = tempoMapper.secondsToTicksBatch(frameSeconds);
-    const frameTicks = new Float64Array(frameCount);
-    for (let frame = 0; frame < frameCount; frame += 1) {
-        frameTicks[frame] = baseTick + (projectedTicks[frame] ?? 0);
-    }
-    const mapperDurationNs = nowNs() - mapperStart;
-    const range: TempoAlignedRangeSample = {
-        hopTicks,
-        frameCount,
-        channels: vectorWidth,
-        format: featureTrack.format,
-        data,
-        frameTicks,
-        frameSeconds,
-        channelAliases: channelMeta.aliases,
-        channelLayout: channelMeta.layout,
-        requestedStartTick: request.startTick,
-        requestedEndTick: request.endTick,
-        windowStartTick: Math.min(request.startTick, request.endTick),
-        windowEndTick: Math.max(request.startTick, request.endTick),
-        trackStartTick,
-        trackEndTick,
-        sourceId,
-    };
-
-    return {
-        range,
-        diagnostics: buildDiagnostics(
-            diagnosticsRequest,
-            sourceId,
-            true,
-            interpolation,
-            mapperDurationNs,
-            frameCount,
-            undefined
-        ),
-    };
+    return getClipAwareRange(state, request);
 }

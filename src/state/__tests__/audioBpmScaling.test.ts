@@ -27,26 +27,24 @@ function makeTestAudioBuffer(durationSeconds: number, sampleRate = 48000, channe
 describe('Audio BPM scaling', () => {
     it('does not mutate media duration metadata when BPM changes', async () => {
         const initialBpm = useTimelineStore.getState().timeline.globalBpm;
-        const ppq = sharedTimingManager.ticksPerQuarter;
         const buffer = makeTestAudioBuffer(3.0);
         const id = await useTimelineStore.getState().addAudioTrack({ name: 'Tempo Clip', buffer });
         await new Promise((r) => setTimeout(r, 0));
         const st1 = useTimelineStore.getState();
         const cache1 = st1.audioCache[id];
-        const expected1 = Math.round(buffer.duration * ppq * 2);
-        expect(cache1.durationTicks).toBe(expected1);
+        expect(cache1.durationSeconds).toBe(3);
 
         // Tempo changes affect derived clip endpoints, never the source cache.
         const newBpm = initialBpm * 2;
         useTimelineStore.getState().setGlobalBpm(newBpm);
         const st2 = useTimelineStore.getState();
         const cache2 = st2.audioCache[id];
-        expect(cache2.durationTicks).toBe(expected1);
+        expect(cache2.durationSeconds).toBe(3);
 
-        // Nor does a later BPM change alter the compatibility field.
+        // Nor does a later BPM change alter immutable source metadata.
         useTimelineStore.getState().setGlobalBpm(initialBpm / 2);
         const st3 = useTimelineStore.getState();
         const cache3 = st3.audioCache[id];
-        expect(cache3.durationTicks).toBe(expected1);
+        expect(cache3.durationSeconds).toBe(3);
     });
 });

@@ -54,11 +54,11 @@ describe('audio feature analysis', () => {
         expect(cache.featureTracks[waveformKey]).toBeDefined();
         expect(cache.analysisParams.calculatorVersions['mvmnt.spectrogram']).toBe(3);
         expect(cache.hopTicks).toBeGreaterThan(0);
-        expect(cache.version).toBe(3);
+        expect(cache.version).toBe(4);
         expect(cache.startTimeSeconds).toBe(0);
         expect(cache.tempoProjection?.hopTicks).toBe(cache.hopTicks);
         const roundTrip = deserializeAudioFeatureCache(serializeAudioFeatureCache(cache));
-        expect(roundTrip.version).toBe(3);
+        expect(roundTrip.version).toBe(4);
         expect(roundTrip.featureTracks[spectrogramKey]?.channels).toBe(cache.featureTracks[spectrogramKey]?.channels);
         const spectrogramTrack = cache.featureTracks[spectrogramKey]!;
         expect(spectrogramTrack.metadata?.minDecibels).toBe(-80);

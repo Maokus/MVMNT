@@ -175,7 +175,7 @@ export const basicShapes = definePluginElement<Props, undefined>({
                     props.shadowOffsetX,
                     props.shadowOffsetY
                 );
-            object.setIncludeInLayoutBounds(false);
+            object.setLayoutParticipation('exclude');
             return object as RenderObject;
         };
         let shape: RenderObject;
@@ -194,7 +194,10 @@ export const basicShapes = definePluginElement<Props, undefined>({
         } else if (props.shapeType === 'circle') {
             const radius = Math.max(1, props.radius);
             width = height = radius * 2;
-            const arc = new Arc(0, 0, radius, degrees(props.startAngle), degrees(props.endAngle), props.anticlockwise, {
+            const arc = new Arc(0, 0, radius, {
+                startAngle: degrees(props.startAngle),
+                endAngle: degrees(props.endAngle),
+                anticlockwise: props.anticlockwise,
                 fillColor: fill,
                 strokeColor: stroke,
                 strokeWidth: props.strokeWidth,
@@ -212,11 +215,14 @@ export const basicShapes = definePluginElement<Props, undefined>({
                 const pointRadius = props.star && index % 2 ? Math.max(1, props.innerRadius) : radius;
                 points.push({ x: pointRadius * Math.cos(angle), y: pointRadius * Math.sin(angle) });
             }
-            shape = decorate(new Poly(points, fill, stroke, props.strokeWidth));
+            shape = decorate(new Poly(points, { fillColor: fill, strokeColor: stroke, strokeWidth: props.strokeWidth }));
         } else {
             width = Math.max(1, props.lineLength);
             shape = decorate(
-                new Line(-width / 2, 0, width / 2, 0, stroke ?? fill ?? '#ffffff', props.strokeWidth || 2)
+                new Line(-width / 2, 0, width / 2, 0, {
+                    color: stroke ?? fill ?? '#ffffff',
+                    lineWidth: props.strokeWidth || 2,
+                })
             );
         }
         const bounds = new Rectangle(-width / 2, -height / 2, width, height, { fillColor: null });

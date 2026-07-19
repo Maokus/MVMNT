@@ -48,7 +48,8 @@ const clipIntersectsWindow = (s: TimelineState, clip: MidiClip, startSec: number
 export const getTrackOffsetBeats = (s: TimelineState, id: string): number => {
     const t = s.tracks[id];
     if (!t) return 0;
-    return offsetTicksToBeats(t.offsetTicks || 0);
+    const offset = t.type === 'audio' ? (t.clips[0]?.offsetTicks ?? 0) : (t.offsetTicks ?? 0);
+    return offsetTicksToBeats(offset);
 };
 
 export const selectMidiTracks = (s: TimelineState): TimelineTrack[] =>

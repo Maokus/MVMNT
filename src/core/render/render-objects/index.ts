@@ -1,4 +1,4 @@
-export { RenderObject, type LayoutParticipation } from './base';
+export { RenderObject, type LayoutParticipation, type RenderObjectOptions } from './base';
 export { BoxRenderObject } from './box';
 export { EmptyRenderObject } from './empty';
 export { Rectangle, type RectangleOptions } from './rectangle';

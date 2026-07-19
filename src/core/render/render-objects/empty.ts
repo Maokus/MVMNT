@@ -1,4 +1,4 @@
-import { RenderObject, RenderConfig, Bounds } from './base';
+import { RenderObject, RenderConfig, Bounds, type LayoutParticipation } from './base';
 
 interface AnchorVisualizationData {
     layoutBounds: Bounds;
@@ -12,37 +12,17 @@ export class EmptyRenderObject extends RenderObject {
     baseBounds?: Bounds; // injected externally
     _worldCorners?: { x: number; y: number }[];
 
-    constructor(x = 0, y = 0, scaleX = 1, scaleY = 1, opacity = 1, options?: { includeInLayoutBounds?: boolean }) {
-        super(x, y, scaleX, scaleY, opacity);
-        // Default: empty containers are excluded from layout bounds unless opted-in.
-        this.layoutParticipation = options?.includeInLayoutBounds === true ? 'include' : 'exclude';
-    }
-
-    /** @deprecated Use setOriginFraction() */
-    setAnchorOffset(ax: number, ay: number): this {
-        this.originX = ax;
-        this.originY = ay;
-        return this;
-    }
-
-    /** @deprecated Use layoutParticipation + originX/Y directly */
-    get anchorOffsetX(): number { return this.originX; }
-    /** @deprecated Use layoutParticipation + originX/Y directly */
-    set anchorOffsetX(v: number) { this.originX = v; }
-    /** @deprecated Use layoutParticipation + originX/Y directly */
-    get anchorOffsetY(): number { return this.originY; }
-    /** @deprecated Use layoutParticipation + originY directly */
-    set anchorOffsetY(v: number) { this.originY = v; }
-
-    /** @deprecated Use setOriginFraction() */
-    get anchorFraction(): { x: number; y: number } | undefined {
-        if (this._originFractionX === null) return undefined;
-        return { x: this._originFractionX, y: this._originFractionY ?? 0 };
-    }
-    /** @deprecated Use setOriginFraction() */
-    set anchorFraction(v: { x: number; y: number } | undefined) {
-        if (v) { this._originFractionX = v.x; this._originFractionY = v.y; }
-        else { this._originFractionX = null; this._originFractionY = null; }
+    constructor(
+        x = 0,
+        y = 0,
+        scaleX = 1,
+        scaleY = 1,
+        opacity = 1,
+        options?: { layoutParticipation?: LayoutParticipation }
+    ) {
+        super(x, y, scaleX, scaleY, opacity, {
+            layoutParticipation: options?.layoutParticipation ?? 'exclude',
+        });
     }
 
     setAnchorVisualizationData(layoutBounds: Bounds, visualBounds: Bounds, anchorX: number, anchorY: number): this {

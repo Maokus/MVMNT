@@ -53,7 +53,7 @@ function buildPatch(track: TimelineTrackLike, patch: TrackPropertyPatch): TrackP
         changed = true;
     }
 
-    if ('regionStartTick' in patch) {
+    if (track.type === 'midi' && 'regionStartTick' in patch) {
         const value = typeof patch.regionStartTick === 'number' && Number.isFinite(patch.regionStartTick)
             ? patch.regionStartTick
             : undefined;
@@ -63,7 +63,7 @@ function buildPatch(track: TimelineTrackLike, patch: TrackPropertyPatch): TrackP
         }
     }
 
-    if ('regionEndTick' in patch) {
+    if (track.type === 'midi' && 'regionEndTick' in patch) {
         const value = typeof patch.regionEndTick === 'number' && Number.isFinite(patch.regionEndTick)
             ? patch.regionEndTick
             : undefined;
@@ -123,7 +123,7 @@ function applyDiffs(context: TimelineCommandContext, diffs: TrackDiff[]): void {
             }
             const nextTrack = { ...existing, ...diff.apply } as TimelineTrackLike;
             if (
-                (nextTrack.type === 'midi' || nextTrack.type === 'audio') &&
+                nextTrack.type === 'midi' &&
                 Array.isArray(nextTrack.clips) &&
                 nextTrack.clips.length === 1 &&
                 ('regionStartTick' in diff.apply || 'regionEndTick' in diff.apply)

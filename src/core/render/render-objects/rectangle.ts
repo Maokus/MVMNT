@@ -1,8 +1,8 @@
 import { BoxRenderObject } from './box';
-import { type RenderConfig, type Bounds, type LayoutParticipation } from './base';
+import { type RenderConfig, type Bounds, type RenderObjectOptions } from './base';
 import { applyShadow, clearShadow, applyDash, clearDash } from './style-helpers';
 
-export interface RectangleOptions {
+export interface RectangleOptions extends RenderObjectOptions {
     fillColor?: string | null;
     strokeColor?: string | null;
     strokeWidth?: number;
@@ -13,9 +13,6 @@ export interface RectangleOptions {
     shadowBlur?: number;
     shadowOffsetX?: number;
     shadowOffsetY?: number;
-    layoutParticipation?: LayoutParticipation;
-    /** @deprecated Use layoutParticipation. */
-    includeInLayoutBounds?: boolean;
 }
 
 export class Rectangle extends BoxRenderObject {
@@ -30,18 +27,12 @@ export class Rectangle extends BoxRenderObject {
     shadowOffsetX: number;
     shadowOffsetY: number;
 
-    constructor(x: number, y: number, width: number, height: number, options?: RectangleOptions);
-    /** @deprecated Pass style properties via the options object. */
-    constructor(x: number, y: number, width: number, height: number, fillColor: string | null, strokeColor?: string | null, strokeWidth?: number, options?: RectangleOptions);
     constructor(
         x: number,
         y: number,
         width: number,
         height: number,
-        fillColorOrOptions?: string | null | RectangleOptions,
-        strokeColor?: string | null,
-        strokeWidth?: number,
-        options?: RectangleOptions
+        options: RectangleOptions = {}
     ) {
         const maxPosition = 1_000_000;
         const maxSize = 1_000_000;
@@ -54,21 +45,17 @@ export class Rectangle extends BoxRenderObject {
                 `Rectangle constructor: Extreme values clamped - original: (${x}, ${y}, ${width}, ${height}), clamped: (${clampedX}, ${clampedY}, ${clampedWidth}, ${clampedHeight})`
             );
         }
-        const isOpts = fillColorOrOptions !== null && typeof fillColorOrOptions === 'object';
-        const opts: RectangleOptions = isOpts ? (fillColorOrOptions as RectangleOptions) : (options ?? {});
-        super(clampedX, clampedY, clampedWidth, clampedHeight, opts);
-        this.fillColor = isOpts
-            ? (opts.fillColor !== undefined ? opts.fillColor : '#FFFFFF')
-            : (fillColorOrOptions !== undefined ? (fillColorOrOptions as string | null) : '#FFFFFF');
-        this.strokeColor = isOpts ? (opts.strokeColor ?? null) : (strokeColor ?? null);
-        this.strokeWidth = isOpts ? (opts.strokeWidth ?? 1) : (strokeWidth ?? 1);
-        this.cornerRadius = opts.cornerRadius ?? 0;
-        this.lineDash = opts.lineDash ?? [];
-        this.lineDashOffset = opts.lineDashOffset ?? 0;
-        this.shadowColor = opts.shadowColor ?? null;
-        this.shadowBlur = opts.shadowBlur ?? 0;
-        this.shadowOffsetX = opts.shadowOffsetX ?? 0;
-        this.shadowOffsetY = opts.shadowOffsetY ?? 0;
+        super(clampedX, clampedY, clampedWidth, clampedHeight, options);
+        this.fillColor = options.fillColor === undefined ? '#FFFFFF' : options.fillColor;
+        this.strokeColor = options.strokeColor ?? null;
+        this.strokeWidth = options.strokeWidth ?? 1;
+        this.cornerRadius = options.cornerRadius ?? 0;
+        this.lineDash = options.lineDash ?? [];
+        this.lineDashOffset = options.lineDashOffset ?? 0;
+        this.shadowColor = options.shadowColor ?? null;
+        this.shadowBlur = options.shadowBlur ?? 0;
+        this.shadowOffsetX = options.shadowOffsetX ?? 0;
+        this.shadowOffsetY = options.shadowOffsetY ?? 0;
     }
 
     protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _currentTime: number): void {
@@ -124,10 +111,6 @@ export class Rectangle extends BoxRenderObject {
     setFill(color: string | null): this {
         this.fillColor = color;
         return this;
-    }
-    /** @deprecated Use setFill(). */
-    setFillColor(color: string | null): this {
-        return this.setFill(color);
     }
     setStroke(color: string | null, width = 1): this {
         this.strokeColor = color;

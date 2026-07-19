@@ -1,4 +1,4 @@
-import { RenderObject, type RenderConfig, type Bounds } from './base';
+import { RenderObject, type RenderConfig, type Bounds, type RenderObjectOptions } from './base';
 import { applyShadow, clearShadow, applyDash, clearDash } from './style-helpers';
 
 export type BezierPathCommand =
@@ -56,15 +56,14 @@ export class BezierPath extends RenderObject {
         x = 0,
         y = 0,
         commands: BezierPathCommand[] = [],
-        options?: {
+        options?: RenderObjectOptions & {
             fillColor?: string | null;
             strokeColor?: string | null;
             strokeWidth?: number;
             fillRule?: CanvasFillRule;
-            includeInLayoutBounds?: boolean;
         }
     ) {
-        super(x, y, 1, 1, 1, { includeInLayoutBounds: options?.includeInLayoutBounds });
+        super(x, y, 1, 1, 1, { layoutParticipation: options?.layoutParticipation });
         this.commands = commands.map(cloneCommand);
         this.fillColor = options?.fillColor ?? null;
         this.strokeColor = options?.strokeColor ?? '#FFFFFF';
@@ -124,11 +123,6 @@ export class BezierPath extends RenderObject {
         this.fillColor = color;
         return this;
     }
-    /** @deprecated Use setFill(). */
-    setFillColor(color: string | null): this {
-        return this.setFill(color);
-    }
-
     setStroke(color: string | null, width = this.strokeWidth): this {
         this.strokeColor = color;
         this.strokeWidth = Math.max(0, width);

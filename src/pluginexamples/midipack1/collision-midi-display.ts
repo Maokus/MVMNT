@@ -161,13 +161,17 @@ class CollisionMidiDisplayElement extends CallbackElementRenderer {
         const objects: RenderObject[] = [];
 
         if (!props.midiTrackId) {
-            objects.push(new Text(0, 0, 'Select a MIDI track', '14px Inter, sans-serif', '#94a3b8', 'left', 'top'));
+            objects.push(new Text(0, 0, 'Select a MIDI track', '14px Inter, sans-serif', {
+                color: '#94a3b8', align: 'left', baseline: 'top',
+            }));
             return objects;
         }
 
         const timeline = this.context.timeline;
         if (!timeline) {
-            objects.push(new Text(0, 0, 'Timeline API unavailable', '12px Inter, sans-serif', '#64748b', 'left', 'top'));
+            objects.push(new Text(0, 0, 'Timeline API unavailable', '12px Inter, sans-serif', {
+                color: '#64748b', align: 'left', baseline: 'top',
+            }));
             return objects;
         }
 
@@ -226,7 +230,9 @@ class CollisionMidiDisplayElement extends CallbackElementRenderer {
             .filter((p) => p >= minNote && p <= maxNote);
 
         if (distinctPitches.length === 0) {
-            objects.push(new Text(0, 0, 'No notes in track', '12px Inter, sans-serif', '#64748b', 'left', 'top'));
+            objects.push(new Text(0, 0, 'No notes in track', '12px Inter, sans-serif', {
+                color: '#64748b', align: 'left', baseline: 'top',
+            }));
             return objects;
         }
 
@@ -248,9 +254,7 @@ class CollisionMidiDisplayElement extends CallbackElementRenderer {
             boundsTop,
             totalWidth + boundsPad * 2,
             boundsBottom - boundsTop,
-            null,
-            'transparent',
-            1
+            { fillColor: null, strokeColor: 'transparent', strokeWidth: 1 }
         );
         boundsRect.cornerRadius = 4;
         objects.push(boundsRect);
@@ -332,12 +336,14 @@ class CollisionMidiDisplayElement extends CallbackElementRenderer {
                 sqX -= offset;
                 sqY -= offset;
             }
-            const sq = new Rectangle(sqX, sqY, sqSize, sqSize, effectiveSquareColor);
+            const sq = new Rectangle(sqX, sqY, sqSize, sqSize, { fillColor: effectiveSquareColor });
             sq.setOpacity(squareAlpha);
             objects.push(sq);
 
             // --- Circle ---
-            const arc = new Arc(cx, circleOffsetY, circleRadius, 0, Math.PI * 2, false, {
+            const arc = new Arc(cx, circleOffsetY, circleRadius, {
+                startAngle: 0,
+                endAngle: Math.PI * 2,
                 fillColor: circleColor,
                 strokeColor: 'transparent',
             });
@@ -347,7 +353,9 @@ class CollisionMidiDisplayElement extends CallbackElementRenderer {
             // --- Note name label ---
             if (showNoteNames) {
                 const noteName = this.context.midi?.noteName(pitch) ?? String(pitch);
-                const label = new Text(cx, radius + 5, noteName, labelFontString, '#94a3b8', 'center', 'top');
+                const label = new Text(cx, radius + 5, noteName, labelFontString, {
+                    color: '#94a3b8', align: 'center', baseline: 'top',
+                });
                 objects.push(label);
             }
         }

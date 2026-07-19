@@ -26,6 +26,9 @@ deferred until the fatal path is fully covered.
 | ERR_MIDI_CLIP_SOURCE       | yes   | MIDI clip source missing from `midiCache` | timeline.tracks.<id>.clips  |                                             |
 | ERR_MIDI_CLIP_DUPLICATE    | yes   | Duplicate clip id within one MIDI track   | timeline.tracks.<id>.clips  |                                             |
 | ERR_MIDI_CLIP_OVERLAP      | yes   | MIDI clips overlap on one track           | timeline.tracks.<id>.clips  | Requires available clip bounds             |
+| ERR_AUDIO_TRACK_SHAPE      | yes   | V10 audio track has no clips array         | timeline.tracks.<id>.clips  | Audio placement is clips-only               |
+| ERR_AUDIO_CLIP_SHAPE       | yes   | V10 audio clip fields or source trim invalid | timeline.tracks.<id>.clips | Requires id/source/offset and valid seconds |
+| ERR_AUDIO_LEGACY_FIELD     | yes   | Removed audio tick/source field is present | timeline.tracks.<id>        | Import migrations remove pre-V10 fields     |
 | ERR_GLOBAL_BPM_RANGE       | yes   | `globalBpm <= 0`                          | timeline.timeline.globalBpm | Range placeholder; may degrade later        |
 | ERR_ROW_HEIGHT_RANGE       | yes   | `rowHeight` outside [8,400] when present  | timeline.rowHeight          | UI range guard                              |
 | ERR_JSON_PARSE             | yes   | JSON.parse failed                         | (parse)                     | Raised in `importScene` pre-validation      |
@@ -47,7 +50,9 @@ interface ValidationResult {
 
 ## Import Guard
 
-`importScene(json)` aborts (no store mutation) when `ok === false` after validation. Errors are projected into the import result with the same `code` & `message`.
+`importScene(input)` migrates supported older schemas, then aborts without store mutation when
+validation returns `ok === false`. Errors are projected into the import result with the same
+`code` and `message`.
 
 ## Planned Warning Tier
 

@@ -218,7 +218,9 @@ export const ccMonitor = definePluginElement<Props, undefined>({
                 const start = Math.PI * 0.75;
                 const sweep = Math.PI * 1.5;
                 const angle = start + (value / 127) * sweep;
-                const track = new Arc(0, 0, radius, start, start + sweep, false, {
+                const track = new Arc(0, 0, radius, {
+                    startAngle: start,
+                    endAngle: start + sweep,
                     fillColor: null,
                     strokeColor: props.knobTrackColor,
                     strokeWidth: trackWidth,
@@ -226,7 +228,9 @@ export const ccMonitor = definePluginElement<Props, undefined>({
                 track.setLineCap('round');
                 content.push(track);
                 if (value > 0) {
-                    const arc = new Arc(0, 0, radius, start, angle, false, {
+                    const arc = new Arc(0, 0, radius, {
+                        startAngle: start,
+                        endAngle: angle,
                         fillColor: null,
                         strokeColor: props.knobValueColor,
                         strokeWidth: trackWidth,
@@ -241,7 +245,12 @@ export const ccMonitor = definePluginElement<Props, undefined>({
                 pointer.lineCap = 'round';
                 content.push(pointer);
                 content.push(
-                    new Arc(0, 0, trackWidth * 0.75, 0, Math.PI * 2, false, { fillColor: color, strokeColor: null })
+                    new Arc(0, 0, trackWidth * 0.75, {
+                        startAngle: 0,
+                        endAngle: Math.PI * 2,
+                        fillColor: color,
+                        strokeColor: null,
+                    })
                 );
             }
         } else {
@@ -254,7 +263,7 @@ export const ccMonitor = definePluginElement<Props, undefined>({
             );
         }
         const bounds = new Rectangle(0, 0, width, height, { fillColor: null });
-        content.forEach((object) => object.setIncludeInLayoutBounds(false));
+        content.forEach((object) => object.setLayoutParticipation('exclude'));
         return [bounds, ...content];
     },
 });

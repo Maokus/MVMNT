@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useTimelineStore } from '@state/timelineStore';
 import { exportScene, importScene } from '@persistence/index';
-import type { ExportSceneResultInline, ExportSceneResultZip } from '@persistence/export';
+import type { ExportSceneResultZip } from '@persistence/export';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 import { parseScenePackage } from '@persistence/scene-package';
 import { buildFeatureTrackKey, DEFAULT_ANALYSIS_PROFILE_ID } from '@audio/features/featureTrackIdentity';
+import { deserializeAudioFeatureCache, serializeAudioFeatureCache } from '@audio/features/audioFeatureAnalysis';
 
 function createFeatureCache(sourceId: string): AudioFeatureCache {
     const frameCount = 10;
@@ -12,7 +13,7 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
     const defaultProfile = DEFAULT_ANALYSIS_PROFILE_ID;
     const spectrogramKey = buildFeatureTrackKey('spectrogram', defaultProfile);
     return {
-        version: 3,
+        version: 4,
         audioSourceId: sourceId,
         hopSeconds: 0.04,
         hopTicks,
@@ -51,19 +52,10 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
                     minDecibels: -80,
                     maxDecibels: 0,
                 },
-                channelAliases: ['Left', 'Right', 'Center', 'LFE'],
                 channelLayout: { aliases: ['Left', 'Right', 'Center', 'LFE'], semantics: 'surround' },
             },
         },
     };
-}
-
-async function exportInlineScene(): Promise<ExportSceneResultInline> {
-    const result = await exportScene(undefined, { storage: 'inline-json' });
-    if (!result.ok || result.mode !== 'inline-json') {
-        throw new Error('Expected inline-json export result');
-    }
-    return result;
 }
 
 async function exportZippedScene(): Promise<ExportSceneResultZip> {
@@ -98,7 +90,7 @@ describe('audio feature cache persistence', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [{ id: `${trackId}__audio_clip`, type: 'audio', sourceId: trackId, offsetTicks: 0 }],
                     gain: 1,
                 },
             },
@@ -106,14 +98,8 @@ describe('audio feature cache persistence', () => {
         }));
         const cache = createFeatureCache(trackId);
         useTimelineStore.getState().ingestAudioFeatureCache(trackId, cache);
-        const exported = await exportInlineScene();
-        const timelineSection = exported.envelope.timeline;
-        expect(timelineSection.audioFeatureCaches?.aud_persist).toBeDefined();
-        const serialized = timelineSection.audioFeatureCaches!.aud_persist;
-        if (!serialized || !('analysisParams' in serialized) || !('featureTracks' in serialized)) {
-            throw new Error('Expected inline audio feature cache payload');
-        }
-        expect(serialized.version).toBe(3);
+        const serialized = serializeAudioFeatureCache(cache);
+        expect(serialized.version).toBe(4);
         expect(serialized.startTimeSeconds).toBe(0);
         expect(serialized.tempoProjection?.hopTicks).toBe(120);
         expect(serialized.analysisParams.windowSize).toBe(2048);
@@ -130,10 +116,9 @@ describe('audio feature cache persistence', () => {
             'Center',
             'LFE',
         ]);
-        useTimelineStore.getState().resetTimeline();
-        const importResult = await importScene(exported.json);
-        expect(importResult.ok).toBe(true);
-        const restored = useTimelineStore.getState().audioFeatureCaches[trackId];
+        expect('channelAliases' in serialized).toBe(false);
+        expect('channelAliases' in serialized.featureTracks[serializedSpectrogramKey]).toBe(false);
+        const restored = deserializeAudioFeatureCache(serialized);
         expect(restored).toBeDefined();
         const restoredSpectrogramKey = buildFeatureTrackKey(
             'spectrogram',
@@ -147,7 +132,26 @@ describe('audio feature cache persistence', () => {
             'LFE',
         ]);
         expect(restored?.tempoProjection?.hopTicks).toBe(120);
-        expect(useTimelineStore.getState().audioFeatureCacheStatus[trackId]?.state).toBe('ready');
+    });
+
+    it('reads V3 aliases into channelLayout and re-emits a V4-only shape', () => {
+        const cache = createFeatureCache('legacy-source');
+        const legacy: any = serializeAudioFeatureCache(cache);
+        legacy.version = 3;
+        legacy.channelAliases = ['Left', 'Right'];
+        delete legacy.channelLayout;
+        const key = Object.keys(legacy.featureTracks)[0];
+        legacy.featureTracks[key].channelAliases = ['Mid', 'Side'];
+        delete legacy.featureTracks[key].channelLayout;
+
+        const restored = deserializeAudioFeatureCache(legacy);
+        expect(restored.channelLayout?.aliases).toEqual(['Left', 'Right']);
+        expect(restored.featureTracks[key].channelLayout?.aliases).toEqual(['Mid', 'Side']);
+
+        const upgraded: any = serializeAudioFeatureCache(restored);
+        expect(upgraded.version).toBe(4);
+        expect(upgraded.channelAliases).toBeUndefined();
+        expect(upgraded.featureTracks[key].channelAliases).toBeUndefined();
     });
 
     it('stores audio feature caches and waveforms as external assets in packaged export', async () => {
@@ -172,7 +176,7 @@ describe('audio feature cache persistence', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [{ id: `${trackId}__audio_clip`, type: 'audio', sourceId: trackId, offsetTicks: 0 }],
                     gain: 1,
                 },
             },
@@ -191,7 +195,6 @@ describe('audio feature cache persistence', () => {
                     durationSamples: 100,
                     sampleRate: 44100,
                     channels: 1,
-                    durationTicks: 100,
                     audioBuffer: audioBufferStub,
                     waveform: {
                         version: 1,
@@ -260,7 +263,7 @@ describe('audio feature cache persistence', () => {
                     enabled: true,
                     mute: false,
                     solo: false,
-                    offsetTicks: 0,
+                    clips: [{ id: `${trackId}__audio_clip`, type: 'audio', sourceId: trackId, offsetTicks: 0 }],
                     gain: 1,
                 },
             },
@@ -279,7 +282,6 @@ describe('audio feature cache persistence', () => {
                     durationSamples: 200,
                     sampleRate: 44100,
                     channels: 1,
-                    durationTicks: 200,
                     audioBuffer: audioBufferStub,
                     waveform: {
                         version: 1,
