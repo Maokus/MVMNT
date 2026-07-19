@@ -135,27 +135,21 @@ function packageBundle(bundledManifest, buildDir) {
 
     files['manifest.json'] = new TextEncoder().encode(JSON.stringify(bundledManifest, null, 2));
 
-    const elementsDir = path.join(buildDir, 'elements');
-    if (fs.existsSync(elementsDir)) {
-        for (const file of fs.readdirSync(elementsDir)) {
-            files[`elements/${file}`] = fs.readFileSync(path.join(elementsDir, file));
+    const addDirectory = (dir, archivePrefix) => {
+        for (const item of fs.readdirSync(dir)) {
+            const fullPath = path.join(dir, item);
+            const archivePath = path.posix.join(archivePrefix, item);
+            if (fs.statSync(fullPath).isDirectory()) addDirectory(fullPath, archivePath);
+            else files[archivePath] = fs.readFileSync(fullPath);
         }
-    }
+    };
+
+    const elementsDir = path.join(buildDir, 'elements');
+    if (fs.existsSync(elementsDir)) addDirectory(elementsDir, 'elements');
 
     const assetsDir = path.join(buildDir, 'assets');
     if (fs.existsSync(assetsDir)) {
-        const walkDir = (dir, prefix = '') => {
-            for (const item of fs.readdirSync(dir)) {
-                const fullPath = path.join(dir, item);
-                const rel = path.join(prefix, item);
-                if (fs.statSync(fullPath).isDirectory()) {
-                    walkDir(fullPath, rel);
-                } else {
-                    files[`assets/${rel}`] = fs.readFileSync(fullPath);
-                }
-            }
-        };
-        walkDir(assetsDir);
+        addDirectory(assetsDir, 'assets');
     }
 
     return Buffer.from(

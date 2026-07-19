@@ -76,34 +76,23 @@ async function createPluginBundle(manifest, buildDir, outputPath) {
     // Add manifest.json
     files['manifest.json'] = new TextEncoder().encode(JSON.stringify(manifest, null, 2));
     
-    // Add bundled element files
-    const elementsDir = path.join(buildDir, 'elements');
-    if (fs.existsSync(elementsDir)) {
-        const elementFiles = fs.readdirSync(elementsDir);
-        for (const file of elementFiles) {
-            const filePath = path.join(elementsDir, file);
-            const content = fs.readFileSync(filePath);
-            files[`elements/${file}`] = content;
+    const addDirectory = (dir, archivePrefix) => {
+        for (const item of fs.readdirSync(dir)) {
+            const fullPath = path.join(dir, item);
+            const archivePath = path.posix.join(archivePrefix, item);
+            if (fs.statSync(fullPath).isDirectory()) addDirectory(fullPath, archivePath);
+            else files[archivePath] = fs.readFileSync(fullPath);
         }
-    }
+    };
+
+    // Preserve nested entry paths such as `src/pulse.ts`.
+    const elementsDir = path.join(buildDir, 'elements');
+    if (fs.existsSync(elementsDir)) addDirectory(elementsDir, 'elements');
     
     // Add assets if they exist
     const assetsDir = path.join(buildDir, 'assets');
     if (fs.existsSync(assetsDir)) {
-        const walkDir = (dir, prefix = '') => {
-            const items = fs.readdirSync(dir);
-            for (const item of items) {
-                const fullPath = path.join(dir, item);
-                const relativePath = path.join(prefix, item);
-                const stat = fs.statSync(fullPath);
-                if (stat.isDirectory()) {
-                    walkDir(fullPath, relativePath);
-                } else {
-                    files[`assets/${relativePath}`] = fs.readFileSync(fullPath);
-                }
-            }
-        };
-        walkDir(assetsDir);
+        addDirectory(assetsDir, 'assets');
     }
     
     // Create ZIP using fflate

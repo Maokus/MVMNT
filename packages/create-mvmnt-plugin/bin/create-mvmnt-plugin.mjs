@@ -63,11 +63,12 @@ async function promptForMissing(options) {
 }
 
 async function main() {
-    const options = await promptForMissing(parseArgs(process.argv.slice(2)));
+    const options = parseArgs(process.argv.slice(2));
     if (options.help) {
         console.log(usage());
         return;
     }
+    await promptForMissing(options);
     if (!validatePluginId(options.name)) throw new Error('Plugin ID must contain lowercase letters, numbers, dots, and hyphens (minimum 3 characters).');
     if (!templateNames.includes(options.template)) throw new Error(`Unknown template '${options.template}'. Available templates: ${templateNames.join(', ')}`);
 
