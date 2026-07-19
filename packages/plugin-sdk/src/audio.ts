@@ -77,3 +77,39 @@ export type PluginAudioCalculator = AudioCalculator;
 export interface AudioCalculatorsApi {
     register(calculator: AudioCalculator): Result<{ dispose(): void }>;
 }
+
+/** Standalone adapters for every audio capability operation. */
+export const requireAudioFeatures = (
+    audio: AudioApi,
+    requirements: readonly AudioFeatureRequirement[]
+): ReturnType<AudioApi['requireFeatures']> => audio.requireFeatures(requirements);
+
+export const getAudioChannelMetadata = (
+    audio: AudioApi,
+    trackId: string
+): ReturnType<AudioApi['getChannelMetadata']> => audio.getChannelMetadata(trackId);
+
+export const sampleAudioFeature = (
+    audio: AudioApi,
+    args: Parameters<AudioApi['sampleFeature']>[0]
+): ReturnType<AudioApi['sampleFeature']> => audio.sampleFeature(args);
+
+export const sampleAudioFeatureRange = (
+    audio: AudioApi,
+    args: Parameters<AudioApi['sampleFeatureRange']>[0]
+): ReturnType<AudioApi['sampleFeatureRange']> => audio.sampleFeatureRange(args);
+
+export const getRawAudioSamples = (
+    audio: AudioApi,
+    args: Parameters<AudioApi['getRawSamples']>[0]
+): ReturnType<AudioApi['getRawSamples']> => audio.getRawSamples(args);
+
+export const getAudioRms = (
+    audio: AudioApi,
+    args: Parameters<AudioApi['getRms']>[0]
+): ReturnType<AudioApi['getRms']> => audio.getRms(args);
+
+export const registerAudioCalculator = (
+    calculators: AudioCalculatorsApi,
+    calculator: AudioCalculator
+): ReturnType<AudioCalculatorsApi['register']> => calculators.register(calculator);

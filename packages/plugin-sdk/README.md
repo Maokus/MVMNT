@@ -9,3 +9,24 @@ definitions and portable helpers. Rendering, timeline/audio services, asset reso
 and migration adapters are implemented by the host and injected at plugin load time.
 
 Install it with `npm install @mvmnt-app/plugin-sdk`.
+
+Every host operation is available either as a method on its granted callback facet or as a named
+adapter from the root/domain modules:
+
+```ts
+import { definePluginElement, selectTimelineNotes } from '@mvmnt-app/plugin-sdk';
+
+export const element = definePluginElement({
+    // metadata, schema, and capability declarations omitted
+    render(_props, _state, time, context) {
+        const notes = selectTimelineNotes(context.timeline!, {
+            startSeconds: time.seconds,
+            endSeconds: time.seconds + 1,
+        });
+        return notes.ok ? [] : [];
+    },
+});
+```
+
+Passing the callback facet keeps host capability checks and lifecycle ownership intact. The
+`audio`, `timeline`, `timing`, and `visual-assets` subpaths expose the same adapters.

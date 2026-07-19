@@ -77,11 +77,44 @@
             "ensureEightDigitHex",
             "parseFontSelection",
             "ensureFontLoaded",
-            "VisualMediaPlayback"
+            "VisualMediaPlayback",
+            "requireAudioFeatures",
+            "getAudioChannelMetadata",
+            "sampleAudioFeature",
+            "sampleAudioFeatureRange",
+            "getRawAudioSamples",
+            "getAudioRms",
+            "registerAudioCalculator",
+            "getTimelineMetadata",
+            "getTimelineTrack",
+            "getTimelineTracks",
+            "selectTimelineNotes",
+            "selectTimelineCC",
+            "getTimelineSustain",
+            "secondsToTicks",
+            "ticksToSeconds",
+            "secondsToBeats",
+            "beatsToSeconds",
+            "beatsToTicks",
+            "ticksToBeats",
+            "getTimeSignature",
+            "loadAsset",
+            "createProjectAssetHandle",
+            "loadBundledImage",
+            "loadBundledSparrow",
+            "loadBundledGridAtlas"
         ],
         "api": ["SDK_VERSION", "PLUGIN_CAPABILITIES", "PluginContractError", "ok", "err"],
         "animation": ["clamp", "lerp", "invLerp", "remap", "easings", "FloatCurve"],
-        "audio": [],
+        "audio": [
+            "requireAudioFeatures",
+            "getAudioChannelMetadata",
+            "sampleAudioFeature",
+            "sampleAudioFeatureRange",
+            "getRawAudioSamples",
+            "getAudioRms",
+            "registerAudioCalculator"
+        ],
         "render": [
             "RenderObject",
             "BoxRenderObject",
@@ -109,9 +142,31 @@
             "isPluginElementDefinition"
         ],
         "safety": ["checkCapability", "limitRenderObjects"],
-        "timeline": [],
-        "timing": [],
+        "timeline": [
+            "getTimelineMetadata",
+            "getTimelineTrack",
+            "getTimelineTracks",
+            "selectTimelineNotes",
+            "selectTimelineCC",
+            "getTimelineSustain"
+        ],
+        "timing": [
+            "secondsToTicks",
+            "ticksToSeconds",
+            "secondsToBeats",
+            "beatsToSeconds",
+            "beatsToTicks",
+            "ticksToBeats",
+            "getTimeSignature"
+        ],
         "utils": ["midiNoteToName", "ensureEightDigitHex", "parseFontSelection", "ensureFontLoaded"],
-        "visual-assets": ["VisualMediaPlayback"]
+        "visual-assets": [
+            "VisualMediaPlayback",
+            "loadAsset",
+            "createProjectAssetHandle",
+            "loadBundledImage",
+            "loadBundledSparrow",
+            "loadBundledGridAtlas"
+        ]
     }
 }

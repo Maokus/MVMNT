@@ -14,7 +14,10 @@ import * as pluginSdkUtilsModule from '@core/scene/plugins/sdk/utils';
 import * as pluginSdkVisualAssetsModule from '@core/scene/plugins/sdk/visual-assets';
 import * as pluginSdkV2ApiModule from '../../../../packages/plugin-sdk/src/api';
 import * as pluginSdkV2AnimationModule from '../../../../packages/plugin-sdk/src/animation';
+import * as pluginSdkV2AudioModule from '../../../../packages/plugin-sdk/src/audio';
 import * as pluginSdkV2SafetyModule from '../../../../packages/plugin-sdk/src/safety';
+import * as pluginSdkV2TimelineModule from '../../../../packages/plugin-sdk/src/timeline';
+import * as pluginSdkV2TimingModule from '../../../../packages/plugin-sdk/src/timing';
 import * as pluginSdkV2UtilsModule from '../../../../packages/plugin-sdk/src/utils';
 import * as pluginSdkV2SceneModule from '../../../../packages/plugin-sdk/src/scene';
 import * as pluginSdkV2VisualAssetsModule from '../../../../packages/plugin-sdk/src/visual-assets';
@@ -102,9 +105,12 @@ const pluginSdkV2SceneRuntimeModule = Object.freeze({
 const pluginSdkV2RootModule = {
     ...pluginSdkV2ApiModule,
     ...pluginSdkV2AnimationModule,
+    ...pluginSdkV2AudioModule,
     ...pluginSdkV2RenderModule,
     ...pluginSdkV2SceneRuntimeModule,
     ...pluginSdkV2SafetyModule,
+    ...pluginSdkV2TimelineModule,
+    ...pluginSdkV2TimingModule,
     ...pluginSdkV2UtilsRuntimeModule,
     ...pluginSdkV2VisualAssetsModule,
 };
@@ -112,12 +118,12 @@ const V2_PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
     '@mvmnt-app/plugin-sdk': Object.freeze({ ...pluginSdkV2RootModule, ...pluginSdkV2RenderModule }),
     '@mvmnt-app/plugin-sdk/api': pluginSdkV2ApiModule,
     '@mvmnt-app/plugin-sdk/animation': pluginSdkV2AnimationModule,
-    '@mvmnt-app/plugin-sdk/audio': Object.freeze({}),
+    '@mvmnt-app/plugin-sdk/audio': pluginSdkV2AudioModule,
     '@mvmnt-app/plugin-sdk/render': pluginSdkV2RenderModule,
     '@mvmnt-app/plugin-sdk/scene': pluginSdkV2SceneRuntimeModule,
     '@mvmnt-app/plugin-sdk/safety': pluginSdkV2SafetyModule,
-    '@mvmnt-app/plugin-sdk/timeline': Object.freeze({}),
-    '@mvmnt-app/plugin-sdk/timing': Object.freeze({}),
+    '@mvmnt-app/plugin-sdk/timeline': pluginSdkV2TimelineModule,
+    '@mvmnt-app/plugin-sdk/timing': pluginSdkV2TimingModule,
     '@mvmnt-app/plugin-sdk/utils': pluginSdkV2UtilsRuntimeModule,
     '@mvmnt-app/plugin-sdk/visual-assets': pluginSdkV2VisualAssetsModule,
 };

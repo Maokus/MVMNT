@@ -3,6 +3,15 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import packageManifest from '../../../../../packages/plugin-sdk/package.json';
 import sdkManifest from '../../../../../packages/plugin-sdk/sdk-manifest.json';
+import * as packageApi from '../../../../../packages/plugin-sdk/src/api';
+import * as packageAnimation from '../../../../../packages/plugin-sdk/src/animation';
+import * as packageAudio from '../../../../../packages/plugin-sdk/src/audio';
+import * as packageSafety from '../../../../../packages/plugin-sdk/src/safety';
+import * as packageScene from '../../../../../packages/plugin-sdk/src/scene';
+import * as packageTimeline from '../../../../../packages/plugin-sdk/src/timeline';
+import * as packageTiming from '../../../../../packages/plugin-sdk/src/timing';
+import * as packageUtils from '../../../../../packages/plugin-sdk/src/utils';
+import * as packageVisualAssets from '../../../../../packages/plugin-sdk/src/visual-assets';
 import {
     SDK_RUNTIME_MODULE_IDS,
     capabilityDeclarationsMatch,
@@ -37,6 +46,29 @@ describe('plugin SDK v2 contract', () => {
             const moduleId = subpath === '.' ? '@mvmnt-app/plugin-sdk' : `@mvmnt-app/plugin-sdk/${subpath}`;
             expect([...getPluginRuntimeExportNames(2, moduleId)].sort()).toEqual([...exports].sort());
         }
+
+        const packageModules: Record<string, object> = {
+            api: packageApi,
+            animation: packageAnimation,
+            audio: packageAudio,
+            safety: packageSafety,
+            scene: packageScene,
+            timeline: packageTimeline,
+            timing: packageTiming,
+            utils: packageUtils,
+            'visual-assets': packageVisualAssets,
+        };
+        for (const [subpath, module] of Object.entries(packageModules)) {
+            expect([...sdkManifest.publicExports[subpath as keyof typeof sdkManifest.publicExports]].sort()).toEqual(
+                Object.keys(module).sort()
+            );
+        }
+        const allSubpathExports = new Set(
+            Object.entries(sdkManifest.publicExports)
+                .filter(([subpath]) => subpath !== '.')
+                .flatMap(([, exports]) => exports)
+        );
+        expect([...sdkManifest.publicExports['.']].sort()).toEqual([...allSubpathExports].sort());
 
         const docs = readFileSync(resolve(__dirname, '../../../../../docs/plugin-api/plugin-sdk-api-inventory.md'), 'utf8');
         for (const subpath of sdkManifest.subpaths.filter((value) => value !== '.')) {
