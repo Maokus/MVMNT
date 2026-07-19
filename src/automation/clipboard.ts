@@ -9,7 +9,6 @@ import { cloneKeyframe } from './types';
 interface AutomationClipboardState {
     keyframes: AutomationKeyframe[];
     valueType: AutomationChannel['valueType'];
-    interpolation: AutomationChannel['interpolation'];
 }
 
 let clipboard: AutomationClipboardState | null = null;
@@ -19,7 +18,6 @@ export function copyChannel(channel: AutomationChannel): void {
     clipboard = {
         keyframes: channel.keyframes.map(cloneKeyframe),
         valueType: channel.valueType,
-        interpolation: channel.interpolation,
     };
 }
 

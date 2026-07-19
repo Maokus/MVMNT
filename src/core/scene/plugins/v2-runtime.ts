@@ -41,6 +41,8 @@ const trackSummary = (track: any) =>
 
 export interface ScopeOptions {
     pluginId: string;
+    /** Fully-qualified scene type used for serialized external-plugin instances. */
+    runtimeElementType?: string;
     /** Engine-private dependency injected at the loader/registry boundary. */
     services: PluginHostServices | null;
     loadAsset(path: string): Promise<string>;
@@ -249,7 +251,10 @@ function createContext(
                         )
                     );
                 }
-                const unregister = registerScopedFeatureRequirements(definition.type, requirements);
+                const unregister = registerScopedFeatureRequirements(
+                    options.runtimeElementType ?? definition.type,
+                    requirements
+                );
                 let disposed = false;
                 const dispose = () => {
                     if (disposed) return;
@@ -545,7 +550,10 @@ export function createPluginDefinitionScope(
                 definition.schema && typeof definition.schema === 'object'
                     ? (definition.schema as { defaultConfig?: Record<string, unknown> })
                     : undefined;
-            super(definition.type, id, { ...(definitionSchema?.defaultConfig ?? {}), ...config });
+            super(options.runtimeElementType ?? definition.type, id, {
+                ...(definitionSchema?.defaultConfig ?? {}),
+                ...config,
+            });
             this.requestDefinitionFonts(this.getDefinitionProps());
             if (options.synchronousInitialization && synchronouslyReady) {
                 try {

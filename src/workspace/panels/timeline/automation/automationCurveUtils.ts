@@ -6,8 +6,7 @@
 import { computeAutoHandles } from '@automation/interpolation-defaults';
 import { evaluateSegmentBezier } from '@math/animation/cubic-bezier';
 import { resolveParametricEasing } from '@math/animation/easing-parametric';
-import easings from '@math/animation/easing';
-import type { AutomationChannel, HandleType } from '@automation/types';
+import type { AutomationChannel, HandleType, SegmentInterpolation } from '@automation/types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -16,8 +15,6 @@ export const CURVE_SAMPLE_COUNT = 150;
 export const COMPLEX_MODE_MIN_SAMPLES = 100;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-export type EasingFn = (t: number) => number;
 
 export interface GridTick {
     value: number;
@@ -41,13 +38,6 @@ export interface HandleVisualData {
     showRight: boolean;
     leftIsAuto: boolean;
     rightIsAuto: boolean;
-}
-
-// ─── Legacy easing ────────────────────────────────────────────────────────────
-
-export function resolveLegacyEasing(id: string): EasingFn {
-    const fn = (easings as Record<string, EasingFn | undefined>)[id];
-    return fn ?? easings.linear;
 }
 
 // ─── Coordinate helpers ───────────────────────────────────────────────────────
@@ -231,15 +221,16 @@ export function buildCurveSegments(
         const aVal = typeof a.value === 'number' ? (a.value as number) : a.value ? 1 : 0;
         const bVal = typeof b.value === 'number' ? (b.value as number) : b.value ? 1 : 0;
         // Boolean channels always render as constant (stepped) regardless of stored interpolation
-        const interp = channel.valueType === 'boolean' ? { mode: 'constant' as const } : a.segmentInterpolation;
+        const interp: SegmentInterpolation = channel.valueType === 'boolean'
+            ? { mode: 'constant', direction: 'auto' }
+            : a.segmentInterpolation;
         const base = Math.max(4, Math.round(CURVE_SAMPLE_COUNT / Math.max(1, kfs.length - 1)));
         const isComplexMode = interp?.mode === 'elastic' || interp?.mode === 'bounce' || interp?.mode === 'back';
         const segSamples = isComplexMode ? Math.max(base, COMPLEX_MODE_MIN_SAMPLES) : base;
 
         const pts: string[] = [];
 
-        if (interp) {
-            if (interp.mode === 'constant') {
+        if (interp.mode === 'constant') {
                 const xA = toX(a.tick, width);
                 const yA = valueToY(aVal);
                 const xB = toX(b.tick, width);
@@ -251,7 +242,7 @@ export function buildCurveSegments(
                 continue;
             }
 
-            if (interp.mode === 'bezier') {
+        if (interp.mode === 'bezier') {
                 const prevHandleType = a.rightHandleType ?? 'auto_clamped';
                 const nextHandleType = b.leftHandleType ?? 'auto_clamped';
                 let rHandle = a.rightHandle;
@@ -295,25 +286,14 @@ export function buildCurveSegments(
                 continue;
             }
 
-            // Semantic preset or linear
-            const easingFn = resolveParametricEasing(interp.mode, interp.direction, interp.params);
-            for (let s = 0; s <= segSamples; s++) {
-                const localT = s / segSamples;
-                const easedT = easingFn ? easingFn(localT) : localT;
-                const val = aVal + (bVal - aVal) * easedT;
-                const tick = a.tick + (b.tick - a.tick) * localT;
-                pts.push(`${toX(tick, width).toFixed(1)},${valueToY(val).toFixed(1)}`);
-            }
-        } else {
-            // Legacy easing fallback
-            const easeFn = resolveLegacyEasing(a.easingId);
-            for (let s = 0; s <= segSamples; s++) {
-                const localT = s / segSamples;
-                const easedT = channel.interpolation === 'stepped' ? 0 : easeFn(localT);
-                const val = aVal + (bVal - aVal) * easedT;
-                const tick = a.tick + (b.tick - a.tick) * localT;
-                pts.push(`${toX(tick, width).toFixed(1)},${valueToY(val).toFixed(1)}`);
-            }
+        // Semantic preset or linear
+        const easingFn = resolveParametricEasing(interp.mode, interp.direction, interp.params);
+        for (let s = 0; s <= segSamples; s++) {
+            const localT = s / segSamples;
+            const easedT = easingFn ? easingFn(localT) : localT;
+            const val = aVal + (bVal - aVal) * easedT;
+            const tick = a.tick + (b.tick - a.tick) * localT;
+            pts.push(`${toX(tick, width).toFixed(1)},${valueToY(val).toFixed(1)}`);
         }
 
         result.push({ tick: a.tick, points: pts.join(' ') });

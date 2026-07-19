@@ -81,16 +81,8 @@ export interface AutomationKeyframe {
     tick: number;
     /** The property value at this tick (number, hex color string, or boolean). */
     value: unknown;
-    /**
-     * Legacy easing ID applied from this keyframe to the next.
-     * Kept for backward compatibility; new code should use segmentInterpolation.
-     */
-    easingId: string;
-
-    // -- New hybrid interpolation fields (all optional for backward compat) --
-
     /** Per-segment interpolation mode, direction, and parameters (outgoing). */
-    segmentInterpolation?: SegmentInterpolation;
+    segmentInterpolation: SegmentInterpolation;
     /** Left (incoming) bezier handle, relative to this keyframe. */
     leftHandle?: BezierHandle;
     /** Right (outgoing) bezier handle, relative to this keyframe. */
@@ -105,9 +97,6 @@ export interface AutomationKeyframe {
 // Channel
 // ---------------------------------------------------------------------------
 
-/** How values are interpolated between keyframes. */
-export type AutomationInterpolation = 'linear' | 'stepped' | 'eased';
-
 /** The JS value type stored in keyframes — drives evaluation strategy. */
 export type AutomationValueType = 'number' | 'color' | 'boolean' | 'string';
 
@@ -121,11 +110,6 @@ export interface AutomationChannel {
     propertyKey: string;
     /** Keyframes sorted ascending by tick. */
     keyframes: AutomationKeyframe[];
-    /**
-     * Legacy channel-level interpolation mode.
-     * @deprecated Use per-keyframe segmentInterpolation instead.
-     */
-    interpolation: AutomationInterpolation;
     /** The value type — determines evaluation strategy. */
     valueType: AutomationValueType;
 }
@@ -167,10 +151,11 @@ function cloneSegmentInterpolation(interpolation: SegmentInterpolation): Segment
 
 /** Deep-clone a single keyframe, including nested handle and interpolation objects. */
 export function cloneKeyframe(kf: AutomationKeyframe): AutomationKeyframe {
-    const clone: AutomationKeyframe = { tick: kf.tick, value: kf.value, easingId: kf.easingId };
-    if (kf.segmentInterpolation) {
-        clone.segmentInterpolation = cloneSegmentInterpolation(kf.segmentInterpolation);
-    }
+    const clone: AutomationKeyframe = {
+        tick: kf.tick,
+        value: kf.value,
+        segmentInterpolation: cloneSegmentInterpolation(kf.segmentInterpolation),
+    };
     if (kf.leftHandle) clone.leftHandle = { ...kf.leftHandle };
     if (kf.rightHandle) clone.rightHandle = { ...kf.rightHandle };
     if (kf.leftHandleType) clone.leftHandleType = kf.leftHandleType;
@@ -203,14 +188,12 @@ export function createChannel(
     elementId: string,
     propertyKey: string,
     valueType: AutomationValueType,
-    interpolation: AutomationInterpolation = 'eased',
 ): AutomationChannel {
     return {
         id: makeChannelId(elementId, propertyKey),
         elementId,
         propertyKey,
         keyframes: [],
-        interpolation,
         valueType,
     };
 }
@@ -224,7 +207,6 @@ export function createKeyframe(
     return {
         tick,
         value,
-        easingId: 'linear',
         segmentInterpolation: cloneSegmentInterpolation(interpolation ?? DEFAULT_SEGMENT_INTERPOLATION),
         leftHandleType: 'auto_clamped',
         rightHandleType: 'auto_clamped',
@@ -288,7 +270,6 @@ export function cloneChannel(channel: AutomationChannel, newElementId?: string):
         elementId,
         propertyKey: channel.propertyKey,
         keyframes: channel.keyframes.map(cloneKeyframe),
-        interpolation: channel.interpolation,
         valueType: channel.valueType,
     };
 }

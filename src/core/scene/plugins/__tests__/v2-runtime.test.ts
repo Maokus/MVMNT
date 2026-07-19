@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createPluginHostServices, PLUGIN_CAPABILITIES } from '../host-api/plugin-api';
 import { createPluginDefinitionScope } from '../v2-runtime';
 import { definePluginElement, type CapabilityContext } from '../../../../../packages/plugin-sdk/src/scene';
+import { getElementSubscriptionSnapshot } from '@audio/features/sceneApi';
 
 afterEach(() => document.querySelectorAll('link[id^="gf-"]').forEach((link) => link.remove()));
 
@@ -26,6 +27,74 @@ function installHost() {
 }
 
 describe('SDK v2 runtime', () => {
+    it('keeps feature requirements attached after an external plugin element receives its qualified type', async () => {
+        const host = installHost();
+        const definition = definePluginElement({
+            type: 'feature-display',
+            metadata: { name: 'Feature display' },
+            schema: {
+                tabs: [
+                    {
+                        id: 'content',
+                        label: 'Content',
+                        groups: [
+                            {
+                                id: 'audio',
+                                label: 'Audio',
+                                properties: [
+                                    {
+                                        key: 'audioTrackId',
+                                        label: 'Audio track',
+                                        type: 'timelineTrackRef',
+                                        default: null,
+                                        allowedTrackTypes: ['audio'],
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+            capabilities: { required: [PLUGIN_CAPABILITIES.audioFeaturesRead], optional: [] },
+            load(context) {
+                context.audio!.requireFeatures([
+                    { feature: 'plugin.transients', calculatorId: 'test.plugin.transients' },
+                ]);
+            },
+            render() {
+                return [];
+            },
+        });
+        const scope = createPluginDefinitionScope(definition, {
+            pluginId: 'test.plugin',
+            runtimeElementType: 'test.plugin:feature-display',
+            services: host,
+            synchronousInitialization: true,
+            loadAsset: async () => 'blob:test',
+            report: vi.fn(),
+        });
+        const ElementClass = scope.createElementClass();
+        const instance = new ElementClass('feature-display', {});
+
+        expect(instance.type).toBe('test.plugin:feature-display');
+        expect(getElementSubscriptionSnapshot(instance)).toEqual([]);
+
+        instance.setProperty('audioTrackId', 'audio-track');
+
+        expect(getElementSubscriptionSnapshot(instance)).toEqual([
+            {
+                trackId: 'audio-track',
+                descriptor: expect.objectContaining({
+                    featureKey: 'plugin.transients',
+                    calculatorId: 'test.plugin.transients',
+                }),
+            },
+        ]);
+
+        instance.dispose();
+        await scope.dispose();
+    });
+
     it('loads schema-declared fonts before the appearance inspector is opened', async () => {
         const host = installHost();
         const definition = definePluginElement({

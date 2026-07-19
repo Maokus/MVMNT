@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { AutomationCurve } from '../automation-curve';
-import type { AutomationChannel, AutomationKeyframe } from '../types';
+import type { AutomationChannel, AutomationKeyframe, SegmentInterpolation } from '../types';
 
 function makeChannel(keyframes: AutomationKeyframe[], opts: Partial<AutomationChannel> = {}): AutomationChannel {
     return {
@@ -8,13 +8,12 @@ function makeChannel(keyframes: AutomationKeyframe[], opts: Partial<AutomationCh
         elementId: 'test',
         propertyKey: 'prop',
         keyframes,
-        interpolation: opts.interpolation ?? 'linear',
         valueType: opts.valueType ?? 'number',
     };
 }
 
-function kf(tick: number, value: unknown, easingId: string = 'linear'): AutomationKeyframe {
-    return { tick, value, easingId };
+function kf(tick: number, value: unknown, segmentInterpolation: SegmentInterpolation = { mode: 'linear', direction: 'auto' }): AutomationKeyframe {
+    return { tick, value, segmentInterpolation };
 }
 
 describe('AutomationCurve', () => {
@@ -37,7 +36,7 @@ describe('AutomationCurve', () => {
 
     describe('linear numeric interpolation', () => {
         it('interpolates between two keyframes', () => {
-            const curve = new AutomationCurve(makeChannel([kf(0, 0), kf(100, 100)], { interpolation: 'linear' }));
+            const curve = new AutomationCurve(makeChannel([kf(0, 0), kf(100, 100)]));
             expect(curve.evaluate(0)).toBe(0);
             expect(curve.evaluate(50)).toBe(50);
             expect(curve.evaluate(100)).toBe(100);
@@ -67,7 +66,7 @@ describe('AutomationCurve', () => {
     describe('stepped interpolation', () => {
         it('holds previous keyframe value until next tick', () => {
             const curve = new AutomationCurve(
-                makeChannel([kf(0, 10), kf(100, 20), kf(200, 30)], { interpolation: 'stepped' })
+                makeChannel([kf(0, 10, { mode: 'constant', direction: 'auto' }), kf(100, 20, { mode: 'constant', direction: 'auto' }), kf(200, 30)])
             );
             expect(curve.evaluate(0)).toBe(10);
             expect(curve.evaluate(50)).toBe(10);
@@ -82,17 +81,17 @@ describe('AutomationCurve', () => {
             // Without tolerance, findSegmentIndex would return kf[0] (prevIdx=0) and
             // stepped mode would return 10 (old hold value) instead of 20 (new value).
             const curve = new AutomationCurve(
-                makeChannel([kf(0, 10), kf(100, 20), kf(200, 30)], { interpolation: 'stepped' })
+                makeChannel([kf(0, 10, { mode: 'constant', direction: 'auto' }), kf(100, 20, { mode: 'constant', direction: 'auto' }), kf(200, 30)])
             );
             expect(curve.evaluate(99.9999)).toBe(20);
             expect(curve.evaluate(199.9999)).toBe(30);
         });
     });
 
-    describe('eased interpolation', () => {
-        it('applies per-keyframe easing (easeInQuad makes progress slower at start)', () => {
+    describe('semantic interpolation', () => {
+        it('applies per-keyframe easing (quad ease-in makes progress slower at start)', () => {
             const curve = new AutomationCurve(
-                makeChannel([kf(0, 0, 'easeInQuad'), kf(100, 100)], { interpolation: 'eased' })
+                makeChannel([kf(0, 0, { mode: 'quad', direction: 'ease_in' }), kf(100, 100)])
             );
             // easeInQuad(0.5) = 0.25, so at tick 50 the value should be 25
             expect(curve.evaluate(50)).toBeCloseTo(25, 1);
@@ -100,10 +99,8 @@ describe('AutomationCurve', () => {
             expect(curve.evaluate(100)).toBe(100);
         });
 
-        it('falls back to linear for unknown easing ID', () => {
-            const curve = new AutomationCurve(
-                makeChannel([kf(0, 0, 'nonexistentEasing'), kf(100, 100)], { interpolation: 'eased' })
-            );
+        it('uses linear interpolation when selected explicitly', () => {
+            const curve = new AutomationCurve(makeChannel([kf(0, 0, { mode: 'linear', direction: 'auto' }), kf(100, 100)]));
             expect(curve.evaluate(50)).toBeCloseTo(50, 1);
         });
     });
@@ -112,7 +109,6 @@ describe('AutomationCurve', () => {
         it('holds boolean value regardless of interpolation mode', () => {
             const curve = new AutomationCurve(
                 makeChannel([kf(0, false), kf(100, true)], {
-                    interpolation: 'linear',
                     valueType: 'boolean',
                 })
             );
@@ -127,7 +123,6 @@ describe('AutomationCurve', () => {
         it('interpolates hex colors between keyframes', () => {
             const curve = new AutomationCurve(
                 makeChannel([kf(0, '#000000'), kf(100, '#ffffff')], {
-                    interpolation: 'linear',
                     valueType: 'color',
                 })
             );

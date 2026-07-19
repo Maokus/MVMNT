@@ -10,8 +10,8 @@ import {
 } from '../types';
 import type { AutomationKeyframe } from '../types';
 
-function kf(tick: number, value: unknown = 0, easingId: string = 'linear'): AutomationKeyframe {
-    return { tick, value, easingId };
+function kf(tick: number, value: unknown = 0): AutomationKeyframe {
+    return { tick, value, segmentInterpolation: { mode: 'linear', direction: 'auto' } };
 }
 
 describe('automation/types utilities', () => {
@@ -36,13 +36,7 @@ describe('automation/types utilities', () => {
             expect(ch.elementId).toBe('el1');
             expect(ch.propertyKey).toBe('x');
             expect(ch.keyframes).toEqual([]);
-            expect(ch.interpolation).toBe('eased');
             expect(ch.valueType).toBe('number');
-        });
-
-        it('accepts a custom interpolation mode', () => {
-            const ch = createChannel('el1', 'x', 'number', 'stepped');
-            expect(ch.interpolation).toBe('stepped');
         });
     });
 

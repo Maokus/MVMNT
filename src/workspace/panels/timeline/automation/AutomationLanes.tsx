@@ -18,7 +18,7 @@ import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, AUTOMATION_SEARCH_HEIG
 import { useCurveHeight } from '../context/curveHeightContext';
 import AutomationLaneRow from './AutomationLaneRow';
 import AutomationCurvePane from './AutomationCurvePane';
-import type { AutomationChannel } from '@automation/types';
+import type { AutomationChannel, AutomationKeyframe } from '@automation/types';
 
 interface KfMove {
     channelId: string;
@@ -507,7 +507,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
                     byChannel.get(channelId)!.push(tick);
                 }
                 const state = useSceneStore.getState();
-                const entries: Array<{ channelId: string; keyframes: { tick: number; value: unknown; easingId: string }[] }> = [];
+                const entries: Array<{ channelId: string; keyframes: AutomationKeyframe[] }> = [];
                 for (const [channelId, ticks] of byChannel) {
                     const ch = state.automation.channels[channelId];
                     if (!ch) continue;

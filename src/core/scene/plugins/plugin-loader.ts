@@ -317,6 +317,7 @@ export async function loadPlugin(bundleData: ArrayBuffer, options: LoadPluginOpt
                 }
                 const scope = createPluginDefinitionScope(loadedExport, {
                     pluginId: manifest.id,
+                    runtimeElementType: `${manifest.id}:${elementManifest.type}`,
                     services: pluginHostServices,
                     loadAsset: (path) => loadBundledAssetForPlugin(manifest.id, path),
                     report: (diagnostic) =>

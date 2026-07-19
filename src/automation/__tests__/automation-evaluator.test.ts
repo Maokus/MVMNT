@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AutomationEvaluatorImpl } from '../automation-evaluator';
 import type { AutomationChannel, AutomationKeyframe } from '../types';
 
-function kf(tick: number, value: unknown, easingId = 'linear'): AutomationKeyframe {
-    return { tick, value, easingId };
+function kf(tick: number, value: unknown): AutomationKeyframe {
+    return { tick, value, segmentInterpolation: { mode: 'linear', direction: 'auto' } };
 }
 
 function makeChannel(
@@ -17,7 +17,6 @@ function makeChannel(
         elementId: parts[0],
         propertyKey: parts.slice(1).join('.'),
         keyframes,
-        interpolation: opts.interpolation ?? 'linear',
         valueType: opts.valueType ?? 'number',
     };
 }

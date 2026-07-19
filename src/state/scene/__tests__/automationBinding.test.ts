@@ -34,10 +34,10 @@ describe('SceneRuntimeAdapter: automation binding', () => {
         console.log('Element type:', state.elements[elementId]?.type);
 
         // Create channel
-        const channel = createChannel(elementId, propertyKey, 'boolean', 'stepped');
+        const channel = createChannel(elementId, propertyKey, 'boolean');
         channel.keyframes = [
-            { tick: 0, value: true, easingId: 'linear' },
-            { tick: 100, value: false, easingId: 'linear' },
+            { tick: 0, value: true, segmentInterpolation: { mode: 'constant', direction: 'auto' } },
+            { tick: 100, value: false, segmentInterpolation: { mode: 'constant', direction: 'auto' } },
         ];
 
         const consoleSpy = vi.spyOn(console, 'error');
@@ -64,10 +64,10 @@ describe('SceneRuntimeAdapter: automation binding', () => {
         const propertyKey = 'offsetX';
         const channelId = makeChannelId(elementId, propertyKey);
 
-        const channel = createChannel(elementId, propertyKey, 'number', 'eased');
+        const channel = createChannel(elementId, propertyKey, 'number');
         channel.keyframes = [
-            { tick: 0, value: 0, easingId: 'linear' },
-            { tick: 100, value: 100, easingId: 'linear' },
+            { tick: 0, value: 0, segmentInterpolation: { mode: 'linear', direction: 'auto' } },
+            { tick: 100, value: 100, segmentInterpolation: { mode: 'linear', direction: 'auto' } },
         ];
 
         const consoleSpy = vi.spyOn(console, 'error');
@@ -90,10 +90,10 @@ describe('SceneRuntimeAdapter: automation binding', () => {
         const propertyKey = 'color';
         const channelId = makeChannelId(elementId, propertyKey);
 
-        const channel = createChannel(elementId, propertyKey, 'color', 'linear');
+        const channel = createChannel(elementId, propertyKey, 'color');
         channel.keyframes = [
-            { tick: 0, value: '#ff0000', easingId: 'linear' },
-            { tick: 100, value: '#0000ff', easingId: 'linear' },
+            { tick: 0, value: '#ff0000', segmentInterpolation: { mode: 'linear', direction: 'auto' } },
+            { tick: 100, value: '#0000ff', segmentInterpolation: { mode: 'linear', direction: 'auto' } },
         ];
 
         const consoleSpy = vi.spyOn(console, 'error');

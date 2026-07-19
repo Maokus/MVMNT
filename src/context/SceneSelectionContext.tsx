@@ -255,9 +255,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                     automatedKeys.push(key);
                     const channel = automationChannels[chId];
                     const existingKf = findKeyframeAtTick(channel.keyframes, currentTick);
-                    const easingId = existingKf?.easingId ?? 'linear';
-                    const segmentInterpolation = existingKf?.segmentInterpolation
-                        ?? DEFAULT_SEGMENT_INTERPOLATION;
+                    const segmentInterpolation = existingKf?.segmentInterpolation ?? DEFAULT_SEGMENT_INTERPOLATION;
                     const leftHandleType = existingKf?.leftHandleType ?? ('auto_clamped' as const);
                     const rightHandleType = existingKf?.rightHandleType ?? ('auto_clamped' as const);
                     dispatchSceneCommand(
@@ -267,7 +265,6 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                             keyframe: {
                                 tick: currentTick,
                                 value,
-                                easingId,
                                 segmentInterpolation: { ...segmentInterpolation },
                                 leftHandleType,
                                 rightHandleType,

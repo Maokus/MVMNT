@@ -16,7 +16,6 @@ import { ensureMacroSync, getMacroSnapshot, replaceMacrosFromSnapshot } from './
 import { emitSceneCommandTelemetry } from './sceneTelemetry';
 import type {
     AutomationChannel,
-    AutomationInterpolation,
     AutomationKeyframe,
     AutomationValueType,
 } from '@automation/types';
@@ -109,7 +108,6 @@ export type SceneCommand =
           elementId: string;
           propertyKey: string;
           valueType: AutomationValueType;
-          interpolation?: AutomationInterpolation;
           /** Optional initial keyframes (e.g. current value at tick 0). */
           initialKeyframes?: AutomationKeyframe[];
       }
@@ -139,7 +137,6 @@ export type SceneCommand =
               Pick<
                   AutomationKeyframe,
                   | 'value'
-                  | 'easingId'
                   | 'segmentInterpolation'
                   | 'leftHandle'
                   | 'rightHandle'
@@ -323,7 +320,6 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
                         elementId: channel.elementId,
                         propertyKey: channel.propertyKey,
                         valueType: channel.valueType,
-                        interpolation: channel.interpolation,
                         initialKeyframes: channel.keyframes.map((kf) => ({ ...kf })),
                     })
                 ),
@@ -577,7 +573,6 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
                         elementId: command.elementId,
                         propertyKey: command.propertyKey,
                         valueType: channel.valueType,
-                        interpolation: channel.interpolation,
                         initialKeyframes: channel.keyframes.map((kf) => ({ ...kf })),
                     },
                 ],
@@ -628,7 +623,6 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
                             elementId: channel.elementId,
                             propertyKey: channel.propertyKey,
                             valueType: channel.valueType,
-                            interpolation: channel.interpolation,
                             initialKeyframes: [{ ...existing }],
                         },
                     ],
@@ -652,7 +646,6 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
             if (!existing) return null;
             const undoPatch: typeof command.patch = {};
             if ('value' in command.patch) undoPatch.value = existing.value;
-            if ('easingId' in command.patch) undoPatch.easingId = existing.easingId;
             if ('segmentInterpolation' in command.patch) undoPatch.segmentInterpolation = existing.segmentInterpolation;
             if ('leftHandle' in command.patch) undoPatch.leftHandle = existing.leftHandle;
             if ('rightHandle' in command.patch) undoPatch.rightHandle = existing.rightHandle;
@@ -811,12 +804,7 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
             break;
         case 'enablePropertyAutomation': {
             const channelId = makeChannelId(command.elementId, command.propertyKey);
-            const channel = createChannel(
-                command.elementId,
-                command.propertyKey,
-                command.valueType,
-                command.interpolation ?? 'eased'
-            );
+            const channel = createChannel(command.elementId, command.propertyKey, command.valueType);
             if (command.initialKeyframes?.length) {
                 channel.keyframes = [...command.initialKeyframes];
             }

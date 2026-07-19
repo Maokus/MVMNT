@@ -9,9 +9,6 @@
  *     - bezier:   cubic bezier evaluation using keyframe handles
  *     - semantic:  easing function with direction and optional parameters
  *
- *   When `segmentInterpolation` is absent (legacy data), falls back to
- *   the channel-level `interpolation` mode and per-keyframe `easingId`.
- *
  * Handle behavior:
  *   Handle data is always preserved on keyframes regardless of interpolation mode.
  *   Only bezier mode reads handle data for evaluation. Switching from bezier to
@@ -23,20 +20,11 @@
  *   - boolean: always stepped, regardless of channel interpolation mode
  */
 
-import type { AutomationChannel, AutomationKeyframe, AutomationInterpolation, AutomationValueType } from './types';
+import type { AutomationChannel, AutomationKeyframe, AutomationValueType } from './types';
 import { lerpColor } from './color-interpolation';
 import { computeAutoHandles } from './interpolation-defaults';
 import { evaluateSegmentBezier } from '@math/animation/cubic-bezier';
 import { resolveParametricEasing } from '@math/animation/easing-parametric';
-import easings from '@math/animation/easing';
-
-type EasingFn = (t: number) => number;
-
-/** Resolve a legacy easing function by its ID. Falls back to linear if unknown. */
-function resolveEasing(easingId: string): EasingFn {
-    const fn = (easings as Record<string, EasingFn | undefined>)[easingId];
-    return fn ?? easings.linear;
-}
 
 /**
  * Binary search: find the index of the last keyframe with tick <= targetTick.
@@ -71,12 +59,10 @@ function findSegmentIndex(keyframes: readonly AutomationKeyframe[], targetTick: 
 
 export class AutomationCurve {
     private readonly keyframes: readonly AutomationKeyframe[];
-    private readonly interpolation: AutomationInterpolation;
     private readonly valueType: AutomationValueType;
 
     constructor(channel: AutomationChannel) {
         this.keyframes = channel.keyframes;
-        this.interpolation = channel.interpolation;
         this.valueType = channel.valueType;
     }
 
@@ -108,13 +94,7 @@ export class AutomationCurve {
         if (span <= 0) return next.value;
         const localT = Math.max(0, Math.min(1, (tick - prev.tick) / span));
 
-        // --- New hybrid interpolation path ---
-        if (prev.segmentInterpolation) {
-            return this.evaluateSegment(prevIdx, localT, prev, next);
-        }
-
-        // --- Legacy fallback ---
-        return this.evaluateLegacy(localT, prev, next);
+        return this.evaluateSegment(prevIdx, localT, prev, next);
     }
 
     /**
@@ -127,7 +107,7 @@ export class AutomationCurve {
         prev: AutomationKeyframe,
         next: AutomationKeyframe
     ): unknown {
-        const interp = prev.segmentInterpolation!;
+        const interp = prev.segmentInterpolation;
         const { mode, direction, params } = interp;
 
         // Constant (stepped): hold previous value
@@ -214,17 +194,6 @@ export class AutomationCurve {
         const nextVal = typeof next.value === 'number' ? next.value : 0;
 
         return evaluateSegmentBezier(localT, prev.tick, prevVal, prevRightHandle, next.tick, nextVal, nextLeftHandle);
-    }
-
-    /** Legacy evaluation path: channel-level interpolation mode + per-keyframe easingId. */
-    private evaluateLegacy(localT: number, prev: AutomationKeyframe, next: AutomationKeyframe): unknown {
-        // Stepped interpolation: hold previous value
-        if (this.interpolation === 'stepped') return prev.value;
-
-        // Apply easing
-        const easedT = this.interpolation === 'eased' ? resolveEasing(prev.easingId)(localT) : localT;
-
-        return this.interpolateValue(easedT, prev, next);
     }
 
     /** Interpolate between two keyframe values at a given t. */

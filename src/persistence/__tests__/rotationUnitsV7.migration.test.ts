@@ -66,10 +66,9 @@ describe('rotation units v7 migration', () => {
                             elementId: 'shape',
                             propertyKey: 'startAngle',
                             valueType: 'number',
-                            interpolation: 'linear',
                             keyframes: [
-                                { tick: 0, value: 0, easingId: 'linear' },
-                                { tick: 120, value: Math.PI, easingId: 'linear' },
+                                { tick: 0, value: 0, segmentInterpolation: { mode: 'linear', direction: 'auto' } },
+                                { tick: 120, value: Math.PI, segmentInterpolation: { mode: 'linear', direction: 'auto' } },
                             ],
                         },
                         'text.elementRotation': {
@@ -77,12 +76,11 @@ describe('rotation units v7 migration', () => {
                             elementId: 'text',
                             propertyKey: 'elementRotation',
                             valueType: 'number',
-                            interpolation: 'linear',
                             keyframes: [
                                 {
                                     tick: 0,
                                     value: Math.PI / 2,
-                                    easingId: 'linear',
+                                    segmentInterpolation: { mode: 'linear', direction: 'auto' },
                                     rightHandle: { dt: 60, dv: Math.PI / 4 },
                                 },
                             ],
