@@ -1,200 +1,57 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { TimelineState } from '@state/timelineStore';
-import {
-    createPluginHostApi,
-    installPluginHostApi,
-    PLUGIN_API_VERSION,
-    PLUGIN_CAPABILITIES,
-} from '@core/scene/plugins/host-api/plugin-api';
+import { createPluginHostServices, PLUGIN_CAPABILITIES } from '../host-api/plugin-api';
 
-function makeState(): TimelineState {
-    return {
-        timeline: {
-            id: 'timeline-1',
-            name: 'Main',
-            currentTick: 0,
-            globalBpm: 120,
-            beatsPerBar: 4,
-        },
-        tracks: {
-            'midi-1': {
-                id: 'midi-1',
-                name: 'MIDI 1',
-                type: 'midi',
-                enabled: true,
-                mute: false,
-                solo: false,
-                offsetTicks: 0,
-            },
-        },
-        tracksOrder: ['midi-1'],
-        transport: {
-            isPlaying: false,
-            loopEnabled: false,
-            rate: 1,
-            quantize: '1/16',
-        },
-        selection: { selectedTrackIds: [] },
-        timelineView: { startTick: 0, endTick: 1920 },
-        playbackRangeUserDefined: false,
-        midiCache: {},
-        audioCache: {},
-        audioFeatureCaches: {},
-        audioFeatureCacheStatus: {},
-        hybridCacheRollout: {
-            adapterEnabled: false,
-            fallbackLog: [],
-        },
-        tempoAlignedDiagnostics: {},
-        rowHeight: 56,
-        addMidiTrack: vi.fn(async () => 'midi-1'),
-        addAudioTrack: vi.fn(async () => 'audio-1'),
-        removeTrack: vi.fn(),
-        removeTracks: vi.fn(),
-        updateTrack: vi.fn(async () => undefined),
-        setTrackOffsetTicks: vi.fn(async () => undefined),
-        setTrackRegionTicks: vi.fn(async () => undefined),
-        setTrackEnabled: vi.fn(async () => undefined),
-        setTrackMute: vi.fn(async () => undefined),
-        setTrackSolo: vi.fn(async () => undefined),
-        setTrackGain: vi.fn(async () => undefined),
-        setMasterTempoMap: vi.fn(),
-        setGlobalBpm: vi.fn(),
-        setBeatsPerBar: vi.fn(),
-        setCurrentTick: vi.fn(),
-        play: vi.fn(),
-        pause: vi.fn(),
-        togglePlay: vi.fn(),
-        seekTick: vi.fn(),
-        scrubTick: vi.fn(),
-        setRate: vi.fn(),
-        setQuantize: vi.fn(),
-        setLoopEnabled: vi.fn(),
-        setLoopRangeTicks: vi.fn(),
-        toggleLoop: vi.fn(),
-        reorderTracks: vi.fn(async () => undefined),
-        setTimelineViewTicks: vi.fn(),
-        selectTracks: vi.fn(),
-        setPlaybackRangeTicks: vi.fn(),
-        setPlaybackRangeExplicitTicks: vi.fn(),
-        setRowHeight: vi.fn(),
-        ingestMidiToCache: vi.fn(),
-        ingestAudioToCache: vi.fn(),
-        ingestAudioFeatureCache: vi.fn(),
-        invalidateAudioFeatureCachesByCalculator: vi.fn(),
-        setAudioFeatureCacheStatus: vi.fn(),
-        stopAudioFeatureAnalysis: vi.fn(),
-        restartAudioFeatureAnalysis: vi.fn(),
-        reanalyzeAudioFeatureCalculators: vi.fn(),
-        removeAudioFeatureTracks: vi.fn(),
-        clearAudioFeatureCache: vi.fn(),
-        clearAllTracks: vi.fn(),
-        resetTimeline: vi.fn(),
-        setHybridCacheAdapterEnabled: vi.fn(),
-        recordHybridCacheFallback: vi.fn(),
-        recordTempoAlignedDiagnostics: vi.fn(),
-        clearTempoAlignedDiagnostics: vi.fn(),
-    } as unknown as TimelineState;
-}
+const state = {
+    timeline: { id: 'timeline', name: 'Timeline', currentTick: 0, globalBpm: 120, beatsPerBar: 4 },
+    tracks: {},
+    tracksOrder: [],
+    audioCache: {},
+    timelineView: { startTick: 0, endTick: 1920 },
+} as unknown as TimelineState;
 
-describe('plugin host api', () => {
-    it('creates v1 API with timeline/audio/timing wrappers on happy path', () => {
-        const state = makeState();
-        const timelineStore = { getState: vi.fn(() => state) };
-        const selectNotesInWindow = vi.fn(() => [
-            { note: 60, channel: 0, trackId: 'midi-1', startTime: 0, endTime: 1, duration: 1 },
-        ]);
-        const selectTrackById: (_s: TimelineState, _id: string | undefined | null) => any = vi.fn(
-            (_s: TimelineState, _id: string | undefined | null) => state.tracks['midi-1'] as any
-        );
-        const selectTracksByIds: (_s: TimelineState, _ids: string[]) => any[] = vi.fn(
-            (_s: TimelineState, _ids: string[]) => [state.tracks['midi-1'] as any]
-        );
-        const getFeatureData: (...args: any[]) => any = vi.fn(() => ({
-            values: [0.5],
-            metadata: {
-                descriptor: { featureKey: 'rms' },
-                frame: { values: [0.5] },
-                channels: 1,
-            },
-        }));
-        const getFeatureDataRange: (...args: any[]) => any[] = vi.fn(
-            (_element, _trackId, _feature, startTime: number, endTime: number, stepSec: number) => {
-                const results: any[] = [];
-                for (let t = startTime; t <= endTime + 1e-9; t += stepSec) {
-                    results.push({
-                        time: t,
-                        result: {
-                            values: [0.5],
-                            metadata: { descriptor: { featureKey: 'rms' }, frame: { values: [0.5] }, channels: 1 },
-                        },
-                    });
-                }
-                return results;
-            }
-        );
-
-        const { api, missingCapabilities } = createPluginHostApi({
-            timelineStore,
+describe('plugin host services', () => {
+    it('constructs the private services used by SDK 2 callback contexts', () => {
+        const selectNotesInWindow = vi.fn(() => []);
+        const { services, missingCapabilities } = createPluginHostServices({
+            timelineStore: { getState: () => state },
             selectNotesInWindow,
-            selectTrackById,
-            selectTracksByIds,
-            getFeatureData,
-            getFeatureDataRange,
+            selectTrackById: () => undefined,
+            selectTracksByIds: () => [],
+            selectMidiTracks: () => [],
+            getFeatureData: () => null,
+            getFeatureDataRange: () => [],
         });
 
-        expect(api.apiVersion).toBe(PLUGIN_API_VERSION);
         expect(missingCapabilities).toEqual([]);
-        expect(api.capabilities).toContain(PLUGIN_CAPABILITIES.timelineRead);
-        expect(api.capabilities).toContain(PLUGIN_CAPABILITIES.audioFeaturesRead);
-
-        const snapshot = api.timeline.getStateSnapshot();
-        expect(snapshot).toBe(state);
-        api.timeline.selectNotesInWindow({ trackIds: ['midi-1'], startSec: 0, endSec: 1 });
-        expect(selectNotesInWindow).toHaveBeenCalled();
-        expect(api.timeline.getTrackById('midi-1')).toEqual(state.tracks['midi-1']);
-
-        const atTime = api.audio.sampleFeatureAtTime({ trackId: 'audio-1', feature: 'rms', time: 0.25 });
-        expect(atTime?.values).toEqual([0.5]);
-        const sampledRange = api.audio.sampleFeatureRange({
-            trackId: 'audio-1',
-            feature: 'rms',
-            startTime: 0,
-            endTime: 0.2,
-            stepSec: 0.1,
-        });
-        expect(sampledRange).toHaveLength(3);
-        expect(sampledRange.map((entry) => entry.time)).toEqual([0, 0.1, 0.2]);
-        expect(api.timing.beatsToTicks(2)).toBe(1920);
-        expect(api.timing.getTimeSignature()).toEqual({ numerator: 4, denominator: 4 });
-        expect(api.utilities.midiNoteToName(60)).toBe('C4');
+        expect(services.capabilities).toContain(PLUGIN_CAPABILITIES.timelineRead);
+        expect(services.capabilities).toContain(PLUGIN_CAPABILITIES.audioFeaturesRead);
+        expect(services.timeline.getStateSnapshot()).toBe(state);
+        services.timeline.selectNotesInWindow({ trackIds: [], startSec: 0, endSec: 1 });
+        expect(selectNotesInWindow).toHaveBeenCalledWith(state, { trackIds: [], startSec: 0, endSec: 1 });
+        expect(services.timing.beatsToTicks(2)).toBe(1920);
+        expect(services.utilities.midiNoteToName(60)).toBe('C4');
     });
 
-    it('reports missing capabilities and graceful fallbacks when deps are unavailable', () => {
-        const warn = vi.fn();
-        const target: { MVMNT?: Record<string, unknown> } = { MVMNT: { state: { existing: true } } };
-
-        const api = installPluginHostApi({
-            target,
-            logger: { warn },
-            deps: {
-                timelineStore: null,
-                selectNotesInWindow: null,
-                selectTrackById: null,
-                selectTracksByIds: null,
-                getFeatureData: null,
-            },
+    it('reports unavailable dependencies without installing a global accessor', () => {
+        const { services, missingCapabilities } = createPluginHostServices({
+            timelineStore: null,
+            selectNotesInWindow: null,
+            selectTrackById: null,
+            selectTracksByIds: null,
+            selectMidiTracks: null,
+            getFeatureData: null,
+            getFeatureDataRange: null,
         });
 
-        expect(api.timeline.getStateSnapshot()).toBeNull();
-        expect(api.timeline.selectNotesInWindow({ trackIds: ['midi-1'], startSec: 0, endSec: 1 })).toEqual([]);
-        expect(api.audio.sampleFeatureAtTime({ trackId: 'audio-1', feature: 'rms', time: 0 })).toBeNull();
-        expect(
-            api.audio.sampleFeatureRange({ trackId: 'audio-1', feature: 'rms', startTime: 0, endTime: 1, stepSec: 0.5 })
-        ).toEqual([]);
-        expect(api.timing.secondsToTicks(1)).toBeNull();
-        expect(warn).toHaveBeenCalledTimes(1);
-        expect(target.MVMNT?.plugins).toBe(api);
-        expect(target.MVMNT?.state).toEqual({ existing: true });
+        expect(missingCapabilities).toEqual([
+            PLUGIN_CAPABILITIES.timelineRead,
+            PLUGIN_CAPABILITIES.audioFeaturesRead,
+            PLUGIN_CAPABILITIES.audioRawRead,
+        ]);
+        expect(services.timeline.getStateSnapshot()).toBeNull();
+        expect(services.audio.sampleFeatureAtTime({ trackId: 'audio', feature: 'rms', time: 0 })).toBeNull();
+        expect(services.timing.secondsToTicks(1)).toBeNull();
+        expect((globalThis as { MVMNT?: unknown }).MVMNT).toBeUndefined();
     });
 });

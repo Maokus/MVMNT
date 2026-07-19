@@ -3,7 +3,6 @@ import { defineRendererElement } from '@mvmnt-app/plugin-sdk';
 import {
     CallbackElementRenderer,
     Text,
-    PLUGIN_CAPABILITIES,
     prop,
     insertElementConfig,
     tab,
@@ -86,19 +85,10 @@ class TrackerlikeMidiDisplayElement extends CallbackElementRenderer {
             return objects;
         }
 
-        const { api, status, missingCapabilities } = this.hostApi([
-            PLUGIN_CAPABILITIES.timelineRead,
-            PLUGIN_CAPABILITIES.timingConversion,
-        ]);
-
-        if (!api || status !== 'ok') {
-            const message =
-                status === 'unsupported-version'
-                    ? 'Plugin API version unsupported'
-                    : missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
-                      ? 'Timeline API unavailable'
-                      : 'Plugin host API unavailable';
-            objects.push(new Text(0, 0, message, '12px monospace', '#64748b', 'left', 'top'));
+        const timeline = this.context.timeline;
+        const timing = this.context.timing;
+        if (!timeline || !timing) {
+            objects.push(new Text(0, 0, 'Timeline API unavailable', '12px monospace', '#64748b', 'left', 'top'));
             return objects;
         }
 
@@ -110,7 +100,8 @@ class TrackerlikeMidiDisplayElement extends CallbackElementRenderer {
         const font = `${fontSize}px monospace`;
 
         // Current position in subbeats (beats * division)
-        const currentBeats = api.timing.secondsToBeats(targetTime) ?? 0;
+        const currentBeatsResult = timing.secondsToBeats(targetTime);
+        const currentBeats = currentBeatsResult.ok ? currentBeatsResult.value : 0;
         const currentSubbeat = Math.floor(Math.max(0, currentBeats) * division);
 
         // Page: which group of rowCount subbeats are we in
@@ -121,8 +112,8 @@ class TrackerlikeMidiDisplayElement extends CallbackElementRenderer {
 
         // Header row
         if (props.showTrackName) {
-            const track = api.timeline.getTrackById(props.midiTrackId);
-            const trackLabel = track?.name ?? '?';
+            const track = timeline.getTrack(props.midiTrackId);
+            const trackLabel = track.ok ? track.value.name : '?';
             objects.push(new Text(0, 0, ` T> ${trackLabel}`, font, props.headerColor, 'left', 'top'));
             yOffset = lineHeight;
         }
@@ -133,23 +124,25 @@ class TrackerlikeMidiDisplayElement extends CallbackElementRenderer {
             const isActive = i === activeRowIndex;
 
             // Time window for this subbeat (1/division of a beat wide)
-            const subbeatStartSec = api.timing.beatsToSeconds(subbeat / division) ?? subbeat / division;
-            const subbeatEndSec = api.timing.beatsToSeconds((subbeat + 1) / division) ?? (subbeat + 1) / division;
+            const startResult = timing.beatsToSeconds(subbeat / division);
+            const endResult = timing.beatsToSeconds((subbeat + 1) / division);
+            const subbeatStartSec = startResult.ok ? startResult.value : subbeat / division;
+            const subbeatEndSec = endResult.ok ? endResult.value : (subbeat + 1) / division;
 
             // Get notes that START within this subbeat's window, up to `columns` of them
-            const candidates = api.timeline.selectNotesInWindow({
+            const selected = timeline.selectNotes({
                 trackIds: [props.midiTrackId],
-                startSec: subbeatStartSec,
-                endSec: subbeatEndSec,
+                startSeconds: subbeatStartSec,
+                endSeconds: subbeatEndSec,
             });
-            const starting = candidates
-                .filter((n) => n.startTime >= subbeatStartSec && n.startTime < subbeatEndSec)
+            const starting = (selected.ok ? selected.value : [])
+                .filter((n) => n.startSeconds >= subbeatStartSec && n.startSeconds < subbeatEndSec)
                 .slice(0, columns);
 
             // Build note columns: each is 4 chars wide ("C3  ", "C#3 ", "-- ")
             const noteCells = Array.from({ length: columns }, (_, col) => {
                 const note = starting[col];
-                return note ? api.utilities.midiNoteToName(note.note).padEnd(4) : '--  ';
+                return note ? (this.context.midi?.noteName(note.note) ?? String(note.note)).padEnd(4) : '--  ';
             });
 
             const cursor = isActive ? '>' : ' ';

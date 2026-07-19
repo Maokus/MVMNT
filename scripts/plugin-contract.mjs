@@ -10,16 +10,7 @@ export const sdkManifest = Object.freeze(JSON.parse(
 export const SDK_RUNTIME_MODULES = Object.freeze([...sdkManifest.runtimeModules]);
 export const PLUGIN_EXTERNALS = Object.freeze([
     ...SDK_RUNTIME_MODULES,
-    'react',
-    'react-dom',
-    'react/jsx-runtime',
-    'react/jsx-dev-runtime',
 ]);
-
-/** New source builds are SDK 2-only; the host loader keeps frozen v1 bundles loadable. */
-export function targetsFrozenV1(manifest) {
-    return /(?:\^|>=)?1\./.test(manifest?.apiVersion ?? manifest?.mvmntVersion ?? '');
-}
 
 const PRIVATE_PREFIXES = [
     '@core/', '@audio/', '@utils/', '@state/', '@selectors/', '@persistence/',
@@ -42,20 +33,18 @@ export function extractModuleSpecifiers(sourceCode) {
     return [...specifiers];
 }
 
-export function validateElementImports(sourceCode, elementName, apiVersion = '^2.0.0') {
+export function validateElementImports(sourceCode, elementName) {
     const errors = [];
     const warnings = [];
     for (const specifier of extractModuleSpecifiers(sourceCode)) {
         if (!specifier || specifier.startsWith('.') || specifier.startsWith('/')) continue;
         if (PLUGIN_EXTERNALS.includes(specifier)) continue;
-        if (/\^?2\./.test(apiVersion) && (specifier === '@mvmnt/plugin-sdk' || specifier.startsWith('@mvmnt/plugin-sdk/'))) {
+        if (specifier === '@mvmnt/plugin-sdk' || specifier.startsWith('@mvmnt/plugin-sdk/')) {
             errors.push(`${elementName}: SDK 2 plugins must import '@mvmnt-app/plugin-sdk', not '${specifier}'.`);
             continue;
         }
         if (PRIVATE_PREFIXES.some((prefix) => specifier.startsWith(prefix))) {
-            const message = `${elementName}: Import '${specifier}' is application-private. Use '@mvmnt-app/plugin-sdk'.`;
-            if (/\^?1\./.test(apiVersion)) warnings.push(message);
-            else errors.push(message);
+            errors.push(`${elementName}: Import '${specifier}' is application-private. Use '@mvmnt-app/plugin-sdk'.`);
         }
     }
     return { errors, warnings };
@@ -81,10 +70,10 @@ export function validateManifestContract(manifest, pluginDir, builtInTypes = [])
     if (!manifest?.id || !/^[a-z0-9.-]{3,}$/.test(manifest.id)) errors.push('Missing or invalid "id" field');
     if (!manifest?.name || typeof manifest.name !== 'string') errors.push('Missing or invalid "name" field');
     if (!manifest?.version || !/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?$/.test(manifest.version)) errors.push('Missing or invalid semantic "version" field');
-    if (!manifest?.apiVersion && !manifest?.mvmntVersion) errors.push('Missing "apiVersion" field');
+    if (!manifest?.apiVersion) errors.push('Missing "apiVersion" field');
+    else if (!/(?:\^|>=)?2\./.test(manifest.apiVersion)) errors.push('"apiVersion" must target SDK 2');
     if (!Array.isArray(manifest?.elements) || manifest.elements.length === 0) return [...errors, 'Missing or empty "elements" array'];
     const types = new Set();
-    const v2 = /(?:\^|>=)?2\./.test(manifest.apiVersion ?? '');
     manifest.elements.forEach((element, index) => {
         const label = `Element ${index + 1}`;
         if (!element.type || !/^[a-z][a-z0-9-]*$/.test(element.type)) errors.push(`${label}: invalid type`);
@@ -94,7 +83,7 @@ export function validateManifestContract(manifest, pluginDir, builtInTypes = [])
         if (!element.entry || !/\.(?:js|mjs|ts)$/.test(element.entry)) errors.push(`${label}: invalid entry`);
         else if (path.isAbsolute(element.entry) || element.entry.split(/[\\/]/).includes('..')) errors.push(`${label}: unsafe entry path`);
         else if (pluginDir && !fs.existsSync(path.join(pluginDir, element.entry))) errors.push(`${label}: entry not found: ${element.entry}`);
-        if (v2) errors.push(...validateCapabilityDeclaration(element.capabilities, label));
+        errors.push(...validateCapabilityDeclaration(element.capabilities, label));
     });
     return errors;
 }

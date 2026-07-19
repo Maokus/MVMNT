@@ -58,30 +58,31 @@ Music theory helpers and MIDI parsing live under `core/midi/` alongside the play
 - `VisualResourceHandle` manages one visual asset reference and auto-destroys on dispose.
 - `BundledSprite` / `BundledSparrowHandle` – sprite and Sparrow atlas helpers with identical public APIs (`.get()`, `.build()`, `.destroy()`).
 - `resolveProjectAssetDescriptor` converts registry UUIDs to `VisualSourceDescriptor`s for loading.
-- Use `this.visualHandle()`, `this.bundledSprite()`, `this.bundledSparrow()`, or `this.bundledImage()` on `SceneElement` — these are auto-tracked for disposal. See [docs/visual-asset-registry.md](visual-asset-registry.md).
+- External definitions create auto-disposed handles through `context.assets`. See
+  [docs/visual-asset-registry.md](visual-asset-registry.md).
 
 ## Plugin System (`core/scene/plugins/`)
 
 Plugins are the primary extensibility mechanism. The public API is the versioned
 `packages/plugin-sdk` workspace package. Plugin bundles externalize its modules and the loader
-injects the v1 compatibility or v2 callback runtime according to `apiVersion`.
+injects the SDK 2 callback runtime selected by `apiVersion`.
 
-**Supported API lines:** frozen `^1.x` compatibility and SDK `^2.x`.
+**Supported API line:** SDK `^2.x`.
 
 ### SDK Domains
 
 | Sub-path               | Contents                                               |
 | ---------------------- | ------------------------------------------------------ |
-| `sdk/animation.ts`     | Easing, interpolation, FloatCurve                      |
-| `sdk/render.ts`        | Canvas render object constructors                      |
-| `sdk/scene.ts`         | SceneElement base, property descriptors                |
-| `sdk/api.ts`           | Capability definitions, host API accessor              |
-| `sdk/timeline.ts`      | Timeline read API, note selection                      |
-| `sdk/audio.ts`         | Audio feature sampling, custom calculator registration |
-| `sdk/timing.ts`        | Seconds/beats/ticks helpers                            |
-| `sdk/safety.ts`        | Render safety wrappers, capability checks              |
-| `sdk/utils.ts`         | MIDI helpers, color utilities                          |
-| `sdk/visual-assets.ts` | Visual asset registry API                              |
+| `animation`     | Easing, interpolation, FloatCurve                      |
+| `render`        | Canvas render object constructors                      |
+| `scene`         | Definition callbacks, schemas, and capability context  |
+| `api`           | Capability constants and structured results            |
+| `timeline`      | Timeline read API and note selection                    |
+| `audio`         | Audio sampling and custom calculator registration      |
+| `timing`        | Seconds/beats/ticks helpers                             |
+| `safety`        | Author-side safety helpers                              |
+| `utils`         | MIDI helpers and utilities                              |
+| `visual-assets` | Lifecycle-scoped visual asset handles                   |
 
 ### Capability Model
 
@@ -96,19 +97,23 @@ Plugins declare needed capabilities; the host resolves them at runtime. Unavaila
 | `audioFeaturesRead`        | Conditional       | Audio feature sampling               |
 | `audioRawRead`             | Conditional       | Sample-accurate audio                |
 
-**Access pattern:**
+**Access pattern:** declare the capability and use its callback-scoped facet.
 
 ```typescript
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
-const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
-if (api && status === 'ok') {
-    const notes = api.timeline.selectNotesInWindow({ trackIds: [...], startSec, endSec });
+render(_props, _state, time, context) {
+    const notes = context.timeline!.selectNotes({
+        trackIds: ['track-id'],
+        startSeconds: time.seconds,
+        endSeconds: time.seconds + 1,
+    });
+    return notes.ok ? [] : [];
 }
 ```
 
 ### Drift Prevention
 
-`plugin-sdk.ts` uses a `satisfies` check mapping every `PLUGIN_CAPABILITIES` key to its exported proxy. Adding a capability without exporting it from the SDK is a compile-time error. `__tests__/api-drift.test.ts` covers all capabilities with runtime assertions.
+`sdk-manifest.json` records every public module and runtime export. The SDK contract tests compare
+that manifest with the package source and injected runtime, preventing missing capability adapters.
 
 The SDK package is the canonical owner of public DTOs and portable helpers, not a clone of
 the application. App compatibility barrels re-export SDK-owned helpers so both built-ins and
@@ -116,7 +121,8 @@ plugins execute the same implementation. Conversely, render objects, capability 
 and the class-renderer migration facade are host-owned and injected by `plugin-loader.ts`.
 `sdk-boundary-drift.test.ts` verifies these ownership rules behaviorally.
 
-See also: [docs/plugin-api-v1.md](plugin-api-v1.md), [docs/plugin-quickstart.md](plugin-quickstart.md), `core/scene/plugins/AGENTS.md`.
+See also: [plugin quickstart](plugin-api/plugin-quickstart.md),
+[capabilities](plugin-api/plugin-capabilities.md), and `core/scene/plugins/AGENTS.md`.
 
 ## State & Selector Guidelines
 
@@ -134,7 +140,8 @@ See also: [docs/plugin-api-v1.md](plugin-api-v1.md), [docs/plugin-quickstart.md]
 | `npm run compile`        | TypeScript check (`tsc --noEmit`) |
 | `npm run build-plugin`   | Build an external plugin          |
 
-Path aliases are defined in `tsconfig.json` (`@core/*`, `@state/*`, `@audio/*`, `@workspace/*`, `@mvmnt/plugin-sdk`, etc.) and resolved at runtime via `PLUGIN_RUNTIME_MODULES`.
+Application path aliases are defined in `tsconfig.json`. External plugins use only
+`@mvmnt-app/plugin-sdk`; the loader resolves its declared runtime modules.
 
 ## Error & Logging Strategy
 

@@ -1,9 +1,7 @@
 # Runtime Plugin Loading API
 
-The loader accepts both the frozen SDK 1 compatibility line and SDK 2. The manifest's
-`apiVersion` selects the runtime module map; see
-[Plugin compatibility policy](plugin-compatibility-policy.md). Examples below using classes or
-`^1.x` describe compatibility bundles rather than the recommended authoring workflow.
+The loader accepts SDK 2 bundles. The manifest's `apiVersion` must satisfy the supported SDK 2
+range; see [Plugin compatibility policy](plugin-compatibility-policy.md).
 
 The runtime plugin loading system allows loading and managing `.mvmnt-plugin` bundles at runtime.
 
@@ -140,19 +138,12 @@ Plugins specify an `apiVersion` range in their manifest:
 
 ```json
 {
-    "apiVersion": "^1.0.0"
+    "apiVersion": "^2.0.0"
 }
 ```
 
-Supported range formats:
-
-- `^1.0.0` - Caret range (>=1.0.0 <2.0.0)
-- `~1.0.0` - Tilde range (>=1.0.0 <1.1.0)
-- `>=1.0.0` - Greater than or equal
-- `>=1.0.0 <2.0.0` - Compound range
-- `1.0.0 || 2.0.0` - OR conditions
-
-See [version-check.ts](../src/core/scene/plugins/version-check.ts) for implementation details.
+The loader accepts ranges compatible with SDK 2. SDK 1 ranges are rejected. See
+[version-check.ts](../../src/core/scene/plugins/version-check.ts) for range parsing details.
 
 ## Persistence
 

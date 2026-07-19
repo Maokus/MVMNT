@@ -2,10 +2,9 @@ import { SceneElement, asNumber, type PropertyTransform } from '../base';
 import { Rectangle, Text, Line, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { applyOpacity } from '@utils/color';
-import { PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
 import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
-import { defineHostAdaptedBuiltIn, getEnginePrivateHostApi } from '@core/scene/plugins/built-in-definition';
+import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/plugins/built-in-definition';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -195,7 +194,7 @@ export class AudioVolumeMeterElement extends SceneElement {
             return objects;
         }
 
-        const host = getEnginePrivateHostApi(this, [PLUGIN_CAPABILITIES.audioRawRead]);
+        const audio = getEnginePrivateContext(this).audio;
         const meterMode = (props.meterMode ?? 'rms') as 'rms' | 'peak';
         const smoothing = props.smoothing ?? 0;
         // Window size: 25ms base + 10ms per smoothing unit (0→25ms, 64→665ms)
@@ -203,16 +202,19 @@ export class AudioVolumeMeterElement extends SceneElement {
         const halfWindow = windowSec / 2;
 
         let readings: Float32Array | null = null;
-        if (host.ok) {
+        if (audio) {
             const trackId = props.audioTrackId as string;
             const startSec = _targetTime - halfWindow;
             const endSec = _targetTime + halfWindow;
             if (meterMode === 'rms') {
-                readings = host.api.audio.getRmsInWindow({ trackId, startSec, endSec });
+                const result = audio.getRms({ trackId, startSeconds: startSec, endSeconds: endSec });
+                readings = result.ok ? result.value : null;
             } else {
                 // Peak mode: get raw samples per channel and find max abs amplitude
-                const leftSamples = host.api.audio.getRawSamples({ trackId, startSec, endSec, channel: 'left' });
-                const rightSamples = host.api.audio.getRawSamples({ trackId, startSec, endSec, channel: 'right' });
+                const left = audio.getRawSamples({ trackId, startSeconds: startSec, endSeconds: endSec, channel: 'left' });
+                const right = audio.getRawSamples({ trackId, startSeconds: startSec, endSeconds: endSec, channel: 'right' });
+                const leftSamples = left.ok ? left.value : null;
+                const rightSamples = right.ok ? right.value : null;
                 if (leftSamples || rightSamples) {
                     readings = new Float32Array(2);
                     readings[0] = leftSamples ? findMaxAbs(leftSamples) : 0;

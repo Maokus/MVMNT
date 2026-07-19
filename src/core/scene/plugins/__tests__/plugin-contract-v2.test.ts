@@ -15,7 +15,7 @@ import * as packageVisualAssets from '../../../../../packages/plugin-sdk/src/vis
 import {
     SDK_RUNTIME_MODULE_IDS,
     capabilityDeclarationsMatch,
-    getPluginApiLine,
+    supportsPluginApiRange,
     validateArchivePaths,
     validatePluginManifest,
 } from '../plugin-contract';
@@ -40,11 +40,11 @@ describe('plugin SDK v2 contract', () => {
             .map((key) => key === '.' ? '@mvmnt-app/plugin-sdk' : `@mvmnt-app/plugin-sdk/${key.slice(2)}`);
         expect(packageSubpaths).toEqual(sdkManifest.runtimeModules);
         expect(SDK_RUNTIME_MODULE_IDS).toEqual(sdkManifest.runtimeModules);
-        expect(getPluginRuntimeModuleIds(2)).toEqual(sdkManifest.runtimeModules);
+        expect(getPluginRuntimeModuleIds()).toEqual(sdkManifest.runtimeModules);
         expect(SDK_RUNTIME_MODULE_IDS).toContain('@mvmnt-app/plugin-sdk/visual-assets');
         for (const [subpath, exports] of Object.entries(sdkManifest.publicExports)) {
             const moduleId = subpath === '.' ? '@mvmnt-app/plugin-sdk' : `@mvmnt-app/plugin-sdk/${subpath}`;
-            expect([...getPluginRuntimeExportNames(2, moduleId)].sort()).toEqual([...exports].sort());
+            expect([...getPluginRuntimeExportNames(moduleId)].sort()).toEqual([...exports].sort());
         }
 
         const packageModules: Record<string, object> = {
@@ -76,11 +76,10 @@ describe('plugin SDK v2 contract', () => {
         }
     });
 
-    it('negotiates both frozen v1 and v2 API lines', () => {
-        expect(getPluginApiLine('^1.0.0')).toBe(1);
-        expect(getPluginApiLine('>=1.0.0 <2.0.0')).toBe(1);
-        expect(getPluginApiLine('^2.0.0')).toBe(2);
-        expect(getPluginApiLine('^3.0.0')).toBeNull();
+    it('accepts SDK 2 and rejects removed API lines', () => {
+        expect(supportsPluginApiRange('^1.0.0')).toBe(false);
+        expect(supportsPluginApiRange('^2.0.0')).toBe(true);
+        expect(supportsPluginApiRange('^3.0.0')).toBe(false);
     });
 
     it('rejects unknown, duplicate, missing, and unsafe v2 declarations', () => {

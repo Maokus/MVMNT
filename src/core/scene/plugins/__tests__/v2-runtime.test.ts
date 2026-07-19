@@ -1,13 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createPluginHostApi, PLUGIN_CAPABILITIES } from '../host-api/plugin-api';
+import { createPluginHostServices, PLUGIN_CAPABILITIES } from '../host-api/plugin-api';
 import { createPluginDefinitionScope } from '../v2-runtime';
-import { definePluginElement, type CapabilityContext } from '../sdk/scene';
+import { definePluginElement, type CapabilityContext } from '../../../../../packages/plugin-sdk/src/scene';
 
-const previousMvmnt = (globalThis as any).MVMNT;
-
-afterEach(() => {
-    (globalThis as any).MVMNT = previousMvmnt;
-});
+afterEach(() => document.querySelectorAll('link[id^="gf-"]').forEach((link) => link.remove()));
 
 function installHost() {
     const state = {
@@ -17,7 +13,7 @@ function installHost() {
         audioCache: {},
         timelineView: { startTick: 0, endTick: 1920 },
     } as any;
-    const host = createPluginHostApi({
+    const host = createPluginHostServices({
         timelineStore: { getState: () => state },
         selectNotesInWindow: () => [],
         selectTrackById: () => undefined,
@@ -25,8 +21,7 @@ function installHost() {
         selectMidiTracks: () => [],
         getFeatureData: () => null,
         getFeatureDataRange: () => [],
-    }).api;
-    (globalThis as any).MVMNT = { plugins: host };
+    }).services;
     return host;
 }
 
@@ -92,9 +87,7 @@ describe('SDK v2 runtime', () => {
                 return [];
             },
         });
-        // The callback runtime receives the host directly. It must not fall
-        // back to the frozen SDK 1 global accessor after scope construction.
-        (globalThis as any).MVMNT = undefined;
+        // The callback runtime receives private host services directly.
         const scope = createPluginDefinitionScope(definition, {
             pluginId: 'test',
             services: host,

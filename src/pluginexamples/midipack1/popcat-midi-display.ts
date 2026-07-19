@@ -2,7 +2,6 @@
 import { defineRendererElement } from '@mvmnt-app/plugin-sdk';
 import {
     CallbackElementRenderer,
-    PLUGIN_CAPABILITIES,
     parseFontSelection,
     ensureFontLoaded,
     prop,
@@ -193,16 +192,9 @@ class PopcatMidiDisplayElement extends CallbackElementRenderer {
             return [new Text(0, 0, 'Select a MIDI track', '14px Inter, sans-serif', '#94a3b8', 'left', 'top')];
         }
 
-        const { api, status, missingCapabilities } = this.hostApi([PLUGIN_CAPABILITIES.timelineRead]);
-
-        if (!api || status !== 'ok') {
-            const message =
-                status === 'unsupported-version'
-                    ? 'Plugin API version unsupported'
-                    : missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
-                      ? 'Timeline API unavailable'
-                      : 'Plugin host API unavailable';
-            return [new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top')];
+        const timeline = this.context.timeline;
+        if (!timeline) {
+            return [new Text(0, 0, 'Timeline API unavailable', '12px Inter, sans-serif', '#64748b', 'left', 'top')];
         }
 
         const manyCats = props.manyCats as boolean;
@@ -250,7 +242,15 @@ class PopcatMidiDisplayElement extends CallbackElementRenderer {
                 labelFontString = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
             }
 
-            const allPitches = api.timeline.selectDistinctNoteNumbers({ trackIds: [props.midiTrackId] });
+            const metadata = timeline.getMetadata();
+            const allNotes = timeline.selectNotes({
+                trackIds: [props.midiTrackId],
+                startSeconds: 0,
+                endSeconds: metadata.ok ? metadata.value.durationSeconds : 86400,
+            });
+            const allPitches = allNotes.ok
+                ? [...new Set(allNotes.value.map((note) => note.note))].sort((a, b) => a - b)
+                : [];
 
             // Apply offset and numCats limit
             const totalCats = Math.min(numCats, Math.max(0, allPitches.length - offset));
@@ -280,16 +280,17 @@ class PopcatMidiDisplayElement extends CallbackElementRenderer {
             // Query a wider window to catch notes that are currently playing.
             // We'll filter to only notes that actually overlap targetTime.
             const lookbackWindow = 10; // seconds — look back up to 10s for long note durations
-            const notes = api.timeline.selectNotesInWindow({
+            const selected = timeline.selectNotes({
                 trackIds: [props.midiTrackId],
-                startSec: targetTime - lookbackWindow,
-                endSec: targetTime + 0.1,
+                startSeconds: targetTime - lookbackWindow,
+                endSeconds: targetTime + 0.1,
             });
+            const notes = selected.ok ? selected.value : [];
             for (const n of notes) {
                 // Only include notes that are actually playing at targetTime
-                if (n.startTime <= targetTime && targetTime < n.endTime) {
+                if (n.startSeconds <= targetTime && targetTime < n.endSeconds) {
                     const prev = activeNoteStartMap.get(n.note);
-                    if (prev === undefined || n.startTime > prev) activeNoteStartMap.set(n.note, n.startTime);
+                    if (prev === undefined || n.startSeconds > prev) activeNoteStartMap.set(n.note, n.startSeconds);
                 }
             }
 
@@ -336,7 +337,7 @@ class PopcatMidiDisplayElement extends CallbackElementRenderer {
                     objects.push(makeVisualMedia(imgX, imgY, aw, ah, isActive));
 
                     if (noteLabels && labelFontString) {
-                        const noteName = api.utilities.midiNoteToName(pitch);
+                        const noteName = this.context.midi?.noteName(pitch) ?? String(pitch);
                         const labelX = slotCenterX;
                         const labelY = rowCenterY + baseHeight / 2 + 4;
                         objects.push(new Text(labelX, labelY, noteName, labelFontString, '#94a3b8', 'center', 'top'));
@@ -351,20 +352,21 @@ class PopcatMidiDisplayElement extends CallbackElementRenderer {
 
             // Query a wider window to catch notes that are currently playing
             const lookbackWindow = 10; // seconds — look back up to 10s for long note durations
-            let activeNotes = api.timeline
-                .selectNotesInWindow({
+            const selected = timeline.selectNotes({
                     trackIds: [props.midiTrackId],
-                    startSec: targetTime - lookbackWindow,
-                    endSec: targetTime + 0.1,
-                })
-                .filter((n) => n.startTime <= targetTime && targetTime < n.endTime);
+                    startSeconds: targetTime - lookbackWindow,
+                    endSeconds: targetTime + 0.1,
+                });
+            let activeNotes = (selected.ok ? selected.value : []).filter(
+                (n) => n.startSeconds <= targetTime && targetTime < n.endSeconds
+            );
 
             if (noteSelect !== 0) {
                 activeNotes = activeNotes.filter((n) => n.note === noteSelect);
             }
 
             const isPlaying = activeNotes.length > 0;
-            const elapsedMs = isPlaying ? Math.max(0, (targetTime - activeNotes[0].startTime) * 1000) : 0;
+            const elapsedMs = isPlaying ? Math.max(0, (targetTime - activeNotes[0].startSeconds) * 1000) : 0;
 
             const {
                 x: imgX,

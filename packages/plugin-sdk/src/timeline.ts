@@ -27,7 +27,6 @@ export interface MidiNoteEvent {
     readonly clipId?: string;
     readonly sourceId?: string;
 }
-export type TimelineNoteEvent = MidiNoteEvent & Readonly<{ startTime: number; endTime: number; duration: number }>;
 
 export interface MidiCCEvent {
     readonly trackId: string;

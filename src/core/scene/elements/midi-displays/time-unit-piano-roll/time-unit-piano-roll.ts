@@ -7,12 +7,12 @@ import { AnimationController } from './animation-controller';
 import { getAnimationSelectOptions } from '@core/scene/elements/midi-displays/note-animations';
 import { NoteBlock } from './note-block';
 import { TimingManager } from '@core/timing/timing-manager';
-import { PLUGIN_CAPABILITIES, midiNoteToName as noteName } from '@mvmnt-app/plugin-sdk';
+import { midiNoteToName as noteName } from '@mvmnt-app/plugin-sdk';
 import { debugLog } from '@utils/debug-log';
 import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
 import { insertElementConfig, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
-import { defineHostAdaptedBuiltIn, getEnginePrivateHostApi } from '@core/scene/plugins/built-in-definition';
+import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/plugins/built-in-definition';
 
 const DEFAULT_ROLL_WIDTH = 800;
 const DEFAULT_NOTE_COLOR = '#FF6B6B';
@@ -464,8 +464,9 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const beatLabelOffsetX = props.beatLabelOffsetX as number;
         const beatLabelOpacity = props.beatLabelOpacity as number;
         const attackDuration = props.attackDuration as number;
-        const host = getEnginePrivateHostApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
-        const timelineState = host.ok ? host.api.timeline.getStateSnapshot() : null;
+        const timeline = getEnginePrivateContext(this).timeline;
+        const metadataResult = timeline?.getMetadata();
+        const timelineMetadata = metadataResult?.ok ? metadataResult.value : null;
         if (noteLabelFontFamily) ensureFontLoaded(noteLabelFontFamily, noteLabelFontWeight);
         if (beatLabelFontFamily) ensureFontLoaded(beatLabelFontFamily, beatLabelFontWeight);
 
@@ -476,9 +477,17 @@ export class TimeUnitPianoRollElement extends SceneElement {
         let maxNote: number;
         if (autoRange) {
             const trackId = props.midiTrackId as string | undefined;
-            const range = trackId && host.ok ? host.api.timeline.getNoteRange({ trackIds: [trackId] }) : null;
-            minNote = range?.min ?? 0;
-            maxNote = range?.max ?? 127;
+            const selected =
+                trackId && timeline && timelineMetadata
+                    ? timeline.selectNotes({
+                          trackIds: [trackId],
+                          startSeconds: 0,
+                          endSeconds: timelineMetadata.durationSeconds,
+                      })
+                    : null;
+            const notes = selected?.ok ? selected.value : [];
+            minNote = notes.length ? Math.min(...notes.map((note) => note.note)) : 0;
+            maxNote = notes.length ? Math.max(...notes.map((note) => note.note)) : 127;
         } else {
             minNote = rawMinNote;
             maxNote = rawMaxNote;
@@ -488,15 +497,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
         // Update timing from global timeline snapshot
         try {
-            const bpm = timelineState?.timeline.globalBpm || 120;
-            const beatsPerBar = timelineState?.timeline.beatsPerBar || 4;
+            const bpm = timelineMetadata?.tempoBpm || 120;
+            const beatsPerBar = timelineMetadata?.timeSignature.numerator || 4;
             this.timingManager.setBPM(bpm);
             this.timingManager.setBeatsPerBar(beatsPerBar);
-            if (timelineState?.timeline.masterTempoMap && timelineState.timeline.masterTempoMap.length > 0) {
-                this.timingManager.setTempoMap(timelineState.timeline.masterTempoMap, 'seconds');
-            } else {
-                this.timingManager.setTempoMap(null);
-            }
+            this.timingManager.setTempoMap(null);
         } catch {}
 
         // Compute overall content extents (for layout bounds and optional backgrounds)
@@ -556,19 +561,18 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 const prevStart = currentWin.start - windowDurationApprox;
                 const queryStart = prevStart;
                 const queryEnd = currentWin.end + attackDuration;
-                const events = host.ok
-                    ? host.api.timeline.selectNotesInWindow({
-                          trackIds: effectiveTrackIds,
-                          startSec: queryStart,
-                          endSec: queryEnd,
-                      })
-                    : [];
+                const selected = timeline?.selectNotes({
+                    trackIds: effectiveTrackIds,
+                    startSeconds: queryStart,
+                    endSeconds: queryEnd,
+                });
+                const events = selected?.ok ? selected.value : [];
                 sourceNotes = events.map((e: any) => ({
                     note: e.note,
                     channel: e.channel,
                     velocity: e.velocity || 0,
-                    startTime: e.startTime,
-                    endTime: e.endTime,
+                    startTime: e.startSeconds,
+                    endTime: e.endSeconds,
                     startBeat: undefined,
                     endBeat: undefined,
                 }));

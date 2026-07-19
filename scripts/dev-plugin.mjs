@@ -25,7 +25,6 @@ import { build } from 'esbuild';
 import * as fflate from 'fflate';
 import {
     PLUGIN_EXTERNALS,
-    targetsFrozenV1,
     validateElementImports,
     validateManifestContract,
 } from './plugin-contract.mjs';
@@ -85,19 +84,12 @@ try {
     process.exit(1);
 }
 
-if (targetsFrozenV1(manifest)) {
-    console.error(
-        `Error: ${manifest.id} targets ${manifest.apiVersion ?? manifest.mvmntVersion}. The dev builder only accepts SDK ^2.0.0 source; installed v1 bundles remain loadable during the compatibility window.`
-    );
-    process.exit(1);
-}
-
 const manifestErrors = validateManifestContract(manifest, pluginDir);
 for (const element of manifest.elements ?? []) {
     const sourcePath = path.join(pluginDir, element.entry ?? '');
     if (fs.existsSync(sourcePath)) {
         manifestErrors.push(
-            ...validateElementImports(fs.readFileSync(sourcePath, 'utf8'), element.type, manifest.apiVersion).errors
+            ...validateElementImports(fs.readFileSync(sourcePath, 'utf8'), element.type).errors
         );
     }
 }

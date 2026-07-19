@@ -25,6 +25,9 @@ export interface AudioChannelMetadata {
 export interface AudioFeatureFrame {
     readonly timeSeconds: number;
     readonly value: number | readonly number[] | Readonly<Record<string, number>>;
+    /** Optional calculator channel payload for multi-channel feature frames. */
+    readonly channelValues?: readonly (readonly number[])[];
+    readonly sampleRate?: number;
 }
 
 export interface AudioApi {

@@ -6,4 +6,4 @@
 - Added SDK-owned readonly DTOs and structured `Result<T, PluginDiagnostic>` failures.
 - Added root and domain package exports, including `visual-assets`.
 - Added named, capability-scoped adapters for every timeline, audio, timing, and asset operation.
-- Moved class-based elements and global accessors to the frozen v1 compatibility runtime.
+- Removed global accessors; host data is available only through SDK 2 callback contexts.

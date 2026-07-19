@@ -7,6 +7,5 @@
 5. Replace store/track objects with readonly SDK DTOs and handle `Result` failures.
 6. Move cleanup into `dispose`/`unload`; use the supplied signal for cancellation.
 
-Existing installed bundles targeting supported `^1.x` ranges continue to receive the frozen v1
-root and subpath modules, including their legacy silent/default behaviours. V1 accessors and the
-class base are not the v2 authoring model.
+SDK 1 bundles are no longer accepted by the loader. Rebuild the migrated source against
+`@mvmnt-app/plugin-sdk` before importing or upgrading the plugin.

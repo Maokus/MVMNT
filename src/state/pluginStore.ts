@@ -4,10 +4,8 @@ export interface PluginManifest {
     id: string;
     name: string;
     version: string;
-    /** Semver range for the MVMNT plugin API (e.g. "^1.0.0"). Replaces legacy `mvmntVersion`. */
+    /** Semver range for the MVMNT plugin SDK. MVMNT currently requires `^2.0.0`. */
     apiVersion: string;
-    /** @deprecated Use `apiVersion` instead. Accepted for backwards compatibility. */
-    mvmntVersion?: string;
     description?: string;
     author?: string;
     homepage?: string;

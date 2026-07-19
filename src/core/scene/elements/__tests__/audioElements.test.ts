@@ -1,15 +1,12 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { AudioVolumeMeterElement } from '@core/scene/elements/audio-displays/audio-volume-meter';
 import { AudioPeaksElement, AudioWaveformElement, AudioLockedOscilloscopeElement } from '@core/scene/elements';
-import { AudioDebugElement } from '@core/scene/elements/audio-debug/audio-debug';
-import { Line, Poly, Rectangle, Text } from '@core/render/render-objects';
+import { Line, Poly, Rectangle } from '@core/render/render-objects';
 import * as timelineStore from '@state/timelineStore';
 import * as analysisIntents from '@audio/features/analysisIntents';
-import * as sceneApi from '@audio/features/sceneApi';
-import * as pluginSdk from '@mvmnt/plugin-sdk';
-import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
+import * as builtInDefinition from '@core/scene/plugins/built-in-definition';
 
-function makePluginApiResult(
+function makeCapabilityContext(
     overrides: {
         sampleFeatureAtTime?: (args: unknown) => unknown;
         sampleFeatureRange?: (args: unknown) => unknown[];
@@ -22,34 +19,63 @@ function makePluginApiResult(
         getStateSnapshot?: () => unknown;
     } = {}
 ) {
+    const ok = <T>(value: T) => ({ ok: true as const, value });
+    const unavailable = () => ({
+        ok: false as const,
+        error: { code: 'RESOURCE_UNAVAILABLE' as const, message: 'Unavailable' },
+    });
+    const toFeatureFrame = (entry: any, timeSeconds: number) => ({
+        timeSeconds,
+        value: entry?.values ?? 0,
+        channelValues: entry?.metadata?.frame?.channelValues,
+        sampleRate: entry?.metadata?.frame?.sampleRate,
+    });
     return {
-        ok: true as const,
-        api: {
-            audio: {
-                sampleFeatureAtTime: overrides.sampleFeatureAtTime ?? (() => null),
-                sampleFeatureRange: (args: { startTime: number; stepSec: number }) =>
-                    (overrides.sampleFeatureRange?.(args) ?? []).map((entry: any, index: number) =>
-                        entry && typeof entry === 'object' && 'result' in entry
-                            ? entry
-                            : { time: args.startTime + index * args.stepSec, result: entry }
-                    ),
-                getRawSamples: overrides.getRawSamples ?? (() => null),
-                getRmsInWindow: overrides.getRmsInWindow ?? (() => null),
-                getSampleRate: overrides.getSampleRate ?? (() => null),
+        audio: {
+            sampleFeature: (args: any) => {
+                const entry = overrides.sampleFeatureAtTime?.({ ...args, time: args.timeSeconds });
+                return entry == null ? unavailable() : ok(toFeatureFrame(entry, args.timeSeconds));
             },
-            timing: {
-                secondsToTicks: overrides.secondsToTicks ?? (() => null),
-                ticksToSeconds: () => null,
-                secondsToBeats: overrides.secondsToBeats ?? (() => null),
-                beatsToSeconds: overrides.beatsToSeconds ?? (() => null),
-                beatsToTicks: () => 0,
-                ticksToBeats: () => 0,
+            sampleFeatureRange: (args: any) => {
+                const legacyArgs = { ...args, startTime: args.startSeconds, endTime: args.endSeconds, stepSec: args.stepSeconds };
+                const entries = overrides.sampleFeatureRange?.(legacyArgs) ?? [];
+                return ok(entries.map((entry: any, index: number) => {
+                    const result = entry && typeof entry === 'object' && 'result' in entry ? entry.result : entry;
+                    return toFeatureFrame(result, args.startSeconds + index * args.stepSeconds);
+                }));
             },
-            timeline: {
-                getStateSnapshot: overrides.getStateSnapshot ?? (() => null),
+            getRawSamples: (args: unknown) => {
+                const value = overrides.getRawSamples?.(args);
+                return value == null ? unavailable() : ok(value);
             },
-        } as any,
-    };
+            getRms: (args: unknown) => {
+                const value = overrides.getRmsInWindow?.(args);
+                return value == null ? unavailable() : ok(value);
+            },
+            getChannelMetadata: () => ok({
+                sampleRate: overrides.getSampleRate?.({}) ?? 44100,
+                channelCount: 2,
+                durationSeconds: 60,
+                channelLabels: ['left', 'right'],
+            }),
+            requireFeatures: () => ok({ dispose() {} }),
+        },
+        timing: {
+            secondsToTicks: (value: number) => ok(overrides.secondsToTicks?.(value) ?? 0),
+            ticksToSeconds: (value: number) => ok(value / 480),
+            secondsToBeats: (value: number) => ok(overrides.secondsToBeats?.(value) ?? 0),
+            beatsToSeconds: (value: number) => ok(overrides.beatsToSeconds?.(value) ?? 0),
+            beatsToTicks: (value: number) => ok(value * 480),
+            ticksToBeats: (value: number) => ok(value / 480),
+            getTimeSignature: () => ok({ numerator: 4, denominator: 4 }),
+        },
+        timeline: {
+            getMetadata: () => ok({ durationSeconds: 60, playbackStartSeconds: 0, playbackEndSeconds: 60, tempoBpm: 120, timeSignature: { numerator: 4, denominator: 4 } }),
+        },
+        assets: {},
+        diagnostics: { report() {} },
+        signal: new AbortController().signal,
+    } as any;
 }
 
 describe('simplified audio scene elements', () => {
@@ -85,9 +111,9 @@ describe('simplified audio scene elements', () => {
     });
 
     it('scales the volume meter fill with the sampled RMS value', () => {
-        vi.spyOn(pluginSdk, 'getRequiredPluginApi')
-            .mockReturnValueOnce(makePluginApiResult({ getRmsInWindow: () => new Float32Array([0.25]) }))
-            .mockReturnValueOnce(makePluginApiResult({ getRmsInWindow: () => new Float32Array([0.75]) }));
+        vi.spyOn(builtInDefinition, 'getEnginePrivateContext')
+            .mockReturnValueOnce(makeCapabilityContext({ getRmsInWindow: () => new Float32Array([0.25]) }))
+            .mockReturnValueOnce(makeCapabilityContext({ getRmsInWindow: () => new Float32Array([0.75]) }));
 
         const element = new AudioVolumeMeterElement('meter', {
             audioTrackId: 'track-1',
@@ -117,8 +143,8 @@ describe('simplified audio scene elements', () => {
     });
 
     it('respects channel mode for the volume meter', () => {
-        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(
-            makePluginApiResult({
+        vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(
+            makeCapabilityContext({
                 getRmsInWindow: () => new Float32Array([0.1, 0.9]),
             })
         );
@@ -152,8 +178,8 @@ describe('simplified audio scene elements', () => {
             },
         }));
 
-        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(
-            makePluginApiResult({
+        vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(
+            makeCapabilityContext({
                 secondsToTicks: (s: number) => s * 480,
                 sampleFeatureRange: () => waveformSamples,
             })
@@ -189,8 +215,8 @@ describe('simplified audio scene elements', () => {
             const count = Math.round((args.endTime - args.startTime) / args.stepSec) + 1;
             return Array.from({ length: count }, (_, index) => peakSamples[index % peakSamples.length]);
         });
-        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(
-            makePluginApiResult({ sampleFeatureRange })
+        vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(
+            makeCapabilityContext({ sampleFeatureRange })
         );
 
         const element = new AudioPeaksElement('peaks', {
@@ -205,9 +231,11 @@ describe('simplified audio scene elements', () => {
         expect((container as any).children.some((child: unknown) => child instanceof Poly)).toBe(true);
         expect(sampleFeatureRange).toHaveBeenCalledWith(
             expect.objectContaining({
-                element,
                 trackId: 'track-1',
-                samplingOptions: { interpolation: 'nearest' },
+                feature: 'peaks',
+                startSeconds: expect.any(Number),
+                endSeconds: expect.any(Number),
+                stepSeconds: expect.any(Number),
             })
         );
 
@@ -236,7 +264,7 @@ describe('simplified audio scene elements', () => {
                 };
             });
         });
-        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(makePluginApiResult({ sampleFeatureRange }));
+        vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(makeCapabilityContext({ sampleFeatureRange }));
 
         const element = new AudioPeaksElement('peaks', {
             audioTrackId: 'track-1',
@@ -261,7 +289,7 @@ describe('simplified audio scene elements', () => {
                 metadata: { channels: 1, frame: { channels: 1, channelValues: [[-1, 1]], format: 'waveform-minmax' as const } },
             }));
         });
-        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(makePluginApiResult({ sampleFeatureRange }));
+        vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(makeCapabilityContext({ sampleFeatureRange }));
 
         const element = new AudioPeaksElement('peaks', {
             audioTrackId: 'track-1',
@@ -286,8 +314,8 @@ describe('simplified audio scene elements', () => {
                 metadata: { channels: 1, frame: { channels: 1, channelValues: [[0, 0]], format: 'waveform-minmax' as const } },
             }));
         });
-        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(
-            makePluginApiResult({
+        vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(
+            makeCapabilityContext({
                 sampleFeatureRange,
                 secondsToBeats: (seconds) => seconds,
                 beatsToSeconds: (beats) => beats,
@@ -321,8 +349,8 @@ describe('simplified audio scene elements', () => {
         const sineAtPeriod45 = new Float32Array(200);
         for (let i = 0; i < 200; i++) sineAtPeriod45[i] = Math.sin((2 * Math.PI * i) / 45);
 
-        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(
-            makePluginApiResult({
+        vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(
+            makeCapabilityContext({
                 // Return a pitch guide frame: [f0=440, confidence=0.9, _, anchorSec=2.5, candidateF0=0]
                 sampleFeatureAtTime: () => ({
                     values: [440],
@@ -349,8 +377,8 @@ describe('simplified audio scene elements', () => {
     });
 
     it('applies gain to the locked oscilloscope waveform', () => {
-        vi.spyOn(pluginSdk, 'getRequiredPluginApi').mockReturnValue(
-            makePluginApiResult({
+        vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(
+            makeCapabilityContext({
                 sampleFeatureAtTime: () => null,
                 getRawSamples: () => new Float32Array([0, 0.25, 0, -0.25]),
             })
@@ -370,57 +398,4 @@ describe('simplified audio scene elements', () => {
         expect(waveform.points[1]?.y).toBeCloseTo(10);
     });
 
-    it('summarizes channel metadata in the audio debug panel', () => {
-        vi.spyOn(audioFeatureCalculatorRegistry, 'list').mockReturnValue([
-            {
-                id: 'spectrogram-debug',
-                featureKey: 'spectrogram',
-                label: 'Spectrogram',
-                version: 1,
-                create: vi.fn(),
-            } as any,
-        ]);
-
-        vi.spyOn(sceneApi, 'getFeatureData').mockImplementation((_, __, featureKey) => {
-            if (featureKey === 'spectrogram') {
-                return {
-                    values: [0.1, 0.2, 0.3, 0.9],
-                    metadata: {
-                        descriptor: { featureKey: 'spectrogram' },
-                        frame: {
-                            channelValues: [
-                                [0.1, 0.2, 0.3],
-                                [0.9, 0.8, 0.7],
-                            ],
-                            channelAliases: ['Left', 'Right'],
-                            channels: 2,
-                            format: 'float32',
-                            frameIndex: 0,
-                            fractionalIndex: 0,
-                            hopTicks: 1,
-                        },
-                        channels: 2,
-                        channelAliases: ['Left', 'Right'],
-                        channelLayout: { semantics: 'stereo', aliases: ['Left', 'Right'] },
-                    },
-                } as any;
-            }
-            return null;
-        });
-
-        const element = new AudioDebugElement('debug', {
-            audioTrackId: 'track-1',
-            featureKey: 'spectrogram',
-            maxValuesToDisplay: 3,
-            maxMetadataEntries: 4,
-        });
-
-        const [panel] = element.buildRenderObjects({}, 1.25);
-        const textNodes = (panel as any).children.filter((child: unknown) => child instanceof Text) as Text[];
-        const content = textNodes.map((node) => node.text);
-
-        expect(content.some((line) => line.includes('Channels: 2'))).toBe(true);
-        expect(content.some((line) => line.includes('Left (#1)'))).toBe(true);
-        expect(content.some((line) => line.includes('Right (#2)'))).toBe(true);
-    });
 });

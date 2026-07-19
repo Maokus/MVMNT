@@ -5,7 +5,11 @@ import type { RenderObject } from '@core/render/render-objects';
 import { BundledGridAtlasHandle, BundledSparrowHandle, BundledSprite } from '@core/resources/bundled-sprite';
 import { VisualResourceHandle } from '@core/resources/visual-resource-handle';
 import { resolveProjectAssetDescriptor } from '@state/visualAssetRegistryStore';
-import { PLUGIN_CAPABILITIES, type PluginHostApi, type PluginHostCapability } from './host-api/plugin-api';
+import {
+    PLUGIN_CAPABILITIES,
+    type PluginHostServices,
+    type PluginHostCapability,
+} from './host-api/plugin-api';
 import type { CapabilityContext, PluginElementDefinition } from '../../../../packages/plugin-sdk/src/scene';
 import { err, ok, type PluginDiagnostic, type Result } from '../../../../packages/plugin-sdk/src/api';
 import { registerScopedFeatureRequirements } from '@audio/audioElementMetadata';
@@ -43,9 +47,6 @@ export interface ScopeOptions {
     report(diagnostic: PluginDiagnostic): void;
     synchronousInitialization?: boolean;
 }
-
-/** Engine-private host services used to construct SDK 2 callback contexts. */
-export type PluginHostServices = PluginHostApi;
 
 export interface PluginDefinitionScope {
     readonly definition: PluginElementDefinition<any, any>;
@@ -290,9 +291,21 @@ function createContext(
                     feature: args.feature,
                     time: args.timeSeconds,
                 });
-                return frame == null
-                    ? err(diagnostic('RESOURCE_UNAVAILABLE', 'Audio feature is unavailable', 'audio.sampleFeature'))
-                    : ok(Object.freeze({ timeSeconds: args.timeSeconds, value: Object.freeze([...frame.values]) }));
+                if (frame == null)
+                    return err(diagnostic('RESOURCE_UNAVAILABLE', 'Audio feature is unavailable', 'audio.sampleFeature'));
+                const frameMetadata = frame.metadata?.frame as
+                    | { channelValues?: readonly (readonly number[])[]; sampleRate?: number }
+                    | undefined;
+                return ok(
+                    Object.freeze({
+                        timeSeconds: args.timeSeconds,
+                        value: Object.freeze([...frame.values]),
+                        ...(frameMetadata?.channelValues
+                            ? { channelValues: Object.freeze(frameMetadata.channelValues.map((channel) => Object.freeze([...channel]))) }
+                            : {}),
+                        ...(typeof frameMetadata?.sampleRate === 'number' ? { sampleRate: frameMetadata.sampleRate } : {}),
+                    })
+                );
             },
             sampleFeatureRange(args: {
                 trackId: string;
@@ -322,9 +335,19 @@ function createContext(
                 });
                 return ok(
                     Object.freeze(
-                        frames.map((frame) =>
-                            Object.freeze({ timeSeconds: frame.time, value: Object.freeze([...frame.result.values]) })
-                        )
+                        frames.map((frame) => {
+                            const metadata = frame.result.metadata?.frame as
+                                | { channelValues?: readonly (readonly number[])[]; sampleRate?: number }
+                                | undefined;
+                            return Object.freeze({
+                                timeSeconds: frame.time,
+                                value: Object.freeze([...frame.result.values]),
+                                ...(metadata?.channelValues
+                                    ? { channelValues: Object.freeze(metadata.channelValues.map((channel) => Object.freeze([...channel]))) }
+                                    : {}),
+                                ...(typeof metadata?.sampleRate === 'number' ? { sampleRate: metadata.sampleRate } : {}),
+                            });
+                        })
                     )
                 );
             },

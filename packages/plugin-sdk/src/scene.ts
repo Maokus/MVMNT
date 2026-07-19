@@ -273,19 +273,6 @@ export abstract class CallbackElementRenderer {
         const result = this.context.timing?.secondsToTicks(seconds);
         return result?.ok ? result.value : 0;
     }
-    /**
-     * @deprecated Migration-only facade. MVMNT injects the implementation from
-     * its host adapter; this public package intentionally owns no host behavior.
-     */
-    protected hostApi(..._requirements: any[]): any {
-        throw new PluginContractError(
-            'hostApi() is a host-provided migration adapter; use the callback capability context'
-        );
-    }
-    /** @internal Host applications use this only while extracting old renderer controllers. */
-    __hostFacade(...requirements: any[]): any {
-        return this.hostApi(...requirements);
-    }
     protected bundledImage(path: string): any {
         return this.lazyAsset((context) => context.assets.bundledImage(path));
     }

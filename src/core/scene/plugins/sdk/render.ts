@@ -1,7 +1,7 @@
 /**
  * Render objects: all canvas primitives available to plugin scene elements.
  *
- * @module @mvmnt/plugin-sdk/render
+ * @module @mvmnt-app/plugin-sdk/render
  */
 
 export {

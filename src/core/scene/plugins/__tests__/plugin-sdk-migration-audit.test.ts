@@ -21,17 +21,12 @@ const matches = (pattern: RegExp): string[] =>
         .filter((path) => pattern.test(readFileSync(path, 'utf8')));
 
 /**
- * Temporary, shrinking migration baseline. Adding a file here requires API review;
- * each SDK 2 migration must remove its entry/count rather than increasing it.
+ * Guards the SDK 2-only source boundary. Class-based built-ins remain engine-private,
+ * but global SDK accessors and SDK 1 imports must not return.
  */
-describe('SDK 1 removal migration audit', () => {
+describe('SDK 2 source audit', () => {
     it('keeps class-based renderers inside the reviewed engine-private allowlist', () => {
         const allowed = [
-            'src/core/scene/elements/audio-debug/audio-adhoc-profile.ts',
-            'src/core/scene/elements/audio-debug/audio-bad-req.ts',
-            'src/core/scene/elements/audio-debug/audio-debug.ts',
-            'src/core/scene/elements/audio-debug/audio-minimal.ts',
-            'src/core/scene/elements/audio-debug/audio-odd-profile.ts',
             'src/core/scene/elements/audio-displays/audio-locked-oscilloscope.ts',
             'src/core/scene/elements/audio-displays/audio-peaks.ts',
             'src/core/scene/elements/audio-displays/audio-spectrum.ts',
@@ -47,15 +42,15 @@ describe('SDK 1 removal migration audit', () => {
         expect(matches(/export\s+class\s+\w+\s+extends\s+SceneElement/).sort()).toEqual(allowed);
     });
 
-    it('isolates module-scope requirement fixtures from shipped clients', () => {
+    it('contains no removed global accessors, proxies, shortcuts, or SDK 1 imports', () => {
         expect(
             matches(
-                /getRequiredPluginApi|getPluginHostApi|timelineApi|audioApi|audioRawApi|timingApi|sampleAudio|registerFeatureRequirements/
-            ).every((path) => path.includes('/audio-debug/'))
-        ).toBe(true);
+                /getRequiredPluginApi|getPluginHostApi|timelineApi|audioApi|audioRawApi|timingApi|utilitiesApi|audioCalculatorsApi|sampleAudio|@mvmnt\/plugin-sdk/
+            )
+        ).toEqual([]);
     });
 
-    it('does not grow SDK 1 source manifests', () => {
+    it('keeps every source manifest on SDK 2', () => {
         const manifests = ['src/pluginexamples', 'src/plugins'].flatMap((directory) => {
             const visit = (path: string): string[] =>
                 readdirSync(path).flatMap((entry) => {
@@ -69,15 +64,12 @@ describe('SDK 1 removal migration audit', () => {
         );
     });
 
-    it('keeps current archives on SDK 2 and one frozen v1 compatibility fixture', () => {
+    it('keeps current archives on SDK 2', () => {
         const archives = readdirSync(resolve(root, 'dist')).filter((name) => name.endsWith('.mvmnt-plugin'));
         for (const archive of archives) {
             const files = unzipSync(readFileSync(resolve(root, 'dist', archive)));
             const manifest = JSON.parse(new TextDecoder().decode(files['manifest.json']));
             expect(manifest.apiVersion, archive).toBe('^2.0.0');
         }
-        expect(
-            readdirSync(resolve(root, 'fixtures/plugin-sdk-v1-compat')).filter((name) => name.endsWith('.mvmnt-plugin'))
-        ).toHaveLength(1);
     });
 });

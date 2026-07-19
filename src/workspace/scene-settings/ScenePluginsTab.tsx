@@ -3,8 +3,6 @@ import { usePluginStore } from '@state/pluginStore';
 import {
     disablePlugin,
     enablePlugin,
-    exportInstalledPluginBackup,
-    isLegacyPluginManifest,
     loadPlugin,
     unloadPlugin,
     upgradePlugin,
@@ -112,22 +110,7 @@ const ScenePluginsTab: React.FC = () => {
         }
     };
 
-    const handleBackupPlugin = async (pluginId: string, name: string) => {
-        try {
-            const blob = await exportInstalledPluginBackup(pluginId);
-            const url = URL.createObjectURL(blob);
-            const anchor = document.createElement('a');
-            anchor.href = url;
-            anchor.download = `${name.replace(/[^a-z0-9._-]/gi, '-') || pluginId}-backup.mvmnt-plugin`;
-            anchor.click();
-            URL.revokeObjectURL(url);
-        } catch (error) {
-            setImportError(error instanceof Error ? error.message : 'Failed to create plugin backup');
-        }
-    };
-
     const pluginList = Object.values(plugins);
-    const legacyPlugins = pluginList.filter(({ manifest }) => isLegacyPluginManifest(manifest));
 
     return (
         <div className="flex flex-col gap-5">
@@ -223,15 +206,6 @@ const ScenePluginsTab: React.FC = () => {
             <section className="rounded-lg border border-neutral-800 bg-neutral-900/70 p-4">
                 <h4 className="m-0 text-[12px] font-semibold text-white">Installed Plugins</h4>
 
-                {legacyPlugins.length > 0 && (
-                    <div className="mt-3 rounded border border-amber-500/40 bg-amber-900/20 p-3">
-                        <p className="text-[12px] font-medium text-amber-200">{legacyPlugins.length} installed plugin{legacyPlugins.length === 1 ? '' : 's'} use the legacy SDK 1 compatibility runtime.</p>
-                        <p className="mt-1 text-[12px] leading-relaxed text-amber-300/80">
-                            SDK 1 bundles still run during the compatibility window, but should be upgraded to SDK 2. Create a local backup before upgrading or removing them.
-                        </p>
-                    </div>
-                )}
-
                 {pluginList.length === 0 ? (
                     <p className="mt-2 text-[12px] text-neutral-400">No plugins installed.</p>
                 ) : (
@@ -257,11 +231,6 @@ const ScenePluginsTab: React.FC = () => {
                                                 <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-[10px] font-medium text-neutral-300">
                                                     v{plugin.manifest.version}
                                                 </span>
-                                                {isLegacyPluginManifest(plugin.manifest) && (
-                                                    <span className="rounded-full bg-amber-900/50 px-2 py-0.5 text-[10px] font-medium text-amber-200">
-                                                        Legacy SDK 1
-                                                    </span>
-                                                )}
                                                 {isLoading && (
                                                     <span className="rounded-full bg-blue-900/50 px-2 py-0.5 text-[10px] font-medium text-blue-200">
                                                         Loading...
@@ -318,16 +287,6 @@ const ScenePluginsTab: React.FC = () => {
                                         </div>
 
                                         <div className="flex flex-col gap-2">
-                                            {isLegacyPluginManifest(plugin.manifest) && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void handleBackupPlugin(plugin.manifest.id, plugin.manifest.name)}
-                                                    disabled={isLoading}
-                                                    className="rounded bg-sky-700 px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-sky-600 disabled:bg-neutral-700 disabled:text-neutral-400"
-                                                >
-                                                    Backup
-                                                </button>
-                                            )}
                                             <button
                                                 type="button"
                                                 onClick={() => handleTogglePlugin(plugin.manifest.id, plugin.enabled)}

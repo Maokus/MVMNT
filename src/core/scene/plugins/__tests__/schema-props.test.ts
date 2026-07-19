@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { definePluginElement, type PropsFromSchema } from '../sdk/scene';
+import { definePluginElement, type PropsFromSchema } from '../../../../../packages/plugin-sdk/src/scene';
 
 const schema = {
     tabs: [{

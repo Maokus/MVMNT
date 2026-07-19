@@ -33,17 +33,8 @@ import {
 import { beatsToTicks, ticksToBeats } from '@core/timing/ppq';
 import { getAudioClipSegmentsInSeconds, getAudioClipTimelineSegments } from '@state/timeline/audioClips';
 import type { AudioTrack } from '@audio/audioTypes';
-import { PLUGIN_API_VERSION } from '../api-version';
-export { PLUGIN_API_VERSION } from '../api-version';
-
-export const PLUGIN_CAPABILITIES = {
-    timelineRead: 'timeline.read',
-    audioFeaturesRead: 'audio.features.read',
-    audioRawRead: 'audio.raw.read',
-    timingConversion: 'timing.conversion',
-    midiUtils: 'midi.utils',
-    audioCalculatorsRegister: 'audio.calculators.register',
-} as const;
+import { PLUGIN_CAPABILITIES, type PluginCapability } from '../../../../../packages/plugin-sdk/src/api';
+export { PLUGIN_CAPABILITIES } from '../../../../../packages/plugin-sdk/src/api';
 
 const CLIP_RAW_FALLBACK_SAMPLE_RATE = 48_000;
 
@@ -142,7 +133,7 @@ function getClipRmsInWindow(
     return result;
 }
 
-export type PluginHostCapability = (typeof PLUGIN_CAPABILITIES)[keyof typeof PLUGIN_CAPABILITIES];
+export type PluginHostCapability = PluginCapability;
 
 export type PluginCapabilityMap = Record<keyof typeof PLUGIN_CAPABILITIES, boolean>;
 
@@ -292,7 +283,7 @@ export interface PluginAudioCalculator {
     ): Promise<PluginAudioCalculatorResult> | PluginAudioCalculatorResult;
 }
 
-/** Descriptor returned by `audioCalculatorsApi.list()`. */
+/** Descriptor returned by the private audio-calculator host service. */
 export interface PluginAudioCalculatorInfo {
     id: string;
     version: number;
@@ -310,8 +301,7 @@ export interface PluginAudioCalculatorApi {
     list(): PluginAudioCalculatorInfo[];
 }
 
-export interface PluginHostApi {
-    apiVersion: typeof PLUGIN_API_VERSION;
+export interface PluginHostServices {
     capabilities: PluginHostCapability[];
     timeline: PluginTimelineApi;
     audio: PluginAudioApi;
@@ -319,22 +309,13 @@ export interface PluginHostApi {
     utilities: PluginUtilityApi;
     audioCalculators: PluginAudioCalculatorApi;
     getAvailableCapabilities(): PluginCapabilityMap;
-    onError(callback: (error: Error, capability: string) => void): void;
-    emitError(error: Error, capability: string): void;
-}
-
-export interface PluginHostGlobals {
-    MVMNT?: {
-        plugins?: PluginHostApi;
-        [key: string]: unknown;
-    };
 }
 
 interface TimelineStoreLike {
     getState(): TimelineState;
 }
 
-export interface CreatePluginHostApiDeps {
+export interface CreatePluginHostServicesDeps {
     timelineStore?: TimelineStoreLike | null;
     selectNotesInWindow?: typeof selectNotesInWindowSelector | null;
     selectTrackById?: typeof selectTrackByIdSelector | null;
@@ -344,8 +325,8 @@ export interface CreatePluginHostApiDeps {
     getFeatureDataRange?: typeof getFeatureDataRangeFromScene | null;
 }
 
-export interface CreatePluginHostApiResult {
-    api: PluginHostApi;
+export interface CreatePluginHostServicesResult {
+    services: PluginHostServices;
     missingCapabilities: PluginHostCapability[];
 }
 
@@ -406,7 +387,9 @@ function adaptPluginCalculator(plugin: PluginAudioCalculator): InternalAudioFeat
     };
 }
 
-export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreatePluginHostApiResult {
+export function createPluginHostServices(
+    deps: CreatePluginHostServicesDeps = {}
+): CreatePluginHostServicesResult {
     const timelineStore = deps.timelineStore === undefined ? useTimelineStore : deps.timelineStore;
     const selectNotesInWindow =
         deps.selectNotesInWindow === undefined ? selectNotesInWindowSelector : deps.selectNotesInWindow;
@@ -443,10 +426,7 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
         capabilities.push(PLUGIN_CAPABILITIES.audioRawRead);
     }
 
-    const errorCallbacks: Array<(error: Error, capability: string) => void> = [];
-
-    const api: PluginHostApi = {
-        apiVersion: PLUGIN_API_VERSION,
+    const services: PluginHostServices = {
         capabilities,
         timeline: {
             getStateSnapshot() {
@@ -757,12 +737,6 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                 audioCalculatorsRegister: capabilities.includes(PLUGIN_CAPABILITIES.audioCalculatorsRegister),
             };
         },
-        onError(callback: (error: Error, capability: string) => void) {
-            errorCallbacks.push(callback);
-        },
-        emitError(error: Error, capability: string) {
-            errorCallbacks.forEach((cb) => cb(error, capability));
-        },
     };
 
     const missingCapabilities: PluginHostCapability[] = [];
@@ -776,32 +750,5 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
         missingCapabilities.push(PLUGIN_CAPABILITIES.audioRawRead);
     }
 
-    return { api, missingCapabilities };
-}
-
-interface LoggerLike {
-    warn: (...args: unknown[]) => void;
-}
-
-interface InstallPluginHostApiOptions {
-    deps?: CreatePluginHostApiDeps;
-    target?: PluginHostGlobals;
-    logger?: LoggerLike;
-}
-
-export function installPluginHostApi(options: InstallPluginHostApiOptions = {}): PluginHostApi {
-    const target = options.target ?? (globalThis as PluginHostGlobals);
-    const logger = options.logger ?? console;
-    const { api, missingCapabilities } = createPluginHostApi(options.deps ?? {});
-
-    const mvmntGlobal = (target.MVMNT ??= {});
-    mvmntGlobal.plugins = api;
-
-    if (missingCapabilities.length > 0) {
-        logger.warn(
-            `[PluginHostApi] installed API ${api.apiVersion} with missing capabilities: ${missingCapabilities.join(', ')}`
-        );
-    }
-
-    return api;
+    return { services, missingCapabilities };
 }

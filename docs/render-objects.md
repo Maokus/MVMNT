@@ -531,10 +531,10 @@ const media = new VisualMedia(0, 0, 300, 300, {
     originY: 0.5,
 });
 
-// In element's onRender():
-const { resource, status } = this.visualHandle.resolve();
+// In an SDK 2 definition's render callback:
+const { resource, status } = state.asset.get();
 media.setResource(resource, status);
-media.setLocalTime(currentTimeSecs);
+media.setLocalTime(time.seconds);
 media.setAnimation('idle');
 ```
 

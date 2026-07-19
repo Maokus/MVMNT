@@ -72,18 +72,6 @@ describe('SDK 2 element migration inventory', () => {
         }
     });
 
-    it('does not expose dormant audio diagnostics through the shipped element barrel', () => {
-        for (const name of [
-            'AudioAdhocProfileElement',
-            'AudioMinimalElement',
-            'AudioOddProfileElement',
-            'AudioDebugElement',
-            'AudioBadReqElement',
-        ]) {
-            expect(elements).not.toHaveProperty(name);
-        }
-    });
-
     it('renders timeline built-ins without relying on the public plugin global', () => {
         const previousMvmnt = (globalThis as any).MVMNT;
         (globalThis as any).MVMNT = undefined;

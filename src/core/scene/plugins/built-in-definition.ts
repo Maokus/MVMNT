@@ -2,29 +2,20 @@ import type { PluginElementDefinition } from '../../../../packages/plugin-sdk/sr
 import { loadBundledAssetForElement } from './bundled-asset-registry';
 import { createPluginDefinitionScope } from './v2-runtime';
 import { definePluginElement, type PluginElementDefinitionInput } from '../../../../packages/plugin-sdk/src/scene';
-import { createPluginHostApi } from './host-api/plugin-api';
-import { getRequiredPluginApi } from './plugin-sdk';
+import { createPluginHostServices } from './host-api/plugin-api';
 import type { CapabilityContext } from '../../../../packages/plugin-sdk/src/scene';
-import { HostCallbackElementRenderer } from './legacy-callback-renderer';
 import type { AudioFeatureRequirement } from '../../../../packages/plugin-sdk/src/audio';
 import { registerScopedFeatureRequirements } from '@audio/audioElementMetadata';
 
-// Built-ins are imported before app bootstrap installs the public plugin global.
-// Give their SDK 2 scopes direct engine services so capability contexts do not
-// depend on module/bootstrap ordering.
-const builtInHostServices = createPluginHostApi().api;
+// Built-ins receive the same private services as external SDK 2 definitions.
+const builtInHostServices = createPluginHostServices().services;
 
-class BuiltInContextBridge extends HostCallbackElementRenderer {
-    override _buildRenderObjects(): readonly never[] {
-        return [];
+/** Returns the SDK 2 callback context attached at the built-in registry boundary. */
+export function getEnginePrivateContext(element: any): CapabilityContext {
+    if (!element?.__capabilityContext) {
+        throw new Error('Engine-private renderer must be created through its SDK 2 definition');
     }
-}
-
-/** Engine-private fallback retained for direct constructor tests; registry instances receive an SDK 2 callback facade. */
-export function getEnginePrivateHostApi(element: any, ...requirements: any[]): any {
-    return typeof element?.__hostApi === 'function'
-        ? element.__hostApi(...requirements)
-        : getRequiredPluginApi(element, requirements.at(-1) ?? []);
+    return element.__capabilityContext as CapabilityContext;
 }
 
 /** Host-only adapter used by the class-oriented scene registry and old constructor tests. */
@@ -62,9 +53,7 @@ export function defineHostAdaptedBuiltIn(
         },
         create(props, context: CapabilityContext) {
             const adapter = new HostAdapter(input.type, { ...props });
-            const bridge = new BuiltInContextBridge();
-            bridge.__attach(context, props);
-            adapter.__hostApi = (...requirements: any[]) => bridge.__hostFacade(...requirements);
+            adapter.__capabilityContext = context;
             return adapter;
         },
         render(props, adapter, time) {

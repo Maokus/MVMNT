@@ -20,8 +20,8 @@ and optional capability lists from its definition. Build an example with:
 npm run build-plugin -- src/pluginexamples/patternspack1
 ```
 
-The frozen [SDK 1 reference](plugin-api/plugin-api-v1.md) documents compatibility bundles only;
-do not use it for new source.
+The [SDK 1 to SDK 2 migration guide](plugin-api/plugin-v1-to-v2.md) lists replacements for removed
+global access patterns; new plugins use callback-scoped SDK 2 facets.
 
 For the live development loop, including how rebuild events turn into unload/reload operations,
 see [Developing plugins with hot reload](plugin-api/dev-plugin-workflow.md).

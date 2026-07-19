@@ -1,14 +1,11 @@
 import { SceneElement, asNumber, asTrimmedString } from '../base';
 import { Line, Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
-import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
 import { PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
 import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
-import { defineHostAdaptedBuiltIn, getEnginePrivateHostApi } from '@core/scene/plugins/built-in-definition';
-
-const { descriptor: PEAKS_DESCRIPTOR } = createFeatureDescriptor({ feature: 'peaks' });
+import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/plugins/built-in-definition';
 
 const DEFAULT_PRIMARY_COLOR = '#22D3EE';
 const DEFAULT_SECONDARY_COLOR = '#F472B6';
@@ -20,8 +17,6 @@ const DEFAULT_PRIMARY_CHANNEL: PeaksChannel = 'left';
 const DEFAULT_SECONDARY_CHANNEL: PeaksChannel = 'right';
 
 type FeatureDataResult = { values: number[]; metadata: any };
-type RequiredPluginApiResult = any;
-
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
     if (value < min) return min;
@@ -443,13 +438,8 @@ export class AudioPeaksElement extends SceneElement {
             return pushMessage('Select an audio track');
         }
 
-        const host = getEnginePrivateHostApi(this, [
-            PLUGIN_CAPABILITIES.audioFeaturesRead,
-            PLUGIN_CAPABILITIES.timelineRead,
-            PLUGIN_CAPABILITIES.timingConversion,
-        ]) as RequiredPluginApiResult;
-
-        if (!host.ok) {
+        const context = getEnginePrivateContext(this);
+        if (!context.audio) {
             return pushMessage('Audio not available');
         }
 
@@ -488,19 +478,31 @@ export class AudioPeaksElement extends SceneElement {
         }
 
         for (const range of missingRanges) {
-            const samples = host.api.audio.sampleFeatureRange({
-                element: this,
+            const sampleResult = context.audio.sampleFeatureRange({
                 trackId: props.audioTrackId,
-                feature: PEAKS_DESCRIPTOR,
-                startTime: range.start * stepSec,
-                endTime: range.end * stepSec,
-                stepSec,
-                samplingOptions: { interpolation: 'nearest' },
+                feature: 'peaks',
+                startSeconds: range.start * stepSec,
+                endSeconds: range.end * stepSec,
+                stepSeconds: stepSec,
             });
+            if (!sampleResult.ok) continue;
+            const samples = sampleResult.value;
             if (samples.length !== range.end - range.start + 1) continue;
-            samples.forEach(({ result }: { result: FeatureDataResult }, offset: number) =>
-                this._peakSamples.set(range.start + offset, result)
-            );
+            samples.forEach((frame, offset) => {
+                const values = Array.isArray(frame.value) ? [...frame.value] : [Number(frame.value) || 0];
+                const channelValues = frame.channelValues?.map((channel) => [...channel]) ?? [values];
+                this._peakSamples.set(range.start + offset, {
+                    values,
+                    metadata: {
+                        frame: {
+                            channelValues,
+                            format: channelValues.some((channel) => channel.length > 1)
+                                ? 'waveform-minmax'
+                                : 'float32',
+                        },
+                    },
+                });
+            });
         }
 
         const samples: Array<FeatureDataResult | null> = [];
@@ -547,17 +549,21 @@ export class AudioPeaksElement extends SceneElement {
         }
 
         if (showBarLines || showBeatLines) {
-            const beatsPerBar = Math.max(1, host.api.timeline.getStateSnapshot()?.timeline.beatsPerBar ?? 4);
-            const firstBeat = host.api.timing.secondsToBeats(startSeconds);
-            const lastBeat = host.api.timing.secondsToBeats(endSeconds);
+            const signature = context.timing?.getTimeSignature();
+            const beatsPerBar = Math.max(1, signature?.ok ? signature.value.numerator : 4);
+            const firstBeatResult = context.timing?.secondsToBeats(startSeconds);
+            const lastBeatResult = context.timing?.secondsToBeats(endSeconds);
+            const firstBeat = firstBeatResult?.ok ? firstBeatResult.value : null;
+            const lastBeat = lastBeatResult?.ok ? lastBeatResult.value : null;
             if (firstBeat !== null && lastBeat !== null && Number.isFinite(firstBeat) && Number.isFinite(lastBeat)) {
                 const initialBeat = Math.ceil(firstBeat);
                 const lineWidth = clamp(typeof props.beatGridWidth === 'number' ? props.beatGridWidth : 1, 0.5, 8);
                 for (let beat = initialBeat; beat <= lastBeat + 1e-9; beat += 1) {
                     const isBar = Math.abs(beat / beatsPerBar - Math.round(beat / beatsPerBar)) < 1e-9;
                     if ((isBar && !showBarLines) || (!isBar && !showBeatLines)) continue;
-                    const seconds = host.api.timing.beatsToSeconds(beat);
-                    if (seconds === null) continue;
+                    const secondsResult = context.timing?.beatsToSeconds(beat);
+                    if (!secondsResult?.ok) continue;
+                    const seconds = secondsResult.value;
                     const x = ((seconds - startSeconds) / windowSeconds) * width;
                     if (x >= 0 && x <= width) {
                         const configuredLineLength = isBar ? props.barLineLength : props.beatLineLength;

@@ -1,6 +1,6 @@
 # Plugin SDK v1 removal roadmap
 
-_Status: workstreams 1–5 complete on 19 July 2026. Workstream 6 remains intentionally open._
+_Status: all six workstreams complete on 19 July 2026._
 
 ## Completion follow-up
 
@@ -24,14 +24,13 @@ The implementation now meets every exit gate before the v1 freeze/removal workst
 - All 18 repository/example plugin elements target SDK 2 with exact capability declarations and
   build through the production packager. The packed fixture covers property-heavy, timeline,
   raw-audio, feature-audio, and bundled-asset clients.
-- Every current archive in `dist/` targets SDK 2. One frozen SDK 1 bundle remains under
-  `fixtures/plugin-sdk-v1-compat` for the compatibility-window loader/backup test.
-- The installed-plugin inventory, backup action, and actionable SDK 1 warning are device-local.
+- Every current archive in `dist/` targets SDK 2. The frozen SDK 1 compatibility fixture and
+  compatibility-window inventory/backup UI have been removed.
 
-`misc/missing-plugin.ts` remains an engine fallback outside the registry. The five dormant audio
-diagnostic elements are explicitly documented test fixtures: they are not barrel-exported,
-registered, shipped in plugin maps, or presented as authoring examples. Removing the remaining
-frozen compatibility runtime and these reviewed engine-private classes belongs to workstream 6.
+`misc/missing-plugin.ts` remains an application-internal engine fallback outside the registry.
+The five dormant audio diagnostic fixtures and the final class-renderer compatibility facade were
+removed in workstream 6. Still-needed class controllers remain behind the private built-in SDK 2
+definition boundary and consume only callback-scoped SDK 2 contexts.
 
 ## Historical starting audit
 
@@ -198,7 +197,12 @@ Exit gate:
 - No current distributable archive targets v1.
 - The v1 loader test uses only frozen fixtures and proves the warning/backup path.
 
-## Workstream 6: freeze, deprecate, and remove v1
+## Workstream 6: freeze, deprecate, and remove v1 — complete
+
+The compatibility window was frozen and audited before removal. The SDK 1 runtime map, globals,
+aliases, fixture archive, inventory/backup UI, and v1-only documentation are now deleted. The
+loader, builders, community checks, stored reload path, package manifest, and authoring docs expose
+only SDK 2; a rejection test retains coverage for attempted SDK 1 imports.
 
 ### Freeze gate
 

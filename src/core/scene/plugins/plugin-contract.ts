@@ -4,7 +4,7 @@ import { satisfiesVersion } from './version-check';
 
 export const SDK_RUNTIME_MODULE_IDS = Object.freeze([...sdkManifest.runtimeModules]);
 export const SDK_CAPABILITIES = Object.freeze([...sdkManifest.capabilities]);
-export const SUPPORTED_API_LINES = Object.freeze(['^1.0.0', '^2.0.0']);
+export const SUPPORTED_API_RANGE = '^2.0.0';
 
 const validArchivePath = (value: string): boolean =>
     value.length > 0 &&
@@ -18,10 +18,8 @@ export function validateArchivePaths(paths: readonly string[]): string[] {
         .map((path) => `Unsafe plugin archive path '${path}'`);
 }
 
-export function getPluginApiLine(range: string): 1 | 2 | null {
-    if (satisfiesVersion('2.0.0', range)) return 2;
-    if (satisfiesVersion('1.1.0', range)) return 1;
-    return null;
+export function supportsPluginApiRange(range: string): boolean {
+    return satisfiesVersion('2.0.0', range);
 }
 
 export function normalizeElementCapabilities(element: PluginElementManifest): {
@@ -62,15 +60,15 @@ export function validatePluginManifest(manifest: unknown): string[] {
     for (const field of ['id', 'name', 'version'] as const) {
         if (!value[field] || typeof value[field] !== 'string') errors.push(`Invalid manifest: missing required field '${field}'`);
     }
-    const range = value.apiVersion ?? value.mvmntVersion;
+    const range = value.apiVersion;
     if (!range) errors.push("Invalid manifest: missing required field 'apiVersion'");
-    else if (!getPluginApiLine(range)) errors.push(`Unsupported plugin API range '${range}'. Supported lines: ${SUPPORTED_API_LINES.join(', ')}`);
+    else if (!supportsPluginApiRange(range))
+        errors.push(`Unsupported plugin API range '${range}'. MVMNT requires ${SUPPORTED_API_RANGE}`);
     if (!Array.isArray(value.elements) || value.elements.length === 0) {
         errors.push('Invalid manifest: elements must be a non-empty array');
         return errors;
     }
     const types = new Set<string>();
-    const apiLine = range ? getPluginApiLine(range) : null;
     value.elements.forEach((element, index) => {
         const label = `Element ${index + 1}`;
         if (!element?.type || typeof element.type !== 'string') errors.push(`${label}: missing type`);
@@ -78,7 +76,7 @@ export function validatePluginManifest(manifest: unknown): string[] {
         else types.add(element.type);
         if (!element?.entry || typeof element.entry !== 'string') errors.push(`${label}: missing entry`);
         else if (!validArchivePath(element.entry)) errors.push(`${label}: entry must be a safe relative archive path`);
-        if (apiLine === 2) errors.push(...validateCapabilityDeclaration(element?.capabilities, label));
+        errors.push(...validateCapabilityDeclaration(element?.capabilities, label));
     });
     return errors;
 }

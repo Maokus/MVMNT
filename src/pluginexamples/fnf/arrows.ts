@@ -5,8 +5,7 @@ import {
     prop,
     insertElementConfig,
     tab,
-    PLUGIN_CAPABILITIES,
-    type TimelineNoteEvent,
+    type MidiNoteEvent,
     type VisualResource,
     type ResourceStatus,
 } from '@mvmnt-app/plugin-sdk';
@@ -173,45 +172,45 @@ class ArrowsElement extends CallbackElementRenderer {
         const lookAheadSec = H / scrollSpeed + 0.1;
         const lookBackSec = Math.max(SPLASH_DURATION, 0.1);
 
-        const laneHeld: (TimelineNoteEvent | null)[] = [null, null, null, null];
-        const laneSplash: ({ note: TimelineNoteEvent; elapsed: number } | null)[] = [null, null, null, null];
+        const laneHeld: (MidiNoteEvent | null)[] = [null, null, null, null];
+        const laneSplash: ({ note: MidiNoteEvent; elapsed: number } | null)[] = [null, null, null, null];
         // Approaching notes only (startTime >= targetTime), plus tailEndY for hold notes
-        const fallingNotes: Array<{ note: TimelineNoteEvent; lane: number; headY: number; tailEndY: number | null }> =
+        const fallingNotes: Array<{ note: MidiNoteEvent; lane: number; headY: number; tailEndY: number | null }> =
             [];
 
-        const { api, status } = this.hostApi([PLUGIN_CAPABILITIES.timelineRead]);
         const trackId = props.midiTrackId as string | null;
 
-        if (trackId && api && status === 'ok') {
-            const notes = api.timeline.selectNotesInWindow({
+        if (trackId && this.context.timeline) {
+            const selected = this.context.timeline.selectNotes({
                 trackIds: [trackId],
-                startSec: targetTime - lookBackSec,
-                endSec: targetTime + lookAheadSec,
+                startSeconds: targetTime - lookBackSec,
+                endSeconds: targetTime + lookAheadSec,
             });
+            const notes = selected.ok ? selected.value : [];
 
             for (const n of notes) {
                 const lane = n.note % 4;
 
                 // Track currently held notes for receptor animation + tail rendering
-                if (n.startTime <= targetTime && targetTime < n.endTime) {
+                if (n.startSeconds <= targetTime && targetTime < n.endSeconds) {
                     laneHeld[lane] = n;
                 }
 
                 // Splash: note hit within the last SPLASH_DURATION seconds
-                const elapsed = targetTime - n.startTime;
+                const elapsed = targetTime - n.startSeconds;
                 if (elapsed >= 0 && elapsed < SPLASH_DURATION) {
                     const prev = laneSplash[lane];
-                    if (!prev || n.startTime > prev.note.startTime) {
+                    if (!prev || n.startSeconds > prev.note.startSeconds) {
                         laneSplash[lane] = { note: n, elapsed };
                     }
                 }
 
                 // Falling note arrows: only notes that haven't been played yet
-                if (n.startTime >= targetTime) {
-                    const headY = _noteY(n.startTime, targetTime, hitY, scrollSpeed, downscroll);
+                if (n.startSeconds >= targetTime) {
+                    const headY = _noteY(n.startSeconds, targetTime, hitY, scrollSpeed, downscroll);
                     if (headY > -laneSize && headY < H + laneSize) {
-                        const isHold = n.endTime - n.startTime > shortNoteThreshold;
-                        const tailEndY = isHold ? _noteY(n.endTime, targetTime, hitY, scrollSpeed, downscroll) : null;
+                        const isHold = n.endSeconds - n.startSeconds > shortNoteThreshold;
+                        const tailEndY = isHold ? _noteY(n.endSeconds, targetTime, hitY, scrollSpeed, downscroll) : null;
                         fallingNotes.push({ note: n, lane, headY, tailEndY });
                     }
                 }
@@ -250,8 +249,8 @@ class ArrowsElement extends CallbackElementRenderer {
         // ── Hold tails for currently held notes (above approaching tails, below receptors) ──
         for (let i = 0; i < 4; i++) {
             const held = laneHeld[i];
-            if (!held || held.endTime - held.startTime <= shortNoteThreshold) continue;
-            const tailEndY = _noteY(held.endTime, targetTime, hitY, scrollSpeed, downscroll);
+            if (!held || held.endSeconds - held.startSeconds <= shortNoteThreshold) continue;
+            const tailEndY = _noteY(held.endSeconds, targetTime, hitY, scrollSpeed, downscroll);
             // Only draw while there is remaining tail above (upscroll) / below (downscroll) the strumline
             const tailRemains = downscroll ? tailEndY > hitY : tailEndY < hitY;
             if (tailRemains) {
@@ -283,7 +282,7 @@ class ArrowsElement extends CallbackElementRenderer {
             let localTime: number;
 
             if (held) {
-                const elapsed = targetTime - held.startTime;
+                const elapsed = targetTime - held.startSeconds;
                 if (elapsed < CONFIRM_DURATION) {
                     animName = `confirm${dir}`;
                     localTime = elapsed;
@@ -339,9 +338,9 @@ class ArrowsElement extends CallbackElementRenderer {
         // ── Hold cover overlays (on top of receptors while holding) ─────────────────
         for (let i = 0; i < 4; i++) {
             const held = laneHeld[i];
-            if (!held || held.endTime - held.startTime <= shortNoteThreshold) continue;
+            if (!held || held.endSeconds - held.startSeconds <= shortNoteThreshold) continue;
 
-            const elapsed = targetTime - held.startTime;
+            const elapsed = targetTime - held.startSeconds;
             const colorName = HOLD_COVER_COLORS[i]!;
             const { resource: coverRes, status: coverStatus } = this._holdCoverAtlases[i]!.get();
 

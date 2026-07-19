@@ -29,15 +29,15 @@ Customizable text with font, alignment, and optional background. Demonstrates:
 A user-selected image or animated GIF from the asset registry. Demonstrates:
 
 - `prop.imageAsset()` for registry picker
-- `this.visualHandle()` + `resolveProjectAssetDescriptor()` for asset loading
-- `VisualMediaPlayback` for frame timing
+- `context.assets.project()` for lifecycle-scoped asset loading
+- `RenderTime.seconds` for frame timing
 - `VisualMedia` fit modes (contain, cover, fill, none)
 
 ### `bundled-image.ts` — Bundled Image / GIF
 
 An image or GIF that ships with the plugin, with an optional user override. Demonstrates:
 
-- `this.bundledSprite()` / `this.bundledImage()` for plugin-packaged assets
+- `context.assets.bundledImage()` for plugin-packaged assets
 - Fallback pattern: bundled default unless user picks an override
 - Auto-tracked handle lifecycle (no manual `onDestroy()`)
 
@@ -45,27 +45,27 @@ An image or GIF that ships with the plugin, with an optional user override. Demo
 
 A shape that scales with audio volume (RMS). Demonstrates:
 
-- `getRequiredPluginApi([PLUGIN_CAPABILITIES.audioRawRead])`
-- `host.api.audio.getRmsInWindow()` for a live PCM-derived RMS value
+- `audio.raw.read` declared as a required capability
+- `context.audio.getRms()` for a live PCM-derived RMS value
 - A configurable short averaging window for smoothing
-- Graceful fallback via `host.renderFallback()` when the audio API is unavailable
+- Structured `Result` handling when audio data is unavailable
 
 ### `midi-notes.ts` — MIDI Reactive Visual
 
 Displays currently playing MIDI notes as colored bars. Demonstrates:
 
 - `prop.midiTrack()` for track selection
-- `getRequiredPluginApi([PLUGIN_CAPABILITIES.timelineRead])`
-- `host.api.timeline.selectNotesInWindow()` for querying active notes
-- `host.api.utilities.midiNoteToName()` for human-readable note labels
+- `timeline.read` and `midi.utils` declared as required capabilities
+- `context.timeline.selectNotes()` for querying active notes
+- `context.midi.noteName()` for human-readable note labels
 
 ### `image-atlas.ts` — Animated Sprite / Atlas
 
 Animates a Sparrow-format atlas (PNG + XML) bundled with the plugin. Demonstrates:
 
-- `this.bundledSparrow()` for plugin-packaged Sparrow atlases
+- `context.assets.bundledSparrow()` for plugin-packaged Sparrow atlases
 - Optional user-overrideable atlas via `prop.sparrowAsset()`
-- Background sprite layer via `this.bundledSprite()`
+- Background image layer via `context.assets.bundledImage()`
 - `VisualMediaPlayback` with `resource?.animations` for atlas frame timing
 - `getSparrowFrameInfo(resource, animName)` to read logical frame dimensions and trim insets without hardcoding constants
 
@@ -81,22 +81,15 @@ Displays a single frame from a bundled grid-layout spritesheet (no XML required)
 
 ## Template Conventions
 
-All templates follow these patterns:
-
-1. **Class naming** — `{Name}Element extends SceneElement`
-2. **Constructor** — accepts `id` and `config` parameters
-3. **Type identifier** — kebab-case string passed to `super()`
-4. **Schema** — `insertElementConfig(super.getConfigSchema(), metadata, tabs)` with groups wrapped in `tab.properties`, `tab.content`, `tab.appearance`, or another tab helper
-5. **Render method** — `_buildRenderObjects()` returns `RenderObject[]`
-6. **Handles** — use `this.visualHandle()`, `this.bundledSprite()`, etc. (not `new VisualResourceHandle()`)
+All templates use `definePluginElement()`, serializable schemas, explicit capability declarations,
+callback-scoped host facets, and lifecycle-scoped asset handles.
 
 ## Customising a Template
 
-1. Rename the class to match your element.
-2. Update the type identifier in `super()` — must be unique within the plugin.
-3. Update `getConfigSchema()` metadata (name, description, category).
-4. Add, remove, or modify properties as needed.
-5. Replace the rendering logic in `_buildRenderObjects()`.
+1. Update the definition's `type` — it must be unique within the plugin.
+2. Update its metadata and schema.
+3. Declare the required and optional callback capabilities.
+4. Replace the `render()` implementation and add lifecycle callbacks when needed.
 
 ## See Also
 

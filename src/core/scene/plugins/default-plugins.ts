@@ -8,7 +8,6 @@ interface DefaultPluginDescriptor {
     version: string;
     assetPath: string;
     defaultEnabled: boolean;
-    skipVersionCheck?: boolean;
 }
 
 const DEFAULT_PLUGINS: DefaultPluginDescriptor[] = [
@@ -17,7 +16,6 @@ const DEFAULT_PLUGINS: DefaultPluginDescriptor[] = [
         version: '1.0.1',
         assetPath: 'default-plugins/midipack1-1.0.1.mvmnt-plugin',
         defaultEnabled: false,
-        skipVersionCheck: false,
     },
 ];
 
@@ -82,7 +80,6 @@ export async function installDefaultPlugins(): Promise<void> {
             }
 
             const result = await loadPlugin(buffer, {
-                skipVersionCheck: descriptor.skipVersionCheck,
                 allowExistingPlugin: alreadyInstalled,
             });
             if (!result.success) {

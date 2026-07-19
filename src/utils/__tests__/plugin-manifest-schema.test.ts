@@ -7,7 +7,7 @@ const sampleManifest = {
 	id: 'com.example.myplugin',
 	name: 'My Plugin',
 	version: '1.0.0',
-	apiVersion: '^1.0.0',
+	apiVersion: '^2.0.0',
 	description: 'A sample plugin for testing',
 	author: 'Test Author',
 	elements: [

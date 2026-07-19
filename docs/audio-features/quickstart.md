@@ -6,82 +6,48 @@ This quick start covers the recommended workflow for audio-reactive scene elemen
 system. It assumes you have already loaded audio into the timeline and want to consume analyzed
 features in your element code.
 
-## 1. Register feature requirements (one-time per element type)
+## 1. Declare and sample features through SDK 2
 
 ```ts
-import { registerFeatureRequirements } from '@core/scene/elements/audioElementMetadata';
+import { definePluginElement } from '@mvmnt-app/plugin-sdk';
 
-registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
-```
-
-- Call the function at module scope so requirements are registered when the element loads.
-- Requirements are internal metadata: they do **not** appear in the property panel.
-- Use multiple entries when the element needs several features. Multi-channel payloads are handled at runtime using the values returned from `getFeatureData`.
-- Need custom analyzer parameters? Provide a `profileParams` override and the runtime will mint an ad-hoc profile ID automatically:
-
-    ```ts
-    registerFeatureRequirements('audioAdhocProfile', [
-        {
+export const audioSpectrum = definePluginElement({
+    type: 'audio-spectrum',
+    metadata: { name: 'Audio Spectrum' },
+    schema: { tabs: [] },
+    capabilities: { required: ['audio.features.read'], optional: [] },
+    featureRequirements: [{ feature: 'spectrogram' }],
+    render(props, _state, time, context) {
+        if (!props.audioTrackId) return [];
+        const sample = context.audio!.sampleFeature({
+            trackId: props.audioTrackId,
             feature: 'spectrogram',
-            profileParams: {
-                windowSize: 4096,
-                hopSize: 1024,
-            },
-        },
-    ]);
-    ```
-
-    The overrides map to `AudioAnalysisProfileOverrides` and are sanitized before hashing, so you can safely omit properties or pass `null` for values such as `fftSize`.
-
-## 2. Sample during render
-
-```ts
-import { getFeatureData } from '@audio/features/sceneApi';
-
-const trackId = this.getProperty<string>('audioTrackId');
-if (!trackId) return [];
-
-const smoothing = this.getProperty<number>('smoothing') ?? 0;
-const sample = getFeatureData(this, trackId, 'spectrogram', targetTime, {
-    smoothing,
-    interpolation: 'linear',
+            timeSeconds: time.seconds,
+        });
+        if (!sample.ok) return [];
+        const values = Array.isArray(sample.value.value) ? sample.value.value : [sample.value.value];
+        // Convert values into render objects.
+        return [];
+    },
 });
-if (!sample) return [];
-
-// sample.values contains the tempo-aligned magnitudes for the current frame.
 ```
 
-- Pass runtime presentation tweaks (smoothing, interpolation) through the final argument.
-- `AudioFeatureDescriptor` objects remain focused on analysis identity.
-- Changing sampling options never invalidates cache entries, so multiple elements share work.
-- `audioTrackId` is clip-aware: the enabled clip under `targetTime` selects the immutable source cache; gaps return silence. Keep the track binding when clips move or are replaced.
+Requirements are scoped to the definition lifecycle, deduplicated by the host, and disposed on
+unload. Use multiple entries when an element needs several features. For custom analyzer settings,
+add `profileParams` to the requirement. External plugins must not import application-internal
+metadata registries or scene feature APIs.
 
-## 3. Let the runtime manage subscriptions
-
-You do **not** need to manually emit intents when using `getFeatureData`. The scene runtime will:
-
-1. Publish analysis intents based on the registered requirements (even when the element is still using a fallback ID during creation).
-2. Deduplicate descriptors across elements.
-3. Subscribe/unsubscribe automatically when the bound track changes, including macro-driven binding updates.
-
-If you need to swap descriptors dynamically (e.g., user selects a different feature), build explicit
-`AudioFeatureDescriptor` objects with `createFeatureDescriptor` and call
-`syncElementFeatureIntents`. The lazy and explicit APIs interoperate through the subscription
-controller, so diagnostics still show the correct subscription state without stale intents or
-duplicate cache work.
-
-## 4. Handle missing data gracefully
-
-Sampling returns `null` until the cache is ready. Early-return and render nothing until data arrives.
-Use the diagnostics panel to monitor analysis progress or restart jobs when inputs change.
+`audioTrackId` is clip-aware: the enabled clip under `time.seconds` selects the immutable source
+cache and gaps return silence. A failed `Result` is expected while data is unavailable; render an
+empty or placeholder state and use the diagnostics panel to monitor analysis.
 
 ## 5. Register a custom calculator (optional)
 
-If built-in features (spectrogram, RMS, waveform) don't cover your needs, register a custom calculator
-at module scope using `audioCalculatorsApi`:
+If built-in features do not cover your needs, register a calculator from an SDK 2 definition's
+`load` callback:
 
 ```ts
-import { audioCalculatorsApi, registerFeatureRequirements, type PluginAudioCalculator } from '@mvmnt/plugin-sdk';
+import { definePluginElement, type PluginAudioCalculator } from '@mvmnt-app/plugin-sdk';
 
 const myCalculator: PluginAudioCalculator = {
     id: 'myplugin.zeroCrossing',
@@ -90,23 +56,38 @@ const myCalculator: PluginAudioCalculator = {
     async calculate(ctx) {
         const channelData = ctx.audioBuffer.getChannelData(0);
         const rates = new Float32Array(ctx.frameCount);
+        const hopSize = Math.max(1, Math.round(ctx.hopSeconds * ctx.audioBuffer.sampleRate));
         for (let frame = 0; frame < ctx.frameCount; frame++) {
-            const start = frame * ctx.analysisParams.hopSize;
-            const end = Math.min(start + ctx.analysisParams.hopSize, channelData.length);
+            if (ctx.signal.aborted) throw new Error('Analysis cancelled');
+            const start = frame * hopSize;
+            const end = Math.min(start + hopSize, channelData.length);
             let crossings = 0;
             for (let i = start + 1; i < end; i++) {
                 if ((channelData[i - 1]! >= 0) !== (channelData[i]! >= 0)) crossings++;
             }
-            rates[frame] = crossings / ctx.analysisParams.hopSize;
-            ctx.reportProgress?.(frame + 1, ctx.frameCount);
+            rates[frame] = crossings / hopSize;
+            ctx.reportProgress(frame + 1, ctx.frameCount);
         }
         return { frameCount: ctx.frameCount, channels: 1, format: 'float32', data: rates };
     },
 };
 
-// Both calls must be at module scope — they run once when the file loads.
-audioCalculatorsApi.register(myCalculator);
-registerFeatureRequirements('myZeroCrossingElement', [{ feature: 'zeroCrossing' }]);
+export const element = definePluginElement({
+    type: 'my-zero-crossing-element',
+    metadata: { name: 'Zero Crossing' },
+    schema: { tabs: [] },
+    capabilities: {
+        required: ['audio.calculators.register', 'audio.features.read'],
+        optional: [],
+    },
+    load(context) {
+        const registration = context.audioCalculators!.register(myCalculator);
+        if (!registration.ok) throw new Error(registration.error.message);
+        const requirements = context.audio!.requireFeatures([{ feature: 'zeroCrossing' }]);
+        if (!requirements.ok) throw new Error(requirements.error.message);
+    },
+    render() { return []; },
+});
 ```
 
 Then sample `'zeroCrossing'` in render exactly like any built-in feature (step 2 above).

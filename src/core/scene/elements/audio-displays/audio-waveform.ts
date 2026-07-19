@@ -2,10 +2,9 @@ import { SceneElement, asNumber, asTrimmedString } from '../base';
 import { Arc, Poly, Rectangle, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
-import { PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
 import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
-import { defineHostAdaptedBuiltIn, getEnginePrivateHostApi } from '@core/scene/plugins/built-in-definition';
+import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/plugins/built-in-definition';
 
 /** UI limit for a responsive waveform trace. The raw PCM API itself has no fixed cap. */
 const MAX_SAMPLE_COUNT = 8192;
@@ -600,13 +599,13 @@ export class AudioWaveformElement extends SceneElement {
             return pushFlatLine();
         }
 
-        const host = getEnginePrivateHostApi(this, [PLUGIN_CAPABILITIES.audioRawRead]);
-
-        if (!host.ok) {
+        const audio = getEnginePrivateContext(this).audio;
+        if (!audio) {
             return pushFlatLine();
         }
 
-        const sampleRate = host.api.audio.getSampleRate({ trackId: props.audioTrackId });
+        const metadata = audio.getChannelMetadata(props.audioTrackId);
+        const sampleRate = metadata.ok ? metadata.value.sampleRate : 0;
         if (!sampleRate) {
             return pushFlatLine();
         }
@@ -615,22 +614,23 @@ export class AudioWaveformElement extends SceneElement {
         const startSeconds = targetTime - windowSeconds * startOffset;
         const endSeconds = startSeconds + windowSeconds;
 
-        const leftRaw = host.api.audio.getRawSamples({
+        const leftResult = audio.getRawSamples({
             trackId: props.audioTrackId,
-            startSec: startSeconds,
-            endSec: endSeconds,
+            startSeconds,
+            endSeconds,
             channel: 'left',
         });
-        if (!leftRaw) {
+        if (!leftResult.ok) {
             return pushFlatLine();
         }
-        const rightRaw =
-            host.api.audio.getRawSamples({
+        const leftRaw = leftResult.value;
+        const rightResult = audio.getRawSamples({
                 trackId: props.audioTrackId,
-                startSec: startSeconds,
-                endSec: endSeconds,
+                startSeconds,
+                endSeconds,
                 channel: 'right',
-            }) ?? leftRaw;
+            });
+        const rightRaw = rightResult.ok ? rightResult.value : leftRaw;
 
         const channels: Record<WaveformChannel, number[]> = {
             left: rawToNumberArray(leftRaw),

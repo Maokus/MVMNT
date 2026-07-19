@@ -20,7 +20,6 @@ import * as fflate from 'fflate';
 import { BUILTIN_ELEMENT_TYPES } from './built-in-element-types.mjs';
 import {
     PLUGIN_EXTERNALS,
-    targetsFrozenV1,
     validateElementImports,
     validateManifestContract,
 } from './plugin-contract.mjs';
@@ -112,37 +111,11 @@ async function createPluginBundle(manifest, buildDir, outputPath) {
  */
 function validateElementClass(elementCode, elementName) {
     const errors = [];
-    if (/define(?:Plugin|Renderer)Element/.test(elementCode)) {
-        if (!elementCode.includes('render') && !elementCode.includes('_buildRenderObjects'))
-            errors.push(`${elementName}: SDK 2.x definition must provide render()`);
-        return errors;
+    if (!/define(?:Plugin|Renderer)Element/.test(elementCode)) {
+        errors.push(`${elementName}: SDK 2 element must use definePluginElement() or defineRendererElement()`);
+    } else if (!elementCode.includes('render') && !elementCode.includes('_buildRenderObjects')) {
+        errors.push(`${elementName}: SDK 2 definition must provide render()`);
     }
-
-    // Check for getConfigSchema static method (with or without override keyword)
-    if (
-        !elementCode.includes('static getConfigSchema()') &&
-        !elementCode.includes('static getConfigSchema (') &&
-        !elementCode.includes('static override getConfigSchema()') &&
-        !elementCode.includes('static override getConfigSchema (')
-    ) {
-        errors.push(`${elementName}: Missing static getConfigSchema() method`);
-    }
-
-    // Check for render implementation (_buildRenderObjects is the actual implementation method)
-    if (
-        !elementCode.includes('_buildRenderObjects(') &&
-        !elementCode.includes('_buildRenderObjects (') &&
-        !elementCode.includes('render(') &&
-        !elementCode.includes('render (')
-    ) {
-        errors.push(`${elementName}: Missing render implementation (_buildRenderObjects or render method)`);
-    }
-
-    // Check that class extends SceneElement
-    if (!elementCode.includes('extends SceneElement')) {
-        errors.push(`${elementName}: Class must extend SceneElement`);
-    }
-
     return errors;
 }
 
@@ -172,12 +145,6 @@ async function buildPlugin(pluginDir, outPath = null) {
     console.log(`Plugin ID: ${manifest.id}`);
     console.log(`Elements: ${manifest.elements?.length || 0}`);
     console.log();
-
-    if (targetsFrozenV1(manifest)) {
-        throw new Error(
-            `Plugin '${manifest.id}' targets ${manifest.apiVersion ?? manifest.mvmntVersion}. New builds must target SDK ^2.0.0; existing installed v1 bundles remain loadable during the compatibility window.`
-        );
-    }
 
     // Validate manifest
     console.log('Validating manifest...');
@@ -210,19 +177,11 @@ async function buildPlugin(pluginDir, outPath = null) {
     // Validate imports against public plugin API contract
     console.log('Validating plugin imports...');
     const importValidationErrors = [];
-    const importValidationWarnings = [];
     for (const element of manifest.elements) {
         const entryPath = path.join(pluginDir, element.entry);
         const elementCode = fs.readFileSync(entryPath, 'utf8');
-        const { errors, warnings } = validateElementImports(elementCode, element.type, manifest.apiVersion);
+        const { errors } = validateElementImports(elementCode, element.type);
         importValidationErrors.push(...errors);
-        importValidationWarnings.push(...warnings);
-    }
-
-    if (importValidationWarnings.length > 0) {
-        console.warn('Import compatibility warnings:');
-        importValidationWarnings.forEach((warning) => console.warn(`  ⚠ ${warning}`));
-        console.warn('  ⚠ Legacy aliases still work for now but will be removed in a future release.');
     }
 
     if (importValidationErrors.length > 0) {

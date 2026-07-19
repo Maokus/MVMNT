@@ -5,7 +5,6 @@ import {
     Rectangle,
     Arc,
     Text,
-    PLUGIN_CAPABILITIES,
     parseFontSelection,
     ensureFontLoaded,
     prop,
@@ -166,16 +165,9 @@ class CollisionMidiDisplayElement extends CallbackElementRenderer {
             return objects;
         }
 
-        const { api, status, missingCapabilities } = this.hostApi([PLUGIN_CAPABILITIES.timelineRead]);
-
-        if (!api || status !== 'ok') {
-            const message =
-                status === 'unsupported-version'
-                    ? 'Plugin API version unsupported'
-                    : missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
-                      ? 'Timeline API unavailable'
-                      : 'Plugin host API unavailable';
-            objects.push(new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top'));
+        const timeline = this.context.timeline;
+        if (!timeline) {
+            objects.push(new Text(0, 0, 'Timeline API unavailable', '12px Inter, sans-serif', '#64748b', 'left', 'top'));
             return objects;
         }
 
@@ -193,24 +185,25 @@ class CollisionMidiDisplayElement extends CallbackElementRenderer {
         } = props;
 
         // Resolve -1 (auto) to the track's actual note bounds from midiCache.
-        const timelineState = api.timeline.getStateSnapshot();
+        const metadata = timeline.getMetadata();
+        const all = timeline.selectNotes({
+            trackIds: [props.midiTrackId],
+            startSeconds: 0,
+            endSeconds: metadata.ok ? metadata.value.durationSeconds : 86400,
+        });
+        const allNotes = all.ok
+            ? all.value.map((note) => ({ ...note, startTime: note.startSeconds, endTime: note.endSeconds }))
+            : [];
         const rawMinNote = Math.floor(props.minNote as number);
         const rawMaxNote = Math.floor(props.maxNote as number);
         let minNote: number;
         let maxNote: number;
         if (rawMinNote === -1 || rawMaxNote === -1) {
-            const trackId = props.midiTrackId as string | undefined;
             let autoMinNote = 0;
             let autoMaxNote = 127;
-            if (trackId && timelineState) {
-                const track = timelineState.tracks[trackId];
-                const midiSourceId = (track as { midiSourceId?: string })?.midiSourceId;
-                const cacheKey = midiSourceId ?? trackId;
-                const bounds = (timelineState as any).midiCache?.[cacheKey]?.bounds;
-                if (bounds) {
-                    autoMinNote = bounds.minNote;
-                    autoMaxNote = bounds.maxNote;
-                }
+            if (allNotes.length) {
+                autoMinNote = Math.min(...allNotes.map((note) => note.note));
+                autoMaxNote = Math.max(...allNotes.map((note) => note.note));
             }
             minNote = rawMinNote === -1 ? autoMinNote : Math.max(0, Math.min(127, rawMinNote));
             maxNote = rawMaxNote === -1 ? autoMaxNote : Math.max(0, Math.min(127, rawMaxNote));
@@ -228,8 +221,8 @@ class CollisionMidiDisplayElement extends CallbackElementRenderer {
         const labelFontString = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
 
         // All distinct pitches in the track — filtered to the configured note range
-        const distinctPitches = api.timeline
-            .selectDistinctNoteNumbers({ trackIds: [props.midiTrackId] })
+        const distinctPitches = [...new Set(allNotes.map((note) => note.note))]
+            .sort((a, b) => a - b)
             .filter((p) => p >= minNote && p <= maxNote);
 
         if (distinctPitches.length === 0) {
@@ -267,7 +260,7 @@ class CollisionMidiDisplayElement extends CallbackElementRenderer {
             const cx = originX + col * slotWidth + radius;
 
             // All notes for this pitch across the full timeline, sorted by startTime
-            const pitchNotes = api.timeline.selectNotesByPitch(pitch, { trackIds: [props.midiTrackId] });
+            const pitchNotes = allNotes.filter((note) => note.note === pitch);
 
             // Find the surrounding notes: last one that has started, and next one coming up
             let prevNote = null;
@@ -353,7 +346,7 @@ class CollisionMidiDisplayElement extends CallbackElementRenderer {
 
             // --- Note name label ---
             if (showNoteNames) {
-                const noteName = api.utilities.midiNoteToName(pitch);
+                const noteName = this.context.midi?.noteName(pitch) ?? String(pitch);
                 const label = new Text(cx, radius + 5, noteName, labelFontString, '#94a3b8', 'center', 'top');
                 objects.push(label);
             }

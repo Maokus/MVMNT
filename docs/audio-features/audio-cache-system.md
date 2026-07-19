@@ -25,10 +25,10 @@ Scene Elements (runtime sampling + presentation)
 
 ## Getting Started
 
-The [Audio Features Quick Start](audio/quickstart.md) provides a copy/paste friendly walkthrough for new elements. In short:
+The [Audio Features Quick Start](quickstart.md) provides a copy/paste friendly walkthrough for new elements. In short:
 
-1. **Declare requirements** inside the element module using `registerFeatureRequirements`. These declarations are internal metadata—not user configuration.
-2. **Sample at render time** with `getFeatureData(element, trackId, featureKey, time, samplingOptions?)`. Sampling options (such as smoothing) describe presentation-time adjustments and never affect cache identity.
+1. **Declare requirements** with `featureRequirements` on an SDK 2 definition.
+2. **Sample at render time** with `context.audio.sampleFeature()` or `sampleFeatureRange()`.
 
 If you need deeper background or want to reason about the mental model before coding, read the [Audio Concepts](concepts.md) guide. It unpacks the separation between data dependencies and user-facing properties.
 
@@ -179,16 +179,11 @@ analysis work even if they originate from different UI components, reducing dupl
 
 ### Registering a Custom Calculator
 
-Calculators are plain objects — no factory pattern required. Register before analysis runs.
-
-**Plugin authors**: use `audioCalculatorsApi` from `@mvmnt/plugin-sdk`. This is the stable public surface — it accepts the narrower `PluginAudioCalculator` interface and bridges to the internal registry automatically.
+Calculators are plain objects—no factory pattern is required. SDK 2 plugins register them from the
+definition's lifecycle-scoped `audioCalculators` facet.
 
 ```ts
-import {
-    audioCalculatorsApi,
-    registerFeatureRequirements,
-    type PluginAudioCalculator,
-} from '@mvmnt/plugin-sdk';
+import { definePluginElement, type PluginAudioCalculator } from '@mvmnt-app/plugin-sdk';
 
 const peakHoldCalculator: PluginAudioCalculator = {
     id: 'example.peak-hold',
@@ -227,11 +222,22 @@ const peakHoldCalculator: PluginAudioCalculator = {
     },
 };
 
-// Register at module scope — must run before audio analysis starts.
-audioCalculatorsApi.register(peakHoldCalculator);
-
-// Tell the runtime this element needs the 'peakHold' feature.
-registerFeatureRequirements('myElement', [{ feature: 'peakHold' }]);
+export const element = definePluginElement({
+    type: 'my-element',
+    metadata: { name: 'Peak Hold' },
+    schema: { tabs: [] },
+    capabilities: {
+        required: ['audio.calculators.register', 'audio.features.read'],
+        optional: [],
+    },
+    load(context) {
+        const registration = context.audioCalculators!.register(peakHoldCalculator);
+        if (!registration.ok) throw new Error(registration.error.message);
+        const requirements = context.audio!.requireFeatures([{ feature: 'peakHold' }]);
+        if (!requirements.ok) throw new Error(requirements.error.message);
+    },
+    render() { return []; },
+});
 ```
 
 **Internal MVMNT code** (built-in calculators, tests): use `audioFeatureCalculatorRegistry` directly from `@audio/features/audioFeatureRegistry`. The internal `AudioFeatureCalculator` interface has a richer return type (full `AudioFeatureTrack` with `key`, `calculatorId`, `hopSeconds`, `tempoProjection`, etc.).
@@ -282,36 +288,26 @@ audioFeatureCalculatorRegistry.register(peakHoldCalculator);
 
 ## Requesting and Sampling Feature Data in Scene Elements
 
-Scene elements declare their audio feature needs through the metadata registry. The base
-`SceneElement` class subscribes automatically whenever the bound track changes (including
-macro-driven updates), so renderers only have to sample data at runtime. Requirements remain
-internal to the element—authors never see or edit them in the property panel. When an element is
-instantiated before it receives a persisted ID, the subscription controller now generates a
-deterministic fallback key so the initial intent is still published and cached.【F:src/audio/audioElementMetadata.ts†L1-L44】【F:src/core/scene/elements/base.ts†L73-L210】
+SDK 2 elements declare feature requirements on their definition. The host scopes subscriptions to
+the definition lifecycle, while render callbacks sample through `context.audio`. Requirements
+remain internal to the element and never appear in the property panel.
 
 ### Basic Usage Pattern
 
 ```ts
-import { SceneElement } from '@core/scene/elements/base';
-import { registerFeatureRequirements } from '@audio/audioElementMetadata';
-import { getFeatureData } from '@audio/features/sceneApi';
+import { definePluginElement } from '@mvmnt-app/plugin-sdk';
 
-registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
-
-export class AudioSpectrumElement extends SceneElement {
-    protected override _buildRenderObjects(config: unknown, targetTime: number) {
-        const trackId = this.getProperty<string>('audioTrackId');
-        if (!trackId) return [];
-
-        const smoothing = this.getProperty<number>('smoothing') ?? 0;
-        const frame = getFeatureData(this, trackId, 'spectrogram', targetTime, { smoothing });
-        if (!frame) return [];
-
-        return frame.values.map((magnitude) => {
-            // Convert magnitudes into render objects.
+export const audioSpectrum = definePluginElement({
+    type: 'audio-spectrum', metadata: { name: 'Audio Spectrum' }, schema: { tabs: [] },
+    capabilities: { required: ['audio.features.read'], optional: [] },
+    featureRequirements: [{ feature: 'spectrogram' }],
+    render(props, _state, time, context) {
+        const frame = context.audio!.sampleFeature({
+            trackId: props.audioTrackId, feature: 'spectrogram', timeSeconds: time.seconds,
         });
-    }
-}
+        return frame.ok ? [] : [];
+    },
+});
 ```
 
 The registry ensures descriptors are deduplicated and cached once per feature, even when multiple
@@ -319,30 +315,15 @@ elements choose different smoothing or interpolation options at draw time.【F:s
 
 ### Dynamic Requirements
 
-When an element lets the user choose which feature to visualize, update subscriptions explicitly.
-Use `createFeatureDescriptor` together with `syncElementFeatureIntents` so the automatic cleanup
-logic still runs through the shared API surface.【F:src/audio/features/sceneApi.ts†L210-L296】
+When an element lets the user choose which feature to visualize, keep the scoped requirement
+handle in element state, dispose it when the selection changes, and register the replacement with
+`context.audio.requireFeatures()`.
 
 ```ts
-import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
-import { syncElementFeatureIntents, clearFeatureData } from '@audio/features/sceneApi';
-
-export class DynamicAudioElement extends SceneElement {
-    private _descriptorKey: string | null = null;
-
-    private _syncSubscriptions() {
-        const trackId = this.getProperty<string>('audioTrackId');
-        const feature = this.getProperty<string>('selectedFeature');
-        if (!trackId || !feature) {
-            clearFeatureData(this);
-            this._descriptorKey = null;
-            return;
-        }
-
-        const { descriptor } = createFeatureDescriptor({ feature });
-        syncElementFeatureIntents(this, trackId, [descriptor]);
-        this._descriptorKey = descriptor.featureKey;
-    }
+const next = context.audio!.requireFeatures([{ feature: props.selectedFeature }]);
+if (next.ok) {
+    state.requirement?.dispose();
+    state.requirement = next.value;
 }
 ```
 
@@ -464,29 +445,20 @@ Plans are created once per analysis pass and reused across all frames, avoiding 
 **Goal**: Visualize spectrogram magnitudes without manual subscription plumbing.
 
 ```ts
-import { SceneElement } from '@core/scene/elements/base';
-import { registerFeatureRequirements } from '@audio/audioElementMetadata';
-import { getFeatureData } from '@audio/features/sceneApi';
-
-registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
-
-export class AudioSpectrumElement extends SceneElement {
-    protected override _buildRenderObjects(config: unknown, targetTime: number) {
-        const trackId = this.getProperty<string>('audioTrackId');
-        if (!trackId) return [];
-
-        const smoothing = this.getProperty<number>('smoothing') ?? 0;
-        const frame = getFeatureData(this, trackId, 'spectrogram', targetTime, {
-            smoothing,
+export const audioSpectrum = definePluginElement({
+    type: 'audio-spectrum', metadata: { name: 'Audio Spectrum' }, schema: { tabs: [] },
+    capabilities: { required: ['audio.features.read'], optional: [] },
+    featureRequirements: [{ feature: 'spectrogram' }],
+    render(props, _state, time, context) {
+        const frame = context.audio!.sampleFeature({
+            trackId: props.audioTrackId, feature: 'spectrogram', timeSeconds: time.seconds,
         });
-        if (!frame) return [];
-
-        return frame.values.map((magnitude, index) => {
-            const height = Math.max(0, magnitude + 80) * 2;
-            return new Rectangle(index * 6, 0, 4, height, '#00ffcc');
-        });
-    }
-}
+        if (!frame.ok || !Array.isArray(frame.value.value)) return [];
+        return frame.value.value.map((magnitude, index) =>
+            new Rectangle(index * 6, 0, 4, Math.max(0, magnitude + 80) * 2, { fillColor: '#00ffcc' })
+        );
+    },
+});
 ```
 
 ### Workflow 2: dBFS Meter with Channel Selection
@@ -495,23 +467,24 @@ export class AudioSpectrumElement extends SceneElement {
 it returns one value per source channel and does not create an audio-feature-cache request.
 
 ```ts
-export class VolumeMeterElement extends SceneElement {
-    protected override _buildRenderObjects(config: unknown, targetTime: number) {
-        const trackId = this.getProperty<string>('audioTrackId');
+export const volumeMeter = definePluginElement({
+    // metadata, schema, and capabilities omitted
+    render(props, _state, time, context) {
+        const trackId = props.audioTrackId as string | undefined;
         if (!trackId) return [];
 
-        const rms = host.api.audio.getRmsInWindow({
+        const rmsResult = context.audio?.getRms({
             trackId,
-            startSec: targetTime - 0.025,
-            endSec: targetTime + 0.025,
+            startSeconds: time.seconds - 0.025,
+            endSeconds: time.seconds + 0.025,
         });
-        const linearRms = rms?.[0] ?? 0;
+        const linearRms = rmsResult?.ok ? (rmsResult.value[0] ?? 0) : 0;
         const db = linearRms > 0 ? 20 * Math.log10(linearRms) : -Infinity;
         const normalized = Math.max(0, (db + 60) / 60); // map [-60, 0] dBFS to [0, 1]
 
         return [new Rectangle(0, 0, 40, normalized * 400, '#f472b6')];
-    }
-}
+    },
+});
 ```
 
 ### Workflow 3: History/Trail Effects
@@ -519,21 +492,21 @@ export class VolumeMeterElement extends SceneElement {
 **Goal**: Create motion trails based on past audio data.
 
 ```ts
-import { sampleFeatureHistory } from '@utils/audioVisualization/history';
-
-registerFeatureRequirements('spectrogramTrails', [{ feature: 'spectrogram' }]);
-
-const history = sampleFeatureHistory(trackId, { featureKey: 'spectrogram' }, targetTime, 8, {
-    type: 'equalSpacing',
-    seconds: 0.05,
+const history = context.audio!.sampleFeatureRange({
+    trackId: props.audioTrackId,
+    feature: 'spectrogram',
+    startSeconds: time.seconds - 0.35,
+    endSeconds: time.seconds,
+    stepSeconds: 0.05,
 });
+if (!history.ok) return [];
 
-const binIndex = this.getProperty<number>('highlightBin') ?? 0;
-return history.map((frame, index) => {
-    const opacity = (index + 1) / history.length;
-    const magnitude = frame.values[binIndex] ?? 0;
+return history.value.map((frame, index) => {
+    const opacity = (index + 1) / history.value.length;
+    const values = Array.isArray(frame.value) ? frame.value : [frame.value];
+    const magnitude = values[props.highlightBin] ?? 0;
     const height = Math.max(0, magnitude + 80) * 2;
-    return new Rectangle(0, 0, 50, height, `rgba(255, 255, 255, ${opacity})`);
+    return new Rectangle(0, 0, 50, height, { fillColor: `rgba(255, 255, 255, ${opacity})` });
 });
 ```
 
@@ -542,7 +515,7 @@ return history.map((frame, index) => {
 **Goal**: Add a zero-crossing rate calculator
 
 ```ts
-import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
+import type { PluginAudioCalculator } from '@mvmnt-app/plugin-sdk';
 
 const zeroCrossingCalculator: AudioFeatureCalculator = {
     id: 'custom.zero-crossing',
@@ -593,8 +566,7 @@ const zeroCrossingCalculator: AudioFeatureCalculator = {
     },
 };
 
-// Register before loading audio
-audioFeatureCalculatorRegistry.register(zeroCrossingCalculator);
+// Register from the definition's load callback with context.audioCalculators.register().
 ```
 
 ### Workflow 5: Manual Cache Management

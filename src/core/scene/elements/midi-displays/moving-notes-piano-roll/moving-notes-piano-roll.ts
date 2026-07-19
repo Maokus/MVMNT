@@ -5,11 +5,10 @@ import { Line, EmptyRenderObject, RenderObject, Rectangle, GlowLayer } from '@co
 import { getAnimationSelectOptions } from '@core/scene/elements/midi-displays/note-animations';
 import { normalizeColorAlphaValue, ensureEightDigitHex, applyOpacity } from '@utils/color';
 import { MovingNotesAnimationController } from './animation-controller';
-import { PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
 import { TimingManager } from '@core/timing';
 import { insertElementConfig, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
-import { defineHostAdaptedBuiltIn, getEnginePrivateHostApi } from '@core/scene/plugins/built-in-definition';
+import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/plugins/built-in-definition';
 
 const DEFAULT_NOTE_COLOR = '#FF6B6B';
 
@@ -270,8 +269,9 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const pianoRightBorderColor = props.pianoRightBorderColor as string;
         const pianoRightBorderWidth = props.pianoRightBorderWidth as number;
         const effectivePianoWidth = showPiano ? pianoWidth : 0;
-        const host = getEnginePrivateHostApi(this, [PLUGIN_CAPABILITIES.timelineRead]);
-        const timelineState = host.ok ? host.api.timeline.getStateSnapshot() : null;
+        const timeline = getEnginePrivateContext(this).timeline;
+        const metadataResult = timeline?.getMetadata();
+        const timelineMetadata = metadataResult?.ok ? metadataResult.value : null;
 
         const autoRange = props.autoRange as boolean;
         const rawMinNote = props.minNote as number;
@@ -280,9 +280,17 @@ export class MovingNotesPianoRollElement extends SceneElement {
         let maxNote: number;
         if (autoRange) {
             const trackId = props.midiTrackId as string | undefined;
-            const range = trackId && host.ok ? host.api.timeline.getNoteRange({ trackIds: [trackId] }) : null;
-            minNote = range?.min ?? 0;
-            maxNote = range?.max ?? 127;
+            const selected =
+                trackId && timeline && timelineMetadata
+                    ? timeline.selectNotes({
+                          trackIds: [trackId],
+                          startSeconds: 0,
+                          endSeconds: timelineMetadata.durationSeconds,
+                      })
+                    : null;
+            const notes = selected?.ok ? selected.value : [];
+            minNote = notes.length ? Math.min(...notes.map((note) => note.note)) : 0;
+            maxNote = notes.length ? Math.max(...notes.map((note) => note.note)) : 127;
         } else {
             minNote = rawMinNote;
             maxNote = rawMaxNote;
@@ -292,16 +300,11 @@ export class MovingNotesPianoRollElement extends SceneElement {
 
         // Update local timing manager from global timeline snapshot for view window duration calculations
         try {
-            const bpm = timelineState?.timeline.globalBpm || 120;
-            const beatsPerBar = timelineState?.timeline.beatsPerBar || 4;
+            const bpm = timelineMetadata?.tempoBpm || 120;
+            const beatsPerBar = timelineMetadata?.timeSignature.numerator || 4;
             this.timingManager.setBPM(bpm);
             this.timingManager.setBeatsPerBar(beatsPerBar);
-            // If a master tempo map exists, apply to timing manager for accurate windows
-            if (timelineState?.timeline.masterTempoMap && timelineState.timeline.masterTempoMap.length > 0) {
-                this.timingManager.setTempoMap(timelineState.timeline.masterTempoMap, 'seconds');
-            } else {
-                this.timingManager.setTempoMap(null);
-            }
+            this.timingManager.setTempoMap(null);
         } catch {}
 
         // Draw piano strip (left) so pianoWidth visually applies
@@ -333,23 +336,21 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const windowStart = effectiveTime - duration * playheadPosition;
         const windowEnd = windowStart + duration;
 
-        // Fetch notes for this window from public plugin host API
-        const rawNotes =
-            props.midiTrackId && host.ok
-                ? host.api.timeline
-                      .selectNotesInWindow({
-                          trackIds: [props.midiTrackId as string],
-                          startSec: windowStart,
-                          endSec: windowEnd,
-                      })
-                      .map((n: any) => ({
-                          note: n.note,
-                          channel: n.channel,
-                          velocity: n.velocity || 0,
-                          startTime: n.startTime,
-                          endTime: n.endTime,
-                      }))
-                : [];
+        const selectedNotes =
+            props.midiTrackId && timeline
+                ? timeline.selectNotes({
+                      trackIds: [props.midiTrackId as string],
+                      startSeconds: windowStart,
+                      endSeconds: windowEnd,
+                  })
+                : null;
+        const rawNotes = (selectedNotes?.ok ? selectedNotes.value : []).map((note) => ({
+            note: note.note,
+            channel: note.channel,
+            velocity: note.velocity || 0,
+            startTime: note.startSeconds,
+            endTime: note.endSeconds,
+        }));
 
         // Notes moving past static playhead
         if (showNotes && rawNotes && (rawNotes as any[]).length > 0) {

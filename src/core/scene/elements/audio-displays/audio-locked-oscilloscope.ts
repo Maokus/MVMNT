@@ -1,14 +1,11 @@
 import { SceneElement, asNumber } from '../base';
 import { Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
-import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { applyOpacity } from '@utils/color';
-import { PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
 import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
-import { defineHostAdaptedBuiltIn, getEnginePrivateHostApi } from '@core/scene/plugins/built-in-definition';
+import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/plugins/built-in-definition';
 
-const { descriptor: PITCH_GUIDE_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchGuide' });
 
 const DEFAULT_LINE_COLOR = '#F472B6';
 const DEFAULT_BACKGROUND_COLOR = '#0F172A';
@@ -176,24 +173,21 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
             return pushMessage('Select an audio track');
         }
 
-        const host = getEnginePrivateHostApi(this, [
-            PLUGIN_CAPABILITIES.audioFeaturesRead,
-            PLUGIN_CAPABILITIES.audioRawRead,
-        ]);
-        if (!host.ok) {
+        const audio = getEnginePrivateContext(this).audio;
+        if (!audio) {
             return pushMessage('Audio not available');
         }
 
         // Sample pitch guide (cached offline pitch, confidence, RMS, anchor)
-        const guideSample = host.api.audio.sampleFeatureAtTime({
-            element: this,
+        const guideResult = audio.sampleFeature({
             trackId: props.audioTrackId,
-            feature: PITCH_GUIDE_DESCRIPTOR,
-            time: targetTime,
+            feature: 'pitchGuide',
+            timeSeconds: targetTime,
         });
-
-        const cv = guideSample?.metadata?.frame?.channelValues;
-        const f0 = cv?.[0]?.[0] ?? 0;
+        const guideSample = guideResult.ok ? guideResult.value : null;
+        const cv = guideSample?.channelValues;
+        const values = Array.isArray(guideSample?.value) ? guideSample.value : [];
+        const f0 = cv?.[0]?.[0] ?? values[0] ?? 0;
         const confidence = cv?.[1]?.[0] ?? 0;
         const anchorSec = cv?.[3]?.[0] ?? targetTime;
         const candidateF0 = cv?.[4]?.[0] ?? 0;
@@ -274,12 +268,13 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                 const windowStartSec = Math.max(0, anchorSec - triggerMarginSec);
                 const windowEndSec = anchorSec + desiredCycleSec + triggerMarginSec;
 
-                const rawSamples = host.api.audio.getRawSamples({
+                const rawResult = audio.getRawSamples({
                     trackId: props.audioTrackId,
-                    startSec: windowStartSec,
-                    endSec: windowEndSec,
+                    startSeconds: windowStartSec,
+                    endSeconds: windowEndSec,
                     channel: 'mono',
                 });
+                const rawSamples = rawResult.ok ? rawResult.value : null;
 
                 if (rawSamples && rawSamples.length >= 4) {
                     const windowDurationSec = windowEndSec - windowStartSec;
@@ -330,12 +325,13 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
 
         // Raw waveform fallback: free-running 90 ms window centered on targetTime
         const RAW_FALLBACK_SEC = 0.09;
-        const fallbackRaw = host.api.audio.getRawSamples({
+        const fallbackResult = audio.getRawSamples({
             trackId: props.audioTrackId,
-            startSec: Math.max(0, targetTime - RAW_FALLBACK_SEC / 2),
-            endSec: targetTime + RAW_FALLBACK_SEC / 2,
+            startSeconds: Math.max(0, targetTime - RAW_FALLBACK_SEC / 2),
+            endSeconds: targetTime + RAW_FALLBACK_SEC / 2,
             channel: 'mono',
         });
+        const fallbackRaw = fallbackResult.ok ? fallbackResult.value : null;
 
         if (fallbackRaw && fallbackRaw.length >= 4) {
             const points = makeWaveformPoints(fallbackRaw);

@@ -12,7 +12,6 @@ import {
     Text,
     Line,
     GlowLayer,
-    PLUGIN_CAPABILITIES,
     type RenderObject,
 } from '@mvmnt-app/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt-app/plugin-sdk';
@@ -203,8 +202,8 @@ class VidilikePianoRollElement extends CallbackElementRenderer {
         const objects: RenderObject[] = [];
 
         // ── Timeline API ────────────────────────────────────────────────────
-        const { api, status } = this.hostApi([PLUGIN_CAPABILITIES.timelineRead]);
-        if (!api || status !== 'ok') {
+        const timeline = this.context.timeline;
+        if (!timeline) {
             objects.push(
                 new Text(0, 0, 'Timeline API unavailable', '12px sans-serif', {
                     color: '#64748b',
@@ -226,9 +225,9 @@ class VidilikePianoRollElement extends CallbackElementRenderer {
         }
 
         // ── Config values ───────────────────────────────────────────────────
-        const timelineState = api.timeline.getStateSnapshot();
-        const bpm = timelineState?.timeline.globalBpm ?? 120;
-        const beatsPerBar = timelineState?.timeline.beatsPerBar ?? 4;
+        const metadata = timeline.getMetadata();
+        const bpm = metadata.ok ? metadata.value.tempoBpm : 120;
+        const beatsPerBar = metadata.ok ? metadata.value.timeSignature.numerator : 4;
         const timeUnitBars = Math.max(1, Math.round((p.timeUnitBars as number) ?? 2));
         const timeUnitDuration = timeUnitBars * beatsPerBar * (60 / bpm);
 
@@ -240,18 +239,16 @@ class VidilikePianoRollElement extends CallbackElementRenderer {
         let minNote: number;
         let maxNote: number;
         if (rawMinNote === -1 || rawMaxNote === -1) {
-            const trackId = p.midiTrackId as string | undefined;
             let autoMinNote = 21;
             let autoMaxNote = 108;
-            if (trackId && timelineState) {
-                const track = timelineState.tracks[trackId];
-                const midiSourceId = (track as { midiSourceId?: string })?.midiSourceId;
-                const cacheKey = midiSourceId ?? trackId;
-                const bounds = (timelineState as any).midiCache?.[cacheKey]?.bounds;
-                if (bounds) {
-                    autoMinNote = bounds.minNote;
-                    autoMaxNote = bounds.maxNote;
-                }
+            const all = timeline.selectNotes({
+                trackIds: [p.midiTrackId as string],
+                startSeconds: 0,
+                endSeconds: metadata.ok ? metadata.value.durationSeconds : 86400,
+            });
+            if (all.ok && all.value.length) {
+                autoMinNote = Math.min(...all.value.map((note) => note.note));
+                autoMaxNote = Math.max(...all.value.map((note) => note.note));
             }
             minNote = rawMinNote === -1 ? autoMinNote : Math.max(0, Math.min(127, rawMinNote));
             maxNote = rawMaxNote === -1 ? autoMaxNote : Math.max(0, Math.min(127, rawMaxNote));
@@ -298,11 +295,14 @@ class VidilikePianoRollElement extends CallbackElementRenderer {
         const windowEnd = targetTime + (1 - playheadPosition) * timeUnitDuration;
         const queryStart = windowStart - maxEffectDuration;
 
-        const notes = api.timeline.selectNotesInWindow({
+        const selected = timeline.selectNotes({
             trackIds: [p.midiTrackId as string],
-            startSec: queryStart,
-            endSec: windowEnd,
+            startSeconds: queryStart,
+            endSeconds: windowEnd,
         });
+        const notes = selected.ok
+            ? selected.value.map((note) => ({ ...note, startTime: note.startSeconds, endTime: note.endSeconds }))
+            : [];
 
         const xFromTime = (t: number) => playheadX + ((t - targetTime) / timeUnitDuration) * rollWidth;
         const yFromNote = (note: number) => (maxNote - note) * noteHeight;

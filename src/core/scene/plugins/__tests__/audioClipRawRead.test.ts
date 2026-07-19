@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createPluginHostApi } from '../host-api/plugin-api';
+import { createPluginHostServices } from '../host-api/plugin-api';
 
 function buffer(value: number, sampleRate = 8): AudioBuffer {
     const samples = new Float32Array(sampleRate * 3).fill(value);
@@ -29,7 +29,7 @@ describe('clip-aware raw audio reads', () => {
                 b: { durationSeconds: 3, durationTicks: 5760, sampleRate: 8, channels: 1, durationSamples: 24, audioBuffer: buffer(-0.5) },
             },
         } as any;
-        const host = createPluginHostApi({ timelineStore: { getState: () => state } }).api;
+        const host = createPluginHostServices({ timelineStore: { getState: () => state } }).services;
 
         const samples = host.audio.getRawSamples({ trackId: 'clips', startSec: 0.75, endSec: 2.25, channel: 'left' });
 
@@ -62,7 +62,7 @@ describe('clip-aware raw audio reads', () => {
                 },
             },
         } as any;
-        const host = createPluginHostApi({ timelineStore: { getState: () => state } }).api;
+        const host = createPluginHostServices({ timelineStore: { getState: () => state } }).services;
 
         const samples = host.audio.getRawSamples({ trackId: 'clips', startSec: 0, endSec: 1 });
 
@@ -77,7 +77,7 @@ describe('clip-aware raw audio reads', () => {
             tracks: { audio: { id: 'audio', type: 'audio', audioSourceId: 'source', offsetTicks: 0, regionStartTick: 0 } },
             audioCache: { source: { audioBuffer: buffer(0.25, sampleRate) } },
         } as any;
-        const host = createPluginHostApi({ timelineStore: { getState: () => state } }).api;
+        const host = createPluginHostServices({ timelineStore: { getState: () => state } }).services;
         let checks = 0;
         const signal = { get aborted() { checks += 1; return checks > 3; } } as AbortSignal;
 

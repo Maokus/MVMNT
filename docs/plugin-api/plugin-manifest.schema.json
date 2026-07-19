@@ -24,12 +24,7 @@
         },
         "apiVersion": {
             "type": "string",
-            "description": "Compatible MVMNT plugin API version range. New plugins use ^2.0.0; supported legacy bundles use ^1.x.",
-            "minLength": 1
-        },
-        "mvmntVersion": {
-            "type": "string",
-            "description": "Deprecated. Use 'apiVersion' instead. Accepted for backwards compatibility.",
+            "description": "Compatible MVMNT plugin API version range. Plugins must target SDK 2, normally ^2.0.0.",
             "minLength": 1
         },
         "description": {

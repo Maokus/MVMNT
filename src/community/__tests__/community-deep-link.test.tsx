@@ -44,7 +44,7 @@ vi.mock('@core/scene/plugins', () => ({
   upgradePlugin: vi.fn(),
   unloadPlugin: vi.fn(),
   satisfiesVersion: vi.fn().mockReturnValue(true),
-  PLUGIN_API_VERSION: '1.0.0',
+  PLUGIN_SDK_VERSION: '2.0.0',
 }));
 
 vi.mock('@persistence/validate', () => ({ CURRENT_SCHEMA_VERSION: 1 }));

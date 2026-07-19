@@ -6,13 +6,6 @@
  *  - MINOR: new capabilities or exports added (backwards-compatible)
  *  - MAJOR: breaking changes to the plugin API surface
  *
- * Plugins declare a semver range in their manifest `apiVersion` field (e.g. "^1.0.0").
- * The loader rejects plugins whose range does not satisfy this constant.
+ * Plugins declare a semver range in their manifest `apiVersion` field.
  */
-export const PLUGIN_API_VERSION = '1.1.0';
-
-/** Plugin API lines accepted by the loader. Runtime modules are selected per line. */
-export const SUPPORTED_PLUGIN_API_RANGES = Object.freeze(['^1.0.0', '^2.0.0'] as const);
 export const PLUGIN_SDK_VERSION = '2.0.0' as const;
-
-export default PLUGIN_API_VERSION;

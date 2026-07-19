@@ -14,7 +14,6 @@ import {
     Line,
     Arc,
     GlowLayer,
-    PLUGIN_CAPABILITIES,
     type RenderObject,
 } from '@mvmnt-app/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt-app/plugin-sdk';
@@ -293,8 +292,8 @@ class CircularPianoRollElement extends CallbackElementRenderer {
 
         const objects: RenderObject[] = [];
 
-        const { api, status } = this.hostApi([PLUGIN_CAPABILITIES.timelineRead]);
-        if (!api || status !== 'ok') {
+        const timeline = this.context.timeline;
+        if (!timeline) {
             objects.push(new Text(0, 0, 'Timeline API unavailable', '12px sans-serif', '#64748b', 'left', 'top'));
             return objects;
         }
@@ -304,9 +303,9 @@ class CircularPianoRollElement extends CallbackElementRenderer {
         }
 
         // ── Config ──────────────────────────────────────────────────────────
-        const timelineState = api.timeline.getStateSnapshot();
-        const bpm = timelineState?.timeline.globalBpm ?? 120;
-        const beatsPerBar = timelineState?.timeline.beatsPerBar ?? 4;
+        const metadata = timeline.getMetadata();
+        const bpm = metadata.ok ? metadata.value.tempoBpm : 120;
+        const beatsPerBar = metadata.ok ? metadata.value.timeSignature.numerator : 4;
         const timeWindowBars = Math.max(1, Math.round((p.timeWindowBars as number) ?? 2));
         const timeWindowDuration = timeWindowBars * beatsPerBar * (60 / bpm);
 
@@ -321,18 +320,16 @@ class CircularPianoRollElement extends CallbackElementRenderer {
         let minNote: number;
         let maxNote: number;
         if (rawMinNote === -1 || rawMaxNote === -1) {
-            const trackId = p.midiTrackId as string | undefined;
             let autoMinNote = 21;
             let autoMaxNote = 108;
-            if (trackId && timelineState) {
-                const track = timelineState.tracks[trackId];
-                const midiSourceId = (track as { midiSourceId?: string })?.midiSourceId;
-                const cacheKey = midiSourceId ?? trackId;
-                const bounds = (timelineState as any).midiCache?.[cacheKey]?.bounds;
-                if (bounds) {
-                    autoMinNote = bounds.minNote;
-                    autoMaxNote = bounds.maxNote;
-                }
+            const all = timeline.selectNotes({
+                trackIds: [p.midiTrackId as string],
+                startSeconds: 0,
+                endSeconds: metadata.ok ? metadata.value.durationSeconds : 86400,
+            });
+            if (all.ok && all.value.length) {
+                autoMinNote = Math.min(...all.value.map((note) => note.note));
+                autoMaxNote = Math.max(...all.value.map((note) => note.note));
             }
             minNote = rawMinNote === -1 ? autoMinNote : Math.max(0, Math.min(127, rawMinNote));
             maxNote = rawMaxNote === -1 ? autoMaxNote : Math.max(0, Math.min(127, rawMaxNote));
@@ -389,11 +386,14 @@ class CircularPianoRollElement extends CallbackElementRenderer {
         const queryStart = targetTime - timeWindowDuration;
         const queryEnd = targetTime + timeWindowDuration;
 
-        const notes = api.timeline.selectNotesInWindow({
+        const selected = timeline.selectNotes({
             trackIds: [p.midiTrackId as string],
-            startSec: queryStart,
-            endSec: queryEnd,
+            startSeconds: queryStart,
+            endSeconds: queryEnd,
         });
+        const notes = selected.ok
+            ? selected.value.map((note) => ({ ...note, startTime: note.startSeconds, endTime: note.endSeconds }))
+            : [];
 
         // ── Time → angle ─────────────────────────────────────────────────────
         const timeToAngle = (t: number) => triggerAngle + ((t - targetTime) / timeWindowDuration) * arcSpanRad;

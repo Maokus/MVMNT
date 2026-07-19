@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { defineRendererElement } from '@mvmnt-app/plugin-sdk';
-import { CallbackElementRenderer, prop, insertElementConfig, tab, PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
+import { CallbackElementRenderer, prop, insertElementConfig, tab } from '@mvmnt-app/plugin-sdk';
 import { VisualMedia, Rectangle, type RenderObject } from '@mvmnt-app/plugin-sdk/render';
 import type { EnhancedConfigSchema } from '@mvmnt-app/plugin-sdk';
 
@@ -60,21 +60,21 @@ class BoyfriendElement extends CallbackElementRenderer {
         const width = 450;
         const height = 450;
         this._layoutRect.setOrigin(0, 0).setSize(width, height);
-        const { api, status } = this.hostApi([PLUGIN_CAPABILITIES.timelineRead]);
-        const bpm = status === 'ok' ? (api?.timeline.getStateSnapshot()?.timeline.globalBpm ?? 120) : 120;
+        const metadata = this.context.timeline?.getMetadata();
+        const bpm = metadata?.ok ? metadata.value.tempoBpm : 120;
         const trackId = props.midiTrackId as string | null;
-        const notes =
-            trackId && api && status === 'ok'
-                ? api.timeline.selectNotesInWindow({
+        const selected = trackId
+            ? this.context.timeline?.selectNotes({
                       trackIds: [trackId],
-                      startSec: targetTime - 8,
-                      endSec: targetTime + 0.05,
+                      startSeconds: targetTime - 8,
+                      endSeconds: targetTime + 0.05,
                   })
-                : [];
-        const active = notes.find((note) => note.startTime <= targetTime && targetTime < note.endTime);
+            : undefined;
+        const notes = selected?.ok ? selected.value : [];
+        const active = notes.find((note) => note.startSeconds <= targetTime && targetTime < note.endSeconds);
         const animation = active ? (NOTE_ANIMATIONS[active.note % 4] ?? 'BF NOTE LEFT') : 'BF idle dance';
         const localTime = active
-            ? targetTime - active.startTime
+            ? targetTime - active.startSeconds
             : ((targetTime % (60 / bpm)) / (60 / bpm)) * IDLE_DURATION_SEC;
         const { resource, status: resourceStatus } = this._bundledAtlas.get();
         this._media

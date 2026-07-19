@@ -146,17 +146,20 @@ const startSec = tm.ticksToSeconds(note.startTick + track.offsetTicks);
 
 ## Accessing Time in Plugin Elements
 
-Plugin elements receive time as seconds via `targetTime` in `_buildRenderObjects`. For conversions use the `timing` capability:
+SDK 2 plugin callbacks receive a `RenderTime` plus the declared `timing` capability:
 
 ```ts
-const host = getRequiredPluginApi(this, [PLUGIN_CAPABILITIES.timingConversion]);
-if (!host.ok) return host.renderFallback();
-
-const beats = host.api.timing.secondsToBeats(targetTime) ?? 0;
-const ticks = host.api.timing.secondsToTicks(targetTime) ?? 0;
+render(_props, _state, time, context) {
+    const beats = context.timing!.secondsToBeats(time.seconds);
+    const ticks = context.timing!.secondsToTicks(time.seconds);
+    if (!beats.ok || !ticks.ok) return [];
+    // use beats.value and ticks.value
+    return [];
+}
 ```
 
-`timingConversion` is always available — the guard is a formality. The timing API reflects the current tempo map including any automation keyframes on `globalBpm`.
+Declare `timing.conversion` in the element and manifest capability lists. The timing facet reflects
+the current tempo map including automation keyframes on `globalBpm`.
 
 ## Tempo Automation
 

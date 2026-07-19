@@ -1,12 +1,10 @@
 import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from '../base';
 import { Arc, Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
-import type { FeatureDataResult } from '@audio/features/sceneApi';
 import { applyOpacity } from '@utils/color';
-import { PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
 import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
-import { defineHostAdaptedBuiltIn, getEnginePrivateHostApi } from '@core/scene/plugins/built-in-definition';
+import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/plugins/built-in-definition';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -127,43 +125,9 @@ export function convertSpectrogramBins(options: SpectrogramBinConversionOptions)
     return output;
 }
 
-function resolveSpectrogramSampleRate(result: FeatureDataResult | null): number {
-    if (!result) {
-        return 44100;
-    }
-
-    const descriptor = result.metadata?.descriptor;
-    const frameRecord = result.metadata?.frame as { sampleRate?: number } | undefined;
-    const candidates: unknown[] = [];
-
-    if (typeof frameRecord?.sampleRate === 'number') {
-        candidates.push(frameRecord.sampleRate);
-    }
-
-    if (descriptor?.profileOverrides?.sampleRate != null) {
-        candidates.push(descriptor.profileOverrides.sampleRate);
-    }
-
-    const registry = descriptor?.profileRegistryDelta ?? null;
-    const analysisProfileId = descriptor?.analysisProfileId ?? null;
-    if (registry && analysisProfileId && registry[analysisProfileId]?.sampleRate != null) {
-        candidates.push(registry[analysisProfileId]?.sampleRate);
-    }
-    if (registry) {
-        for (const entry of Object.values(registry)) {
-            if (entry?.sampleRate != null) {
-                candidates.push(entry.sampleRate);
-            }
-        }
-    }
-
-    for (const candidate of candidates) {
-        const numeric = Number(candidate);
-        if (Number.isFinite(numeric) && numeric > 0) {
-            return numeric;
-        }
-    }
-
+function resolveSpectrogramSampleRate(frameRate?: number, trackRate?: number): number {
+    if (Number.isFinite(frameRate) && frameRate! > 0) return frameRate!;
+    if (Number.isFinite(trackRate) && trackRate! > 0) return trackRate!;
     return 44100;
 }
 
@@ -346,19 +310,14 @@ export class AudioSpectrumElement extends SceneElement {
             return pushMessage('Select an audio track');
         }
 
-        const host = getEnginePrivateHostApi(this, [PLUGIN_CAPABILITIES.audioFeaturesRead]);
-        const sample = host.ok
-            ? host.api.audio.sampleFeatureAtTime({
-                  element: this,
-                  trackId: props.audioTrackId,
-                  feature: 'spectrogram',
-                  time: targetTime,
-                  samplingOptions: {
-                      smoothing: props.smoothing,
-                  },
-              })
-            : null;
-        const rawValues = sample?.values ?? [];
+        const audio = getEnginePrivateContext(this).audio;
+        const sampled = audio?.sampleFeature({
+            trackId: props.audioTrackId,
+            feature: 'spectrogram',
+            timeSeconds: targetTime,
+        });
+        const sample = sampled?.ok ? sampled.value : null;
+        const rawValues = Array.isArray(sample?.value) ? [...sample.value] : [];
         if (!rawValues.length) {
             return pushMessage('No spectrum data');
         }
@@ -370,7 +329,13 @@ export class AudioSpectrumElement extends SceneElement {
 
         const scaledBins = convertSpectrogramBins({
             values: sanitizedSource,
-            sampleRate: resolveSpectrogramSampleRate(sample),
+            sampleRate: resolveSpectrogramSampleRate(
+                sample?.sampleRate,
+                (() => {
+                    const metadata = audio?.getChannelMetadata(props.audioTrackId);
+                    return metadata?.ok ? metadata.value.sampleRate : undefined;
+                })()
+            ),
             minFrequency: props.minFrequency,
             maxFrequency: props.maxFrequency,
             targetBinCount: props.barCount,

@@ -26,22 +26,24 @@ The **Asset Manager** panel (left of the preview in MidiVisualizer) is the regis
 
 Each asset is assigned a stable UUID at upload time. That ID is what gets stored in scene documents and referenced by element properties.
 
-> Sparrow atlases are not user-importable. They can only enter the registry through plugin-bundled assets (via `bundledSparrow()`), which register automatically when the element first loads.
+> Sparrow atlases are not user-importable. Plugins load them through
+> `context.assets.bundledSparrow()`, which registers them when the element loads.
 
 ---
 
-## Factory methods on SceneElement
+## SDK 2 asset handles
 
-`SceneElement` provides these auto-tracked factory methods — all returned handles are automatically destroyed when the element is disposed, so **no `onDestroy()` override is needed** just for cleanup:
+`CapabilityContext.assets` provides lifecycle-scoped handles. Every returned handle is disposed
+automatically with the element:
 
 | Method                                       | Returns                | Use for                                       |
 | -------------------------------------------- | ---------------------- | --------------------------------------------- |
-| `this.visualHandle()`                        | `VisualResourceHandle` | User-selected image / atlas from the registry |
-| `this.bundledSprite(filename)`               | `BundledSprite`        | Image or GIF that ships with the plugin       |
-| `this.bundledImage(filename)`                | `BundledSprite`        | Alias for `bundledSprite()`                   |
-| `this.bundledSparrow(png, xml, defaultFps?)` | `BundledSparrowHandle` | Sparrow atlas that ships with the plugin      |
+| `context.assets.project()`                   | `AssetHandle`          | User-selected project asset                   |
+| `context.assets.bundledImage(filename)`      | `AssetHandle`          | Image or GIF shipped with the plugin          |
+| `context.assets.bundledSparrow(png, xml)`    | `AssetHandle`          | Sparrow atlas shipped with the plugin         |
+| `context.assets.bundledGridAtlas(image, grid)` | `AssetHandle`        | Grid atlas shipped with the plugin            |
 
-Always use these factory methods instead of `new VisualResourceHandle()`, `new BundledSprite()`, etc. Manual handles require a matching `handle.destroy()` in `onDestroy()` — factory handles do not.
+Do not construct host resource handles directly.
 
 ---
 
@@ -50,59 +52,36 @@ Always use these factory methods instead of `new VisualResourceHandle()`, `new B
 ### 1. Declare the property
 
 ```typescript
-import { prop, insertElementConfig, tab } from '@mvmnt/plugin-sdk';
-
-static override getConfigSchema() {
-    return insertElementConfig(super.getConfigSchema(), { name: 'My Element' }, [
-        tab.content([{
-            id: 'imageSource',
-            label: 'Image',
-            collapsed: false,
-            properties: [
-                prop.imageAsset('imageSource', 'Image'),
-            ],
-        }]),
-    ]);
-}
+const schema = { tabs: [{
+    id: 'content', label: 'Content', groups: [{
+        id: 'imageSource', label: 'Image', collapsed: false,
+        properties: [{ key: 'imageSource', label: 'Image', type: 'assetRef', default: null }],
+    }],
+}] } as const;
 ```
 
 ### 2. Load and draw the asset
 
 ```typescript
-import {
-    SceneElement,
-    prop,
-    insertElementConfig,
-    VisualMediaPlayback,
-    resolveProjectAssetDescriptor,
-} from '@mvmnt/plugin-sdk';
-import { VisualMedia, type RenderObject } from '@mvmnt/plugin-sdk/render';
+import { definePluginElement } from '@mvmnt-app/plugin-sdk';
+import { VisualMedia } from '@mvmnt-app/plugin-sdk/render';
 
-export class MyImageElement extends SceneElement {
-    private readonly _media = new VisualMedia(0, 0, 200, 200).setLayoutParticipation('exclude');
-    private readonly _playback = new VisualMediaPlayback();
-    // visualHandle() creates a VisualResourceHandle and auto-destroys it on dispose().
-    private readonly _handle = this.visualHandle();
-
-    protected override _buildRenderObjects(_cfg: unknown, targetTime: number): RenderObject[] {
-        const props = this.getSchemaProps();
+export const myImage = definePluginElement({
+    type: 'my-image', metadata: { name: 'My Image' }, schema: { tabs: [] },
+    capabilities: { required: [], optional: [] },
+    create(_props, context) {
+        return { handle: context.assets.project(), media: new VisualMedia(0, 0, 200, 200) };
+    },
+    render(props, state, time) {
         if (!props.visible) return [];
-
-        const descriptor = resolveProjectAssetDescriptor(props.imageSource as string | null);
-        const { resource, status } = this._handle.update(descriptor);
-
-        this._media
-            .setResource(resource, status)
-            .setLocalTime(this._playback.computeLocalTime(targetTime))
-            .setDimensions(200, 200)
-            .setFitMode('contain');
-
-        return [this._media];
-    }
-}
+        const asset = state.handle.update(props.imageSource);
+        state.media.setResource(asset.resource, asset.status).setLocalTime(time.seconds).setFitMode('contain');
+        return [state.media];
+    },
+});
 ```
 
-Use `this.visualHandle()` instead of `new VisualResourceHandle()` — the handle is then automatically destroyed when the element is disposed, so no `onDestroy()` override is needed just for the handle.
+Handles created through `context.assets` are scoped to the element lifecycle and disposed automatically.
 
 If you do need `onDestroy()` for other cleanup, you can still call `this._handle.destroy()` explicitly — double-destroy is safe.
 
@@ -135,19 +114,14 @@ this._media
 For uniform-grid spritesheets, construct an `AtlasSourceDescriptor` directly:
 
 ```typescript
-import { type AtlasSourceDescriptor } from '@mvmnt/plugin-sdk';
-
-private readonly _handle = this.visualHandle();
-
-protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[] {
-    const src = props.imageSource as string | File | null;
-    const descriptor: AtlasSourceDescriptor | null = src
-        ? { kind: 'atlas', src: src as string, layout: { columns: 4, rows: 4, frameDurationMs: 1000 / 12 } }
-        : null;
-    const { resource, status } = this._handle.update(descriptor);
-    this._media.setResource(resource, status).setLocalTime(t).setDimensions(200, 200);
-    return [this._media];
-}
+create(_props, context) {
+    return { handle: context.assets.project(), media: new VisualMedia(0, 0, 200, 200) };
+},
+render(props, state, time) {
+    const asset = state.handle.update(props.imageSource);
+    state.media.setResource(asset.resource, asset.status).setLocalTime(time.seconds).setDimensions(200, 200);
+    return [state.media];
+},
 ```
 
 ---
@@ -160,18 +134,18 @@ Sparrow atlases can only enter the registry through plugin-bundled assets — se
 ### Overrideable bundled Sparrow atlas
 
 ```typescript
-private readonly _bundledAtlas = this.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml');
-private readonly _overrideHandle = this.visualHandle();
-
-protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[] {
-    const overrideId = props.atlas as string | null;
-    const { resource, status } = overrideId
-        ? this._overrideHandle.update(resolveProjectAssetDescriptor(overrideId))
-        : this._bundledAtlas.get();
-
-    this._media.setResource(resource, status).setLocalTime(t).setDimensions(200, 200);
-    return [this._media];
-}
+create(_props, context) {
+    return {
+        bundled: context.assets.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml'),
+        override: context.assets.project(),
+        media: new VisualMedia(0, 0, 200, 200),
+    };
+},
+render(props, state, time) {
+    const asset = props.atlas ? state.override.update(props.atlas) : state.bundled.get();
+    state.media.setResource(asset.resource, asset.status).setLocalTime(time.seconds).setDimensions(200, 200);
+    return [state.media];
+},
 ```
 
 ### Per-animation loop mode overrides
@@ -197,38 +171,32 @@ Overrides are applied after the XML is parsed and animations are grouped from th
 
 ## Bundled plugin assets
 
-Assets that ship inside a plugin use `bundledSprite()`, `bundledImage()`, or `bundledSparrow()`. All three are factory methods on `SceneElement`; the returned handles are auto-tracked and destroyed when the element is disposed.
+Assets that ship inside a plugin use the bundled handle methods on `context.assets`.
 
 ### Bundled image
 
 ```typescript
-private readonly _icon = this.bundledSprite('icon.png');
-
-protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[] {
-    return [this._icon.build(0, 0, 64, 64)];
-}
+create(_props, context) {
+    return { icon: context.assets.bundledImage('icon.png'), media: new VisualMedia(0, 0, 64, 64) };
+},
+render(_props, state, time) {
+    const asset = state.icon.get();
+    state.media.setResource(asset.resource, asset.status).setLocalTime(time.seconds);
+    return [state.media];
+},
 ```
 
-`build()` creates a new `VisualMedia` each call, which can cause performance issues. For long-lived instances, use `.get()` and `setResource()` manually:
-
-```typescript
-const { resource, status } = this._icon.get();
-this._media.setResource(resource, status);
-```
+Keep `VisualMedia` in element state so render callbacks reuse it rather than allocating it per frame.
 
 ### Bundled Sparrow atlas
 
 ```typescript
-private readonly _sparrow = this.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml');
-
-protected override _buildRenderObjects(_cfg: unknown, t: number): RenderObject[] {
-    return [this._sparrow.build(0, 0, 200, 200, { animation: 'idle' })];
-}
+const sparrow = context.assets.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml');
+const asset = sparrow.get();
+media.setResource(asset.resource, asset.status).setAnimation('idle');
 ```
 
-`bundledSparrow()` accepts an optional third argument `defaultFps` (default 24).
-
-`BundledSparrowHandle.build()` has the same signature as `BundledSprite.build()` — both accept a `BundledBuildOptions` object with `fitMode`, `originX/Y`, and `animation`.
+Animation selection and frame timing are configured on `VisualMedia`.
 
 ### Load errors
 
@@ -239,8 +207,8 @@ If a bundled asset fails to load (file not found, bad URL, etc.), `.get()` and `
 Subdirectories inside `assets/` are fully supported:
 
 ```typescript
-private readonly _head = this.bundledSprite('characters/head.png');
-private readonly _body = this.bundledSprite('characters/body.png');
+const head = context.assets.bundledImage('characters/head.png');
+const body = context.assets.bundledImage('characters/body.png');
 ```
 
 ---
@@ -262,72 +230,8 @@ private readonly _body = this.bundledSprite('characters/body.png');
 
 | Situation                            | Property            | API                                                     |
 | ------------------------------------ | ------------------- | ------------------------------------------------------- |
-| User-selected image from registry    | `prop.imageAsset()` | `this.visualHandle()` + `resolveProjectAssetDescriptor` |
-| User-selected spritesheet (grid)     | `prop.imageAsset()` | `this.visualHandle()` with `AtlasSourceDescriptor`      |
-| Plugin-bundled default image         | — (no property)     | `this.bundledSprite()` / `this.bundledImage()`          |
-| Plugin-bundled default Sparrow atlas | — (no property)     | `this.bundledSparrow()`                                 |
-| Non-image file (audio, etc.)         | `prop.file()`       | n/a                                                     |
-
----
-
-## Migration from the old API
-
-### From `setAssetId()` / `AssetRefSlot`
-
-```typescript
-// Old — VisualMedia managed lifecycle internally via setAssetId()
-private readonly _media = new VisualMedia(0, 0, 200, 200);
-
-protected override onDestroy(): void {
-    this._media.destroy();  // OLD: released internal AssetRefSlot
-}
-
-// In _buildRenderObjects:
-this._media.setAssetId(props.imageSource as string | null).setLocalTime(t);
-```
-
-```typescript
-// New — element owns the handle via factory method (auto-destroyed on dispose)
-private readonly _media = new VisualMedia(0, 0, 200, 200);
-private readonly _handle = this.visualHandle();
-
-// In _buildRenderObjects:
-const descriptor = resolveProjectAssetDescriptor(props.imageSource as string | null);
-const { resource, status } = this._handle.update(descriptor);
-this._media.setResource(resource, status).setLocalTime(t);
-```
-
-### From `new VisualResourceHandle()` (manual)
-
-Replace `new VisualResourceHandle()` with `this.visualHandle()` and remove the `handle.destroy()` call from `onDestroy()`. The handle is now auto-tracked.
-
-### From `AssetRefSparrowSlot`
-
-```typescript
-// Old
-private readonly _sparrow = new AssetRefSparrowSlot();
-const { asset, status } = this._sparrow.update(props.atlas as string | null);
-this._media.setAsset(asset, status);
-```
-
-```typescript
-// New
-private readonly _handle = this.visualHandle();
-const descriptor = resolveProjectAssetDescriptor(props.atlas as string | null);
-const { resource, status } = this._handle.update(descriptor);
-this._media.setResource(resource, status);
-```
-
-### `clips` → `animations`
-
-`VisualAsset.clips` (flat `startMs/endMs`) is replaced by `VisualResource.animations`, where each animation owns its frame list and FPS:
-
-```typescript
-// Old
-this._media.setLocalTime(this._playback.computeLocalTime(targetTime, asset?.clips));
-
-// New
-this._media.setAnimation(this._playback.animationName).setLocalTime(this._playback.computeLocalTime(targetTime));
-```
-
-`VisualMediaPlayback.clipName` is now `animationName`.
+| User-selected image from registry    | `assetRef` | `context.assets.project()`                  |
+| User-selected spritesheet            | `assetRef` | `context.assets.project()`                  |
+| Plugin-bundled default image         | —          | `context.assets.bundledImage()`             |
+| Plugin-bundled default Sparrow atlas | —          | `context.assets.bundledSparrow()`           |
+| Non-image file                       | `file`     | n/a                                         |
