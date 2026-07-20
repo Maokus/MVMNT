@@ -2,9 +2,9 @@
 
 Element perspective warp is an opt-in, camera-based 3D tilt transform. It is enabled by the `elementPerspectiveWarp` feature flag, which defaults on and can still be overridden for a session or environment.
 
-The Element inspector includes dedicated basic and advanced controls. Basic controls provide a two-axis tilt pad, exact `perspectiveRotationX`/`perspectiveRotationY` values, `perspectiveStrength`, and reset. Rotation is limited to -90 through 90 degrees; an exact quarter turn is edge-on and is not rendered. Strength runs from 0 (orthographic foreshortening) to 100 (the strongest safe convergence).
+The Element inspector represents perspective through the standard schema-driven property controls: `perspectiveRotationX`, `perspectiveRotationY`, `perspectiveStrength`, pivot settings, and vanishing-point settings. Rotation is limited to -90 through 90 degrees; an exact quarter turn is edge-on and is not rendered. Strength runs from 0 (orthographic foreshortening) to 100 (the strongest safe convergence).
 
-By default, the element's existing anchor is also its 3D pivot. Disable `perspectivePivotLinked` to use `perspectivePivotX` and `perspectivePivotY` independently. `perspectiveVanishingPointX` and `perspectiveVanishingPointY` are normalized canvas coordinates rather than element coordinates, so multiple elements can be aligned to the same visual horizon. The inspector accepts off-canvas vanishing points from -2 through 3. Camera Distance is a derived view of Perspective Strength, measured in element diagonals; it does not create a second animation channel.
+By default, the element's existing anchor is also its 3D pivot. Disable `perspectivePivotLinked` to use `perspectivePivotX` and `perspectivePivotY` independently. `perspectiveVanishingPointX` and `perspectiveVanishingPointY` are normalized canvas coordinates rather than element coordinates, so multiple elements can be aligned to the same visual horizon. The inspector accepts off-canvas vanishing points from -2 through 3.
 
 The projection operates on the element's real local width and height, normalized by its diagonal, rather than stretching a projected unit square. The local plane rotates around its pivot, projects toward the canvas vanishing point, and is then represented by the renderer's internal homography. All canonical properties can use constant, macro, or keyframe bindings.
 
@@ -18,4 +18,4 @@ Developer tooling can override the implementation for a session with:
 enableFeatureForSession('elementPerspectiveWarp', false)
 ```
 
-The inspector is the editing surface for perspective. Schema v11 removes retired four-corner bindings and their automation channels; legacy-only corner warps load disabled rather than being approximated.
+The inspector is the editing surface for perspective. Retired four-corner controls are no longer exposed.

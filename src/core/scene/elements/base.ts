@@ -1067,7 +1067,6 @@ export class SceneElement implements SceneElementInterface {
                             id: 'perspective',
                             label: 'Perspective',
                             collapsed: true,
-                            control: 'perspective',
                             description: 'Tilt the element in 3D around its horizontal and vertical axes.',
                             properties: [
                                 prop.boolean('warpEnabled', 'Enable Perspective', false, {

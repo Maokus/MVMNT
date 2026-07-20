@@ -8,7 +8,7 @@
  *  - Range checks for rowHeight (if present) & globalBpm > 0
  */
 
-export const CURRENT_SCHEMA_VERSION = 11;
+export const CURRENT_SCHEMA_VERSION = 10;
 
 /**
  * Maps schema version to the minimum app version required to open files at that version.
@@ -25,7 +25,6 @@ export const SCHEMA_TO_MIN_APP_VERSION: Record<number, string> = {
     8: '0.15.4',
     9: '0.15.5',
     10: '0.16.0',
-    11: '0.16.0',
 };
 
 export type ValidationErrorCode =
@@ -109,7 +108,7 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
     }
     if (!root.scene || typeof root.scene !== 'object') {
         errors.push(err('ERR_SCENE_MISSING', 'Missing scene object', 'scene'));
-    } else if (schemaVersion === 6 || schemaVersion === 7 || schemaVersion === 8 || schemaVersion === 9 || schemaVersion === 10 || schemaVersion === 11) {
+    } else if (schemaVersion === 6 || schemaVersion === 7 || schemaVersion === 8 || schemaVersion === 9 || schemaVersion === 10) {
         // V6+: elements is a Record keyed by ID, elementsOrder is the ordering array
         if (typeof root.scene.elements !== 'object' || root.scene.elements === null || Array.isArray(root.scene.elements)) {
             errors.push(err('ERR_SCENE_ELEMENTS_TYPE', 'scene.elements must be an object in schema v6', 'scene.elements'));
@@ -245,7 +244,7 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
         }
     }
 
-    if (schemaVersion === 2 || schemaVersion === 4 || schemaVersion === 5 || schemaVersion === 6 || schemaVersion === 7 || schemaVersion === 8 || schemaVersion === 9 || schemaVersion === 10 || schemaVersion === 11) {
+    if (schemaVersion === 2 || schemaVersion === 4 || schemaVersion === 5 || schemaVersion === 6 || schemaVersion === 7 || schemaVersion === 8 || schemaVersion === 9 || schemaVersion === 10) {
         if (!root.assets || typeof root.assets !== 'object') {
             errors.push(err('ERR_ASSETS_MISSING', 'Missing assets block', 'assets'));
         } else {

@@ -29,7 +29,7 @@ describe('Persistence', () => {
         const first = await exportScene();
         if (!first.ok) throw new Error('First export failed');
         expect(first.ok).toBe(true);
-        expect(first.envelope.schemaVersion).toBe(11);
+        expect(first.envelope.schemaVersion).toBe(10);
         const json1 = serializeStable(first.envelope);
         const imp = await importScene(first.zip);
         expect(imp.ok).toBe(true);

@@ -1,56 +1,135 @@
-# Element Perspective Property UI Plan
+# Modular Interactive Property Controls Plan
 
-**Status:** Superseded in part by the initial numeric inspector surface.
+**Status:** Proposed
 
-**Feature dependency:** `elementPerspectiveWarp` now defaults on. The Element tab provides a Perspective enable toggle and conditionally visible numeric corner fields. The richer direct-manipulation workflow below remains a future design proposal.
+**Motivation:** Perspective needs coordinated two-axis and point controls, but the inspector must not know what “perspective” means. The same infrastructure should support any future compound editor, such as position pads, gradient stops, crop rectangles, or paired range controls.
 
-## Goals and constraints
+## Principles
 
-Perspective authoring should feel like a distinct corner-pin operation, not another set of fields inside the already dense affine transform group. The generic Position, Rotation & Scale group must remain unchanged. Enabling perspective should be discoverable, Warp Edit mode must be unmistakable, and users need a safe route back to the identity shape.
+1. Scene properties remain the canonical runtime, automation, macro, undo, and persistence values. Interactive controls are views over those properties, not new property types.
+2. Layout metadata is separate from property definitions. A number remains a number whether it appears as a normal row, in an XY pad, or in both.
+3. Controls are selected through a registry of generic capabilities. The property panel must not branch on an element type, group ID, or feature name.
+4. A missing or unsupported interactive control falls back to the existing property rows, so schemas remain editable across host and plugin versions.
+5. Multi-property gestures use one host-owned transaction API. Individual controls must not reproduce undo, auto-key, macro, or command-merging logic.
 
-## Recommended product surface
+## Proposed schema model
 
-Add a dedicated **Perspective** inspector section immediately after the generic transform group. Its collapsed summary should say `Off`, `Identity`, or `Warped`. The section contains three primary actions: Enable/Disable, Edit on Canvas, and Reset Corners. Reset requires no confirmation because it is undoable. Disabling preserves corner values so re-enabling restores the prior warp; Reset explicitly writes the four identity corners.
+Keep `PropertyDefinition[]` unchanged as the source of truth. Add an optional inspector layout to a group as a tree of serializable nodes:
 
-`Edit on Canvas` enters a dedicated Warp Edit canvas mode for the selected element. The button becomes `Done`, Escape exits, changing selection exits, and selecting a different tool exits. A concise canvas badge (“Warp Edit · Esc to finish · Ctrl/⌘ disables snapping”) makes the mode and escape route visible without adding a permanent toolbar button. The selection outline uses four labelled corner handles and retains interior dragging for movement.
+```ts
+type PropertyLayoutNode =
+    | { kind: 'property'; propertyKey: string }
+    | { kind: 'control'; control: string; bindings: Record<string, string>; options?: Record<string, unknown> }
+    | { kind: 'section'; id: string; label?: string; collapsed?: boolean; children: PropertyLayoutNode[] }
+    | { kind: 'actions'; actions: PropertyActionDefinition[] };
+```
 
-A dedicated global toolbar button is not recommended initially: perspective is element-specific, gated, and likely less common than move/scale/rotate. A popover alone is too transient for automation controls. A new inspector tab would hide the relationship with the selected element and consume scarce responsive navigation space. The dedicated inspector section plus temporary canvas mode is the smallest coherent surface.
+`bindings` maps semantic control ports to canonical property keys. For example, an `xy-pad` receives `{ x: 'perspectiveRotationY', y: 'perspectiveRotationX' }`; it never receives a perspective-specific object. A `point-grid` can bind the pivot or vanishing-point pair without knowing which one it edits.
 
-## Numeric editing and automation
+The first built-in controls should be:
 
-Direct manipulation is primary. An expandable **Corner Values** subsection provides numeric X/Y fields for Top Left, Top Right, Bottom Right, and Bottom Left. Values are normalized but not clamped to 0–1; helper text explains that values outside the element are allowed. Fields should use the existing binding control so constants, macros, and keyframes work consistently.
+- `slider-number`: one numeric property, with optional scale/format adapter.
+- `xy-pad`: two numeric properties, axis ranges, inversion, and reset values.
+- `point-grid`: two numeric properties plus an optional visual coordinate range.
+- `derived-number`: an alternate display/edit mapping for one canonical numeric property, such as strength to camera distance.
+- `section`: generic progressive disclosure for Basic and Advanced layouts.
 
-Each coordinate exposes the standard binding menu. The four corner rows should also offer a group automation affordance that creates/selects all eight channels together without inventing a compound binding type. Macro assignment remains per coordinate because macros are scalar today. A later paired-vector macro type should not be introduced solely for this feature.
+Properties omitted from the layout are appended as ordinary rows in schema order. Repeating a property in an interactive control and a numeric row is allowed when exact entry is useful.
 
-When automated values are temporarily invalid, the editor retains the authored data, renders the affine fallback, and shows a non-blocking warning in the Perspective section. The warning identifies the current time and broad reason (non-finite, crossed/concave, degenerate, or projective pole). It should offer “Jump to channels” when automation is involved, not silently repair keyframes.
+## Control registry
 
-## Accessibility and keyboard behavior
+Introduce a `PropertyControlRegistry` at the workspace boundary:
 
-- Handles need persistent TL/TR/BR/BL labels, a high-contrast focus ring, and a target at least 24 CSS pixels wide even if the drawn marker is smaller.
-- Tab cycles through the four corners while Warp Edit is active. Arrow keys move the focused corner by 0.01 normalized units; Shift+Arrow uses 0.1 and Alt/Option+Arrow uses 0.001. Each key repeat is one merged undo gesture.
-- Enter toggles keyboard drag/commit behavior only if user testing shows it is necessary; plain arrow adjustment is preferable.
-- Escape exits Warp Edit without reverting completed changes. A drag cancelled by pointer cancellation keeps its last valid sample, consistent with other transforms.
-- Screen-reader announcements should name the corner, normalized X/Y value, snapping result, and invalid-sample rejection.
-- Color cannot be the only distinction between perspective and affine handles.
+```ts
+interface PropertyControlRegistration {
+    id: string;
+    validate(node: PropertyControlNode, properties: PropertyDefinition[]): ValidationResult;
+    component: React.ComponentType<PropertyControlProps>;
+}
+```
 
-## Invalid-warp feedback
+The property panel resolves `node.control` through the registry and renders a generic fallback when resolution or validation fails. Core controls register during workspace bootstrap. Plugin-defined controls should be a later, versioned capability because they execute UI code; plugin schemas can safely use host-provided control IDs first.
 
-During direct manipulation, invalid samples are rejected and the handle remains at the last valid position. The canvas badge briefly states why. Numeric fields may contain an incomplete editing string locally, but only valid finite commits enter scene state. Imported or automated invalid values are not rewritten; the inspector shows a warning while the renderer uses affine fallback.
+The registry avoids a central switch statement and lets controls be developed and tested independently. Registration conflicts, unknown ports, missing property keys, and incompatible property types should produce development diagnostics without making the inspector unusable.
 
-## Responsive layout
+## Host-owned binding controller
 
-On wide inspectors, each corner uses one row with X and Y fields. On narrow/mobile layouts, X and Y stack under the corner label and the primary actions wrap into two rows. Canvas mode instructions reduce to an icon plus `Warp` badge, with the full instructions available through an accessible description. The design must not require simultaneous visibility of the inspector and canvas; keyboard exit and the canvas badge remain available when panels are hidden.
+Create a controller/hook that turns property keys into control ports. It supplies:
 
-## Introduction strategy
+- current evaluated values and canonical authored values;
+- property definitions, disabled state, macro assignment, and keyframe state;
+- `set(port, value)` and `setMany(values)` for discrete edits;
+- `beginGesture()`, `updateGesture(values)`, and `commitGesture(values)` for merged drag undo;
+- reset, macro assignment, and keyframe navigation actions using the existing property behavior.
 
-1. Keep the feature flag off in normal sessions and enable it for developer testing.
-2. Usability-test the dedicated inspector section and temporary mode with identity, strong keystone, and off-canvas corners.
-3. Validate keyboard operation and automated invalid-state recovery.
-4. Implement the accepted UI without adding perspective rows or conditionals to the generic transform component.
-5. Enable the flag for beta sessions, review compositor diagnostics and support feedback, then enable by default.
+`setMany` and gesture updates dispatch one atomic property patch. Auto-keying is applied to every affected canonical property by the host before the command is dispatched. A control therefore cannot accidentally update X correctly while bypassing automation or undo for Y.
 
-## Open decisions for review
+Derived displays use reversible adapters owned by the registered control or a small host adapter registry:
 
-- Whether the Corner Values subsection starts collapsed (recommended) or remembers its state per user.
-- Whether a small perspective icon belongs in the element-list row after the beta period.
-- Whether group automation navigation is required for first release or can follow the scalar binding controls.
+```ts
+interface NumericAdapter {
+    fromProperty(value: number): number;
+    toProperty(displayValue: number): number;
+}
+```
+
+Camera distance can then be a derived view of `perspectiveStrength`; it does not require a duplicate scene property or migration.
+
+## Perspective composition
+
+Once the generic pieces exist, the Perspective group can declare:
+
+1. The existing enable boolean as a normal property row.
+2. A Basic section containing an `xy-pad` bound to the two rotation properties, exact numeric rows for both axes, and a `slider-number` bound to strength.
+3. An Advanced section containing the existing pivot-link boolean, a conditionally visible `point-grid` plus exact pivot rows, a canvas-relative `point-grid` plus exact vanishing-point rows, and a `derived-number` camera-distance view bound to strength.
+4. A declarative reset action containing a patch of canonical property values.
+
+No perspective component, group discriminator, persistence field, or property-panel conditional is needed.
+
+## Delivery phases
+
+### Phase 1: generic layout and fallback
+
+- Define internal layout node types and validation.
+- Add the control registry and generic renderer alongside the current row renderer.
+- Implement `property` and `section` nodes.
+- Guarantee fallback rendering for absent, invalid, or unknown layout metadata.
+
+### Phase 2: transactional bindings
+
+- Extract current row edit behavior into the host-owned binding controller.
+- Add atomic `setMany` and gesture lifecycle support.
+- Preserve existing undo merge, auto-key, keyframe, macro, visibility, and disabled-state behavior.
+- Make ordinary property rows use the same controller before introducing compound controls.
+
+### Phase 3: reusable controls
+
+- Build accessible `xy-pad`, `point-grid`, `slider-number`, and `derived-number` registrations.
+- Support keyboard adjustment, pointer capture, cancellation, exact numeric entry, labels, descriptions, and reset behavior.
+- Keep visual ranges separate from canonical property min/max so off-canvas values remain editable.
+
+### Phase 4: adopt and prove reuse
+
+- Express Perspective entirely through layout metadata over its existing properties.
+- Apply at least one compound control to a non-perspective group, such as an XY position pad, to prove the API is general.
+- Remove any temporary control-specific plumbing only after both uses pass the same integration tests.
+
+### Phase 5: public contract
+
+- Stabilize the serializable subset and expose host-provided control IDs through the plugin SDK.
+- Version schema validation and document capability discovery/fallback behavior.
+- Consider third-party UI registrations only after security, styling, lifecycle, and compatibility constraints are defined.
+
+## Test gates
+
+- Registry tests cover registration, conflicts, validation, and unknown-control fallback.
+- Layout tests prove no element/group identifiers are inspected by the renderer.
+- Transaction tests cover multi-property undo/redo, drag merging, cancellation, auto-keying, macros, and keyframe navigation.
+- Reuse tests render the same `xy-pad` and `point-grid` with unrelated property names.
+- Accessibility tests cover labels, focus order, arrow-key increments, disabled states, and pointer/keyboard parity.
+- Persistence tests confirm layout metadata creates no scene fields and needs no scene-schema migration.
+- Plugin compatibility tests confirm an older host renders ordinary rows when it does not recognize a newer control ID.
+
+## Completion criteria
+
+The work is complete when Perspective can recover its richer UI by changing declarative layout metadata only, the property panel contains no perspective references, compound gestures behave exactly like ordinary property edits for undo/automation/macros, and a second feature reuses the same controls without modifying the renderer.

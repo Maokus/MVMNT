@@ -32,7 +32,6 @@ import type { AudioCacheEntry } from '@audio/audioTypes';
 import { migrateSceneRotationUnitsV7 } from './migrations/rotationUnitsV7';
 import { migrateSceneMidiClipsV8 } from './migrations/midiClipsV8';
 import { migrateSceneAudioClipSourceTimeV10 } from './migrations/audioClipSourceTimeV10';
-import { migrateScenePerspectiveCameraV11 } from './migrations/perspectiveCameraV11';
 
 const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
@@ -962,10 +961,8 @@ export async function importScene(input: ImportSceneInput, options: ImportSceneO
         pluginPayloads,
     } = parsed;
     options.onProgress?.(0.35, 'Validating scene…');
-    const migratedEnvelope = migrateScenePerspectiveCameraV11(
-        migrateSceneAudioClipSourceTimeV10(
-            migrateSceneMidiClipsV8(migrateSceneRotationUnitsV7(envelope))
-        )
+    const migratedEnvelope = migrateSceneAudioClipSourceTimeV10(
+        migrateSceneMidiClipsV8(migrateSceneRotationUnitsV7(envelope))
     );
     const validation = validateSceneEnvelope(migratedEnvelope);
     if (!validation.ok) {
@@ -1049,8 +1046,7 @@ export async function importScene(input: ImportSceneInput, options: ImportSceneO
             migratedEnvelope.schemaVersion === 7 ||
             migratedEnvelope.schemaVersion === 8 ||
             migratedEnvelope.schemaVersion === 9 ||
-            migratedEnvelope.schemaVersion === 10 ||
-            migratedEnvelope.schemaVersion === 11) &&
+            migratedEnvelope.schemaVersion === 10) &&
         migratedEnvelope.assets
     ) {
         options.onProgress?.(0.82, 'Restoring audio assets…');
