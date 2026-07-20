@@ -715,6 +715,42 @@
         @apply bg-[#2c2c2c];
     }
 
+    .ae-property-layout-section {
+        @apply border-b border-white/5;
+    }
+
+    .ae-property-layout-section-title {
+        @apply w-full px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[#a8a8ad] hover:bg-white/5 hover:text-[#e0e0e0];
+    }
+
+    .ae-property-layout-actions {
+        @apply flex justify-end px-3 py-2 border-b border-white/5;
+    }
+
+    .ae-property-layout-actions button {
+        @apply rounded border border-control2 bg-[#383838] px-2 py-1 text-[10px] text-[#e0e0e0] hover:border-accent hover:bg-white/10;
+    }
+
+    .ae-property-control {
+        @apply mx-2 my-2 grid gap-1 rounded border border-white/10 bg-black/10 p-2;
+    }
+
+    .ae-property-control legend {
+        @apply px-1 text-[10px] font-semibold text-[#d4d4d8];
+    }
+
+    .ae-property-control-axis {
+        @apply grid grid-cols-[minmax(0,1fr)_minmax(80px,2fr)_42px] items-center gap-2 text-[10px] text-[#b4b4b8];
+    }
+
+    .ae-property-control-axis input {
+        @apply min-w-0;
+    }
+
+    .ae-property-control-axis output {
+        @apply text-right font-mono text-[#e0e0e0];
+    }
+
     .ae-property-list-empty {
         @apply bg-[#2c2c2c] px-3 py-4;
     }

@@ -147,8 +147,8 @@ describe('SceneElement perspective property schema', () => {
                 type: 'number',
                 step: 1,
                 visibleWhen: [{ key: 'warpEnabled', equals: true }],
-                min: -90,
-                max: 90,
+                min: -180,
+                max: 180,
             });
         }
         expect(perspectiveGroup?.properties.slice(3)).toEqual([

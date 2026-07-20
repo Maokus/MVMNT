@@ -316,12 +316,38 @@ export interface PropertyDefinition {
     runtime?: PropertyRuntimeConfig;
 }
 
+/** Serializable inspector-only composition metadata. It never becomes scene data. */
+export type PropertyLayoutNode =
+    | { kind: 'property'; propertyKey: string }
+    | {
+          kind: 'control';
+          control: string;
+          bindings: Record<string, string>;
+          options?: Record<string, unknown>;
+          visibleWhen?: PropertyVisibilityCondition[];
+      }
+    | {
+          kind: 'section';
+          id: string;
+          label?: string;
+          collapsed?: boolean;
+          visibleWhen?: PropertyVisibilityCondition[];
+          children: PropertyLayoutNode[];
+      }
+    | {
+          kind: 'actions';
+          visibleWhen?: PropertyVisibilityCondition[];
+          actions: Array<{ id: string; label: string; patch: Record<string, unknown> }>;
+      };
+
 export interface PropertyGroup {
     id: string;
     label: string;
     collapsed: boolean;
     description?: string;
     properties: PropertyDefinition[];
+    /** Optional layout for richer inspector controls over the group's canonical properties. */
+    layout?: PropertyLayoutNode[];
 }
 
 export interface PropertyTab {

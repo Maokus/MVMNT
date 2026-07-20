@@ -69,8 +69,8 @@ describe('perspective warp geometry', () => {
     });
 
     it('keeps the supported camera range finite and convex', () => {
-        for (const rotationX of [-89, -45, 0, 45, 89]) {
-            for (const rotationY of [-89, -45, 0, 45, 89]) {
+        for (const rotationX of [-179, -120, -45, 0, 45, 120, 179]) {
+            for (const rotationY of [-179, -120, -45, 0, 45, 120, 179]) {
                 for (const strength of [0, 50, 100]) {
                     const result = createPerspectiveCameraWarp(bounds, affine, viewport, {
                         ...projection,
@@ -87,6 +87,24 @@ describe('perspective warp geometry', () => {
                 }
             }
         }
+    });
+
+    it('preserves tilts beyond a quarter turn', () => {
+        const positiveTilt = createPerspectiveCameraWarp(bounds, affine, viewport, {
+            ...projection, rotationX: 120,
+        });
+        const negativeTilt = createPerspectiveCameraWarp(bounds, affine, viewport, {
+            ...projection, rotationY: -120,
+        });
+
+        expect(positiveTilt.kind).toBe('projected');
+        expect(negativeTilt.kind).toBe('projected');
+        expect(positiveTilt.warp).not.toEqual(createPerspectiveCameraWarp(bounds, affine, viewport, {
+            ...projection, rotationX: 90,
+        }).warp);
+        expect(negativeTilt.warp).not.toEqual(createPerspectiveCameraWarp(bounds, affine, viewport, {
+            ...projection, rotationY: -90,
+        }).warp);
     });
 
     it('reports exact quarter turns as edge-on', () => {

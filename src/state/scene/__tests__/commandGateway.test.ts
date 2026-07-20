@@ -60,6 +60,24 @@ describe('scene command gateway', () => {
         expect(state.bindings.byElement['element-2'].visible).toEqual({ type: 'constant', value: false });
     });
 
+    it('applies a batch as one command and produces undo commands for every child', () => {
+        dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'batch-element' });
+        const result = dispatchSceneCommand({
+            type: 'batch',
+            commands: [
+                { type: 'updateElementConfig', elementId: 'batch-element', patch: { offsetX: 12 } },
+                { type: 'updateElementConfig', elementId: 'batch-element', patch: { offsetY: 24 } },
+            ],
+        });
+        expect(result.success).toBe(true);
+        expect(result.patch?.redo).toHaveLength(1);
+        expect(result.patch?.redo[0]).toMatchObject({ type: 'batch' });
+        expect(result.patch?.undo).toHaveLength(2);
+        expect(useSceneStore.getState().bindings.byElement['batch-element']).toMatchObject({
+            offsetX: { type: 'constant', value: 12 }, offsetY: { type: 'constant', value: 24 },
+        });
+    });
+
     it('removes elements and clears store state', () => {
         dispatchSceneCommand({
             type: 'addElement',

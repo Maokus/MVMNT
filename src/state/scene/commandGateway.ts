@@ -28,6 +28,11 @@ import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 
 export type SceneCommand =
     | {
+          /** A single undoable operation composed of independent scene commands. */
+          type: 'batch';
+          commands: SceneCommand[];
+      }
+    | {
           type: 'addElement';
           elementType: string;
           elementId: string;
@@ -272,6 +277,16 @@ function cloneCommand<T extends SceneCommand>(command: T): T {
 
 function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): SceneCommandPatch | null {
     switch (command.type) {
+        case 'batch': {
+            const patches = command.commands
+                .map((child) => buildSceneCommandPatch(state, child))
+                .filter((patch): patch is SceneCommandPatch => patch !== null);
+            if (patches.length === 0) return null;
+            return {
+                redo: [cloneCommand(command)],
+                undo: patches.slice().reverse().flatMap((patch) => patch.undo),
+            };
+        }
         case 'addElement': {
             if (state.elements[command.elementId]) return null;
             return {
@@ -731,6 +746,9 @@ function maybeCenterAxis(
 
 function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
     switch (command.type) {
+        case 'batch':
+            command.commands.forEach((child) => applyStoreCommand(store, child));
+            break;
         case 'addElement': {
             const input = createSceneElementInputFromSchema({
                 id: command.elementId,

@@ -6,6 +6,7 @@ import { useMacros } from '@context/MacroContext';
 import { FaLink } from 'react-icons/fa';
 import KeyframeControl, { isAutomatableType } from './KeyframeControl';
 import { hoveredPropertyRef } from './hoveredPropertyRef';
+import { PropertyLayoutRenderer } from './PropertyLayoutRenderer';
 
 type SupportedFormInputType =
     | 'text'
@@ -58,8 +59,10 @@ interface PropertyGroupPanelProps {
     elementId: string;
     delinkedKeys?: Set<string>;
     onValueChange: (key: string, value: any, meta?: FormInputChange['meta']) => void;
+    onValuesChange?: (patch: Record<string, any>, meta?: FormInputChange['meta']) => void;
     onMacroAssignment: (propertyKey: string, macroName: string) => void;
     onCollapseToggle: (groupId: string) => void;
+    useLayout?: boolean;
 }
 
 const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
@@ -70,8 +73,10 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     elementId,
     delinkedKeys,
     onValueChange,
+    onValuesChange,
     onMacroAssignment,
     onCollapseToggle,
+    useLayout = true,
 }) => {
     const { macros: macroList, create: createMacro } = useMacros();
     const macrosSource = useMemo(() => macroList as any[], [macroList]);
@@ -488,10 +493,19 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
     const groupDescription = group.description?.trim() ?? '';
 
-    const propertyRows: React.ReactNode[] = [];
-    properties.forEach((property) => {
-        propertyRows.push(renderPropertyRow(property));
-    });
+    const propertyRows: React.ReactNode = useLayout && group.layout && onValuesChange ? (
+        <PropertyLayoutRenderer
+            nodes={group.layout}
+            properties={properties}
+            values={values}
+            renderProperty={(property, nested) => renderPropertyRow(property, { nested })}
+            isDisabled={(propertyKey) => {
+                const assigned = macroAssignments[propertyKey];
+                return Boolean(assigned && macroLookup.has(assigned));
+            }}
+            onPatch={(patch, gesture) => onValuesChange(patch, gesture ? { mergeSession: gesture } : undefined)}
+        />
+    ) : properties.map((property) => renderPropertyRow(property));
 
     return (
         <div className="ae-property-group">

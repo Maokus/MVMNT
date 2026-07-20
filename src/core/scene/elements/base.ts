@@ -5,6 +5,7 @@ import { EmptyRenderObject, PerspectiveElementRoot, RenderObject } from '@core/r
 import {
     createPerspectiveCameraWarp,
     IDENTITY_PERSPECTIVE_WARP,
+    PERSPECTIVE_ROTATION_LIMIT,
     type PerspectiveCameraProjection,
     type PerspectiveWarp,
 } from '@math/perspective-warp';
@@ -1034,6 +1035,14 @@ export class SceneElement implements SceneElementInterface {
                                     description: 'Vertical scaling factor.',
                                 }),
                             ],
+                            layout: [
+                                { kind: 'control', control: 'xy-pad', bindings: { x: 'offsetX', y: 'offsetY' }, options: { label: 'Position' } },
+                                { kind: 'property', propertyKey: 'offsetX' },
+                                { kind: 'property', propertyKey: 'offsetY' },
+                                { kind: 'property', propertyKey: 'elementRotation' },
+                                { kind: 'property', propertyKey: 'elementScaleX' },
+                                { kind: 'property', propertyKey: 'elementScaleY' },
+                            ],
                         },
                         {
                             id: 'advancedAnchor',
@@ -1073,15 +1082,15 @@ export class SceneElement implements SceneElementInterface {
                                     description: 'Apply a planar perspective warp to this element.',
                                 }),
                                 prop.number('perspectiveRotationX', 'Tilt X', 0, {
-                                    min: -90,
-                                    max: 90,
+                                    min: -PERSPECTIVE_ROTATION_LIMIT,
+                                    max: PERSPECTIVE_ROTATION_LIMIT,
                                     step: 1,
                                     visibleWhen: [{ key: 'warpEnabled', equals: true }],
                                     description: 'Vertical tilt in degrees.',
                                 }),
                                 prop.number('perspectiveRotationY', 'Tilt Y', 0, {
-                                    min: -90,
-                                    max: 90,
+                                    min: -PERSPECTIVE_ROTATION_LIMIT,
+                                    max: PERSPECTIVE_ROTATION_LIMIT,
                                     step: 1,
                                     visibleWhen: [{ key: 'warpEnabled', equals: true }],
                                     description: 'Horizontal tilt in degrees.',
@@ -1131,6 +1140,29 @@ export class SceneElement implements SceneElementInterface {
                                     visibleWhen: [{ key: 'warpEnabled', equals: true }],
                                     description: 'Vertical vanishing point in normalized canvas coordinates.',
                                 }),
+                            ],
+                            layout: [
+                                { kind: 'property', propertyKey: 'warpEnabled' },
+                                {
+                                    kind: 'section', id: 'perspective-basic', label: 'Basic', visibleWhen: [{ key: 'warpEnabled', equals: true }], children: [
+                                        { kind: 'control', control: 'xy-pad', bindings: { x: 'perspectiveRotationY', y: 'perspectiveRotationX' }, options: { label: 'Tilt' } },
+                                        { kind: 'property', propertyKey: 'perspectiveRotationX' },
+                                        { kind: 'property', propertyKey: 'perspectiveRotationY' },
+                                        { kind: 'control', control: 'slider-number', bindings: { value: 'perspectiveStrength' } },
+                                    ],
+                                },
+                                {
+                                    kind: 'section', id: 'perspective-advanced', label: 'Advanced', collapsed: true, visibleWhen: [{ key: 'warpEnabled', equals: true }], children: [
+                                        { kind: 'property', propertyKey: 'perspectivePivotLinked' },
+                                        { kind: 'control', control: 'point-grid', bindings: { x: 'perspectivePivotX', y: 'perspectivePivotY' }, options: { label: '3D pivot' }, visibleWhen: [{ key: 'perspectivePivotLinked', equals: false }] },
+                                        { kind: 'property', propertyKey: 'perspectivePivotX' },
+                                        { kind: 'property', propertyKey: 'perspectivePivotY' },
+                                        { kind: 'control', control: 'point-grid', bindings: { x: 'perspectiveVanishingPointX', y: 'perspectiveVanishingPointY' }, options: { label: 'Vanishing point' } },
+                                        { kind: 'property', propertyKey: 'perspectiveVanishingPointX' },
+                                        { kind: 'property', propertyKey: 'perspectiveVanishingPointY' },
+                                    ],
+                                },
+                                { kind: 'actions', visibleWhen: [{ key: 'warpEnabled', equals: true }], actions: [{ id: 'reset-perspective', label: 'Reset Perspective', patch: { perspectiveRotationX: 0, perspectiveRotationY: 0, perspectiveStrength: 50, perspectivePivotLinked: true, perspectivePivotX: 0.5, perspectivePivotY: 0.5, perspectiveVanishingPointX: 0.5, perspectiveVanishingPointY: 0.5 } }] },
                             ],
                         },
                     ],

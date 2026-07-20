@@ -70,4 +70,40 @@ describe('PropertyGroupPanel', () => {
         );
     });
 
+    it('renders a registered layout control while retaining explicitly requested scalar rows', () => {
+        const properties = [
+            { key: 'x', label: 'X', type: 'number', default: 0, min: -10, max: 10, step: 1 },
+            { key: 'y', label: 'Y', type: 'number', default: 0, min: -10, max: 10, step: 1 },
+        ] as PropertyDefinition[];
+        const group: PropertyGroup = {
+            id: 'position', label: 'Position', collapsed: false, properties,
+            layout: [
+                { kind: 'control', control: 'xy-pad', bindings: { x: 'x', y: 'y' }, options: { label: 'Position pad' } },
+                { kind: 'property', propertyKey: 'x' },
+                { kind: 'property', propertyKey: 'y' },
+            ],
+        };
+
+        render(<PropertyGroupPanel group={group} properties={properties} values={{ x: 2, y: 3 }} macroAssignments={{}}
+            elementId="test-element" onValueChange={vi.fn()} onValuesChange={vi.fn()} onMacroAssignment={vi.fn()} onCollapseToggle={vi.fn()} />);
+
+        expect(screen.getByRole('group', { name: 'Position pad' })).toBeInTheDocument();
+        expect(screen.getAllByText('X')).toHaveLength(2);
+        expect(screen.getAllByText('Y')).toHaveLength(2);
+    });
+
+    it('falls back to scalar rows when a layout control is unknown', () => {
+        const properties = [{ key: 'x', label: 'X', type: 'number', default: 0 }] as PropertyDefinition[];
+        const group: PropertyGroup = {
+            id: 'fallback', label: 'Fallback', collapsed: false, properties,
+            layout: [{ kind: 'control', control: 'future-control', bindings: { x: 'x' } }],
+        };
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        render(<PropertyGroupPanel group={group} properties={properties} values={{ x: 2 }} macroAssignments={{}}
+            elementId="test-element" onValueChange={vi.fn()} onValuesChange={vi.fn()} onMacroAssignment={vi.fn()} onCollapseToggle={vi.fn()} />);
+        expect(screen.getAllByText('X')).toHaveLength(1);
+        expect(warn).toHaveBeenCalledWith('[PropertyLayoutRenderer] Falling back to property rows', expect.any(Object));
+        warn.mockRestore();
+    });
+
 });
