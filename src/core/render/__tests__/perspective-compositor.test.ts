@@ -88,7 +88,7 @@ describe('PerspectiveCompositor', () => {
             0
         )).toBe(true);
 
-        expect(target.drawImage).toHaveBeenCalledWith(scratch, 0, 0, 121, 101, 10, 20, 121, 101);
+        expect(target.drawImage).toHaveBeenCalledWith(scratch, 0, 0, 121, 101, 0, 20, 121, 101);
     });
 
     it('falls back during context loss and recompiles after restoration', () => {

@@ -52,6 +52,27 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
         return this._getWorldTransformMatrix();
     }
 
+    /**
+     * The affine transform is applied after the projective warp.  Its pivot must
+     * therefore be the warped anchor, rather than the same coordinate in the
+     * unwarped source rectangle.  Keeping this here also makes bounds, the
+     * compositor and the interaction overlay agree about the pivot.
+     */
+    protected override _resolveOriginFractions(): void {
+        super._resolveOriginFractions();
+        if (!this.baseBounds || !this._warpMatrix || this._originFractionX === null || this._originFractionY === null) {
+            return;
+        }
+        const origin = warpLocalPoint(this._warpMatrix, this.baseBounds, {
+            x: this.baseBounds.x + this._originFractionX * this.baseBounds.width,
+            y: this.baseBounds.y + this._originFractionY * this.baseBounds.height,
+        });
+        if (origin) {
+            this.originX = origin.x;
+            this.originY = origin.y;
+        }
+    }
+
     getProjectedCorners(): PerspectivePoint[] | null {
         if (!this.baseBounds || !this._warpMatrix) return null;
         const { x, y, width, height } = this.baseBounds;

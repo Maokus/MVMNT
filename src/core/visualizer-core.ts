@@ -424,6 +424,15 @@ export class MIDIVisualizerCore {
                                     container instanceof PerspectiveElementRoot
                                         ? container.projectNormalizedPoint({ x: el.anchorX ?? 0.5, y: el.anchorY ?? 0.5 })
                                         : null,
+                                projectedHandlePoints:
+                                    container instanceof PerspectiveElementRoot
+                                        ? {
+                                              MTop: container.projectNormalizedPoint({ x: 0.5, y: 0 }),
+                                              MRight: container.projectNormalizedPoint({ x: 1, y: 0.5 }),
+                                              MBottom: container.projectNormalizedPoint({ x: 0.5, y: 1 }),
+                                              MLeft: container.projectNormalizedPoint({ x: 0, y: 0.5 }),
+                                          }
+                                        : null,
                             });
                         }
                     }
@@ -594,10 +603,10 @@ export class MIDIVisualizerCore {
             addHandle('scale-ne', 'scale-ne', oriented[1].x, oriented[1].y);
             addHandle('scale-se', 'scale-se', oriented[2].x, oriented[2].y);
             addHandle('scale-sw', 'scale-sw', oriented[3].x, oriented[3].y);
-            const mTop = mid(oriented[0], oriented[1]);
-            const mRight = mid(oriented[1], oriented[2]);
-            const mBottom = mid(oriented[2], oriented[3]);
-            const mLeft = mid(oriented[3], oriented[0]);
+            const mTop = record.projectedHandlePoints?.MTop ?? mid(oriented[0], oriented[1]);
+            const mRight = record.projectedHandlePoints?.MRight ?? mid(oriented[1], oriented[2]);
+            const mBottom = record.projectedHandlePoints?.MBottom ?? mid(oriented[2], oriented[3]);
+            const mLeft = record.projectedHandlePoints?.MLeft ?? mid(oriented[3], oriented[0]);
             addHandle('scale-n', 'scale-n', mTop.x, mTop.y);
             addHandle('scale-e', 'scale-e', mRight.x, mRight.y);
             addHandle('scale-s', 'scale-s', mBottom.x, mBottom.y);

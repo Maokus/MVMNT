@@ -2,6 +2,14 @@
 
 import { AnchorAdjustParams, ScaleComputationParams, ScaleResult } from '@math/transforms/types';
 import { applyRSK, clampSignedScale, clamp01, snapToGrid2D, sincos } from '@math/transforms/numeric';
+import {
+    createHomography,
+    invertAffineTransform,
+    invertHomography,
+    applyAffinePoint,
+    unwarpLocalPoint,
+    warpLocalPoint,
+} from '@math/perspective-warp';
 
 export function computeAnchorAdjustment(mouseX: number, mouseY: number, p: AnchorAdjustParams, shiftKey: boolean) {
     const {
@@ -15,6 +23,7 @@ export function computeAnchorAdjustment(mouseX: number, mouseY: number, p: Ancho
         origSkewY,
         origScaleX,
         origScaleY,
+        warp,
     } = p;
     if (!baseBounds) {
         return {
@@ -24,36 +33,47 @@ export function computeAnchorAdjustment(mouseX: number, mouseY: number, p: Ancho
             newOffsetY: origOffsetY,
         };
     }
-    const cos = Math.cos(origRotation);
-    const sin = Math.sin(origRotation);
-    const kx = Math.tan(origSkewX);
-    const ky = Math.tan(origSkewY);
-    const wx = mouseX - origOffsetX;
-    const wy = mouseY - origOffsetY;
-    const sx = cos * wx + sin * wy;
-    const sy = -sin * wx + cos * wy;
-    const kxVy = sx / (origScaleX || 1);
-    const kyVx = sy / (origScaleY || 1);
-    let denom = 1 - ky * kx;
-    if (Math.abs(denom) < 1e-8) denom = denom >= 0 ? 1e-8 : -1e-8;
-    const vy = (kyVx - ky * kxVy) / denom;
-    const vx = kxVy - kx * vy;
-    let anchorX = clamp01(vx / (baseBounds.width || 1) + origAnchorX);
-    let anchorY = clamp01(vy / (baseBounds.height || 1) + origAnchorY);
+    const oldAnchorLocal = {
+        x: baseBounds.x + baseBounds.width * origAnchorX,
+        y: baseBounds.y + baseBounds.height * origAnchorY,
+    };
+    const warpMatrix = warp ? createHomography(warp) : null;
+    const affine = {
+        a: Math.cos(origRotation) * origScaleX - Math.sin(origRotation) * Math.tan(origSkewY) * origScaleY,
+        b: Math.sin(origRotation) * origScaleX + Math.cos(origRotation) * Math.tan(origSkewY) * origScaleY,
+        c: Math.cos(origRotation) * Math.tan(origSkewX) * origScaleX - Math.sin(origRotation) * origScaleY,
+        d: Math.sin(origRotation) * Math.tan(origSkewX) * origScaleX + Math.cos(origRotation) * origScaleY,
+        e: origOffsetX,
+        f: origOffsetY,
+    };
+    // The affine translation maps the (possibly warped) origin to offset.
+    const oldOrigin = warpMatrix ? warpLocalPoint(warpMatrix, baseBounds, oldAnchorLocal) : oldAnchorLocal;
+    const affineWithOrigin = {
+        ...affine,
+        e: origOffsetX - (affine.a * (oldOrigin?.x ?? 0) + affine.c * (oldOrigin?.y ?? 0)),
+        f: origOffsetY - (affine.b * (oldOrigin?.x ?? 0) + affine.d * (oldOrigin?.y ?? 0)),
+    };
+    const inverse = invertAffineTransform(affineWithOrigin);
+    const localPointer = inverse ? applyAffinePoint(inverse, { x: mouseX, y: mouseY }) : null;
+    const inverseWarp = warpMatrix ? invertHomography(warpMatrix) : null;
+    const unwarpedPointer = inverseWarp && localPointer ? unwarpLocalPoint(inverseWarp, baseBounds, localPointer) : localPointer;
+    const pointerLocal = unwarpedPointer ?? oldAnchorLocal;
+    let anchorX = clamp01((pointerLocal.x - baseBounds.x) / (baseBounds.width || 1));
+    let anchorY = clamp01((pointerLocal.y - baseBounds.y) / (baseBounds.height || 1));
     if (shiftKey) {
         const snapped = snapToGrid2D(anchorX, anchorY, [0, 0.5, 1]);
         anchorX = snapped.x;
         anchorY = snapped.y;
     }
-    const oldAnchorLocal = {
-        x: baseBounds.x + baseBounds.width * origAnchorX,
-        y: baseBounds.y + baseBounds.height * origAnchorY,
-    };
     const newAnchorLocal = {
         x: baseBounds.x + baseBounds.width * anchorX,
         y: baseBounds.y + baseBounds.height * anchorY,
     };
-    const deltaLocal = { x: newAnchorLocal.x - oldAnchorLocal.x, y: newAnchorLocal.y - oldAnchorLocal.y };
+    const newOrigin = warpMatrix ? warpLocalPoint(warpMatrix, baseBounds, newAnchorLocal) : newAnchorLocal;
+    const deltaLocal = {
+        x: (newOrigin?.x ?? newAnchorLocal.x) - (oldOrigin?.x ?? oldAnchorLocal.x),
+        y: (newOrigin?.y ?? newAnchorLocal.y) - (oldOrigin?.y ?? oldAnchorLocal.y),
+    };
     const adjust = applyRSK(deltaLocal.x, deltaLocal.y, origRotation, origSkewX, origSkewY, origScaleX, origScaleY);
     const newOffsetX = origOffsetX + adjust.x;
     const newOffsetY = origOffsetY + adjust.y;
@@ -67,7 +87,10 @@ export function computeRotation(mouseX: number, mouseY: number, p: any, shiftKey
     // eslint-disable-line @typescript-eslint/no-explicit-any
     let centerX = p.bounds.x + p.bounds.width * p.origAnchorX;
     let centerY = p.bounds.y + p.bounds.height * p.origAnchorY;
-    if (p.corners && p.corners.length === 4) {
+    if (p.anchorWorld) {
+        centerX = p.anchorWorld.x;
+        centerY = p.anchorWorld.y;
+    } else if (p.corners && p.corners.length === 4) {
         const interp = (a: number, b: number, t: number) => a + (b - a) * t;
         const top = {
             x: interp(p.corners[0].x, p.corners[1].x, p.origAnchorX),
@@ -83,7 +106,9 @@ export function computeRotation(mouseX: number, mouseY: number, p: any, shiftKey
     }
     const startAngleRad = Math.atan2(p.startY - centerY, p.startX - centerX);
     const currentAngleRad = Math.atan2(mouseY - centerY, mouseX - centerX);
-    const deltaRad = currentAngleRad - startAngleRad;
+    // Keep the drag delta on the shortest arc so crossing the -π/π seam does
+    // not produce a visually equivalent but numerically huge rotation.
+    const deltaRad = Math.atan2(Math.sin(currentAngleRad - startAngleRad), Math.cos(currentAngleRad - startAngleRad));
     let newRotationRad = (p.origRotation || 0) + deltaRad;
     if (shiftKey) {
         newRotationRad = Math.round(newRotationRad / ROTATION_SNAP_INCREMENT_RAD) * ROTATION_SNAP_INCREMENT_RAD;
@@ -105,6 +130,7 @@ export function computeScaledTransform(
         origScaleY,
         baseBounds,
         fixedWorldPoint,
+        fixedLocalPoint,
         dragLocalPoint,
         centerWorldPoint,
         centerLocalPoint,
@@ -113,8 +139,64 @@ export function computeScaledTransform(
         origSkewY,
         origAnchorX,
         origAnchorY,
+        warp,
     } = p;
     if (!geom || !fixedWorldPoint || !baseBounds) return null;
+    const warpMatrix = warp ? createHomography(warp) : null;
+    // A perspective warp bends the element edges, so the displayed handle
+    // positions are not an affine basis. Solve scale from the source points
+    // after warping instead of decomposing the projected quadrilateral.
+    if (warpMatrix && dragLocalPoint && fixedLocalPoint) {
+        const warpedFixed = warpLocalPoint(warpMatrix, baseBounds, fixedLocalPoint);
+        const warpedDrag = warpLocalPoint(warpMatrix, baseBounds, dragLocalPoint);
+        const anchorSource = {
+            x: baseBounds.x + baseBounds.width * origAnchorX,
+            y: baseBounds.y + baseBounds.height * origAnchorY,
+        };
+        const warpedAnchor = warpLocalPoint(warpMatrix, baseBounds, anchorSource);
+        if (warpedFixed && warpedDrag && warpedAnchor) {
+            const dx = warpedDrag.x - warpedFixed.x;
+            const dy = warpedDrag.y - warpedFixed.y;
+            const { cos, sin } = sincos(origRotation);
+            const worldDx = mouseX - fixedWorldPoint.x;
+            const worldDy = mouseY - fixedWorldPoint.y;
+            const localX = cos * worldDx + sin * worldDy;
+            const localY = -sin * worldDx + cos * worldDy;
+            const xBasis = dx + Math.tan(origSkewX) * dy;
+            const yBasis = Math.tan(origSkewY) * dx + dy;
+            let newScaleX = origScaleX;
+            let newScaleY = origScaleY;
+            if (mode !== 'scale-n' && mode !== 'scale-s' && Math.abs(xBasis) > 1e-8) {
+                newScaleX = clampSignedScale(localX / xBasis);
+            }
+            if (mode !== 'scale-e' && mode !== 'scale-w' && Math.abs(yBasis) > 1e-8) {
+                newScaleY = clampSignedScale(localY / yBasis);
+            }
+            if (shiftKey) {
+                const ratioX = newScaleX / (origScaleX || 1);
+                const ratioY = newScaleY / (origScaleY || 1);
+                const factor = Math.abs(ratioX - 1) > Math.abs(ratioY - 1) ? ratioX : ratioY;
+                newScaleX = clampSignedScale((origScaleX || 1) * factor);
+                newScaleY = clampSignedScale((origScaleY || 1) * factor);
+            }
+            const originDelta = { x: warpedAnchor.x - warpedFixed.x, y: warpedAnchor.y - warpedFixed.y };
+            const offsetDelta = applyRSK(
+                originDelta.x,
+                originDelta.y,
+                origRotation,
+                origSkewX,
+                origSkewY,
+                newScaleX,
+                newScaleY
+            );
+            return {
+                newScaleX,
+                newScaleY,
+                newOffsetX: fixedWorldPoint.x + offsetDelta.x,
+                newOffsetY: fixedWorldPoint.y + offsetDelta.y,
+            };
+        }
+    }
     if (
         altKey &&
         centerWorldPoint &&

@@ -157,6 +157,8 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
         dragLocalPoint,
         centerWorld,
         centerLocal,
+        warp: rec?.warp ?? null,
+        anchorWorld: rec?.projectedAnchor ?? null,
         dragElementId: selectedId,
         snapTargets: buildSnapTargets(vis, selectedId),
         snapTolerance: DEFAULT_SNAP_TOLERANCE,
@@ -276,6 +278,7 @@ function updateScaleDrag(
             origSkewY: meta.origSkewY,
             origAnchorX: meta.origAnchorX,
             origAnchorY: meta.origAnchorY,
+            warp: meta.warp,
             },
         shiftKey,
         altKey &&
@@ -332,6 +335,7 @@ function updateAnchorDrag(
             origSkewY: meta.origSkewY,
             origScaleX: meta.origScaleX,
             origScaleY: meta.origScaleY,
+            warp: meta.warp,
         },
         shiftKey
     );

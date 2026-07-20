@@ -47,6 +47,8 @@ export interface ScaleComputationParams {
     origSkewY: number;
     origAnchorX: number;
     origAnchorY: number;
+    /** Perspective corner coordinates, when the element is projectively warped. */
+    warp?: import('@math/perspective-warp').PerspectiveWarp | null;
 }
 
 export interface ScaleResult {
@@ -68,4 +70,6 @@ export interface AnchorAdjustParams {
     origScaleY: number;
     baseBounds: Bounds | null;
     geom?: GeometryInfo | null; // geometry (world) to derive anchor from mouse position under rotation/skew
+    /** Perspective corner coordinates, when the element is projectively warped. */
+    warp?: import('@math/perspective-warp').PerspectiveWarp | null;
 }

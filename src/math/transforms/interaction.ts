@@ -51,6 +51,7 @@ export function computeScaleHandleReferencePoints(handleType: string, rec: any) 
         // eslint-disable-line @typescript-eslint/no-explicit-any
         const c = (geom as any).corners;
         const m = (geom as any).mids;
+        const warpedMids = rec?.projectedHandlePoints;
         switch (handleType) {
             case 'scale-nw':
                 fixedWorldPoint = c.BR;
@@ -73,22 +74,22 @@ export function computeScaleHandleReferencePoints(handleType: string, rec: any) 
                 dragLocalPoint = localFor('BL');
                 break;
             case 'scale-n':
-                fixedWorldPoint = m.MBottom;
+                fixedWorldPoint = warpedMids?.MBottom ?? m.MBottom;
                 fixedLocalPoint = localFor('MBottom');
                 dragLocalPoint = localFor('MTop');
                 break;
             case 'scale-s':
-                fixedWorldPoint = m.MTop;
+                fixedWorldPoint = warpedMids?.MTop ?? m.MTop;
                 fixedLocalPoint = localFor('MTop');
                 dragLocalPoint = localFor('MBottom');
                 break;
             case 'scale-e':
-                fixedWorldPoint = m.MLeft;
+                fixedWorldPoint = warpedMids?.MLeft ?? m.MLeft;
                 fixedLocalPoint = localFor('MLeft');
                 dragLocalPoint = localFor('MRight');
                 break;
             case 'scale-w':
-                fixedWorldPoint = m.MRight;
+                fixedWorldPoint = warpedMids?.MRight ?? m.MRight;
                 fixedLocalPoint = localFor('MRight');
                 dragLocalPoint = localFor('MLeft');
                 break;
