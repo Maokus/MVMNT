@@ -3,6 +3,7 @@ import type { Bounds, RenderConfig } from './base';
 import type { PerspectiveCompositor } from '../perspective-compositor';
 import {
     applyAffinePoint,
+    createPerspectiveCameraWarp,
     createHomography,
     getProjectedBounds,
     isIdentityPerspectiveWarp,
@@ -12,15 +13,18 @@ import {
     type AffineTransform,
     type Homography,
     type PerspectivePoint,
+    type PerspectiveCameraProjection,
+    type PerspectiveViewport,
     type PerspectiveWarp,
 } from '@math/perspective-warp';
 
 export class PerspectiveElementRoot extends EmptyRenderObject {
-    readonly perspectiveWarp: PerspectiveWarp;
+    private _perspectiveWarp: PerspectiveWarp;
     readonly elementId: string | null;
     visualBounds?: Bounds;
     private _warpMatrix: Homography | null = null;
     private _warpInvalidReason?: string;
+    private _isPerspectiveEdgeOn: boolean;
 
     constructor(
         elementId: string | null,
@@ -29,11 +33,17 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
         y = 0,
         scaleX = 1,
         scaleY = 1,
-        opacity = 1
+        opacity = 1,
+        isPerspectiveEdgeOn = false
     ) {
         super(x, y, scaleX, scaleY, opacity);
         this.elementId = elementId;
-        this.perspectiveWarp = warp;
+        this._perspectiveWarp = warp;
+        this._isPerspectiveEdgeOn = isPerspectiveEdgeOn;
+        // An edge-on plane has no drawable area. Marking the root invisible
+        // avoids treating the degenerate projection as an invalid warp and
+        // falling back to its ordinary affine rendering.
+        if (isPerspectiveEdgeOn) this.visible = false;
         const validation = validatePerspectiveWarp(warp);
         if (validation.valid) this._warpMatrix = createHomography(warp);
         else this._warpInvalidReason = validation.reason;
@@ -43,6 +53,24 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
         return this._warpMatrix;
     }
 
+    get perspectiveWarp(): PerspectiveWarp {
+        return this._perspectiveWarp;
+    }
+
+    get isPerspectiveEdgeOn(): boolean {
+        return this._isPerspectiveEdgeOn;
+    }
+
+    configureCamera(projection: PerspectiveCameraProjection, viewport: PerspectiveViewport): void {
+        if (!this.baseBounds) return;
+        const result = createPerspectiveCameraWarp(this.baseBounds, this.getAffineTransform(), viewport, projection);
+        this._perspectiveWarp = result.warp;
+        this._isPerspectiveEdgeOn = result.kind === 'edge-on';
+        this._warpInvalidReason = result.kind === 'invalid' ? result.reason : undefined;
+        this._warpMatrix = result.kind === 'projected' ? createHomography(result.warp) : null;
+        if (result.kind === 'edge-on') this.visible = false;
+    }
+
     get warpInvalidReason(): string | undefined {
         return this._warpInvalidReason;
     }
@@ -50,27 +78,6 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
     getAffineTransform(): AffineTransform {
         this._resolveOriginFractions();
         return this._getWorldTransformMatrix();
-    }
-
-    /**
-     * The affine transform is applied after the projective warp.  Its pivot must
-     * therefore be the warped anchor, rather than the same coordinate in the
-     * unwarped source rectangle.  Keeping this here also makes bounds, the
-     * compositor and the interaction overlay agree about the pivot.
-     */
-    protected override _resolveOriginFractions(): void {
-        super._resolveOriginFractions();
-        if (!this.baseBounds || !this._warpMatrix || this._originFractionX === null || this._originFractionY === null) {
-            return;
-        }
-        const origin = warpLocalPoint(this._warpMatrix, this.baseBounds, {
-            x: this.baseBounds.x + this._originFractionX * this.baseBounds.width,
-            y: this.baseBounds.y + this._originFractionY * this.baseBounds.height,
-        });
-        if (origin) {
-            this.originX = origin.x;
-            this.originY = origin.y;
-        }
     }
 
     getProjectedCorners(): PerspectivePoint[] | null {

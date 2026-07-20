@@ -147,6 +147,10 @@ export interface SceneExportEnvelopeV10 extends Omit<SceneExportEnvelopeV6, 'sch
     schemaVersion: 10;
 }
 
+export interface SceneExportEnvelopeV11 extends Omit<SceneExportEnvelopeV6, 'schemaVersion'> {
+    schemaVersion: 11;
+}
+
 export type SceneExportEnvelope =
     | SceneExportEnvelopeV2
     | SceneExportEnvelopeV4
@@ -155,7 +159,8 @@ export type SceneExportEnvelope =
     | SceneExportEnvelopeV7
     | SceneExportEnvelopeV8
     | SceneExportEnvelopeV9
-    | SceneExportEnvelopeV10;
+    | SceneExportEnvelopeV10
+    | SceneExportEnvelopeV11;
 
 interface AudioFeatureCacheAssetReference {
     assetId: string;
@@ -178,7 +183,7 @@ interface ExportResultBase {
 export interface ExportSceneResultZip extends ExportResultBase {
     ok: true;
     mode: 'zip-package';
-    envelope: SceneExportEnvelopeV10;
+    envelope: SceneExportEnvelopeV11;
     zip: Uint8Array<ArrayBuffer>;
     blob?: Blob;
 }
@@ -853,7 +858,7 @@ export async function exportScene(
         }
     }
 
-    const envelope: SceneExportEnvelopeV10 = {
+    const envelope: SceneExportEnvelopeV11 = {
         schemaVersion: CURRENT_SCHEMA_VERSION,
         format: 'mvmnt.scene',
         metadata,

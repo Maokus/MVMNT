@@ -377,7 +377,9 @@ export const prop = {
 /**
  * Inserts plugin-specific property tabs into the base element schema.
  *
- * The result will be `[Transform tab, ...pluginTabs]`.
+ * The result will be `[Transform tab, ...pluginTabs]`. If a legacy schema
+ * already contains the shared transform tab, it is omitted so the tab ID is
+ * not duplicated when the SDK runtime adds the shared tab again.
  *
  * @param base         The schema returned by `super.getConfigSchema()`.
  * @param overrides    Fields to override on the base schema (`name`, `description`, `category`).
@@ -391,6 +393,6 @@ export function insertElementConfig(
     return {
         ...base,
         ...overrides,
-        tabs: [base.tabs[0], ...pluginTabs],
+        tabs: [base.tabs[0], ...pluginTabs.filter((tab) => tab.id !== base.tabs[0]?.id)],
     };
 }

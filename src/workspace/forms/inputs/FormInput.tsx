@@ -218,8 +218,11 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
 
             const evaluated = evaluateNumberInput(inputValue);
             if (evaluated !== null) {
-                setLocalValue(evaluated.toString());
-                emitChange(evaluated);
+                const min = typeof schema?.min === 'number' ? schema.min : -Infinity;
+                const max = typeof schema?.max === 'number' ? schema.max : Infinity;
+                const clamped = Math.max(min, Math.min(max, evaluated));
+                setLocalValue(clamped.toString());
+                emitChange(clamped);
             } else {
                 revertToActual();
             }

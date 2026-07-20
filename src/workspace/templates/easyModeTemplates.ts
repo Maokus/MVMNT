@@ -3,9 +3,11 @@ import { easyModeTemplateManifest, TemplateManifestEntry } from '../../templates
 import type { LoadedTemplateArtifact, TemplateDefinition } from './types';
 
 const templateFiles = import.meta.glob('../../templates/*.mvt', {
-    query: '?arraybuffer',
+    // `.mvt` files are Vite assets. Import their URL, then fetch the binary
+    // content when a template is selected.
+    query: '?url',
     import: 'default',
-}) as Record<string, () => Promise<ArrayBuffer | Uint8Array>>;
+}) as Record<string, () => Promise<string | ArrayBuffer | Uint8Array | Blob>>;
 
 async function toUint8Array(value: unknown): Promise<Uint8Array> {
     if (value instanceof Uint8Array) {
@@ -16,6 +18,13 @@ async function toUint8Array(value: unknown): Promise<Uint8Array> {
     }
     if (typeof Blob !== 'undefined' && value instanceof Blob) {
         return new Uint8Array(await value.arrayBuffer());
+    }
+    if (typeof value === 'string') {
+        const response = await fetch(value);
+        if (!response.ok) {
+            throw new Error(`Unable to fetch template asset: ${response.status} ${response.statusText}`);
+        }
+        return new Uint8Array(await response.arrayBuffer());
     }
     throw new Error('Unsupported template module format');
 }

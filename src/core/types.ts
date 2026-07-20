@@ -321,6 +321,8 @@ export interface PropertyGroup {
     label: string;
     collapsed: boolean;
     description?: string;
+    /** Optional dedicated inspector renderer for tightly related controls. */
+    control?: 'perspective';
     properties: PropertyDefinition[];
 }
 

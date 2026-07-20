@@ -168,44 +168,66 @@ export class Text extends RenderObject {
             return this._computeTransformedRectBounds(lx, ly, lw, lh);
         }
         const prevFont = ctx.font;
+        const prevBaseline = ctx.textBaseline;
         ctx.font = this.font;
+        // TextMetrics' actual bounding box values are relative to the active
+        // baseline. Measure using the same baseline used by fillText/strokeText.
+        ctx.textBaseline = this.baseline;
         if (this.letterSpacing !== 0) (ctx as any).letterSpacing = this.letterSpacing + 'px';
         const metrics = ctx.measureText(this.text);
         if (this.letterSpacing !== 0) (ctx as any).letterSpacing = '0px';
+        ctx.textBaseline = prevBaseline;
         ctx.font = prevFont;
         let width = metrics.width || 0;
-        const ascent = metrics.actualBoundingBoxAscent ?? fontSize * 0.8;
-        const descent = metrics.actualBoundingBoxDescent ?? fontSize * 0.2;
+        let ascent = metrics.actualBoundingBoxAscent ?? fontSize * 0.8;
+        let descent = metrics.actualBoundingBoxDescent ?? fontSize * 0.2;
         let height = ascent + descent;
+        let textScale = 1;
         if (this.maxWidth != null && isFinite(this.maxWidth) && this.maxWidth > 0 && width > this.maxWidth) {
-            const scale = this.maxWidth / width;
-            width *= scale;
-            height *= scale;
+            textScale = this.maxWidth / width;
+            width *= textScale;
+            ascent *= textScale;
+            descent *= textScale;
+            height *= textScale;
         }
-        const strokePad = this.strokeColor && this.strokeWidth > 0 ? this.strokeWidth : 0;
-        const paddedWidth = width + strokePad;
-        const paddedHeight = height + strokePad;
-        // Compute local rect in object space (0,0 is text anchor point for drawing)
-        let lx = 0,
-            ly = 0,
-            lw = paddedWidth,
-            lh = paddedHeight;
-        if (this.align === 'center') lx -= lw / 2;
-        else if (this.align === 'right' || this.align === 'end') lx -= lw;
-        switch (this.baseline) {
-            case 'middle':
-                ly -= lh / 2;
-                break;
-            case 'bottom':
-            case 'ideographic':
-                ly -= lh;
-                break;
-            case 'alphabetic':
-                ly -= ascent + (strokePad ? strokePad / 2 : 0);
-                break;
-            case 'hanging':
-                ly -= lh * 0.1;
-                break;
+        const actualLeft = metrics.actualBoundingBoxLeft;
+        const actualRight = metrics.actualBoundingBoxRight;
+        // `width` is an advance measurement, not an ink measurement. Glyphs
+        // may overhang either side of it (notably italic/script fonts), so use
+        // the actual box whenever the canvas provides it. Some canvas mocks
+        // expose these properties as zero, hence the advance-width fallback.
+        const hasHorizontalInkBounds =
+            Number.isFinite(actualLeft) &&
+            Number.isFinite(actualRight) &&
+            (actualLeft > 0 || actualRight > 0 || width === 0);
+        const inkLeft = hasHorizontalInkBounds ? actualLeft * textScale : 0;
+        const inkRight = hasHorizontalInkBounds ? actualRight * textScale : width;
+        let advanceStart = 0;
+        if (this.align === 'center') advanceStart = -width / 2;
+        else if (this.align === 'right' || this.align === 'end') advanceStart = -width;
+
+        // The active textBaseline makes the ink box directly relative to the
+        // same (0, 0) anchor passed to CanvasRenderingContext2D.fillText.
+        let lx = advanceStart - inkLeft;
+        let ly = -ascent;
+        let lw = inkLeft + inkRight;
+        let lh = height;
+
+        const strokeRadius = this.strokeColor && this.strokeWidth > 0 ? this.strokeWidth / 2 : 0;
+        lx -= strokeRadius;
+        ly -= strokeRadius;
+        lw += strokeRadius * 2;
+        lh += strokeRadius * 2;
+        if (this.shadow) {
+            // Canvas blur kernels have a soft tail. Two blur radii conservatively
+            // cover the rendered shadow, preventing source-canvas clipping.
+            const shadowRadius = this.shadow.blur * 2;
+            const right = lx + lw;
+            const bottom = ly + lh;
+            lx = Math.min(lx, lx + this.shadow.offsetX - shadowRadius);
+            ly = Math.min(ly, ly + this.shadow.offsetY - shadowRadius);
+            lw = Math.max(right, right + this.shadow.offsetX + shadowRadius) - lx;
+            lh = Math.max(bottom, bottom + this.shadow.offsetY + shadowRadius) - ly;
         }
         const result: Bounds = this._computeTransformedRectBounds(lx, ly, lw, lh);
         if (

@@ -39,7 +39,6 @@ export class MIDIVisualizerCore {
         selectedElementId: null,
         draggingElementId: null,
         activeHandle: null,
-        warpEditElementId: null,
         snapGuides: [],
     };
     private _interactionBoundsCache = new Map();
@@ -381,10 +380,6 @@ export class MIDIVisualizerCore {
         }
         if (changed) this.invalidateRender();
     }
-    setWarpEditElement(elementId: string | null) {
-        const nextId = isFeatureEnabled('elementPerspectiveWarp') ? elementId : null;
-        this.setInteractionState({ warpEditElementId: nextId, activeHandle: null });
-    }
     getElementBoundsAtTime(targetTime = this.currentTime) {
         const config = this.getSceneConfig();
         const elements = this._getSceneElements().filter((e: any) => e.visible);
@@ -587,17 +582,6 @@ export class MIDIVisualizerCore {
         const addHandle = (id: string, type: string, cx: number, cy: number, shape = 'rect', extra: any = {}) => {
             handles.push({ id, type, cx, cy, size, shape, r: size * 0.5, ...extra });
         };
-        const warpEditing =
-            this._interactionState?.warpEditElementId === elementId &&
-            record.isPerspective &&
-            oriented;
-        if (warpEditing) {
-            addHandle('warp-tl', 'warp-tl', oriented[0].x, oriented[0].y);
-            addHandle('warp-tr', 'warp-tr', oriented[1].x, oriented[1].y);
-            addHandle('warp-br', 'warp-br', oriented[2].x, oriented[2].y);
-            addHandle('warp-bl', 'warp-bl', oriented[3].x, oriented[3].y);
-            return handles;
-        }
         if (oriented) {
             addHandle('scale-nw', 'scale-nw', oriented[0].x, oriented[0].y);
             addHandle('scale-ne', 'scale-ne', oriented[1].x, oriented[1].y);

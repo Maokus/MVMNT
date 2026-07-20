@@ -120,21 +120,21 @@ afterEach(() => {
 });
 
 describe('SceneElement perspective property schema', () => {
-    it('exposes the enable toggle and conditionally visible normalized corner inputs', () => {
+    it('exposes the enable toggle and conditionally visible X/Y rotation inputs', () => {
         const elementTab = SceneElement.getConfigSchema().tabs.find((tab) => tab.id === 'element');
         const perspectiveGroup = elementTab?.groups.find((group) => group.id === 'perspective');
 
         expect(perspectiveGroup).toBeDefined();
         expect(perspectiveGroup?.properties.map((property) => property.key)).toEqual([
             'warpEnabled',
-            'warpTopLeftX',
-            'warpTopLeftY',
-            'warpTopRightX',
-            'warpTopRightY',
-            'warpBottomRightX',
-            'warpBottomRightY',
-            'warpBottomLeftX',
-            'warpBottomLeftY',
+            'perspectiveRotationX',
+            'perspectiveRotationY',
+            'perspectiveStrength',
+            'perspectivePivotLinked',
+            'perspectivePivotX',
+            'perspectivePivotY',
+            'perspectiveVanishingPointX',
+            'perspectiveVanishingPointY',
         ]);
         expect(perspectiveGroup?.properties[0]).toMatchObject({
             key: 'warpEnabled',
@@ -142,15 +142,23 @@ describe('SceneElement perspective property schema', () => {
             default: false,
         });
 
-        for (const property of perspectiveGroup?.properties.slice(1) ?? []) {
+        for (const property of perspectiveGroup?.properties.slice(1, 3) ?? []) {
             expect(property).toMatchObject({
                 type: 'number',
-                step: 0.01,
+                step: 1,
                 visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                min: -90,
+                max: 90,
             });
-            expect(property).not.toHaveProperty('min');
-            expect(property).not.toHaveProperty('max');
         }
+        expect(perspectiveGroup?.properties.slice(3)).toEqual([
+            expect.objectContaining({ key: 'perspectiveStrength', min: 0, max: 100, step: 1 }),
+            expect.objectContaining({ key: 'perspectivePivotLinked', type: 'boolean', default: true }),
+            expect.objectContaining({ key: 'perspectivePivotX', min: 0, max: 1, step: 0.01 }),
+            expect.objectContaining({ key: 'perspectivePivotY', min: 0, max: 1, step: 0.01 }),
+            expect.objectContaining({ key: 'perspectiveVanishingPointX', min: -2, max: 3, step: 0.01 }),
+            expect.objectContaining({ key: 'perspectiveVanishingPointY', min: -2, max: 3, step: 0.01 }),
+        ]);
     });
 });
 

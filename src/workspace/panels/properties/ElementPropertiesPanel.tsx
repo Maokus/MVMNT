@@ -8,12 +8,9 @@ import type { ElementBindings } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
 import type { FormInputChange } from '@workspace/forms/inputs/FormInput';
 import { useCurrentTick } from '@automation/hooks';
-import { makeChannelId, findKeyframeAtTick, createKeyframe } from '@automation/types';
+import { makeChannelId, findKeyframeAtTick } from '@automation/types';
 import { useSceneStore } from '@state/sceneStore';
-import { useTimelineStore } from '@state/timelineStore';
-import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { automationEvaluator } from '@automation/automation-evaluator';
-import { resolveAutomationValueType } from './KeyframeControl';
 
 interface ElementPropertiesPanelProps {
     elementId: string;
@@ -83,7 +80,6 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const macroLookup = useMemo(() => new Map((macroList as any[]).map((macro: any) => [macro.name, macro])), [macroList]);
     const currentTick = useCurrentTick();
     const automationChannels = useSceneStore(useCallback((s) => s.automation.channels, []));
-    const autoKeying = useTimelineStore((s) => s.transport.autoKeying);
     const propertyOverrides = useSceneStore(useCallback((s) => s.propertyOverrides, []));
     const groupCollapseState = useSceneStore(useCallback((s) => s.interaction.expandedPropertyGroups[elementId] ?? {}, [elementId]));
     const setPropertyGroupCollapseState = useSceneStore((s) => s.setPropertyGroupCollapseState);
@@ -99,15 +95,6 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         }
         return enhancedSchema.tabs[0]?.id ?? '';
     }, [storedActiveTabId, enhancedSchema]);
-
-    // Fast property-type lookup used by auto-keying logic
-    const propertyTypeMap = useMemo(() => {
-        const map = new Map<string, string>();
-        enhancedSchema?.tabs.flatMap((t) => t.groups).forEach((group) => {
-            group.properties.forEach((prop) => map.set(prop.key, prop.type));
-        });
-        return map;
-    }, [enhancedSchema]);
 
     const bindingsMemo = useMemo(() => ({ ...(bindings ?? {}) }), [bindings, refreshToken]);
 
@@ -285,38 +272,30 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 ...(linked ?? {}),
             }));
 
-            if (autoKeying) {
-                const chId = makeChannelId(elementId, key);
-                if (!useSceneStore.getState().automation.channels[chId]) {
-                    const valueType = resolveAutomationValueType(propertyTypeMap.get(key) ?? '');
-                    if (valueType) {
-                        const session = meta?.mergeSession;
-                        const cmdOptions: SceneCommandOptions = { source: 'property-panel' };
-                        if (session) {
-                            cmdOptions.mergeKey = `kf-drag:${chId}:${session.id}`;
-                            cmdOptions.transient = !session.finalize;
-                        }
-                        dispatchSceneCommand(
-                            { type: 'enablePropertyAutomation', elementId, propertyKey: key, valueType, initialKeyframes: [createKeyframe(currentTick, value)] },
-                            cmdOptions,
-                        );
-                        return;
-                    }
-                }
-            }
-
             if (onConfigChange) {
                 let options: Omit<SceneCommandOptions, 'source'> | undefined;
                 const session = meta?.mergeSession;
                 if (session && elementId) {
                     const mergeKey = `property-drag:${elementId}:${key}:${session.id}`;
+                    const changedKeys = new Set([key, ...Object.keys(linked ?? {})]);
                     options = {
                         mergeKey,
                         transient: !session.finalize,
-                        canMergeWith: (other) =>
-                            other.command.type === 'updateElementConfig' &&
-                            other.command.elementId === elementId &&
-                            Object.prototype.hasOwnProperty.call(other.command.patch ?? {}, key),
+                        canMergeWith: (other) => {
+                            if (other.command.type === 'updateElementConfig') {
+                                return other.command.elementId === elementId &&
+                                    Object.keys(other.command.patch ?? {}).some((propertyKey) => changedKeys.has(propertyKey));
+                            }
+                            if (other.command.type === 'enablePropertyAutomation') {
+                                return other.command.elementId === elementId && changedKeys.has(other.command.propertyKey);
+                            }
+                            if (other.command.type === 'addKeyframe') {
+                                const prefix = `${elementId}.`;
+                                return other.command.channelId.startsWith(prefix) &&
+                                    changedKeys.has(other.command.channelId.slice(prefix.length));
+                            }
+                            return false;
+                        },
                     };
                 }
                 const patch: Record<string, any> = { [key]: value };
@@ -328,7 +307,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 onConfigChange(elementId, patch, options);
             }
         },
-        [elementId, onConfigChange, currentTick, autoKeying, propertyTypeMap],
+        [elementId, onConfigChange],
     );
 
     const handleMacroAssignment = useCallback(

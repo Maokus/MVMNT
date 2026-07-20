@@ -55,7 +55,7 @@ describe('Scene element + macro persistence', () => {
         expect(useSceneStore.getState().macros.byId['m1']?.value).toBe(5);
     });
 
-    it('round-trips hidden perspective bindings', async () => {
+    it('round-trips perspective rotation bindings', async () => {
         dispatchSceneCommand({
             type: 'addElement',
             elementType: 'textOverlay',
@@ -64,9 +64,14 @@ describe('Scene element + macro persistence', () => {
                 id: 'warped',
                 text: 'Warped',
                 warpEnabled: true,
-                warpTopLeftX: -0.2,
-                warpTopRightY: 0.15,
-                warpBottomRightX: 1.2,
+                perspectiveRotationX: -20,
+                perspectiveRotationY: 15,
+                perspectiveStrength: 65,
+                perspectivePivotLinked: false,
+                perspectivePivotX: 0.25,
+                perspectivePivotY: 0.75,
+                perspectiveVanishingPointX: 0.4,
+                perspectiveVanishingPointY: 0.6,
             },
         });
         const exported = await exportScene();
@@ -77,9 +82,14 @@ describe('Scene element + macro persistence', () => {
         expect(imported.ok).toBe(true);
         const bindings = useSceneStore.getState().bindings.byElement.warped;
         expect(bindings.warpEnabled).toEqual({ type: 'constant', value: true });
-        expect(bindings.warpTopLeftX).toEqual({ type: 'constant', value: -0.2 });
-        expect(bindings.warpTopRightY).toEqual({ type: 'constant', value: 0.15 });
-        expect(bindings.warpBottomRightX).toEqual({ type: 'constant', value: 1.2 });
+        expect(bindings.perspectiveRotationX).toEqual({ type: 'constant', value: -20 });
+        expect(bindings.perspectiveRotationY).toEqual({ type: 'constant', value: 15 });
+        expect(bindings.perspectiveStrength).toEqual({ type: 'constant', value: 65 });
+        expect(bindings.perspectivePivotLinked).toEqual({ type: 'constant', value: false });
+        expect(bindings.perspectivePivotX).toEqual({ type: 'constant', value: 0.25 });
+        expect(bindings.perspectivePivotY).toEqual({ type: 'constant', value: 0.75 });
+        expect(bindings.perspectiveVanishingPointX).toEqual({ type: 'constant', value: 0.4 });
+        expect(bindings.perspectiveVanishingPointY).toEqual({ type: 'constant', value: 0.6 });
     });
 
     it('exports scenes with multiple automation keyframes', async () => {

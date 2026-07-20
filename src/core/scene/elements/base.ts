@@ -2,7 +2,12 @@
 import { EnhancedConfigSchema, PropertyDefinition, SceneElementInterface } from '@core/types.js';
 import { prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { EmptyRenderObject, PerspectiveElementRoot, RenderObject } from '@core/render/render-objects';
-import type { PerspectiveWarp } from '@math/perspective-warp';
+import {
+    createPerspectiveCameraWarp,
+    IDENTITY_PERSPECTIVE_WARP,
+    type PerspectiveCameraProjection,
+    type PerspectiveWarp,
+} from '@math/perspective-warp';
 import {
     PropertyBinding,
     ConstantBinding,
@@ -701,11 +706,24 @@ export class SceneElement implements SceneElementInterface {
     }
 
     get perspectiveWarp(): PerspectiveWarp {
+        return createPerspectiveCameraWarp(
+            { x: 0, y: 0, width: 1, height: 1 },
+            { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
+            { width: 1, height: 1 },
+            this.perspectiveProjection
+        ).warp;
+    }
+
+    get perspectiveProjection(): PerspectiveCameraProjection {
+        const pivotLinked = this.getProperty<boolean>('perspectivePivotLinked');
         return {
-            topLeft: { x: this.getProperty('warpTopLeftX'), y: this.getProperty('warpTopLeftY') },
-            topRight: { x: this.getProperty('warpTopRightX'), y: this.getProperty('warpTopRightY') },
-            bottomRight: { x: this.getProperty('warpBottomRightX'), y: this.getProperty('warpBottomRightY') },
-            bottomLeft: { x: this.getProperty('warpBottomLeftX'), y: this.getProperty('warpBottomLeftY') },
+            rotationX: this.getProperty('perspectiveRotationX'),
+            rotationY: this.getProperty('perspectiveRotationY'),
+            strength: this.getProperty('perspectiveStrength'),
+            pivotX: pivotLinked ? this.anchorX : this.getProperty('perspectivePivotX'),
+            pivotY: pivotLinked ? this.anchorY : this.getProperty('perspectivePivotY'),
+            vanishingPointX: this.getProperty('perspectiveVanishingPointX'),
+            vanishingPointY: this.getProperty('perspectiveVanishingPointY'),
         };
     }
 
@@ -772,7 +790,7 @@ export class SceneElement implements SceneElementInterface {
         const containerObject = usePerspective
             ? new PerspectiveElementRoot(
                   this.id,
-                  this.perspectiveWarp,
+                  { ...IDENTITY_PERSPECTIVE_WARP },
                   this.offsetX,
                   this.offsetY,
                   this.elementScaleX,
@@ -807,6 +825,11 @@ export class SceneElement implements SceneElementInterface {
         (containerObject as any).baseBounds = { ...layoutBounds };
         if (containerObject instanceof PerspectiveElementRoot) {
             containerObject.visualBounds = { ...visualBounds };
+            const viewport = config?.canvas;
+            containerObject.configureCamera(this.perspectiveProjection, {
+                width: viewport?.width ?? layoutBounds.width,
+                height: viewport?.height ?? layoutBounds.height,
+            });
         }
         (containerObject as any).elementTransform = {
             offsetX: this.offsetX,
@@ -1044,43 +1067,70 @@ export class SceneElement implements SceneElementInterface {
                             id: 'perspective',
                             label: 'Perspective',
                             collapsed: true,
-                            description:
-                                'Corner-pin the element using normalized local coordinates. Values outside 0–1 are allowed.',
+                            control: 'perspective',
+                            description: 'Tilt the element in 3D around its horizontal and vertical axes.',
                             properties: [
                                 prop.boolean('warpEnabled', 'Enable Perspective', false, {
                                     description: 'Apply a planar perspective warp to this element.',
                                 }),
-                                prop.number('warpTopLeftX', 'Top Left X', 0, {
-                                    step: 0.01,
+                                prop.number('perspectiveRotationX', 'Tilt X', 0, {
+                                    min: -90,
+                                    max: 90,
+                                    step: 1,
                                     visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                    description: 'Vertical tilt in degrees.',
                                 }),
-                                prop.number('warpTopLeftY', 'Top Left Y', 0, {
-                                    step: 0.01,
+                                prop.number('perspectiveRotationY', 'Tilt Y', 0, {
+                                    min: -90,
+                                    max: 90,
+                                    step: 1,
                                     visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                    description: 'Horizontal tilt in degrees.',
                                 }),
-                                prop.number('warpTopRightX', 'Top Right X', 1, {
-                                    step: 0.01,
+                                prop.number('perspectiveStrength', 'Perspective Strength', 50, {
+                                    min: 0,
+                                    max: 100,
+                                    step: 1,
                                     visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                    description: 'Perspective convergence (0 = orthographic, 100 = strongest).',
                                 }),
-                                prop.number('warpTopRightY', 'Top Right Y', 0, {
-                                    step: 0.01,
+                                prop.boolean('perspectivePivotLinked', 'Use Element Anchor', true, {
                                     visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                    description: 'Use the element anchor as the 3D rotation pivot.',
                                 }),
-                                prop.number('warpBottomRightX', 'Bottom Right X', 1, {
+                                prop.number('perspectivePivotX', '3D Pivot X', 0.5, {
+                                    min: 0,
+                                    max: 1,
                                     step: 0.01,
-                                    visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                    visibleWhen: [
+                                        { key: 'warpEnabled', equals: true },
+                                        { key: 'perspectivePivotLinked', equals: false },
+                                    ],
+                                    description: 'Horizontal 3D rotation pivot (0 = left, 1 = right).',
                                 }),
-                                prop.number('warpBottomRightY', 'Bottom Right Y', 1, {
+                                prop.number('perspectivePivotY', '3D Pivot Y', 0.5, {
+                                    min: 0,
+                                    max: 1,
                                     step: 0.01,
-                                    visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                    visibleWhen: [
+                                        { key: 'warpEnabled', equals: true },
+                                        { key: 'perspectivePivotLinked', equals: false },
+                                    ],
+                                    description: 'Vertical 3D rotation pivot (0 = top, 1 = bottom).',
                                 }),
-                                prop.number('warpBottomLeftX', 'Bottom Left X', 0, {
+                                prop.number('perspectiveVanishingPointX', 'Vanishing Point X', 0.5, {
+                                    min: -2,
+                                    max: 3,
                                     step: 0.01,
                                     visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                    description: 'Horizontal vanishing point in normalized canvas coordinates.',
                                 }),
-                                prop.number('warpBottomLeftY', 'Bottom Left Y', 1, {
+                                prop.number('perspectiveVanishingPointY', 'Vanishing Point Y', 0.5, {
+                                    min: -2,
+                                    max: 3,
                                     step: 0.01,
                                     visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                    description: 'Vertical vanishing point in normalized canvas coordinates.',
                                 }),
                             ],
                         },

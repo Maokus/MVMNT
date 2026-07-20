@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BezierPath } from '../render-objects/bezier';
 import { Arc } from '../render-objects/arc';
+import { Text } from '../render-objects/text';
 
 interface Point {
     x: number;
@@ -104,5 +105,38 @@ describe('Arc render object', () => {
         expect(bounds.y).toBeCloseTo(-3 - 7, 6);
         expect(bounds.width).toBeCloseTo(14, 6);
         expect(bounds.height).toBeCloseTo(14, 6);
+    });
+});
+
+describe('Text render object', () => {
+    it('uses the full canvas ink box, including overhang, stroke, and shadow', () => {
+        const previousContext = Text.__measureCtx;
+        Text.__measureCtx = {
+            font: '10px Arial',
+            textBaseline: 'alphabetic',
+            measureText: () => ({
+                width: 100,
+                actualBoundingBoxLeft: 8,
+                actualBoundingBoxRight: 96,
+                actualBoundingBoxAscent: 20,
+                actualBoundingBoxDescent: 5,
+            }),
+        } as unknown as CanvasRenderingContext2D;
+
+        try {
+            const text = new Text(50, 40, 'Italic text', '30px Arial', {
+                align: 'center',
+                baseline: 'alphabetic',
+                strokeColor: '#fff',
+                strokeWidth: 4,
+                shadow: { color: '#000', blur: 3, offsetX: -10, offsetY: 8 },
+            });
+
+            // Advance starts at -50. The glyph itself begins 8px before that;
+            // stroke and shadow extend the source bounds still further left.
+            expect(text.getVisualBounds()).toEqual({ x: -26, y: 18, width: 124, height: 43 });
+        } finally {
+            Text.__measureCtx = previousContext;
+        }
     });
 });

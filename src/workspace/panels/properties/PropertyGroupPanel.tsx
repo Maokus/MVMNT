@@ -6,6 +6,7 @@ import { useMacros } from '@context/MacroContext';
 import { FaLink } from 'react-icons/fa';
 import KeyframeControl, { isAutomatableType } from './KeyframeControl';
 import { hoveredPropertyRef } from './hoveredPropertyRef';
+import { CameraDistanceInput, PointGrid, StrengthInput, TiltPad } from './PerspectiveControls';
 
 type SupportedFormInputType =
     | 'text'
@@ -340,7 +341,16 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         );
     };
 
-    const renderPropertyRow = (property: PropertyDefinition, { nested = false } = {}) => {
+    const renderPropertyRow = (
+        property: PropertyDefinition,
+        {
+            nested = false,
+            inputOverride,
+        }: {
+            nested?: boolean;
+            inputOverride?: (context: { value: any; disabled: boolean; onChange: (value: any, meta?: FormInputChange['meta']) => void }) => React.ReactNode;
+        } = {},
+    ) => {
         const value = values[property.key];
         const assignedMacro = macroAssignments[property.key];
         const macroExists = assignedMacro ? macroLookup.has(assignedMacro) : false;
@@ -471,15 +481,17 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                         />
                     )}
                     <div className="ae-property-input">
-                        <FormInput
-                            id={commonProps.id}
-                            type={inputType}
-                            value={commonProps.value}
-                            schema={commonProps.schema}
-                            disabled={commonProps.disabled}
-                            title={commonProps.title}
-                            onChange={commonProps.onChange}
-                        />
+                        {inputOverride
+                            ? inputOverride({ value: commonProps.value, disabled: commonProps.disabled, onChange: handleInputChange })
+                            : <FormInput
+                                id={commonProps.id}
+                                type={inputType}
+                                value={commonProps.value}
+                                schema={commonProps.schema}
+                                disabled={commonProps.disabled}
+                                title={commonProps.title}
+                                onChange={commonProps.onChange}
+                            />}
                     </div>
                 </div>
             </div>
@@ -492,6 +504,99 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     properties.forEach((property) => {
         propertyRows.push(renderPropertyRow(property));
     });
+
+    const renderPerspectiveControls = () => {
+        const lookup = new Map(group.properties.map((property) => [property.key, property]));
+        const property = (key: string) => lookup.get(key);
+        const row = (key: string, options?: Parameters<typeof renderPropertyRow>[1]) => {
+            const definition = property(key);
+            return definition ? renderPropertyRow(definition, options) : null;
+        };
+        const enabled = Boolean(values.warpEnabled);
+        const pivotLinked = values.perspectivePivotLinked !== false;
+        const rotationX = Number(values.perspectiveRotationX) || 0;
+        const rotationY = Number(values.perspectiveRotationY) || 0;
+        const strength = Number.isFinite(values.perspectiveStrength) ? values.perspectiveStrength : 50;
+        const tiltDisabled = Boolean(macroAssignments.perspectiveRotationX || macroAssignments.perspectiveRotationY);
+        const reset = () => onValueChange('perspectiveRotationX', 0, {
+            linkedUpdates: {
+                perspectiveRotationY: 0,
+                perspectiveStrength: 50,
+                perspectivePivotLinked: true,
+                perspectivePivotX: 0.5,
+                perspectivePivotY: 0.5,
+                perspectiveVanishingPointX: 0.5,
+                perspectiveVanishingPointY: 0.5,
+            },
+        });
+
+        return (
+            <div className="ae-property-list">
+                {row('warpEnabled')}
+                {enabled && <>
+                    <div className="px-2 pb-1">
+                        <TiltPad
+                            rotationX={rotationX}
+                            rotationY={rotationY}
+                            disabled={tiltDisabled}
+                            onChange={(nextX, nextY, meta) => onValueChange('perspectiveRotationX', nextX, {
+                                ...meta,
+                                linkedUpdates: { perspectiveRotationY: nextY },
+                            })}
+                        />
+                    </div>
+                    {row('perspectiveRotationX', { nested: true })}
+                    {row('perspectiveRotationY', { nested: true })}
+                    {row('perspectiveStrength', {
+                        nested: true,
+                        inputOverride: ({ value, disabled, onChange }) => (
+                            <StrengthInput value={Number(value)} disabled={disabled} onChange={onChange} />
+                        ),
+                    })}
+                    <details className="mx-2 rounded border border-control2 p-2">
+                        <summary className="cursor-pointer text-xs font-medium">Advanced</summary>
+                        <div className="mt-2 space-y-2">
+                            {row('perspectivePivotLinked', { nested: true })}
+                            {!pivotLinked && <>
+                                <PointGrid
+                                    label="3D Pivot"
+                                    x={Number(values.perspectivePivotX)}
+                                    y={Number(values.perspectivePivotY)}
+                                    disabled={Boolean(macroAssignments.perspectivePivotX || macroAssignments.perspectivePivotY)}
+                                    onChange={(x, y) => onValueChange('perspectivePivotX', x, {
+                                        linkedUpdates: { perspectivePivotY: y },
+                                    })}
+                                />
+                                {row('perspectivePivotX', { nested: true })}
+                                {row('perspectivePivotY', { nested: true })}
+                            </>}
+                            <PointGrid
+                                label="Vanishing Point (Canvas)"
+                                x={Number(values.perspectiveVanishingPointX)}
+                                y={Number(values.perspectiveVanishingPointY)}
+                                disabled={Boolean(macroAssignments.perspectiveVanishingPointX || macroAssignments.perspectiveVanishingPointY)}
+                                onChange={(x, y) => onValueChange('perspectiveVanishingPointX', x, {
+                                    linkedUpdates: { perspectiveVanishingPointY: y },
+                                })}
+                            />
+                            {row('perspectiveVanishingPointX', { nested: true })}
+                            {row('perspectiveVanishingPointY', { nested: true })}
+                            <CameraDistanceInput
+                                strength={strength}
+                                disabled={Boolean(macroAssignments.perspectiveStrength)}
+                                onChange={(nextStrength) => onValueChange('perspectiveStrength', nextStrength)}
+                            />
+                        </div>
+                    </details>
+                    <div className="px-2 pb-2">
+                        <button type="button" className="w-full rounded border border-control2 px-2 py-1 text-xs" onClick={reset}>
+                            Reset Perspective
+                        </button>
+                    </div>
+                </>}
+            </div>
+        );
+    };
 
     return (
         <div className="ae-property-group">
@@ -519,7 +624,9 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                         <span className="ae-property-empty">No properties to display.</span>
                     </div>
                 ) : (
-                    <div className="ae-property-list">{propertyRows}</div>
+                    group.control === 'perspective'
+                        ? renderPerspectiveControls()
+                        : <div className="ae-property-list">{propertyRows}</div>
                 )
             )}
         </div>

@@ -3,15 +3,101 @@ import {
     IDENTITY_PERSPECTIVE_WARP,
     applyAffinePoint,
     clipPerspectiveBounds,
+    createPerspectiveCameraWarp,
     createHomography,
     getProjectedBounds,
     invertHomography,
+    isPerspectiveEdgeOn,
+    cameraDistanceToPerspectiveStrength,
+    perspectiveStrengthToCameraDistance,
     projectPerspectivePoint,
     validatePerspectiveWarp,
     warpLocalPoint,
 } from '../perspective-warp';
 
 describe('perspective warp geometry', () => {
+    const bounds = { x: 0, y: 0, width: 200, height: 100 };
+    const affine = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
+    const viewport = { width: 1000, height: 500 };
+    const projection = {
+        rotationX: 0, rotationY: 0, strength: 50,
+        pivotX: 0.5, pivotY: 0.5,
+        vanishingPointX: 0.5, vanishingPointY: 0.5,
+    };
+
+    it('derives identity at zero rotation and a valid aspect-aware tilted projection', () => {
+        expect(createPerspectiveCameraWarp(bounds, affine, viewport, projection)).toEqual({
+            kind: 'projected',
+            warp: IDENTITY_PERSPECTIVE_WARP,
+        });
+
+        const tilted = createPerspectiveCameraWarp(bounds, affine, viewport, {
+            ...projection, rotationX: 20, rotationY: -15,
+        });
+        expect(tilted.kind).toBe('projected');
+        expect(validatePerspectiveWarp(tilted.warp).valid).toBe(true);
+        expect(tilted.warp).not.toEqual(IDENTITY_PERSPECTIVE_WARP);
+    });
+
+    it('supports independent pivots and canvas-relative vanishing points', () => {
+        const centered = createPerspectiveCameraWarp(bounds, affine, viewport, {
+            ...projection, rotationX: 20, rotationY: 20,
+        });
+        const offset = createPerspectiveCameraWarp(bounds, affine, viewport, {
+            ...projection,
+            rotationX: 20,
+            rotationY: 20,
+            pivotX: 0.2,
+            pivotY: 0.8,
+            vanishingPointX: 0.1,
+            vanishingPointY: 0.9,
+        });
+
+        expect(offset).not.toEqual(centered);
+        expect(offset.kind).toBe('projected');
+        expect(validatePerspectiveWarp(offset.warp).valid).toBe(true);
+        expect(isPerspectiveEdgeOn(90, 0)).toBe(true);
+        expect(isPerspectiveEdgeOn(0, -90)).toBe(true);
+        expect(isPerspectiveEdgeOn(89.9, 0)).toBe(false);
+    });
+
+    it('maps perspective strength to a safe camera distance', () => {
+        expect(perspectiveStrengthToCameraDistance(0)).toBe(Infinity);
+        expect(perspectiveStrengthToCameraDistance(100)).toBeCloseTo(1.1);
+        expect(cameraDistanceToPerspectiveStrength(2.2)).toBeCloseTo(50);
+        expect(cameraDistanceToPerspectiveStrength(Infinity)).toBe(0);
+    });
+
+    it('keeps the supported camera range finite and convex', () => {
+        for (const rotationX of [-89, -45, 0, 45, 89]) {
+            for (const rotationY of [-89, -45, 0, 45, 89]) {
+                for (const strength of [0, 50, 100]) {
+                    const result = createPerspectiveCameraWarp(bounds, affine, viewport, {
+                        ...projection,
+                        rotationX,
+                        rotationY,
+                        strength,
+                        pivotX: rotationX > 0 ? 0 : 1,
+                        pivotY: rotationY > 0 ? 1 : 0,
+                        vanishingPointX: -2,
+                        vanishingPointY: 3,
+                    });
+                    expect(result.kind).toBe('projected');
+                    expect(validatePerspectiveWarp(result.warp).valid).toBe(true);
+                }
+            }
+        }
+    });
+
+    it('reports exact quarter turns as edge-on', () => {
+        expect(createPerspectiveCameraWarp(bounds, affine, viewport, {
+            ...projection, rotationX: 90,
+        }).kind).toBe('edge-on');
+        expect(createPerspectiveCameraWarp(bounds, affine, viewport, {
+            ...projection, rotationY: -90,
+        }).kind).toBe('edge-on');
+    });
+
     it('solves identity and strong quadrilateral homographies', () => {
         const identity = createHomography(IDENTITY_PERSPECTIVE_WARP)!;
         expect(projectPerspectivePoint(identity, { x: 0.25, y: 0.75 })).toEqual({ x: 0.25, y: 0.75 });
@@ -75,4 +161,3 @@ describe('perspective warp geometry', () => {
         invalid.forEach((warp) => expect(validatePerspectiveWarp(warp).valid).toBe(false));
     });
 });
-

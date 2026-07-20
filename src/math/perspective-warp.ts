@@ -29,6 +29,128 @@ export const IDENTITY_PERSPECTIVE_WARP: Readonly<PerspectiveWarp> = Object.freez
 
 const EPSILON = 1e-8;
 
+export interface PerspectiveCameraProjection {
+    rotationX: number;
+    rotationY: number;
+    strength: number;
+    pivotX: number;
+    pivotY: number;
+    vanishingPointX: number;
+    vanishingPointY: number;
+}
+
+export interface PerspectiveViewport {
+    width: number;
+    height: number;
+}
+
+export type PerspectiveCameraResult =
+    | { kind: 'projected'; warp: PerspectiveWarp }
+    | { kind: 'edge-on'; warp: PerspectiveWarp }
+    | { kind: 'invalid'; warp: PerspectiveWarp; reason: string };
+
+/**
+ * Creates a corner projection for a plane tilted around its horizontal and
+ * vertical axes. The inputs are degrees so they can be exposed directly in
+ * the inspector, while the renderer continues to consume its normal
+ * homography-based representation.
+ */
+export function isPerspectiveEdgeOn(rotationX: number, rotationY: number): boolean {
+    const isRightAngle = (rotation: number) =>
+        Number.isFinite(rotation) && Math.abs(Math.cos(rotation * Math.PI / 180)) <= EPSILON;
+    return isRightAngle(rotationX) || isRightAngle(rotationY);
+}
+
+export function perspectiveStrengthToCameraDistance(strength: number): number {
+    const normalized = Math.max(0, Math.min(100, Number.isFinite(strength) ? strength : 50)) / 100;
+    return normalized <= EPSILON ? Infinity : 1.1 / normalized;
+}
+
+export function cameraDistanceToPerspectiveStrength(distance: number): number {
+    if (distance === Infinity) return 0;
+    if (!Number.isFinite(distance) || distance <= 0) return 50;
+    return Math.max(0, Math.min(100, 110 / distance));
+}
+
+/**
+ * Projects an aspect-correct local plane toward a canvas-relative vanishing
+ * point. The returned normalized corners remain compatible with the existing
+ * homography compositor.
+ */
+export function createPerspectiveCameraWarp(
+    bounds: PerspectiveBounds,
+    affine: AffineTransform,
+    viewport: PerspectiveViewport,
+    projection: PerspectiveCameraProjection
+): PerspectiveCameraResult {
+    if (Math.abs(bounds.width) <= EPSILON || Math.abs(bounds.height) <= EPSILON) {
+        return { kind: 'invalid', warp: { ...IDENTITY_PERSPECTIVE_WARP }, reason: 'element bounds are empty' };
+    }
+    const inverseAffine = invertAffineTransform(affine);
+    if (!inverseAffine) {
+        return { kind: 'invalid', warp: { ...IDENTITY_PERSPECTIVE_WARP }, reason: 'element transform is singular' };
+    }
+
+    const rotationX = Math.max(-90, Math.min(90, Number.isFinite(projection.rotationX) ? projection.rotationX : 0));
+    const rotationY = Math.max(-90, Math.min(90, Number.isFinite(projection.rotationY) ? projection.rotationY : 0));
+    const strength = Math.max(0, Math.min(100, Number.isFinite(projection.strength) ? projection.strength : 50));
+    const pivotX = Math.max(0, Math.min(1, Number.isFinite(projection.pivotX) ? projection.pivotX : 0.5));
+    const pivotY = Math.max(0, Math.min(1, Number.isFinite(projection.pivotY) ? projection.pivotY : 0.5));
+    const vanishingPointX = Math.max(-2, Math.min(3, Number.isFinite(projection.vanishingPointX) ? projection.vanishingPointX : 0.5));
+    const vanishingPointY = Math.max(-2, Math.min(3, Number.isFinite(projection.vanishingPointY) ? projection.vanishingPointY : 0.5));
+    const pitch = rotationX * Math.PI / 180;
+    const yaw = rotationY * Math.PI / 180;
+    const cosPitch = Math.cos(pitch);
+    const sinPitch = Math.sin(pitch);
+    const cosYaw = Math.cos(yaw);
+    const sinYaw = Math.sin(yaw);
+    const pivot = {
+        x: bounds.x + bounds.width * pivotX,
+        y: bounds.y + bounds.height * pivotY,
+    };
+    const viewportWidth = Number.isFinite(viewport.width) && viewport.width > 0 ? viewport.width : bounds.width;
+    const viewportHeight = Number.isFinite(viewport.height) && viewport.height > 0 ? viewport.height : bounds.height;
+    const vanishingPoint = applyAffinePoint(inverseAffine, {
+        x: viewportWidth * vanishingPointX,
+        y: viewportHeight * vanishingPointY,
+    });
+    const diagonal = Math.hypot(bounds.width, bounds.height);
+    const distanceInDiagonals = perspectiveStrengthToCameraDistance(strength);
+    const cameraDistance = distanceInDiagonals * diagonal;
+
+    const project = ({ x, y }: PerspectivePoint): PerspectivePoint => {
+        const localX = x - pivot.x;
+        const localY = y - pivot.y;
+        const pitchedY = localY * cosPitch;
+        const pitchedZ = localY * sinPitch;
+        const rotatedX = localX * cosYaw + pitchedZ * sinYaw;
+        const rotatedZ = -localX * sinYaw + pitchedZ * cosYaw;
+        const rotatedPoint = { x: pivot.x + rotatedX, y: pivot.y + pitchedY };
+        if (!Number.isFinite(cameraDistance)) return rotatedPoint;
+        const scale = cameraDistance / (cameraDistance + rotatedZ);
+        return {
+            x: vanishingPoint.x + (rotatedPoint.x - vanishingPoint.x) * scale,
+            y: vanishingPoint.y + (rotatedPoint.y - vanishingPoint.y) * scale,
+        };
+    };
+
+    const normalize = (point: PerspectivePoint): PerspectivePoint => ({
+        x: (point.x - bounds.x) / bounds.width,
+        y: (point.y - bounds.y) / bounds.height,
+    });
+    const warp = {
+        topLeft: normalize(project({ x: bounds.x, y: bounds.y })),
+        topRight: normalize(project({ x: bounds.x + bounds.width, y: bounds.y })),
+        bottomRight: normalize(project({ x: bounds.x + bounds.width, y: bounds.y + bounds.height })),
+        bottomLeft: normalize(project({ x: bounds.x, y: bounds.y + bounds.height })),
+    };
+    if (isPerspectiveEdgeOn(rotationX, rotationY)) return { kind: 'edge-on', warp };
+    const validation = validatePerspectiveWarp(warp);
+    return validation.valid
+        ? { kind: 'projected', warp }
+        : { kind: 'invalid', warp, reason: validation.reason ?? 'invalid projection' };
+}
+
 export function perspectiveWarpPoints(warp: PerspectiveWarp): PerspectivePoint[] {
     return [warp.topLeft, warp.topRight, warp.bottomRight, warp.bottomLeft];
 }
