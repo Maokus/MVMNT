@@ -7,9 +7,7 @@ Plugin-facing elements use SDK 2 definitions from `@mvmnt-app/plugin-sdk`. Start
 
 Runnable examples are maintained as build inputs rather than copied into this guide:
 
-- `src/pluginexamples/patternspack1` shows capability-free renderers.
-- `src/pluginexamples/fnf` shows timeline-driven bundled atlases.
-- `src/pluginexamples/midipack1` shows larger timeline-driven visualisations.
+Use an external plugin project with `npm run dev-plugin` to develop and hot-reload custom elements.
 - `fixtures/plugin-sdk-v2` proves the packed public package supports property schemas,
   timeline data, raw audio, feature audio, and bundled assets.
 
@@ -17,7 +15,7 @@ Every source manifest uses `"apiVersion": "^2.0.0"`, and each element repeats th
 and optional capability lists from its definition. Build an example with:
 
 ```sh
-npm run build-plugin -- src/pluginexamples/patternspack1
+npm run build-plugin -- /absolute/path/to/my-plugin
 ```
 
 The [SDK 1 to SDK 2 migration guide](plugin-api/plugin-v1-to-v2.md) lists replacements for removed

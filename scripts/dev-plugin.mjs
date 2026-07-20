@@ -1,20 +1,5 @@
 #!/usr/bin/env node
-/**
- * Dev Plugin Server
- *
- * Watches a plugin directory for source changes, rebuilds on every save, and
- * serves the latest bundle over HTTP. The running MVMNT app connects to the
- * /events SSE endpoint and hot-reloads the plugin automatically.
- *
- * Usage:
- *   npm run dev-plugin <pluginDir>
- *   npm run dev-plugin /absolute/path/to/myplugin
- *   npm run dev-plugin ../my-mvmnt-plugins/myplugin
- *   npm run dev-plugin myplugin --port 7741
- *
- * The app must be open in a browser with Vite dev mode active. On each rebuild
- * the browser will hot-swap the plugin without a full page refresh.
- */
+/** Multiplexed localhost server for one or more MVMNT development plugins. */
 
 import fs from 'fs';
 import os from 'os';
@@ -23,310 +8,243 @@ import http from 'http';
 import { fileURLToPath } from 'url';
 import { build } from 'esbuild';
 import * as fflate from 'fflate';
-import {
-    PLUGIN_EXTERNALS,
-    validateElementImports,
-    validateManifestContract,
-} from './plugin-contract.mjs';
+import { PLUGIN_EXTERNALS, validateElementImports, validateManifestContract } from './plugin-contract.mjs';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const projectRoot = path.resolve(__dirname, '..');
-
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULT_PORT = 7741;
 const DEBOUNCE_MS = 150;
-
-// ---------------------------------------------------------------------------
-// Config
-// ---------------------------------------------------------------------------
-
+const HEARTBEAT_MS = 15_000;
 const rawArgs = process.argv.slice(2);
-
-// Parse --port flag
-const portFlagIdx = rawArgs.findIndex((a) => a === '--port');
+const portIndex = rawArgs.indexOf('--port');
 let port = DEFAULT_PORT;
-const filteredArgs = [...rawArgs];
-if (portFlagIdx >= 0) {
-    port = parseInt(rawArgs[portFlagIdx + 1] ?? String(DEFAULT_PORT), 10);
-    filteredArgs.splice(portFlagIdx, 2);
+const inputDirectories = [...rawArgs];
+if (portIndex >= 0) {
+    const parsed = Number.parseInt(rawArgs[portIndex + 1] ?? '', 10);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+        console.error('Error: --port must be an integer between 1 and 65535.');
+        process.exit(1);
+    }
+    port = parsed;
+    inputDirectories.splice(portIndex, 2);
 }
-
-if (filteredArgs.length === 0) {
-    console.error('Usage: npm run dev-plugin <pluginDir> [--port <port>]');
+if (inputDirectories.length === 0) {
+    console.error('Usage: npm run dev-plugin -- <pluginDir> [<pluginDir> ...] [--port <port>]');
     process.exit(1);
 }
 
-let inputPluginDir = filteredArgs[0];
-let pluginDir;
-
-if (!path.isAbsolute(inputPluginDir)) {
-    pluginDir = path.join(projectRoot, inputPluginDir);
+function resolvePluginDirectory(input) {
+    return path.resolve(path.isAbsolute(input) ? input : path.join(projectRoot, input));
 }
 
-pluginDir ??= inputPluginDir;
-
-if (!fs.existsSync(pluginDir)) {
-    console.error(`Error: plugin directory not found: ${inputPluginDir}`);
-    process.exit(1);
+function readManifest(pluginDir) {
+    const manifestPath = path.join(pluginDir, 'plugin.json');
+    if (!fs.existsSync(manifestPath)) throw new Error(`plugin.json not found in ${pluginDir}`);
+    let manifest;
+    try {
+        manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    } catch (error) {
+        throw new Error(`failed to parse ${manifestPath}: ${error.message}`);
+    }
+    const errors = validateManifestContract(manifest, pluginDir);
+    for (const element of manifest.elements ?? []) {
+        const entryPath = path.join(pluginDir, element.entry ?? '');
+        if (fs.existsSync(entryPath)) errors.push(...validateElementImports(fs.readFileSync(entryPath, 'utf8'), element.type).errors);
+    }
+    if (errors.length) throw new Error(errors.join('\n  - '));
+    return manifest;
 }
 
-const pluginJsonPath = path.join(pluginDir, 'plugin.json');
-if (!fs.existsSync(pluginJsonPath)) {
-    console.error(`Error: plugin.json not found in ${pluginDir}`);
-    process.exit(1);
-}
-
-let manifest;
-try {
-    manifest = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
-} catch (err) {
-    console.error(`Error: failed to parse plugin.json — ${err.message}`);
-    process.exit(1);
-}
-
-const manifestErrors = validateManifestContract(manifest, pluginDir);
-for (const element of manifest.elements ?? []) {
-    const sourcePath = path.join(pluginDir, element.entry ?? '');
-    if (fs.existsSync(sourcePath)) {
-        manifestErrors.push(
-            ...validateElementImports(fs.readFileSync(sourcePath, 'utf8'), element.type).errors
-        );
+const plugins = new Map();
+for (const input of inputDirectories) {
+    const pluginDir = resolvePluginDirectory(input);
+    if (!fs.existsSync(pluginDir)) {
+        console.error(`Error: plugin directory not found: ${input}`);
+        process.exit(1);
+    }
+    try {
+        const manifest = readManifest(pluginDir);
+        if (plugins.has(manifest.id)) throw new Error(`duplicate plugin ID '${manifest.id}'`);
+        plugins.set(manifest.id, {
+            id: manifest.id,
+            pluginDir,
+            manifest,
+            currentBundle: null,
+            revision: 0,
+            buildError: undefined,
+            rebuildTimer: undefined,
+            rebuilding: false,
+            rebuildPending: false,
+        });
+    } catch (error) {
+        console.error(`Error: invalid development plugin '${input}'\n  - ${error.message}`);
+        process.exit(1);
     }
 }
-if (manifestErrors.length > 0) {
-    console.error(`Error: invalid plugin contract\n${manifestErrors.map((error) => `  - ${error}`).join('\n')}`);
-    process.exit(1);
+
+const sseClients = new Set();
+let tempBuildCounter = 0;
+
+function statusFor(plugin) {
+    return { id: plugin.id, ready: plugin.currentBundle !== null, revision: plugin.revision, buildError: plugin.buildError };
+}
+function broadcast(payload) {
+    const message = `data: ${JSON.stringify(payload)}\n\n`;
+    for (const client of sseClients) {
+        try { client.write(message); } catch { sseClients.delete(client); }
+    }
+}
+function publishSnapshot(client) {
+    client.write(`data: ${JSON.stringify({ type: 'snapshot', plugins: [...plugins.values()].map(statusFor) })}\n\n`);
+}
+function emitUpsert(plugin) {
+    broadcast({ type: 'upsert', pluginId: plugin.id, revision: plugin.revision });
 }
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
-
-/** Latest packaged bundle bytes (Buffer), or null if never built successfully. */
-let currentBundle = null;
-/** SSE response streams of connected clients. */
-const sseClients = new Set();
-
-// ---------------------------------------------------------------------------
-// Build helpers
-// ---------------------------------------------------------------------------
-
-async function bundleElement(element, buildDir) {
-    const entryPath = path.join(pluginDir, element.entry);
-    const outputFileName = element.entry.replace(/\.ts$/, '.js');
+async function bundleElement(plugin, element, buildDir) {
+    const outputFileName = element.entry.replace(/\.(ts|tsx|js|jsx)$/, '.js');
     const outputPath = path.join(buildDir, 'elements', outputFileName);
-
     await build({
-        entryPoints: [entryPath],
-        bundle: true,
-        format: 'cjs',
-        outfile: outputPath,
-        platform: 'browser',
-        target: 'es2020',
-        minify: false, // readable output helps during development
-        sourcemap: false,
-        external: [...PLUGIN_EXTERNALS],
+        entryPoints: [path.join(plugin.pluginDir, element.entry)], bundle: true, format: 'cjs', outfile: outputPath,
+        platform: 'browser', target: 'es2020', minify: false, sourcemap: false, external: [...PLUGIN_EXTERNALS],
     });
-
     return outputFileName;
 }
 
-function packageBundle(bundledManifest, buildDir) {
-    const files = {};
+function copyDirectory(source, destination) {
+    for (const item of fs.readdirSync(source)) {
+        const from = path.join(source, item);
+        const to = path.join(destination, item);
+        if (fs.statSync(from).isDirectory()) { fs.mkdirSync(to, { recursive: true }); copyDirectory(from, to); }
+        else fs.copyFileSync(from, to);
+    }
+}
 
-    files['manifest.json'] = new TextEncoder().encode(JSON.stringify(bundledManifest, null, 2));
-
-    const addDirectory = (dir, archivePrefix) => {
+function packageBundle(manifest, buildDir) {
+    const files = { 'manifest.json': new TextEncoder().encode(JSON.stringify(manifest, null, 2)) };
+    const addDirectory = (dir, prefix) => {
         for (const item of fs.readdirSync(dir)) {
             const fullPath = path.join(dir, item);
-            const archivePath = path.posix.join(archivePrefix, item);
+            const archivePath = path.posix.join(prefix, item);
             if (fs.statSync(fullPath).isDirectory()) addDirectory(fullPath, archivePath);
             else files[archivePath] = fs.readFileSync(fullPath);
         }
     };
-
-    const elementsDir = path.join(buildDir, 'elements');
-    if (fs.existsSync(elementsDir)) addDirectory(elementsDir, 'elements');
-
-    const assetsDir = path.join(buildDir, 'assets');
-    if (fs.existsSync(assetsDir)) {
-        addDirectory(assetsDir, 'assets');
+    for (const [directory, prefix] of [['elements', 'elements'], ['assets', 'assets']]) {
+        const source = path.join(buildDir, directory);
+        if (fs.existsSync(source)) addDirectory(source, prefix);
     }
-
-    return Buffer.from(
-        fflate.zipSync(files, {
-            level: 1, // fast compression for dev
-            comment: `MVMNT dev plugin: ${bundledManifest.name}`,
-        })
-    );
+    return Buffer.from(fflate.zipSync(files, { level: 1, comment: `MVMNT dev plugin: ${manifest.name}` }));
 }
 
-async function doRebuild() {
-    const buildDir = path.join(os.tmpdir(), `mvmnt-dev-plugin-${manifest.id}`);
-
+async function rebuildOnce(plugin) {
+    const buildDir = path.join(os.tmpdir(), `mvmnt-dev-plugin-${process.pid}-${++tempBuildCounter}`);
     try {
-        // Clean and recreate temp build dir
-        if (fs.existsSync(buildDir)) fs.rmSync(buildDir, { recursive: true });
+        const manifest = readManifest(plugin.pluginDir);
+        if (manifest.id !== plugin.id) {
+            plugin.buildError = `plugin ID changed from '${plugin.id}' to '${manifest.id}'; restart dev-plugin to apply it.`;
+            console.error(`[dev-plugin] ${plugin.buildError}`);
+            return;
+        }
+        plugin.manifest = manifest;
         fs.mkdirSync(path.join(buildDir, 'elements'), { recursive: true });
-
-        // Bundle each element
         const bundledManifest = { ...manifest, elements: [] };
         for (const element of manifest.elements) {
-            const bundledEntry = await bundleElement(element, buildDir);
-            bundledManifest.elements.push({ ...element, entry: `elements/${bundledEntry}` });
+            const entry = await bundleElement(plugin, element, buildDir);
+            bundledManifest.elements.push({ ...element, entry: `elements/${entry}` });
         }
-
-        // Copy source assets if present
-        const srcAssetsDir = path.join(pluginDir, 'assets');
-        if (fs.existsSync(srcAssetsDir)) {
-            const destAssetsDir = path.join(buildDir, 'assets');
-            fs.mkdirSync(destAssetsDir, { recursive: true });
-            const copyDir = (src, dest) => {
-                for (const item of fs.readdirSync(src)) {
-                    const s = path.join(src, item);
-                    const d = path.join(dest, item);
-                    if (fs.statSync(s).isDirectory()) {
-                        fs.mkdirSync(d, { recursive: true });
-                        copyDir(s, d);
-                    } else {
-                        fs.copyFileSync(s, d);
-                    }
-                }
-            };
-            copyDir(srcAssetsDir, destAssetsDir);
+        const assets = path.join(plugin.pluginDir, 'assets');
+        if (fs.existsSync(assets)) {
+            const destination = path.join(buildDir, 'assets');
+            fs.mkdirSync(destination, { recursive: true });
+            copyDirectory(assets, destination);
         }
-
-        // Package
-        currentBundle = packageBundle(bundledManifest, buildDir);
-        const sizeKB = (currentBundle.length / 1024).toFixed(1);
-
-        console.log(`[dev-plugin] Built ${manifest.id} — ${sizeKB} KB`);
-        emitRebuild();
-    } catch (err) {
-        console.error(`[dev-plugin] Build failed:\n${err.message}`);
+        plugin.currentBundle = packageBundle(bundledManifest, buildDir);
+        plugin.revision += 1;
+        plugin.buildError = undefined;
+        console.log(`[dev-plugin] Built ${plugin.id} r${plugin.revision} — ${(plugin.currentBundle.length / 1024).toFixed(1)} KB`);
+        emitUpsert(plugin);
+    } catch (error) {
+        plugin.buildError = error instanceof Error ? error.message : String(error);
+        console.error(`[dev-plugin] Build failed for ${plugin.id}:\n${plugin.buildError}`);
     } finally {
-        if (fs.existsSync(buildDir)) fs.rmSync(buildDir, { recursive: true });
+        if (fs.existsSync(buildDir)) fs.rmSync(buildDir, { recursive: true, force: true });
     }
 }
 
-// ---------------------------------------------------------------------------
-// SSE helpers
-// ---------------------------------------------------------------------------
-
-function emitRebuild() {
-    const data = JSON.stringify({ type: 'rebuild', pluginId: manifest.id, timestamp: Date.now() });
-    const msg = `data: ${data}\n\n`;
-    for (const client of sseClients) {
-        try {
-            client.write(msg);
-        } catch {
-            /* ignore closed sockets */
-        }
+async function rebuild(plugin) {
+    if (plugin.rebuilding) { plugin.rebuildPending = true; return; }
+    plugin.rebuilding = true;
+    do { plugin.rebuildPending = false; await rebuildOnce(plugin); } while (plugin.rebuildPending);
+    plugin.rebuilding = false;
+}
+function scheduleRebuild(plugin) {
+    clearTimeout(plugin.rebuildTimer);
+    plugin.rebuildTimer = setTimeout(() => void rebuild(plugin), DEBOUNCE_MS);
+}
+function startWatcher(plugin) {
+    try {
+        fs.watch(plugin.pluginDir, { recursive: true }, (_, filename) => {
+            if (!filename) return;
+            const normalized = filename.replaceAll('\\', '/');
+            const parts = normalized.split('/');
+            if (parts.some((part) => ['node_modules', 'dist', '.build', '.git'].includes(part)) || parts.some((part) => part.startsWith('.')) || normalized.endsWith('~')) return;
+            scheduleRebuild(plugin);
+        });
+    } catch {
+        console.warn(`[dev-plugin] fs.watch unavailable for ${plugin.id}; restart to rebuild.`);
     }
 }
-
-// ---------------------------------------------------------------------------
-// HTTP server
-// ---------------------------------------------------------------------------
 
 const server = http.createServer((req, res) => {
-    // CORS — allow the Vite dev server origin
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET');
-
-    const url = new URL(req.url, `http://localhost`);
-
+    const url = new URL(req.url, 'http://localhost');
     if (url.pathname === '/events') {
-        res.writeHead(200, {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            Connection: 'keep-alive',
-        });
-        res.write(':connected\n\n');
+        res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive' });
+        res.write('retry: 1000\n:connected\n\n');
         sseClients.add(res);
+        publishSnapshot(res);
         req.on('close', () => sseClients.delete(res));
         return;
     }
-
     if (url.pathname === '/status') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ pluginId: manifest.id, ready: currentBundle !== null }));
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify({ protocolVersion: 2, plugins: [...plugins.values()].map(statusFor) }));
         return;
     }
-
-    const bundleName = `/${manifest.id}.mvmnt-plugin`;
-    if (url.pathname === bundleName && currentBundle) {
-        res.writeHead(200, {
-            'Content-Type': 'application/octet-stream',
-            'Content-Disposition': `attachment; filename="${manifest.id}.mvmnt-plugin"`,
-            'Cache-Control': 'no-store',
-        });
-        res.end(currentBundle);
+    const match = url.pathname.match(/^\/([^/]+)\.mvmnt-plugin$/);
+    const plugin = match && plugins.get(decodeURIComponent(match[1]));
+    if (plugin?.currentBundle) {
+        res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename="${plugin.id}.mvmnt-plugin"`, 'Cache-Control': 'no-store' });
+        res.end(plugin.currentBundle);
         return;
     }
-
-    res.writeHead(404);
-    res.end('Not found');
+    res.writeHead(404); res.end('Not found');
 });
 
-// ---------------------------------------------------------------------------
-// File watcher
-// ---------------------------------------------------------------------------
-
-let rebuildTimer = null;
-
-function scheduleRebuild() {
-    clearTimeout(rebuildTimer);
-    rebuildTimer = setTimeout(() => {
-        void doRebuild();
-    }, DEBOUNCE_MS);
-}
-
-function startWatcher() {
-    try {
-        fs.watch(pluginDir, { recursive: true }, (_, filename) => {
-            if (!filename) return;
-            // Ignore build artefacts and editor temp files
-            const parts = filename.replaceAll('\\', '/').split('/');
-            if (
-                parts.some(
-                    (part) => part === 'node_modules' || part === 'dist' || part === '.build' || part === '.git'
-                ) ||
-                parts.some((part) => part.startsWith('.')) ||
-                filename.endsWith('~')
-            )
-                return;
-            scheduleRebuild();
-        });
-    } catch {
-        console.warn('[dev-plugin] fs.watch unavailable — file watching disabled. Rebuild manually by restarting.');
+const heartbeat = setInterval(() => {
+    for (const client of sseClients) {
+        try { client.write(':heartbeat\n\n'); } catch { sseClients.delete(client); }
     }
+}, HEARTBEAT_MS);
+
+function shutdown(signal) {
+    console.log(`\n[dev-plugin] Received ${signal}; removing development plugins.`);
+    for (const plugin of plugins.values()) broadcast({ type: 'remove', pluginId: plugin.id });
+    clearInterval(heartbeat);
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 500).unref();
 }
-
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
-
-console.log(`\n[dev-plugin] Starting dev server for '${manifest.name}' (${manifest.id})`);
-console.log(`[dev-plugin] Port: ${port}  |  Plugin dir: ${path.relative(projectRoot, pluginDir)}\n`);
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 server.listen(port, '127.0.0.1', async () => {
-    console.log(`[dev-plugin] Server: http://localhost:${port}`);
-    console.log(`[dev-plugin] Open MVMNT in the browser — it will auto-connect and hot-reload on save.\n`);
-
-    // Initial build
-    await doRebuild();
-
-    // Start watching for changes
-    startWatcher();
-    console.log(`[dev-plugin] Watching for changes…`);
+    console.log(`\n[dev-plugin] Serving ${plugins.size} plugin(s) at http://localhost:${port}`);
+    await Promise.all([...plugins.values()].map(rebuild));
+    for (const plugin of plugins.values()) startWatcher(plugin);
+    console.log('[dev-plugin] Watching for changes…');
 });
-
-server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-        console.error(`[dev-plugin] Port ${port} is already in use. Pass --port <n> to use a different port.`);
-    } else {
-        console.error('[dev-plugin] Server error:', err.message);
-    }
+server.on('error', (error) => {
+    console.error(error.code === 'EADDRINUSE' ? `[dev-plugin] Port ${port} is already in use.` : `[dev-plugin] Server error: ${error.message}`);
     process.exit(1);
 });

@@ -41,10 +41,13 @@ export interface PluginLoadResult {
     skippedElements?: string[];
 }
 
-interface LoadPluginOptions {
+export interface LoadPluginOptions {
     allowExistingPlugin?: boolean;
     /** Allow installing a bundle whose version is older than the currently installed one. */
     allowDowngrade?: boolean;
+    /** Development bundles remain in memory and must not appear as installed plugins. */
+    persist?: boolean;
+    source?: 'installed' | 'development';
 }
 
 // V2 intentionally omits global capability accessors from domain modules. The current
@@ -264,8 +267,11 @@ export async function loadPlugin(bundleData: ArrayBuffer, options: LoadPluginOpt
             }
         }
 
-        // Store the bundle for future use
-        await PluginBinaryStore.put(manifest.id, bundleData);
+        const persist = options.persist ?? true;
+        const source = options.source ?? 'installed';
+
+        // Development bundles are deliberately session-only.
+        if (persist) await PluginBinaryStore.put(manifest.id, bundleData);
 
         // Register bundled assets so elements can load them via loadBundledAsset()
         registerPluginAssets(manifest.id, files as Record<string, Uint8Array>);
@@ -359,7 +365,7 @@ export async function loadPlugin(bundleData: ArrayBuffer, options: LoadPluginOpt
         if (registeredTypes.length === 0) {
             await disposePluginDefinitionScopes(manifest.id);
             revokePluginAssets(manifest.id);
-            await PluginBinaryStore.delete(manifest.id);
+            if (persist) await PluginBinaryStore.delete(manifest.id);
             return {
                 success: false,
                 manifest,
@@ -369,7 +375,7 @@ export async function loadPlugin(bundleData: ArrayBuffer, options: LoadPluginOpt
         }
 
         // Add to plugin store
-        usePluginStore.getState().addPlugin(manifest, true);
+        usePluginStore.getState().addPlugin(manifest, true, source);
 
         // Log any partial failures
         if (loadErrors.length > 0) {
@@ -402,7 +408,10 @@ export async function loadPlugin(bundleData: ArrayBuffer, options: LoadPluginOpt
 /**
  * Unload a plugin and unregister its elements
  */
-export async function unloadPlugin(pluginId: string): Promise<{ success: boolean; error?: string }> {
+export async function unloadPlugin(
+    pluginId: string,
+    options: { removePersisted?: boolean } = {}
+): Promise<{ success: boolean; error?: string }> {
     try {
         const plugin = usePluginStore.getState().plugins[pluginId];
         if (!plugin) {
@@ -416,9 +425,12 @@ export async function unloadPlugin(pluginId: string): Promise<{ success: boolean
         // Remove from plugin store
         usePluginStore.getState().removePlugin(pluginId);
 
-        // Remove from storage
-        await PluginBinaryStore.delete(pluginId);
-        PluginSettingsStore.removeEntry(pluginId);
+        // Development bundles never own persistent storage. Callers may also
+        // request a runtime-only teardown while performing a hot replacement.
+        if (options.removePersisted ?? plugin.source !== 'development') {
+            await PluginBinaryStore.delete(pluginId);
+            PluginSettingsStore.removeEntry(pluginId);
+        }
 
         // Revoke any blob URLs created for bundled assets
         revokePluginAssets(pluginId);
@@ -452,7 +464,7 @@ export async function disablePlugin(pluginId: string): Promise<{ success: boolea
         await disposePluginDefinitionScopes(pluginId);
         revokePluginAssets(pluginId);
         usePluginStore.getState().disablePlugin(pluginId);
-        PluginSettingsStore.setEnabled(pluginId, false);
+        if (plugin.source !== 'development') PluginSettingsStore.setEnabled(pluginId, false);
 
         dispatchPluginAvailabilityEvent({
             action: 'disabled',
@@ -535,7 +547,7 @@ export async function upgradePlugin(bundleData: ArrayBuffer): Promise<PluginLoad
 }
 
 /**
- * Reload a plugin from storage (used on app startup)
+ * Reload a plugin from storage for an explicit re-enable operation.
  */
 export async function reloadPluginFromStorage(
     pluginId: string,
@@ -549,45 +561,11 @@ export async function reloadPluginFromStorage(
 
         return await loadPlugin(bundleData, {
             allowExistingPlugin: options.allowExistingPlugin,
-            // Version is re-checked on startup to catch host API major bumps between sessions.
+            // Re-check the version when restoring a stored plugin after a host update.
         });
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         return { success: false, error: errorMsg };
-    }
-}
-
-/**
- * Load all plugins from storage on app startup
- */
-export async function loadAllPluginsFromStorage(): Promise<void> {
-    try {
-        const pluginIds = await PluginBinaryStore.listIds();
-
-        for (const pluginId of pluginIds) {
-            usePluginStore.getState().setLoading(pluginId, true);
-            const result = await reloadPluginFromStorage(pluginId);
-            usePluginStore.getState().setLoading(pluginId, false);
-
-            if (!result.success) {
-                console.error(`[PluginLoader] Failed to reload plugin '${pluginId}':`, result.error);
-                if (result.manifest) {
-                    // Manifest parsed but load failed (e.g. API version incompatible after host update).
-                    // Register in store as disabled-with-error so the UI can surface it.
-                    usePluginStore.getState().registerFailedPlugin(result.manifest, result.error ?? 'Failed to load');
-                } else {
-                    usePluginStore.getState().setPluginError(pluginId, result.error || 'Unknown error');
-                }
-            } else {
-                const storedEnabled = PluginSettingsStore.getEnabled(pluginId);
-                if (storedEnabled === false) {
-                    sceneElementRegistry.unregisterPlugin(pluginId);
-                    usePluginStore.getState().disablePlugin(pluginId);
-                }
-            }
-        }
-    } catch (error) {
-        console.error('[PluginLoader] Failed to load plugins from storage:', error);
     }
 }
 

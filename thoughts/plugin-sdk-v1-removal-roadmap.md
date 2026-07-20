@@ -42,7 +42,7 @@ The audit counts only non-test TypeScript files that export an element class or 
 | Area                               | V1 class files | SDK 2 definition files | Manifest state                                               |
 | ---------------------------------- | -------------: | ---------------------: | ------------------------------------------------------------ |
 | First-party elements and templates |             32 |                      1 | Built-ins have no plugin manifest                            |
-| `src/pluginexamples`               |              9 |                      0 | 3 manifests, 9 elements, all `^1.0.0`                        |
+| external example plugins           |              9 |                      0 | 3 manifests, 9 elements, all `^1.0.0`                        |
 | `src/plugins`                      |              9 |                      1 | 6 v1 manifests with 9 elements; 1 v2 manifest with 1 element |
 | **Total**                          |         **50** |                  **2** | **18 v1 manifest elements; 1 v2 manifest element**           |
 
@@ -64,9 +64,9 @@ The two verified SDK 2 clients are:
 
 The remaining source manifests on v1 are:
 
-- `src/pluginexamples/fnf/plugin.json`
-- `src/pluginexamples/midipack1/plugin.json`
-- `src/pluginexamples/patternspack1/plugin.json`
+- the external `fnf` example plugin manifest
+- the external `midipack1` example plugin manifest
+- the external `patternspack1` example plugin manifest
 - `src/plugins/audiopack1/plugin.json`
 - `src/plugins/boinker/plugin.json`
 - `src/plugins/circleoffifths/plugin.json`
@@ -119,7 +119,7 @@ Reference clients define the supported authoring workflow and should move before
 
 Exit gate:
 
-- `src/pluginexamples` contains no `SceneElement`, v1 accessor, proxy, shortcut, or
+- the external example plugins contain no `SceneElement`, v1 accessor, proxy, shortcut, or
   module-scope registration usage.
 - Every example builds with the packed SDK, the production builder, and the dev builder.
 
@@ -245,17 +245,17 @@ must shrink in each migration change and may never grow without API review.
 
 ```sh
 rg -l "export class .* extends SceneElement" \
-  src/core/scene/elements src/pluginexamples src/plugins \
+  src/core/scene/elements src/plugins \
   -g '*.ts' -g '!**/__tests__/**'
 
 rg -l "definePluginElement" \
-  src/core/scene/elements src/pluginexamples src/plugins \
+  src/core/scene/elements src/plugins \
   -g '*.ts' -g '!**/__tests__/**'
 
-rg -n '"apiVersion": "\\^1\\.' src/pluginexamples src/plugins -g plugin.json
+rg -n '"apiVersion": "\\^1\\.' src/plugins -g plugin.json
 
 rg -l "getRequiredPluginApi|getPluginHostApi|timelineApi|audioApi|audioRawApi|timingApi|sampleAudio" \
-  src/core/scene/elements src/pluginexamples src/plugins \
+  src/core/scene/elements src/plugins \
   -g '*.ts' -g '!**/__tests__/**'
 ```
 

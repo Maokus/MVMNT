@@ -4,7 +4,6 @@ export {
     unloadPlugin,
     disablePlugin,
     enablePlugin,
-    loadAllPluginsFromStorage,
     type PluginLoadResult,
 } from './plugin-loader';
 export {

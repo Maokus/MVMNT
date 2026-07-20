@@ -49,6 +49,8 @@ export interface LoadedPlugin {
     manifest: PluginManifest;
     enabled: boolean;
     loadedAt: number;
+    /** Development plugins are owned by the localhost watcher and are never persisted. */
+    source: 'installed' | 'development';
     error?: string;
 }
 
@@ -58,7 +60,7 @@ export interface PluginStoreState {
 }
 
 export interface PluginStoreActions {
-    addPlugin: (manifest: PluginManifest, enabled?: boolean) => void;
+    addPlugin: (manifest: PluginManifest, enabled?: boolean, source?: LoadedPlugin['source']) => void;
     removePlugin: (pluginId: string) => void;
     enablePlugin: (pluginId: string) => void;
     disablePlugin: (pluginId: string) => void;
@@ -81,14 +83,15 @@ const initialState: PluginStoreState = {
 export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set) => ({
     ...initialState,
 
-    addPlugin: (manifest: PluginManifest, enabled = true) => {
+    addPlugin: (manifest: PluginManifest, enabled = true, source: LoadedPlugin['source'] = 'installed') => {
         set((state) => ({
             plugins: {
                 ...state.plugins,
-                [manifest.id]: {
-                    manifest,
-                    enabled,
-                    loadedAt: Date.now(),
+                    [manifest.id]: {
+                        manifest,
+                        enabled,
+                        source,
+                        loadedAt: Date.now(),
                 },
             },
         }));
@@ -189,6 +192,7 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
                 [manifest.id]: {
                     manifest,
                     enabled: false,
+                    source: 'installed',
                     loadedAt: Date.now(),
                     error,
                 },

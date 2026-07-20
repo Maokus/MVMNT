@@ -7,9 +7,7 @@ import App from './App'; // Fast Refresh boundary
 import { BrowserRouter } from 'react-router-dom';
 import reportWebVitals from './reportWebVitals';
 import { registerBuiltInAudioFeatureCalculators } from '@audio/features/audioFeatureAnalysis';
-import { loadAllPluginsFromStorage } from '@core/scene/plugins';
 import { startDevPluginWatcher } from '@core/scene/plugins/dev-plugin-watcher';
-import { installDefaultPlugins } from '@core/scene/plugins/default-plugins';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectNotesInWindow } from '@selectors/timelineSelectors';
 if (import.meta.env.DEV) {
@@ -55,16 +53,6 @@ registerBuiltInAudioFeatureCalculators();
 
 // Hot-reload support: connect to `npm run dev-plugin` server if running
 startDevPluginWatcher();
-
-// Load runtime plugins from storage (Phase 3)
-loadAllPluginsFromStorage().catch((error) => {
-  console.error('[App] Failed to load plugins from storage:', error);
-});
-
-// Install bundled default plugins on first run
-installDefaultPlugins().catch((error) => {
-  console.error('[App] Failed to install default plugins:', error);
-});
 
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
 // Vite exposes the configured base as import.meta.env.BASE_URL (always ends with a slash)

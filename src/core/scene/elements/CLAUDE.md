@@ -78,4 +78,4 @@ Use `collapsed: true` for background, border, container, shadow, and anything la
 - Compute elapsed time as `targetTime - note.startTime` (for on-animations) or `targetTime - note.endTime` (for fade-out)
 - For note range auto-detection, use `api.timeline.getNoteRange()` — not `midiCache` internals
 
-See `src/pluginexamples/midipack1/popcat-midi-display.ts` for the reference implementation.
+Use an external plugin project served through `npm run dev-plugin` as the reference implementation.

@@ -9,7 +9,6 @@
 - **export/** – Video/image exporters and audio mixdown.
 - **math/** – Generic math, geometry, and numeric helpers.
 - **persistence/** – Import/export, document gateway, local save service, and scene packaging.
-- **pluginexamples/** – Reference plugin implementations (`fnf`, `midipack1`, `patternspack1`).
 - **state/** – Zustand stores, selectors, and middleware. Hosts the canonical timeline and scene stores plus command/undo infrastructure.
 - **utils/** – Shared utilities (logging, throttling, feature flag helpers, etc.).
 - **workspace/** – Components for the main workspace UI (panels, modals, forms, layouts).

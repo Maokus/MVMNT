@@ -3,12 +3,14 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { disablePlugin, enablePlugin, loadPlugin, unloadPlugin } from '../plugin-loader';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import { usePluginStore } from '@state/pluginStore';
+import { PluginBinaryStore } from '@persistence/plugin-binary-store';
 
 const pluginId = 'com.example.loader-v2';
+const developmentPluginId = 'com.example.loader-v2-development';
 
-function bundle(): ArrayBuffer {
+function bundle(id = pluginId): ArrayBuffer {
     const manifest = {
-        id: pluginId,
+        id,
         name: 'Loader v2 fixture',
         version: '1.0.0',
         apiVersion: '^2.0.0',
@@ -54,6 +56,8 @@ function sdk1Bundle(): ArrayBuffer {
 
 afterEach(async () => {
     if (usePluginStore.getState().plugins[pluginId]) await unloadPlugin(pluginId);
+    if (usePluginStore.getState().plugins[developmentPluginId]) await unloadPlugin(developmentPluginId);
+    await PluginBinaryStore.delete(developmentPluginId);
 });
 
 describe('v2 plugin loader fixture', () => {
@@ -94,5 +98,12 @@ describe('v2 plugin loader fixture', () => {
         const result = await loadPlugin(sdk1Bundle());
         expect(result).toMatchObject({ success: false });
         expect(result.error).toContain('MVMNT requires ^2.0.0');
+    });
+
+    it('keeps development bundles session-only', async () => {
+        const result = await loadPlugin(bundle(developmentPluginId), { persist: false, source: 'development' });
+        expect(result.success).toBe(true);
+        expect(usePluginStore.getState().plugins[developmentPluginId]?.source).toBe('development');
+        expect(await PluginBinaryStore.get(developmentPluginId)).toBeUndefined();
     });
 });

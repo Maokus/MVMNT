@@ -147,7 +147,7 @@ The loader accepts ranges compatible with SDK 2. SDK 1 ranges are rejected. See
 
 ## Persistence
 
-Plugins are automatically persisted to IndexedDB and reloaded on app startup via `loadAllPluginsFromStorage()` called in [src/app/index.tsx](../src/app/index.tsx).
+Plugins are persisted to IndexedDB for scene packaging and explicit enable/reload operations. They are not automatically loaded at app startup; the development plugin server is the only automatic plugin load path.
 
 Failed plugins are disabled but remain in storage so users can:
 

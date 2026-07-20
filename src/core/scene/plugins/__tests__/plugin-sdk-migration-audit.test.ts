@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { unzipSync } from 'fflate';
 
 const root = resolve(__dirname, '../../../../../');
-const auditedRoots = ['src/core/scene/elements', 'src/pluginexamples', 'src/plugins'];
+const auditedRoots = ['src/core/scene/elements', 'src/plugins'];
 const sourceFiles = (directory: string): string[] =>
     readdirSync(directory).flatMap((entry) => {
         const path = resolve(directory, entry);
@@ -51,7 +51,7 @@ describe('SDK 2 source audit', () => {
     });
 
     it('keeps every source manifest on SDK 2', () => {
-        const manifests = ['src/pluginexamples', 'src/plugins'].flatMap((directory) => {
+        const manifests = ['src/plugins'].flatMap((directory) => {
             const visit = (path: string): string[] =>
                 readdirSync(path).flatMap((entry) => {
                     const child = resolve(path, entry);

@@ -99,7 +99,6 @@ The bundle is written to `dist/com.example.pulse-0.1.0.mvmnt-plugin`. In MVMNT, 
 - [SDK API inventory](plugin-sdk-api-inventory.md): exports and supported import paths.
 - [Plugin manifest schema](plugin-manifest.schema.json): all `plugin.json` fields.
 - [SDK 1 to SDK 2 migration](plugin-v1-to-v2.md): update an existing legacy plugin.
-- [Compilable examples](../../src/pluginexamples/README.md): larger MIDI, image, and animation
   plugins.
 
 Place packaged files under `assets/` and access them through `context.assets`.

@@ -13,8 +13,11 @@ Run both commands from the MVMNT checkout:
 # Terminal 1: the MVMNT application in Vite development mode
 npm run dev
 
-# Terminal 2: watcher/builder for one plugin directory
+# Terminal 2: watcher/builder for one or more plugin directories
 npm run dev-plugin -- /absolute/path/to/plugin
+
+# Multiple plugins share the same localhost server and hot-reload together.
+npm run dev-plugin -- /absolute/path/to/plugin-a /absolute/path/to/plugin-b
 ```
 
 The plugin directory must contain a valid SDK 2 `plugin.json`. Element entries may be TypeScript or
@@ -35,7 +38,7 @@ npm run dev-plugin -- /absolute/path/to/plugin --port 7750
 ```
 
 Changing `VITE_DEV_PLUGIN_PORT` requires restarting Vite. One browser watcher connects to one port,
-so the built-in workflow develops one plugin server at a time.
+and that server can serve any number of plugin directories.
 
 ## What happens on startup
 
@@ -47,11 +50,11 @@ so the built-in workflow develops one plugin server at a time.
 4. It exposes three HTTP endpoints:
 
    - `/events` — Server-Sent Events announcing successful rebuilds.
-   - `/status` — the current plugin ID and whether an initial bundle is ready.
-   - `/<plugin-id>.mvmnt-plugin` — the latest archive with caching disabled.
+   - `/status` — all served plugin IDs, revisions, readiness, and build errors.
+   - `/<plugin-id>.mvmnt-plugin` — each latest archive with caching disabled.
 
-5. When MVMNT's `EventSource` connects, the app reads `/status` and fetches the current archive.
-   This handles the case where the initial build finished before the browser connected.
+5. When MVMNT's `EventSource` connects, the app reads `/status` and fetches every current archive.
+   The connection automatically retries, so Vite and `dev-plugin` may start in either order.
 6. The normal runtime loader stores the archive, injects SDK 2 modules, registers element types as
    `<plugin-id>:<element-type>`, and refreshes matching scene instances.
 
@@ -81,11 +84,10 @@ hot replacement.
 ## Files, manifests, and persistence
 
 - Source and `assets/` changes trigger rebuilds. Assets are copied into every successful archive.
-- `plugin.json` is validated when the server starts. Restart `npm run dev-plugin` after changing the
-  manifest, including its ID, entries, capabilities, or version.
-- Development archives pass through the regular loader and are written to the plugin binary store.
-  The latest successful build can therefore appear as an installed plugin after a refresh. Remove
-  it from Settings → Plugins when development is finished if you do not want it retained.
+- Valid `plugin.json` edits are picked up automatically. Changing the plugin ID requires restarting
+  `npm run dev-plugin`; entries, capabilities, assets, and versions hot-reload normally.
+- Development archives are session-only. They are never written to the plugin binary store and are
+  removed when the server sends a shutdown event or remains unreachable for five seconds.
 - The development build is kept out of `dist/`. Use `npm run build-plugin -- <plugin-dir>` to create
   a distributable, minified archive with its versioned filename.
 
@@ -97,8 +99,8 @@ fix the error and save again to restore it.
 
 Common checks:
 
-- No connection: confirm MVMNT is using `npm run dev`, both sides use the same port, and refresh once
-  after the watcher says it is ready.
+- No connection: confirm MVMNT is using `npm run dev` and both sides use the same port. Starting
+  either process first is supported; the browser reconnects automatically.
 - `EADDRINUSE`: stop the existing server or configure the same alternate port on Vite and
   `dev-plugin`.
 - Manifest/import rejection: run `npm run build-plugin -- <plugin-dir>` for the same contract
@@ -107,7 +109,7 @@ Common checks:
   command reports that watching is unavailable.
 - Element temporarily becomes “missing”: inspect the browser console for `DevPluginWatcher` or
   `PluginLoader` errors, then save after correcting the runtime failure.
-- Stale manifest values: restart the watcher; manifest data is not reread during a running session.
+- Installed-plugin collision: remove an imported plugin with the same ID before serving its dev copy.
 
 For lifecycle details, see [Plugin element lifecycle](plugin-lifecycle.md). For packaging and the
 first complete element, return to the [SDK 2 quickstart](plugin-quickstart.md).
