@@ -89,6 +89,20 @@ function projectedRectBounds(root: PerspectiveElementRoot, bounds: Bounds): Pers
     return points.some((point) => !point) ? null : getProjectedBounds(points as Array<{ x: number; y: number }>);
 }
 
+/**
+ * Expand projected bounds onto the destination canvas pixel grid. Rendering and
+ * compositing from this same integer rectangle avoids a second fractional
+ * resampling step that would otherwise offset the warped image from its bounds.
+ */
+function enclosePixelBounds(bounds: PerspectiveBounds): PerspectiveBounds | null {
+    const left = Math.floor(bounds.x);
+    const top = Math.floor(bounds.y);
+    const right = Math.ceil(bounds.x + bounds.width);
+    const bottom = Math.ceil(bounds.y + bounds.height);
+    if (right <= left || bottom <= top) return null;
+    return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
 export class PerspectiveCompositor {
     readonly diagnostics = new PerspectiveDiagnostics();
     private readonly createCanvas: () => HTMLCanvasElement;
@@ -130,6 +144,8 @@ export class PerspectiveCompositor {
         if (!projected) return false;
         const clipped = clipPerspectiveBounds(projected, canvas.width, canvas.height);
         if (!clipped) return true;
+        const outputBounds = enclosePixelBounds(clipped);
+        if (!outputBounds) return true;
         if (!this.ensureWebGL()) return false;
 
         const bucketTextureLimit = Math.floor(this.maxTextureSize / 64) * 64;
@@ -164,8 +180,11 @@ export class PerspectiveCompositor {
             }
             this.diagnostics.add({ sourceRasterMs: now() - rasterStart, sourcePixels: logicalWidth * logicalHeight });
 
-            const ok = this.submit(root, surface, sourceBounds, resolution, clipped, target);
-            if (ok) this.diagnostics.add({ warpedElements: 1 });
+            const ok = this.submit(root, surface, sourceBounds, resolution, outputBounds, target);
+            if (ok) {
+                if (config.showAnchorPoints) root.renderProjectedAnchorVisualization(target);
+                this.diagnostics.add({ warpedElements: 1 });
+            }
             return ok;
         } catch (error) {
             this.warnOnce('source-raster', `Perspective source raster failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -278,7 +297,11 @@ export class PerspectiveCompositor {
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+            // The inverse-mapping shader uses top-down Canvas coordinates for
+            // sourcePixel.y. Keep uploaded Canvas rows in that same order. A
+            // WebGL Y flip would move bucket padding ahead of the raster and
+            // sample the source upside-down.
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
             gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1);
             return true;
         } catch (error) {
@@ -306,7 +329,7 @@ export class PerspectiveCompositor {
         surface: Surface,
         sourceBounds: Bounds,
         resolution: number,
-        clipped: PerspectiveBounds,
+        outputBounds: PerspectiveBounds,
         target: CanvasRenderingContext2D
     ): boolean {
         const gl = this.gl!;
@@ -314,8 +337,8 @@ export class PerspectiveCompositor {
         const inverseWarp = invertHomography(root.warpMatrix!);
         const inverseAffine = invertAffineTransform(root.getAffineTransform());
         if (!inverseWarp || !inverseAffine || !this.scratchCanvas) return false;
-        const outputWidth = bucket(Math.ceil(clipped.width));
-        const outputHeight = bucket(Math.ceil(clipped.height));
+        const outputWidth = bucket(outputBounds.width);
+        const outputHeight = bucket(outputBounds.height);
         if (this.scratchCanvas.width !== outputWidth || this.scratchCanvas.height !== outputHeight) {
             this.scratchCanvas.width = outputWidth;
             this.scratchCanvas.height = outputHeight;
@@ -349,7 +372,7 @@ export class PerspectiveCompositor {
             gl.uniform4f(uniform('u_sourceBounds'), sourceBounds.x, sourceBounds.y, sourceBounds.width, sourceBounds.height);
             gl.uniform1f(uniform('u_resolution'), resolution);
             gl.uniform2f(uniform('u_textureSize'), surface.width, surface.height);
-            gl.uniform2f(uniform('u_outputOrigin'), clipped.x, clipped.y);
+            gl.uniform2f(uniform('u_outputOrigin'), outputBounds.x, outputBounds.y);
             gl.uniform1f(uniform('u_outputHeight'), outputHeight);
             const timerQuery = this.timerExtension?.createQueryEXT?.() ?? null;
             if (timerQuery) this.timerExtension.beginQueryEXT(this.timerExtension.TIME_ELAPSED_EXT, timerQuery);
@@ -366,13 +389,23 @@ export class PerspectiveCompositor {
             this.diagnostics.add({
                 gpuSubmissionMs: now() - submitStart,
                 uploadedBytes: surface.width * surface.height * 4,
-                projectedPixels: Math.ceil(clipped.width) * Math.ceil(clipped.height),
+                projectedPixels: outputBounds.width * outputBounds.height,
             });
             const compositeStart = now();
             target.save();
             target.globalAlpha *= root.opacity;
             target.globalCompositeOperation = 'source-over';
-            target.drawImage(this.scratchCanvas, 0, 0, Math.ceil(clipped.width), Math.ceil(clipped.height), clipped.x, clipped.y, Math.ceil(clipped.width), Math.ceil(clipped.height));
+            target.drawImage(
+                this.scratchCanvas,
+                0,
+                0,
+                outputBounds.width,
+                outputBounds.height,
+                outputBounds.x,
+                outputBounds.y,
+                outputBounds.width,
+                outputBounds.height
+            );
             target.restore();
             this.diagnostics.add({ canvasCompositeMs: now() - compositeStart });
             return true;

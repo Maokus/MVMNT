@@ -10,8 +10,8 @@ const strongWarp = {
     bottomLeft: { x: -0.1, y: 0.85 },
 };
 
-function rootAt(x: number): PerspectiveElementRoot {
-    const root = new PerspectiveElementRoot('test', strongWarp, x, 0, 1, 1, 1);
+function rootAt(x: number, y = 0): PerspectiveElementRoot {
+    const root = new PerspectiveElementRoot('test', strongWarp, x, y, 1, 1, 1);
     root.baseBounds = { x: 0, y: 0, width: 100, height: 100 };
     root.visualBounds = { ...root.baseBounds };
     root.setOriginFraction(0, 0);
@@ -60,6 +60,35 @@ describe('PerspectiveCompositor', () => {
         expect(gl.texImage2D).toHaveBeenCalledTimes(1);
         expect(gl.texSubImage2D).toHaveBeenCalledTimes(1);
         expect(target.drawImage).toHaveBeenCalledTimes(2);
+        expect(gl.pixelStorei).toHaveBeenCalledWith(gl.UNPACK_FLIP_Y_WEBGL, 0);
+    });
+
+    it('draws projected anchor diagnostics after a successful warped composite', () => {
+        const { compositor, target } = createWorkingHarness();
+        const root = rootAt(0);
+        const drawDiagnostics = vi.spyOn(root, 'renderProjectedAnchorVisualization').mockImplementation(() => {});
+
+        expect(compositor.renderElement(
+            root,
+            target,
+            { canvas: { width: 200, height: 200 } as HTMLCanvasElement, showAnchorPoints: true },
+            0
+        )).toBe(true);
+
+        expect(drawDiagnostics).toHaveBeenCalledWith(target);
+    });
+
+    it('composites from an integer rectangle enclosing fractional projected bounds', () => {
+        const { compositor, target, scratch } = createWorkingHarness();
+
+        expect(compositor.renderElement(
+            rootAt(20.25, 20.25),
+            target,
+            { canvas: { width: 200, height: 200 } as HTMLCanvasElement },
+            0
+        )).toBe(true);
+
+        expect(target.drawImage).toHaveBeenCalledWith(scratch, 0, 0, 121, 101, 10, 20, 121, 101);
     });
 
     it('falls back during context loss and recompiles after restoration', () => {

@@ -119,6 +119,41 @@ afterEach(() => {
     featureControllerMocks.store.clear();
 });
 
+describe('SceneElement perspective property schema', () => {
+    it('exposes the enable toggle and conditionally visible normalized corner inputs', () => {
+        const elementTab = SceneElement.getConfigSchema().tabs.find((tab) => tab.id === 'element');
+        const perspectiveGroup = elementTab?.groups.find((group) => group.id === 'perspective');
+
+        expect(perspectiveGroup).toBeDefined();
+        expect(perspectiveGroup?.properties.map((property) => property.key)).toEqual([
+            'warpEnabled',
+            'warpTopLeftX',
+            'warpTopLeftY',
+            'warpTopRightX',
+            'warpTopRightY',
+            'warpBottomRightX',
+            'warpBottomRightY',
+            'warpBottomLeftX',
+            'warpBottomLeftY',
+        ]);
+        expect(perspectiveGroup?.properties[0]).toMatchObject({
+            key: 'warpEnabled',
+            type: 'boolean',
+            default: false,
+        });
+
+        for (const property of perspectiveGroup?.properties.slice(1) ?? []) {
+            expect(property).toMatchObject({
+                type: 'number',
+                step: 0.01,
+                visibleWhen: [{ key: 'warpEnabled', equals: true }],
+            });
+            expect(property).not.toHaveProperty('min');
+            expect(property).not.toHaveProperty('max');
+        }
+    });
+});
+
 describe('SceneElement lifecycle', () => {
     it('clears lazy audio feature intents during disposal', () => {
         const clearSpy = vi.spyOn(sceneApi, 'clearFeatureData');

@@ -1,8 +1,8 @@
 # Element Perspective Property UI Plan
 
-**Status:** Proposed design; implementation intentionally deferred.
+**Status:** Superseded in part by the initial numeric inspector surface.
 
-**Feature dependency:** `elementPerspectiveWarp` remains disabled by default until this plan is accepted and its product UI is implemented.
+**Feature dependency:** `elementPerspectiveWarp` now defaults on. The Element tab provides a Perspective enable toggle and conditionally visible numeric corner fields. The richer direct-manipulation workflow below remains a future design proposal.
 
 ## Goals and constraints
 
@@ -54,4 +54,3 @@ On wide inspectors, each corner uses one row with X and Y fields. On narrow/mobi
 - Whether the Corner Values subsection starts collapsed (recommended) or remembers its state per user.
 - Whether a small perspective icon belongs in the element-list row after the beta period.
 - Whether group automation navigation is required for first release or can follow the scalar binding controls.
-

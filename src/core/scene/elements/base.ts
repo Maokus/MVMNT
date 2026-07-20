@@ -1040,6 +1040,50 @@ export class SceneElement implements SceneElementInterface {
                                 }),
                             ],
                         },
+                        {
+                            id: 'perspective',
+                            label: 'Perspective',
+                            collapsed: true,
+                            description:
+                                'Corner-pin the element using normalized local coordinates. Values outside 0–1 are allowed.',
+                            properties: [
+                                prop.boolean('warpEnabled', 'Enable Perspective', false, {
+                                    description: 'Apply a planar perspective warp to this element.',
+                                }),
+                                prop.number('warpTopLeftX', 'Top Left X', 0, {
+                                    step: 0.01,
+                                    visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                }),
+                                prop.number('warpTopLeftY', 'Top Left Y', 0, {
+                                    step: 0.01,
+                                    visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                }),
+                                prop.number('warpTopRightX', 'Top Right X', 1, {
+                                    step: 0.01,
+                                    visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                }),
+                                prop.number('warpTopRightY', 'Top Right Y', 0, {
+                                    step: 0.01,
+                                    visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                }),
+                                prop.number('warpBottomRightX', 'Bottom Right X', 1, {
+                                    step: 0.01,
+                                    visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                }),
+                                prop.number('warpBottomRightY', 'Bottom Right Y', 1, {
+                                    step: 0.01,
+                                    visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                }),
+                                prop.number('warpBottomLeftX', 'Bottom Left X', 0, {
+                                    step: 0.01,
+                                    visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                }),
+                                prop.number('warpBottomLeftY', 'Bottom Left Y', 1, {
+                                    step: 0.01,
+                                    visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                }),
+                            ],
+                        },
                     ],
                 },
             ],

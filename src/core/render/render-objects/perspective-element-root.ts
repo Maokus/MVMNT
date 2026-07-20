@@ -78,6 +78,81 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
         return applyAffinePoint(this.getAffineTransform(), local);
     }
 
+    private projectLocalPoint(point: PerspectivePoint): PerspectivePoint | null {
+        if (!this.baseBounds || !this._warpMatrix) return null;
+        const warped = warpLocalPoint(this._warpMatrix, this.baseBounds, point);
+        return warped ? applyAffinePoint(this.getAffineTransform(), warped) : null;
+    }
+
+    /** Draw the ordinary anchor debug information in projected world space. */
+    renderProjectedAnchorVisualization(ctx: CanvasRenderingContext2D): void {
+        const data = this.anchorVisualizationData;
+        if (!data || !this.baseBounds || !this._warpMatrix) return;
+
+        const projectRect = (bounds: Bounds): PerspectivePoint[] | null => {
+            const points = [
+                { x: bounds.x, y: bounds.y },
+                { x: bounds.x + bounds.width, y: bounds.y },
+                { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+                { x: bounds.x, y: bounds.y + bounds.height },
+            ].map((point) => this.projectLocalPoint(point));
+            return points.some((point) => !point) ? null : points as PerspectivePoint[];
+        };
+        const drawPolygon = (points: PerspectivePoint[] | null, color: string, dash: number[]) => {
+            if (!points) return;
+            ctx.strokeStyle = color;
+            ctx.setLineDash(dash);
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let index = 1; index < points.length; index++) ctx.lineTo(points[index].x, points[index].y);
+            ctx.closePath();
+            ctx.stroke();
+        };
+
+        const layout = data.layoutBounds;
+        const anchorLocal = {
+            x: layout.x + layout.width * data.anchorX,
+            y: layout.y + layout.height * data.anchorY,
+        };
+        const anchor = this.projectLocalPoint(anchorLocal);
+        const horizontalStart = this.projectLocalPoint({ x: layout.x, y: anchorLocal.y });
+        const horizontalEnd = this.projectLocalPoint({ x: layout.x + layout.width, y: anchorLocal.y });
+        const verticalStart = this.projectLocalPoint({ x: anchorLocal.x, y: layout.y });
+        const verticalEnd = this.projectLocalPoint({ x: anchorLocal.x, y: layout.y + layout.height });
+        if (!anchor || !horizontalStart || !horizontalEnd || !verticalStart || !verticalEnd) return;
+
+        ctx.save();
+        ctx.globalAlpha *= this.opacity;
+        ctx.lineWidth = 1;
+        drawPolygon(projectRect(data.visualBounds), '#00FFFF', [5, 5]);
+        drawPolygon(projectRect(layout), '#FF00FF', [2, 4]);
+        ctx.setLineDash([]);
+        ctx.strokeStyle = '#FFFF00';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(horizontalStart.x, horizontalStart.y);
+        ctx.lineTo(horizontalEnd.x, horizontalEnd.y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(verticalStart.x, verticalStart.y);
+        ctx.lineTo(verticalEnd.x, verticalEnd.y);
+        ctx.stroke();
+        ctx.fillStyle = '#FFFF00';
+        ctx.fillRect(anchor.x - 5, anchor.y - 5, 10, 10);
+        const text = `Anchor: (${data.anchorX.toFixed(2)}, ${data.anchorY.toFixed(2)})`;
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        const textX = anchor.x + 15;
+        const textY = anchor.y - 15;
+        const textWidth = ctx.measureText(text).width;
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(textX - 2, textY - 2, textWidth + 4, 18);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillText(text, textX, textY);
+        ctx.restore();
+    }
+
     renderPerspective(
         compositor: PerspectiveCompositor,
         ctx: CanvasRenderingContext2D,

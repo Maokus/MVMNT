@@ -1,4 +1,6 @@
-const DEFAULT_FLAGS: Record<string, boolean> = {};
+const DEFAULT_FLAGS: Record<string, boolean> = {
+    elementPerspectiveWarp: true,
+};
 
 function readWindowOverride(flag: string): boolean | undefined {
     if (typeof window === 'undefined') {
