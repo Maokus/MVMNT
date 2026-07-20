@@ -22,6 +22,8 @@ import type { GeometryInfo } from '@math/transforms/types';
 import { useSceneStore } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
 import type { MouseEvent as ReactMouseEvent } from 'react';
+import { computeWarpCornerDrag, type WarpCornerId } from '@core/interaction/perspective-warp';
+import { PERSPECTIVE_WARP_CORNER_BINDINGS } from '@core/scene/perspective-bindings';
 
 const degreesToRadians = (degrees: number): number => (degrees * Math.PI) / 180;
 const radiansToDegrees = (radians: number): number => (radians * 180) / Math.PI;
@@ -88,6 +90,26 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
     vis.setInteractionState({ activeHandle: handleHit.id, draggingElementId: selectedId });
     const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
     const rec = boundsList.find((b: any) => b.id === selectedId);
+    if (handleHit.type?.startsWith('warp-')) {
+        vis._dragMeta = {
+            mode: handleHit.type,
+            startX: x,
+            startY: y,
+            baseBounds: rec?.baseBounds ? { ...rec.baseBounds } : null,
+            affineTransform: rec?.affineTransform ? { ...rec.affineTransform } : null,
+            origWarp: rec?.warp ? {
+                topLeft: { ...rec.warp.topLeft },
+                topRight: { ...rec.warp.topRight },
+                bottomRight: { ...rec.warp.bottomRight },
+                bottomLeft: { ...rec.warp.bottomLeft },
+            } : null,
+            dragElementId: selectedId,
+            snapTargets: buildSnapTargets(vis, selectedId),
+            snapTolerance: DEFAULT_SNAP_TOLERANCE,
+        };
+        vis.setInteractionState({ snapGuides: [] });
+        return;
+    }
     const { geom, fixedWorldPoint, fixedLocalPoint, dragLocalPoint } = computeScaleHandleReferencePoints(
         handleHit.type,
         rec
@@ -333,6 +355,44 @@ function updateRotateDrag(
     return [];
 }
 
+function updateWarpDrag(
+    meta: any,
+    elId: string,
+    x: number,
+    y: number,
+    disableSnap: boolean,
+    deps: InteractionDeps
+): SnapGuide[] {
+    if (!meta.origWarp || !meta.affineTransform || !meta.baseBounds) return [];
+    let pointerX = x;
+    let pointerY = y;
+    let guides: SnapGuide[] = [];
+    if (!disableSnap) {
+        const snapped = snapPoint(
+            x,
+            y,
+            Array.isArray(meta.snapTargets) ? meta.snapTargets : [],
+            typeof meta.snapTolerance === 'number' ? meta.snapTolerance : DEFAULT_SNAP_TOLERANCE
+        );
+        pointerX = snapped.x;
+        pointerY = snapped.y;
+        guides = snapped.guides;
+    }
+    const corner = meta.mode as WarpCornerId;
+    const result = computeWarpCornerDrag(
+        { x: pointerX, y: pointerY },
+        corner,
+        meta.origWarp,
+        meta.affineTransform,
+        meta.baseBounds
+    );
+    if (!result) return [];
+    const [xKey, yKey] = PERSPECTIVE_WARP_CORNER_BINDINGS[corner];
+    applyDragUpdate(meta, elId, { [xKey]: result.point.x, [yKey]: result.point.y }, deps);
+    meta.lastValidWarp = result.warp;
+    return guides;
+}
+
 function processDrag(
     vis: any,
     x: number,
@@ -349,6 +409,9 @@ function processDrag(
     switch (true) {
         case meta.mode === 'move':
             guides = updateMoveDrag(meta, vis, elId, x, y, shiftKey, disableSnap, deps);
+            break;
+        case meta.mode?.startsWith('warp-'):
+            guides = updateWarpDrag(meta, elId, x, y, disableSnap, deps);
             break;
         case meta.mode?.startsWith('scale') && !!meta.bounds:
             guides = updateScaleDrag(meta, vis, elId, x, y, shiftKey, altKey, disableSnap, deps);

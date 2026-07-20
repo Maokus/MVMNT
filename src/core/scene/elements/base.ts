@@ -1,7 +1,8 @@
 // Enhanced Base SceneElement class with Property Binding System
 import { EnhancedConfigSchema, PropertyDefinition, SceneElementInterface } from '@core/types.js';
 import { prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
-import { EmptyRenderObject, RenderObject } from '@core/render/render-objects';
+import { EmptyRenderObject, PerspectiveElementRoot, RenderObject } from '@core/render/render-objects';
+import type { PerspectiveWarp } from '@math/perspective-warp';
 import {
     PropertyBinding,
     ConstantBinding,
@@ -23,6 +24,9 @@ import { BundledSprite, BundledSparrowHandle, BundledGridAtlasHandle } from '@co
 import type { AtlasLayout } from '@core/resources/visual-source-descriptor';
 import { VisualResourceHandle } from '@core/resources/visual-resource-handle';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
+import { isFeatureEnabled } from '@utils/featureFlags';
+import { PERSPECTIVE_WARP_BINDING_DEFAULTS } from '@core/scene/perspective-bindings';
+export { PERSPECTIVE_WARP_BINDING_DEFAULTS } from '@core/scene/perspective-bindings';
 
 // Lazy reference to avoid circular dependency with scene-element-registry
 let _sceneElementRegistry: { getPluginId(type: string): string | undefined } | null = null;
@@ -413,6 +417,9 @@ export class SceneElement implements SceneElementInterface {
         this.bindings.set('anchorX', new ConstantBinding(0.5));
         this.bindings.set('anchorY', new ConstantBinding(0.5));
         this.bindings.set('elementOpacity', new ConstantBinding(1));
+        for (const [key, value] of Object.entries(PERSPECTIVE_WARP_BINDING_DEFAULTS)) {
+            this.bindings.set(key, new ConstantBinding(value));
+        }
     }
 
     /**
@@ -693,6 +700,15 @@ export class SceneElement implements SceneElementInterface {
         return this.getProperty('elementOpacity');
     }
 
+    get perspectiveWarp(): PerspectiveWarp {
+        return {
+            topLeft: { x: this.getProperty('warpTopLeftX'), y: this.getProperty('warpTopLeftY') },
+            topRight: { x: this.getProperty('warpTopRightX'), y: this.getProperty('warpTopRightY') },
+            bottomRight: { x: this.getProperty('warpBottomRightX'), y: this.getProperty('warpBottomRightY') },
+            bottomLeft: { x: this.getProperty('warpBottomLeftX'), y: this.getProperty('warpBottomLeftY') },
+        };
+    }
+
     /**
      * Template method for building RenderObjects with automatic transform application
      * Child classes should override _buildRenderObjects instead
@@ -752,13 +768,24 @@ export class SceneElement implements SceneElementInterface {
         // Create an empty render object that will contain all child objects.
         // setOriginFraction stores the anchor fractions lazily; EmptyRenderObject resolves
         // them to pixel originX/Y from baseBounds at render/bounds time.
-        const containerObject = new EmptyRenderObject(
-            this.offsetX,
-            this.offsetY,
-            this.elementScaleX,
-            this.elementScaleY,
-            this.elementOpacity
-        );
+        const usePerspective = isFeatureEnabled('elementPerspectiveWarp') && this.getProperty<boolean>('warpEnabled') === true;
+        const containerObject = usePerspective
+            ? new PerspectiveElementRoot(
+                  this.id,
+                  this.perspectiveWarp,
+                  this.offsetX,
+                  this.offsetY,
+                  this.elementScaleX,
+                  this.elementScaleY,
+                  this.elementOpacity
+              )
+            : new EmptyRenderObject(
+                  this.offsetX,
+                  this.offsetY,
+                  this.elementScaleX,
+                  this.elementScaleY,
+                  this.elementOpacity
+              );
         const elementRotationRadians = degreesToRadians(this.elementRotation);
 
         containerObject
@@ -778,6 +805,9 @@ export class SceneElement implements SceneElementInterface {
         // Store the untransformed aggregate bounds for later transform math (selection, handles).
         // baseBounds must be set before render/bounds queries so _resolveOriginFractions works.
         (containerObject as any).baseBounds = { ...layoutBounds };
+        if (containerObject instanceof PerspectiveElementRoot) {
+            containerObject.visualBounds = { ...visualBounds };
+        }
         (containerObject as any).elementTransform = {
             offsetX: this.offsetX,
             offsetY: this.offsetY,
@@ -1043,8 +1073,16 @@ export class SceneElement implements SceneElementInterface {
             type: this.type,
         };
 
+        const omitUntouchedWarpDefaults = Object.entries(PERSPECTIVE_WARP_BINDING_DEFAULTS).every(
+            ([key, defaultValue]) => {
+                const binding = this.bindings.get(key);
+                return binding instanceof ConstantBinding && Object.is(binding.getValue(), defaultValue);
+            }
+        );
+
         // Add all bindings in serialized form (debug logging only when enabled)
         this.bindings.forEach((binding, key) => {
+            if (omitUntouchedWarpDefaults && key in PERSPECTIVE_WARP_BINDING_DEFAULTS) return;
             debugLog('[Bindings][Serialize]', key, binding);
             config[key] = binding.serialize();
         });

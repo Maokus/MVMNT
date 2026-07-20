@@ -1,5 +1,7 @@
 /* Minimal typing; refine in later iterations */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { PerspectiveCompositor } from './perspective-compositor';
+import { PerspectiveElementRoot } from './render-objects/perspective-element-root';
 
 export interface RenderObject {
     render?: (ctx: CanvasRenderingContext2D, config: any, time: number) => void;
@@ -8,7 +10,10 @@ export interface RenderObject {
 }
 
 export class ModularRenderer {
+    private readonly perspectiveCompositor = new PerspectiveCompositor();
+
     render(ctx: CanvasRenderingContext2D, renderObjects: RenderObject[], config: any, currentTime: number) {
+        this.perspectiveCompositor.beginFrame();
         if (config.transparent) {
             ctx.clearRect(0, 0, config.canvas.width, config.canvas.height);
         } else {
@@ -19,13 +24,40 @@ export class ModularRenderer {
                 this.clearCanvas(ctx, config.canvas.width, config.canvas.height, config.backgroundColor);
             }
         }
-        for (const ro of renderObjects) {
-            try {
-                ro && ro.render && ro.render(ctx, config, currentTime);
-            } catch (e) {
-                // Non-fatal render error
+        try {
+            for (const ro of renderObjects) {
+                try {
+                    if (ro instanceof PerspectiveElementRoot) {
+                        const rendered = ro.renderPerspective(this.perspectiveCompositor, ctx, config, currentTime);
+                        if (!rendered) {
+                            if (ro.warpInvalidReason) {
+                                this.perspectiveCompositor.reportFallback(
+                                    'invalid-warp',
+                                    `Invalid perspective values were ignored (${ro.warpInvalidReason}).`
+                                );
+                            } else {
+                                this.perspectiveCompositor.recordFallback();
+                            }
+                            ro.render(ctx, config, currentTime);
+                        }
+                    } else {
+                        ro && ro.render && ro.render(ctx, config, currentTime);
+                    }
+                } catch (e) {
+                    // Non-fatal render error
+                }
             }
+        } finally {
+            this.perspectiveCompositor.endFrame();
         }
+    }
+
+    getPerspectiveDiagnostics() {
+        return this.perspectiveCompositor.diagnostics.getSnapshot();
+    }
+
+    dispose(): void {
+        this.perspectiveCompositor.dispose();
     }
 
     clearCanvas(ctx: CanvasRenderingContext2D, width: number, height: number, backgroundColor: string) {

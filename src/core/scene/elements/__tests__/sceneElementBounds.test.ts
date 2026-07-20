@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { Rectangle, type Arc, type RenderObject } from '@core/render/render-objects';
+import { afterEach, describe, expect, it } from 'vitest';
+import { PerspectiveElementRoot, Rectangle, type Arc, type RenderObject } from '@core/render/render-objects';
 import { SceneElement } from '../base';
 import { BasicShapesElement } from '..';
+import { enableFeatureForSession } from '@utils/featureFlags';
+
+afterEach(() => enableFeatureForSession('elementPerspectiveWarp', false));
 
 class BoundsTestElement extends SceneElement {
     constructor(config: Record<string, unknown> = {}) {
@@ -14,6 +17,35 @@ class BoundsTestElement extends SceneElement {
 }
 
 describe('SceneElement bounds', () => {
+    it('keeps warp disabled by default and uses a perspective root only when opted in', () => {
+        enableFeatureForSession('elementPerspectiveWarp', true);
+        const ordinary = new BoundsTestElement();
+        const warped = new BoundsTestElement({ warpEnabled: true, warpTopRightY: 0.2 });
+        expect(ordinary.buildRenderObjects({}, 0)[0]).not.toBeInstanceOf(PerspectiveElementRoot);
+        expect(warped.buildRenderObjects({}, 0)[0]).toBeInstanceOf(PerspectiveElementRoot);
+    });
+
+    it('makes the identity warp exactly equivalent to ordinary affine bounds', () => {
+        const element = new BoundsTestElement({ offsetX: 500, offsetY: 300, anchorX: 0.5, anchorY: 0.5 });
+        const ordinary = element.buildRenderObjects({}, 0)[0].getVisualBounds();
+        enableFeatureForSession('elementPerspectiveWarp', true);
+        const warped = new BoundsTestElement({
+            warpEnabled: true, offsetX: 500, offsetY: 300, anchorX: 0.5, anchorY: 0.5,
+        }).buildRenderObjects({}, 0)[0].getVisualBounds();
+        expect(warped).toEqual(ordinary);
+    });
+
+    it('falls back deterministically for invalid animated or imported values', () => {
+        enableFeatureForSession('elementPerspectiveWarp', true);
+        const root = new BoundsTestElement({
+            warpEnabled: true,
+            warpTopLeftX: 0.5,
+            warpTopLeftY: 0.5,
+        }).buildRenderObjects({}, 0)[0] as PerspectiveElementRoot;
+        expect(root.warpMatrix).toBeNull();
+        expect(root.getVisualBounds()).toEqual({ x: -100, y: -50, width: 200, height: 100 });
+    });
+
     it('does not union transformed wrapper bounds with untransformed child bounds', () => {
         const element = new BoundsTestElement({
             offsetX: 500,

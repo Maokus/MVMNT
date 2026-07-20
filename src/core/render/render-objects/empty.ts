@@ -31,7 +31,7 @@ export class EmptyRenderObject extends RenderObject {
     }
 
     /** Resolve lazy origin fractions using baseBounds when available. */
-    private _resolveOriginFractions(): void {
+    protected _resolveOriginFractions(): void {
         if (this.baseBounds) {
             if (this._originFractionX !== null) {
                 this.originX = this.baseBounds.x + this._originFractionX * this.baseBounds.width;

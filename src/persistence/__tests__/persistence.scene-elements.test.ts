@@ -55,6 +55,33 @@ describe('Scene element + macro persistence', () => {
         expect(useSceneStore.getState().macros.byId['m1']?.value).toBe(5);
     });
 
+    it('round-trips hidden perspective bindings', async () => {
+        dispatchSceneCommand({
+            type: 'addElement',
+            elementType: 'textOverlay',
+            elementId: 'warped',
+            config: {
+                id: 'warped',
+                text: 'Warped',
+                warpEnabled: true,
+                warpTopLeftX: -0.2,
+                warpTopRightY: 0.15,
+                warpBottomRightX: 1.2,
+            },
+        });
+        const exported = await exportScene();
+        expect(exported.ok).toBe(true);
+        if (!exported.ok || exported.mode !== 'zip-package') throw new Error('Expected packaged export');
+        useSceneStore.getState().clearScene();
+        const imported = await importScene(exported.zip);
+        expect(imported.ok).toBe(true);
+        const bindings = useSceneStore.getState().bindings.byElement.warped;
+        expect(bindings.warpEnabled).toEqual({ type: 'constant', value: true });
+        expect(bindings.warpTopLeftX).toEqual({ type: 'constant', value: -0.2 });
+        expect(bindings.warpTopRightY).toEqual({ type: 'constant', value: 0.15 });
+        expect(bindings.warpBottomRightX).toEqual({ type: 'constant', value: 1.2 });
+    });
+
     it('exports scenes with multiple automation keyframes', async () => {
         dispatchSceneCommand({
             type: 'addElement',

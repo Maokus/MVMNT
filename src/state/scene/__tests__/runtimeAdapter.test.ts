@@ -25,6 +25,17 @@ describe('SceneRuntimeAdapter', () => {
         expect(runtimeIds).toEqual(store.getState().order);
     });
 
+    it('gives older scene elements identity warp defaults without a migration', () => {
+        const element = adapter.getElements()[0];
+        expect(element.getBinding('warpEnabled')?.getValue()).toBe(false);
+        expect(element.perspectiveWarp).toEqual({
+            topLeft: { x: 0, y: 0 },
+            topRight: { x: 1, y: 0 },
+            bottomRight: { x: 1, y: 1 },
+            bottomLeft: { x: 0, y: 1 },
+        });
+    });
+
     it('bumps cache version only for elements with binding changes', () => {
         const beforeDiagnostics = adapter.collectDiagnostics();
         const originalTitleVersion = adapter.getElementVersion('title');

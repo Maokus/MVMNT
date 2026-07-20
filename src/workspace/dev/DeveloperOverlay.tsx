@@ -10,6 +10,7 @@ import {
 import { TelemetrySection, type TelemetryEvent, type TelemetryMetrics } from './TelemetrySection';
 import { TransportSection } from './TransportSection';
 import { UndoSection } from './UndoSection';
+import { PerspectiveDiagnosticsSection } from './PerspectiveDiagnosticsSection';
 
 const MAX_RECENT_COMMANDS = 5;
 
@@ -64,6 +65,7 @@ export const DeveloperOverlay: React.FC = () => {
         audio: false,
         audioMemory: false,
         undo: false,
+        perspective: false,
     });
 
     const toggleSection = (key: keyof typeof sectionsOpen) => {
@@ -237,6 +239,11 @@ export const DeveloperOverlay: React.FC = () => {
             <UndoSection
                 open={sectionsOpen.undo}
                 onToggle={() => toggleSection('undo')}
+            />
+
+            <PerspectiveDiagnosticsSection
+                open={sectionsOpen.perspective}
+                onToggle={() => toggleSection('perspective')}
             />
         </div>
     );

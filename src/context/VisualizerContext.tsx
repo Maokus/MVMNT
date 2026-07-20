@@ -29,6 +29,7 @@ interface VisualizerContextValue {
     stepForward: () => void;
     stepBackward: () => void;
     seekPercent: (percent: number) => void;
+    setWarpEditElement: (elementId: string | null) => void;
     exportSequence: (override?: Partial<ExportSettings>) => Promise<void>;
     exportVideo: (override?: Partial<ExportSettings>) => Promise<void>;
     showProgressOverlay: boolean;
@@ -391,6 +392,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         stepForward,
         stepBackward,
         seekPercent,
+        setWarpEditElement: (elementId) => visualizer?.setWarpEditElement?.(elementId),
         exportSequence,
         exportVideo,
         showProgressOverlay,

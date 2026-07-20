@@ -1,6 +1,7 @@
 export { RenderObject, type LayoutParticipation, type RenderObjectOptions } from './base';
 export { BoxRenderObject } from './box';
 export { EmptyRenderObject } from './empty';
+export { PerspectiveElementRoot } from './perspective-element-root';
 export { Rectangle, type RectangleOptions } from './rectangle';
 export { Text, type TextOptions } from './text';
 export { Line, type LineOptions } from './line';

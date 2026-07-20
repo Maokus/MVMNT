@@ -8,6 +8,8 @@ import { dispatchSceneCommand, SceneRuntimeAdapter } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 import type { SnapGuide } from '@core/interaction/snapping';
+import { PerspectiveElementRoot } from '@core/render/render-objects';
+import { isFeatureEnabled } from '@utils/featureFlags';
 
 export class MIDIVisualizerCore {
     canvas: HTMLCanvasElement;
@@ -37,6 +39,7 @@ export class MIDIVisualizerCore {
         selectedElementId: null,
         draggingElementId: null,
         activeHandle: null,
+        warpEditElementId: null,
         snapGuides: [],
     };
     private _interactionBoundsCache = new Map();
@@ -378,6 +381,10 @@ export class MIDIVisualizerCore {
         }
         if (changed) this.invalidateRender();
     }
+    setWarpEditElement(elementId: string | null) {
+        const nextId = isFeatureEnabled('elementPerspectiveWarp') ? elementId : null;
+        this.setInteractionState({ warpEditElementId: nextId, activeHandle: null });
+    }
     getElementBoundsAtTime(targetTime = this.currentTime) {
         const config = this.getSceneConfig();
         const elements = this._getSceneElements().filter((e: any) => e.visible);
@@ -409,6 +416,14 @@ export class MIDIVisualizerCore {
                                 element: el,
                                 corners,
                                 baseBounds,
+                                isPerspective: container instanceof PerspectiveElementRoot && Boolean(container.warpMatrix),
+                                warp: container instanceof PerspectiveElementRoot ? container.perspectiveWarp : null,
+                                affineTransform:
+                                    container instanceof PerspectiveElementRoot ? container.getAffineTransform() : null,
+                                projectedAnchor:
+                                    container instanceof PerspectiveElementRoot
+                                        ? container.projectNormalizedPoint({ x: el.anchorX ?? 0.5, y: el.anchorY ?? 0.5 })
+                                        : null,
                             });
                         }
                     }
@@ -508,6 +523,9 @@ export class MIDIVisualizerCore {
                         if (h.type.startsWith('scale')) {
                             fill = '#00AAFF';
                             stroke = '#FFFFFF';
+                        } else if (h.type.startsWith('warp')) {
+                            fill = '#C084FC';
+                            stroke = '#FFFFFF';
                         } else if (h.type === 'rotate') {
                             fill = '#FFA500';
                             stroke = '#FFFFFF';
@@ -551,11 +569,26 @@ export class MIDIVisualizerCore {
         const anchorY = element ? element.anchorY : 0.5;
         let anchorPixelX = b.x + b.width * anchorX;
         let anchorPixelY = b.y + b.height * anchorY;
+        if (record.projectedAnchor) {
+            anchorPixelX = record.projectedAnchor.x;
+            anchorPixelY = record.projectedAnchor.y;
+        }
         const oriented = record.corners && record.corners.length === 4 ? record.corners : null;
         const mid = (p1: any, p2: any) => ({ x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 });
         const addHandle = (id: string, type: string, cx: number, cy: number, shape = 'rect', extra: any = {}) => {
             handles.push({ id, type, cx, cy, size, shape, r: size * 0.5, ...extra });
         };
+        const warpEditing =
+            this._interactionState?.warpEditElementId === elementId &&
+            record.isPerspective &&
+            oriented;
+        if (warpEditing) {
+            addHandle('warp-tl', 'warp-tl', oriented[0].x, oriented[0].y);
+            addHandle('warp-tr', 'warp-tr', oriented[1].x, oriented[1].y);
+            addHandle('warp-br', 'warp-br', oriented[2].x, oriented[2].y);
+            addHandle('warp-bl', 'warp-bl', oriented[3].x, oriented[3].y);
+            return handles;
+        }
         if (oriented) {
             addHandle('scale-nw', 'scale-nw', oriented[0].x, oriented[0].y);
             addHandle('scale-ne', 'scale-ne', oriented[1].x, oriented[1].y);
@@ -579,8 +612,10 @@ export class MIDIVisualizerCore {
                 y: interp(oriented[3].y, oriented[2].y, anchorX),
             };
             const anchorPt = { x: interp(top.x, bottom.x, anchorY), y: interp(top.y, bottom.y, anchorY) };
-            anchorPixelX = anchorPt.x;
-            anchorPixelY = anchorPt.y;
+            if (!record.projectedAnchor) {
+                anchorPixelX = anchorPt.x;
+                anchorPixelY = anchorPt.y;
+            }
         } else {
             addHandle('scale-nw', 'scale-nw', b.x, b.y);
             addHandle('scale-ne', 'scale-ne', b.x + b.width, b.y);
@@ -633,6 +668,9 @@ export class MIDIVisualizerCore {
     }
     getModularRenderer() {
         return this.modularRenderer;
+    }
+    getPerspectiveDiagnostics() {
+        return this.modularRenderer.getPerspectiveDiagnostics();
     }
     getAvailableSceneElementTypes() {
         return Promise.resolve(sceneElementRegistry.getElementTypeInfo());
@@ -720,6 +758,7 @@ export class MIDIVisualizerCore {
             cancelAnimationFrame(this._pendingRenderRAF);
             this._pendingRenderRAF = null;
         }
+        this.modularRenderer.dispose();
     }
     getSceneElement(elementId: string) {
         try {
