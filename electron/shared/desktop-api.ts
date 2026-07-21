@@ -1,4 +1,6 @@
-export type DesktopMenuCommand = 'new' | 'open' | 'save' | 'save-as' | 'undo' | 'redo';
+import type { DesktopAutomationProgress, DesktopAutomationResult, DesktopDeepLinkCommand, DesktopRenderRequest } from './automation.js';
+
+export type DesktopMenuCommand = 'new' | 'open' | 'save' | 'save-as' | 'undo' | 'redo' | 'recovery' | 'storage' | 'plugin-development';
 
 export type DesktopOpenKind = 'project' | 'plugin';
 
@@ -18,6 +20,24 @@ export interface DesktopSaveResult {
 export interface DesktopSaveRequest {
     bytes: Uint8Array;
     suggestedName: string;
+}
+
+export interface DesktopDroppedFile {
+    name: string;
+    category: 'project' | 'plugin' | 'midi' | 'audio' | 'image' | 'font' | 'template';
+    bytes: Uint8Array;
+}
+
+export interface DesktopStorageReport {
+    location: string;
+    temporaryExports: { count: number; bytes: number };
+    updateCache: { count: number; bytes: number; available: boolean };
+}
+
+export interface DesktopPluginDevelopmentStatus {
+    state: 'disconnected' | 'watching' | 'reloading' | 'error';
+    directoryName?: string;
+    message: string;
 }
 
 export type DesktopExportKind = 'video' | 'image-sequence' | 'audio';
@@ -90,5 +110,25 @@ export interface MvmntDesktopApi {
     };
     external: {
         openHttps(url: string): Promise<boolean>;
+    };
+    droppedFiles: {
+        read(files: File[]): Promise<DesktopDroppedFile[]>;
+    };
+    storage: {
+        inspect(): Promise<DesktopStorageReport>;
+        cleanup(category: 'temporary-exports' | 'update-cache'): Promise<DesktopStorageReport>;
+    };
+    pluginDevelopment: {
+        grantDirectory(): Promise<DesktopPluginDevelopmentStatus>;
+        disconnect(): Promise<DesktopPluginDevelopmentStatus>;
+        onStatus(callback: (status: DesktopPluginDevelopmentStatus) => void): () => void;
+        onBundle(callback: (file: DesktopDroppedFile) => void): () => void;
+    };
+    automation: {
+        ready(): void;
+        onRenderRequest(callback: (request: DesktopRenderRequest) => void): () => void;
+        reportProgress(progress: DesktopAutomationProgress): void;
+        reportResult(result: DesktopAutomationResult): void;
+        onDeepLink(callback: (command: DesktopDeepLinkCommand) => void): () => void;
     };
 }

@@ -18,8 +18,9 @@ import {
 } from '@export/export-job-store';
 import { beginDesktopExport, blobToBytes, createDesktopStreamSink, writeDesktopFrame } from '@export/desktop-export-sink';
 import { createExportManifest } from '@export/export-manifest';
-import { expandExportFilename } from '@export/export-presets';
+import { BUILTIN_EXPORT_PRESETS, expandExportFilename } from '@export/export-presets';
 import { ExportPerformanceTracker } from '@export/export-performance';
+import { isPendingRenderImported, takePendingRender } from '../desktop/pending-automation';
 
 interface VisualizerContextValue {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -101,6 +102,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const pendingExportsRef = useRef<ExportJob[]>([]);
     const drainingExportsRef = useRef(false);
     const exportAbortControllersRef = useRef(new Map<string, AbortController>());
+    const automationJobRef = useRef<string | null>(null);
     // Keep a reactive scene name so consumers (like Render / Export modal) get live updates.
     const [sceneNameState, setSceneNameState] = useState<string>('scene');
     // Keep export settings aligned with the currently loaded scene resolution.
@@ -297,6 +299,9 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             tracker.stage(status);
             useExportJobStore.getState().update(job.id, { progress, text, status });
             setProgressData({ progress, text });
+            if (automationJobRef.current === job.id) {
+                window.mvmntDesktop?.automation.reportProgress({ type: 'progress', progress, message: text });
+            }
         };
         let desktopSink: ReturnType<typeof createDesktopStreamSink> | null = null;
         let desktopSessionId: string | null = null;
@@ -443,6 +448,14 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             });
             useExportJobStore.getState().log(job.id, 'info', `Export completed in ${(metrics.elapsedMs / 1000).toFixed(2)} seconds.`);
             window.mvmntDesktop?.app.notify('MVMNT export complete', completion?.displayName ?? filename);
+            if (automationJobRef.current === job.id) {
+                automationJobRef.current = null;
+                window.mvmntDesktop?.automation.reportResult({
+                    type: 'complete',
+                    outputName: completion?.displayName ?? filename,
+                    bytesWritten: completion?.bytesWritten,
+                });
+            }
         } catch (error) {
             if (desktopSink) await desktopSink.abort().catch(() => undefined);
             else if (desktopSessionId) await window.mvmntDesktop?.exports.abort(desktopSessionId).catch(() => undefined);
@@ -457,6 +470,14 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 ? 'Export cancelled and temporary output removed.'
                 : error instanceof Error ? error.message : String(error));
             if (!cancelled) window.mvmntDesktop?.app.notify('MVMNT export failed', error instanceof Error ? error.message : String(error));
+            if (automationJobRef.current === job.id) {
+                automationJobRef.current = null;
+                window.mvmntDesktop?.automation.reportResult({
+                    type: 'error',
+                    code: desktopSessionId ? 'render' : 'output',
+                    message: cancelled ? 'Export cancelled.' : error instanceof Error ? error.message : String(error),
+                });
+            }
         } finally {
             exportAbortControllersRef.current.delete(job.id);
         }
@@ -501,6 +522,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         useExportJobStore.getState().enqueue(job);
         pendingExportsRef.current.push(job);
         void drainExportQueue();
+        return job;
     }, [drainExportQueue, exportSettings]);
 
     const exportSequence = useCallback(async (override?: Partial<ExportSettings>) => {
@@ -514,6 +536,50 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const exportBatch = useCallback(async (items: Array<{ kind: Exclude<ExportKind, null>; settings: Partial<ExportSettings>; presetName?: string }>) => {
         for (const item of items) enqueueExport(item.kind, item.settings, item.presetName);
     }, [enqueueExport]);
+
+    useEffect(() => {
+        if (!window.mvmntDesktop || !visualizer || !imageSequenceGenerator || !videoExporter) return;
+        let started = false;
+        const startPendingRender = async () => {
+            if (started) return;
+            if (!isPendingRenderImported()) return;
+            const request = takePendingRender();
+            if (!request) return;
+            started = true;
+            try {
+                await document.fonts?.ready;
+                const preset = request.preset
+                    ? BUILTIN_EXPORT_PRESETS.find((item) => item.id === request.preset)
+                    : undefined;
+                const settings: Partial<ExportSettings> = {
+                    ...(preset?.settings ?? {}),
+                    ...(request.width ? { width: request.width } : {}),
+                    ...(request.height ? { height: request.height } : {}),
+                    ...(request.fps ? { fps: request.fps } : {}),
+                    ...(request.range ? {
+                        fullDuration: false,
+                        startTime: request.range.start,
+                        endTime: request.range.end,
+                    } : { fullDuration: true }),
+                };
+                const job = enqueueExport(request.kind, settings, preset?.name);
+                automationJobRef.current = job.id;
+            } catch (error) {
+                window.mvmntDesktop?.automation.reportResult({
+                    type: 'error', code: 'render', message: error instanceof Error ? error.message : String(error),
+                });
+            }
+        };
+        const handleImported = () => void startPendingRender();
+        window.addEventListener('mvmnt-project-imported', handleImported);
+        // The import may complete before this provider subscribes. Poll only
+        // the ready marker; never start against the prior scene on a timer.
+        const fallback = window.setInterval(() => void startPendingRender(), 250);
+        return () => {
+            window.clearInterval(fallback);
+            window.removeEventListener('mvmnt-project-imported', handleImported);
+        };
+    }, [enqueueExport, imageSequenceGenerator, videoExporter, visualizer]);
 
     const cancelExport = useCallback((jobId: string) => {
         useExportJobStore.getState().requestCancel(jobId);

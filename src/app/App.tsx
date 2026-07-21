@@ -2,6 +2,11 @@ import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { loadPlugin } from '@core/scene/plugins';
 import { stageDesktopProjectOpen } from '../desktop/pending-open';
+import { stagePendingRender } from '../desktop/pending-automation';
+import { writeStoredImportPayload } from '@utils/importPayloadStorage';
+import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
+import { DesktopWorkspaceTools } from '../desktop/DesktopWorkspaceTools';
+import { importFontFile } from '@fonts/import-font-file';
 
 // Tailwind styles are loaded via index.tsx
 const MidiVisualizer = lazy(() => import('@workspace/overlays/MidiVisualizer'));
@@ -64,6 +69,29 @@ export function App() {
   const [isScreenWarningDismissed, setIsScreenWarningDismissed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const desktop = window.mvmntDesktop;
+    if (!desktop) return;
+    const unsubscribe = desktop.automation.onRenderRequest((request) => {
+      writeStoredImportPayload(request.bytes);
+      sessionStorage.setItem('mvmnt.desktop.pending-open-name', request.inputName);
+      stagePendingRender(request);
+      navigate('/workspace', { state: { importScene: true, automationRender: true } });
+    });
+    desktop.automation.ready();
+    return unsubscribe;
+  }, [navigate]);
+
+  useEffect(() => {
+    const desktop = window.mvmntDesktop;
+    if (!desktop) return;
+    return desktop.automation.onDeepLink((command) => {
+      if (command.command === 'show-recovery') window.dispatchEvent(new Event('mvmnt-show-recovery'));
+      if (command.command === 'show-storage') window.dispatchEvent(new Event('mvmnt-show-storage'));
+      if (command.command === 'open-community') navigate(command.id ? `/community?id=${encodeURIComponent(command.id)}` : '/community');
+    });
+  }, [navigate]);
 
   useEffect(() => {
     const desktop = window.mvmntDesktop;
@@ -153,17 +181,59 @@ export function App() {
 
     const handleDragOver = (e: DragEvent) => {
       if (!hasFiles(e.dataTransfer)) return;
-      if (isTimelineTarget(e.target)) return;
       e.preventDefault();
       e.stopPropagation();
-      if (e.dataTransfer) e.dataTransfer.dropEffect = 'none';
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
     };
 
-    const handleDrop = (e: DragEvent) => {
+    const handleDrop = async (e: DragEvent) => {
       if (!hasFiles(e.dataTransfer)) return;
       if (isTimelineTarget(e.target)) return;
       e.preventDefault();
       e.stopPropagation();
+      const nativeFiles = Array.from(e.dataTransfer?.files ?? []);
+      try {
+        const dropped = window.mvmntDesktop
+          ? await window.mvmntDesktop.droppedFiles.read(nativeFiles)
+          : await Promise.all(nativeFiles.map(async (file) => ({
+              name: file.name,
+              category: (/\.mvt$/i.test(file.name) ? 'project'
+                : /\.mvmnt-plugin$/i.test(file.name) ? 'plugin'
+                : /\.(mid|midi)$/i.test(file.name) ? 'midi'
+                : /\.(wav|mp3|ogg|flac|aac|m4a)$/i.test(file.name) ? 'audio'
+                : /\.(ttf|otf|woff2?)$/i.test(file.name) ? 'font' : 'image') as any,
+              bytes: new Uint8Array(await file.arrayBuffer()),
+            })));
+        for (const file of dropped) {
+          if (file.category === 'project' || file.category === 'template') {
+            writeStoredImportPayload(file.bytes);
+            sessionStorage.setItem('mvmnt.desktop.pending-open-name', file.name);
+            await window.mvmntDesktop?.documents.clearActivePath();
+            navigate('/workspace', { state: { importScene: true } });
+          } else if (file.category === 'plugin') {
+            const trusted = window.confirm(`Install ${file.name}?\n\nPlugins execute code inside MVMNT. Only install plugins from authors you trust.`);
+            if (trusted) {
+              const buffer = file.bytes.buffer.slice(file.bytes.byteOffset, file.bytes.byteOffset + file.bytes.byteLength) as ArrayBuffer;
+              const result = await loadPlugin(buffer);
+              if (!result.success) alert(result.error || 'Plugin installation failed.');
+            }
+          } else {
+            const arrayBuffer = file.bytes.buffer.slice(
+              file.bytes.byteOffset,
+              file.bytes.byteOffset + file.bytes.byteLength,
+            ) as ArrayBuffer;
+            const blob = new Blob([arrayBuffer]);
+            const browserFile = new File([blob], file.name);
+            if (file.category === 'image') useVisualAssetRegistryStore.getState().addAsset(browserFile);
+            else if (file.category === 'font') {
+              const licensed = window.confirm('Confirm that you have the rights to use and distribute this font within the scene.');
+              if (licensed) await importFontFile(browserFile);
+            } else window.dispatchEvent(new CustomEvent('mvmnt-dropped-media', { detail: { category: file.category, file: browserFile } }));
+          }
+        }
+      } catch (error) {
+        alert(error instanceof Error ? error.message : 'Could not import the dropped files.');
+      }
     };
 
     window.addEventListener('dragover', handleDragOver, { capture: true });
@@ -224,6 +294,7 @@ export function App() {
       <Suspense fallback={null}>
         <DeveloperOverlayLazy />
       </Suspense>
+      <DesktopWorkspaceTools />
     </div>
   );
 }

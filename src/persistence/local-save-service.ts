@@ -10,6 +10,7 @@
 import { exportScene } from './export';
 import { importScene, type ImportSceneOptions } from './import';
 import { LocalFileStore } from './local-file-store';
+import { AutosaveVersionStore } from './autosave-version-store';
 
 export type LocalSaveResult = { ok: true } | { ok: false; error: string; fallbackToFileExport?: boolean };
 
@@ -103,6 +104,11 @@ export const LocalSaveService = {
         try {
             options.onProgress?.(0.9, 'Saving file…');
             await LocalFileStore.save(res.zip);
+            await AutosaveVersionStore.save(sceneName || 'Untitled', res.zip).catch((error) => {
+                // The current-file recovery write remains useful even if the
+                // bounded history store is unavailable or at quota.
+                console.warn('[LocalSaveService] Could not create autosave version:', error);
+            });
             options.onProgress?.(1, 'File saved.');
         } catch (e) {
             return {

@@ -7,6 +7,7 @@ import {
     unloadPlugin,
     upgradePlugin,
 } from '@core/scene/plugins';
+import type { DesktopPluginDevelopmentStatus } from '../../../electron/shared/desktop-api';
 
 const ScenePluginsTab: React.FC = () => {
     const { plugins, loading } = usePluginStore((state) => ({
@@ -18,6 +19,30 @@ const ScenePluginsTab: React.FC = () => {
     const [importing, setImporting] = useState(false);
     const [pendingFile, setPendingFile] = useState<File | null>(null);
     const [upgradeOffer, setUpgradeOffer] = useState<File | null>(null);
+    const [developmentStatus, setDevelopmentStatus] = useState<DesktopPluginDevelopmentStatus>({
+        state: 'disconnected', message: 'No development directory is connected.',
+    });
+
+    React.useEffect(() => {
+        const desktop = window.mvmntDesktop;
+        if (!desktop) return;
+        const unsubscribeStatus = desktop.pluginDevelopment.onStatus(setDevelopmentStatus);
+        const unsubscribeBundle = desktop.pluginDevelopment.onBundle((file) => {
+            void (async () => {
+                const buffer = file.bytes.buffer.slice(file.bytes.byteOffset, file.bytes.byteOffset + file.bytes.byteLength) as ArrayBuffer;
+                let result = await loadPlugin(buffer, { persist: false, source: 'development' });
+                if (!result.success && result.pluginId) {
+                    const existing = usePluginStore.getState().plugins[result.pluginId];
+                    if (existing?.source === 'development') {
+                        await unloadPlugin(result.pluginId, { removePersisted: false });
+                        result = await loadPlugin(buffer, { persist: false, source: 'development' });
+                    }
+                }
+                if (!result.success) setImportError(result.error || 'Development plugin reload failed.');
+            })();
+        });
+        return () => { unsubscribeStatus(); unsubscribeBundle(); };
+    }, []);
 
     const handleImportClick = () => {
         fileInputRef.current?.click();
@@ -314,6 +339,24 @@ const ScenePluginsTab: React.FC = () => {
                     </div>
                 )}
             </section>
+
+            {window.mvmntDesktop && (
+                <section className="rounded-lg border border-sky-800/60 bg-sky-950/20 p-4">
+                    <h4 className="m-0 text-[12px] font-semibold text-white">Local development</h4>
+                    <p className="mt-2 text-[12px] text-neutral-300">
+                        Grant one directory containing a rebuilt <code>.mvmnt-plugin</code> bundle. Development plugins stay session-only and never replace an installed plugin.
+                    </p>
+                    <p className="mt-2 text-[11px] text-sky-300">{developmentStatus.message}</p>
+                    <div className="mt-3 flex gap-2">
+                        <button type="button" className="rounded bg-sky-700 px-3 py-1.5 text-[12px] text-white hover:bg-sky-600" onClick={() => void window.mvmntDesktop?.pluginDevelopment.grantDirectory().then(setDevelopmentStatus)}>
+                            Grant directory
+                        </button>
+                        <button type="button" disabled={developmentStatus.state === 'disconnected'} className="rounded border border-neutral-700 px-3 py-1.5 text-[12px] disabled:opacity-40" onClick={() => void window.mvmntDesktop?.pluginDevelopment.disconnect().then(setDevelopmentStatus)}>
+                            Disconnect
+                        </button>
+                    </div>
+                </section>
+            )}
 
         </div>
     );

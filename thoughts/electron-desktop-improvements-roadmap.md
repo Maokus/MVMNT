@@ -1,6 +1,7 @@
 # Electron desktop improvements roadmap
 
-Status: phases 1–4 implemented in July 2026; phases 5–8 remain proposed. The secure Electron shell, native project open/save lifecycle, recovery snapshots,
+Status: phases 1–5 implemented in July 2026, except for the deliberately deferred Phase 5 items
+"multiple-project windows" and "user preference storage"; phases 6–8 remain proposed. The secure Electron shell, native project open/save lifecycle, recovery snapshots,
 file associations, installers, and updater are already implemented. See
 [`docs/electron-desktop.md`](../docs/electron-desktop.md) for the shipped architecture. This roadmap
 covers capabilities that the desktop boundary now makes practical, with export reliability and
@@ -152,6 +153,11 @@ Goal: use desktop storage and job infrastructure to support repeatable productio
   returned without throwing.
 
 ## Phase 5: Portable desktop automation and workspace improvements
+
+Implementation status: complete for CLI/hidden rendering, versioned recovery, validated drag and
+drop, cache management, session-scoped plugin development grants, and allowlisted deep links. User
+preference storage and multiple-project windows were explicitly excluded from this implementation.
+See [`docs/electron-desktop.md`](../docs/electron-desktop.md#portable-automation-and-workspace-tools).
 
 Goal: expose repeatable desktop workflows without taking dependencies on OS-specific native media
 stacks.

@@ -233,6 +233,17 @@ const SceneFontManager: React.FC = () => {
         [acknowledgeFontLicensing, customFonts, fontsState.totalBytes, registerFontAsset]
     );
 
+    useEffect(() => {
+        const handleDesktopDrop = (event: Event) => {
+            const detail = (event as CustomEvent<{ category: string; file: File }>).detail;
+            if (detail?.category !== 'font' || !detail.file) return;
+            if (!ensureLicensingAcknowledged()) return;
+            void handleFileChange({ target: { files: [detail.file], value: '' } } as unknown as React.ChangeEvent<HTMLInputElement>);
+        };
+        window.addEventListener('mvmnt-dropped-media', handleDesktopDrop);
+        return () => window.removeEventListener('mvmnt-dropped-media', handleDesktopDrop);
+    }, [ensureLicensingAcknowledged, handleFileChange]);
+
     const handleDeleteFont = useCallback(
         async (assetId: string) => {
             const asset = customFonts.find((entry) => entry.id === assetId);

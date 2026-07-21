@@ -39,6 +39,21 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
     const timelineTiming = useTimelineStore((s) => s.timeline);
 
     useEffect(() => {
+        const handleDesktopDrop = (event: Event) => {
+            const { category, file } = (event as CustomEvent<{ category: string; file: File }>).detail ?? {};
+            if (!file) return;
+            if (category === 'midi') void addMidiTrack({ name: file.name.replace(/\.[^/.]+$/, ''), file, offsetTicks: 0 });
+            if (category === 'audio') {
+                void addAudioTrack({ name: file.name.replace(/\.[^/.]+$/, ''), file, offsetTicks: 0 }).catch((error) => {
+                    alert(`Unable to import ${file.name}. ${error instanceof Error ? error.message : String(error)}`);
+                });
+            }
+        };
+        window.addEventListener('mvmnt-dropped-media', handleDesktopDrop);
+        return () => window.removeEventListener('mvmnt-dropped-media', handleDesktopDrop);
+    }, [addAudioTrack, addMidiTrack]);
+
+    useEffect(() => {
         const el = containerRef.current;
         if (!el) return;
         const ro = new ResizeObserver((entries) => {

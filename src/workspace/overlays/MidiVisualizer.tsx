@@ -30,6 +30,7 @@ import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useSceneStore } from '@state/sceneStore';
 import { clearStoredImportPayload, readStoredImportPayload } from '@utils/importPayloadStorage';
 import { clearPendingDesktopProject, readPendingDesktopProjectName } from '../../desktop/pending-open';
+import { clearPendingRender, hasPendingRender, markPendingRenderImported } from '../../desktop/pending-automation';
 import { LocalSaveService } from '@persistence/local-save-service';
 import { LocalFileStore } from '@persistence/local-file-store';
 import { SceneNameGenerator } from '@core/scene-name-generator';
@@ -608,6 +609,8 @@ const TemplateInitializer: React.FC = () => {
                                     }
                                     localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
                                     markSaveClean();
+                                    markPendingRenderImported();
+                                    window.dispatchEvent(new Event('mvmnt-project-imported'));
                                 } else {
                                     const attribution = importedAuthor
                                         ? `Based on "${importedName}" by ${importedAuthor}`
@@ -625,7 +628,13 @@ const TemplateInitializer: React.FC = () => {
                                 throw e;
                             }
                             console.error('Failed to import scene payload', e);
-                            alert('Failed to load scene: ' + (e instanceof Error ? e.message : String(e)));
+                            const message = e instanceof Error ? e.message : String(e);
+                            if (hasPendingRender()) {
+                                clearPendingRender();
+                                window.mvmntDesktop?.automation.reportResult({ type: 'error', code: 'input', message });
+                            } else {
+                                alert('Failed to load scene: ' + message);
+                            }
                         }
                         clearStoredImportPayload();
                         clearPendingDesktopProject();

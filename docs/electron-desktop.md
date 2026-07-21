@@ -95,3 +95,41 @@ so every job renders the scene state from which the queue was created.
 The Render dialog supports built-in and user presets, custom output dimensions, filename templates,
 batch preset exports, and comma-separated range batches. Browser builds retain Blob downloads and ZIP
 sequences as a compatibility fallback.
+
+## Portable automation and workspace tools
+
+The packaged renderer can run in a hidden window while retaining the same Chromium GPU, font,
+scene-import validation, export queue, encoder, destination finalization, and manifest code as an
+interactive export. Build the app once, then invoke:
+
+```bash
+npm run render -- project.mvt --output output.mp4 --preset hd-landscape --range 2:12 --json
+npm run render -- project.mvt --kind png --output ./frames --preset transparent-png
+```
+
+Supported overrides are `--kind video|png`, the four built-in preset IDs, `--range start:end`,
+`--width`, `--height`, `--fps`, and `--json`. JSON mode emits newline-delimited progress and a final
+structured result. Exit codes are 0 for success, 2 for command usage, 3 for invalid input, 4 for a
+render/encode failure, and 5 for destination/finalization failure. Output paths are accepted only
+from the main-process command line; renderer code still receives opaque export session IDs.
+
+Dirty-project recovery keeps up to 12 deduplicated `.mvt` versions per document name for 30 days.
+File → Recovery Versions shows document name, timestamp, and size and permits restore or deletion.
+File → Storage & Caches shows the desktop data location and cleanup controls for recovery packages,
+decoded audio, feature caches, interrupted temporary exports, and the platform update cache.
+
+Desktop drag-and-drop validates file type and size in the main process before routing projects and
+templates through scene import, plugins through the trust prompt, MIDI/audio through timeline import,
+images through the asset registry, and fonts through font parsing, licensing acknowledgement, and
+scene storage budgets.
+
+Plugin settings can grant a single development directory for the current session. MVMNT watches the
+directory and its `dist` folder for externally rebuilt `.mvmnt-plugin` files, validates and safely
+reloads them as session-only development plugins, and refuses to replace installed production
+plugins. The grant is not persisted.
+
+External `mvmnt://automation/` links recognize only `show-recovery`, `show-storage`, and
+`open-community` (with an optional constrained ID). The protocol cannot supply filesystem paths,
+scripts, render commands, or plugin execution.
+
+Phase 5 intentionally does not include persisted user preferences or multiple project windows.

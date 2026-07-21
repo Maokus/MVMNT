@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type {
     CloseRequestResult,
     DesktopMenuCommand,
@@ -8,7 +8,10 @@ import type {
     DesktopExportCompleteRequest,
     DesktopExportWriteRequest,
     MvmntDesktopApi,
+    DesktopDroppedFile,
+    DesktopPluginDevelopmentStatus,
 } from './shared/desktop-api.js';
+import type { DesktopAutomationProgress, DesktopAutomationResult, DesktopDeepLinkCommand, DesktopRenderRequest } from './shared/automation.js';
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): () => void {
     const listener = (_event: Electron.IpcRendererEvent, payload: T) => callback(payload);
@@ -51,6 +54,26 @@ const api: MvmntDesktopApi = {
     },
     external: {
         openHttps: (url: string) => ipcRenderer.invoke('external:open-https', url),
+    },
+    droppedFiles: {
+        read: (files: File[]) => ipcRenderer.invoke('dropped-files:read', files.map((file) => webUtils.getPathForFile(file))),
+    },
+    storage: {
+        inspect: () => ipcRenderer.invoke('storage:inspect'),
+        cleanup: (category) => ipcRenderer.invoke('storage:cleanup', category),
+    },
+    pluginDevelopment: {
+        grantDirectory: () => ipcRenderer.invoke('plugin-development:grant-directory'),
+        disconnect: () => ipcRenderer.invoke('plugin-development:disconnect'),
+        onStatus: (callback: (status: DesktopPluginDevelopmentStatus) => void) => subscribe('plugin-development:status', callback),
+        onBundle: (callback: (file: DesktopDroppedFile) => void) => subscribe('plugin-development:bundle', callback),
+    },
+    automation: {
+        ready: () => ipcRenderer.send('automation:ready'),
+        onRenderRequest: (callback: (request: DesktopRenderRequest) => void) => subscribe('automation:render-request', callback),
+        reportProgress: (progress: DesktopAutomationProgress) => ipcRenderer.send('automation:progress', progress),
+        reportResult: (result: DesktopAutomationResult) => ipcRenderer.send('automation:result', result),
+        onDeepLink: (callback: (command: DesktopDeepLinkCommand) => void) => subscribe('automation:deep-link', callback),
     },
 };
 

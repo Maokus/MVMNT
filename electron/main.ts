@@ -1,3 +1,4 @@
+import { watch, type FSWatcher } from 'node:fs';
 import { access, mkdir, open, readFile, readdir, rename, rm, stat, statfs, writeFile, type FileHandle } from 'node:fs/promises';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,7 +31,18 @@ import type {
     DesktopExportCompleteRequest,
     DesktopExportCompleteResult,
     DesktopExportWriteRequest,
+    DesktopDroppedFile,
+    DesktopPluginDevelopmentStatus,
+    DesktopStorageReport,
 } from './shared/desktop-api.js';
+import {
+    parseDeepLink,
+    parseRenderCommand,
+    type DesktopAutomationProgress,
+    type DesktopAutomationResult,
+    type DesktopDeepLinkCommand,
+    type ParsedRenderCommand,
+} from './shared/automation.js';
 import {
     PROJECT_EXTENSION,
     PLUGIN_EXTENSION,
@@ -43,6 +55,13 @@ import {
 const APP_SCHEME = 'mvmnt';
 const APP_ORIGIN = `${APP_SCHEME}://app`;
 const isDevelopment = Boolean(process.env.MVMNT_RENDERER_URL);
+let renderCommand: ParsedRenderCommand | null = null;
+let renderArgumentError: string | null = null;
+try {
+    renderCommand = parseRenderCommand(process.argv);
+} catch (error) {
+    renderArgumentError = error instanceof Error ? error.message : String(error);
+}
 
 protocol.registerSchemesAsPrivileged([
     {
@@ -78,6 +97,20 @@ interface ExportSession {
 }
 const exportSessions = new Map<string, ExportSession>();
 const completedExports = new Map<string, string>();
+let pluginDevelopmentWatcher: FSWatcher | null = null;
+let pluginDevelopmentDirectory: string | null = null;
+let pluginDevelopmentTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingDeepLink: DesktopDeepLinkCommand | null = null;
+let renderRequestDelivered = false;
+
+const DROP_RULES: Array<{ extensions: string[]; category: DesktopDroppedFile['category']; maxBytes: number }> = [
+    { extensions: ['.mvt'], category: 'project', maxBytes: 1024 * 1024 * 1024 },
+    { extensions: ['.mvmnt-plugin'], category: 'plugin', maxBytes: 100 * 1024 * 1024 },
+    { extensions: ['.mid', '.midi'], category: 'midi', maxBytes: 100 * 1024 * 1024 },
+    { extensions: ['.wav', '.mp3', '.ogg', '.flac', '.aac', '.m4a'], category: 'audio', maxBytes: 4 * 1024 * 1024 * 1024 },
+    { extensions: ['.png', '.jpg', '.jpeg', '.webp', '.gif'], category: 'image', maxBytes: 512 * 1024 * 1024 },
+    { extensions: ['.ttf', '.otf', '.woff', '.woff2'], category: 'font', maxBytes: 100 * 1024 * 1024 },
+];
 
 function exportLedgerPath(): string {
     return join(app.getPath('userData'), 'active-exports.json');
@@ -109,6 +142,186 @@ async function cleanupInterruptedExports(): Promise<void> {
         }
         await writeFile(exportLedgerPath(), JSON.stringify({ version: 1, entries: [] }), 'utf8');
     } catch {}
+}
+
+function automationOutput(value: DesktopAutomationProgress | DesktopAutomationResult | { type: 'error'; code: string; message: string }): void {
+    if (renderCommand?.json) process.stdout.write(`${JSON.stringify(value)}\n`);
+    else if (value.type === 'progress') process.stdout.write(`[${Math.round(value.progress)}%] ${value.message}\n`);
+    else if (value.type === 'complete') process.stdout.write(`Export complete${value.outputName ? `: ${value.outputName}` : ''}\n`);
+    else process.stderr.write(`${value.code}: ${value.message}\n`);
+}
+
+function finishAutomation(result: DesktopAutomationResult): void {
+    automationOutput(result);
+    allowClose = true;
+    const exitCode = result.type === 'complete' ? 0 : result.code === 'input' ? 3 : result.code === 'output' ? 5 : 4;
+    setImmediate(() => app.exit(exitCode));
+}
+
+async function directorySummary(directory: string): Promise<{ count: number; bytes: number; available: boolean }> {
+    try {
+        const entries = await readdir(directory, { withFileTypes: true });
+        let count = 0;
+        let bytes = 0;
+        for (const entry of entries.slice(0, 2_000)) {
+            const candidate = join(directory, entry.name);
+            try {
+                const info = await stat(candidate);
+                count += 1;
+                bytes += info.isFile() ? info.size : 0;
+            } catch {}
+        }
+        return { count, bytes, available: true };
+    } catch {
+        return { count: 0, bytes: 0, available: false };
+    }
+}
+
+async function inspectStorage(): Promise<DesktopStorageReport> {
+    const userData = app.getPath('userData');
+    const exportLedger = await directorySummary(dirname(exportLedgerPath()));
+    let temporaryCount = 0;
+    let temporaryBytes = 0;
+    try {
+        const entries = await readdir(userData, { withFileTypes: true });
+        for (const entry of entries) {
+            if (!entry.name.startsWith('.mvmnt-export-')) continue;
+            temporaryCount += 1;
+            try { temporaryBytes += (await stat(join(userData, entry.name))).size; } catch {}
+        }
+    } catch {}
+    const updateCachePath = join(app.getPath('userData'), '..', 'SquirrelTemp');
+    const updateCache = await directorySummary(updateCachePath);
+    return {
+        location: userData,
+        temporaryExports: { count: temporaryCount, bytes: temporaryBytes || (exportSessions.size ? exportLedger.bytes : 0) },
+        updateCache,
+    };
+}
+
+async function cleanupStorage(category: unknown): Promise<DesktopStorageReport> {
+    if (category === 'temporary-exports') {
+        await cleanupInterruptedExports();
+        const userData = app.getPath('userData');
+        for (const entry of await readdir(userData).catch(() => [])) {
+            if (entry.startsWith('.mvmnt-export-')) await rm(join(userData, entry), { recursive: true, force: true });
+        }
+    } else if (category === 'update-cache') {
+        const updateCachePath = join(app.getPath('userData'), '..', 'SquirrelTemp');
+        // This is an Electron/Squirrel-owned cache directory, never an
+        // arbitrary renderer-supplied path.
+        for (const entry of await readdir(updateCachePath).catch(() => [])) {
+            await rm(join(updateCachePath, entry), { recursive: true, force: true });
+        }
+    } else {
+        throw new Error('Unsupported storage cleanup category.');
+    }
+    return inspectStorage();
+}
+
+async function readDroppedFiles(value: unknown): Promise<DesktopDroppedFile[]> {
+    if (!Array.isArray(value) || value.length > 32) throw new Error('Invalid dropped-file request.');
+    const results: DesktopDroppedFile[] = [];
+    for (const candidate of value) {
+        if (typeof candidate !== 'string' || !candidate || candidate.includes('\0')) continue;
+        const rule = DROP_RULES.find((item) => item.extensions.includes(extname(candidate).toLowerCase()));
+        if (!rule) continue;
+        const info = await stat(candidate);
+        if (!info.isFile() || info.size <= 0 || info.size > rule.maxBytes) throw new Error(`${basename(candidate)} exceeds the allowed size.`);
+        results.push({ name: basename(candidate), category: rule.category, bytes: new Uint8Array(await readFile(candidate)) });
+    }
+    return results;
+}
+
+async function deliverRenderRequest(): Promise<void> {
+    if (!renderCommand || renderRequestDelivered || !mainWindow) return;
+    renderRequestDelivered = true;
+    try {
+        const inputPath = resolve(renderCommand.inputPath);
+        if (extname(inputPath).toLowerCase() !== PROJECT_EXTENSION) throw new Error('Render input must be a .mvt project.');
+        const info = await stat(inputPath);
+        if (!info.isFile() || info.size <= 0 || info.size > 1024 * 1024 * 1024) throw new Error('Render input is empty or exceeds 1 GB.');
+        mainWindow.webContents.send('automation:render-request', {
+            inputName: basename(inputPath),
+            bytes: new Uint8Array(await readFile(inputPath)),
+            kind: renderCommand.kind,
+            preset: renderCommand.preset,
+            range: renderCommand.range,
+            width: renderCommand.width,
+            height: renderCommand.height,
+            fps: renderCommand.fps,
+        });
+    } catch (error) {
+        finishAutomation({ type: 'error', code: 'input', message: error instanceof Error ? error.message : String(error) });
+    }
+}
+
+function pluginDevelopmentStatus(state: DesktopPluginDevelopmentStatus['state'], message: string): DesktopPluginDevelopmentStatus {
+    const status = { state, directoryName: pluginDevelopmentDirectory ? basename(pluginDevelopmentDirectory) : undefined, message };
+    mainWindow?.webContents.send('plugin-development:status', status);
+    return status;
+}
+
+async function findDevelopmentBundle(directory: string): Promise<string | null> {
+    const candidates: string[] = [];
+    for (const folder of [directory, join(directory, 'dist')]) {
+        for (const entry of await readdir(folder, { withFileTypes: true }).catch(() => [])) {
+            if (entry.isFile() && entry.name.toLowerCase().endsWith(PLUGIN_EXTENSION)) candidates.push(join(folder, entry.name));
+        }
+    }
+    const ranked = await Promise.all(candidates.map(async (candidate) => ({ candidate, modified: (await stat(candidate)).mtimeMs })));
+    return ranked.sort((a, b) => b.modified - a.modified)[0]?.candidate ?? null;
+}
+
+async function reloadDevelopmentBundle(): Promise<void> {
+    if (!pluginDevelopmentDirectory || !mainWindow) return;
+    pluginDevelopmentStatus('reloading', 'A rebuilt development bundle was detected. Validating it…');
+    try {
+        const bundle = await findDevelopmentBundle(pluginDevelopmentDirectory);
+        if (!bundle) {
+            pluginDevelopmentStatus('watching', 'Watching for a .mvmnt-plugin bundle in the granted directory or its dist folder.');
+            return;
+        }
+        const info = await stat(bundle);
+        if (info.size <= 0 || info.size > 100 * 1024 * 1024) throw new Error('Development bundle is empty or exceeds 100 MB.');
+        mainWindow.webContents.send('plugin-development:bundle', {
+            name: basename(bundle), category: 'plugin', bytes: new Uint8Array(await readFile(bundle)),
+        } satisfies DesktopDroppedFile);
+        pluginDevelopmentStatus('watching', `Reloaded ${basename(bundle)}. Watching for the next external rebuild.`);
+    } catch (error) {
+        pluginDevelopmentStatus('error', error instanceof Error ? error.message : String(error));
+    }
+}
+
+function stopPluginDevelopment(): DesktopPluginDevelopmentStatus {
+    pluginDevelopmentWatcher?.close();
+    pluginDevelopmentWatcher = null;
+    if (pluginDevelopmentTimer) clearTimeout(pluginDevelopmentTimer);
+    pluginDevelopmentTimer = null;
+    pluginDevelopmentDirectory = null;
+    return pluginDevelopmentStatus('disconnected', 'No development directory is connected.');
+}
+
+async function grantPluginDevelopmentDirectory(): Promise<DesktopPluginDevelopmentStatus> {
+    if (!mainWindow) return pluginDevelopmentStatus('error', 'The main window is unavailable.');
+    const selection = await dialog.showOpenDialog(mainWindow, { title: 'Grant Plugin Development Directory', properties: ['openDirectory'] });
+    if (selection.canceled || !selection.filePaths[0]) return pluginDevelopmentStatus('disconnected', 'Directory grant cancelled.');
+    stopPluginDevelopment();
+    pluginDevelopmentDirectory = resolve(selection.filePaths[0]);
+    const schedule = () => {
+        if (pluginDevelopmentTimer) clearTimeout(pluginDevelopmentTimer);
+        pluginDevelopmentTimer = setTimeout(() => void reloadDevelopmentBundle(), 250);
+    };
+    pluginDevelopmentWatcher = watch(pluginDevelopmentDirectory, schedule);
+    const dist = join(pluginDevelopmentDirectory, 'dist');
+    // Root watching is portable; rebuild tools generally replace a bundle in
+    // root/dist, and the rescan handles atomic renames safely.
+    void access(dist).then(() => {
+        const distWatcher = watch(dist, schedule);
+        pluginDevelopmentWatcher?.once('close', () => distWatcher.close());
+    }).catch(() => undefined);
+    void reloadDevelopmentBundle();
+    return pluginDevelopmentStatus('watching', 'Directory granted. Watching for externally rebuilt .mvmnt-plugin bundles.');
 }
 
 const sourceDirectory = dirname(fileURLToPath(import.meta.url));
@@ -257,7 +470,28 @@ async function beginExport(value: unknown): Promise<DesktopExportBeginResult> {
         let displayName: string;
         let handle: FileHandle | undefined;
 
-        if (request.kind === 'image-sequence') {
+        if (renderCommand) {
+            targetPath = resolve(renderCommand.outputPath);
+            if (request.kind === 'image-sequence') {
+                displayName = basename(targetPath) || 'sequence';
+                temporaryPath = join(dirname(targetPath), `.mvmnt-export-${id}`);
+                try {
+                    await access(targetPath);
+                    throw new Error(`Output already exists: ${targetPath}`);
+                } catch (error) {
+                    if (error instanceof Error && error.message.startsWith('Output already exists:')) throw error;
+                }
+                await mkdir(dirname(targetPath), { recursive: true });
+                await mkdir(temporaryPath, { recursive: false });
+            } else {
+                const extension = request.extension ?? '.mp4';
+                if (!targetPath.toLowerCase().endsWith(extension)) throw new Error(`Output must end with ${extension}.`);
+                displayName = basename(targetPath);
+                await mkdir(dirname(targetPath), { recursive: true });
+                temporaryPath = join(dirname(targetPath), `.mvmnt-export-${id}${extension}.tmp`);
+                handle = await open(temporaryPath, 'wx+');
+            }
+        } else if (request.kind === 'image-sequence') {
             const selection = await dialog.showOpenDialog(mainWindow, {
                 title: 'Choose Image Sequence Location',
                 properties: ['openDirectory', 'createDirectory'],
@@ -505,6 +739,9 @@ function buildApplicationMenu(): Menu {
             { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => sendMenuCommand('save') },
             { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: () => sendMenuCommand('save-as') },
             { type: 'separator' },
+            { label: 'Recovery Versions…', click: () => sendMenuCommand('recovery') },
+            { label: 'Storage & Caches…', click: () => sendMenuCommand('storage') },
+            { type: 'separator' },
             isMac ? { role: 'close' } : { role: 'quit' },
         ],
     };
@@ -513,6 +750,10 @@ function buildApplicationMenu(): Menu {
         fileMenu,
         { role: 'editMenu' },
         { role: 'viewMenu' },
+        {
+            label: 'Developer',
+            submenu: [{ label: 'Plugin Development Directory…', click: () => sendMenuCommand('plugin-development') }],
+        },
         { role: 'windowMenu' },
         {
             role: 'help',
@@ -685,6 +926,20 @@ function installIpcHandlers(): void {
             return false;
         }
     });
+    ipcMain.handle('dropped-files:read', (_event, paths) => readDroppedFiles(paths));
+    ipcMain.handle('storage:inspect', inspectStorage);
+    ipcMain.handle('storage:cleanup', (_event, category) => cleanupStorage(category));
+    ipcMain.handle('plugin-development:grant-directory', grantPluginDevelopmentDirectory);
+    ipcMain.handle('plugin-development:disconnect', stopPluginDevelopment);
+    ipcMain.on('automation:progress', (_event, progress: DesktopAutomationProgress) => {
+        if (!renderCommand || progress?.type !== 'progress') return;
+        automationOutput({ type: 'progress', progress: Math.max(0, Math.min(100, Number(progress.progress) || 0)), message: String(progress.message || '') });
+    });
+    ipcMain.on('automation:ready', () => void deliverRenderRequest());
+    ipcMain.on('automation:result', (_event, result: DesktopAutomationResult) => {
+        if (!renderCommand || (result?.type !== 'complete' && result?.type !== 'error')) return;
+        finishAutomation(result);
+    });
     ipcMain.on('lifecycle:close-complete', (_event, result: CloseRequestResult) => {
         closeRequestPending = false;
         if (result !== 'saved' && result !== 'discarded') return;
@@ -790,10 +1045,16 @@ async function createWindow(): Promise<void> {
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
-    mainWindow.once('ready-to-show', () => mainWindow?.show());
+    mainWindow.once('ready-to-show', () => {
+        if (!renderCommand) mainWindow?.show();
+    });
     mainWindow.webContents.once('did-finish-load', async () => {
         rendererReady = true;
         for (const path of queuedOpenPaths.splice(0)) void deliverOpenPath(path);
+        if (pendingDeepLink) {
+            mainWindow?.webContents.send('automation:deep-link', pendingDeepLink);
+            pendingDeepLink = null;
+        }
         if (process.env.MVMNT_SMOKE_TEST === '1') {
             const smokePath = join(app.getPath('temp'), `.mvmnt-export-smoke-${process.pid}.bin`);
             let hasVerifier = false;
@@ -845,13 +1106,15 @@ function configureSession(): void {
 removeWindowsFileAssociationsOnUninstall();
 if (started) app.quit();
 
-const hasSingleInstanceLock = app.requestSingleInstanceLock();
+const hasSingleInstanceLock = renderCommand ? true : app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
     app.quit();
 } else {
     app.on('second-instance', (_event, argv) => {
         const filePath = argv.find(isSupportedOpenPath);
         if (filePath) void deliverOpenPath(filePath);
+        const deepLink = argv.map(parseDeepLink).find((value): value is DesktopDeepLinkCommand => Boolean(value));
+        if (deepLink) mainWindow?.webContents.send('automation:deep-link', deepLink);
         if (mainWindow) {
             if (mainWindow.isMinimized()) mainWindow.restore();
             mainWindow.focus();
@@ -861,7 +1124,19 @@ if (!hasSingleInstanceLock) {
         event.preventDefault();
         void deliverOpenPath(filePath);
     });
+    app.on('open-url', (event, url) => {
+        event.preventDefault();
+        const command = parseDeepLink(url);
+        if (!command) return;
+        if (rendererReady) mainWindow?.webContents.send('automation:deep-link', command);
+        else pendingDeepLink = command;
+    });
     app.whenReady().then(async () => {
+        if (renderArgumentError) {
+            automationOutput({ type: 'error', code: 'usage', message: renderArgumentError });
+            app.exit(2);
+            return;
+        }
         protocol.handle(APP_SCHEME, handleAppProtocol);
         installIpcHandlers();
         configureSession();
@@ -877,6 +1152,11 @@ if (!hasSingleInstanceLock) {
         await createWindow();
         const startupPath = process.argv.find(isSupportedOpenPath);
         if (startupPath) void deliverOpenPath(startupPath);
+        const startupLink = process.argv.map(parseDeepLink).find((value): value is DesktopDeepLinkCommand => Boolean(value));
+        if (startupLink && !renderCommand) {
+            if (rendererReady) mainWindow?.webContents.send('automation:deep-link', startupLink);
+            else pendingDeepLink = startupLink;
+        }
         if (app.isPackaged && (process.platform === 'darwin' || process.platform === 'win32')) {
             updateElectronApp({
                 updateSource: { type: UpdateSourceType.ElectronPublicUpdateService, repo: 'Maokus/MVMNT' },
@@ -889,6 +1169,6 @@ if (!hasSingleInstanceLock) {
         if (BrowserWindow.getAllWindows().length === 0) void createWindow();
     });
     app.on('window-all-closed', () => {
-        if (process.platform !== 'darwin') app.quit();
+        if (renderCommand || process.platform !== 'darwin') app.quit();
     });
 }

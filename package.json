@@ -76,6 +76,7 @@
         "build:renderer": "vite build --mode desktop",
         "build:electron": "vite build --config electron/vite.main.config.ts && vite build --config electron/vite.preload.config.ts",
         "start": "electron .",
+        "render": "electron . --render",
         "build": "npm run build:renderer && npm run build:electron",
         "package": "npm run build && electron-forge package",
         "make": "npm run build && electron-forge make",
