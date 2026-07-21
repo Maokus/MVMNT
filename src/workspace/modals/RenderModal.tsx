@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { FaEllipsisV } from 'react-icons/fa';
 import { useVisualizer } from '@context/VisualizerContext';
 import type { ExportSettings } from '@context/visualizer/types';
 import { ensureMp3EncoderRegistered } from '@export/mp3-encoder-loader';
@@ -47,20 +48,47 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
     const [autoAudioCodec, setAutoAudioCodec] = useState(true);
     const [presets, setPresets] = useState<ExportPreset[]>(() => loadExportPresets());
     const [selectedPresetId, setSelectedPresetId] = useState('');
+    const [presetMenuOpen, setPresetMenuOpen] = useState(false);
+    const presetMenuRef = useRef<HTMLDivElement>(null);
 
     const applyPreset = useCallback((preset: ExportPreset) => {
         const settings = preset.settings;
         setForm((previous) => ({
             ...previous,
+            width: settings.width ?? previous.width,
+            height: settings.height ?? previous.height,
+            format: settings.format ?? previous.format,
             fpsMode: settings.fps === 24 || settings.fps === 30 || settings.fps === 60 ? String(settings.fps) as FpsMode : settings.fps ? 'custom' : previous.fpsMode,
             customFps: settings.fps ?? previous.customFps,
+            fullDuration: settings.fullDuration ?? previous.fullDuration,
+            startTime: settings.startTime ?? previous.startTime,
+            endTime: settings.endTime ?? previous.endTime,
             includeAudio: settings.includeAudio ?? previous.includeAudio,
             container: settings.transparentBackground ? 'webm' : settings.container === 'webm' ? 'webm' : settings.container === 'mp4' ? 'mp4' : previous.container,
             videoCodec: settings.transparentBackground ? 'vp9' : settings.videoCodec ?? previous.videoCodec,
+            videoBitrateSetting: settings.videoBitrateMode === 'manual' ? 'manual' : settings.qualityPreset ?? previous.videoBitrateSetting,
+            videoBitrate: settings.videoBitrate ?? previous.videoBitrate,
             audioCodec: settings.transparentBackground ? 'opus' : settings.audioCodec ?? previous.audioCodec,
+            audioBitrate: settings.audioBitrate ?? previous.audioBitrate,
+            audioSampleRate: settings.audioSampleRate ?? previous.audioSampleRate,
+            audioChannels: settings.audioChannels ?? previous.audioChannels,
             transparentBackground: settings.transparentBackground ?? previous.transparentBackground,
+            exportManifest: settings.exportManifest ?? previous.exportManifest,
+            exportAudioMaster: settings.exportAudioMaster ?? previous.exportAudioMaster,
+            exportAudioStems: settings.exportAudioStems ?? previous.exportAudioStems,
+            audioWavBitDepth: settings.audioWavBitDepth ?? previous.audioWavBitDepth,
+            normalizeAudio: settings.normalizeAudio ?? previous.normalizeAudio,
         }));
     }, []);
+
+    useEffect(() => {
+        if (!presetMenuOpen) return;
+        const closeOnOutsideClick = (event: MouseEvent) => {
+            if (!presetMenuRef.current?.contains(event.target as Node)) setPresetMenuOpen(false);
+        };
+        window.addEventListener('mousedown', closeOnOutsideClick);
+        return () => window.removeEventListener('mousedown', closeOnOutsideClick);
+    }, [presetMenuOpen]);
 
     // Auto-select video codec when codec list loads or container/format changes.
     useEffect(() => {
@@ -153,6 +181,8 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             return;
         }
         const baseOverrides: Partial<ExportSettings> = {
+            width: form.width,
+            height: form.height,
             fullDuration: form.fullDuration,
             startTime: form.startTime,
             endTime: form.endTime,
@@ -200,15 +230,25 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         const name = window.prompt('Preset name');
         if (!name?.trim()) return;
         const preset = saveExportPreset(name, {
+            format: form.format,
+            width: form.width,
+            height: form.height,
             fps: effectiveFps,
+            fullDuration: form.fullDuration,
+            startTime: form.startTime,
+            endTime: form.endTime,
             includeAudio: form.includeAudio,
             container: form.container,
             videoCodec: form.videoCodec,
+            videoBitrateMode: isManualVideoBitrate ? 'manual' : 'auto',
+            qualityPreset: resolvedQualityPreset,
+            videoBitrate: form.videoBitrate,
             audioCodec: form.audioCodec,
             audioBitrate: form.audioBitrate,
             audioSampleRate: form.audioSampleRate,
             audioChannels: form.audioChannels,
             transparentBackground: form.transparentBackground,
+            exportManifest: form.exportManifest,
             exportAudioMaster: form.exportAudioMaster,
             exportAudioStems: form.exportAudioStems,
             audioWavBitDepth: form.audioWavBitDepth,
@@ -216,6 +256,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         });
         setPresets((current) => [...current, preset]);
         setSelectedPresetId(preset.id);
+        setPresetMenuOpen(false);
     };
 
     return (
@@ -224,29 +265,55 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                 <h2 className="m-0 text-xl font-semibold mb-2">Render / Export</h2>
                 <p className="m-0 mb-4 text-sm opacity-80">Choose output format and settings. Resolution is set in Global Properties.</p>
 
-                <div className="grid grid-cols-[1fr_auto_auto] gap-2 mb-4">
-                    <select
-                        value={selectedPresetId}
-                        onChange={(event) => {
-                            setSelectedPresetId(event.target.value);
-                            const preset = presets.find((item) => item.id === event.target.value);
-                            if (preset) applyPreset(preset);
-                        }}
-                        className={inputCls}
-                    >
-                        <option value="">Export preset…</option>
-                        {presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
-                    </select>
-                    <button className="px-2 rounded bg-neutral-700 text-xs" onClick={saveCurrentPreset}>Save preset</button>
+                <div ref={presetMenuRef} className="absolute top-4 right-4">
                     <button
-                        className="px-2 rounded bg-neutral-700 text-xs disabled:opacity-40"
-                        disabled={!selectedPresetId || presets.find((item) => item.id === selectedPresetId)?.builtin}
-                        onClick={() => {
-                            deleteExportPreset(selectedPresetId);
-                            setPresets(loadExportPresets());
-                            setSelectedPresetId('');
-                        }}
-                    >Delete</button>
+                        type="button"
+                        aria-label="Export presets"
+                        aria-haspopup="menu"
+                        aria-expanded={presetMenuOpen}
+                        title="Export presets"
+                        onClick={() => setPresetMenuOpen((open) => !open)}
+                        className="flex h-8 w-8 items-center justify-center rounded border border-neutral-600 bg-neutral-700 text-neutral-100 hover:bg-neutral-600"
+                    >
+                        <FaEllipsisV aria-hidden="true" />
+                    </button>
+                    {presetMenuOpen && (
+                        <div role="menu" aria-label="Export presets" className="absolute right-0 top-10 z-10 w-56 rounded border border-neutral-600 bg-neutral-800 p-1 shadow-xl text-xs">
+                            <div className="px-2 py-1.5 text-neutral-400">Presets</div>
+                            {presets.map((preset) => (
+                                <button
+                                    key={preset.id}
+                                    type="button"
+                                    role="menuitem"
+                                    onClick={() => {
+                                        setSelectedPresetId(preset.id);
+                                        applyPreset(preset);
+                                        setPresetMenuOpen(false);
+                                    }}
+                                    className="flex w-full items-center rounded px-2 py-1.5 text-left text-neutral-100 hover:bg-neutral-700"
+                                >
+                                    <span className="flex-1">{preset.name}</span>
+                                    {selectedPresetId === preset.id && <span aria-label="Selected">✓</span>}
+                                </button>
+                            ))}
+                            <div className="my-1 border-t border-neutral-600" />
+                            <button type="button" role="menuitem" onClick={saveCurrentPreset} className="w-full rounded px-2 py-1.5 text-left text-neutral-100 hover:bg-neutral-700">Save preset</button>
+                            <button
+                                type="button"
+                                role="menuitem"
+                                disabled={!selectedPresetId || presets.find((item) => item.id === selectedPresetId)?.builtin}
+                                onClick={() => {
+                                    deleteExportPreset(selectedPresetId);
+                                    setPresets(loadExportPresets());
+                                    setSelectedPresetId('');
+                                    setPresetMenuOpen(false);
+                                }}
+                                className="w-full rounded px-2 py-1.5 text-left text-red-300 hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                                Delete preset
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 mb-4 text-sm">

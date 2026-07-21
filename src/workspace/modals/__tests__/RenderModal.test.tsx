@@ -65,6 +65,8 @@ const selectVideoFormat = async () => {
 
 describe('RenderModal export options behaviour', () => {
     beforeEach(() => {
+        localStorage.clear();
+        vi.restoreAllMocks();
         mockEnsureMp3EncoderRegistered.mockClear();
         mockGetEncodableAudioCodecs.mockClear();
     });
@@ -154,5 +156,37 @@ describe('RenderModal export options behaviour', () => {
         await waitFor(() => expect(mockExportVideo).toHaveBeenCalled());
         const lastCall = mockExportVideo.mock.calls[mockExportVideo.mock.calls.length - 1] as any[] | undefined;
         expect(lastCall?.[0]).toMatchObject({ container: 'webm', videoCodec: 'vp9', audioCodec: 'opus' });
+    });
+
+    it('moves preset controls into the export presets menu', async () => {
+        const { default: RenderModal } = await loadComponent();
+        render(<RenderModal onClose={() => { }} />);
+        await waitFor(() => expect(screen.getByLabelText('Video Codec')).not.toBeDisabled());
+
+        fireEvent.click(screen.getByRole('button', { name: 'Export presets' }));
+
+        expect(screen.getByRole('menu', { name: 'Export presets' })).toBeInTheDocument();
+        expect(screen.getByRole('menuitem', { name: 'Transparent PNG Sequence' })).toBeInTheDocument();
+        expect(screen.getByRole('menuitem', { name: 'Save preset' })).toBeInTheDocument();
+        expect(screen.getByRole('menuitem', { name: 'Delete preset' })).toBeDisabled();
+    });
+
+    it('saves and reapplies the current render settings from the presets menu', async () => {
+        vi.spyOn(window, 'prompt').mockReturnValue('24 fps export');
+        const { default: RenderModal } = await loadComponent();
+        render(<RenderModal onClose={() => { }} />);
+        await waitFor(() => expect(screen.getByLabelText('Video Codec')).not.toBeDisabled());
+
+        const frameRate = screen.getByLabelText('Frame Rate') as HTMLSelectElement;
+        fireEvent.change(frameRate, { target: { value: '24' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Export presets' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Save preset' }));
+
+        expect(JSON.parse(localStorage.getItem('mvmnt.desktop.export-presets.v1') ?? '[]')).toHaveLength(1);
+        fireEvent.change(frameRate, { target: { value: '30' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Export presets' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: /24 fps export/ }));
+
+        expect(frameRate.value).toBe('24');
     });
 });

@@ -1,9 +1,14 @@
 import type { ExportSettings } from '@context/visualizer/types';
 
+export type ExportPresetSettings = Partial<ExportSettings> & {
+    /** The output kind is local to the render dialog, rather than persisted export settings. */
+    format?: 'video' | 'png';
+};
+
 export interface ExportPreset {
     id: string;
     name: string;
-    settings: Partial<ExportSettings>;
+    settings: ExportPresetSettings;
     builtin?: boolean;
 }
 
@@ -14,7 +19,7 @@ export const BUILTIN_EXPORT_PRESETS: ExportPreset[] = [
         id: 'transparent-png',
         name: 'Transparent PNG Sequence',
         builtin: true,
-        settings: { transparentBackground: true },
+        settings: { format: 'png', transparentBackground: true },
     },
 ];
 
@@ -28,7 +33,7 @@ export function loadExportPresets(): ExportPreset[] {
     }
 }
 
-export function saveExportPreset(name: string, settings: Partial<ExportSettings>): ExportPreset {
+export function saveExportPreset(name: string, settings: ExportPresetSettings): ExportPreset {
     const preset: ExportPreset = { id: crypto.randomUUID(), name: name.trim(), settings: structuredClone(settings) };
     const custom = loadExportPresets().filter((item) => !item.builtin);
     localStorage.setItem(STORAGE_KEY, JSON.stringify([...custom, preset]));
