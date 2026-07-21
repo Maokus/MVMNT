@@ -11,12 +11,13 @@ MVMNT (pronounced _movement_) is a free and open source music visualisation soft
 For developers, it is a framework which handles the boilerplate so that you can focus on making and sharing custom visualisations.
 
 - [Installation](#installation)
+- [Windows Node/Electron recovery](#windows-nodeelectron-recovery)
 - [Making Plugins](#making-plugins)
 - [License](#license)
 
 ## Installation
 
-MVMNT requires **Node.js 22**. Node 20 is unsupported. On Windows,
+MVMNT requires **Node.js 22.12 or newer** (within the Node 22 release line). Node 20 is unsupported. On Windows,
 install Node 22 from [nodejs.org](https://nodejs.org/) or switch with your Node version manager,
 then open a new terminal and confirm `node --version` reports `v22.x`.
 
@@ -26,6 +27,35 @@ cd MVMNT
 npm install
 npm run dev
 ```
+
+## Windows Node/Electron recovery
+
+If `npm install` reports `EBADENGINE`, or `npm run dev` fails while downloading Electron with
+`ERR_REQUIRE_ESM` or "Electron failed to install correctly", the project is using an unsupported
+Node version. MVMNT requires Node 22.12 or newer within the Node 22 release line.
+
+1. Install [NVM for Windows](https://github.com/coreybutler/nvm-windows/releases) (`nvm-setup.exe`),
+   then close and reopen Git Bash or PowerShell.
+2. Select the required Node version:
+
+   ```bash
+   nvm install 22.12.0
+   nvm use 22.12.0
+   node --version
+   ```
+
+   Confirm the final command reports `v22.12.0` or another `v22` version that is at least 22.12.
+3. From the MVMNT checkout, remove the dependencies that were installed under the old Node version
+   and install them again. In Git Bash:
+
+   ```bash
+   rm -rf node_modules
+   npm install
+   npm run dev
+   ```
+
+Do not delete `package-lock.json`, and do not use Electron's suggested manual installer; reinstalling
+after switching Node installs the correct Electron binary.
 
 ## Making Plugins
 

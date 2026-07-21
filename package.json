@@ -6,11 +6,11 @@
     "author": "Maokus",
     "license": "AGPL-3.0",
     "repository": "https://github.com/Maokus/MVMNT",
-    "main": "electron-dist/main.js",
+    "main": "dist/electron/main.js",
     "private": true,
     "type": "module",
     "engines": {
-        "node": ">=22 <24"
+        "node": ">=22.12 <24"
     },
     "workspaces": [
         "packages/*"
@@ -71,6 +71,7 @@
         "@rollup/rollup-linux-x64-musl": "*"
     },
     "scripts": {
+        "predev": "node scripts/check-node-version.mjs",
         "dev": "node scripts/electron-dev.mjs",
         "dev:renderer": "vite --mode desktop",
         "build:renderer": "vite build --mode desktop",

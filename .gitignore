@@ -10,8 +10,8 @@
 /test_assets
 
 # production
-/build
-/electron-dist
+/dist/renderer
+/dist/electron
 /out
 
 # misc
@@ -36,7 +36,7 @@ yarn-error.log*
 !/src/plugins/patternspack1
 !/src/plugins/fnf
 
-/dist/*
+/dist/plugins/*
 
 # development files
 /devscripts/deployed_versions.txt

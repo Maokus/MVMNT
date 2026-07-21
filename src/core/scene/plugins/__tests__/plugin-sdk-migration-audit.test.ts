@@ -65,9 +65,10 @@ describe('SDK 2 source audit', () => {
     });
 
     it('keeps current archives on SDK 2', () => {
-        const archives = readdirSync(resolve(root, 'dist')).filter((name) => name.endsWith('.mvmnt-plugin'));
+        const archivesDir = resolve(root, 'dist', 'plugins');
+        const archives = readdirSync(archivesDir).filter((name) => name.endsWith('.mvmnt-plugin'));
         for (const archive of archives) {
-            const files = unzipSync(readFileSync(resolve(root, 'dist', archive)));
+            const files = unzipSync(readFileSync(resolve(archivesDir, archive)));
             const manifest = JSON.parse(new TextDecoder().decode(files['manifest.json']));
             expect(manifest.apiVersion, archive).toBe('^2.0.0');
         }

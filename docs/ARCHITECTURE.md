@@ -134,7 +134,7 @@ See also: [plugin quickstart](plugin-api/plugin-quickstart.md),
 | Command                  | Purpose                           |
 | ------------------------ | --------------------------------- |
 | `npm run dev`            | Vite dev server                   |
-| `npm run build`          | Production build → `./build/`     |
+| `npm run build`          | Production build → `./dist/`      |
 | `npm run test`           | Vitest suite                      |
 | `npm run compile`        | TypeScript check (`tsc --noEmit`) |
 | `npm run build-plugin`   | Build an external plugin          |

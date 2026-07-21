@@ -21,9 +21,9 @@ describe('Electron path security helpers', () => {
     });
 
     it('serves assets and SPA routes without permitting traversal', () => {
-        const root = '/app/build';
-        expect(resolveRendererPath(root, '/assets/index.js')).toBe('/app/build/assets/index.js');
-        expect(resolveRendererPath(root, '/workspace')).toBe('/app/build/index.html');
+        const root = '/app/dist/renderer';
+        expect(resolveRendererPath(root, '/assets/index.js')).toBe('/app/dist/renderer/assets/index.js');
+        expect(resolveRendererPath(root, '/workspace')).toBe('/app/dist/renderer/index.html');
         expect(resolveRendererPath(root, '/../secret.txt')).toBeNull();
         expect(resolveRendererPath(root, '/%2e%2e/secret.txt')).toBeNull();
         expect(resolveRendererPath(root, '/%E0%A4%A')).toBeNull();

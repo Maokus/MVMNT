@@ -252,8 +252,8 @@ async function deliverRenderRequest(): Promise<void> {
 }
 
 const sourceDirectory = dirname(fileURLToPath(import.meta.url));
-const appRoot = resolve(sourceDirectory, '..');
-const rendererRoot = join(appRoot, 'build');
+const appRoot = resolve(sourceDirectory, '..', '..');
+const rendererRoot = join(appRoot, 'dist', 'renderer');
 const execFileAsync = promisify(execFile);
 
 async function updateWindowsFileAssociations(remove = false): Promise<void> {

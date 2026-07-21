@@ -8,7 +8,7 @@ const electronDirectory = fileURLToPath(new URL('.', import.meta.url));
 export default defineConfig({
     publicDir: false,
     build: {
-        outDir: 'electron-dist',
+        outDir: 'dist/electron',
         emptyOutDir: false,
         lib: {
             entry: resolve(electronDirectory, 'preload.ts'),

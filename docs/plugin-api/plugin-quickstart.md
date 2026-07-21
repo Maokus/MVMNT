@@ -89,7 +89,7 @@ From the MVMNT checkout, build the distributable archive:
 npm run build-plugin -- /absolute/path/to/pulse
 ```
 
-The bundle is written to `dist/com.example.pulse-0.1.0.mvmnt-plugin`. In MVMNT, open
+The bundle is written to `dist/plugins/com.example.pulse-0.1.0.mvmnt-plugin`. In MVMNT, open
 **Settings → Plugins → Import** and select that file.
 
 ## Where to go next

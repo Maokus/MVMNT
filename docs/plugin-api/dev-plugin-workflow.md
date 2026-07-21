@@ -91,7 +91,7 @@ hot replacement.
   `npm run dev-plugin`; entries, capabilities, assets, and versions hot-reload normally.
 - Development archives are session-only. They are never written to the plugin binary store and are
   removed when the server sends a shutdown event or remains unreachable for five seconds.
-- The development build is kept out of `dist/`. Use `npm run build-plugin -- <plugin-dir>` to create
+- The development build is kept out of `dist/plugins/`. Use `npm run build-plugin -- <plugin-dir>` to create
   a distributable, minified archive with its versioned filename.
 
 ## Failure behavior and troubleshooting

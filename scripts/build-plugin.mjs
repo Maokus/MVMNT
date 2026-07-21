@@ -245,7 +245,7 @@ async function buildPlugin(pluginDir, outPath = null) {
     // Create plugin bundle
     console.log('Creating plugin bundle...');
     const outputFileName = `${manifest.id}-${manifest.version}.mvmnt-plugin`;
-    const outputPath = outPath ? path.resolve(outPath) : path.join(projectRoot, 'dist', outputFileName);
+    const outputPath = outPath ? path.resolve(outPath) : path.join(projectRoot, 'dist', 'plugins', outputFileName);
 
     // Create output directory if needed
     const outputDir = path.dirname(outputPath);

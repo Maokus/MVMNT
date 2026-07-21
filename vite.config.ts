@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => {
         plugins: [react(), tsconfigPaths()],
         assetsInclude: ['**/*.icns', '**/*.mvt'],
         build: {
-            outDir: 'build',
+            outDir: 'dist/renderer',
             sourcemap: true,
         },
         define: { 'process.env': {} }, // lightweight shim
