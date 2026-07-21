@@ -14,7 +14,7 @@ interface SceneContextValue {
     setSceneName: (name: string) => void;
     /** Rename the scene title and, for saved desktop projects, its file atomically. */
     renameScene: (name: string) => Promise<boolean>;
-    /** Save to the native project path, with IndexedDB fallback outside Electron. */
+    /** Save to the native project path. */
     saveToLocal: () => Promise<void>;
     /** Save the current project to a newly selected path. */
     saveAs: () => Promise<void>;
@@ -42,9 +42,6 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
     const { isDirty, markClean, markDirty } = useDirtyTracking();
-    const startFileLoading = useTemplateStatusStore((state) => state.startLoading);
-    const updateFileLoading = useTemplateStatusStore((state) => state.updateLoading);
-    const finishFileLoading = useTemplateStatusStore((state) => state.finishLoading);
 
     useEffect(() => {
         try {
@@ -107,35 +104,11 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     const { loadScene, openDesktopFile } = menuBarActions;
 
     // -------------------------------------------------------------------------
-    // Local save (IndexedDB)
+    // Native project save
     // -------------------------------------------------------------------------
     const saveToLocal = useCallback(async () => {
-        if (window.mvmntDesktop) {
-            await menuBarActions.saveProject(false);
-            return;
-        }
-        startFileLoading(`Saving ${sceneName || 'scene'}…`, { progress: 0 });
-        try {
-            const result = await LocalSaveService.saveCurrentFile(sceneName, {
-                onProgress: (progress, message) => updateFileLoading({ progress, message }),
-            });
-            if (result.ok) {
-                markClean();
-            } else if (result.fallbackToFileExport) {
-                // Some browsers expose IndexedDB but prohibit writes (for
-                // example, Firefox private browsing). Preserve the user's
-                // work with the same durable file export used by the menu.
-                console.warn('[SceneContext] Local save unavailable; exporting scene as a file instead:', result.error);
-                alert('Local saving is unavailable in this browser session. Your scene will be exported as a file instead.');
-                await menuBarActions.saveScene(sceneName);
-            } else {
-                console.error('[SceneContext] Local save failed:', result.error);
-                alert('Save failed: ' + result.error);
-            }
-        } finally {
-            finishFileLoading();
-        }
-    }, [finishFileLoading, markClean, menuBarActions, sceneName, startFileLoading, updateFileLoading]);
+        await menuBarActions.saveProject(false);
+    }, [menuBarActions]);
 
     const saveAs = useCallback(async () => {
         await menuBarActions.saveProject(true);

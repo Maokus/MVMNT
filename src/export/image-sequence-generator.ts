@@ -3,29 +3,11 @@
 import { ExportClock } from '@export/export-clock';
 import { createExportTimingSnapshot, type ExportTimingSnapshot } from '@export/export-timing-snapshot';
 import { getSharedTimingManager } from '@state/timelineStore';
-import JSZip from 'jszip';
-
-interface ImageBlobData {
-    blob: Blob;
-    frameNumber: number;
-    filename: string;
-}
-
-interface GenerationMetadata {
-    sceneName: string;
-    totalFrames: number;
-    format: string;
-    generatedAt: string;
-    software: string;
-}
-
 interface GenerateSequenceOptions {
     fps?: number;
     width?: number;
     height?: number;
     sceneName?: string;
-    // Optional explicit filename (without extension or with .zip). If provided used for the zip download.
-    filename?: string;
     maxFrames?: number | null;
     onProgress?: (progress: number, text?: string) => void;
     onComplete?: (blob: Blob | null) => void;
@@ -33,7 +15,7 @@ interface GenerateSequenceOptions {
     // Internal/advanced options (not exposed in UI yet)
     _startFrame?: number; // used for partial exports
     deterministicTiming?: boolean; // snapshot tempo map at start (default true)
-    frameSink?: (filename: string, blob: Blob, frameNumber: number) => Promise<void>;
+    frameSink: (filename: string, blob: Blob, frameNumber: number) => Promise<void>;
     signal?: AbortSignal;
 }
 
@@ -41,20 +23,18 @@ export class ImageSequenceGenerator {
     private canvas: HTMLCanvasElement;
     private visualizer: any; // Keep as any for now since visualizer is still JS
     private isGenerating: boolean = false;
-    private imageBlobs: ImageBlobData[] = [];
 
     constructor(canvas: HTMLCanvasElement, visualizer: any) {
         this.canvas = canvas;
         this.visualizer = visualizer;
     }
 
-    async generateImageSequence(options: GenerateSequenceOptions = {}): Promise<void> {
+    async generateImageSequence(options: GenerateSequenceOptions): Promise<void> {
         const {
             fps = 60,
             width = 1500,
             height = 1500,
             sceneName = 'My Scene',
-            filename,
             maxFrames = null, // null = unlimited (full duration)
             onProgress = () => {},
             onComplete = () => {},
@@ -74,7 +54,6 @@ export class ImageSequenceGenerator {
         const originalHeight = this.canvas.height;
 
         this.isGenerating = true;
-        this.imageBlobs = [];
 
         try {
             // Resize canvas to target resolution
@@ -118,37 +97,14 @@ export class ImageSequenceGenerator {
                 signal,
             );
 
-            if (frameSink) {
-                onProgress(100, 'Image sequence ready');
-                this.canvas.width = originalWidth;
-                this.canvas.height = originalHeight;
-                this.visualizer.resize(originalWidth, originalHeight);
-                onComplete(null);
-                this.isGenerating = false;
-                this.imageBlobs = [];
-                return;
-            }
-
-            // Step 2: Create ZIP file with all images (20% of progress)
-            console.log('Creating ZIP file...');
-            const zipBlob = await this.createZipFile(sceneName, onProgress);
-
-            // Step 3: Download the ZIP
-            const base = (filename || `${sceneName}_sequence`).trim() || 'sequence';
-            const ensured = /\.zip$/i.test(base) ? base : `${base}.zip`;
-            this.downloadImageSequence(zipBlob, ensured.replace(/[^a-z0-9_.\-]/gi, '_'));
-
-            // Restore original canvas size
+            onProgress(100, 'Image sequence ready');
             this.canvas.width = originalWidth;
             this.canvas.height = originalHeight;
             this.visualizer.resize(originalWidth, originalHeight);
-
-            onComplete(zipBlob);
+            onComplete(null);
             this.isGenerating = false;
-            this.imageBlobs = []; // Clear memory
         } catch (error) {
             this.isGenerating = false;
-            this.imageBlobs = []; // Clear memory
             // Restore original canvas size on error
             this.canvas.width = originalWidth;
             this.canvas.height = originalHeight;
@@ -165,7 +121,7 @@ export class ImageSequenceGenerator {
         startFrame: number = 0,
         deterministicTiming: boolean = true,
         transparent: boolean = false,
-        frameSink?: (filename: string, blob: Blob, frameNumber: number) => Promise<void>,
+        frameSink: (filename: string, blob: Blob, frameNumber: number) => Promise<void>,
         signal?: AbortSignal,
     ): Promise<void> {
         const prePadding = 0; // padding removed
@@ -209,11 +165,7 @@ export class ImageSequenceGenerator {
 
                 const outputFrame = startFrame + frame;
                 const outputFilename = `frame_${String(outputFrame).padStart(6, '0')}.png`;
-                if (frameSink) {
-                    await frameSink(outputFilename, blob, outputFrame);
-                } else {
-                    this.imageBlobs.push({ blob, frameNumber: outputFrame, filename: outputFilename });
-                }
+                await frameSink(outputFilename, blob, outputFrame);
 
                 // Update progress for frame rendering (80% of total progress)
                 const renderProgress = (frame / totalFrames) * 80;
@@ -247,96 +199,13 @@ export class ImageSequenceGenerator {
         });
     }
 
-    private async createZipFile(
-        sceneName: string,
-        onProgress: (progress: number, text?: string) => void
-    ): Promise<Blob> {
-        const zip = new JSZip();
-
-        // Create a folder for the sequence
-        const folderName = `${sceneName}_sequence`.replace(/[^a-zA-Z0-9_]/g, '_');
-        const folder = zip.folder(folderName);
-        if (!folder) {
-            throw new Error(`Failed to create ZIP folder: ${folderName}`);
-        }
-
-        // Add metadata file
-        const metadata: GenerationMetadata = {
-            sceneName: sceneName,
-            totalFrames: this.imageBlobs.length,
-            format: 'PNG',
-            generatedAt: new Date().toISOString(),
-            software: 'MIDI Social Media Visualizer',
-        };
-
-        folder.file('metadata.json', JSON.stringify(metadata, null, 2));
-
-        // Add all PNG images to the ZIP
-        for (let i = 0; i < this.imageBlobs.length; i++) {
-            const imageData = this.imageBlobs[i];
-            folder.file(imageData.filename, imageData.blob);
-
-            // Update progress for ZIP creation (80% + 20% of remaining)
-            const zipProgress = 80 + (i / this.imageBlobs.length) * 20;
-            onProgress(zipProgress);
-
-            // Small delay every 20 files to prevent blocking
-            if (i % 20 === 0) {
-                await new Promise((resolve) => setTimeout(resolve, 1));
-            }
-        }
-
-        // Generate the ZIP file
-        console.log('Generating ZIP file...');
-        const zipBlob = await zip.generateAsync({
-            type: 'blob',
-            compression: 'DEFLATE',
-            compressionOptions: {
-                level: 6, // Good balance between size and speed
-            },
-        });
-
-        onProgress(100);
-        console.log(`ZIP file created: ${zipBlob.size} bytes`);
-        return zipBlob;
-    }
-
     stop(): void {
         this.isGenerating = false;
-        this.imageBlobs = []; // Clear memory
         console.log('Image sequence generation stopped');
     }
 
     isGeneratingSequence(): boolean {
         return this.isGenerating;
-    }
-
-    private downloadImageSequence(zipBlob: Blob, filename: string = 'image-sequence.zip'): void {
-        try {
-            console.log(`Downloading image sequence: ${filename} (${zipBlob.size} bytes)`);
-
-            // Create download link
-            const url = URL.createObjectURL(zipBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.style.display = 'none';
-
-            // Trigger download
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-
-            // Clean up object URL after a delay
-            setTimeout(() => {
-                URL.revokeObjectURL(url);
-            }, 1000);
-
-            console.log('Image sequence download initiated');
-        } catch (error) {
-            console.error('Error downloading image sequence:', error);
-            throw new Error(`Download failed: ${(error as Error).message}`);
-        }
     }
 }
 

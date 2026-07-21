@@ -7,8 +7,7 @@
  * Key Guarantees:
  *  - Deterministic when `deterministicTiming` is true (tempo / tick mapping snapshot + pure offline mix).
  *  - Provides a reproducibility hash derived from canonical track + timing serialization.
- *  - Graceful degradation: if audio muxing or codec selection fails, returns a video-only blob plus a
- *    standalone WAV for UI download.
+ *  - Streams the encoded container to Electron's native export destination.
  *
  * Design Notes:
  *  - All bitrate / codec heuristics are encapsulated here to keep callers simple.
@@ -19,7 +18,7 @@
  * Limitations / Current Assumptions:
  *  - Single mixed audio track (stereo) fed as one `AudioBuffer` (no per‑track metadata in container).
  *  - Canvas rendering assumed synchronous & side‑effect free for a given render time.
- *  - No adaptive chunk flushing: entire result buffered in memory (sufficient for short / mid‑length exports).
+ *  - Audio master and stem artifacts are passed to the desktop export sink separately.
  */
 import { offlineMix } from '@audio/offline-audio-mixer';
 import { computeReproHash, normalizeTracksForHash } from './repro-hash';
@@ -30,7 +29,6 @@ import {
     Output,
     Mp4OutputFormat,
     WebMOutputFormat,
-    BufferTarget,
     type Target,
     CanvasSource,
     AudioBufferSource,
@@ -56,8 +54,6 @@ export interface AVExportOptions {
     width?: number;
     height?: number;
     sceneName?: string;
-    // Optional explicit desired filename (used by caller when creating download link)
-    filename?: string;
     startTick: number; // export range
     endTick: number;
     includeAudio?: boolean;
@@ -280,7 +276,8 @@ export class AVExporter {
             if (transparentBackground && codec !== 'vp9') {
                 throw new Error('Transparent video export requires a VP9 encoder.');
             }
-            const target = outputTarget ?? new BufferTarget();
+            if (!outputTarget) throw new Error('Desktop export requires a native output target.');
+            const target = outputTarget;
             const outputFormat = resolvedContainer === 'webm' ? new WebMOutputFormat() : new Mp4OutputFormat();
             const output = new Output({ format: outputFormat, target });
             // Bitrate handling:
@@ -414,23 +411,26 @@ export class AVExporter {
 
             onProgress(10, 'Rendering frames...');
             const exportStartSeconds = t2s(startTick);
-            for (let i = 0; i < totalFrames; i++) {
-                if (signal?.aborted) throw new DOMException('Export cancelled', 'AbortError');
-                const renderTime = clock.timeForFrame(i) + exportStartSeconds; // absolute scene time
-                this.visualizer.renderAtTime(renderTime);
-                const encodeTime = toEncodeTimestamp(renderTime, exportStartSeconds);
-                await canvasSource.add(encodeTime, 1 / fps);
-                if (i % 10 === 0) onProgress(10 + (i / totalFrames) * 80, 'Rendering frames...');
+            // Preserve transparent pixels in the source canvas as well as the VP9 alpha channel.
+            if (transparentBackground) this.visualizer.setTransparentMode?.(true);
+            try {
+                for (let i = 0; i < totalFrames; i++) {
+                    if (signal?.aborted) throw new DOMException('Export cancelled', 'AbortError');
+                    const renderTime = clock.timeForFrame(i) + exportStartSeconds; // absolute scene time
+                    this.visualizer.renderAtTime(renderTime);
+                    const encodeTime = toEncodeTimestamp(renderTime, exportStartSeconds);
+                    await canvasSource.add(encodeTime, 1 / fps);
+                    if (i % 10 === 0) onProgress(10 + (i / totalFrames) * 80, 'Rendering frames...');
+                }
+            } finally {
+                if (transparentBackground) this.visualizer.setTransparentMode?.(false);
             }
             canvasSource.close();
 
             onProgress(92, 'Finalizing container...');
             await output.finalize();
-            const raw = target instanceof BufferTarget ? target.buffer : null;
-            const mimeType = resolvedContainer === 'webm' ? 'video/webm' : 'video/mp4';
-            const videoBlob = raw ? new Blob([raw as ArrayBuffer], { type: mimeType }) : null;
-
-            let combinedBlob: Blob | undefined = audioAdded ? videoBlob ?? undefined : undefined;
+            const videoBlob = null;
+            const combinedBlob: Blob | undefined = undefined;
             if (includeAudio && !audioAdded) {
                 const containerLabel = resolvedContainer.toUpperCase();
                 console.warn(
@@ -463,7 +463,7 @@ export class AVExporter {
                 reproducibilityHash,
                 mixPeak,
                 durationSeconds: mixDuration,
-                writtenToTarget: !(target instanceof BufferTarget),
+                writtenToTarget: true,
                 artifacts,
             };
             onProgress(100, 'Export complete');

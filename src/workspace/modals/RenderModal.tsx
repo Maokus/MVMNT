@@ -176,7 +176,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
 
     const beginExport = async () => {
         const trimmedFilename = form.filename.trim();
-        if (window.mvmntDesktop && !form.outputPath.trim()) {
+        if (!form.outputPath.trim()) {
             alert('Choose an export destination before starting a desktop export.');
             return;
         }
@@ -346,21 +346,19 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                         />
                     </FormField>
 
-                    <FormField label="Export destination" span2 hint={window.mvmntDesktop ? 'Choose the filename and location with the native file picker.' : 'Your browser will choose the download location.'}>
-                        {window.mvmntDesktop ? (
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    readOnly
-                                    placeholder="No destination selected"
-                                    value={form.outputPath}
-                                    className={`${inputCls} flex-1 opacity-80`}
-                                />
-                                <button type="button" className="rounded border border-neutral-600 px-3 text-sm text-neutral-100 hover:bg-neutral-700" onClick={() => void chooseDestination()}>
-                                    Choose…
-                                </button>
-                            </div>
-                        ) : null}
+                    <FormField label="Export destination" span2 hint="Choose the filename and location with the native file picker.">
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                readOnly
+                                placeholder="No destination selected"
+                                value={form.outputPath}
+                                className={`${inputCls} flex-1 opacity-80`}
+                            />
+                            <button type="button" className="rounded border border-neutral-600 px-3 text-sm text-neutral-100 hover:bg-neutral-700" onClick={() => void chooseDestination()}>
+                                Choose…
+                            </button>
+                        </div>
                     </FormField>
 
                     <FormField label="Format">

@@ -343,28 +343,28 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 fps: settings.fps,
                 range: rangeLabel,
             });
-            if (window.mvmntDesktop) {
-                const extension = job.kind === 'video'
-                    ? (settings.transparentBackground || settings.container === 'webm' ? '.webm' : '.mp4')
-                    : undefined;
-                const frameCount = Math.ceil(exportDuration * settings.fps);
-                const estimatedBytes = job.kind === 'video'
-                    ? Math.ceil(((settings.videoBitrate ?? settings.bitrate ?? 8_000_000) / 8) * exportDuration * 1.15)
-                    : Math.ceil(settings.width * settings.height * 0.35 * frameCount);
-                const begin = await beginDesktopExport({
-                    kind: job.kind === 'video' ? 'video' : 'image-sequence',
-                    suggestedName: job.kind === 'png' ? `${filename}_sequence` : filename,
-                    extension,
-                    estimatedBytes,
-                    outputDirectory: settings.outputDirectory,
-                    outputPath: settings.outputPath,
-                });
-                if (begin.status === 'canceled') throw new DOMException('Export cancelled', 'AbortError');
-                if (begin.status !== 'ready' || !begin.sessionId) throw new Error(begin.error ?? 'Could not create export destination.');
-                desktopSessionId = begin.sessionId;
-                store.update(job.id, { outputName: begin.displayName });
-                if (job.kind === 'video') desktopSink = createDesktopStreamSink(begin.sessionId, begin.displayName ?? filename);
-            }
+            const desktop = window.mvmntDesktop;
+            if (!desktop) throw new Error('MVMNT desktop export services are unavailable.');
+            const extension = job.kind === 'video'
+                ? (settings.transparentBackground || settings.container === 'webm' ? '.webm' : '.mp4')
+                : undefined;
+            const expectedFrameCount = Math.ceil(exportDuration * settings.fps);
+            const estimatedBytes = job.kind === 'video'
+                ? Math.ceil(((settings.videoBitrate ?? settings.bitrate ?? 8_000_000) / 8) * exportDuration * 1.15)
+                : Math.ceil(settings.width * settings.height * 0.35 * expectedFrameCount);
+            const begin = await beginDesktopExport({
+                kind: job.kind === 'video' ? 'video' : 'image-sequence',
+                suggestedName: job.kind === 'png' ? `${filename}_sequence` : filename,
+                extension,
+                estimatedBytes,
+                outputDirectory: settings.outputDirectory,
+                outputPath: settings.outputPath,
+            });
+            if (begin.status === 'canceled') throw new DOMException('Export cancelled', 'AbortError');
+            if (begin.status !== 'ready' || !begin.sessionId) throw new Error(begin.error ?? 'Could not create export destination.');
+            desktopSessionId = begin.sessionId;
+            store.update(job.id, { outputName: begin.displayName });
+            if (job.kind === 'video') desktopSink = createDesktopStreamSink(begin.sessionId, begin.displayName ?? filename);
             if (controller.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
             if (job.kind === 'png') {
                 await imageSequenceGenerator.generateImageSequence({
@@ -372,14 +372,11 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     width: settings.width,
                     height: settings.height,
                     sceneName: job.snapshot.sceneName,
-                    filename,
                     maxFrames,
                     _startFrame: startFrame,
                     transparent: settings.transparentBackground ?? false,
                     signal: controller.signal,
-                    frameSink: desktopSessionId
-                        ? (frameName: string, blob: Blob) => writeDesktopFrame(desktopSessionId!, frameName, blob)
-                        : undefined,
+                    frameSink: (frameName: string, blob: Blob) => writeDesktopFrame(desktopSessionId!, frameName, blob),
                     onProgress: updateProgress,
                 });
             } else {
@@ -400,7 +397,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     width: settings.width,
                     height: settings.height,
                     sceneName: job.snapshot.sceneName,
-                    filename,
                     maxFrames,
                     _startFrame: startFrame,
                     qualityPreset: settings.qualityPreset,
@@ -416,7 +412,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     startTick,
                     endTick,
                     outputTarget: desktopSink?.target,
-                    suppressDownload: Boolean(desktopSink),
                     signal: controller.signal,
                     exportAudioMaster: settings.exportAudioMaster,
                     exportAudioStems: settings.exportAudioStems,
@@ -429,24 +424,13 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             }
             if (artifacts.length > 0) {
                 updateProgress(96, 'Writing audio masters and stems…');
-                if (desktopSessionId) {
-                    for (const artifact of artifacts) {
-                        if (controller.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
-                        await window.mvmntDesktop!.exports.writeArtifact({
-                            sessionId: desktopSessionId,
-                            filename: artifact.filename,
-                            bytes: await blobToBytes(artifact.blob),
-                        });
-                    }
-                } else {
-                    for (const artifact of artifacts) {
-                        const url = URL.createObjectURL(artifact.blob);
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = artifact.filename;
-                        link.click();
-                        setTimeout(() => URL.revokeObjectURL(url), 1000);
-                    }
+                for (const artifact of artifacts) {
+                    if (controller.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
+                    await desktop.exports.writeArtifact({
+                        sessionId: desktopSessionId!,
+                        filename: artifact.filename,
+                        bytes: await blobToBytes(artifact.blob),
+                    });
                 }
             }
             const frameCount = Math.ceil(exportDuration * settings.fps);

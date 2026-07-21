@@ -212,19 +212,10 @@ export function App() {
       if (isTimelineTarget(e.target)) return;
       e.preventDefault();
       e.stopPropagation();
-      const nativeFiles = Array.from(e.dataTransfer?.files ?? []);
+      const desktop = window.mvmntDesktop;
+      if (!desktop) return;
       try {
-        const dropped = window.mvmntDesktop
-          ? await window.mvmntDesktop.droppedFiles.read(nativeFiles)
-          : await Promise.all(nativeFiles.map(async (file) => ({
-              name: file.name,
-              category: (/\.mvt$/i.test(file.name) ? 'project'
-                : /\.mvmnt-plugin$/i.test(file.name) ? 'plugin'
-                : /\.(mid|midi)$/i.test(file.name) ? 'midi'
-                : /\.(wav|mp3|ogg|flac|aac|m4a)$/i.test(file.name) ? 'audio'
-                : /\.(ttf|otf|woff2?)$/i.test(file.name) ? 'font' : 'image') as any,
-              bytes: new Uint8Array(await file.arrayBuffer()),
-            })));
+        const dropped = await desktop.droppedFiles.read(Array.from(e.dataTransfer?.files ?? []));
         for (const file of dropped) {
           if (file.category === 'project' || file.category === 'template') {
             writeStoredImportPayload(file.bytes);

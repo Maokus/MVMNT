@@ -3,20 +3,12 @@ import react from '@vitejs/plugin-react-swc';
 import path from 'path';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(() => {
     return {
-        // Use a dynamic base so the app can be hosted under a sub-path in production
-        // Production target path: https://maok.us/playbox/projects/mvmnt/
-        // Local dev remains at root '/'
-        base: mode === 'production' ? '/playbox/projects/mvmnt/' : mode === 'beta' ? '/playbox/projects/mvmnt_beta/' : '/',
+        // The renderer is served by Electron's mvmnt:// protocol in packaged builds.
+        base: '/',
         optimizeDeps: {
             exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
-        },
-        server: {
-            headers: {
-                'Cross-Origin-Embedder-Policy': 'require-corp',
-                'Cross-Origin-Opener-Policy': 'same-origin',
-            },
         },
         // React SWC plugin already enables Fast Refresh by default; ensure our component
         // modules use named function declarations for providers for consistent boundaries.

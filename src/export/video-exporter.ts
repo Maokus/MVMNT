@@ -1,17 +1,14 @@
 // Video Exporter (mediabunny based)
-// Migrated from the previous ffmpeg.wasm implementation to mediabunny for
-// hardware accelerated (WebCodecs) encoding directly in the browser.
-// The public API is intentionally kept the same so existing callers keep working.
+// Uses mediabunny/WebCodecs in Electron's renderer and streams output through
+// the native desktop export sink.
 
 import { ExportClock } from '@export/export-clock';
-import { buildExportFilename } from '@utils/filename';
 import { createExportTimingSnapshot, type ExportTimingSnapshot } from '@export/export-timing-snapshot';
 import { getSharedTimingManager } from '@state/timelineStore';
 import {
     Output,
     Mp4OutputFormat,
     WebMOutputFormat,
-    BufferTarget,
     type Target,
     CanvasSource,
     QUALITY_HIGH,
@@ -30,8 +27,6 @@ export interface VideoExportOptions {
     width?: number;
     height?: number;
     sceneName?: string;
-    // Optional explicit filename (without or with extension). If provided and suppressDownload=false, will be used for downloads.
-    filename?: string;
     maxFrames?: number | null;
     onProgress?: (progress: number, text?: string) => void;
     onComplete?: (blob: Blob | null) => void;
@@ -42,8 +37,6 @@ export interface VideoExportOptions {
     includeAudio?: boolean; // when true, delegate to AVExporter for combined audio+video if ticks resolvable
     startTick?: number; // optional explicit range (when includeAudio true & using AVExporter)
     endTick?: number;
-    // When true, prevents the exporter from initiating a browser download itself. Caller handles blob.
-    suppressDownload?: boolean;
     // Advanced A/V controls. Some combinations may not yet be supported by the underlying encoder build.
     // videoCodec: 'auto' tries H.264/AVC then falls back to first encodable codec reported by mediabunny.
     videoCodec?: string; // 'auto' | concrete codec id (e.g. 'avc', 'hevc', 'av1', 'vp9')
@@ -86,7 +79,6 @@ export class VideoExporter {
             width = 1500,
             height = 1500,
             sceneName = 'My Scene',
-            filename,
             maxFrames = null,
             onProgress = () => {},
             onComplete = () => {},
@@ -105,7 +97,6 @@ export class VideoExporter {
             audioSampleRate = 'auto',
             audioChannels = 2,
             container = 'mp4',
-            suppressDownload = false,
             outputTarget,
             signal,
             exportAudioMaster = false,
@@ -121,8 +112,6 @@ export class VideoExporter {
 
         // Alpha is supported by the WebM/VP9 pipeline, not MP4/H.264.
         const effectiveContainer: 'mp4' | 'webm' = transparentBackground ? 'webm' : container === 'webm' ? 'webm' : 'mp4';
-        const fileExtension = effectiveContainer === 'webm' ? '.webm' : '.mp4';
-        const mimeType = effectiveContainer === 'webm' ? 'video/webm' : 'video/mp4';
 
         const originalWidth = this.canvas.width;
         const originalHeight = this.canvas.height;
@@ -189,27 +178,15 @@ export class VideoExporter {
                             exportAudioStems,
                             audioWavBitDepth,
                             normalizeAudio,
+                            transparentBackground,
                         });
                         if (result.artifacts.length > 0) await onArtifacts?.(result.artifacts);
                         if (result.writtenToTarget) {
                             onComplete(null);
                             return;
                         }
-                        if (result.combinedBlob) {
-                            if (!suppressDownload) {
-                                const finalName = buildExportFilename(filename, sceneName, 'export', fileExtension);
-                                this.downloadBlob(result.combinedBlob, finalName);
-                            }
-                            onComplete(result.combinedBlob);
-                            return;
-                        } else if (result.videoBlob) {
-                            // fallback: deliver video only (separate audio returned separately if UI wants to prompt)
-                            if (!suppressDownload) {
-                                const finalName = buildExportFilename(filename, sceneName, 'export', fileExtension);
-                                this.downloadBlob(result.videoBlob, finalName);
-                            }
-                            onComplete(result.videoBlob);
-                            return;
+                        if (result.combinedBlob || result.videoBlob) {
+                            throw new Error('Desktop export did not receive a native output target.');
                         }
                     } else {
                         console.warn(
@@ -257,7 +234,8 @@ export class VideoExporter {
             }
 
             // mediabunny Output setup
-            const target = outputTarget ?? new BufferTarget();
+            if (!outputTarget) throw new Error('Desktop export requires a native output target.');
+            const target = outputTarget;
             const outputFormat = effectiveContainer === 'webm' ? new WebMOutputFormat() : new Mp4OutputFormat();
             const output = new Output({ format: outputFormat, target });
             // Determine bitrate: explicit overrides preset; else map preset -> mediabunny heuristic
@@ -311,39 +289,33 @@ export class VideoExporter {
                 startFrame: _startFrame,
                 timingSnapshot: snapshot,
             });
-            for (let i = 0; i < total; i++) {
-                if (signal?.aborted) throw new DOMException('Export cancelled', 'AbortError');
-                const renderTime = clock.timeForFrame(i); // absolute timeline time (includes play range start)
-                this.visualizer.renderAtTime(renderTime);
-                // IMPORTANT: Pass a zero-based timestamp to encoder to avoid leading blank gap when playRangeStart > 0.
-                // Previously we supplied absolute renderTime which caused MP4 timelines to have an initial gap (black frames / silence).
-                const encodeTimestamp = computeEncodeTimestamp(renderTime, playRangeStart);
-                await canvasSource.add(encodeTimestamp, frameDuration);
-                if (i % 10 === 0) {
-                    const prog = i / total;
-                    onProgress(prog * 95, 'Rendering & encoding frames...');
+            // CanvasSource can retain alpha, but only if the renderer clears rather than paints the scene background.
+            // Keep this scoped to export so preview rendering remains unchanged afterwards.
+            if (transparentBackground) this.visualizer.setTransparentMode?.(true);
+            try {
+                for (let i = 0; i < total; i++) {
+                    if (signal?.aborted) throw new DOMException('Export cancelled', 'AbortError');
+                    const renderTime = clock.timeForFrame(i); // absolute timeline time (includes play range start)
+                    this.visualizer.renderAtTime(renderTime);
+                    // IMPORTANT: Pass a zero-based timestamp to encoder to avoid leading blank gap when playRangeStart > 0.
+                    // Previously we supplied absolute renderTime which caused MP4 timelines to have an initial gap (black frames / silence).
+                    const encodeTimestamp = computeEncodeTimestamp(renderTime, playRangeStart);
+                    await canvasSource.add(encodeTimestamp, frameDuration);
+                    if (i % 10 === 0) {
+                        const prog = i / total;
+                        onProgress(prog * 95, 'Rendering & encoding frames...');
+                    }
                 }
+            } finally {
+                if (transparentBackground) this.visualizer.setTransparentMode?.(false);
             }
             canvasSource.close();
 
             // Finalize (95-100%)
             onProgress(97, 'Finalizing video...');
             await output.finalize();
-            if (!(target instanceof BufferTarget)) {
-                onProgress(100, 'Video ready');
-                onComplete(null);
-                return;
-            }
-            const raw = target.buffer;
-            if (!raw) throw new Error('No video data produced');
-            const u8 = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
-            const videoBlob = new Blob([u8.buffer], { type: mimeType });
             onProgress(100, 'Video ready');
-            if (!suppressDownload) {
-                const finalName = buildExportFilename(filename, sceneName, 'export', fileExtension);
-                this.downloadBlob(videoBlob, finalName);
-            }
-            onComplete(videoBlob);
+            onComplete(null);
         } catch (err) {
             console.error('Video export failed', err);
             throw err;
@@ -357,19 +329,6 @@ export class VideoExporter {
         }
     }
 
-    // Removed unused methods to reduce bundle size.
-
-    private downloadBlob(blob: Blob, filename: string) {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }
 }
 
 declare global {

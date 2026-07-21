@@ -4,7 +4,6 @@ import logo from '@assets/Logo_Transparent.png';
 import pfp from '@assets/Logo_Pfp_white.png';
 import './homepage.css';
 import { FaFileCirclePlus } from 'react-icons/fa6';
-import { writeStoredImportPayload } from '@utils/importPayloadStorage';
 import { stageDesktopProjectOpen } from '../desktop/pending-open';
 
 /**
@@ -22,30 +21,16 @@ const HomePage: React.FC = () => {
     };
 
     const handleLoadFile = () => {
-        if (window.mvmntDesktop) {
-            void window.mvmntDesktop.documents.open().then((result) => {
-                if (stageDesktopProjectOpen(result)) {
-                    navigate('/workspace', { state: { importScene: true } });
-                }
-            });
+        const desktop = window.mvmntDesktop;
+        if (!desktop) {
+            alert('MVMNT must be run through the desktop application.');
             return;
         }
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.mvt';
-        input.onchange = async (e: any) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            try {
-                const buffer = await file.arrayBuffer();
-                const bytes = new Uint8Array(buffer);
-                writeStoredImportPayload(bytes);
+        void desktop.documents.open().then((result) => {
+            if (stageDesktopProjectOpen(result)) {
                 navigate('/workspace', { state: { importScene: true } });
-            } catch (e) {
-                alert('Failed to read file');
             }
-        };
-        input.click();
+        });
     };
 
     return (

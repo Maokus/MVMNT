@@ -1,7 +1,6 @@
 import { dispatchSceneCommand } from '@state/scene';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { exportScene, importScene } from '@persistence/index';
-import { LocalSaveService } from '@persistence/local-save-service';
 import { LocalFileStore } from '@persistence/local-file-store';
 import type { ImportError } from '@persistence/import';
 import { loadPlugin } from '@core/scene/plugins';
@@ -29,54 +28,6 @@ function toArrayBuffer(view: Uint8Array): ArrayBuffer {
         return buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
     }
     return view.slice().buffer as ArrayBuffer;
-}
-
-function createAbortError(): Error {
-    if (typeof DOMException === 'function') {
-        return new DOMException('File load aborted', 'AbortError');
-    }
-    const error = new Error('File load aborted');
-    error.name = 'AbortError';
-    return error;
-}
-
-function readFileWithProgress(
-    file: File,
-    signal: AbortSignal,
-    onProgress: (progress: number, text?: string) => void,
-): Promise<ArrayBuffer> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        const abort = () => {
-            if (reader.readyState === FileReader.LOADING) {
-                reader.abort();
-            }
-            reject(createAbortError());
-        };
-        if (signal.aborted) {
-            reject(createAbortError());
-            return;
-        }
-        signal.addEventListener('abort', abort, { once: true });
-        reader.onprogress = (event) => {
-            if (!event.lengthComputable || event.total <= 0) return;
-            onProgress(Math.min(0.35, (event.loaded / event.total) * 0.35), 'Reading file…');
-        };
-        reader.onload = () => {
-            signal.removeEventListener('abort', abort);
-            resolve(reader.result as ArrayBuffer);
-        };
-        reader.onerror = () => {
-            signal.removeEventListener('abort', abort);
-            reject(reader.error ?? new Error('Failed to read file'));
-        };
-        reader.onabort = () => {
-            signal.removeEventListener('abort', abort);
-            reject(createAbortError());
-        };
-        onProgress(0, 'Reading file…');
-        reader.readAsArrayBuffer(file);
-    });
 }
 
 interface UseMenuBarProps {
@@ -139,38 +90,25 @@ export const useMenuBar = ({
                 }
             }
             const safeName = nameToUse.replace(/[^a-zA-Z0-9]/g, '_') || 'scene';
-            const exportBlob = res.blob || new Blob([toArrayBuffer(res.zip)], { type: 'application/zip' });
             const extension = '.mvt';
             const desktop = window.mvmntDesktop;
-            if (desktop) {
-                useTemplateStatusStore.getState().updateLoading({ progress: 0.95, message: 'Writing project…' });
-                const request = { bytes: res.zip, suggestedName: `${safeName}${extension}` };
-                const saveResult = options?.forceSaveAs
-                    ? await desktop.documents.saveAs(request)
-                    : await desktop.documents.save(request);
-                if (saveResult.status === 'error') {
-                    alert(`Save failed: ${saveResult.error || 'Unknown error'}`);
-                    return false;
-                }
-                if (saveResult.status === 'canceled') return false;
-                await LocalFileStore.save(res.zip).catch((error) => {
-                    console.warn('[saveScene] Recovery snapshot failed:', error);
-                });
-                localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
-                markSaveClean();
-                console.log('Scene saved.');
-                return true;
+            if (!desktop) throw new Error('MVMNT desktop services are unavailable.');
+            useTemplateStatusStore.getState().updateLoading({ progress: 0.95, message: 'Writing project…' });
+            const request = { bytes: res.zip, suggestedName: `${safeName}${extension}` };
+            const saveResult = options?.forceSaveAs
+                ? await desktop.documents.saveAs(request)
+                : await desktop.documents.save(request);
+            if (saveResult.status === 'error') {
+                alert(`Save failed: ${saveResult.error || 'Unknown error'}`);
+                return false;
             }
-            useTemplateStatusStore.getState().updateLoading({ progress: 1, message: 'Starting download…' });
-            const url = URL.createObjectURL(exportBlob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `${safeName}${extension}`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-            console.log('Scene exported.');
+            if (saveResult.status === 'canceled') return false;
+            await LocalFileStore.save(res.zip).catch((error) => {
+                console.warn('[saveScene] Recovery snapshot failed:', error);
+            });
+            localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
+            markSaveClean();
+            console.log('Scene saved.');
             return true;
         } catch (e) {
             console.error('Export error:', e);
@@ -241,83 +179,12 @@ export const useMenuBar = ({
     };
 
     const loadScene = () => {
-        if (window.mvmntDesktop) {
-            void window.mvmntDesktop.documents.open().then(openDesktopFile);
+        const desktop = window.mvmntDesktop;
+        if (!desktop) {
+            alert('MVMNT must be run through the desktop application.');
             return;
         }
-        if (isDirty) {
-            const ok = window.confirm('Open a scene file?\n\nYou have unsaved changes that will be lost. Continue?');
-            if (!ok) return;
-        }
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        // Accept packaged .mvt exports, inline .json, and legacy .mvmntpkg files
-        fileInput.accept = '.mvt,.json,.mvmntpkg';
-        fileInput.style.display = 'none';
-        fileInput.onchange = async (e: Event) => {
-            const target = e.target as HTMLInputElement;
-            const file = target.files?.[0];
-            if (!file) {
-                document.body.removeChild(fileInput);
-                return;
-            }
-            const abortController = new AbortController();
-            const statusStore = useTemplateStatusStore.getState();
-            statusStore.startLoading(`Loading ${file.name}…`, {
-                progress: 0,
-                onAbort: () => abortController.abort(),
-            });
-            try {
-                const buffer = await readFileWithProgress(file, abortController.signal, (progress, text) => {
-                    useTemplateStatusStore.getState().updateLoading({ progress, message: text });
-                });
-                const bytes = new Uint8Array(buffer);
-                const result = await importScene(bytes, {
-                    signal: abortController.signal,
-                    onProgress: (progress, text) => {
-                        useTemplateStatusStore.getState().updateLoading({
-                            progress: 0.35 + progress * 0.65,
-                            message: text ?? `Loading ${file.name}…`,
-                        });
-                    },
-                });
-                if (!result.ok) {
-                    alert(
-                        'Import failed: ' + (result.errors.map(humanReadableImportError).join('\n') || 'Unknown error')
-                    );
-                } else {
-                    const base = file.name.replace(/\.(mvt|json|mvmntpkg)$/i, '');
-                    if (base) onSceneNameChange(base);
-                    undo?.reset();
-                    if (onSceneRefresh) onSceneRefresh();
-                    // Persist the loaded scene to IDB so it survives a page reload.
-                    const saveResult = await LocalSaveService.saveCurrentFile();
-                    if (saveResult.ok) {
-                        markSaveClean();
-                    } else {
-                        console.warn('[loadScene] IDB save after open failed:', saveResult.error);
-                    }
-                    console.log('Scene opened.');
-                }
-            } catch (err) {
-                if ((err as Error)?.name === 'AbortError') {
-                    // An import can be cancelled after it has already applied part of
-                    // the document. Leave the workspace in a deterministic empty state.
-                    clearScene();
-                } else {
-                    console.error('Load error:', err);
-                    alert('Error loading scene.');
-                }
-            } finally {
-                useTemplateStatusStore.getState().finishLoading();
-                document.body.removeChild(fileInput);
-            }
-        };
-        fileInput.oncancel = () => {
-            document.body.removeChild(fileInput);
-        };
-        document.body.appendChild(fileInput);
-        fileInput.click();
+        void desktop.documents.open().then(openDesktopFile);
     };
 
     const clearScene = () => {

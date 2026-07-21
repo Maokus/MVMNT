@@ -67,6 +67,18 @@ describe('RenderModal export options behaviour', () => {
     beforeEach(() => {
         localStorage.clear();
         vi.restoreAllMocks();
+        Object.defineProperty(window, 'mvmntDesktop', {
+            configurable: true,
+            value: {
+                exports: {
+                    chooseDestination: vi.fn(async () => ({
+                        status: 'selected',
+                        outputPath: '/tmp/mvmnt-export.webm',
+                        displayName: 'mvmnt-export.webm',
+                    })),
+                },
+            },
+        });
         mockEnsureMp3EncoderRegistered.mockClear();
         mockGetEncodableAudioCodecs.mockClear();
     });
@@ -148,6 +160,9 @@ describe('RenderModal export options behaviour', () => {
 
         expect(screen.queryByLabelText('Width')).not.toBeInTheDocument();
         expect(screen.queryByLabelText('Height')).not.toBeInTheDocument();
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Choose…' }));
+        });
         const startButton = await screen.findByRole('button', { name: 'Start export' });
         await act(async () => {
             fireEvent.click(startButton);
