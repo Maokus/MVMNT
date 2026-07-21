@@ -67,8 +67,10 @@ Offline packaging can point `ELECTRON_ZIP_DIR` at a directory containing Electro
 ## Document Lifecycle
 
 `.mvt` remains the canonical document format. The renderer serializes and validates packages; the
-main process presents native dialogs and performs atomic writes. First Save selects a path, later
-saves reuse it, and Save As always selects a new path.
+main process presents native dialogs and performs atomic writes. A saved project's filename stem is
+always its Scene Name: title edits rename the active file after confirmation, and first Save / Save
+As choose a destination for `Scene Name.mvt`. New Blank Scene clears the active file association,
+so its first Save cannot overwrite the project it was created from.
 
 IndexedDB stores recovery snapshots and large asset caches. Dirty desktop documents create a
 recovery snapshot after five seconds and every thirty seconds while dirty. On the next launch,

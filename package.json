@@ -1,7 +1,7 @@
 {
     "name": "mvmnt",
     "productName": "MVMNT",
-    "version": "0.15.5",
+    "version": "0.16.0",
     "description": "A React-based Music Visualization application for creating social media videos from MIDI files",
     "author": "Maokus",
     "license": "AGPL-3.0",

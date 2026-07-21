@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { Link } from 'react-router-dom';
 import { useScene } from '@context/SceneContext';
 import logo from '@assets/Logo_Transparent.png'
-import { FaSave, FaFileExport, FaFolderOpen, FaTrash, FaMagic, FaPen, FaEllipsisV, FaCog } from 'react-icons/fa';
+import { FaSave, FaFileExport, FaFolderOpen, FaMagic, FaPen, FaEllipsisV, FaCog } from 'react-icons/fa';
 import SceneSettingsModal from '@workspace/modals/SceneSettingsModal';
 import { BrowseTemplatesButton } from '@workspace/templates/BrowseTemplatesButton';
 import { easyModeTemplates } from '@workspace/templates/easyModeTemplates';
@@ -14,7 +14,7 @@ interface MenuBarProps {
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
-    const { sceneName, setSceneName, saveToLocal, exportAsFile, isDirty, loadScene, clearScene, createNewDefaultScene } = useScene();
+    const { sceneName, renameScene, saveToLocal, exportAsFile, isDirty, loadScene, createNewDefaultScene } = useScene();
     const [isEditingName, setIsEditingName] = useState(false);
     // temporary local state while editing so user can clear the input fully
     const [tempSceneName, setTempSceneName] = useState<string>(sceneName || '');
@@ -49,14 +49,14 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
     const handleSceneNameSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         // commit temporary name to store when form submitted (Enter)
-        setSceneName(tempSceneName);
+        void renameScene(tempSceneName);
         setIsEditingName(false);
     };
 
     const handleSceneNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
             // commit on Enter
-            setSceneName(tempSceneName);
+            void renameScene(tempSceneName);
             setIsEditingName(false);
         } else if (e.key === 'Escape') {
             // revert temporary changes on Escape
@@ -68,7 +68,6 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
     const handleSave = () => { void saveToLocal(); setShowSceneMenu(false); };
     const handleExport = () => { exportAsFile(); setShowSceneMenu(false); };
     const handleLoad = () => { loadScene(); setShowSceneMenu(false); };
-    const handleClear = () => { clearScene(); setShowSceneMenu(false); };
     const handleNew = () => { createNewDefaultScene(); setShowSceneMenu(false); };
 
     return (
@@ -125,7 +124,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                                     onChange={(e) => setTempSceneName(e.target.value)}
                                     onBlur={() => {
                                         // commit on blur as well (matches Enter behaviour)
-                                        setSceneName(tempSceneName);
+                                        void renameScene(tempSceneName);
                                         setIsEditingName(false);
                                     }}
                                     onKeyDown={handleSceneNameKeyDown}
@@ -167,8 +166,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                                     <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleSave}><FaSave /> <span>Save</span><span className="ml-auto text-[11px] text-neutral-500">⌘S</span></div>
                                     <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleExport}><FaFileExport /> <span>Export as File…</span></div>
                                     <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleLoad}><FaFolderOpen /> <span>Load from File…</span></div>
-                                    <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleClear}><FaTrash /> <span>Clear Scene</span></div>
-                                    <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleNew}><FaMagic /> <span>New Scene</span></div>
+                                    <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleNew}><FaMagic /> <span>New Blank Scene</span></div>
                                 </div>
                             )}
                         </div>

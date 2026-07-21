@@ -23,6 +23,8 @@ import type {
     DesktopMenuCommand,
     DesktopOpenKind,
     DesktopOpenResult,
+    DesktopRenameRequest,
+    DesktopRenameResult,
     DesktopSaveRequest,
     DesktopSaveResult,
     DesktopExportBeginRequest,
@@ -44,7 +46,6 @@ import {
 import {
     PROJECT_EXTENSION,
     PLUGIN_EXTENSION,
-    ensureProjectExtension,
     isSupportedOpenPath,
     resolveRendererPath,
     sanitizeSuggestedName,
@@ -773,7 +774,9 @@ async function chooseSavePath(suggestedName: string): Promise<string | null> {
         filters: [{ name: 'MVMNT Projects', extensions: ['mvt'] }],
         properties: ['createDirectory', 'showOverwriteConfirmation'],
     });
-    return result.canceled || !result.filePath ? null : ensureProjectExtension(result.filePath);
+    // The dialog chooses a destination; the project title owns the filename.
+    // Ignoring a manually edited basename keeps title and file identity equal.
+    return result.canceled || !result.filePath ? null : join(dirname(result.filePath), suggestedName);
 }
 
 async function saveDocument(value: unknown, forceSaveAs: boolean): Promise<DesktopSaveResult> {
@@ -796,10 +799,54 @@ async function saveDocument(value: unknown, forceSaveAs: boolean): Promise<Deskt
     }
 }
 
+function documentState() {
+    return activeDocumentPath
+        ? { status: 'saved' as const, displayName: basename(activeDocumentPath) }
+        : { status: 'untitled' as const };
+}
+
+async function renameDocument(value: unknown): Promise<DesktopRenameResult> {
+    try {
+        if (!activeDocumentPath) return { status: 'error', error: 'This project has not been saved yet.' };
+        if (!value || typeof value !== 'object') throw new Error('Invalid rename request.');
+        const request = value as Partial<DesktopRenameRequest>;
+        const filename = sanitizeSuggestedName(request.filename);
+        const targetPath = join(dirname(activeDocumentPath), filename);
+        if (targetPath === activeDocumentPath) return { status: 'renamed', displayName: basename(targetPath) };
+
+        try {
+            await access(targetPath);
+            const choice = await dialog.showMessageBox(mainWindow!, {
+                type: 'warning',
+                message: `A project named ${filename} already exists in this folder.`,
+                detail: 'Replace it with this project?',
+                buttons: ['Cancel', 'Replace'],
+                defaultId: 0,
+                cancelId: 0,
+            });
+            if (choice.response !== 1) return { status: 'canceled' };
+            await rm(targetPath, { force: true });
+        } catch (error) {
+            const code = (error as NodeJS.ErrnoException)?.code;
+            if (code !== 'ENOENT') throw error;
+        }
+
+        await rename(activeDocumentPath, targetPath);
+        activeDocumentPath = targetPath;
+        await persistDocumentState();
+        updateWindowTitle();
+        return { status: 'renamed', displayName: basename(targetPath) };
+    } catch (error) {
+        return { status: 'error', error: error instanceof Error ? error.message : String(error) };
+    }
+}
+
 function installIpcHandlers(): void {
     ipcMain.handle('documents:open', chooseOpenPath);
     ipcMain.handle('documents:save', (_event, request) => saveDocument(request, false));
     ipcMain.handle('documents:save-as', (_event, request) => saveDocument(request, true));
+    ipcMain.handle('documents:get-state', () => documentState());
+    ipcMain.handle('documents:rename', (_event, request) => renameDocument(request));
     ipcMain.handle('documents:accept-open', async () => {
         if (!pendingOpenPath) return;
         activeDocumentPath = pendingOpenPath;

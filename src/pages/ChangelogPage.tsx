@@ -19,6 +19,10 @@ const ChangelogPage: React.FC = () => {
 
                 <div className="space-y-10">
                     <ChangelogEntry version="0.16.0" date="21-7-26" notes={[
+                        "MVMNT IS A NATIVE APP NOW!",
+                        [
+                            "Better export flows."
+                        ],
                         "Overhauled clip timeline",
                         [
                             "Track-clip seperation for both midi and audio (more than one clip per track!)",

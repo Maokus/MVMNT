@@ -1,8 +1,6 @@
-import { loadDefaultScene, resetToDefaultScene } from '@core/default-scene-loader';
 import { dispatchSceneCommand } from '@state/scene';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { exportScene, importScene } from '@persistence/index';
-import { extractSceneMetadataFromArtifact } from '@persistence/scene-package';
 import { LocalSaveService } from '@persistence/local-save-service';
 import { LocalFileStore } from '@persistence/local-file-store';
 import type { ImportError } from '@persistence/import';
@@ -222,9 +220,10 @@ export const useMenuBar = ({
                 alert('Import failed: ' + (imported.errors.map(humanReadableImportError).join('\n') || 'Unknown error'));
                 return;
             }
-            const metadata = extractSceneMetadataFromArtifact(result.bytes);
             const fallbackName = fileName.replace(/\.mvt$/i, '');
-            onSceneNameChange(metadata?.name?.trim() || fallbackName || sceneName);
+            // The filename is canonical for a saved desktop project. Older files
+            // may embed a different title; opening them reconciles to the path.
+            onSceneNameChange(fallbackName || sceneName);
             undo?.reset();
             onSceneRefresh?.();
             await window.mvmntDesktop?.documents.acceptOpen();
@@ -287,14 +286,8 @@ export const useMenuBar = ({
                         'Import failed: ' + (result.errors.map(humanReadableImportError).join('\n') || 'Unknown error')
                     );
                 } else {
-                    const metadata = extractSceneMetadataFromArtifact(bytes);
-                    if (metadata?.name?.trim()) {
-                        onSceneNameChange(metadata.name.trim());
-                    } else if (file.name) {
-                        // Fallback: derive scene name from filename (strip extension)
-                        const base = file.name.replace(/\.(mvt|json|mvmntpkg)$/i, '');
-                        if (base) onSceneNameChange(base);
-                    }
+                    const base = file.name.replace(/\.(mvt|json|mvmntpkg)$/i, '');
+                    if (base) onSceneNameChange(base);
                     undo?.reset();
                     if (onSceneRefresh) onSceneRefresh();
                     // Persist the loaded scene to IDB so it survives a page reload.
@@ -353,64 +346,38 @@ export const useMenuBar = ({
     };
 
     const createNewDefaultScene = () => {
-        if (!visualizer) {
-            console.log('New default scene functionality: visualizer not available');
-            return;
-        }
-
-        if (isDirty) {
-            const ok = window.confirm('Create a new scene?\n\nYou have unsaved changes that will be lost. Continue?');
-            if (!ok) return;
-        }
-
-        if (window.mvmntDesktop) {
-            void window.mvmntDesktop.documents.clearActivePath();
-        }
-
         void (async () => {
-            const newSceneName = SceneNameGenerator.generate();
-
-            let resetSucceeded = false;
-            try {
-                resetSucceeded = await resetToDefaultScene(visualizer);
-            } catch (error) {
-                console.warn('Failed to reset to default scene, attempting fallback import', error);
+            if (isDirty) {
+                const saveFirst = window.confirm('Save changes before creating a new blank scene?');
+                if (saveFirst) {
+                    const saved = await saveProject(false);
+                    if (!saved) return;
+                } else {
+                    const discard = window.confirm('Discard unsaved changes and create a new blank scene?');
+                    if (!discard) return;
+                }
             }
-            if (!resetSucceeded) {
-                await loadDefaultScene('useMenuBar.createNewDefaultScene.fallback');
+
+            // A blank scene is a new document, never an edit of the opened file.
+            if (window.mvmntDesktop) await window.mvmntDesktop.documents.clearActivePath();
+            const result = dispatchSceneCommand(
+                { type: 'clearScene', clearMacros: true },
+                { source: 'useMenuBar.createNewBlankScene' },
+            );
+            if (!result.success) {
+                console.warn('Failed to create blank scene', result.error);
+                return;
             }
-
-            // Set the generated name after the template has loaded so the
-            // template's embedded name does not overwrite the generated one.
-            onSceneNameChange(newSceneName);
-
+            try { useTimelineStore.getState().resetTimeline(); } catch {}
+            onSceneNameChange(SceneNameGenerator.generate());
             try {
                 const settings = useSceneStore.getState().settings;
-                visualizer?.canvas?.dispatchEvent(
-                    new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } })
-                );
+                visualizer?.canvas?.dispatchEvent(new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } }));
             } catch {}
-
-            try {
-                visualizer?.invalidateRender?.();
-            } catch {}
-
-            if (onSceneRefresh) {
-                onSceneRefresh();
-            }
-
-            // Persist the new blank scene to IDB so a page reload restores it.
-            const saveResult = await LocalSaveService.saveCurrentFile();
-            if (saveResult.ok && !window.mvmntDesktop) {
-                markSaveClean();
-            } else if (saveResult.ok) {
-                localStorage.setItem('mvmnt.desktop.recovery-state', 'dirty');
-                markDirty();
-            } else {
-                console.warn('[createNewDefaultScene] IDB save failed:', saveResult.error);
-            }
-
-            console.log(`New default scene created with name: ${newSceneName}`);
+            visualizer?.invalidateRender?.();
+            onSceneRefresh?.();
+            localStorage.setItem('mvmnt.desktop.recovery-state', 'dirty');
+            markDirty();
         })();
     };
 

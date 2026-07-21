@@ -10,7 +10,10 @@ import { useTemplateStatusStore } from '@state/templateStatusStore';
 
 interface SceneContextValue {
     sceneName: string;
+    /** Used by import/template hydration; user initiated renames use renameScene. */
     setSceneName: (name: string) => void;
+    /** Rename the scene title and, for saved desktop projects, its file atomically. */
+    renameScene: (name: string) => Promise<boolean>;
     /** Save to the native project path, with IndexedDB fallback outside Electron. */
     saveToLocal: () => Promise<void>;
     /** Save the current project to a newly selected path. */
@@ -57,6 +60,29 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         },
         [setSceneName]
     );
+
+    const renameScene = useCallback(async (value: string): Promise<boolean> => {
+        const name = value.trim();
+        if (!name || name === sceneName) return name === sceneName;
+        if (/[\\/:*?"<>|]/.test(name) || /[\u0000-\u001f]/.test(name) || /\.$/.test(name)) {
+            alert('Scene names must be valid filenames and cannot contain \\ / : * ? " < > |, control characters, or end with a period.');
+            return false;
+        }
+        if (window.mvmntDesktop) {
+            const state = await window.mvmntDesktop.documents.getState();
+            if (state.status === 'saved') {
+                const ok = window.confirm(`Rename the scene and its file to “${name}.mvt”?`);
+                if (!ok) return false;
+                const result = await window.mvmntDesktop.documents.rename({ filename: `${name}.mvt` });
+                if (result.status !== 'renamed') {
+                    if (result.status === 'error') alert(`Could not rename project: ${result.error || 'Unknown error'}`);
+                    return false;
+                }
+            }
+        }
+        updateSceneName(name);
+        return true;
+    }, [sceneName, updateSceneName]);
 
     // Bump the store runtime metadata to notify all components about scene changes
     const refreshSceneUI = useCallback(() => {
@@ -133,6 +159,10 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         async (name: string, options: { embedPlugins: boolean; description: string; author: string }) => {
             const trimmed = name.trim();
             if (!trimmed) return;
+            if (/[\\/:*?"<>|]/.test(trimmed) || /[\u0000-\u001f]/.test(trimmed) || /\.$/.test(trimmed)) {
+                alert('Scene names must be valid filenames and cannot contain \\ / : * ? " < > |, control characters, or end with a period.');
+                return;
+            }
             updateSceneName(trimmed);
             useSceneMetadataStore.getState().setDescription(options.description);
             useSceneMetadataStore.getState().setAuthor(options.author);
@@ -248,6 +278,7 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     const value: SceneContextValue = {
         sceneName,
         setSceneName: updateSceneName,
+        renameScene,
         saveToLocal,
         saveAs,
         exportAsFile: openExportModal,

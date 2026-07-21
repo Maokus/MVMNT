@@ -4,6 +4,7 @@ import { useVisualizer } from '@context/VisualizerContext';
 import { useTimelineStore } from '@state/timelineStore';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import { useScene } from '@context/SceneContext';
 import { useSceneStore } from '@state/sceneStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import SceneFontManager from '../scene-settings/SceneFontManager';
@@ -47,7 +48,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
     const setPlaybackRangeExplicitTicks = useTimelineStore((s) => s.setPlaybackRangeExplicitTicks);
 
     const metadata = useSceneMetadataStore((state) => state.metadata);
-    const setMetadataName = useSceneMetadataStore((state) => state.setName);
+    const { renameScene } = useScene();
     const setMetadataId = useSceneMetadataStore((state) => state.setId);
     const setMetadataDescription = useSceneMetadataStore((state) => state.setDescription);
     const setMetadataAuthor = useSceneMetadataStore((state) => state.setAuthor);
@@ -250,7 +251,9 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
             setLocalSceneName(metadata.name);
             return;
         }
-        setMetadataName(trimmed);
+        void renameScene(trimmed).then((renamed) => {
+            if (!renamed) setLocalSceneName(metadata.name);
+        });
     };
 
     const commitSceneId = () => {

@@ -22,6 +22,23 @@ export interface DesktopSaveRequest {
     suggestedName: string;
 }
 
+/** Renderer-safe document identity. Filesystem paths remain in the main process. */
+export interface DesktopDocumentState {
+    status: 'untitled' | 'saved';
+    displayName?: string;
+}
+
+export interface DesktopRenameRequest {
+    /** A validated .mvt filename, never a path. */
+    filename: string;
+}
+
+export interface DesktopRenameResult {
+    status: 'renamed' | 'canceled' | 'error';
+    displayName?: string;
+    error?: string;
+}
+
 export interface DesktopDroppedFile {
     name: string;
     category: 'project' | 'plugin' | 'midi' | 'audio' | 'image' | 'font' | 'template';
@@ -77,6 +94,8 @@ export interface MvmntDesktopApi {
         open(): Promise<DesktopOpenResult>;
         save(request: DesktopSaveRequest): Promise<DesktopSaveResult>;
         saveAs(request: DesktopSaveRequest): Promise<DesktopSaveResult>;
+        getState(): Promise<DesktopDocumentState>;
+        rename(request: DesktopRenameRequest): Promise<DesktopRenameResult>;
         acceptOpen(): Promise<void>;
         clearActivePath(): Promise<void>;
         setDirty(isDirty: boolean): void;

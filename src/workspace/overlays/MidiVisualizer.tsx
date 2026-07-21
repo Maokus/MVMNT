@@ -601,9 +601,10 @@ const TemplateInitializer: React.FC = () => {
                                 refreshSceneUI();
                                 if (pendingDesktopName && window.mvmntDesktop) {
                                     const fallbackName = pendingDesktopName.replace(/\.mvt$/i, '');
-                                    setSceneName(importedName || fallbackName);
+                                    // Desktop files use their filename as the canonical scene name.
+                                    setSceneName(fallbackName || importedName);
                                     await window.mvmntDesktop.documents.acceptOpen();
-                                    const recovery = await LocalSaveService.saveCurrentFile(importedName || fallbackName);
+                                    const recovery = await LocalSaveService.saveCurrentFile(fallbackName || importedName);
                                     if (!recovery.ok) {
                                         console.warn('[Import] Could not save desktop recovery snapshot:', recovery.error);
                                     }
@@ -690,6 +691,12 @@ const TemplateInitializer: React.FC = () => {
                         })
                         : { ok: true as const, loaded: false as const };
                     if (localResult.ok && localResult.loaded) {
+                        if (window.mvmntDesktop) {
+                            const document = await window.mvmntDesktop.documents.getState();
+                            if (document.status === 'saved' && document.displayName) {
+                                setSceneName(document.displayName.replace(/\.mvt$/i, ''));
+                            }
+                        }
                         refreshSceneUI();
                         if (desktopRecoveryState === 'dirty') markDirty();
                         else markSaveClean();

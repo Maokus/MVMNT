@@ -786,7 +786,8 @@ export class SceneElement implements SceneElementInterface {
         // Create an empty render object that will contain all child objects.
         // setOriginFraction stores the anchor fractions lazily; EmptyRenderObject resolves
         // them to pixel originX/Y from baseBounds at render/bounds time.
-        const usePerspective = isFeatureEnabled('elementPerspectiveWarp') && this.getProperty<boolean>('warpEnabled') === true;
+        const usePerspective =
+            isFeatureEnabled('elementPerspectiveWarp') && this.getProperty<boolean>('warpEnabled') === true;
         const containerObject = usePerspective
             ? new PerspectiveElementRoot(
                   this.id,
@@ -1005,6 +1006,10 @@ export class SceneElement implements SceneElementInterface {
                                     description: 'Stacking order for overlapping layers (higher values appear on top).',
                                 }),
                             ],
+                            layout: [
+                                { kind: 'control', control: 'slider-number', bindings: { value: 'elementOpacity' } },
+                                { kind: 'control', control: 'slider-number', bindings: { value: 'elementOpacity' } },
+                            ],
                         },
                         {
                             id: 'basicTransform',
@@ -1131,25 +1136,76 @@ export class SceneElement implements SceneElementInterface {
                             layout: [
                                 { kind: 'property', propertyKey: 'warpEnabled' },
                                 {
-                                    kind: 'section', id: 'perspective-basic', label: 'Basic', visibleWhen: [{ key: 'warpEnabled', equals: true }], children: [
-                                        { kind: 'control', control: 'xy-pad', bindings: { x: 'perspectiveRotationY', y: 'perspectiveRotationX' }, options: { label: 'Tilt' } },
+                                    kind: 'section',
+                                    id: 'perspective-basic',
+                                    label: 'Basic',
+                                    visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                    children: [
+                                        {
+                                            kind: 'control',
+                                            control: 'xy-pad',
+                                            bindings: { x: 'perspectiveRotationY', y: 'perspectiveRotationX' },
+                                            options: { label: 'Tilt' },
+                                        },
                                         { kind: 'property', propertyKey: 'perspectiveRotationX' },
                                         { kind: 'property', propertyKey: 'perspectiveRotationY' },
-                                        { kind: 'control', control: 'slider-number', bindings: { value: 'perspectiveStrength' } },
+                                        {
+                                            kind: 'control',
+                                            control: 'slider-number',
+                                            bindings: { value: 'perspectiveStrength' },
+                                        },
                                     ],
                                 },
                                 {
-                                    kind: 'section', id: 'perspective-advanced', label: 'Advanced', collapsed: true, visibleWhen: [{ key: 'warpEnabled', equals: true }], children: [
+                                    kind: 'section',
+                                    id: 'perspective-advanced',
+                                    label: 'Advanced',
+                                    collapsed: true,
+                                    visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                    children: [
                                         { kind: 'property', propertyKey: 'perspectivePivotLinked' },
-                                        { kind: 'control', control: 'point-grid', bindings: { x: 'perspectivePivotX', y: 'perspectivePivotY' }, options: { label: '3D pivot' }, visibleWhen: [{ key: 'perspectivePivotLinked', equals: false }] },
+                                        {
+                                            kind: 'control',
+                                            control: 'point-grid',
+                                            bindings: { x: 'perspectivePivotX', y: 'perspectivePivotY' },
+                                            options: { label: '3D pivot' },
+                                            visibleWhen: [{ key: 'perspectivePivotLinked', equals: false }],
+                                        },
                                         { kind: 'property', propertyKey: 'perspectivePivotX' },
                                         { kind: 'property', propertyKey: 'perspectivePivotY' },
-                                        { kind: 'control', control: 'point-grid', bindings: { x: 'perspectiveVanishingPointX', y: 'perspectiveVanishingPointY' }, options: { label: 'Vanishing point' } },
+                                        {
+                                            kind: 'control',
+                                            control: 'point-grid',
+                                            bindings: {
+                                                x: 'perspectiveVanishingPointX',
+                                                y: 'perspectiveVanishingPointY',
+                                            },
+                                            options: { label: 'Vanishing point' },
+                                        },
                                         { kind: 'property', propertyKey: 'perspectiveVanishingPointX' },
                                         { kind: 'property', propertyKey: 'perspectiveVanishingPointY' },
                                     ],
                                 },
-                                { kind: 'actions', visibleWhen: [{ key: 'warpEnabled', equals: true }], actions: [{ id: 'reset-perspective', label: 'Reset Perspective', patch: { perspectiveRotationX: 0, perspectiveRotationY: 0, perspectiveStrength: 50, perspectivePivotLinked: true, perspectivePivotX: 0.5, perspectivePivotY: 0.5, perspectiveVanishingPointX: 0.5, perspectiveVanishingPointY: 0.5 } }] },
+                                {
+                                    kind: 'actions',
+                                    visibleWhen: [{ key: 'warpEnabled', equals: true }],
+                                    actions: [
+                                        {
+                                            id: 'reset-perspective',
+                                            label: 'Reset Perspective',
+                                            patch: {
+                                                perspectiveRotationX: 0,
+                                                perspectiveRotationY: 0,
+                                                perspectiveStrength: 50,
+                                                perspectivePivotLinked: true,
+                                                perspectivePivotX: 0.5,
+                                                perspectivePivotY: 0.5,
+                                                perspectiveVanishingPointX: 0.5,
+                                                perspectiveVanishingPointY: 0.5,
+                                            },
+                                        },
+                                    ],
+                                },
                             ],
                         },
                     ],
