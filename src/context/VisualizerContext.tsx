@@ -42,10 +42,8 @@ interface VisualizerContextValue {
     seekPercent: (percent: number) => void;
     exportSequence: (override?: Partial<ExportSettings>) => Promise<void>;
     exportVideo: (override?: Partial<ExportSettings>) => Promise<void>;
-    exportBatch: (items: Array<{ kind: Exclude<ExportKind, null>; settings: Partial<ExportSettings>; presetName?: string }>) => Promise<void>;
     cancelExport: (jobId: string) => void;
     revealExport: (outputId: string) => Promise<boolean>;
-    retryExport: (jobId: string) => void;
     removeExport: (jobId: string) => void;
     showProgressOverlay: boolean;
     progressData: ProgressData;
@@ -320,7 +318,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             });
             if (window.mvmntDesktop) {
                 const extension = job.kind === 'video'
-                    ? (settings.container === 'webm' ? '.webm' : '.mp4')
+                    ? (settings.transparentBackground || settings.container === 'webm' ? '.webm' : '.mp4')
                     : undefined;
                 const frameCount = Math.ceil(exportDuration * settings.fps);
                 const estimatedBytes = job.kind === 'video'
@@ -331,6 +329,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     suggestedName: job.kind === 'png' ? `${filename}_sequence` : filename,
                     extension,
                     estimatedBytes,
+                    outputDirectory: settings.outputDirectory,
                 });
                 if (begin.status === 'canceled') throw new DOMException('Export cancelled', 'AbortError');
                 if (begin.status !== 'ready' || !begin.sessionId) throw new Error(begin.error ?? 'Could not create export destination.');
@@ -396,6 +395,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     onArtifacts: (items) => { artifacts.push(...items); },
                     audioWavBitDepth: settings.audioWavBitDepth,
                     normalizeAudio: settings.normalizeAudio,
+                    transparentBackground: settings.transparentBackground,
                     onProgress: updateProgress,
                 });
             }
@@ -430,10 +430,10 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             let completion: Awaited<ReturnType<NonNullable<typeof window.mvmntDesktop>['exports']['complete']>> | undefined;
             if (desktopSessionId) {
                 const version = await window.mvmntDesktop!.app.getVersion().catch(() => 'unknown');
-                const manifest = createExportManifest(job, version, duration, metrics);
+                const manifest = settings.exportManifest ? createExportManifest(job, version, duration, metrics) : undefined;
                 completion = desktopSink
                     ? await desktopSink.complete(manifest)
-                    : await window.mvmntDesktop!.exports.complete({ sessionId: desktopSessionId, manifest });
+                    : await window.mvmntDesktop!.exports.complete({ sessionId: desktopSessionId, manifest, expectedFrames: frameCount });
                 if (completion.status !== 'completed') throw new Error(completion.error ?? 'Export finalization failed.');
             }
             useExportJobStore.getState().update(job.id, {
@@ -533,10 +533,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         enqueueExport('video', override);
     }, [enqueueExport]);
 
-    const exportBatch = useCallback(async (items: Array<{ kind: Exclude<ExportKind, null>; settings: Partial<ExportSettings>; presetName?: string }>) => {
-        for (const item of items) enqueueExport(item.kind, item.settings, item.presetName);
-    }, [enqueueExport]);
-
     useEffect(() => {
         if (!window.mvmntDesktop || !visualizer || !imageSequenceGenerator || !videoExporter) return;
         let started = false;
@@ -590,12 +586,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         return window.mvmntDesktop?.exports.reveal(outputId) ?? false;
     }, []);
 
-    const retryExport = useCallback((jobId: string) => {
-        const previous = useExportJobStore.getState().jobs.find((job) => job.id === jobId);
-        if (!previous) return;
-        enqueueExport(previous.kind, previous.snapshot.settings);
-    }, [enqueueExport]);
-
     const removeExport = useCallback((jobId: string) => {
         pendingExportsRef.current = pendingExportsRef.current.filter((job) => job.id !== jobId);
         useExportJobStore.getState().remove(jobId);
@@ -622,10 +612,8 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         seekPercent,
         exportSequence,
         exportVideo,
-        exportBatch,
         cancelExport,
         revealExport,
-        retryExport,
         removeExport,
         showProgressOverlay,
         progressData,

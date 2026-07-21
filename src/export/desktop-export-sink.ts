@@ -9,7 +9,7 @@ export interface DesktopExportSink {
     sessionId: string;
     displayName: string;
     target: StreamTarget;
-    complete(manifest?: Record<string, unknown>): Promise<DesktopExportCompleteResult>;
+    complete(manifest?: Record<string, unknown>, expectedFrames?: number): Promise<DesktopExportCompleteResult>;
     abort(): Promise<void>;
 }
 
@@ -35,9 +35,9 @@ export function createDesktopStreamSink(sessionId: string, displayName: string):
         sessionId,
         displayName,
         target: new StreamTarget(writable, { chunked: true, chunkSize: 4 * 1024 * 1024 }),
-        async complete(manifest) {
+        async complete(manifest, expectedFrames) {
             if (terminal) throw new Error('Export sink is already closed.');
-            const result = await desktop.exports.complete({ sessionId, manifest });
+            const result = await desktop.exports.complete({ sessionId, manifest, expectedFrames });
             if (result.status === 'completed') terminal = true;
             return result;
         },

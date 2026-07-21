@@ -16,7 +16,7 @@ interface RenderModalProps {
 
 // Simple modal to configure export settings & trigger video export.
 const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
-    const { exportSettings, exportVideo, exportSequence, exportBatch, setExportSettings, sceneName, exportKind, totalDuration } = useVisualizer();
+    const { exportSettings, exportVideo, exportSequence, setExportSettings, sceneName, exportKind, totalDuration } = useVisualizer();
 
     const [form, setForm] = useState<FormState>(() =>
         deriveInitialFormState(exportSettings, exportKind, sceneName),
@@ -47,22 +47,17 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
     const [autoAudioCodec, setAutoAudioCodec] = useState(true);
     const [presets, setPresets] = useState<ExportPreset[]>(() => loadExportPresets());
     const [selectedPresetId, setSelectedPresetId] = useState('');
-    const [batchPresetIds, setBatchPresetIds] = useState<string[]>([]);
-    const [batchRanges, setBatchRanges] = useState('');
 
     const applyPreset = useCallback((preset: ExportPreset) => {
         const settings = preset.settings;
         setForm((previous) => ({
             ...previous,
-            format: settings.transparentBackground ? 'png' : previous.format,
-            width: settings.width ?? previous.width,
-            height: settings.height ?? previous.height,
             fpsMode: settings.fps === 24 || settings.fps === 30 || settings.fps === 60 ? String(settings.fps) as FpsMode : settings.fps ? 'custom' : previous.fpsMode,
             customFps: settings.fps ?? previous.customFps,
             includeAudio: settings.includeAudio ?? previous.includeAudio,
-            container: settings.container === 'webm' ? 'webm' : settings.container === 'mp4' ? 'mp4' : previous.container,
-            videoCodec: settings.videoCodec ?? previous.videoCodec,
-            audioCodec: settings.audioCodec ?? previous.audioCodec,
+            container: settings.transparentBackground ? 'webm' : settings.container === 'webm' ? 'webm' : settings.container === 'mp4' ? 'mp4' : previous.container,
+            videoCodec: settings.transparentBackground ? 'vp9' : settings.videoCodec ?? previous.videoCodec,
+            audioCodec: settings.transparentBackground ? 'opus' : settings.audioCodec ?? previous.audioCodec,
             transparentBackground: settings.transparentBackground ?? previous.transparentBackground,
         }));
     }, []);
@@ -131,6 +126,16 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         });
     }, [getPreferredAudioCodec, getPreferredVideoCodec]);
 
+    const handleTransparentBackgroundChange = useCallback((transparentBackground: boolean) => {
+        if (!transparentBackground) {
+            updateForm({ transparentBackground });
+            return;
+        }
+        setAutoVideoCodec(true);
+        setAutoAudioCodec(true);
+        updateForm({ transparentBackground, container: 'webm', videoCodec: 'vp9', audioCodec: 'opus' });
+    }, [updateForm]);
+
     const {
         effectiveFps,
         isManualVideoBitrate,
@@ -143,14 +148,17 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
 
     const beginExport = async () => {
         const trimmedFilename = form.filename.trim();
+        if (window.mvmntDesktop && !form.outputDirectory.trim()) {
+            alert('Enter an output directory before starting a desktop export.');
+            return;
+        }
         const baseOverrides: Partial<ExportSettings> = {
-            width: form.width,
-            height: form.height,
             fullDuration: form.fullDuration,
             startTime: form.startTime,
             endTime: form.endTime,
             includeAudio: form.includeAudio,
             filename: trimmedFilename || undefined,
+            outputDirectory: form.outputDirectory.trim() || undefined,
             fps: effectiveFps,
             videoCodec: form.videoCodec,
             videoBitrateMode: isManualVideoBitrate ? 'manual' : 'auto',
@@ -160,7 +168,8 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             audioSampleRate: form.audioSampleRate,
             audioChannels: form.audioChannels,
             container: form.container,
-            transparentBackground: form.format === 'png' ? form.transparentBackground : false,
+            transparentBackground: form.transparentBackground,
+            exportManifest: form.exportManifest,
             exportAudioMaster: form.format === 'video' && form.includeAudio ? form.exportAudioMaster : false,
             exportAudioStems: form.format === 'video' && form.includeAudio ? form.exportAudioStems : false,
             audioWavBitDepth: form.audioWavBitDepth,
@@ -191,8 +200,6 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         const name = window.prompt('Preset name');
         if (!name?.trim()) return;
         const preset = saveExportPreset(name, {
-            width: form.width,
-            height: form.height,
             fps: effectiveFps,
             includeAudio: form.includeAudio,
             container: form.container,
@@ -211,85 +218,11 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         setSelectedPresetId(preset.id);
     };
 
-    const queuePresetBatch = async () => {
-        const selected = presets.filter((preset) => batchPresetIds.includes(preset.id));
-        if (selected.length === 0) return;
-        const common: Partial<ExportSettings> = {
-            width: form.width,
-            height: form.height,
-            fps: effectiveFps,
-            fullDuration: form.fullDuration,
-            startTime: form.startTime,
-            endTime: form.endTime,
-            includeAudio: form.includeAudio,
-            filename: form.filename.trim() || undefined,
-            container: form.container,
-            videoCodec: form.videoCodec,
-            videoBitrateMode: isManualVideoBitrate ? 'manual' : 'auto',
-            videoBitrate: resolvedVideoBitrate ?? undefined,
-            qualityPreset: resolvedQualityPreset,
-            audioCodec: form.audioCodec,
-            audioBitrate: form.audioBitrate,
-            audioSampleRate: form.audioSampleRate,
-            audioChannels: form.audioChannels,
-            transparentBackground: form.transparentBackground,
-            exportAudioMaster: form.exportAudioMaster,
-            exportAudioStems: form.exportAudioStems,
-            audioWavBitDepth: form.audioWavBitDepth,
-            normalizeAudio: form.normalizeAudio,
-        };
-        await exportBatch(selected.map((preset) => ({
-            kind: (preset.settings.transparentBackground ? 'png' : form.format) as 'png' | 'video',
-            settings: { ...common, ...preset.settings },
-            presetName: preset.name,
-        })));
-        onClose();
-    };
-
-    const queueRangeBatch = async () => {
-        const ranges = batchRanges.split(',').map((value) => value.trim()).filter(Boolean).map((value) => {
-            const match = /^(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)$/.exec(value);
-            return match ? { start: Number(match[1]), end: Number(match[2]) } : null;
-        });
-        if (ranges.length === 0 || ranges.some((range) => !range || range.start >= range.end)) {
-            alert('Enter ranges as start-end seconds, separated by commas.');
-            return;
-        }
-        const settings: Partial<ExportSettings> = {
-            width: form.width,
-            height: form.height,
-            fps: effectiveFps,
-            includeAudio: form.includeAudio,
-            filename: `${form.filename.trim() || '{scene}'}_{range}`,
-            container: form.container,
-            videoCodec: form.videoCodec,
-            audioCodec: form.audioCodec,
-            audioBitrate: form.audioBitrate,
-            audioSampleRate: form.audioSampleRate,
-            audioChannels: form.audioChannels,
-            transparentBackground: form.transparentBackground,
-            exportAudioMaster: form.exportAudioMaster,
-            exportAudioStems: form.exportAudioStems,
-            audioWavBitDepth: form.audioWavBitDepth,
-            normalizeAudio: form.normalizeAudio,
-        };
-        await exportBatch(ranges.map((range) => ({
-            kind: form.format,
-            settings: { ...settings, fullDuration: false, startTime: range!.start, endTime: range!.end },
-        })));
-        onClose();
-    };
-
-    const exportLabel =
-        form.format === 'video'
-            ? form.container === 'webm' ? 'Start WebM Render' : 'Start MP4 Render'
-            : 'Start PNG Export';
-
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9700]" role="dialog" aria-modal="true">
             <div className="border rounded-lg w-[560px] max-w-[92vw] max-h-[90vh] overflow-y-auto p-5 [background-color:var(--twc-menubar)] [border-color:var(--twc-border)] shadow-2xl relative">
                 <h2 className="m-0 text-xl font-semibold mb-2">Render / Export</h2>
-                <p className="m-0 mb-4 text-sm opacity-80">Choose output format & advanced settings. Resolution defaults come from Global Properties; you can override FPS here.</p>
+                <p className="m-0 mb-4 text-sm opacity-80">Choose output format and settings. Resolution is set in Global Properties.</p>
 
                 <div className="grid grid-cols-[1fr_auto_auto] gap-2 mb-4">
                     <select
@@ -327,6 +260,16 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                         />
                     </FormField>
 
+                    <FormField label="Output Directory" span2 hint="Desktop only. Leave blank to use your browser’s download location.">
+                        <input
+                            type="text"
+                            placeholder="/path/to/output"
+                            value={form.outputDirectory}
+                            onChange={e => updateForm({ outputDirectory: e.target.value })}
+                            className={inputCls}
+                        />
+                    </FormField>
+
                     <FormField label="Format">
                         <select
                             value={form.format}
@@ -339,13 +282,6 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                             <option value="video">Video</option>
                             <option value="png">PNG Sequence</option>
                         </select>
-                    </FormField>
-
-                    <FormField label="Width">
-                        <input type="number" min={16} max={16384} value={form.width} onChange={e => updateForm({ width: Math.max(16, Number(e.target.value) || 16) })} className={inputCls} />
-                    </FormField>
-                    <FormField label="Height">
-                        <input type="number" min={16} max={16384} value={form.height} onChange={e => updateForm({ height: Math.max(16, Number(e.target.value) || 16) })} className={inputCls} />
                     </FormField>
 
                     {form.format === 'video' && (
@@ -364,16 +300,14 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                         </FormField>
                     )}
 
-                    {form.format === 'png' && (
-                        <label className="flex items-center gap-2 col-span-2 select-none">
-                            <input
-                                type="checkbox"
-                                checked={form.transparentBackground}
-                                onChange={e => updateForm({ transparentBackground: e.target.checked })}
-                            />
-                            <span>Transparent background</span>
-                        </label>
-                    )}
+                    <label className="flex items-center gap-2 col-span-2 select-none">
+                        <input
+                            type="checkbox"
+                            checked={form.transparentBackground}
+                            onChange={e => handleTransparentBackgroundChange(e.target.checked)}
+                        />
+                        <span>Transparent background{form.format === 'video' ? ' (WebM/VP9)' : ''}</span>
+                    </label>
 
                     <FormField label="Frame Rate">
                         <div className="flex gap-2 items-center">
@@ -574,6 +508,14 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                     )}
                 </div>
 
+                <details className="mt-3 text-xs">
+                    <summary className="cursor-pointer opacity-80">Advanced settings</summary>
+                    <label className="mt-2 flex items-center gap-2 select-none">
+                        <input type="checkbox" checked={form.exportManifest} onChange={e => updateForm({ exportManifest: e.target.checked })} />
+                        <span>Write export manifest</span>
+                    </label>
+                </details>
+
                 {/* File size estimate */}
                 <div className="mt-4 p-3 bg-neutral-900/50 border border-neutral-700 rounded text-sm">
                     <div className="flex items-center justify-between">
@@ -617,46 +559,6 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                     )}
                 </div>
 
-                {presets.length > 0 && (
-                    <details className="mt-3 text-xs">
-                        <summary className="cursor-pointer opacity-80">Batch export presets</summary>
-                        <div className="mt-2 grid grid-cols-2 gap-1 max-h-28 overflow-auto">
-                            {presets.map((preset) => (
-                                <label key={preset.id} className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={batchPresetIds.includes(preset.id)}
-                                        onChange={(event) => setBatchPresetIds((current) => event.target.checked
-                                            ? [...current, preset.id]
-                                            : current.filter((id) => id !== preset.id))}
-                                    />
-                                    <span>{preset.name}</span>
-                                </label>
-                            ))}
-                        </div>
-                        <button
-                            disabled={batchPresetIds.length === 0 || isExporting}
-                            onClick={() => void queuePresetBatch()}
-                            className="mt-2 px-3 py-1 rounded bg-sky-700 disabled:opacity-40"
-                        >Queue selected presets</button>
-                    </details>
-                )}
-
-                <details className="mt-3 text-xs">
-                    <summary className="cursor-pointer opacity-80">Batch export ranges</summary>
-                    <div className="mt-2 flex gap-2">
-                        <input
-                            className={`${inputCls} flex-1`}
-                            value={batchRanges}
-                            onChange={(event) => setBatchRanges(event.target.value)}
-                            placeholder="0-10, 12.5-20"
-                        />
-                        <button disabled={!batchRanges.trim()} onClick={() => void queueRangeBatch()} className="px-3 rounded bg-sky-700 disabled:opacity-40">
-                            Queue ranges
-                        </button>
-                    </div>
-                </details>
-
                 <div className="flex gap-2 justify-end mt-2">
                     <button
                         disabled={isExporting}
@@ -670,7 +572,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                         onClick={beginExport}
                         className="px-4 py-1 rounded text-xs font-semibold bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white shadow hover:opacity-90 disabled:opacity-50"
                     >
-                        {isExporting ? 'Starting...' : exportLabel}
+                        {isExporting ? 'Starting...' : 'Start export'}
                     </button>
                 </div>
             </div>

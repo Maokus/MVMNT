@@ -66,7 +66,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
     };
 
     const handleSave = () => { void saveToLocal(); setShowSceneMenu(false); };
-    const handleExport = () => { exportAsFile(); setShowSceneMenu(false); };
+    const handleSaveAs = () => { exportAsFile(); setShowSceneMenu(false); };
     const handleLoad = () => { loadScene(); setShowSceneMenu(false); };
     const handleNew = () => { createNewDefaultScene(); setShowSceneMenu(false); };
 
@@ -164,7 +164,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                                     className={`absolute top-full right-0 border rounded shadow-lg z-[1000] min-w-[180px] mt-1 [background-color:var(--twc-control)] [border-color:#525252] ${showSceneMenu ? 'block' : 'hidden'}`}
                                 >
                                     <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleSave}><FaSave /> <span>Save</span><span className="ml-auto text-[11px] text-neutral-500">⌘S</span></div>
-                                    <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleExport}><FaFileExport /> <span>Export as File…</span></div>
+                                    <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleSaveAs}><FaFileExport /> <span>Save As…</span><span className="ml-auto text-[11px] text-neutral-500">⌘⇧S</span></div>
                                     <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleLoad}><FaFolderOpen /> <span>Load from File…</span></div>
                                     <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleNew}><FaMagic /> <span>New Blank Scene</span></div>
                                 </div>

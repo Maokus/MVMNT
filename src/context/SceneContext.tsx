@@ -182,7 +182,7 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         const handler = (event: KeyboardEvent) => {
             if (!(event.ctrlKey || event.metaKey)) return;
             const key = event.key.toLowerCase();
-            if (key !== 's' && key !== 'o') return;
+            if (key !== 's' && key !== 'o' && key !== 'n') return;
             const target = event.target as HTMLElement | null;
             const tag = target?.tagName;
             const isEditable = !!(
@@ -195,14 +195,17 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
             if (isEditable) return;
             event.preventDefault();
             if (key === 's') {
-                void saveToLocal();
+                if (event.shiftKey) openExportModal();
+                else void saveToLocal();
             } else if (key === 'o') {
                 loadScene();
+            } else if (key === 'n') {
+                menuBarActions.createNewDefaultScene();
             }
         };
         window.addEventListener('keydown', handler, { capture: true });
         return () => window.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
-    }, [loadScene, saveToLocal]);
+    }, [loadScene, menuBarActions, openExportModal, saveToLocal]);
 
     // -------------------------------------------------------------------------
     // Electron desktop bridge
@@ -228,9 +231,9 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
             if (command === 'new') menuBarActions.createNewDefaultScene();
             if (command === 'open') loadScene();
             if (command === 'save') void saveToLocal();
-            if (command === 'save-as') void saveAs();
+            if (command === 'save-as') openExportModal();
         });
-    }, [loadScene, menuBarActions, saveAs, saveToLocal]);
+    }, [loadScene, menuBarActions, openExportModal, saveToLocal]);
 
     useEffect(() => {
         const desktop = window.mvmntDesktop;

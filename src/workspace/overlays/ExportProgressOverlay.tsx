@@ -11,7 +11,6 @@ interface ProgressOverlayProps {
     kind?: 'png' | 'video' | null; // to drive dynamic heading
     onCancel?: (jobId: string) => void;
     onReveal?: (outputId: string) => void;
-    onRetry?: (jobId: string) => void;
     onRemove?: (jobId: string) => void;
 }
 
@@ -24,7 +23,6 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
     kind = 'png',
     onCancel,
     onReveal,
-    onRetry,
     onRemove,
 }) => {
     const jobs = useExportJobStore((state) => state.jobs);
@@ -99,9 +97,6 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                                 <span className="opacity-60 capitalize">{job.status}</span>
                                 {job.outputId && onReveal && (
                                     <button className="text-sky-300 hover:text-sky-200" onClick={() => onReveal(job.outputId!)}>Reveal</button>
-                                )}
-                                {(job.status === 'failed' || job.status === 'interrupted' || job.status === 'completed') && onRetry && (
-                                    <button className="text-sky-300 hover:text-sky-200" onClick={() => onRetry(job.id)}>Retry</button>
                                 )}
                                 {!isExportJobActive(job.status) && onRemove && (
                                     <button className="opacity-60 hover:opacity-100" onClick={() => onRemove(job.id)}>×</button>

@@ -2,14 +2,13 @@ import { useCallback } from 'react';
 import { importScene } from '@persistence/index';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
-import { SceneNameGenerator } from '@core/scene-name-generator';
 import { useUndo } from '@context/UndoContext';
 import { useScene } from '@context/SceneContext';
 import { useVisualizer } from '@context/VisualizerContext';
 import type { LoadedTemplateArtifact, TemplateDefinition } from './types';
 
 export function useTemplateApply() {
-    const { refreshSceneUI, isDirty, markDirty } = useScene();
+    const { refreshSceneUI, isDirty, markDirty, sceneName } = useScene();
     const undo = useUndo();
     const visualizerCtx = useVisualizer() as { visualizer?: { invalidateRender?: () => void } } | undefined;
     const visualizer = visualizerCtx?.visualizer ?? (visualizerCtx as any);
@@ -57,8 +56,8 @@ export function useTemplateApply() {
                     ? `Based on "${importedName}" by ${importedAuthor}`
                     : `Based on "${importedName}"`;
 
-                // Give the remixed scene a fresh generated name and clear the template's author.
-                metadataStore.setName(SceneNameGenerator.generate());
+                // Applying a preset changes scene content, not document identity.
+                metadataStore.setName(sceneName);
                 metadataStore.setAuthor('');
                 metadataStore.setAttribution(attribution);
 
@@ -74,6 +73,6 @@ export function useTemplateApply() {
                 finishTemplateLoading();
             }
         },
-        [finishTemplateLoading, isDirty, markDirty, refreshSceneUI, startTemplateLoading, undo, visualizer]
+        [finishTemplateLoading, isDirty, markDirty, refreshSceneUI, sceneName, startTemplateLoading, undo, visualizer]
     );
 }

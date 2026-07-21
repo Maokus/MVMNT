@@ -81,6 +81,7 @@ export interface AVExportOptions {
     exportAudioStems?: boolean;
     audioWavBitDepth?: 16 | 24 | 32;
     normalizeAudio?: boolean;
+    transparentBackground?: boolean;
 }
 
 export interface AVExportArtifact {
@@ -144,6 +145,7 @@ export class AVExporter {
             exportAudioStems = false,
             audioWavBitDepth = 24,
             normalizeAudio = false,
+            transparentBackground = false,
         } = options;
 
         const originalWidth = this.canvas.width;
@@ -255,10 +257,11 @@ export class AVExporter {
 
             // Setup mediabunny output
             onProgress(8, 'Configuring video encoder...');
-            let resolvedContainer: 'mp4' | 'webm' = container === 'webm' ? 'webm' : 'mp4';
+            // Transparent video requires WebM with VP9 alpha.
+            let resolvedContainer: 'mp4' | 'webm' = transparentBackground ? 'webm' : container === 'webm' ? 'webm' : 'mp4';
             // Video codec resolution
             // Resolve video codec. Accept user alias 'h264' which maps to internal 'avc'. Prefer vp9 for webm.
-            const defaultCodecForContainer = resolvedContainer === 'webm' ? 'vp9' : 'avc';
+            const defaultCodecForContainer = transparentBackground || resolvedContainer === 'webm' ? 'vp9' : 'avc';
             let codecInput = videoCodec && videoCodec !== 'auto' ? videoCodec : defaultCodecForContainer;
             if (codecInput === 'h264') codecInput = 'avc';
             let codec: string = codecInput;
@@ -273,6 +276,9 @@ export class AVExporter {
                         codec = match || codecs[0];
                     }
                 } catch {}
+            }
+            if (transparentBackground && codec !== 'vp9') {
+                throw new Error('Transparent video export requires a VP9 encoder.');
             }
             const target = outputTarget ?? new BufferTarget();
             const outputFormat = resolvedContainer === 'webm' ? new WebMOutputFormat() : new Mp4OutputFormat();
@@ -301,7 +307,11 @@ export class AVExporter {
                 console.log('[AVExporter] Using heuristic video bitrate', Math.round(resolvedBitrate), 'bps');
             }
             resolvedBitrate = Math.round(Math.min(Math.max(resolvedBitrate, MIN_FALLBACK), MAX_FALLBACK));
-            const videoSourceConfig: any = { codec: codec as any, bitrate: resolvedBitrate };
+            const videoSourceConfig: any = {
+                codec: codec as any,
+                bitrate: resolvedBitrate,
+                alpha: transparentBackground ? 'keep' : 'discard',
+            };
             if (resolvedBitrate <= 1_000_000) {
                 console.warn(
                     '[AVExporter] Selected video bitrate is quite low (<=1 Mbps). Expect visible compression. bitrate=',

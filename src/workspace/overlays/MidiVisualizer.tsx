@@ -181,7 +181,7 @@ const InsertKeyframeController: React.FC = () => {
 
 // Inner component that consumes context so provider mount is clean
 const MidiVisualizerInner: React.FC = () => {
-    const { showProgressOverlay, progressData, closeProgress, exportKind, cancelExport, revealExport, retryExport, removeExport } = useVisualizer() as any;
+    const { showProgressOverlay, progressData, closeProgress, exportKind, cancelExport, revealExport, removeExport } = useVisualizer() as any;
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [sidePanelsCollapsed, setSidePanelsCollapsed] = useState(false);
     const [timelineCollapsed, setTimelineCollapsed] = useState(false);
@@ -458,7 +458,6 @@ const MidiVisualizerInner: React.FC = () => {
                         onClose={closeProgress}
                         onCancel={cancelExport}
                         onReveal={(outputId) => void revealExport(outputId)}
-                        onRetry={retryExport}
                         onRemove={removeExport}
                     />
                 </Suspense>

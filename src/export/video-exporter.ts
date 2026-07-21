@@ -63,6 +63,7 @@ export interface VideoExportOptions {
     onArtifacts?: (artifacts: Array<{ filename: string; blob: Blob }>) => void | Promise<void>;
     audioWavBitDepth?: 16 | 24 | 32;
     normalizeAudio?: boolean;
+    transparentBackground?: boolean;
 }
 
 export class VideoExporter {
@@ -112,12 +113,14 @@ export class VideoExporter {
             onArtifacts,
             audioWavBitDepth = 24,
             normalizeAudio = false,
+            transparentBackground = false,
         } = options;
 
         if (this.isExporting) throw new Error('Video export already in progress');
         this.isExporting = true;
 
-        const effectiveContainer: 'mp4' | 'webm' = container === 'webm' ? 'webm' : 'mp4';
+        // Alpha is supported by the WebM/VP9 pipeline, not MP4/H.264.
+        const effectiveContainer: 'mp4' | 'webm' = transparentBackground ? 'webm' : container === 'webm' ? 'webm' : 'mp4';
         const fileExtension = effectiveContainer === 'webm' ? '.webm' : '.mp4';
         const mimeType = effectiveContainer === 'webm' ? 'video/webm' : 'video/mp4';
 
@@ -231,7 +234,7 @@ export class VideoExporter {
 
             // Decide on codec (prefer avc/vp9 based on container, else first encodable fall-back)
             // Resolve video codec (allow user override). Accept alias 'h264' → 'avc'.
-            const defaultCodecForContainer = effectiveContainer === 'webm' ? 'vp9' : 'avc';
+            const defaultCodecForContainer = transparentBackground || effectiveContainer === 'webm' ? 'vp9' : 'avc';
             let codecInput = videoCodec && videoCodec !== 'auto' ? videoCodec : defaultCodecForContainer;
             if (codecInput === 'h264') codecInput = 'avc';
             let codec: string = codecInput;
@@ -248,6 +251,9 @@ export class VideoExporter {
                 } catch {
                     /* ignore */
                 }
+            }
+            if (transparentBackground && codec !== 'vp9') {
+                throw new Error('Transparent video export requires a VP9 encoder.');
             }
 
             // mediabunny Output setup
@@ -275,6 +281,7 @@ export class VideoExporter {
             const canvasSource = new CanvasSource(this.canvas, {
                 codec: codec as any,
                 bitrate: chosenBitrate as any,
+                alpha: transparentBackground ? 'keep' : 'discard',
             });
             output.addVideoTrack(canvasSource);
             await output.start();

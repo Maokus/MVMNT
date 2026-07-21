@@ -374,6 +374,9 @@ function validateExportBegin(value: unknown): DesktopExportBeginRequest {
         estimatedBytes: typeof request.estimatedBytes === 'number' && request.estimatedBytes > 0
             ? Math.floor(request.estimatedBytes)
             : undefined,
+        outputDirectory: typeof request.outputDirectory === 'string' && request.outputDirectory.trim()
+            ? resolve(request.outputDirectory.trim())
+            : undefined,
     };
 }
 
@@ -419,44 +422,22 @@ async function beginExport(value: unknown): Promise<DesktopExportBeginResult> {
                 temporaryPath = join(dirname(targetPath), `.mvmnt-export-${id}${extension}.tmp`);
                 handle = await open(temporaryPath, 'wx+');
             }
+        } else if (!request.outputDirectory) {
+            throw new Error('Choose an output directory in the Render / Export dialog.');
         } else if (request.kind === 'image-sequence') {
-            const selection = await dialog.showOpenDialog(mainWindow, {
-                title: 'Choose Image Sequence Location',
-                properties: ['openDirectory', 'createDirectory'],
-            });
-            if (selection.canceled || !selection.filePaths[0]) return { status: 'canceled' };
+            await mkdir(request.outputDirectory, { recursive: true });
             const folderName = sanitizeSuggestedName(request.suggestedName).replace(/\.(zip|png)$/i, '') || 'sequence';
-            targetPath = join(selection.filePaths[0], folderName);
+            targetPath = join(request.outputDirectory, folderName);
             displayName = folderName;
-            try {
-                await access(targetPath);
-                const { response } = await dialog.showMessageBox(mainWindow, {
-                    type: 'warning',
-                    message: `Replace the existing “${folderName}” folder?`,
-                    detail: 'Its contents will be replaced when the export completes.',
-                    buttons: ['Replace', 'Cancel'],
-                    defaultId: 1,
-                    cancelId: 1,
-                });
-                if (response !== 0) return { status: 'canceled' };
-            } catch {}
-            temporaryPath = join(selection.filePaths[0], `.mvmnt-export-${id}`);
+            temporaryPath = join(request.outputDirectory, `.mvmnt-export-${id}`);
             await mkdir(temporaryPath, { recursive: false });
         } else {
             const extension = request.extension ?? (request.kind === 'audio' ? '.wav' : '.mp4');
             const base = sanitizeSuggestedName(request.suggestedName).replace(/\.[^.]+$/, '') || 'export';
-            const selection = await dialog.showSaveDialog(mainWindow, {
-                title: 'Save Export',
-                defaultPath: `${base}${extension}`,
-                filters: [{ name: `${extension.slice(1).toUpperCase()} file`, extensions: [extension.slice(1)] }],
-                properties: ['createDirectory', 'showOverwriteConfirmation'],
-            });
-            if (selection.canceled || !selection.filePath) return { status: 'canceled' };
-            targetPath = selection.filePath.toLowerCase().endsWith(extension)
-                ? selection.filePath
-                : `${selection.filePath}${extension}`;
+            await mkdir(request.outputDirectory, { recursive: true });
+            targetPath = join(request.outputDirectory, `${base}${extension}`);
             displayName = basename(targetPath);
-            temporaryPath = join(dirname(targetPath), `.mvmnt-export-${id}${extension}.tmp`);
+            temporaryPath = join(request.outputDirectory, `.mvmnt-export-${id}${extension}.tmp`);
             handle = await open(temporaryPath, 'w+');
         }
 
@@ -552,15 +533,19 @@ async function completeExport(value: unknown): Promise<DesktopExportCompleteResu
         if (session.kind === 'image-sequence') {
             const files = await readdir(session.temporaryPath);
             const frameFiles = files.filter((name) => /^frame_\d{5,9}\.png$/.test(name));
-            const expectedFrames = typeof request.manifest?.frameCount === 'number' ? request.manifest.frameCount : undefined;
+            const expectedFrames = typeof request.expectedFrames === 'number'
+                ? request.expectedFrames
+                : typeof request.manifest?.frameCount === 'number' ? request.manifest.frameCount : undefined;
             if (frameFiles.length === 0 || (expectedFrames !== undefined && frameFiles.length !== expectedFrames)) {
                 throw new Error(`Image sequence verification failed: expected ${expectedFrames ?? 'at least one'} frame(s), found ${frameFiles.length}.`);
             }
-            await writeFile(
-                join(session.temporaryPath, 'manifest.json'),
-                JSON.stringify(request.manifest ?? {}, null, 2),
-                { flag: 'wx' },
-            );
+            if (request.manifest) {
+                await writeFile(
+                    join(session.temporaryPath, 'manifest.json'),
+                    JSON.stringify(request.manifest, null, 2),
+                    { flag: 'wx' },
+                );
+            }
         } else {
             await session.handle?.sync();
             const header = new Uint8Array(12);

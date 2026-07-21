@@ -22,7 +22,9 @@ export interface FormState {
     audioSampleRate: 'auto' | 44100 | 48000;
     audioChannels: 1 | 2;
     filename: string;
+    outputDirectory: string;
     transparentBackground: boolean;
+    exportManifest: boolean;
     exportAudioMaster: boolean;
     exportAudioStems: boolean;
     audioWavBitDepth: 16 | 24 | 32;

@@ -144,7 +144,9 @@ describe('RenderModal export options behaviour', () => {
             fireEvent.change(containerSelect, { target: { value: 'webm' } });
         });
 
-        const startButton = await screen.findByRole('button', { name: 'Start WebM Render' });
+        expect(screen.queryByLabelText('Width')).not.toBeInTheDocument();
+        expect(screen.queryByLabelText('Height')).not.toBeInTheDocument();
+        const startButton = await screen.findByRole('button', { name: 'Start export' });
         await act(async () => {
             fireEvent.click(startButton);
         });

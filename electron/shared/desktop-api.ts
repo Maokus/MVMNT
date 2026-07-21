@@ -58,6 +58,7 @@ export interface DesktopExportBeginRequest {
     suggestedName: string;
     extension?: '.mp4' | '.webm' | '.wav';
     estimatedBytes?: number;
+    outputDirectory?: string;
 }
 
 export interface DesktopExportBeginResult {
@@ -77,6 +78,7 @@ export interface DesktopExportWriteRequest {
 export interface DesktopExportCompleteRequest {
     sessionId: string;
     manifest?: Record<string, unknown>;
+    expectedFrames?: number;
 }
 
 export interface DesktopExportCompleteResult {
