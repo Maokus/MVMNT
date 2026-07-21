@@ -1,0 +1,24 @@
+import { builtinModules } from 'node:module';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vite';
+
+const electronDirectory = fileURLToPath(new URL('.', import.meta.url));
+
+export default defineConfig({
+    publicDir: false,
+    build: {
+        outDir: 'electron-dist',
+        emptyOutDir: true,
+        lib: {
+            entry: resolve(electronDirectory, 'main.ts'),
+            formats: ['es'],
+            fileName: () => 'main.js',
+        },
+        rollupOptions: {
+            external: ['electron', ...builtinModules, ...builtinModules.map((name) => `node:${name}`)],
+        },
+        target: 'node22',
+        sourcemap: true,
+    },
+});

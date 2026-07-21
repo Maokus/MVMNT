@@ -4,7 +4,10 @@ import { SceneNameGenerator } from '@core/scene-name-generator';
 import { exportScene, importScene } from '@persistence/index';
 import { extractSceneMetadataFromArtifact } from '@persistence/scene-package';
 import { LocalSaveService } from '@persistence/local-save-service';
+import { LocalFileStore } from '@persistence/local-file-store';
 import type { ImportError } from '@persistence/import';
+import { loadPlugin } from '@core/scene/plugins';
+import type { DesktopOpenResult } from '../../electron/shared/desktop-api';
 
 function humanReadableImportError(error: ImportError): string {
     switch (error.code) {
@@ -89,8 +92,10 @@ interface UseMenuBarProps {
 }
 
 interface MenuBarActions {
-    saveScene: (projectName?: string, options?: { embedPlugins?: boolean }) => Promise<void>;
+    saveScene: (projectName?: string, options?: { embedPlugins?: boolean; forceSaveAs?: boolean }) => Promise<boolean>;
+    saveProject: (forceSaveAs?: boolean) => Promise<boolean>;
     loadScene: () => void;
+    openDesktopFile: (result: DesktopOpenResult) => Promise<void>;
     clearScene: () => void;
     createNewDefaultScene: () => void;
 }
@@ -102,7 +107,7 @@ export const useMenuBar = ({
     onSceneRefresh,
     isDirty,
     markSaveClean,
-    markDirty: _markDirty,
+    markDirty,
 }: UseMenuBarProps): MenuBarActions => {
     // Access undo (optional if provider disabled)
     let undo: ReturnType<typeof useUndo> | null = null;
@@ -112,7 +117,7 @@ export const useMenuBar = ({
         /* provider may not exist in some tests */
     }
 
-    const saveScene = async (projectName?: string, options?: { embedPlugins?: boolean }) => {
+    const saveScene = async (projectName?: string, options?: { embedPlugins?: boolean; forceSaveAs?: boolean }) => {
         const nameToUse = projectName?.trim() ? projectName.trim() : sceneName;
         const statusStore = useTemplateStatusStore.getState();
         statusStore.startLoading(`Saving ${nameToUse || 'scene'}…`, { progress: 0 });
@@ -123,7 +128,7 @@ export const useMenuBar = ({
             });
             if (!res.ok) {
                 alert(res.errors?.map((e) => e.message).join('\n') || 'Export failed.');
-                return;
+                return false;
             }
             if (res.warnings?.length) {
                 const elementWarnings = res.warnings.filter((w) => w.includes('could not be exported'));
@@ -138,6 +143,26 @@ export const useMenuBar = ({
             const safeName = nameToUse.replace(/[^a-zA-Z0-9]/g, '_') || 'scene';
             const exportBlob = res.blob || new Blob([toArrayBuffer(res.zip)], { type: 'application/zip' });
             const extension = '.mvt';
+            const desktop = window.mvmntDesktop;
+            if (desktop) {
+                useTemplateStatusStore.getState().updateLoading({ progress: 0.95, message: 'Writing project…' });
+                const request = { bytes: res.zip, suggestedName: `${safeName}${extension}` };
+                const saveResult = options?.forceSaveAs
+                    ? await desktop.documents.saveAs(request)
+                    : await desktop.documents.save(request);
+                if (saveResult.status === 'error') {
+                    alert(`Save failed: ${saveResult.error || 'Unknown error'}`);
+                    return false;
+                }
+                if (saveResult.status === 'canceled') return false;
+                await LocalFileStore.save(res.zip).catch((error) => {
+                    console.warn('[saveScene] Recovery snapshot failed:', error);
+                });
+                localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
+                markSaveClean();
+                console.log('Scene saved.');
+                return true;
+            }
             useTemplateStatusStore.getState().updateLoading({ progress: 1, message: 'Starting download…' });
             const url = URL.createObjectURL(exportBlob);
             const link = document.createElement('a');
@@ -148,15 +173,79 @@ export const useMenuBar = ({
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
             console.log('Scene exported.');
+            return true;
         } catch (e) {
             console.error('Export error:', e);
             alert('Error exporting scene. See console.');
+            return false;
         } finally {
             useTemplateStatusStore.getState().finishLoading();
         }
     };
 
+    const saveProject = async (forceSaveAs = false): Promise<boolean> => {
+        return saveScene(sceneName, { forceSaveAs });
+    };
+
+    const openDesktopFile = async (result: DesktopOpenResult): Promise<void> => {
+        if (result.canceled || !result.bytes) return;
+        if (isDirty) {
+            const ok = window.confirm('Open this file?\n\nYou have unsaved changes that will be lost. Continue?');
+            if (!ok) return;
+        }
+        if (result.kind === 'plugin') {
+            const trusted = window.confirm(
+                `Install ${result.displayName || 'this plugin'}?\n\nPlugins execute code inside MVMNT. Only install plugins from authors you trust.`,
+            );
+            if (!trusted) return;
+            const pluginResult = await loadPlugin(toArrayBuffer(result.bytes));
+            if (!pluginResult.success) alert(pluginResult.error || 'Plugin installation failed.');
+            return;
+        }
+
+        const fileName = result.displayName || 'scene.mvt';
+        const statusStore = useTemplateStatusStore.getState();
+        const abortController = new AbortController();
+        statusStore.startLoading(`Loading ${fileName}…`, {
+            progress: 0.35,
+            onAbort: () => abortController.abort(),
+        });
+        try {
+            const imported = await importScene(result.bytes, {
+                signal: abortController.signal,
+                onProgress: (progress, text) => statusStore.updateLoading({
+                    progress: 0.35 + progress * 0.65,
+                    message: text ?? `Loading ${fileName}…`,
+                }),
+            });
+            if (!imported.ok) {
+                alert('Import failed: ' + (imported.errors.map(humanReadableImportError).join('\n') || 'Unknown error'));
+                return;
+            }
+            const metadata = extractSceneMetadataFromArtifact(result.bytes);
+            const fallbackName = fileName.replace(/\.mvt$/i, '');
+            onSceneNameChange(metadata?.name?.trim() || fallbackName || sceneName);
+            undo?.reset();
+            onSceneRefresh?.();
+            await window.mvmntDesktop?.documents.acceptOpen();
+            await LocalFileStore.save(result.bytes).catch(() => undefined);
+            localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
+            markSaveClean();
+        } catch (error) {
+            if ((error as Error)?.name !== 'AbortError') {
+                console.error('Desktop open failed:', error);
+                alert('Error loading scene.');
+            }
+        } finally {
+            statusStore.finishLoading();
+        }
+    };
+
     const loadScene = () => {
+        if (window.mvmntDesktop) {
+            void window.mvmntDesktop.documents.open().then(openDesktopFile);
+            return;
+        }
         if (isDirty) {
             const ok = window.confirm('Open a scene file?\n\nYou have unsaved changes that will be lost. Continue?');
             if (!ok) return;
@@ -274,6 +363,10 @@ export const useMenuBar = ({
             if (!ok) return;
         }
 
+        if (window.mvmntDesktop) {
+            void window.mvmntDesktop.documents.clearActivePath();
+        }
+
         void (async () => {
             const newSceneName = SceneNameGenerator.generate();
 
@@ -308,8 +401,11 @@ export const useMenuBar = ({
 
             // Persist the new blank scene to IDB so a page reload restores it.
             const saveResult = await LocalSaveService.saveCurrentFile();
-            if (saveResult.ok) {
+            if (saveResult.ok && !window.mvmntDesktop) {
                 markSaveClean();
+            } else if (saveResult.ok) {
+                localStorage.setItem('mvmnt.desktop.recovery-state', 'dirty');
+                markDirty();
             } else {
                 console.warn('[createNewDefaultScene] IDB save failed:', saveResult.error);
             }
@@ -320,7 +416,9 @@ export const useMenuBar = ({
 
     return {
         saveScene,
+        saveProject,
         loadScene,
+        openDesktopFile,
         clearScene,
         createNewDefaultScene,
     };

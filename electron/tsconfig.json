@@ -1,0 +1,11 @@
+{
+    "extends": "../tsconfig.json",
+    "compilerOptions": {
+        "lib": ["ESNext"],
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "types": ["node", "electron"],
+        "noEmit": true
+    },
+    "include": ["./**/*.ts"]
+}

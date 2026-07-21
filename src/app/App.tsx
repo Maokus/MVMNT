@@ -1,5 +1,7 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { loadPlugin } from '@core/scene/plugins';
+import { stageDesktopProjectOpen } from '../desktop/pending-open';
 
 // Tailwind styles are loaded via index.tsx
 const MidiVisualizer = lazy(() => import('@workspace/overlays/MidiVisualizer'));
@@ -60,6 +62,49 @@ const AppLoadingScreen: React.FC<{ message?: string }> = ({ message = 'Loading M
 export function App() {
   const [isScreenSmall, setIsScreenSmall] = useState(false);
   const [isScreenWarningDismissed, setIsScreenWarningDismissed] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const desktop = window.mvmntDesktop;
+    if (!desktop || location.pathname === '/workspace') return;
+    return desktop.documents.onOpenPathRequest((result) => {
+      if (result.kind === 'project' && stageDesktopProjectOpen(result)) {
+        navigate('/workspace', { state: { importScene: true } });
+        return;
+      }
+      if (result.kind === 'plugin' && result.bytes) {
+        const trusted = window.confirm(
+          `Install ${result.displayName || 'this plugin'}?\n\nPlugins execute code inside MVMNT. Only install plugins from authors you trust.`,
+        );
+        if (!trusted) return;
+        const bytes = result.bytes;
+        const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+        void loadPlugin(buffer).then((pluginResult) => {
+          if (!pluginResult.success) alert(pluginResult.error || 'Plugin installation failed.');
+        });
+      }
+    });
+  }, [location.pathname, navigate]);
+
+  useEffect(() => {
+    const desktop = window.mvmntDesktop;
+    if (!desktop || location.pathname === '/workspace') return;
+    return desktop.menu.onCommand((command) => {
+      if (command === 'new') {
+        void desktop.documents.clearActivePath().then(() => {
+          navigate('/workspace', { state: { template: 'default', desktopNew: true } });
+        });
+      }
+      if (command === 'open') {
+        void desktop.documents.open().then((result) => {
+          if (stageDesktopProjectOpen(result)) {
+            navigate('/workspace', { state: { importScene: true } });
+          }
+        });
+      }
+    });
+  }, [location.pathname, navigate]);
 
   useEffect(() => {
     const preventPinchZoom = (e: any) => {

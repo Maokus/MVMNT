@@ -11,9 +11,11 @@ import { useTemplateStatusStore } from '@state/templateStatusStore';
 interface SceneContextValue {
     sceneName: string;
     setSceneName: (name: string) => void;
-    /** Save current state to IndexedDB (Cmd+S). */
+    /** Save to the native project path, with IndexedDB fallback outside Electron. */
     saveToLocal: () => Promise<void>;
-    /** Open the export-to-file modal (.mvt download). */
+    /** Save the current project to a newly selected path. */
+    saveAs: () => Promise<void>;
+    /** Open project metadata and Save As options. */
     exportAsFile: () => void;
     /** Whether the in-memory state differs from the last IndexedDB save. */
     isDirty: boolean;
@@ -76,12 +78,16 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         markDirty,
     });
 
-    const { loadScene } = menuBarActions;
+    const { loadScene, openDesktopFile } = menuBarActions;
 
     // -------------------------------------------------------------------------
     // Local save (IndexedDB)
     // -------------------------------------------------------------------------
     const saveToLocal = useCallback(async () => {
+        if (window.mvmntDesktop) {
+            await menuBarActions.saveProject(false);
+            return;
+        }
         startFileLoading(`Saving ${sceneName || 'scene'}…`, { progress: 0 });
         try {
             const result = await LocalSaveService.saveCurrentFile(sceneName, {
@@ -105,6 +111,10 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         }
     }, [finishFileLoading, markClean, menuBarActions, sceneName, startFileLoading, updateFileLoading]);
 
+    const saveAs = useCallback(async () => {
+        await menuBarActions.saveProject(true);
+    }, [menuBarActions]);
+
     // Expose markClean so TemplateInitializer can call it after loading from IDB
     const markSaveClean = markClean;
 
@@ -127,7 +137,7 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
             useSceneMetadataStore.getState().setDescription(options.description);
             useSceneMetadataStore.getState().setAuthor(options.author);
             try {
-                await menuBarActions.saveScene(trimmed, options);
+                await menuBarActions.saveScene(trimmed, { ...options, forceSaveAs: true });
             } finally {
                 closeExportModal();
             }
@@ -165,6 +175,65 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     }, [loadScene, saveToLocal]);
 
     // -------------------------------------------------------------------------
+    // Electron desktop bridge
+    // -------------------------------------------------------------------------
+    useEffect(() => {
+        const desktop = window.mvmntDesktop;
+        if (!desktop) return;
+        desktop.documents.setDirty(isDirty);
+    }, [isDirty]);
+
+    useEffect(() => {
+        const desktop = window.mvmntDesktop;
+        if (!desktop) return;
+        return desktop.documents.onOpenPathRequest((result) => {
+            void openDesktopFile(result);
+        });
+    }, [openDesktopFile]);
+
+    useEffect(() => {
+        const desktop = window.mvmntDesktop;
+        if (!desktop) return;
+        return desktop.menu.onCommand((command) => {
+            if (command === 'new') menuBarActions.createNewDefaultScene();
+            if (command === 'open') loadScene();
+            if (command === 'save') void saveToLocal();
+            if (command === 'save-as') void saveAs();
+        });
+    }, [loadScene, menuBarActions, saveAs, saveToLocal]);
+
+    useEffect(() => {
+        const desktop = window.mvmntDesktop;
+        if (!desktop) return;
+        return desktop.lifecycle.onCloseRequest(() => {
+            void menuBarActions.saveProject(false).then((saved) => {
+                desktop.lifecycle.completeCloseRequest(saved ? 'saved' : 'canceled');
+            });
+        });
+    }, [menuBarActions]);
+
+    useEffect(() => {
+        if (!window.mvmntDesktop || !isDirty) return;
+        localStorage.setItem('mvmnt.desktop.recovery-state', 'dirty');
+        let saving = false;
+        const saveRecovery = async () => {
+            if (saving) return;
+            saving = true;
+            try {
+                await LocalSaveService.saveCurrentFile(sceneName);
+            } finally {
+                saving = false;
+            }
+        };
+        const initial = window.setTimeout(() => void saveRecovery(), 5_000);
+        const recurring = window.setInterval(() => void saveRecovery(), 30_000);
+        return () => {
+            window.clearTimeout(initial);
+            window.clearInterval(recurring);
+        };
+    }, [isDirty, sceneName]);
+
+    // -------------------------------------------------------------------------
     // Warn before leaving with unsaved changes
     // -------------------------------------------------------------------------
     useEffect(() => {
@@ -180,6 +249,7 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         sceneName,
         setSceneName: updateSceneName,
         saveToLocal,
+        saveAs,
         exportAsFile: openExportModal,
         isDirty,
         markSaveClean,

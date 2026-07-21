@@ -29,7 +29,9 @@ import { useUndo } from '@context/UndoContext';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useSceneStore } from '@state/sceneStore';
 import { clearStoredImportPayload, readStoredImportPayload } from '@utils/importPayloadStorage';
+import { clearPendingDesktopProject, readPendingDesktopProjectName } from '../../desktop/pending-open';
 import { LocalSaveService } from '@persistence/local-save-service';
+import { LocalFileStore } from '@persistence/local-file-store';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { TemplateLoadingOverlay } from '../../components/TemplateLoadingOverlay';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
@@ -574,6 +576,7 @@ const TemplateInitializer: React.FC = () => {
             };
             try {
                 if (shouldImport) {
+                    const pendingDesktopName = readPendingDesktopProjectName();
                     const payload = readStoredImportPayload();
                     if (payload) {
                         try {
@@ -586,21 +589,31 @@ const TemplateInitializer: React.FC = () => {
                                 console.warn('[Import] Failed:', msg);
                                 alert('Failed to load scene: ' + msg);
                             } else {
-                                // Build attribution from the imported scene's identity.
                                 const metadataStore = useSceneMetadataStore.getState();
                                 const importedName = metadataStore.metadata?.name?.trim() || 'Untitled';
                                 const importedAuthor = metadataStore.metadata?.author?.trim() || '';
-                                const attribution = importedAuthor
-                                    ? `Based on "${importedName}" by ${importedAuthor}`
-                                    : `Based on "${importedName}"`;
-
-                                setSceneName(SceneNameGenerator.generate());
-                                setSceneAuthor('');
-                                setSceneAttribution(attribution);
                                 undo?.reset();
                                 refreshSceneUI();
-                                // Don't persist to IDB — this is a new unsaved remix.
-                                markDirty();
+                                if (pendingDesktopName && window.mvmntDesktop) {
+                                    const fallbackName = pendingDesktopName.replace(/\.mvt$/i, '');
+                                    setSceneName(importedName || fallbackName);
+                                    await window.mvmntDesktop.documents.acceptOpen();
+                                    const recovery = await LocalSaveService.saveCurrentFile(importedName || fallbackName);
+                                    if (!recovery.ok) {
+                                        console.warn('[Import] Could not save desktop recovery snapshot:', recovery.error);
+                                    }
+                                    localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
+                                    markSaveClean();
+                                } else {
+                                    const attribution = importedAuthor
+                                        ? `Based on "${importedName}" by ${importedAuthor}`
+                                        : `Based on "${importedName}"`;
+                                    setSceneName(SceneNameGenerator.generate());
+                                    setSceneAuthor('');
+                                    setSceneAttribution(attribution);
+                                    // Browser/community imports remain new unsaved remixes.
+                                    markDirty();
+                                }
                                 didChange = true;
                             }
                         } catch (e) {
@@ -611,6 +624,7 @@ const TemplateInitializer: React.FC = () => {
                             alert('Failed to load scene: ' + (e instanceof Error ? e.message : String(e)));
                         }
                         clearStoredImportPayload();
+                        clearPendingDesktopProject();
                     }
                     // Always clear the importScene navigation state to prevent getting stuck
                     navigate('/workspace', { replace: true });
@@ -633,22 +647,39 @@ const TemplateInitializer: React.FC = () => {
                     }
                     setSceneAuthor('');
                     refreshSceneUI();
+                    if (state.desktopNew) {
+                        localStorage.setItem('mvmnt.desktop.recovery-state', 'dirty');
+                        markDirty();
+                    }
                     didChange = true;
                 } else if (shouldLoadDefault) {
                     const savedAt = await LocalSaveService.savedAt();
+                    const desktopRecoveryState = window.mvmntDesktop
+                        ? localStorage.getItem('mvmnt.desktop.recovery-state')
+                        : null;
+                    const restoreRecovery = desktopRecoveryState !== 'dirty' || window.confirm(
+                        'MVMNT found changes recovered from the previous session. Restore them?',
+                    );
+                    if (!restoreRecovery) {
+                        await LocalFileStore.clear();
+                        await window.mvmntDesktop?.documents.clearActivePath();
+                        localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
+                    }
                     // Try to restore from the user's last local save first.
                     updateTemplateLoading({
                         progress: 0.05,
                         message: savedAt ? 'Loading last open file…' : 'Preparing default scene…',
                     });
-                    const localResult = await LocalSaveService.loadSavedFile({
-                        signal: abortController?.signal,
-                        onProgress: (progress, text) => updateTemplateLoading({ progress, message: text }),
-                    });
+                    const localResult = restoreRecovery
+                        ? await LocalSaveService.loadSavedFile({
+                            signal: abortController?.signal,
+                            onProgress: (progress, text) => updateTemplateLoading({ progress, message: text }),
+                        })
+                        : { ok: true as const, loaded: false as const };
                     if (localResult.ok && localResult.loaded) {
-                        // Loaded from IndexedDB – this IS the saved state, so no dirty mark.
                         refreshSceneUI();
-                        markSaveClean();
+                        if (desktopRecoveryState === 'dirty') markDirty();
+                        else markSaveClean();
                         didChange = true;
                     } else {
                         if (!localResult.ok) {

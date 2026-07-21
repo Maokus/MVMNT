@@ -5,6 +5,7 @@ import pfp from '@assets/Logo_Pfp_white.png';
 import './homepage.css';
 import { FaFileCirclePlus } from 'react-icons/fa6';
 import { writeStoredImportPayload } from '@utils/importPayloadStorage';
+import { stageDesktopProjectOpen } from '../desktop/pending-open';
 
 /**
  * Home / Landing page
@@ -21,6 +22,14 @@ const HomePage: React.FC = () => {
     };
 
     const handleLoadFile = () => {
+        if (window.mvmntDesktop) {
+            void window.mvmntDesktop.documents.open().then((result) => {
+                if (stageDesktopProjectOpen(result)) {
+                    navigate('/workspace', { state: { importScene: true } });
+                }
+            });
+            return;
+        }
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.mvt';
