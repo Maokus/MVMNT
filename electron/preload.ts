@@ -4,6 +4,9 @@ import type {
     DesktopMenuCommand,
     DesktopOpenResult,
     DesktopSaveRequest,
+    DesktopExportBeginRequest,
+    DesktopExportCompleteRequest,
+    DesktopExportWriteRequest,
     MvmntDesktopApi,
 } from './shared/desktop-api.js';
 
@@ -35,6 +38,16 @@ const api: MvmntDesktopApi = {
     },
     app: {
         getVersion: () => ipcRenderer.invoke('app:get-version'),
+        notify: (title: string, body: string) => ipcRenderer.send('app:notify', title, body),
+    },
+    exports: {
+        begin: (request: DesktopExportBeginRequest) => ipcRenderer.invoke('exports:begin', request),
+        write: (request: DesktopExportWriteRequest) => ipcRenderer.invoke('exports:write', request),
+        writeFrame: (request: DesktopExportWriteRequest) => ipcRenderer.invoke('exports:write-frame', request),
+        writeArtifact: (request: DesktopExportWriteRequest) => ipcRenderer.invoke('exports:write-artifact', request),
+        complete: (request: DesktopExportCompleteRequest) => ipcRenderer.invoke('exports:complete', request),
+        abort: (sessionId: string) => ipcRenderer.invoke('exports:abort', sessionId),
+        reveal: (outputId: string) => ipcRenderer.invoke('exports:reveal', outputId),
     },
     external: {
         openHttps: (url: string) => ipcRenderer.invoke('external:open-https', url),

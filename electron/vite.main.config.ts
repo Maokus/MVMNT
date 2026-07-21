@@ -11,9 +11,12 @@ export default defineConfig({
         outDir: 'electron-dist',
         emptyOutDir: true,
         lib: {
-            entry: resolve(electronDirectory, 'main.ts'),
+            entry: {
+                main: resolve(electronDirectory, 'main.ts'),
+                'export-worker': resolve(electronDirectory, 'export-worker.ts'),
+            },
             formats: ['es'],
-            fileName: () => 'main.js',
+            fileName: (_format, entryName) => `${entryName}.js`,
         },
         rollupOptions: {
             external: ['electron', ...builtinModules, ...builtinModules.map((name) => `node:${name}`)],

@@ -18,6 +18,8 @@ export function deriveInitialFormState(
         exportSettings.videoBitrateMode === 'manual' ? 'manual' : initialQualityPreset;
 
     return {
+        width: exportSettings.width,
+        height: exportSettings.height,
         format: initialFormat,
         container: initialContainer,
         fullDuration: exportSettings.fullDuration !== false,
@@ -35,5 +37,9 @@ export function deriveInitialFormState(
         audioChannels: exportSettings.audioChannels === 1 ? 1 : 2,
         filename: sceneName || '',
         transparentBackground: exportSettings.transparentBackground ?? false,
+        exportAudioMaster: exportSettings.exportAudioMaster ?? false,
+        exportAudioStems: exportSettings.exportAudioStems ?? false,
+        audioWavBitDepth: exportSettings.audioWavBitDepth ?? 24,
+        normalizeAudio: exportSettings.normalizeAudio ?? false,
     };
 }

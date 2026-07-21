@@ -1,4 +1,6 @@
 import React from 'react';
+import { isExportJobActive, useExportJobStore } from '@export/export-job-store';
+import { createExportDiagnostics } from '@export/export-performance';
 
 interface ProgressOverlayProps {
     progress: number;
@@ -7,6 +9,10 @@ interface ProgressOverlayProps {
     downloadUrl?: string;
     filename?: string; // allow dynamic filename based on scene
     kind?: 'png' | 'video' | null; // to drive dynamic heading
+    onCancel?: (jobId: string) => void;
+    onReveal?: (outputId: string) => void;
+    onRetry?: (jobId: string) => void;
+    onRemove?: (jobId: string) => void;
 }
 
 const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
@@ -15,23 +21,40 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
     onClose,
     downloadUrl,
     filename = 'midi-visualization-sequence.zip',
-    kind = 'png'
+    kind = 'png',
+    onCancel,
+    onReveal,
+    onRetry,
+    onRemove,
 }) => {
-    const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (e.target === e.currentTarget && downloadUrl) {
-            onClose();
-        }
+    const jobs = useExportJobStore((state) => state.jobs);
+    const visibleJobs = jobs.slice(0, 4);
+    const active = visibleJobs.find((job) => isExportJobActive(job.status) && job.status !== 'queued')
+        ?? visibleJobs.find((job) => isExportJobActive(job.status));
+    const downloadDiagnostics = async () => {
+        const version = await window.mvmntDesktop?.app.getVersion().catch(() => 'unknown') ?? 'web';
+        const blob = new Blob([JSON.stringify(createExportDiagnostics(jobs, version), null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'mvmnt-export-diagnostics.json';
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
     };
 
     return (
-        <div
-            className="fixed inset-0 bg-black/80 flex items-center justify-center z-[10000]"
-            onClick={handleOverlayClick}
-        >
-            <div className="border rounded-lg p-6 min-w-[400px] text-center [background-color:var(--twc-menubar)] [border-color:var(--twc-border)]">
-                <h3 className="mb-5 text-white">
+        <>
+        {active && <div className="fixed inset-0 z-[9999] cursor-wait bg-black/5" aria-hidden="true" />}
+        <div className="fixed bottom-4 right-4 z-[10000] w-[420px] max-w-[calc(100vw-2rem)]">
+            <div className="border rounded-lg p-4 text-left shadow-2xl [background-color:var(--twc-menubar)] [border-color:var(--twc-border)]">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-white font-semibold">
                     {kind === 'video' ? '🎬 Exporting Video' : '📸 Exporting PNG Sequence'}
-                </h3>
+                    </h3>
+                    <button disabled={Boolean(active)} className="text-xs opacity-70 hover:opacity-100 disabled:opacity-30" onClick={onClose}>
+                        {active ? 'Scene locked' : 'Hide'}
+                    </button>
+                </div>
 
                 {!downloadUrl ? (
                     <div className="mb-5">
@@ -42,7 +65,14 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                             ></div>
                         </div>
                         <div className="text-xs text-neutral-300 mb-2">{text}</div>
-                        <div className="text-xs text-neutral-300">For fastest export, please do not click off this tab.</div>
+                        <div className="flex justify-between items-center text-xs text-neutral-400">
+                            <span>{active ? `${visibleJobs.filter((job) => isExportJobActive(job.status)).length} active/queued` : 'Finishing…'}</span>
+                            {active && onCancel && (
+                                <button className="px-2 py-1 rounded bg-red-900/70 hover:bg-red-800 text-red-100" onClick={() => onCancel(active.id)}>
+                                    Cancel
+                                </button>
+                            )}
+                        </div>
                     </div>
                 ) : (
                     <div className="download-section">
@@ -61,8 +91,33 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                         </button>
                     </div>
                 )}
+                {visibleJobs.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-neutral-700 space-y-1">
+                        {visibleJobs.map((job) => (
+                            <div key={job.id} className="flex items-center justify-between gap-2 text-xs">
+                                <span className="truncate">{job.outputName ?? job.snapshot.sceneName}</span>
+                                <span className="opacity-60 capitalize">{job.status}</span>
+                                {job.outputId && onReveal && (
+                                    <button className="text-sky-300 hover:text-sky-200" onClick={() => onReveal(job.outputId!)}>Reveal</button>
+                                )}
+                                {(job.status === 'failed' || job.status === 'interrupted' || job.status === 'completed') && onRetry && (
+                                    <button className="text-sky-300 hover:text-sky-200" onClick={() => onRetry(job.id)}>Retry</button>
+                                )}
+                                {!isExportJobActive(job.status) && onRemove && (
+                                    <button className="opacity-60 hover:opacity-100" onClick={() => onRemove(job.id)}>×</button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+                {!active && jobs.length > 0 && (
+                    <button className="mt-3 text-[11px] opacity-60 hover:opacity-100" onClick={() => void downloadDiagnostics()}>
+                        Download diagnostics
+                    </button>
+                )}
             </div>
         </div>
+        </>
     );
 };
 

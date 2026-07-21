@@ -18,6 +18,10 @@ export interface ExportSettings {
     audioSampleRate?: 'auto' | 44100 | 48000;
     audioChannels?: 1 | 2;
     transparentBackground?: boolean;
+    exportAudioMaster?: boolean;
+    exportAudioStems?: boolean;
+    audioWavBitDepth?: 16 | 24 | 32;
+    normalizeAudio?: boolean;
 }
 
 export interface DebugSettings {

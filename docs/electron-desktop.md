@@ -66,3 +66,32 @@ CI expects these secrets:
 
 Published packages use GitHub Releases and `update.electronjs.org`. Release artifacts must be
 signed; macOS artifacts must also be notarized.
+
+## Desktop export system
+
+Desktop exports use job-scoped filesystem capabilities rather than renderer filesystem access. The
+main process chooses the destination and retains its path; the renderer receives an opaque session
+identifier and a backpressured Mediabunny stream target.
+
+- MP4 and WebM container chunks are written to a temporary file as they are encoded. Successful
+  finalization uses a recoverable swap, so an existing destination is not discarded until the new
+  file is ready.
+- PNG sequences are written one frame at a time into a temporary directory and verified against the
+  expected frame count before the directory is finalized.
+- Cancellation, write failure, application exit, and interrupted-launch recovery remove known
+  temporary exports.
+- Video headers and non-zero sizes are checked before completion. A utility process calculates the
+  final SHA-256 checksum without blocking the renderer.
+- Video exports receive a JSON sidecar manifest. PNG sequence directories contain `manifest.json`.
+- Optional mixed WAV masters and per-track WAV stems are written into a sibling `_assets` directory.
+  WAV artifacts support 16-, 24-, and 32-bit PCM, mono/stereo output, selectable sample rate, and
+  optional peak normalization.
+
+The renderer keeps a persistent export-job history with progress, cancellation, retry, logs,
+performance metrics, interrupted-job reporting, and reveal-in-file-manager actions. Jobs run one at
+a time to avoid uncontrolled GPU and memory contention. Editing is locked while the queue is active
+so every job renders the scene state from which the queue was created.
+
+The Render dialog supports built-in and user presets, custom output dimensions, filename templates,
+batch preset exports, and comma-separated range batches. Browser builds retain Blob downloads and ZIP
+sequences as a compatibility fallback.

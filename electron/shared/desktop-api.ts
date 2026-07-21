@@ -20,6 +20,42 @@ export interface DesktopSaveRequest {
     suggestedName: string;
 }
 
+export type DesktopExportKind = 'video' | 'image-sequence' | 'audio';
+
+export interface DesktopExportBeginRequest {
+    kind: DesktopExportKind;
+    suggestedName: string;
+    extension?: '.mp4' | '.webm' | '.wav';
+    estimatedBytes?: number;
+}
+
+export interface DesktopExportBeginResult {
+    status: 'ready' | 'canceled' | 'error';
+    sessionId?: string;
+    displayName?: string;
+    error?: string;
+}
+
+export interface DesktopExportWriteRequest {
+    sessionId: string;
+    bytes: Uint8Array;
+    position?: number;
+    filename?: string;
+}
+
+export interface DesktopExportCompleteRequest {
+    sessionId: string;
+    manifest?: Record<string, unknown>;
+}
+
+export interface DesktopExportCompleteResult {
+    status: 'completed' | 'error';
+    outputId?: string;
+    displayName?: string;
+    bytesWritten?: number;
+    error?: string;
+}
+
 export type CloseRequestResult = 'saved' | 'discarded' | 'canceled' | 'error';
 
 export interface MvmntDesktopApi {
@@ -41,6 +77,16 @@ export interface MvmntDesktopApi {
     };
     app: {
         getVersion(): Promise<string>;
+        notify(title: string, body: string): void;
+    };
+    exports: {
+        begin(request: DesktopExportBeginRequest): Promise<DesktopExportBeginResult>;
+        write(request: DesktopExportWriteRequest): Promise<void>;
+        writeFrame(request: DesktopExportWriteRequest): Promise<void>;
+        writeArtifact(request: DesktopExportWriteRequest): Promise<void>;
+        complete(request: DesktopExportCompleteRequest): Promise<DesktopExportCompleteResult>;
+        abort(sessionId: string): Promise<void>;
+        reveal(outputId: string): Promise<boolean>;
     };
     external: {
         openHttps(url: string): Promise<boolean>;

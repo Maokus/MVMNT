@@ -4,6 +4,8 @@ export type VideoContainer = 'mp4' | 'webm';
 export type VideoBitrateSetting = 'low' | 'medium' | 'high' | 'manual';
 
 export interface FormState {
+    width: number;
+    height: number;
     format: ExportFormat;
     container: VideoContainer;
     fullDuration: boolean;
@@ -21,4 +23,8 @@ export interface FormState {
     audioChannels: 1 | 2;
     filename: string;
     transparentBackground: boolean;
+    exportAudioMaster: boolean;
+    exportAudioStems: boolean;
+    audioWavBitDepth: 16 | 24 | 32;
+    normalizeAudio: boolean;
 }

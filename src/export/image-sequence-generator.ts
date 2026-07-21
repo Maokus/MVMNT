@@ -28,11 +28,13 @@ interface GenerateSequenceOptions {
     filename?: string;
     maxFrames?: number | null;
     onProgress?: (progress: number, text?: string) => void;
-    onComplete?: (blob: Blob) => void;
+    onComplete?: (blob: Blob | null) => void;
     transparent?: boolean;
     // Internal/advanced options (not exposed in UI yet)
     _startFrame?: number; // used for partial exports
     deterministicTiming?: boolean; // snapshot tempo map at start (default true)
+    frameSink?: (filename: string, blob: Blob, frameNumber: number) => Promise<void>;
+    signal?: AbortSignal;
 }
 
 export class ImageSequenceGenerator {
@@ -59,6 +61,8 @@ export class ImageSequenceGenerator {
             transparent = false,
             _startFrame = 0,
             deterministicTiming = true,
+            frameSink,
+            signal,
         } = options;
 
         if (this.isGenerating) {
@@ -109,8 +113,21 @@ export class ImageSequenceGenerator {
                 onProgress,
                 _startFrame,
                 deterministicTiming,
-                transparent
+                transparent,
+                frameSink,
+                signal,
             );
+
+            if (frameSink) {
+                onProgress(100, 'Image sequence ready');
+                this.canvas.width = originalWidth;
+                this.canvas.height = originalHeight;
+                this.visualizer.resize(originalWidth, originalHeight);
+                onComplete(null);
+                this.isGenerating = false;
+                this.imageBlobs = [];
+                return;
+            }
 
             // Step 2: Create ZIP file with all images (20% of progress)
             console.log('Creating ZIP file...');
@@ -147,7 +164,9 @@ export class ImageSequenceGenerator {
         onProgress: (progress: number, text?: string) => void,
         startFrame: number = 0,
         deterministicTiming: boolean = true,
-        transparent: boolean = false
+        transparent: boolean = false,
+        frameSink?: (filename: string, blob: Blob, frameNumber: number) => Promise<void>,
+        signal?: AbortSignal,
     ): Promise<void> {
         const prePadding = 0; // padding removed
         const playRangeStart = (() => {
@@ -179,6 +198,7 @@ export class ImageSequenceGenerator {
         if (transparent) this.visualizer.setTransparentMode?.(true);
         try {
             for (let frame = 0; frame < totalFrames; frame++) {
+                if (!this.isGenerating || signal?.aborted) throw new DOMException('Export cancelled', 'AbortError');
                 const currentTime = clock.timeForFrame(frame);
 
                 // Use the stateless rendering method from the visualizer
@@ -187,12 +207,13 @@ export class ImageSequenceGenerator {
                 // Convert canvas to PNG blob
                 const blob = await this.canvasToPngBlob();
 
-                // Store the blob with frame information
-                this.imageBlobs.push({
-                    blob: blob,
-                    frameNumber: frame,
-                    filename: `frame_${String(frame).padStart(5, '0')}.png`,
-                });
+                const outputFrame = startFrame + frame;
+                const outputFilename = `frame_${String(outputFrame).padStart(6, '0')}.png`;
+                if (frameSink) {
+                    await frameSink(outputFilename, blob, outputFrame);
+                } else {
+                    this.imageBlobs.push({ blob, frameNumber: outputFrame, filename: outputFilename });
+                }
 
                 // Update progress for frame rendering (80% of total progress)
                 const renderProgress = (frame / totalFrames) * 80;

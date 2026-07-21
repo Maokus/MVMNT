@@ -1,6 +1,6 @@
 # Electron desktop improvements roadmap
 
-Status: proposed. The secure Electron shell, native project open/save lifecycle, recovery snapshots,
+Status: phases 1–4 implemented in July 2026; phases 5–8 remain proposed. The secure Electron shell, native project open/save lifecycle, recovery snapshots,
 file associations, installers, and updater are already implemented. See
 [`docs/electron-desktop.md`](../docs/electron-desktop.md) for the shipped architecture. This roadmap
 covers capabilities that the desktop boundary now makes practical, with export reliability and

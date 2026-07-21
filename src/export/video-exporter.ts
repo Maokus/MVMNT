@@ -12,6 +12,7 @@ import {
     Mp4OutputFormat,
     WebMOutputFormat,
     BufferTarget,
+    type Target,
     CanvasSource,
     QUALITY_HIGH,
     canEncodeVideo,
@@ -33,7 +34,7 @@ export interface VideoExportOptions {
     filename?: string;
     maxFrames?: number | null;
     onProgress?: (progress: number, text?: string) => void;
-    onComplete?: (blob: Blob) => void;
+    onComplete?: (blob: Blob | null) => void;
     _startFrame?: number; // internal start frame when exporting a range
     bitrate?: number; // explicit target bitrate in bps (overrides quality preset)
     qualityPreset?: 'low' | 'medium' | 'high';
@@ -55,18 +56,19 @@ export interface VideoExportOptions {
     audioSampleRate?: 'auto' | 44100 | 48000; // mixing / encode SR preference
     audioChannels?: 1 | 2; // channel layout
     container?: 'auto' | 'mp4' | 'webm';
-}
-
-interface InternalFrameData {
-    frameNumber: number;
-    blob: Blob;
+    outputTarget?: Target;
+    signal?: AbortSignal;
+    exportAudioMaster?: boolean;
+    exportAudioStems?: boolean;
+    onArtifacts?: (artifacts: Array<{ filename: string; blob: Blob }>) => void | Promise<void>;
+    audioWavBitDepth?: 16 | 24 | 32;
+    normalizeAudio?: boolean;
 }
 
 export class VideoExporter {
     private canvas: HTMLCanvasElement;
     private visualizer: any;
     private isExporting = false;
-    private frames: InternalFrameData[] = [];
 
     constructor(canvas: HTMLCanvasElement, visualizer: any) {
         this.canvas = canvas;
@@ -103,11 +105,17 @@ export class VideoExporter {
             audioChannels = 2,
             container = 'mp4',
             suppressDownload = false,
+            outputTarget,
+            signal,
+            exportAudioMaster = false,
+            exportAudioStems = false,
+            onArtifacts,
+            audioWavBitDepth = 24,
+            normalizeAudio = false,
         } = options;
 
         if (this.isExporting) throw new Error('Video export already in progress');
         this.isExporting = true;
-        this.frames = [];
 
         const effectiveContainer: 'mp4' | 'webm' = container === 'webm' ? 'webm' : 'mp4';
         const fileExtension = effectiveContainer === 'webm' ? '.webm' : '.mp4';
@@ -172,7 +180,18 @@ export class VideoExporter {
                             audioSampleRate,
                             audioChannels,
                             onProgress: (p: number, text?: string) => onProgress(p, text),
+                            outputTarget,
+                            signal,
+                            exportAudioMaster,
+                            exportAudioStems,
+                            audioWavBitDepth,
+                            normalizeAudio,
                         });
+                        if (result.artifacts.length > 0) await onArtifacts?.(result.artifacts);
+                        if (result.writtenToTarget) {
+                            onComplete(null);
+                            return;
+                        }
                         if (result.combinedBlob) {
                             if (!suppressDownload) {
                                 const finalName = buildExportFilename(filename, sceneName, 'export', fileExtension);
@@ -232,7 +251,7 @@ export class VideoExporter {
             }
 
             // mediabunny Output setup
-            const target = new BufferTarget();
+            const target = outputTarget ?? new BufferTarget();
             const outputFormat = effectiveContainer === 'webm' ? new WebMOutputFormat() : new Mp4OutputFormat();
             const output = new Output({ format: outputFormat, target });
             // Determine bitrate: explicit overrides preset; else map preset -> mediabunny heuristic
@@ -286,6 +305,7 @@ export class VideoExporter {
                 timingSnapshot: snapshot,
             });
             for (let i = 0; i < total; i++) {
+                if (signal?.aborted) throw new DOMException('Export cancelled', 'AbortError');
                 const renderTime = clock.timeForFrame(i); // absolute timeline time (includes play range start)
                 this.visualizer.renderAtTime(renderTime);
                 // IMPORTANT: Pass a zero-based timestamp to encoder to avoid leading blank gap when playRangeStart > 0.
@@ -302,6 +322,11 @@ export class VideoExporter {
             // Finalize (95-100%)
             onProgress(97, 'Finalizing video...');
             await output.finalize();
+            if (!(target instanceof BufferTarget)) {
+                onProgress(100, 'Video ready');
+                onComplete(null);
+                return;
+            }
             const raw = target.buffer;
             if (!raw) throw new Error('No video data produced');
             const u8 = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
@@ -317,7 +342,6 @@ export class VideoExporter {
             throw err;
         } finally {
             // Cleanup
-            this.frames = [];
             // restore canvas
             this.canvas.width = originalWidth;
             this.canvas.height = originalHeight;

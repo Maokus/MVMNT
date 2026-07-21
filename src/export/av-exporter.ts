@@ -31,6 +31,7 @@ import {
     Mp4OutputFormat,
     WebMOutputFormat,
     BufferTarget,
+    type Target,
     CanvasSource,
     AudioBufferSource,
     canEncodeVideo,
@@ -74,6 +75,17 @@ export interface AVExportOptions {
     audioBitrate?: number; // audio target bitrate (bps)
     audioSampleRate?: 'auto' | 44100 | 48000; // requested mix SR
     audioChannels?: 1 | 2; // channel layout (currently mix always produces 2 when channels=2)
+    outputTarget?: Target;
+    signal?: AbortSignal;
+    exportAudioMaster?: boolean;
+    exportAudioStems?: boolean;
+    audioWavBitDepth?: 16 | 24 | 32;
+    normalizeAudio?: boolean;
+}
+
+export interface AVExportArtifact {
+    filename: string;
+    blob: Blob;
 }
 
 export interface AVExportResult {
@@ -83,6 +95,8 @@ export interface AVExportResult {
     reproducibilityHash: string | null;
     mixPeak: number | null;
     durationSeconds: number;
+    writtenToTarget: boolean;
+    artifacts: AVExportArtifact[];
 }
 
 export class AVExporter {
@@ -124,6 +138,12 @@ export class AVExporter {
             audioBitrate,
             audioSampleRate = 'auto',
             audioChannels = 2,
+            outputTarget,
+            signal,
+            exportAudioMaster = false,
+            exportAudioStems = false,
+            audioWavBitDepth = 24,
+            normalizeAudio = false,
         } = options;
 
         const originalWidth = this.canvas.width;
@@ -149,6 +169,7 @@ export class AVExporter {
             const desiredMixChannels = (typeof audioChannels === 'number' ? audioChannels : 2) === 1 ? 1 : 2;
             const desiredMixSampleRate = audioSampleRate === 'auto' ? sampleRate : audioSampleRate;
             let mixedAudioChannels: 1 | 2 = desiredMixChannels;
+            const artifacts: AVExportArtifact[] = [];
             if (includeAudio) {
                 console.log('[AVExporter] Mixing audio for export range', startTick, 'to', endTick);
                 onProgress(3, 'Mixing audio...');
@@ -163,6 +184,7 @@ export class AVExporter {
                     ticksToSeconds: t2s,
                     sampleRate: desiredMixSampleRate,
                     channels: desiredMixChannels,
+                    normalize: normalizeAudio,
                 });
                 mixPeak = mixRes.peak;
                 mixDuration = mixRes.durationSeconds;
@@ -175,11 +197,38 @@ export class AVExporter {
                 }
                 try {
                     // Provide separate WAV blob for UI download / fallback even if we mux successfully.
-                    mixBlob = audioBufferToWavBlob(mixRes.buffer);
+                    mixBlob = audioBufferToWavBlob(mixRes.buffer, audioWavBitDepth);
+                    if (exportAudioMaster) artifacts.push({ filename: 'master.wav', blob: mixBlob });
                 } catch (e) {
                     console.warn('Failed to create WAV blob from mixed audio', e);
                 }
                 console.log('[AVExporter] Mixed audio buffer', mixRes.buffer, 'duration', mixDuration, 'peak', mixPeak);
+
+                if (exportAudioStems) {
+                    let stemIndex = 0;
+                    for (const trackId of s.tracksOrder) {
+                        if (signal?.aborted) throw new DOMException('Export cancelled', 'AbortError');
+                        const track = s.tracks[trackId] as any;
+                        if (!track || track.type !== 'audio') continue;
+                        const stem = await offlineMix({
+                            tracks: { [trackId]: track },
+                            tracksOrder: [trackId],
+                            audioCache: s.audioCache,
+                            startTick,
+                            endTick,
+                            ticksPerSecond,
+                            ticksToSeconds: t2s,
+                            sampleRate: desiredMixSampleRate,
+                            channels: desiredMixChannels,
+                            normalize: normalizeAudio,
+                        });
+                        const safeName = String(track.name || trackId).replace(/[^a-z0-9_.-]+/gi, '_').replace(/^_|_$/g, '') || `track_${stemIndex + 1}`;
+                        artifacts.push({
+                            filename: `${String(++stemIndex).padStart(2, '0')}_${safeName}.wav`,
+                            blob: audioBufferToWavBlob(stem.buffer, audioWavBitDepth),
+                        });
+                    }
+                }
             }
 
             // Derive nominal timeline duration from tempo-aware conversion
@@ -225,7 +274,7 @@ export class AVExporter {
                     }
                 } catch {}
             }
-            const target = new BufferTarget();
+            const target = outputTarget ?? new BufferTarget();
             const outputFormat = resolvedContainer === 'webm' ? new WebMOutputFormat() : new Mp4OutputFormat();
             const output = new Output({ format: outputFormat, target });
             // Bitrate handling:
@@ -356,6 +405,7 @@ export class AVExporter {
             onProgress(10, 'Rendering frames...');
             const exportStartSeconds = t2s(startTick);
             for (let i = 0; i < totalFrames; i++) {
+                if (signal?.aborted) throw new DOMException('Export cancelled', 'AbortError');
                 const renderTime = clock.timeForFrame(i) + exportStartSeconds; // absolute scene time
                 this.visualizer.renderAtTime(renderTime);
                 const encodeTime = toEncodeTimestamp(renderTime, exportStartSeconds);
@@ -366,7 +416,7 @@ export class AVExporter {
 
             onProgress(92, 'Finalizing container...');
             await output.finalize();
-            const raw = target.buffer;
+            const raw = target instanceof BufferTarget ? target.buffer : null;
             const mimeType = resolvedContainer === 'webm' ? 'video/webm' : 'video/mp4';
             const videoBlob = raw ? new Blob([raw as ArrayBuffer], { type: mimeType }) : null;
 
@@ -403,6 +453,8 @@ export class AVExporter {
                 reproducibilityHash,
                 mixPeak,
                 durationSeconds: mixDuration,
+                writtenToTarget: !(target instanceof BufferTarget),
+                artifacts,
             };
             onProgress(100, 'Export complete');
             onComplete(result);
@@ -416,13 +468,11 @@ export class AVExporter {
     }
 }
 
-export function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
-    // 16-bit PCM WAV
+export function audioBufferToWavBlob(buffer: AudioBuffer, bitsPerSample: 16 | 24 | 32 = 16): Blob {
     const numChannels = buffer.numberOfChannels;
     const sampleRate = buffer.sampleRate;
     const length = buffer.length;
     const format = 1; // PCM
-    const bitsPerSample = 16;
     const blockAlign = (numChannels * bitsPerSample) >> 3;
     const byteRate = sampleRate * blockAlign;
     const dataSize = length * blockAlign;
@@ -465,9 +515,21 @@ export function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
         for (let ch = 0; ch < numChannels; ch++) {
             const sample = channelData[ch][i];
             let s = Math.max(-1, Math.min(1, sample));
-            s = s < 0 ? s * 0x8000 : s * 0x7fff;
-            view.setInt16(offset, s, true);
-            offset += 2;
+            if (bitsPerSample === 16) {
+                s = s < 0 ? s * 0x8000 : s * 0x7fff;
+                view.setInt16(offset, s, true);
+                offset += 2;
+            } else if (bitsPerSample === 24) {
+                const value = Math.round(s < 0 ? s * 0x800000 : s * 0x7fffff);
+                view.setUint8(offset, value & 0xff);
+                view.setUint8(offset + 1, (value >> 8) & 0xff);
+                view.setUint8(offset + 2, (value >> 16) & 0xff);
+                offset += 3;
+            } else {
+                const value = Math.round(s < 0 ? s * 0x80000000 : s * 0x7fffffff);
+                view.setInt32(offset, value, true);
+                offset += 4;
+            }
         }
     }
     return new Blob([buf], { type: 'audio/wav' });

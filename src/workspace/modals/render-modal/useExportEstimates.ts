@@ -31,11 +31,11 @@ export function useExportEstimates(
     ) as Exclude<VideoBitrateSetting, 'manual'>;
 
     const autoBitrateEstimate = useMemo(() => {
-        const { width: w, height: h } = exportSettings;
+        const { width: w, height: h } = form;
         if (!w || !h || !effectiveFps) return null;
         const codec = form.videoCodec || (form.container === 'webm' ? 'vp9' : 'h264');
         return calculateAutoBitrate(w, h, effectiveFps, codec, resolvedQualityPreset);
-    }, [effectiveFps, exportSettings, form.container, form.videoCodec, resolvedQualityPreset]);
+    }, [effectiveFps, form.width, form.height, form.container, form.videoCodec, resolvedQualityPreset]);
 
     const resolvedVideoBitrate = useMemo(() => {
         if (isManualVideoBitrate) {
@@ -52,7 +52,7 @@ export function useExportEstimates(
     }, [form.fullDuration, form.startTime, form.endTime, totalDuration]);
 
     const fileSizeEstimate = useMemo((): FileSizeEstimate | null => {
-        const { width: w, height: h } = exportSettings;
+        const { width: w, height: h } = form;
         if (!w || !h || !effectiveFps || effectiveDuration <= 0) return null;
 
         const baseParams = { width: w, height: h, fps: effectiveFps, durationSeconds: effectiveDuration };
@@ -77,7 +77,8 @@ export function useExportEstimates(
         }
         return estimateFileSize({ ...baseParams, format: 'png' });
     }, [
-        exportSettings,
+        form.width,
+        form.height,
         effectiveFps,
         effectiveDuration,
         form.format,
