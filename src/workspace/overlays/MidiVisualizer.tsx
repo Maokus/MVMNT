@@ -598,7 +598,12 @@ const TemplateInitializer: React.FC = () => {
                                 const importedAuthor = metadataStore.metadata?.author?.trim() || '';
                                 undo?.reset();
                                 refreshSceneUI();
-                                if (pendingDesktopName && window.mvmntDesktop) {
+                                const isBackgroundExport = sessionStorage.getItem('mvmnt.desktop.background-export.v1') !== null;
+                                if (isBackgroundExport) {
+                                    setSceneName(importedName);
+                                    sessionStorage.setItem('mvmnt.desktop.background-export.v1.imported', '1');
+                                    window.dispatchEvent(new Event('mvmnt-project-imported'));
+                                } else if (pendingDesktopName && window.mvmntDesktop) {
                                     const fallbackName = pendingDesktopName.replace(/\.mvt$/i, '');
                                     // Desktop files use their filename as the canonical scene name.
                                     setSceneName(fallbackName || importedName);

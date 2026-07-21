@@ -7,7 +7,6 @@ import App from './App'; // Fast Refresh boundary
 import { BrowserRouter } from 'react-router-dom';
 import reportWebVitals from './reportWebVitals';
 import { registerBuiltInAudioFeatureCalculators } from '@audio/features/audioFeatureAnalysis';
-import { startDevPluginWatcher } from '@core/scene/plugins/dev-plugin-watcher';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectNotesInWindow } from '@selectors/timelineSelectors';
 if (import.meta.env.DEV) {
@@ -50,9 +49,6 @@ try {
 }
 
 registerBuiltInAudioFeatureCalculators();
-
-// Hot-reload support: connect to `npm run dev-plugin` server if running
-startDevPluginWatcher();
 
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
 // Vite exposes the configured base as import.meta.env.BASE_URL (always ends with a slash)

@@ -147,7 +147,7 @@ The loader accepts ranges compatible with SDK 2. SDK 1 ranges are rejected. See
 
 ## Persistence
 
-Plugins are persisted to IndexedDB for scene packaging and explicit enable/reload operations. They are not automatically loaded at app startup; the development plugin server is the only automatic plugin load path.
+Plugins are persisted to IndexedDB for scene packaging and explicit enable/reload operations. They are not automatically loaded at app startup. Development plugins are loaded only after explicitly connecting to the development plugin server from **Scene Settings → Debug**.
 
 Failed plugins are disabled but remain in storage so users can:
 

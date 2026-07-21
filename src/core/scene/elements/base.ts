@@ -1006,10 +1006,6 @@ export class SceneElement implements SceneElementInterface {
                                     description: 'Stacking order for overlapping layers (higher values appear on top).',
                                 }),
                             ],
-                            layout: [
-                                { kind: 'control', control: 'slider-number', bindings: { value: 'elementOpacity' } },
-                                { kind: 'control', control: 'slider-number', bindings: { value: 'elementOpacity' } },
-                            ],
                         },
                         {
                             id: 'basicTransform',

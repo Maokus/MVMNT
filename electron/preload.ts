@@ -7,6 +7,8 @@ import type {
     DesktopExportBeginRequest,
     DesktopExportCompleteRequest,
     DesktopExportWriteRequest,
+    DesktopBackgroundExportRequest,
+    DesktopBackgroundExportUpdate,
     MvmntDesktopApi,
 } from './shared/desktop-api.js';
 import type { DesktopAutomationProgress, DesktopAutomationResult, DesktopDeepLinkCommand, DesktopRenderRequest } from './shared/automation.js';
@@ -51,6 +53,15 @@ const api: MvmntDesktopApi = {
         complete: (request: DesktopExportCompleteRequest) => ipcRenderer.invoke('exports:complete', request),
         abort: (sessionId: string) => ipcRenderer.invoke('exports:abort', sessionId),
         reveal: (outputId: string) => ipcRenderer.invoke('exports:reveal', outputId),
+    },
+    background: {
+        start: (request: DesktopBackgroundExportRequest) => ipcRenderer.invoke('background:start', request),
+        take: () => ipcRenderer.invoke('background:take'),
+        cancel: (jobId: string) => ipcRenderer.invoke('background:cancel', jobId),
+        update: (update: DesktopBackgroundExportUpdate) => ipcRenderer.send('background:update', update),
+        complete: (update: DesktopBackgroundExportUpdate) => ipcRenderer.send('background:complete', update),
+        onUpdate: (callback: (update: DesktopBackgroundExportUpdate) => void) => subscribe('background:update', callback),
+        onCancel: (callback: (jobId: string) => void) => subscribe('background:cancel', callback),
     },
     external: {
         openHttps: (url: string) => ipcRenderer.invoke('external:open-https', url),

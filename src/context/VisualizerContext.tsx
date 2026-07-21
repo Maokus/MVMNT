@@ -21,6 +21,29 @@ import { createExportManifest } from '@export/export-manifest';
 import { BUILTIN_EXPORT_PRESETS, expandExportFilename } from '@export/export-presets';
 import { ExportPerformanceTracker } from '@export/export-performance';
 import { isPendingRenderImported, takePendingRender } from '../desktop/pending-automation';
+import { exportScene } from '@persistence/index';
+
+const BACKGROUND_EXPORT_KEY = 'mvmnt.desktop.background-export.v1';
+
+type BackgroundExportBootstrap = {
+    jobId: string;
+    kind: ExportJobKind;
+    sceneName: string;
+    settings: Partial<ExportSettings>;
+};
+
+function readBackgroundExportBootstrap(): BackgroundExportBootstrap | null {
+    try {
+        const raw = sessionStorage.getItem(BACKGROUND_EXPORT_KEY);
+        if (!raw) return null;
+        const value = JSON.parse(raw) as Partial<BackgroundExportBootstrap>;
+        if (typeof value.jobId !== 'string' || (value.kind !== 'video' && value.kind !== 'png') ||
+            typeof value.sceneName !== 'string' || !value.settings || typeof value.settings !== 'object') return null;
+        return value as BackgroundExportBootstrap;
+    } catch {
+        return null;
+    }
+}
 
 interface VisualizerContextValue {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -101,6 +124,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const drainingExportsRef = useRef(false);
     const exportAbortControllersRef = useRef(new Map<string, AbortController>());
     const automationJobRef = useRef<string | null>(null);
+    const backgroundJobRef = useRef<string | null>(null);
     // Keep a reactive scene name so consumers (like Render / Export modal) get live updates.
     const [sceneNameState, setSceneNameState] = useState<string>('scene');
     // Keep export settings aligned with the currently loaded scene resolution.
@@ -300,6 +324,9 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             if (automationJobRef.current === job.id) {
                 window.mvmntDesktop?.automation.reportProgress({ type: 'progress', progress, message: text });
             }
+            if (backgroundJobRef.current === job.id) {
+                window.mvmntDesktop?.background.update({ jobId: job.id, patch: { progress, text, status } });
+            }
         };
         let desktopSink: ReturnType<typeof createDesktopStreamSink> | null = null;
         let desktopSessionId: string | null = null;
@@ -456,6 +483,16 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     bytesWritten: completion?.bytesWritten,
                 });
             }
+            if (backgroundJobRef.current === job.id) {
+                window.mvmntDesktop?.background.complete({
+                    jobId: job.id,
+                    patch: {
+                        status: 'completed', progress: 100, text: 'Export complete', outputId: completion?.outputId,
+                        outputName: completion?.displayName ?? filename, bytesWritten: completion?.bytesWritten,
+                        metrics, finishedAt: new Date().toISOString(),
+                    },
+                });
+            }
         } catch (error) {
             if (desktopSink) await desktopSink.abort().catch(() => undefined);
             else if (desktopSessionId) await window.mvmntDesktop?.exports.abort(desktopSessionId).catch(() => undefined);
@@ -476,6 +513,17 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     type: 'error',
                     code: desktopSessionId ? 'render' : 'output',
                     message: cancelled ? 'Export cancelled.' : error instanceof Error ? error.message : String(error),
+                });
+            }
+            if (backgroundJobRef.current === job.id) {
+                window.mvmntDesktop?.background.complete({
+                    jobId: job.id,
+                    patch: {
+                        status: cancelled ? 'cancelled' : 'failed',
+                        text: cancelled ? 'Export cancelled' : 'Export failed',
+                        error: cancelled ? undefined : error instanceof Error ? error.message : String(error),
+                        finishedAt: new Date().toISOString(),
+                    },
                 });
             }
         } finally {
@@ -520,10 +568,84 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             Object.keys(timelineState.tracks ?? {}).length,
         );
         useExportJobStore.getState().enqueue(job);
+        // Desktop exports are rendered in an isolated hidden renderer. The
+        // package is built after the job snapshot is made, so later edits in
+        // this workspace cannot affect the running export.
+        if (window.mvmntDesktop && !readBackgroundExportBootstrap()) {
+            useExportJobStore.getState().update(job.id, { status: 'preparing', text: 'Packaging background export…' });
+            void (async () => {
+                try {
+                    const packaged = await exportScene(job.snapshot.sceneName);
+                    if (!packaged.ok) throw new Error(packaged.errors.map((item) => item.message).join('\n') || 'Could not package the export scene.');
+                    const result = await window.mvmntDesktop!.background.start({
+                        jobId: job.id,
+                        kind,
+                        sceneName: job.snapshot.sceneName,
+                        settings: structuredClone(settings) as unknown as Record<string, unknown>,
+                        bytes: packaged.zip,
+                    });
+                    if (!result.accepted) throw new Error(result.error ?? 'Could not start background export.');
+                    useExportJobStore.getState().update(job.id, { status: 'queued', text: 'Queued in background renderer' });
+                } catch (error) {
+                    useExportJobStore.getState().update(job.id, {
+                        status: 'failed', text: 'Could not start background export',
+                        error: error instanceof Error ? error.message : String(error), finishedAt: new Date().toISOString(),
+                    });
+                }
+            })();
+            return job;
+        }
         pendingExportsRef.current.push(job);
         void drainExportQueue();
         return job;
     }, [drainExportQueue, exportSettings]);
+
+    // The hidden renderer starts only after its packaged scene has imported.
+    // It creates the same job ID as the editor so IPC progress can be merged.
+    useEffect(() => {
+        const background = readBackgroundExportBootstrap();
+        if (!background || backgroundJobRef.current) return;
+        let started = false;
+        const start = () => {
+            if (started || sessionStorage.getItem(`${BACKGROUND_EXPORT_KEY}.imported`) !== '1' ||
+                !visualizer || !imageSequenceGenerator || !videoExporter) return;
+            started = true;
+            backgroundJobRef.current = background.jobId;
+            const scene = useSceneStore.getState();
+            const timeline = useTimelineStore.getState();
+            const job = createExportJob(
+                background.kind,
+                background.sceneName,
+                background.settings as ExportSettings,
+                Object.keys(scene.elements ?? {}).length,
+                Object.keys(timeline.tracks ?? {}).length,
+                background.jobId,
+            );
+            useExportJobStore.getState().enqueue(job);
+            pendingExportsRef.current.push(job);
+            void drainExportQueue();
+        };
+        const onImported = () => start();
+        window.addEventListener('mvmnt-project-imported', onImported);
+        const cancel = window.mvmntDesktop?.background.onCancel((jobId) => {
+            if (jobId === background.jobId) exportAbortControllersRef.current.get(jobId)?.abort();
+        });
+        const interval = window.setInterval(start, 100);
+        return () => {
+            window.removeEventListener('mvmnt-project-imported', onImported);
+            window.clearInterval(interval);
+            cancel?.();
+        };
+    }, [drainExportQueue, imageSequenceGenerator, videoExporter, visualizer]);
+
+    // The visible editor is authoritative for job presentation. Background
+    // updates never mutate the scene; they only merge lifecycle metadata.
+    useEffect(() => {
+        if (!window.mvmntDesktop || readBackgroundExportBootstrap()) return;
+        return window.mvmntDesktop.background.onUpdate(({ jobId, patch }) => {
+            useExportJobStore.getState().update(jobId, patch as Partial<ExportJob>);
+        });
+    }, []);
 
     const exportSequence = useCallback(async (override?: Partial<ExportSettings>) => {
         enqueueExport('png', override);
@@ -580,6 +702,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const cancelExport = useCallback((jobId: string) => {
         useExportJobStore.getState().requestCancel(jobId);
         exportAbortControllersRef.current.get(jobId)?.abort();
+        void window.mvmntDesktop?.background.cancel(jobId);
     }, []);
 
     const revealExport = useCallback(async (outputId: string) => {

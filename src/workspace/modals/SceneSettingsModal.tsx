@@ -10,6 +10,12 @@ import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import SceneFontManager from '../scene-settings/SceneFontManager';
 import SceneAnalysisCachesTab from '../scene-settings/SceneAnalysisCachesTab';
 import ScenePluginsTab from '../scene-settings/ScenePluginsTab';
+import {
+    connectToDevPluginServer,
+    getDevPluginConnectionStatus,
+    subscribeToDevPluginConnectionStatus,
+    type DevPluginConnectionStatus,
+} from '@core/scene/plugins/dev-plugin-watcher';
 
 type ResizeScalingMode = 'scale' | 'reposition' | 'none';
 
@@ -74,6 +80,9 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
     const [localSceneId, setLocalSceneId] = useState<string>(() => metadata.id);
     const [localDescription, setLocalDescription] = useState<string>(() => metadata.description ?? '');
     const [localAuthor, setLocalAuthor] = useState<string>(() => metadata.author ?? '');
+    const [devPluginConnection, setDevPluginConnection] = useState<DevPluginConnectionStatus>(getDevPluginConnectionStatus);
+
+    useEffect(() => subscribeToDevPluginConnectionStatus(setDevPluginConnection), []);
 
     useEffect(() => { setLocalWidth(String(exportSettings.width)); }, [exportSettings.width]);
     useEffect(() => { setLocalHeight(String(exportSettings.height)); }, [exportSettings.height]);
@@ -519,6 +528,28 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                 />
                                 Enable Development Overlay
                             </label>
+                            <div className="mt-2 rounded border border-neutral-700 bg-neutral-800/40 p-3">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                        <h4 className="m-0 text-[12px] font-medium text-neutral-100">Development Plugin Server</h4>
+                                        <p className="m-0 mt-1 text-[11px] text-neutral-400">
+                                            {devPluginConnection.state === 'idle' && 'Not connected. Connect to enable development plugin hot reload.'}
+                                            {devPluginConnection.state === 'connecting' && 'Connecting to the local development plugin server…'}
+                                            {devPluginConnection.state === 'connected' && `Connected to ${devPluginConnection.serverUrl}.`}
+                                            {devPluginConnection.state === 'failed' && 'Unable to connect. Start npm run dev-plugin and try again.'}
+                                            {devPluginConnection.state === 'unavailable' && 'Development plugin servers are available only while running MVMNT in development mode.'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={connectToDevPluginServer}
+                                        disabled={devPluginConnection.state === 'connecting' || devPluginConnection.state === 'connected' || devPluginConnection.state === 'unavailable'}
+                                        className="shrink-0 rounded bg-sky-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-400"
+                                    >
+                                        {devPluginConnection.state === 'connecting' ? 'Connecting…' : devPluginConnection.state === 'connected' ? 'Connected' : 'Connect'}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     )}
                     {activeTab === 'metadata' && (

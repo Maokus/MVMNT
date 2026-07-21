@@ -2,8 +2,8 @@
  * Development plugin watcher.
  *
  * Reconciles plugins advertised by local dev-plugin servers. The EventSources
- * deliberately stay open across failed connections, so Vite and the plugin
- * server can be started in either order.
+ * deliberately stay open across failed connections, so the plugin server can
+ * be started after the user has connected from the Debug menu.
  */
 
 import { loadPlugin, unloadPlugin } from './plugin-loader';
@@ -31,6 +31,32 @@ const revisionByPlugin = new Map<string, number>();
 const lastKnownGoodBundle = new Map<string, ArrayBuffer>();
 const reloads = new Map<string, Promise<void>>();
 const serverByPlugin = new Map<string, string>();
+const connectedServers = new Set<string>();
+const connectionListeners = new Set<(status: DevPluginConnectionStatus) => void>();
+let watcherStarted = false;
+
+export interface DevPluginConnectionStatus {
+    state: 'idle' | 'connecting' | 'connected' | 'failed' | 'unavailable';
+    serverUrl?: string;
+}
+
+let connectionStatus: DevPluginConnectionStatus = { state: 'idle' };
+
+function setConnectionStatus(status: DevPluginConnectionStatus): void {
+    connectionStatus = status;
+    connectionListeners.forEach((listener) => listener(connectionStatus));
+}
+
+/** Returns the current opt-in development plugin server connection status. */
+export function getDevPluginConnectionStatus(): DevPluginConnectionStatus {
+    return connectionStatus;
+}
+
+/** Subscribe to development plugin server connection status changes. */
+export function subscribeToDevPluginConnectionStatus(listener: (status: DevPluginConnectionStatus) => void): () => void {
+    connectionListeners.add(listener);
+    return () => connectionListeners.delete(listener);
+}
 
 function serverUrls(): string[] {
     const ports = configuredPort ? [DEV_PLUGIN_SERVER_PORT] : Array.from({ length: DEFAULT_PORT_RANGE_SIZE }, (_, index) => DEV_PLUGIN_SERVER_PORT + index);
@@ -129,10 +155,20 @@ async function reconcile(serverUrl: string, status: DevServerStatus): Promise<vo
     }
 }
 
-/** Start watching local dev-plugin servers in Vite development mode. */
-export function startDevPluginWatcher(): void {
-    if (!import.meta.env.DEV) return;
+/**
+ * Start watching local dev-plugin servers after an explicit user request.
+ * This intentionally does not run during app startup: failed EventSource
+ * connections otherwise create browser-console network errors for everyone.
+ */
+export function connectToDevPluginServer(): void {
+    if (!import.meta.env.DEV) {
+        setConnectionStatus({ state: 'unavailable' });
+        return;
+    }
+    if (watcherStarted) return;
 
+    watcherStarted = true;
+    setConnectionStatus({ state: 'connecting' });
     for (const serverUrl of serverUrls()) startServerWatcher(serverUrl);
 }
 
@@ -149,6 +185,8 @@ function startServerWatcher(serverUrl: string): void {
     };
 
     eventSource.onopen = () => {
+        connectedServers.add(serverUrl);
+        setConnectionStatus({ state: 'connected', serverUrl });
         if (disconnectTimer) {
             clearTimeout(disconnectTimer);
             disconnectTimer = undefined;
@@ -176,6 +214,8 @@ function startServerWatcher(serverUrl: string): void {
     };
 
     eventSource.onerror = () => {
+        connectedServers.delete(serverUrl);
+        if (connectedServers.size === 0) setConnectionStatus({ state: 'failed' });
         // EventSource automatically retries. Cleanup is intentionally delayed so
         // restarting the dev server does not make scene elements flicker away.
         scheduleDisconnectCleanup();

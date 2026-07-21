@@ -10,10 +10,12 @@ export interface ExportPreset {
 const STORAGE_KEY = 'mvmnt.desktop.export-presets.v1';
 
 export const BUILTIN_EXPORT_PRESETS: ExportPreset[] = [
-    { id: 'social-square', name: 'Social Square 1080', builtin: true, settings: { width: 1080, height: 1080, fps: 30 } },
-    { id: 'social-portrait', name: 'Social Portrait 1080×1920', builtin: true, settings: { width: 1080, height: 1920, fps: 30 } },
-    { id: 'hd-landscape', name: 'HD Landscape 1920×1080', builtin: true, settings: { width: 1920, height: 1080, fps: 60 } },
-    { id: 'transparent-png', name: 'Transparent PNG Sequence', builtin: true, settings: { transparentBackground: true } },
+    {
+        id: 'transparent-png',
+        name: 'Transparent PNG Sequence',
+        builtin: true,
+        settings: { transparentBackground: true },
+    },
 ];
 
 export function loadExportPresets(): ExportPreset[] {
@@ -40,20 +42,26 @@ export function deleteExportPreset(id: string): void {
 
 export function expandExportFilename(
     template: string | undefined,
-    values: { scene: string; preset?: string; width: number; height: number; fps: number; range?: string },
+    values: { scene: string; preset?: string; width: number; height: number; fps: number; range?: string }
 ): string {
     const source = template?.trim() || '{scene}_{width}x{height}_{fps}fps';
     const date = new Date().toISOString().slice(0, 10);
-    return source.replace(/\{(scene|preset|width|height|fps|range|date)\}/g, (_match, key: string) => {
-        const replacements: Record<string, string> = {
-            scene: values.scene,
-            preset: values.preset ?? '',
-            width: String(values.width),
-            height: String(values.height),
-            fps: String(values.fps),
-            range: values.range ?? 'full',
-            date,
-        };
-        return replacements[key] ?? '';
-    }).replace(/[^a-z0-9_.\-]+/gi, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') || 'export';
+    return (
+        source
+            .replace(/\{(scene|preset|width|height|fps|range|date)\}/g, (_match, key: string) => {
+                const replacements: Record<string, string> = {
+                    scene: values.scene,
+                    preset: values.preset ?? '',
+                    width: String(values.width),
+                    height: String(values.height),
+                    fps: String(values.fps),
+                    range: values.range ?? 'full',
+                    date,
+                };
+                return replacements[key] ?? '';
+            })
+            .replace(/[^a-z0-9_.\-]+/gi, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_|_$/g, '') || 'export'
+    );
 }

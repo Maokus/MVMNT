@@ -83,6 +83,27 @@ export function App() {
     return unsubscribe;
   }, [navigate]);
 
+  // A hidden desktop renderer claims exactly one immutable export request. It
+  // uses the normal workspace bootstrap after this hand-off, but never touches
+  // the editor renderer's live Zustand state or canvas.
+  useEffect(() => {
+    const desktop = window.mvmntDesktop;
+    if (!desktop) return;
+    let cancelled = false;
+    void desktop.background.take().then((request) => {
+      if (!request || cancelled) return;
+      writeStoredImportPayload(request.bytes);
+      sessionStorage.setItem('mvmnt.desktop.background-export.v1', JSON.stringify({
+        jobId: request.jobId,
+        kind: request.kind,
+        sceneName: request.sceneName,
+        settings: request.settings,
+      }));
+      navigate('/workspace', { state: { importScene: true, backgroundExport: true } });
+    });
+    return () => { cancelled = true; };
+  }, [navigate]);
+
   useEffect(() => {
     const desktop = window.mvmntDesktop;
     if (!desktop) return;

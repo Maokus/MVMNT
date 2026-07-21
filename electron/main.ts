@@ -34,6 +34,8 @@ import type {
     DesktopExportWriteRequest,
     DesktopDroppedFile,
     DesktopStorageReport,
+    DesktopBackgroundExportRequest,
+    DesktopBackgroundExportUpdate,
 } from './shared/desktop-api.js';
 import {
     parseDeepLink,
@@ -96,6 +98,11 @@ interface ExportSession {
 }
 const exportSessions = new Map<string, ExportSession>();
 const completedExports = new Map<string, string>();
+interface BackgroundExportHost {
+    request: DesktopBackgroundExportRequest;
+    window: BrowserWindow;
+}
+const backgroundExportHosts = new Map<string, BackgroundExportHost>();
 let pendingDeepLink: DesktopDeepLinkCommand | null = null;
 let renderRequestDelivered = false;
 
@@ -870,6 +877,69 @@ function installIpcHandlers(): void {
         shell.showItemInFolder(outputPath);
         return true;
     });
+    ipcMain.handle('background:start', async (_event, request: DesktopBackgroundExportRequest) => {
+        if (!request || typeof request.jobId !== 'string' || !request.jobId ||
+            (request.kind !== 'video' && request.kind !== 'png') ||
+            !(request.bytes instanceof Uint8Array) || backgroundExportHosts.has(request.jobId)) {
+            return { accepted: false, error: 'Invalid or duplicate background export request.' };
+        }
+        try {
+            const host = new BrowserWindow({
+                show: false,
+                width: 64,
+                height: 64,
+                webPreferences: {
+                    preload: join(sourceDirectory, 'preload.cjs'),
+                    nodeIntegration: false,
+                    contextIsolation: true,
+                    sandbox: true,
+                    webSecurity: true,
+                    backgroundThrottling: false,
+                },
+            });
+            backgroundExportHosts.set(request.jobId, { request, window: host });
+            host.on('closed', () => {
+                const active = backgroundExportHosts.get(request.jobId);
+                if (active?.window === host) {
+                    backgroundExportHosts.delete(request.jobId);
+                    mainWindow?.webContents.send('background:update', {
+                        jobId: request.jobId,
+                        patch: { status: 'failed', text: 'Background export host closed unexpectedly', finishedAt: new Date().toISOString() },
+                    } satisfies DesktopBackgroundExportUpdate);
+                }
+            });
+            const url = isDevelopment ? process.env.MVMNT_RENDERER_URL! : `${APP_ORIGIN}/`;
+            await host.loadURL(url);
+            return { accepted: true };
+        } catch (error) {
+            return { accepted: false, error: error instanceof Error ? error.message : String(error) };
+        }
+    });
+    ipcMain.handle('background:take', (event) => {
+        for (const host of backgroundExportHosts.values()) {
+            if (host.window.webContents.id === event.sender.id) return host.request;
+        }
+        return null;
+    });
+    ipcMain.handle('background:cancel', (_event, jobId: unknown) => {
+        if (typeof jobId !== 'string') return false;
+        const host = backgroundExportHosts.get(jobId);
+        if (!host || host.window.isDestroyed()) return false;
+        host.window.webContents.send('background:cancel', jobId);
+        return true;
+    });
+    ipcMain.on('background:update', (event, update: DesktopBackgroundExportUpdate) => {
+        const host = backgroundExportHosts.get(update?.jobId);
+        if (!host || host.window.webContents.id !== event.sender.id || !update.patch || typeof update.patch !== 'object') return;
+        mainWindow?.webContents.send('background:update', update);
+    });
+    ipcMain.on('background:complete', (event, update: DesktopBackgroundExportUpdate) => {
+        const host = backgroundExportHosts.get(update?.jobId);
+        if (!host || host.window.webContents.id !== event.sender.id || !update.patch || typeof update.patch !== 'object') return;
+        mainWindow?.webContents.send('background:update', update);
+        backgroundExportHosts.delete(update.jobId);
+        host.window.destroy();
+    });
     ipcMain.handle('external:open-https', async (_event, value) => {
         if (typeof value !== 'string') return false;
         try {
@@ -920,7 +990,7 @@ async function deliverOpenPath(filePath: string): Promise<void> {
 
 async function requestClose(): Promise<void> {
     if (!mainWindow || closeRequestPending) return;
-    if (exportSessions.size > 0) {
+    if (exportSessions.size > 0 || backgroundExportHosts.size > 0) {
         const { response } = await dialog.showMessageBox(mainWindow, {
             type: 'warning',
             title: 'Export in progress',
@@ -931,6 +1001,11 @@ async function requestClose(): Promise<void> {
             cancelId: 0,
         });
         if (response === 0) return;
+        for (const [jobId, host] of backgroundExportHosts) {
+            host.window.webContents.send('background:cancel', jobId);
+            host.window.destroy();
+        }
+        backgroundExportHosts.clear();
         await abortAllExports();
     }
     if (!documentDirty) {

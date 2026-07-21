@@ -89,6 +89,20 @@ export interface DesktopExportCompleteResult {
     error?: string;
 }
 
+/** Immutable renderer payload used by the desktop-only background export host. */
+export interface DesktopBackgroundExportRequest {
+    jobId: string;
+    kind: 'video' | 'png';
+    sceneName: string;
+    settings: Record<string, unknown>;
+    bytes: Uint8Array;
+}
+
+export interface DesktopBackgroundExportUpdate {
+    jobId: string;
+    patch: Record<string, unknown>;
+}
+
 export type CloseRequestResult = 'saved' | 'discarded' | 'canceled' | 'error';
 
 export interface MvmntDesktopApi {
@@ -122,6 +136,16 @@ export interface MvmntDesktopApi {
         complete(request: DesktopExportCompleteRequest): Promise<DesktopExportCompleteResult>;
         abort(sessionId: string): Promise<void>;
         reveal(outputId: string): Promise<boolean>;
+    };
+    background: {
+        start(request: DesktopBackgroundExportRequest): Promise<{ accepted: boolean; error?: string }>;
+        /** Claims the request assigned to this hidden renderer, if any. */
+        take(): Promise<DesktopBackgroundExportRequest | null>;
+        cancel(jobId: string): Promise<boolean>;
+        update(update: DesktopBackgroundExportUpdate): void;
+        complete(update: DesktopBackgroundExportUpdate): void;
+        onUpdate(callback: (update: DesktopBackgroundExportUpdate) => void): () => void;
+        onCancel(callback: (jobId: string) => void): () => void;
     };
     external: {
         openHttps(url: string): Promise<boolean>;

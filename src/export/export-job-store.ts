@@ -116,10 +116,11 @@ export function createExportJob(
     settings: ExportSettings,
     sceneElementCount: number,
     trackCount: number,
+    id: string = crypto.randomUUID(),
 ): ExportJob {
     const createdAt = new Date().toISOString();
     return {
-        id: crypto.randomUUID(),
+        id,
         kind,
         status: 'queued',
         progress: 0,
