@@ -59,6 +59,21 @@ export interface DesktopExportBeginRequest {
     extension?: '.mp4' | '.webm' | '.wav';
     estimatedBytes?: number;
     outputDirectory?: string;
+    /** Absolute path returned by the native destination picker. */
+    outputPath?: string;
+}
+
+export interface DesktopExportDestinationRequest {
+    kind: DesktopExportKind;
+    suggestedName: string;
+    extension?: '.mp4' | '.webm';
+}
+
+export interface DesktopExportDestinationResult {
+    status: 'selected' | 'canceled' | 'error';
+    outputPath?: string;
+    displayName?: string;
+    error?: string;
 }
 
 export interface DesktopExportBeginResult {
@@ -129,6 +144,7 @@ export interface MvmntDesktopApi {
         notify(title: string, body: string): void;
     };
     exports: {
+        chooseDestination(request: DesktopExportDestinationRequest): Promise<DesktopExportDestinationResult>;
         begin(request: DesktopExportBeginRequest): Promise<DesktopExportBeginResult>;
         write(request: DesktopExportWriteRequest): Promise<void>;
         writeFrame(request: DesktopExportWriteRequest): Promise<void>;

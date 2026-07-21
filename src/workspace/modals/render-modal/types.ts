@@ -23,6 +23,7 @@ export interface FormState {
     audioChannels: 1 | 2;
     filename: string;
     outputDirectory: string;
+    outputPath: string;
     transparentBackground: boolean;
     exportManifest: boolean;
     exportAudioMaster: boolean;

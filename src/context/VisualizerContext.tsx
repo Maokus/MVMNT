@@ -357,6 +357,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     extension,
                     estimatedBytes,
                     outputDirectory: settings.outputDirectory,
+                    outputPath: settings.outputPath,
                 });
                 if (begin.status === 'canceled') throw new DOMException('Export cancelled', 'AbortError');
                 if (begin.status !== 'ready' || !begin.sessionId) throw new Error(begin.error ?? 'Could not create export destination.');
@@ -572,6 +573,9 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         // package is built after the job snapshot is made, so later edits in
         // this workspace cannot affect the running export.
         if (window.mvmntDesktop && !readBackgroundExportBootstrap()) {
+            setShowProgressOverlay(true);
+            setExportKind(kind);
+            setProgressData({ progress: 0, text: 'Packaging background export…' });
             useExportJobStore.getState().update(job.id, { status: 'preparing', text: 'Packaging background export…' });
             void (async () => {
                 try {
@@ -644,6 +648,13 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         if (!window.mvmntDesktop || readBackgroundExportBootstrap()) return;
         return window.mvmntDesktop.background.onUpdate(({ jobId, patch }) => {
             useExportJobStore.getState().update(jobId, patch as Partial<ExportJob>);
+            if (typeof patch.progress === 'number' || typeof patch.text === 'string') {
+                setShowProgressOverlay(true);
+                setProgressData({
+                    progress: typeof patch.progress === 'number' ? patch.progress : 0,
+                    text: typeof patch.text === 'string' ? patch.text : 'Exporting in background…',
+                });
+            }
         });
     }, []);
 

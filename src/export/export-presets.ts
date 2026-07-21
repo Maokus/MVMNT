@@ -16,6 +16,42 @@ const STORAGE_KEY = 'mvmnt.desktop.export-presets.v1';
 
 export const BUILTIN_EXPORT_PRESETS: ExportPreset[] = [
     {
+        id: 'transparent-video',
+        name: 'Transparent Video',
+        builtin: true,
+        settings: {
+            format: 'video',
+            container: 'webm',
+            videoCodec: 'vp9',
+            audioCodec: 'opus',
+            transparentBackground: true,
+        },
+    },
+    {
+        id: 'webm-video',
+        name: 'WebM Video',
+        builtin: true,
+        settings: {
+            format: 'video',
+            container: 'webm',
+            videoCodec: 'vp9',
+            audioCodec: 'opus',
+            transparentBackground: false,
+        },
+    },
+    {
+        id: 'mp4-video',
+        name: 'MP4 Video',
+        builtin: true,
+        settings: {
+            format: 'video',
+            container: 'mp4',
+            videoCodec: 'h264',
+            audioCodec: 'aac',
+            transparentBackground: false,
+        },
+    },
+    {
         id: 'transparent-png',
         name: 'Transparent PNG Sequence',
         builtin: true,

@@ -5,6 +5,7 @@ import type {
     DesktopOpenResult,
     DesktopSaveRequest,
     DesktopExportBeginRequest,
+    DesktopExportDestinationRequest,
     DesktopExportCompleteRequest,
     DesktopExportWriteRequest,
     DesktopBackgroundExportRequest,
@@ -46,6 +47,7 @@ const api: MvmntDesktopApi = {
         notify: (title: string, body: string) => ipcRenderer.send('app:notify', title, body),
     },
     exports: {
+        chooseDestination: (request: DesktopExportDestinationRequest) => ipcRenderer.invoke('exports:choose-destination', request),
         begin: (request: DesktopExportBeginRequest) => ipcRenderer.invoke('exports:begin', request),
         write: (request: DesktopExportWriteRequest) => ipcRenderer.invoke('exports:write', request),
         writeFrame: (request: DesktopExportWriteRequest) => ipcRenderer.invoke('exports:write-frame', request),

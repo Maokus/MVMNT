@@ -7,6 +7,8 @@ export interface ExportSettings {
     endTime: number;
     filename?: string;
     outputDirectory?: string;
+    /** Desktop-only absolute path returned by the native save dialog. */
+    outputPath?: string;
     bitrate?: number;
     qualityPreset?: 'low' | 'medium' | 'high';
     includeAudio?: boolean;

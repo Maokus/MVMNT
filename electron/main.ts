@@ -32,6 +32,8 @@ import type {
     DesktopExportCompleteRequest,
     DesktopExportCompleteResult,
     DesktopExportWriteRequest,
+    DesktopExportDestinationRequest,
+    DesktopExportDestinationResult,
     DesktopDroppedFile,
     DesktopStorageReport,
     DesktopBackgroundExportRequest,
@@ -382,9 +384,38 @@ function validateExportBegin(value: unknown): DesktopExportBeginRequest {
             ? Math.floor(request.estimatedBytes)
             : undefined,
         outputDirectory: typeof request.outputDirectory === 'string' && request.outputDirectory.trim()
-            ? resolve(request.outputDirectory.trim())
+            && resolve(request.outputDirectory.trim()) === request.outputDirectory.trim()
+            ? request.outputDirectory.trim()
+            : undefined,
+        outputPath: typeof request.outputPath === 'string' && request.outputPath.trim() &&
+            resolve(request.outputPath.trim()) === request.outputPath.trim()
+            ? request.outputPath.trim()
             : undefined,
     };
+}
+
+async function chooseExportDestination(value: unknown): Promise<DesktopExportDestinationResult> {
+    try {
+        if (!mainWindow || !value || typeof value !== 'object') return { status: 'canceled' };
+        const request = value as Partial<DesktopExportDestinationRequest>;
+        if (request.kind !== 'video' && request.kind !== 'image-sequence') throw new Error('Unsupported export kind.');
+        const extension = request.kind === 'video' && (request.extension === '.webm' || request.extension === '.mp4')
+            ? request.extension
+            : request.kind === 'video' ? '.mp4' : undefined;
+        const stem = sanitizeSuggestedName(request.suggestedName ?? 'export').replace(/\.[^.]+$/, '') || 'export';
+        const result = await dialog.showSaveDialog(mainWindow, {
+            title: request.kind === 'image-sequence' ? 'Choose PNG sequence folder name' : 'Save export',
+            defaultPath: request.kind === 'image-sequence' ? `${stem}_sequence` : `${stem}${extension}`,
+            filters: request.kind === 'video'
+                ? [{ name: extension === '.webm' ? 'WebM video' : 'MP4 video', extensions: [extension!.slice(1)] }]
+                : [{ name: 'PNG sequence folder', extensions: ['png'] }],
+            properties: ['createDirectory', 'showOverwriteConfirmation'],
+        });
+        if (result.canceled || !result.filePath) return { status: 'canceled' };
+        return { status: 'selected', outputPath: result.filePath, displayName: basename(result.filePath) };
+    } catch (error) {
+        return { status: 'error', error: error instanceof Error ? error.message : String(error) };
+    }
 }
 
 async function hasEnoughDiskSpace(directory: string, estimatedBytes?: number): Promise<boolean> {
@@ -429,8 +460,24 @@ async function beginExport(value: unknown): Promise<DesktopExportBeginResult> {
                 temporaryPath = join(dirname(targetPath), `.mvmnt-export-${id}${extension}.tmp`);
                 handle = await open(temporaryPath, 'wx+');
             }
+        } else if (request.outputPath) {
+            if (request.kind === 'image-sequence') {
+                const folderName = basename(request.outputPath).replace(/\.(zip|png)$/i, '') || 'sequence';
+                targetPath = join(dirname(request.outputPath), folderName);
+                displayName = folderName;
+                temporaryPath = join(dirname(request.outputPath), `.mvmnt-export-${id}`);
+                await mkdir(dirname(request.outputPath), { recursive: true });
+                await mkdir(temporaryPath, { recursive: false });
+            } else {
+                const extension = request.extension ?? (request.kind === 'audio' ? '.wav' : '.mp4');
+                targetPath = request.outputPath.toLowerCase().endsWith(extension) ? request.outputPath : `${request.outputPath}${extension}`;
+                displayName = basename(targetPath);
+                temporaryPath = join(dirname(targetPath), `.mvmnt-export-${id}${extension}.tmp`);
+                await mkdir(dirname(targetPath), { recursive: true });
+                handle = await open(temporaryPath, 'w+');
+            }
         } else if (!request.outputDirectory) {
-            throw new Error('Choose an output directory in the Render / Export dialog.');
+            throw new Error('Choose a destination with the native file picker before starting a desktop export.');
         } else if (request.kind === 'image-sequence') {
             await mkdir(request.outputDirectory, { recursive: true });
             const folderName = sanitizeSuggestedName(request.suggestedName).replace(/\.(zip|png)$/i, '') || 'sequence';
@@ -865,6 +912,7 @@ function installIpcHandlers(): void {
         new Notification({ title: title.slice(0, 100), body: body.slice(0, 500) }).show();
     });
     ipcMain.handle('exports:begin', (_event, request) => beginExport(request));
+    ipcMain.handle('exports:choose-destination', (_event, request) => chooseExportDestination(request));
     ipcMain.handle('exports:write', (_event, request) => writeExport(request));
     ipcMain.handle('exports:write-frame', (_event, request) => writeExportFrame(request));
     ipcMain.handle('exports:write-artifact', (_event, request) => writeExportArtifact(request));

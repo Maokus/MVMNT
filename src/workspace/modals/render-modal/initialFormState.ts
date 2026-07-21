@@ -37,6 +37,7 @@ export function deriveInitialFormState(
         audioChannels: exportSettings.audioChannels === 1 ? 1 : 2,
         filename: sceneName || '',
         outputDirectory: exportSettings.outputDirectory ?? '',
+        outputPath: exportSettings.outputPath ?? '',
         transparentBackground: exportSettings.transparentBackground ?? false,
         exportManifest: exportSettings.exportManifest ?? false,
         exportAudioMaster: exportSettings.exportAudioMaster ?? false,

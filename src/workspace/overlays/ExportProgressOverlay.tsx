@@ -42,15 +42,14 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
 
     return (
         <>
-        {active && <div className="fixed inset-0 z-[9999] cursor-wait bg-black/5" aria-hidden="true" />}
         <div className="fixed bottom-4 right-4 z-[10000] w-[420px] max-w-[calc(100vw-2rem)]">
             <div className="border rounded-lg p-4 text-left shadow-2xl [background-color:var(--twc-menubar)] [border-color:var(--twc-border)]">
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="text-white font-semibold">
                     {kind === 'video' ? '🎬 Exporting Video' : '📸 Exporting PNG Sequence'}
                     </h3>
-                    <button disabled={Boolean(active)} className="text-xs opacity-70 hover:opacity-100 disabled:opacity-30" onClick={onClose}>
-                        {active ? 'Scene locked' : 'Hide'}
+                    <button className="text-xs opacity-70 hover:opacity-100" onClick={onClose}>
+                        Hide
                     </button>
                 </div>
 

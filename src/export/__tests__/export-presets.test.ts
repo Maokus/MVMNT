@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { deleteExportPreset, expandExportFilename, loadExportPresets, saveExportPreset } from '../export-presets';
+import { BUILTIN_EXPORT_PRESETS, deleteExportPreset, expandExportFilename, loadExportPresets, saveExportPreset } from '../export-presets';
 
 describe('export presets', () => {
+    it('provides built-in presets for the supported video formats', () => {
+        expect(BUILTIN_EXPORT_PRESETS).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: 'transparent-video', settings: expect.objectContaining({ container: 'webm', videoCodec: 'vp9', transparentBackground: true }) }),
+            expect.objectContaining({ id: 'webm-video', settings: expect.objectContaining({ container: 'webm', videoCodec: 'vp9', transparentBackground: false }) }),
+            expect.objectContaining({ id: 'mp4-video', settings: expect.objectContaining({ container: 'mp4', videoCodec: 'h264', transparentBackground: false }) }),
+        ]));
+    });
+
     beforeEach(() => localStorage.clear());
 
     it('stores custom presets without replacing built-ins', () => {

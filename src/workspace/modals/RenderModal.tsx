@@ -176,8 +176,8 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
 
     const beginExport = async () => {
         const trimmedFilename = form.filename.trim();
-        if (window.mvmntDesktop && !form.outputDirectory.trim()) {
-            alert('Enter an output directory before starting a desktop export.');
+        if (window.mvmntDesktop && !form.outputPath.trim()) {
+            alert('Choose an export destination before starting a desktop export.');
             return;
         }
         const baseOverrides: Partial<ExportSettings> = {
@@ -189,6 +189,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             includeAudio: form.includeAudio,
             filename: trimmedFilename || undefined,
             outputDirectory: form.outputDirectory.trim() || undefined,
+            outputPath: form.outputPath.trim() || undefined,
             fps: effectiveFps,
             videoCodec: form.videoCodec,
             videoBitrateMode: isManualVideoBitrate ? 'manual' : 'auto',
@@ -223,6 +224,24 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             // surfaced upstream
         } finally {
             setIsExporting(false);
+        }
+    };
+
+    const chooseDestination = async () => {
+        const desktop = window.mvmntDesktop;
+        if (!desktop) return;
+        const extension = form.format === 'video'
+            ? (form.transparentBackground || form.container === 'webm' ? '.webm' : '.mp4')
+            : undefined;
+        const result = await desktop.exports.chooseDestination({
+            kind: form.format === 'video' ? 'video' : 'image-sequence',
+            suggestedName: form.filename.trim() || sceneName || 'export',
+            extension,
+        });
+        if (result.status === 'selected' && result.outputPath) {
+            updateForm({ outputPath: result.outputPath, filename: result.displayName?.replace(/\.[^.]+$/, '') || form.filename });
+        } else if (result.status === 'error') {
+            alert(result.error || 'Could not choose an export destination.');
         }
     };
 
@@ -327,14 +346,21 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                         />
                     </FormField>
 
-                    <FormField label="Output Directory" span2 hint="Desktop only. Leave blank to use your browser’s download location.">
-                        <input
-                            type="text"
-                            placeholder="/path/to/output"
-                            value={form.outputDirectory}
-                            onChange={e => updateForm({ outputDirectory: e.target.value })}
-                            className={inputCls}
-                        />
+                    <FormField label="Export destination" span2 hint={window.mvmntDesktop ? 'Choose the filename and location with the native file picker.' : 'Your browser will choose the download location.'}>
+                        {window.mvmntDesktop ? (
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    readOnly
+                                    placeholder="No destination selected"
+                                    value={form.outputPath}
+                                    className={`${inputCls} flex-1 opacity-80`}
+                                />
+                                <button type="button" className="rounded border border-neutral-600 px-3 text-sm text-neutral-100 hover:bg-neutral-700" onClick={() => void chooseDestination()}>
+                                    Choose…
+                                </button>
+                            </div>
+                        ) : null}
                     </FormField>
 
                     <FormField label="Format">
