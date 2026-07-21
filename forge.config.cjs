@@ -18,7 +18,8 @@ module.exports = {
         asar: true,
         prune: false,
         electronZipDir: process.env.ELECTRON_ZIP_DIR || undefined,
-        osxSign: process.env.CI ? {} : undefined,
+        // Testing builds run in CI without release certificates; release builds retain signing.
+        osxSign: process.env.CI && !process.env.MVMNT_SKIP_MAC_SIGNING ? {} : undefined,
         osxNotarize: notarize,
         protocols: [
             { name: 'MVMNT Project', schemes: ['mvmnt'] },

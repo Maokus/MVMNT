@@ -1,0 +1,57 @@
+name: Testing Desktop Builds
+
+on:
+  push:
+    branches:
+      - testing
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: npm run test
+      - run: npm run build
+      - run: npm run compile
+
+  package:
+    needs: verify
+    name: Package ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            runner: macos-14
+            command: npm run make:mac
+            artifact: macos-testing-build
+          - name: Windows
+            runner: windows-latest
+            command: npm run make:win
+            artifact: windows-testing-build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: ${{ matrix.command }}
+        env:
+          # Testing artifacts are intentionally unsigned; release signing is tag-only.
+          MVMNT_SKIP_MAC_SIGNING: '1'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: out/make/**/*
+          if-no-files-found: error
