@@ -1,5 +1,6 @@
 import type { ExportSettings, ExportKind } from '@context/visualizer/types';
 import type { FormState, FpsMode, VideoContainer, VideoBitrateSetting } from './types';
+import { initialOutputPath } from './exportDestination';
 
 export function deriveInitialFormState(
     exportSettings: ExportSettings,
@@ -37,7 +38,7 @@ export function deriveInitialFormState(
         audioChannels: exportSettings.audioChannels === 1 ? 1 : 2,
         filename: sceneName || '',
         outputDirectory: exportSettings.outputDirectory ?? '',
-        outputPath: exportSettings.outputPath ?? '',
+        outputPath: initialOutputPath(exportSettings.outputPath, sceneName, exportKind, exportSettings),
         transparentBackground: exportSettings.transparentBackground ?? false,
         exportManifest: exportSettings.exportManifest ?? false,
         exportAudioMaster: exportSettings.exportAudioMaster ?? false,

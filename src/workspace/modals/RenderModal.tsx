@@ -9,7 +9,8 @@ import { deriveInitialFormState } from './render-modal/initialFormState';
 import { useCodecCapabilities } from './render-modal/useCodecCapabilities';
 import { useExportEstimates } from './render-modal/useExportEstimates';
 import { FormField, inputCls } from './render-modal/FormField';
-import { deleteExportPreset, loadExportPresets, saveExportPreset, type ExportPreset } from '@export/export-presets';
+import { loadExportPresets, type ExportPreset } from '@export/export-presets';
+import { updateDestinationExtension } from './render-modal/exportDestination';
 
 interface RenderModalProps {
     onClose: () => void;
@@ -129,7 +130,11 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         setAutoAudioCodec(true);
         setForm(prev => {
             if (prev.format === nextFormat) return prev;
-            const next: FormState = { ...prev, format: nextFormat };
+            const next: FormState = {
+                ...prev,
+                format: nextFormat,
+                outputPath: updateDestinationExtension(prev.outputPath, nextFormat, prev.container, prev.transparentBackground),
+            };
             if (nextFormat !== 'video') return next;
             return {
                 ...next,
@@ -144,7 +149,11 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         setAutoAudioCodec(true);
         setForm(prev => {
             if (prev.container === nextContainer) return prev;
-            const next: FormState = { ...prev, container: nextContainer };
+            const next: FormState = {
+                ...prev,
+                container: nextContainer,
+                outputPath: updateDestinationExtension(prev.outputPath, prev.format, nextContainer, prev.transparentBackground),
+            };
             if (next.format !== 'video') return next;
             return {
                 ...next,
@@ -161,7 +170,14 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         }
         setAutoVideoCodec(true);
         setAutoAudioCodec(true);
-        updateForm({ transparentBackground, container: 'webm', videoCodec: 'vp9', audioCodec: 'opus' });
+        setForm(prev => ({
+            ...prev,
+            transparentBackground,
+            container: 'webm',
+            videoCodec: 'vp9',
+            audioCodec: 'opus',
+            outputPath: updateDestinationExtension(prev.outputPath, prev.format, 'webm', transparentBackground),
+        }));
     }, [updateForm]);
 
     const {
@@ -239,43 +255,12 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             extension,
         });
         if (result.status === 'selected' && result.outputPath) {
-            updateForm({ outputPath: result.outputPath, filename: result.displayName?.replace(/\.[^.]+$/, '') || form.filename });
+            const outputPath = updateDestinationExtension(result.outputPath, form.format, form.container, form.transparentBackground);
+            updateForm({ outputPath, filename: result.displayName?.replace(/\.[^.]+$/, '') || form.filename });
+            setExportSettings(prev => ({ ...prev, outputPath }));
         } else if (result.status === 'error') {
             alert(result.error || 'Could not choose an export destination.');
         }
-    };
-
-    const saveCurrentPreset = () => {
-        const name = window.prompt('Preset name');
-        if (!name?.trim()) return;
-        const preset = saveExportPreset(name, {
-            format: form.format,
-            width: form.width,
-            height: form.height,
-            fps: effectiveFps,
-            fullDuration: form.fullDuration,
-            startTime: form.startTime,
-            endTime: form.endTime,
-            includeAudio: form.includeAudio,
-            container: form.container,
-            videoCodec: form.videoCodec,
-            videoBitrateMode: isManualVideoBitrate ? 'manual' : 'auto',
-            qualityPreset: resolvedQualityPreset,
-            videoBitrate: form.videoBitrate,
-            audioCodec: form.audioCodec,
-            audioBitrate: form.audioBitrate,
-            audioSampleRate: form.audioSampleRate,
-            audioChannels: form.audioChannels,
-            transparentBackground: form.transparentBackground,
-            exportManifest: form.exportManifest,
-            exportAudioMaster: form.exportAudioMaster,
-            exportAudioStems: form.exportAudioStems,
-            audioWavBitDepth: form.audioWavBitDepth,
-            normalizeAudio: form.normalizeAudio,
-        });
-        setPresets((current) => [...current, preset]);
-        setSelectedPresetId(preset.id);
-        setPresetMenuOpen(false);
     };
 
     return (
@@ -315,22 +300,6 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                     {selectedPresetId === preset.id && <span aria-label="Selected">✓</span>}
                                 </button>
                             ))}
-                            <div className="my-1 border-t border-neutral-600" />
-                            <button type="button" role="menuitem" onClick={saveCurrentPreset} className="w-full rounded px-2 py-1.5 text-left text-neutral-100 hover:bg-neutral-700">Save preset</button>
-                            <button
-                                type="button"
-                                role="menuitem"
-                                disabled={!selectedPresetId || presets.find((item) => item.id === selectedPresetId)?.builtin}
-                                onClick={() => {
-                                    deleteExportPreset(selectedPresetId);
-                                    setPresets(loadExportPresets());
-                                    setSelectedPresetId('');
-                                    setPresetMenuOpen(false);
-                                }}
-                                className="w-full rounded px-2 py-1.5 text-left text-red-300 hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                                Delete preset
-                            </button>
                         </div>
                     )}
                 </div>
@@ -570,29 +539,6 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                         </select>
                                     </FormField>
 
-                                    <label className="flex items-center gap-2 col-span-2 select-none">
-                                        <input type="checkbox" checked={form.exportAudioMaster} onChange={e => updateForm({ exportAudioMaster: e.target.checked })} />
-                                        <span>Write mixed WAV master beside video</span>
-                                    </label>
-                                    {(form.exportAudioMaster || form.exportAudioStems) && (
-                                        <>
-                                            <FormField label="WAV Bit Depth">
-                                                <select value={form.audioWavBitDepth} onChange={e => updateForm({ audioWavBitDepth: Number(e.target.value) as 16 | 24 | 32 })} className={inputCls}>
-                                                    <option value={16}>16-bit PCM</option>
-                                                    <option value={24}>24-bit PCM</option>
-                                                    <option value={32}>32-bit PCM</option>
-                                                </select>
-                                            </FormField>
-                                            <label className="flex items-center gap-2 select-none self-end pb-2">
-                                                <input type="checkbox" checked={form.normalizeAudio} onChange={e => updateForm({ normalizeAudio: e.target.checked })} />
-                                                <span>Normalize to −1 dBFS</span>
-                                            </label>
-                                        </>
-                                    )}
-                                    <label className="flex items-center gap-2 col-span-2 select-none">
-                                        <input type="checkbox" checked={form.exportAudioStems} onChange={e => updateForm({ exportAudioStems: e.target.checked })} />
-                                        <span>Write one WAV stem per audio track</span>
-                                    </label>
                                 </>
                             )}
                         </>
@@ -605,6 +551,33 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                         <input type="checkbox" checked={form.exportManifest} onChange={e => updateForm({ exportManifest: e.target.checked })} />
                         <span>Write export manifest</span>
                     </label>
+                    {form.format === 'video' && form.includeAudio && (
+                        <div className="mt-2 grid grid-cols-2 gap-3">
+                            <label className="flex items-center gap-2 col-span-2 select-none">
+                                <input type="checkbox" checked={form.exportAudioMaster} onChange={e => updateForm({ exportAudioMaster: e.target.checked })} />
+                                <span>Write mixed WAV master beside video</span>
+                            </label>
+                            <label className="flex items-center gap-2 col-span-2 select-none">
+                                <input type="checkbox" checked={form.exportAudioStems} onChange={e => updateForm({ exportAudioStems: e.target.checked })} />
+                                <span>Write one WAV stem per audio track</span>
+                            </label>
+                            {(form.exportAudioMaster || form.exportAudioStems) && (
+                                <>
+                                    <FormField label="WAV Bit Depth">
+                                        <select value={form.audioWavBitDepth} onChange={e => updateForm({ audioWavBitDepth: Number(e.target.value) as 16 | 24 | 32 })} className={inputCls}>
+                                            <option value={16}>16-bit PCM</option>
+                                            <option value={24}>24-bit PCM</option>
+                                            <option value={32}>32-bit PCM</option>
+                                        </select>
+                                    </FormField>
+                                    <label className="flex items-center gap-2 select-none self-end pb-2">
+                                        <input type="checkbox" checked={form.normalizeAudio} onChange={e => updateForm({ normalizeAudio: e.target.checked })} />
+                                        <span>Normalize to −1 dBFS</span>
+                                    </label>
+                                </>
+                            )}
+                        </div>
+                    )}
                 </details>
 
                 {/* File size estimate */}

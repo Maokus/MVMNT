@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { isExportJobActive, useExportJobStore } from '@export/export-job-store';
 import { createExportDiagnostics } from '@export/export-performance';
 
@@ -25,6 +25,7 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
     onReveal,
     onRemove,
 }) => {
+    const [isCollapsed, setIsCollapsed] = useState(false);
     const jobs = useExportJobStore((state) => state.jobs);
     const visibleJobs = jobs.slice(0, 4);
     const active = visibleJobs.find((job) => isExportJobActive(job.status) && job.status !== 'queued')
@@ -44,23 +45,55 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
         <>
         <div className="fixed bottom-4 right-4 z-[10000] w-[420px] max-w-[calc(100vw-2rem)]">
             <div className="border rounded-lg p-4 text-left shadow-2xl [background-color:var(--twc-menubar)] [border-color:var(--twc-border)]">
-                <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-white font-semibold">
-                    {kind === 'video' ? '🎬 Exporting Video' : '📸 Exporting PNG Sequence'}
-                    </h3>
-                    <button className="text-xs opacity-70 hover:opacity-100" onClick={onClose}>
-                        Hide
-                    </button>
+                <div className={`flex items-center justify-between${isCollapsed ? ' mb-2' : ' mb-3'}`}>
+                    <div className="flex min-w-0 items-center gap-2">
+                        {!active && !isCollapsed && (
+                            <button
+                                className="-ml-1 text-sm leading-none opacity-60 hover:opacity-100"
+                                onClick={onClose}
+                                aria-label="Close export progress"
+                            >
+                                ×
+                            </button>
+                        )}
+                        <h3 className="truncate text-white font-semibold">
+                            {kind === 'video' ? '🎬 Exporting Video' : '📸 Exporting PNG Sequence'}
+                        </h3>
+                    </div>
+                    {isCollapsed ? (
+                        <button
+                            className="text-xs opacity-70 hover:opacity-100"
+                            onClick={() => setIsCollapsed(false)}
+                            aria-label="Expand export progress"
+                        >
+                            Expand
+                        </button>
+                    ) : (
+                        <button
+                            className="text-xs opacity-70 hover:opacity-100"
+                            onClick={() => setIsCollapsed(true)}
+                        >
+                            Hide
+                        </button>
+                    )}
                 </div>
 
-                {!downloadUrl ? (
+                <div
+                    className={`w-full h-2 rounded overflow-hidden [background-color:var(--twc-control)]${isCollapsed ? '' : ' mb-2'}`}
+                    role="progressbar"
+                    aria-label="Export progress"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(progress)}
+                >
+                    <div
+                        className="h-full bg-gradient-to-r from-[#0e639c] to-[#1177bb] transition-[width] duration-300"
+                        style={{ width: `${progress}%` }}
+                    />
+                </div>
+
+                {!isCollapsed && (!downloadUrl ? (
                     <div className="mb-5">
-                        <div className="w-full h-2 rounded overflow-hidden mb-2 [background-color:var(--twc-control)]">
-                            <div
-                                className="h-full bg-gradient-to-r from-[#0e639c] to-[#1177bb] w-0 transition-[width] duration-300"
-                                style={{ width: `${progress}%` }}
-                            ></div>
-                        </div>
                         <div className="text-xs text-neutral-300 mb-2">{text}</div>
                         <div className="flex justify-between items-center text-xs text-neutral-400">
                             <span>{active ? `${visibleJobs.filter((job) => isExportJobActive(job.status)).length} active/queued` : 'Finishing…'}</span>
@@ -87,8 +120,8 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                             Close
                         </button>
                     </div>
-                )}
-                {visibleJobs.length > 0 && (
+                ))}
+                {!isCollapsed && visibleJobs.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-neutral-700 space-y-1">
                         {visibleJobs.map((job) => (
                             <div key={job.id} className="flex items-center justify-between gap-2 text-xs">
@@ -104,7 +137,7 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                         ))}
                     </div>
                 )}
-                {!active && jobs.length > 0 && (
+                {!isCollapsed && !active && jobs.length > 0 && (
                     <button className="mt-3 text-[11px] opacity-60 hover:opacity-100" onClick={() => void downloadDiagnostics()}>
                         Download diagnostics
                     </button>

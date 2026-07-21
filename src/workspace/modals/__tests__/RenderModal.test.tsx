@@ -173,7 +173,7 @@ describe('RenderModal export options behaviour', () => {
         expect(lastCall?.[0]).toMatchObject({ container: 'webm', videoCodec: 'vp9', audioCodec: 'opus' });
     });
 
-    it('moves preset controls into the export presets menu', async () => {
+    it('keeps only preset selection controls in the export presets menu', async () => {
         const { default: RenderModal } = await loadComponent();
         render(<RenderModal onClose={() => { }} />);
         await waitFor(() => expect(screen.getByLabelText('Video Codec')).not.toBeDisabled());
@@ -182,26 +182,25 @@ describe('RenderModal export options behaviour', () => {
 
         expect(screen.getByRole('menu', { name: 'Export presets' })).toBeInTheDocument();
         expect(screen.getByRole('menuitem', { name: 'Transparent PNG Sequence' })).toBeInTheDocument();
-        expect(screen.getByRole('menuitem', { name: 'Save preset' })).toBeInTheDocument();
-        expect(screen.getByRole('menuitem', { name: 'Delete preset' })).toBeDisabled();
+        expect(screen.queryByRole('menuitem', { name: 'Save preset' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('menuitem', { name: 'Delete preset' })).not.toBeInTheDocument();
     });
 
-    it('saves and reapplies the current render settings from the presets menu', async () => {
-        vi.spyOn(window, 'prompt').mockReturnValue('24 fps export');
+    it('updates the selected destination extension when the container changes', async () => {
         const { default: RenderModal } = await loadComponent();
         render(<RenderModal onClose={() => { }} />);
-        await waitFor(() => expect(screen.getByLabelText('Video Codec')).not.toBeDisabled());
 
-        const frameRate = screen.getByLabelText('Frame Rate') as HTMLSelectElement;
-        fireEvent.change(frameRate, { target: { value: '24' } });
-        fireEvent.click(screen.getByRole('button', { name: 'Export presets' }));
-        fireEvent.click(screen.getByRole('menuitem', { name: 'Save preset' }));
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Choose…' }));
+        });
+        const destination = screen.getByPlaceholderText('No destination selected') as HTMLInputElement;
+        expect(destination.value).toBe('/tmp/mvmnt-export.mp4');
 
-        expect(JSON.parse(localStorage.getItem('mvmnt.desktop.export-presets.v1') ?? '[]')).toHaveLength(1);
-        fireEvent.change(frameRate, { target: { value: '30' } });
-        fireEvent.click(screen.getByRole('button', { name: 'Export presets' }));
-        fireEvent.click(screen.getByRole('menuitem', { name: /24 fps export/ }));
+        const container = screen.getByLabelText('Container');
+        await act(async () => {
+            fireEvent.change(container, { target: { value: 'webm' } });
+        });
 
-        expect(frameRate.value).toBe('24');
+        expect(destination.value).toBe('/tmp/mvmnt-export.webm');
     });
 });
