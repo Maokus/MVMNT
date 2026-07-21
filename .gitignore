@@ -37,6 +37,7 @@ yarn-error.log*
 !/src/plugins/fnf
 
 /dist/plugins/*
+!/dist/plugins/plugins-will-build-into-here.txt
 
 # development files
 /devscripts/deployed_versions.txt

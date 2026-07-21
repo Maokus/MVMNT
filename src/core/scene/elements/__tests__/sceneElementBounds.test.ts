@@ -46,14 +46,14 @@ describe('SceneElement bounds', () => {
         expect(root.getVisualBounds()).not.toEqual({ x: -100, y: -50, width: 200, height: 100 });
     });
 
-    it('keeps an element visible when it is exactly edge-on', () => {
+    it('keeps a quarter-turn element visible when its projection is not edge-on', () => {
         enableFeatureForSession('elementPerspectiveWarp', true);
         const root = new BoundsTestElement({
             warpEnabled: true,
             perspectiveRotationX: 90,
         }).buildRenderObjects({}, 0)[0] as PerspectiveElementRoot;
 
-        expect(root.isPerspectiveEdgeOn).toBe(true);
+        expect(root.isPerspectiveEdgeOn).toBe(false);
         expect(root.visible).toBe(true);
     });
 

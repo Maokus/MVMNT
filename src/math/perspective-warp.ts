@@ -55,10 +55,32 @@ export type PerspectiveCameraResult =
  * the inspector, while the renderer continues to consume its normal
  * homography-based representation.
  */
-export function isPerspectiveEdgeOn(rotationX: number, rotationY: number): boolean {
-    const isRightAngle = (rotation: number) =>
-        Number.isFinite(rotation) && Math.abs(Math.cos(rotation * Math.PI / 180)) <= EPSILON;
-    return isRightAngle(rotationX) || isRightAngle(rotationY);
+/**
+ * Whether the projected plane has collapsed to a line (or point). This must
+ * be determined from the projected corners rather than its tilt angle: at a
+ * quarter turn, an off-plane vanishing point can still produce drawable area.
+ */
+export function isPerspectiveEdgeOn(warp: PerspectiveWarp): boolean {
+    const points = perspectiveWarpPoints(warp);
+    if (!points.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y))) return false;
+
+    let first = points[0];
+    let second = first;
+    let longestDistanceSquared = 0;
+    for (const point of points) {
+        for (const other of points) {
+            const distanceSquared = (point.x - other.x) ** 2 + (point.y - other.y) ** 2;
+            if (distanceSquared > longestDistanceSquared) {
+                first = point;
+                second = other;
+                longestDistanceSquared = distanceSquared;
+            }
+        }
+    }
+    if (longestDistanceSquared <= EPSILON ** 2) return true;
+
+    const length = Math.sqrt(longestDistanceSquared);
+    return points.every((point) => Math.abs(cross(first, second, point)) <= EPSILON * length);
 }
 
 export function perspectiveStrengthToCameraDistance(strength: number): number {
@@ -144,8 +166,8 @@ export function createPerspectiveCameraWarp(
         bottomRight: normalize(project({ x: bounds.x + bounds.width, y: bounds.y + bounds.height })),
         bottomLeft: normalize(project({ x: bounds.x, y: bounds.y + bounds.height })),
     };
-    if (isPerspectiveEdgeOn(rotationX, rotationY)) return { kind: 'edge-on', warp };
     const validation = validatePerspectiveWarp(warp);
+    if (isPerspectiveEdgeOn(warp)) return { kind: 'edge-on', warp };
     return validation.valid
         ? { kind: 'projected', warp }
         : { kind: 'invalid', warp, reason: validation.reason ?? 'invalid projection' };

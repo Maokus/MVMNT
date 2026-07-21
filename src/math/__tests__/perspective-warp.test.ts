@@ -56,9 +56,12 @@ describe('perspective warp geometry', () => {
         expect(offset).not.toEqual(centered);
         expect(offset.kind).toBe('projected');
         expect(validatePerspectiveWarp(offset.warp).valid).toBe(true);
-        expect(isPerspectiveEdgeOn(90, 0)).toBe(true);
-        expect(isPerspectiveEdgeOn(0, -90)).toBe(true);
-        expect(isPerspectiveEdgeOn(89.9, 0)).toBe(false);
+        expect(isPerspectiveEdgeOn(createPerspectiveCameraWarp(bounds, affine, viewport, {
+            ...projection, rotationX: 90, vanishingPointY: 0.1,
+        }).warp)).toBe(true);
+        expect(isPerspectiveEdgeOn(createPerspectiveCameraWarp(bounds, affine, viewport, {
+            ...projection, rotationX: 89.9, vanishingPointY: 0.1,
+        }).warp)).toBe(false);
     });
 
     it('maps perspective strength to a safe camera distance', () => {
@@ -106,20 +109,32 @@ describe('perspective warp geometry', () => {
             ...projection, rotationY: -90,
         }).warp);
         expect(createPerspectiveCameraWarp(bounds, affine, viewport, {
-            ...projection, rotationX: 270,
+            ...projection, rotationX: 270, vanishingPointY: 0.1,
         }).kind).toBe('edge-on');
         expect(createPerspectiveCameraWarp(bounds, affine, viewport, {
-            ...projection, rotationY: -270,
+            ...projection, rotationY: -270, vanishingPointX: 0.1,
         }).kind).toBe('edge-on');
     });
 
     it('reports exact quarter turns as edge-on', () => {
         expect(createPerspectiveCameraWarp(bounds, affine, viewport, {
-            ...projection, rotationX: 90,
+            ...projection, rotationX: 90, vanishingPointY: 0.1,
         }).kind).toBe('edge-on');
         expect(createPerspectiveCameraWarp(bounds, affine, viewport, {
-            ...projection, rotationY: -90,
+            ...projection, rotationY: -90, vanishingPointX: 0.1,
         }).kind).toBe('edge-on');
+    });
+
+    it('keeps a quarter-turn projection drawable when its vanishing point is off the plane', () => {
+        const result = createPerspectiveCameraWarp(bounds, affine, viewport, {
+            ...projection,
+            rotationX: 90,
+            vanishingPointY: 0,
+        });
+
+        expect(result.kind).toBe('projected');
+        expect(isPerspectiveEdgeOn(result.warp)).toBe(false);
+        expect(validatePerspectiveWarp(result.warp).valid).toBe(true);
     });
 
     it('solves identity and strong quadrilateral homographies', () => {
