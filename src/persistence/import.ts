@@ -32,6 +32,7 @@ import type { AudioCacheEntry } from '@audio/audioTypes';
 import { migrateSceneRotationUnitsV7 } from './migrations/rotationUnitsV7';
 import { migrateSceneMidiClipsV8 } from './migrations/midiClipsV8';
 import { migrateSceneAudioClipSourceTimeV10 } from './migrations/audioClipSourceTimeV10';
+import { migrateSceneTextBoundsV11 } from './migrations/textBoundsV11';
 
 const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
@@ -88,7 +89,10 @@ function throwIfAborted(signal?: AbortSignal): void {
     throw createAbortError();
 }
 
-async function parseArtifact(input: ImportSceneInput, options: ImportSceneOptions = {}): Promise<ParsedArtifact | { error: ImportError }> {
+async function parseArtifact(
+    input: ImportSceneInput,
+    options: ImportSceneOptions = {}
+): Promise<ParsedArtifact | { error: ImportError }> {
     throwIfAborted(options.signal);
     options.onProgress?.(0.1, 'Reading scene file…');
     let bytes: Uint8Array | null = null;
@@ -496,8 +500,7 @@ function hydrateVisualAssetRegistry(
     fileById: Map<string, File>,
     visualAssetsSection: { byId: Record<string, any> } | undefined,
     registrySection:
-        | { assets: Record<string, { id: string; name: string; filename: string }>; assetsOrder: string[] }
-        | undefined
+        { assets: Record<string, { id: string; name: string; filename: string }>; assetsOrder: string[] } | undefined
 ): void {
     if (fileById.size === 0) return;
 
@@ -517,7 +520,15 @@ function hydrateVisualAssetRegistry(
             file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')
                 ? ('gif' as const)
                 : ('image' as const);
-        entries.push({ id: assetId, name: filename, file, type, origin: 'user', deletable: true, visibleInAssetManager: true });
+        entries.push({
+            id: assetId,
+            name: filename,
+            file,
+            type,
+            origin: 'user',
+            deletable: true,
+            visibleInAssetManager: true,
+        });
     }
 
     // Include any IDs not in the ordered list
@@ -533,7 +544,15 @@ function hydrateVisualAssetRegistry(
             file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')
                 ? ('gif' as const)
                 : ('image' as const);
-        entries.push({ id: assetId, name: filename, file, type, origin: 'user', deletable: true, visibleInAssetManager: true });
+        entries.push({
+            id: assetId,
+            name: filename,
+            file,
+            type,
+            origin: 'user',
+            deletable: true,
+            visibleInAssetManager: true,
+        });
     }
 
     useVisualAssetRegistryStore.getState()._hydrateFromImport(entries);
@@ -594,7 +613,9 @@ async function createAudioBufferFromAsset(record: any, bytes: Uint8Array): Promi
     if (typeof AudioContextCtor === 'function') {
         const ctx = new AudioContextCtor();
         try {
-            const buffer = await ctx.decodeAudioData(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+            const buffer = await ctx.decodeAudioData(
+                bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+            );
             return buffer;
         } finally {
             ctx.close?.();
@@ -628,15 +649,18 @@ async function createAudioBufferFromAsset(record: any, bytes: Uint8Array): Promi
     return fallback;
 }
 
-function buildLightweightAudioCacheEntry(record: any, originalFile: {
-    name?: string;
-    mimeType: string;
-    bytes?: Uint8Array;
-    byteLength: number;
-    hash?: string;
-    assetId?: string;
-    storage?: 'indexeddb' | 'memory' | 'inline' | 'missing';
-}) {
+function buildLightweightAudioCacheEntry(
+    record: any,
+    originalFile: {
+        name?: string;
+        mimeType: string;
+        bytes?: Uint8Array;
+        byteLength: number;
+        hash?: string;
+        assetId?: string;
+        storage?: 'indexeddb' | 'memory' | 'inline' | 'missing';
+    }
+) {
     const durationSeconds = typeof record.durationSeconds === 'number' ? record.durationSeconds : 0;
     const sampleRate = typeof record.sampleRate === 'number' ? record.sampleRate : 44100;
     const channels = typeof record.channels === 'number' ? record.channels : 1;
@@ -888,7 +912,10 @@ async function hydrateAudioAssets(
             decodedFailureReason: undefined,
         };
         useTimelineStore.setState((state) => {
-            if (!isAudioHydrationStillCurrent(expectedTimelineGeneration) || !shouldHydrateAudioSource(originalId, state)) {
+            if (
+                !isAudioHydrationStillCurrent(expectedTimelineGeneration) ||
+                !shouldHydrateAudioSource(originalId, state)
+            ) {
                 return state;
             }
             return {
@@ -941,7 +968,10 @@ async function hydrateAudioAssets(
     return warnings;
 }
 
-export async function importScene(input: ImportSceneInput, options: ImportSceneOptions = {}): Promise<ImportSceneResult> {
+export async function importScene(
+    input: ImportSceneInput,
+    options: ImportSceneOptions = {}
+): Promise<ImportSceneResult> {
     options.onProgress?.(0.05, 'Starting scene import…');
     const parsed = await parseArtifact(input, options);
     throwIfAborted(options.signal);
@@ -961,8 +991,8 @@ export async function importScene(input: ImportSceneInput, options: ImportSceneO
         pluginPayloads,
     } = parsed;
     options.onProgress?.(0.35, 'Validating scene…');
-    const migratedEnvelope = migrateSceneAudioClipSourceTimeV10(
-        migrateSceneMidiClipsV8(migrateSceneRotationUnitsV7(envelope))
+    const migratedEnvelope = migrateSceneTextBoundsV11(
+        migrateSceneAudioClipSourceTimeV10(migrateSceneMidiClipsV8(migrateSceneRotationUnitsV7(envelope)))
     );
     const validation = validateSceneEnvelope(migratedEnvelope);
     if (!validation.ok) {
@@ -1033,7 +1063,11 @@ export async function importScene(input: ImportSceneInput, options: ImportSceneO
     const importTimelineGeneration = advanceTimelineMutationGeneration();
 
     // Populate visual asset registry and migrate assetRef bindings from File → asset ID
-    hydrateVisualAssetRegistry(fileById, migratedEnvelope.assets?.visual, (migratedEnvelope as any).visualAssetRegistry);
+    hydrateVisualAssetRegistry(
+        fileById,
+        migratedEnvelope.assets?.visual,
+        (migratedEnvelope as any).visualAssetRegistry
+    );
     migrateStoreAssetRefBindings(fileById);
 
     let hydrationWarnings: string[] = [];
@@ -1046,7 +1080,8 @@ export async function importScene(input: ImportSceneInput, options: ImportSceneO
             migratedEnvelope.schemaVersion === 7 ||
             migratedEnvelope.schemaVersion === 8 ||
             migratedEnvelope.schemaVersion === 9 ||
-            migratedEnvelope.schemaVersion === 10) &&
+            migratedEnvelope.schemaVersion === 10 ||
+            migratedEnvelope.schemaVersion === 11) &&
         migratedEnvelope.assets
     ) {
         options.onProgress?.(0.82, 'Restoring audio assets…');
