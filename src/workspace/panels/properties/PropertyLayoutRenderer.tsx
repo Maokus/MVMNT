@@ -19,8 +19,17 @@ const passes = (rules: PropertyVisibilityCondition[] | undefined, values: Record
 
 const Section: React.FC<{ node: Extract<PropertyLayoutNode, { kind: 'section' }>; children: React.ReactNode }> = ({ node, children }) => {
     const [collapsed, setCollapsed] = useState(Boolean(node.collapsed));
-    return <section className="ae-property-layout-section">
-        {node.label && <button type="button" className="ae-property-layout-section-title" onClick={() => setCollapsed((value) => !value)} aria-expanded={!collapsed}>{node.label}</button>}
+    return <section className={`ae-property-layout-section${collapsed ? ' is-collapsed' : ' is-expanded'}`}>
+        {node.label && <button
+            type="button"
+            className="ae-property-layout-section-title"
+            onClick={() => setCollapsed((value) => !value)}
+            aria-expanded={!collapsed}
+            aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${node.label} section`}
+        >
+            <span className="ae-property-layout-section-caret" aria-hidden="true">▾</span>
+            <span>{node.label}</span>
+        </button>}
         {!collapsed && children}
     </section>;
 };

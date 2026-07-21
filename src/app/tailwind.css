@@ -716,11 +716,28 @@
     }
 
     .ae-property-layout-section {
-        @apply border-b border-white/5;
+        @apply relative mx-2 my-1 border border-[#3a3a3a] border-l-2 border-l-[#555555] bg-[#282828];
+    }
+
+    .ae-property-layout-section::before {
+        content: '';
+        @apply absolute -left-[7px] top-0 h-full w-px bg-[#45454500];
     }
 
     .ae-property-layout-section-title {
-        @apply w-full px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[#a8a8ad] hover:bg-white/5 hover:text-[#e0e0e0];
+        @apply flex w-full items-center gap-1.5 border-b border-[#3a3a3a] bg-[#242424] px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[#b9b9bd] transition-colors hover:bg-[#333333] hover:text-[#f1f1f1];
+    }
+
+    .ae-property-layout-section.is-collapsed .ae-property-layout-section-title {
+        @apply border-b-transparent;
+    }
+
+    .ae-property-layout-section-caret {
+        @apply inline-flex h-3 w-3 shrink-0 items-center justify-center text-[11px] text-[#9f9fa5] transition-transform duration-150;
+    }
+
+    .ae-property-layout-section.is-collapsed .ae-property-layout-section-caret {
+        @apply -rotate-90;
     }
 
     .ae-property-layout-actions {
@@ -764,6 +781,11 @@
         padding-left: 26px;
         min-height: 24px;
         border-color: rgba(255, 255, 255, 0.05);
+    }
+
+    /* Keep a layout section visually attached to the property directly above it. */
+    .ae-property-row:has(+ .ae-property-layout-section) {
+        border-bottom-color: transparent;
     }
 
     .ae-property-row:hover {

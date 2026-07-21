@@ -38,6 +38,7 @@ const AboutPage: React.FC = () => {
                                 <li>Weivblank</li>
                                 <li>Tnky</li>
                                 <li>ivlayz</li>
+                                <li>joserizzal</li>
                             </ul>
                         </section>
                         <section>
@@ -52,7 +53,7 @@ const AboutPage: React.FC = () => {
                     </div>
                     <br />
                     <h2>Motivation</h2>
-                    <p>MVMNT aims to fill the void of powerful, general-purpose tools for visualising MIDI data.
+                    <p>MVMNT aims to fill the void of powerful, general-purpose tools for visualising music information.
                         It aims to be user-friendly for beginners while also providing a flexible platform for advanced users.</p>
                     <br />
                     <div className="flex flex-wrap gap-3 mt-5">

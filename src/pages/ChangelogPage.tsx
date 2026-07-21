@@ -21,7 +21,9 @@ const ChangelogPage: React.FC = () => {
                     <ChangelogEntry version="0.16.0" date="21-7-26" notes={[
                         "MVMNT IS A NATIVE APP NOW!",
                         [
-                            "Better export flows."
+                            "Rendering speed ++",
+                            "Streams renders directly to disk",
+                            "Hidden-window CLI rendering",
                         ],
                         "Overhauled clip timeline",
                         [
@@ -37,6 +39,7 @@ const ChangelogPage: React.FC = () => {
                             "Honestly I don't know how to write this changelog basically the whole thing changed..."
                         ],
                         "Features", [
+                            "Transparent video export",
                             "Bulk edit keyframe interpolation",
                             "MIDI Audio synthesized preview",
                             "Progress bar for audio feature calculation",

@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import PropertyGroupPanel from '../PropertyGroupPanel';
 import type { PropertyDefinition, PropertyGroup } from '@core/types';
 
@@ -124,6 +124,27 @@ describe('PropertyGroupPanel', () => {
         expect(screen.getAllByText('X')).toHaveLength(1);
         expect(warn).toHaveBeenCalledWith('[PropertyLayoutRenderer] Falling back to property rows', expect.any(Object));
         warn.mockRestore();
+    });
+
+    it('shows layout sections as expandable children of the property group', () => {
+        const properties = [{ key: 'x', label: 'X', type: 'number', default: 0 }] as PropertyDefinition[];
+        const group: PropertyGroup = {
+            id: 'layout', label: 'Layout', collapsed: false, properties,
+            layout: [{ kind: 'section', id: 'position', label: 'Position', collapsed: false, children: [{ kind: 'property', propertyKey: 'x' }] }],
+        };
+
+        render(<PropertyGroupPanel group={group} properties={properties} values={{ x: 2 }} macroAssignments={{}}
+            elementId="test-element" onValueChange={vi.fn()} onValuesChange={vi.fn()} onMacroAssignment={vi.fn()} onCollapseToggle={vi.fn()} />);
+
+        const section = screen.getByRole('button', { name: 'Collapse Position section' });
+        expect(section).toHaveAttribute('aria-expanded', 'true');
+        expect(section.querySelector('.ae-property-layout-section-caret')).toHaveTextContent('▾');
+        expect(screen.getByText('X')).toBeInTheDocument();
+
+        fireEvent.click(section);
+
+        expect(screen.getByRole('button', { name: 'Expand Position section' })).toHaveAttribute('aria-expanded', 'false');
+        expect(screen.queryByText('X')).not.toBeInTheDocument();
     });
 
 });
