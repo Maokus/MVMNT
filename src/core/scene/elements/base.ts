@@ -5,7 +5,6 @@ import { EmptyRenderObject, PerspectiveElementRoot, RenderObject } from '@core/r
 import {
     createPerspectiveCameraWarp,
     IDENTITY_PERSPECTIVE_WARP,
-    PERSPECTIVE_ROTATION_LIMIT,
     type PerspectiveCameraProjection,
     type PerspectiveWarp,
 } from '@math/perspective-warp';
@@ -1035,14 +1034,6 @@ export class SceneElement implements SceneElementInterface {
                                     description: 'Vertical scaling factor.',
                                 }),
                             ],
-                            layout: [
-                                { kind: 'control', control: 'xy-pad', bindings: { x: 'offsetX', y: 'offsetY' }, options: { label: 'Position' } },
-                                { kind: 'property', propertyKey: 'offsetX' },
-                                { kind: 'property', propertyKey: 'offsetY' },
-                                { kind: 'property', propertyKey: 'elementRotation' },
-                                { kind: 'property', propertyKey: 'elementScaleX' },
-                                { kind: 'property', propertyKey: 'elementScaleY' },
-                            ],
                         },
                         {
                             id: 'advancedAnchor',
@@ -1082,15 +1073,11 @@ export class SceneElement implements SceneElementInterface {
                                     description: 'Apply a planar perspective warp to this element.',
                                 }),
                                 prop.number('perspectiveRotationX', 'Tilt X', 0, {
-                                    min: -PERSPECTIVE_ROTATION_LIMIT,
-                                    max: PERSPECTIVE_ROTATION_LIMIT,
                                     step: 1,
                                     visibleWhen: [{ key: 'warpEnabled', equals: true }],
                                     description: 'Vertical tilt in degrees.',
                                 }),
                                 prop.number('perspectiveRotationY', 'Tilt Y', 0, {
-                                    min: -PERSPECTIVE_ROTATION_LIMIT,
-                                    max: PERSPECTIVE_ROTATION_LIMIT,
                                     step: 1,
                                     visibleWhen: [{ key: 'warpEnabled', equals: true }],
                                     description: 'Horizontal tilt in degrees.',

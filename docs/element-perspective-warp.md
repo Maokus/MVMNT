@@ -2,7 +2,7 @@
 
 Element perspective warp is an opt-in, camera-based 3D tilt transform. It is enabled by the `elementPerspectiveWarp` feature flag, which defaults on and can still be overridden for a session or environment.
 
-The Element inspector represents perspective through the standard schema-driven property controls: `perspectiveRotationX`, `perspectiveRotationY`, `perspectiveStrength`, pivot settings, and vanishing-point settings. Rotation is limited to -180 through 180 degrees, allowing the element to tilt past an edge-on quarter turn; an exact quarter turn is edge-on and is not rendered. Strength runs from 0 (orthographic foreshortening) to 100 (the strongest safe convergence).
+The Element inspector represents perspective through the standard schema-driven property controls: `perspectiveRotationX`, `perspectiveRotationY`, `perspectiveStrength`, pivot settings, and vanishing-point settings. Rotation accepts arbitrary finite degrees, allowing the element to tilt through multiple turns; every odd quarter turn is edge-on and is not rendered. Strength runs from 0 (orthographic foreshortening) to 100 (the strongest safe convergence).
 
 By default, the element's existing anchor is also its 3D pivot. Disable `perspectivePivotLinked` to use `perspectivePivotX` and `perspectivePivotY` independently. `perspectiveVanishingPointX` and `perspectiveVanishingPointY` are normalized canvas coordinates rather than element coordinates, so multiple elements can be aligned to the same visual horizon. The inspector accepts off-canvas vanishing points from -2 through 3.
 

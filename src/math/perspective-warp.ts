@@ -49,9 +49,6 @@ export type PerspectiveCameraResult =
     | { kind: 'edge-on'; warp: PerspectiveWarp }
     | { kind: 'invalid'; warp: PerspectiveWarp; reason: string };
 
-/** The supported range for each camera tilt axis, in degrees. */
-export const PERSPECTIVE_ROTATION_LIMIT = 180;
-
 /**
  * Creates a corner projection for a plane tilted around its horizontal and
  * vertical axes. The inputs are degrees so they can be exposed directly in
@@ -94,8 +91,8 @@ export function createPerspectiveCameraWarp(
         return { kind: 'invalid', warp: { ...IDENTITY_PERSPECTIVE_WARP }, reason: 'element transform is singular' };
     }
 
-    const rotationX = Math.max(-PERSPECTIVE_ROTATION_LIMIT, Math.min(PERSPECTIVE_ROTATION_LIMIT, Number.isFinite(projection.rotationX) ? projection.rotationX : 0));
-    const rotationY = Math.max(-PERSPECTIVE_ROTATION_LIMIT, Math.min(PERSPECTIVE_ROTATION_LIMIT, Number.isFinite(projection.rotationY) ? projection.rotationY : 0));
+    const rotationX = Number.isFinite(projection.rotationX) ? projection.rotationX : 0;
+    const rotationY = Number.isFinite(projection.rotationY) ? projection.rotationY : 0;
     const strength = Math.max(0, Math.min(100, Number.isFinite(projection.strength) ? projection.strength : 50));
     const pivotX = Math.max(0, Math.min(1, Number.isFinite(projection.pivotX) ? projection.pivotX : 0.5));
     const pivotY = Math.max(0, Math.min(1, Number.isFinite(projection.pivotY) ? projection.pivotY : 0.5));
