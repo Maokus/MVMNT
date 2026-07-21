@@ -48,7 +48,6 @@ export function DesktopWorkspaceTools() {
         const unsubscribe = window.mvmntDesktop?.menu.onCommand((command) => {
             if (command === 'recovery') openRecovery();
             if (command === 'storage') openStorage();
-            if (command === 'plugin-development') void window.mvmntDesktop?.pluginDevelopment.grantDirectory();
         });
         return () => {
             window.removeEventListener('mvmnt-show-recovery', openRecovery);

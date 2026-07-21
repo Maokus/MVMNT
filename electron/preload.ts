@@ -8,8 +8,6 @@ import type {
     DesktopExportCompleteRequest,
     DesktopExportWriteRequest,
     MvmntDesktopApi,
-    DesktopDroppedFile,
-    DesktopPluginDevelopmentStatus,
 } from './shared/desktop-api.js';
 import type { DesktopAutomationProgress, DesktopAutomationResult, DesktopDeepLinkCommand, DesktopRenderRequest } from './shared/automation.js';
 
@@ -61,12 +59,6 @@ const api: MvmntDesktopApi = {
     storage: {
         inspect: () => ipcRenderer.invoke('storage:inspect'),
         cleanup: (category) => ipcRenderer.invoke('storage:cleanup', category),
-    },
-    pluginDevelopment: {
-        grantDirectory: () => ipcRenderer.invoke('plugin-development:grant-directory'),
-        disconnect: () => ipcRenderer.invoke('plugin-development:disconnect'),
-        onStatus: (callback: (status: DesktopPluginDevelopmentStatus) => void) => subscribe('plugin-development:status', callback),
-        onBundle: (callback: (file: DesktopDroppedFile) => void) => subscribe('plugin-development:bundle', callback),
     },
     automation: {
         ready: () => ipcRenderer.send('automation:ready'),

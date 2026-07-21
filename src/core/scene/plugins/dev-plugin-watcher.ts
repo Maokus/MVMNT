@@ -1,9 +1,9 @@
 /**
  * Development plugin watcher.
  *
- * Reconciles the plugins advertised by one localhost dev-plugin server. The
- * EventSource deliberately stays open across failed connections, so Vite and
- * the plugin server can be started in either order.
+ * Reconciles plugins advertised by local dev-plugin servers. The EventSources
+ * deliberately stay open across failed connections, so Vite and the plugin
+ * server can be started in either order.
  */
 
 import { loadPlugin, unloadPlugin } from './plugin-loader';
@@ -12,6 +12,7 @@ import { usePluginStore } from '@state/pluginStore';
 const configuredPort = Number((import.meta as any).env?.VITE_DEV_PLUGIN_PORT);
 const DEV_PLUGIN_SERVER_PORT =
     Number.isInteger(configuredPort) && configuredPort > 0 && configuredPort <= 65535 ? configuredPort : 7741;
+const DEFAULT_PORT_RANGE_SIZE = 10;
 const DISCONNECT_GRACE_MS = 5_000;
 
 interface DevPluginStatus {
@@ -29,25 +30,29 @@ interface DevServerStatus {
 const revisionByPlugin = new Map<string, number>();
 const lastKnownGoodBundle = new Map<string, ArrayBuffer>();
 const reloads = new Map<string, Promise<void>>();
+const serverByPlugin = new Map<string, string>();
 
-function baseUrl(): string {
-    return `http://localhost:${DEV_PLUGIN_SERVER_PORT}`;
+function serverUrls(): string[] {
+    const ports = configuredPort ? [DEV_PLUGIN_SERVER_PORT] : Array.from({ length: DEFAULT_PORT_RANGE_SIZE }, (_, index) => DEV_PLUGIN_SERVER_PORT + index);
+    return ports.map((port) => `http://localhost:${port}`);
 }
 
 function isDevelopmentPlugin(pluginId: string): boolean {
     return usePluginStore.getState().plugins[pluginId]?.source === 'development';
 }
 
-async function removeDevelopmentPlugin(pluginId: string): Promise<void> {
+async function removeDevelopmentPlugin(pluginId: string, serverUrl?: string): Promise<void> {
+    if (serverUrl && serverByPlugin.get(pluginId) !== serverUrl) return;
     if (isDevelopmentPlugin(pluginId)) {
         const result = await unloadPlugin(pluginId, { removePersisted: false });
         if (!result.success) console.warn(`[DevPluginWatcher] Failed to unload '${pluginId}':`, result.error);
     }
     revisionByPlugin.delete(pluginId);
     lastKnownGoodBundle.delete(pluginId);
+    serverByPlugin.delete(pluginId);
 }
 
-async function reloadPlugin(pluginId: string, revision: number): Promise<void> {
+async function reloadPlugin(pluginId: string, revision: number, serverUrl: string): Promise<void> {
     const prior = reloads.get(pluginId) ?? Promise.resolve();
     const task = prior.then(async () => {
         if ((revisionByPlugin.get(pluginId) ?? -1) > revision) return;
@@ -60,7 +65,13 @@ async function reloadPlugin(pluginId: string, revision: number): Promise<void> {
             return;
         }
 
-        const response = await fetch(`${baseUrl()}/${encodeURIComponent(pluginId)}.mvmnt-plugin`, { cache: 'no-store' });
+        const currentServer = serverByPlugin.get(pluginId);
+        if (currentServer && currentServer !== serverUrl) {
+            console.error(`[DevPluginWatcher] Refusing duplicate development plugin '${pluginId}' from ${serverUrl}; it is already served by ${currentServer}.`);
+            return;
+        }
+
+        const response = await fetch(`${serverUrl}/${encodeURIComponent(pluginId)}.mvmnt-plugin`, { cache: 'no-store' });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const candidate = await response.arrayBuffer();
         const fallback = lastKnownGoodBundle.get(pluginId);
@@ -72,6 +83,7 @@ async function reloadPlugin(pluginId: string, revision: number): Promise<void> {
         const result = await loadPlugin(candidate, { persist: false, source: 'development' });
         if (result.success) {
             revisionByPlugin.set(pluginId, revision);
+            serverByPlugin.set(pluginId, serverUrl);
             lastKnownGoodBundle.set(pluginId, candidate.slice(0));
             console.log(`[DevPluginWatcher] Loaded '${pluginId}' (${result.registeredTypes?.length ?? 0} element(s)).`);
             return;
@@ -97,12 +109,12 @@ async function reloadPlugin(pluginId: string, revision: number): Promise<void> {
     }
 }
 
-async function reconcile(status: DevServerStatus): Promise<void> {
+async function reconcile(serverUrl: string, status: DevServerStatus): Promise<void> {
     const advertised = new Set(status.plugins.map((plugin) => plugin.id));
     await Promise.all(
         [...revisionByPlugin.keys()]
-            .filter((pluginId) => !advertised.has(pluginId))
-            .map((pluginId) => removeDevelopmentPlugin(pluginId))
+            .filter((pluginId) => serverByPlugin.get(pluginId) === serverUrl && !advertised.has(pluginId))
+            .map((pluginId) => removeDevelopmentPlugin(pluginId, serverUrl))
     );
 
     for (const plugin of status.plugins) {
@@ -112,23 +124,27 @@ async function reconcile(status: DevServerStatus): Promise<void> {
         }
         const loadedRevision = revisionByPlugin.get(plugin.id);
         if (loadedRevision !== plugin.revision || !isDevelopmentPlugin(plugin.id)) {
-            void reloadPlugin(plugin.id, plugin.revision);
+            void reloadPlugin(plugin.id, plugin.revision, serverUrl);
         }
     }
 }
 
-/** Start watching the multiplexed localhost dev-plugin server in Vite development mode. */
+/** Start watching local dev-plugin servers in Vite development mode. */
 export function startDevPluginWatcher(): void {
     if (!import.meta.env.DEV) return;
 
-    const eventSource = new EventSource(`${baseUrl()}/events`);
+    for (const serverUrl of serverUrls()) startServerWatcher(serverUrl);
+}
+
+function startServerWatcher(serverUrl: string): void {
+    const eventSource = new EventSource(`${serverUrl}/events`);
     let disconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
     const scheduleDisconnectCleanup = () => {
         if (disconnectTimer) return;
         disconnectTimer = setTimeout(() => {
             disconnectTimer = undefined;
-            void Promise.all([...revisionByPlugin.keys()].map((pluginId) => removeDevelopmentPlugin(pluginId)));
+            void Promise.all([...revisionByPlugin.keys()].map((pluginId) => removeDevelopmentPlugin(pluginId, serverUrl)));
         }, DISCONNECT_GRACE_MS);
     };
 
@@ -137,23 +153,23 @@ export function startDevPluginWatcher(): void {
             clearTimeout(disconnectTimer);
             disconnectTimer = undefined;
         }
-        fetch(`${baseUrl()}/status`, { cache: 'no-store' })
+        fetch(`${serverUrl}/status`, { cache: 'no-store' })
             .then((response) => {
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 return response.json() as Promise<DevServerStatus>;
             })
-            .then(reconcile)
+            .then((status) => reconcile(serverUrl, status))
             .catch((error) => console.warn('[DevPluginWatcher] Could not reconcile dev plugins:', error));
     };
 
     eventSource.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data) as { type?: string; pluginId?: string; revision?: number; plugins?: DevPluginStatus[] };
-            if (data.type === 'snapshot' && data.plugins) void reconcile({ protocolVersion: 2, plugins: data.plugins });
+            if (data.type === 'snapshot' && data.plugins) void reconcile(serverUrl, { protocolVersion: 2, plugins: data.plugins });
             if (data.type === 'upsert' && data.pluginId && typeof data.revision === 'number') {
-                void reloadPlugin(data.pluginId, data.revision);
+                void reloadPlugin(data.pluginId, data.revision, serverUrl);
             }
-            if (data.type === 'remove' && data.pluginId) void removeDevelopmentPlugin(data.pluginId);
+            if (data.type === 'remove' && data.pluginId) void removeDevelopmentPlugin(data.pluginId, serverUrl);
         } catch {
             /* Ignore malformed development-server events. */
         }

@@ -1,6 +1,6 @@
 import type { DesktopAutomationProgress, DesktopAutomationResult, DesktopDeepLinkCommand, DesktopRenderRequest } from './automation.js';
 
-export type DesktopMenuCommand = 'new' | 'open' | 'save' | 'save-as' | 'undo' | 'redo' | 'recovery' | 'storage' | 'plugin-development';
+export type DesktopMenuCommand = 'new' | 'open' | 'save' | 'save-as' | 'undo' | 'redo' | 'recovery' | 'storage';
 
 export type DesktopOpenKind = 'project' | 'plugin';
 
@@ -32,12 +32,6 @@ export interface DesktopStorageReport {
     location: string;
     temporaryExports: { count: number; bytes: number };
     updateCache: { count: number; bytes: number; available: boolean };
-}
-
-export interface DesktopPluginDevelopmentStatus {
-    state: 'disconnected' | 'watching' | 'reloading' | 'error';
-    directoryName?: string;
-    message: string;
 }
 
 export type DesktopExportKind = 'video' | 'image-sequence' | 'audio';
@@ -117,12 +111,6 @@ export interface MvmntDesktopApi {
     storage: {
         inspect(): Promise<DesktopStorageReport>;
         cleanup(category: 'temporary-exports' | 'update-cache'): Promise<DesktopStorageReport>;
-    };
-    pluginDevelopment: {
-        grantDirectory(): Promise<DesktopPluginDevelopmentStatus>;
-        disconnect(): Promise<DesktopPluginDevelopmentStatus>;
-        onStatus(callback: (status: DesktopPluginDevelopmentStatus) => void): () => void;
-        onBundle(callback: (file: DesktopDroppedFile) => void): () => void;
     };
     automation: {
         ready(): void;

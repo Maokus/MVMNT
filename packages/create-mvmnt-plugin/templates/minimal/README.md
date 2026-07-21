@@ -14,7 +14,8 @@ npm run dev-plugin -- /absolute/path/to/{{ELEMENT_TYPE}}
 ```
 
 MVMNT must itself be running through `npm run dev`, not a production build. The default dev-plugin
-port is 7741. The initial bundle is installed when the browser connects, and later successful
+port range is 7741 through 7750; the app automatically discovers the selected available port. The
+initial bundle is installed when the browser connects, and later successful
 rebuilds unload and replace it without requiring a version bump. Either server can start first;
 MVMNT reconnects automatically. Valid `plugin.json` edits hot-reload, except changing the plugin
 ID requires restarting the dev-plugin command. Development bundles are session-only and disappear

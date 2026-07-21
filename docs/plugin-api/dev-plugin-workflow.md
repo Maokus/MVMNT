@@ -26,8 +26,11 @@ JavaScript accepted by esbuild. SDK 1 source is rejected by the development buil
 The browser-side watcher exists only when `import.meta.env.DEV` is true. A production build or
 `vite preview` will not connect to a development plugin server.
 
-By default both sides use `127.0.0.1:7741`. To use another port, configure both processes before
-starting Vite:
+By default `dev-plugin` uses the first available port from `127.0.0.1:7741` through `:7750`.
+The Vite development build automatically discovers servers in that range, so an occupied default
+port does not interrupt the normal workflow. The command prints the selected URL.
+
+To use a port outside that range, configure both processes before starting Vite:
 
 ```sh
 # Terminal 1
@@ -37,8 +40,9 @@ VITE_DEV_PLUGIN_PORT=7750 npm run dev
 npm run dev-plugin -- /absolute/path/to/plugin --port 7750
 ```
 
-Changing `VITE_DEV_PLUGIN_PORT` requires restarting Vite. One browser watcher connects to one port,
-and that server can serve any number of plugin directories.
+Changing `VITE_DEV_PLUGIN_PORT` requires restarting Vite. An explicit port is exact: if it is in
+use, `dev-plugin` exits with instructions instead of selecting a different one. One server can
+serve any number of plugin directories.
 
 ## What happens on startup
 
@@ -58,8 +62,7 @@ and that server can serve any number of plugin directories.
 6. The normal runtime loader stores the archive, injects SDK 2 modules, registers element types as
    `<plugin-id>:<element-type>`, and refreshes matching scene instances.
 
-If the browser attempted its first connection before the development server existed, refresh MVMNT
-after the server reports `Watching for changes…`.
+The browser reconnects automatically, so Vite and `dev-plugin` may start in either order.
 
 ## What happens after a save
 
@@ -99,10 +102,10 @@ fix the error and save again to restore it.
 
 Common checks:
 
-- No connection: confirm MVMNT is using `npm run dev` and both sides use the same port. Starting
-  either process first is supported; the browser reconnects automatically.
-- `EADDRINUSE`: stop the existing server or configure the same alternate port on Vite and
-  `dev-plugin`.
+- No connection: confirm MVMNT is using `npm run dev`. Starting either process first is supported;
+  the browser reconnects automatically.
+- `EADDRINUSE`: without `--port`, the command tries ports `7741` through `7750`. With `--port`,
+  select a free port and configure the same `VITE_DEV_PLUGIN_PORT` value for Vite.
 - Manifest/import rejection: run `npm run build-plugin -- <plugin-dir>` for the same contract
   validation without starting the watcher.
 - Changes do not rebuild: restart the watcher. On platforms without recursive `fs.watch`, the

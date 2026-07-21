@@ -12,11 +12,13 @@ import { PLUGIN_EXTERNALS, validateElementImports, validateManifestContract } fr
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULT_PORT = 7741;
+const DEFAULT_PORT_RANGE_SIZE = 10;
 const DEBOUNCE_MS = 150;
 const HEARTBEAT_MS = 15_000;
 const rawArgs = process.argv.slice(2);
 const portIndex = rawArgs.indexOf('--port');
 let port = DEFAULT_PORT;
+let portWasSpecified = false;
 const inputDirectories = [...rawArgs];
 if (portIndex >= 0) {
     const parsed = Number.parseInt(rawArgs[portIndex + 1] ?? '', 10);
@@ -25,6 +27,7 @@ if (portIndex >= 0) {
         process.exit(1);
     }
     port = parsed;
+    portWasSpecified = true;
     inputDirectories.splice(portIndex, 2);
 }
 if (inputDirectories.length === 0) {
@@ -238,13 +241,54 @@ function shutdown(signal) {
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-server.listen(port, '127.0.0.1', async () => {
+async function listenOnAvailablePort() {
+    const firstPort = port;
+    const lastPort = portWasSpecified ? port : DEFAULT_PORT + DEFAULT_PORT_RANGE_SIZE - 1;
+
+    for (let candidate = firstPort; candidate <= lastPort; candidate += 1) {
+        try {
+            await new Promise((resolve, reject) => {
+                const onError = (error) => {
+                    server.off('listening', onListening);
+                    reject(error);
+                };
+                const onListening = () => {
+                    server.off('error', onError);
+                    resolve();
+                };
+                server.once('error', onError);
+                server.once('listening', onListening);
+                server.listen(candidate, '127.0.0.1');
+            });
+            return candidate;
+        } catch (error) {
+            if (error?.code !== 'EADDRINUSE' || portWasSpecified || candidate === lastPort) throw error;
+        }
+    }
+    throw new Error('No available development plugin port found.');
+}
+
+server.on('listening', async () => {
+    const address = server.address();
+    if (!address || typeof address === 'string') return;
+    port = address.port;
     console.log(`\n[dev-plugin] Serving ${plugins.size} plugin(s) at http://localhost:${port}`);
+    if (!portWasSpecified && port !== DEFAULT_PORT) {
+        console.log(`[dev-plugin] Port ${DEFAULT_PORT} is in use; selected available port ${port}.`);
+    }
     await Promise.all([...plugins.values()].map(rebuild));
     for (const plugin of plugins.values()) startWatcher(plugin);
     console.log('[dev-plugin] Watching for changes…');
+    server.on('error', (error) => {
+        console.error(`[dev-plugin] Server error: ${error.message}`);
+        process.exit(1);
+    });
 });
-server.on('error', (error) => {
-    console.error(error.code === 'EADDRINUSE' ? `[dev-plugin] Port ${port} is already in use.` : `[dev-plugin] Server error: ${error.message}`);
+
+listenOnAvailablePort().catch((error) => {
+    const portHint = portWasSpecified
+        ? ' Choose another port and start Vite with the matching VITE_DEV_PLUGIN_PORT.'
+        : ` Ports ${DEFAULT_PORT}-${DEFAULT_PORT + DEFAULT_PORT_RANGE_SIZE - 1} are all in use.`;
+    console.error(error.code === 'EADDRINUSE' ? `[dev-plugin] Port ${port} is already in use.${portHint}` : `[dev-plugin] Server error: ${error.message}`);
     process.exit(1);
 });

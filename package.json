@@ -82,7 +82,7 @@
         "package": "npm run build && electron-forge package",
         "make": "npm run build && electron-forge make",
         "make:mac": "npm run build && electron-forge make --platform=darwin --arch=universal",
-        "make:win": "npm run build && electron-forge make --platform=win32 --arch=x64",
+        "make:win": "npm run build && node scripts/prepare-windows-squirrel.mjs && electron-forge make --platform=win32 --arch=x64",
         "publish": "npm run build && electron-forge publish",
         "test": "vitest run",
         "test:electron": "node scripts/electron-smoke.mjs",

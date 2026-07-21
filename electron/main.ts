@@ -1,4 +1,3 @@
-import { watch, type FSWatcher } from 'node:fs';
 import { access, mkdir, open, readFile, readdir, rename, rm, stat, statfs, writeFile, type FileHandle } from 'node:fs/promises';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,7 +31,6 @@ import type {
     DesktopExportCompleteResult,
     DesktopExportWriteRequest,
     DesktopDroppedFile,
-    DesktopPluginDevelopmentStatus,
     DesktopStorageReport,
 } from './shared/desktop-api.js';
 import {
@@ -97,9 +95,6 @@ interface ExportSession {
 }
 const exportSessions = new Map<string, ExportSession>();
 const completedExports = new Map<string, string>();
-let pluginDevelopmentWatcher: FSWatcher | null = null;
-let pluginDevelopmentDirectory: string | null = null;
-let pluginDevelopmentTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingDeepLink: DesktopDeepLinkCommand | null = null;
 let renderRequestDelivered = false;
 
@@ -254,74 +249,6 @@ async function deliverRenderRequest(): Promise<void> {
     } catch (error) {
         finishAutomation({ type: 'error', code: 'input', message: error instanceof Error ? error.message : String(error) });
     }
-}
-
-function pluginDevelopmentStatus(state: DesktopPluginDevelopmentStatus['state'], message: string): DesktopPluginDevelopmentStatus {
-    const status = { state, directoryName: pluginDevelopmentDirectory ? basename(pluginDevelopmentDirectory) : undefined, message };
-    mainWindow?.webContents.send('plugin-development:status', status);
-    return status;
-}
-
-async function findDevelopmentBundle(directory: string): Promise<string | null> {
-    const candidates: string[] = [];
-    for (const folder of [directory, join(directory, 'dist')]) {
-        for (const entry of await readdir(folder, { withFileTypes: true }).catch(() => [])) {
-            if (entry.isFile() && entry.name.toLowerCase().endsWith(PLUGIN_EXTENSION)) candidates.push(join(folder, entry.name));
-        }
-    }
-    const ranked = await Promise.all(candidates.map(async (candidate) => ({ candidate, modified: (await stat(candidate)).mtimeMs })));
-    return ranked.sort((a, b) => b.modified - a.modified)[0]?.candidate ?? null;
-}
-
-async function reloadDevelopmentBundle(): Promise<void> {
-    if (!pluginDevelopmentDirectory || !mainWindow) return;
-    pluginDevelopmentStatus('reloading', 'A rebuilt development bundle was detected. Validating it…');
-    try {
-        const bundle = await findDevelopmentBundle(pluginDevelopmentDirectory);
-        if (!bundle) {
-            pluginDevelopmentStatus('watching', 'Watching for a .mvmnt-plugin bundle in the granted directory or its dist folder.');
-            return;
-        }
-        const info = await stat(bundle);
-        if (info.size <= 0 || info.size > 100 * 1024 * 1024) throw new Error('Development bundle is empty or exceeds 100 MB.');
-        mainWindow.webContents.send('plugin-development:bundle', {
-            name: basename(bundle), category: 'plugin', bytes: new Uint8Array(await readFile(bundle)),
-        } satisfies DesktopDroppedFile);
-        pluginDevelopmentStatus('watching', `Reloaded ${basename(bundle)}. Watching for the next external rebuild.`);
-    } catch (error) {
-        pluginDevelopmentStatus('error', error instanceof Error ? error.message : String(error));
-    }
-}
-
-function stopPluginDevelopment(): DesktopPluginDevelopmentStatus {
-    pluginDevelopmentWatcher?.close();
-    pluginDevelopmentWatcher = null;
-    if (pluginDevelopmentTimer) clearTimeout(pluginDevelopmentTimer);
-    pluginDevelopmentTimer = null;
-    pluginDevelopmentDirectory = null;
-    return pluginDevelopmentStatus('disconnected', 'No development directory is connected.');
-}
-
-async function grantPluginDevelopmentDirectory(): Promise<DesktopPluginDevelopmentStatus> {
-    if (!mainWindow) return pluginDevelopmentStatus('error', 'The main window is unavailable.');
-    const selection = await dialog.showOpenDialog(mainWindow, { title: 'Grant Plugin Development Directory', properties: ['openDirectory'] });
-    if (selection.canceled || !selection.filePaths[0]) return pluginDevelopmentStatus('disconnected', 'Directory grant cancelled.');
-    stopPluginDevelopment();
-    pluginDevelopmentDirectory = resolve(selection.filePaths[0]);
-    const schedule = () => {
-        if (pluginDevelopmentTimer) clearTimeout(pluginDevelopmentTimer);
-        pluginDevelopmentTimer = setTimeout(() => void reloadDevelopmentBundle(), 250);
-    };
-    pluginDevelopmentWatcher = watch(pluginDevelopmentDirectory, schedule);
-    const dist = join(pluginDevelopmentDirectory, 'dist');
-    // Root watching is portable; rebuild tools generally replace a bundle in
-    // root/dist, and the rescan handles atomic renames safely.
-    void access(dist).then(() => {
-        const distWatcher = watch(dist, schedule);
-        pluginDevelopmentWatcher?.once('close', () => distWatcher.close());
-    }).catch(() => undefined);
-    void reloadDevelopmentBundle();
-    return pluginDevelopmentStatus('watching', 'Directory granted. Watching for externally rebuilt .mvmnt-plugin bundles.');
 }
 
 const sourceDirectory = dirname(fileURLToPath(import.meta.url));
@@ -750,10 +677,6 @@ function buildApplicationMenu(): Menu {
         fileMenu,
         { role: 'editMenu' },
         { role: 'viewMenu' },
-        {
-            label: 'Developer',
-            submenu: [{ label: 'Plugin Development Directory…', click: () => sendMenuCommand('plugin-development') }],
-        },
         { role: 'windowMenu' },
         {
             role: 'help',
@@ -929,8 +852,6 @@ function installIpcHandlers(): void {
     ipcMain.handle('dropped-files:read', (_event, paths) => readDroppedFiles(paths));
     ipcMain.handle('storage:inspect', inspectStorage);
     ipcMain.handle('storage:cleanup', (_event, category) => cleanupStorage(category));
-    ipcMain.handle('plugin-development:grant-directory', grantPluginDevelopmentDirectory);
-    ipcMain.handle('plugin-development:disconnect', stopPluginDevelopment);
     ipcMain.on('automation:progress', (_event, progress: DesktopAutomationProgress) => {
         if (!renderCommand || progress?.type !== 'progress') return;
         automationOutput({ type: 'progress', progress: Math.max(0, Math.min(100, Number(progress.progress) || 0)), message: String(progress.message || '') });

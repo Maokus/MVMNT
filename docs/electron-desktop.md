@@ -123,10 +123,9 @@ templates through scene import, plugins through the trust prompt, MIDI/audio thr
 images through the asset registry, and fonts through font parsing, licensing acknowledgement, and
 scene storage budgets.
 
-Plugin settings can grant a single development directory for the current session. MVMNT watches the
-directory and its `dist` folder for externally rebuilt `.mvmnt-plugin` files, validates and safely
-reloads them as session-only development plugins, and refuses to replace installed production
-plugins. The grant is not persisted.
+Develop plugins with the localhost `npm run dev-plugin` workflow. The desktop application follows
+the same Vite development-plugin connection as the browser build; see the
+[development workflow](plugin-api/dev-plugin-workflow.md).
 
 External `mvmnt://automation/` links recognize only `show-recovery`, `show-storage`, and
 `open-community` (with an optional constrained ID). The protocol cannot supply filesystem paths,
