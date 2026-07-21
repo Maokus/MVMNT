@@ -49,7 +49,6 @@ module.exports = {
             /^\/node_modules($|\/)/,
             /^\/docs($|\/)/,
             /^\/devscripts($|\/)/,
-            /^\/dist($|\/)/,
             /^\/fixtures($|\/)/,
             /^\/test_assets($|\/)/,
             /^\/thoughts($|\/)/,
