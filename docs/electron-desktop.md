@@ -1,7 +1,7 @@
 # Electron Desktop Architecture
 
 MVMNT ships as a sandboxed Electron application for macOS and Windows. Development and packaging
-use Node.js 22. The React application
+use Node.js 22 (Node 20 is unsupported). The React application
 remains the renderer; Electron owns application lifecycle, approved document paths, native menus,
 external navigation, downloads, packaging, and updates.
 
@@ -13,6 +13,9 @@ Install platform-compatible dependencies and start Vite with Electron:
 npm install
 npm run dev
 ```
+
+The macOS DMG tooling is installed only on macOS; Windows developers can install and run the app
+without it. Use the matching platform-specific packaging command when creating installers.
 
 Build the renderer, main process, and preload together:
 

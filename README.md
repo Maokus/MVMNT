@@ -16,6 +16,10 @@ For developers, it is a framework which handles the boilerplate so that you can 
 
 ## Installation
 
+MVMNT requires **Node.js 22**. Node 20 is unsupported. On Windows,
+install Node 22 from [nodejs.org](https://nodejs.org/) or switch with your Node version manager,
+then open a new terminal and confirm `node --version` reports `v22.x`.
+
 ```bash
 git clone https://github.com/Maokus/MVMNT.git
 cd MVMNT
