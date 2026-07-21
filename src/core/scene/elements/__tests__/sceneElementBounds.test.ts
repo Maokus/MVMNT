@@ -46,7 +46,7 @@ describe('SceneElement bounds', () => {
         expect(root.getVisualBounds()).not.toEqual({ x: -100, y: -50, width: 200, height: 100 });
     });
 
-    it('does not render an element that is exactly edge-on', () => {
+    it('keeps an element visible when it is exactly edge-on', () => {
         enableFeatureForSession('elementPerspectiveWarp', true);
         const root = new BoundsTestElement({
             warpEnabled: true,
@@ -54,7 +54,7 @@ describe('SceneElement bounds', () => {
         }).buildRenderObjects({}, 0)[0] as PerspectiveElementRoot;
 
         expect(root.isPerspectiveEdgeOn).toBe(true);
-        expect(root.visible).toBe(false);
+        expect(root.visible).toBe(true);
     });
 
     it('does not union transformed wrapper bounds with untransformed child bounds', () => {

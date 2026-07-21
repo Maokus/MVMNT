@@ -1074,11 +1074,15 @@ export class SceneElement implements SceneElementInterface {
                                     description: 'Apply a planar perspective warp to this element.',
                                 }),
                                 prop.number('perspectiveRotationX', 'Tilt X', 0, {
+                                    min: -180,
+                                    max: 180,
                                     step: 1,
                                     visibleWhen: [{ key: 'warpEnabled', equals: true }],
                                     description: 'Vertical tilt in degrees.',
                                 }),
                                 prop.number('perspectiveRotationY', 'Tilt Y', 0, {
+                                    min: -180,
+                                    max: 180,
                                     step: 1,
                                     visibleWhen: [{ key: 'warpEnabled', equals: true }],
                                     description: 'Horizontal tilt in degrees.',
@@ -1150,6 +1154,7 @@ export class SceneElement implements SceneElementInterface {
                                             control: 'slider-number',
                                             bindings: { value: 'perspectiveStrength' },
                                         },
+                                        { kind: 'property', propertyKey: 'perspectiveStrength' },
                                     ],
                                 },
                                 {

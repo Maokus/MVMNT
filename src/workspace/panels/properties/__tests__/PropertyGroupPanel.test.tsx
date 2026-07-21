@@ -92,6 +92,26 @@ describe('PropertyGroupPanel', () => {
         expect(screen.getAllByText('Y')).toHaveLength(2);
     });
 
+    it('retains the property row for a slider control when requested, including its animation control', () => {
+        const properties = [
+            { key: 'strength', label: 'Strength', type: 'number', default: 50, min: 0, max: 100, step: 1 },
+        ] as PropertyDefinition[];
+        const group: PropertyGroup = {
+            id: 'perspective', label: 'Perspective', collapsed: false, properties,
+            layout: [
+                { kind: 'control', control: 'slider-number', bindings: { value: 'strength' } },
+                { kind: 'property', propertyKey: 'strength' },
+            ],
+        };
+
+        render(<PropertyGroupPanel group={group} properties={properties} values={{ strength: 50 }} macroAssignments={{}}
+            elementId="test-element" onValueChange={vi.fn()} onValuesChange={vi.fn()} onMacroAssignment={vi.fn()} onCollapseToggle={vi.fn()} />);
+
+        expect(screen.getByRole('group', { name: 'Strength' })).toBeInTheDocument();
+        expect(document.querySelector('#config-strength')).toBeInstanceOf(HTMLInputElement);
+        expect(screen.getByTitle('Enable automation')).toBeInTheDocument();
+    });
+
     it('falls back to scalar rows when a layout control is unknown', () => {
         const properties = [{ key: 'x', label: 'X', type: 'number', default: 0 }] as PropertyDefinition[];
         const group: PropertyGroup = {

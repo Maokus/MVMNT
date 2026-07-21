@@ -145,11 +145,11 @@ describe('SceneElement perspective property schema', () => {
         for (const property of perspectiveGroup?.properties.slice(1, 3) ?? []) {
             expect(property).toMatchObject({
                 type: 'number',
+                min: -180,
+                max: 180,
                 step: 1,
                 visibleWhen: [{ key: 'warpEnabled', equals: true }],
             });
-            expect(property).not.toHaveProperty('min');
-            expect(property).not.toHaveProperty('max');
         }
         expect(perspectiveGroup?.properties.slice(3)).toEqual([
             expect.objectContaining({ key: 'perspectiveStrength', min: 0, max: 100, step: 1 }),

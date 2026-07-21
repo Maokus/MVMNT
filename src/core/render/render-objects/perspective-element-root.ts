@@ -40,10 +40,6 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
         this.elementId = elementId;
         this._perspectiveWarp = warp;
         this._isPerspectiveEdgeOn = isPerspectiveEdgeOn;
-        // An edge-on plane has no drawable area. Marking the root invisible
-        // avoids treating the degenerate projection as an invalid warp and
-        // falling back to its ordinary affine rendering.
-        if (isPerspectiveEdgeOn) this.visible = false;
         const validation = validatePerspectiveWarp(warp);
         if (validation.valid) this._warpMatrix = createHomography(warp);
         else this._warpInvalidReason = validation.reason;
@@ -68,7 +64,6 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
         this._isPerspectiveEdgeOn = result.kind === 'edge-on';
         this._warpInvalidReason = result.kind === 'invalid' ? result.reason : undefined;
         this._warpMatrix = result.kind === 'projected' ? createHomography(result.warp) : null;
-        if (result.kind === 'edge-on') this.visible = false;
     }
 
     get warpInvalidReason(): string | undefined {
