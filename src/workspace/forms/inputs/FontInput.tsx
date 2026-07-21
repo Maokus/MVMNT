@@ -186,19 +186,27 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
     // Optional remote fetch (requires env var VITE_GOOGLE_FONTS_API_KEY) for full list
     useEffect(() => {
         const apiKey = (import.meta as any).env?.VITE_GOOGLE_FONTS_API_KEY;
-        if (!apiKey) return; // skip if no key
+        if (!apiKey || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 3000);
         (async () => {
             try {
-                const resp = await fetch(`https://www.googleapis.com/webfonts/v1/webfonts?key=${apiKey}&sort=popularity`);
+                const resp = await fetch(`https://www.googleapis.com/webfonts/v1/webfonts?key=${apiKey}&sort=popularity`, {
+                    signal: controller.signal,
+                });
                 if (!resp.ok) throw new Error(resp.statusText);
                 const data = await resp.json();
                 if (data.items) {
                     setRemoteFonts(data.items.map((it: any) => ({ family: it.family, category: it.category, variants: it.variants })));
                 }
             } catch (e: any) {
-                setFetchError(e.message || 'Fetch failed');
+                if (e?.name !== 'AbortError') setFetchError('Full catalog unavailable; showing the built-in font list.');
             }
         })();
+        return () => {
+            window.clearTimeout(timeout);
+            controller.abort();
+        };
     }, []);
 
     const remoteFontNames = useMemo(() => remoteFonts?.map(f => f.family) || [], [remoteFonts]);
@@ -422,7 +430,7 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                                     {filtered.length > 0 ? (
                                         <ul className="m-0 list-none p-0">
                                             {filtered.map((f) => {
-                                                const isGoogleFont = remoteFontNames.includes(f);
+                                                const isGoogleFont = GOOGLE_FONTS.includes(f) || remoteFontNames.includes(f);
                                                 const isCustomFont = customFontLookup.has(f);
                                                 return (
                                                     <li key={f}>

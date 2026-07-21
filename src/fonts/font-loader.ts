@@ -5,12 +5,25 @@ import { parseFontSelectionToken } from '@state/scene/fonts';
 import { FontBinaryStore } from '@persistence/font-binary-store';
 
 const loadedFamilies: Map<string, Set<number>> = new Map();
+const pendingGoogleLoads = new Map<string, Promise<boolean>>();
+const unavailableGoogleLoads = new Map<string, number>();
 const customAssets: Map<string, FontAsset> = new Map();
 const customVariantStatus: Map<string, Set<string>> = new Map();
 const customBinaryCache: Map<string, ArrayBuffer> = new Map();
 
 function familyToURLParam(family: string): string {
     return family.trim().replace(/\s+/g, '+');
+}
+
+/** Fonts supplied by the operating system. They must never require a network request. */
+const SYSTEM_FONT_FAMILIES = new Set(
+    ['Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana', 'sans-serif', 'serif', 'monospace', 'system-ui'].map(
+        (family) => family.toLowerCase()
+    )
+);
+
+export function isSystemFontFamily(family: string): boolean {
+    return SYSTEM_FONT_FAMILIES.has(family.trim().toLowerCase());
 }
 
 function variantKey(variant: FontVariant): string {
@@ -94,6 +107,14 @@ export interface RegisterCustomFontVariantOptions {
     data: ArrayBuffer | ArrayBufferView;
 }
 
+function dispatchFontLoaded(family: string, weights: number[], source: 'google' | 'custom' = 'google') {
+    try {
+        window.dispatchEvent(new CustomEvent('font-loaded', { detail: { family, weights, source } }));
+    } catch {
+        /* ignore environments without window events */
+    }
+}
+
 async function installFontFace(asset: FontAsset, variant: FontVariant, buffer: ArrayBuffer): Promise<void> {
     if (typeof document === 'undefined' || typeof (window as any).FontFace === 'undefined') {
         return;
@@ -162,14 +183,7 @@ export function loadGoogleFont(family: string, options: LoadFontOptions = {}): n
     const italics = options.italics ? true : false;
     const display = options.display || 'swap';
     const existing = loadedFamilies.get(family) || new Set<number>();
-    // Determine which weights are new
-    const newWeights = weights.filter((w) => !existing.has(w));
-    if (newWeights.length === 0) return Array.from(existing);
-
-    newWeights.forEach((w) => existing.add(w));
-    loadedFamilies.set(family, existing);
-
-    const allWeights = Array.from(existing).sort((a, b) => a - b);
+    const allWeights = Array.from(new Set([...existing, ...weights])).sort((a, b) => a - b);
     let variantParam = '';
     if (italics) {
         const combos: string[] = [];
@@ -199,29 +213,100 @@ export function loadGoogleFont(family: string, options: LoadFontOptions = {}): n
     return allWeights;
 }
 
+function waitForGoogleStylesheet(family: string, options: LoadFontOptions): Promise<boolean> {
+    if (typeof document === 'undefined') return Promise.resolve(false);
+    const weights = options.weights?.length ? options.weights : [400, 700];
+    const id = `gf-${familyToURLParam(family)}`;
+    const link = document.getElementById(id) as HTMLLinkElement | null;
+    if (!link) return Promise.resolve(false);
+
+    return new Promise((resolve) => {
+        let settled = false;
+        const finish = (available: boolean) => {
+            if (settled) return;
+            settled = true;
+            window.clearTimeout(timeout);
+            link.removeEventListener('load', onLoad);
+            link.removeEventListener('error', onError);
+            if (!available) link.dataset.fontLoadFailed = 'true';
+            resolve(available);
+        };
+        const onLoad = () => finish(true);
+        const onError = () => finish(false);
+        // A blocked network request may never emit error. Keep rendering with the
+        // CSS fallback instead of leaving controls in a loading state indefinitely.
+        const timeout = window.setTimeout(() => finish(false), 2000);
+        link.addEventListener('load', onLoad, { once: true });
+        link.addEventListener('error', onError, { once: true });
+        // Force a fresh request after a previous failure. Assigning the same href
+        // is not consistently retried by browsers, so clear it first.
+        if (link.dataset.fontLoadFailed === 'true') {
+            link.dataset.fontLoadFailed = 'false';
+            const href = link.href;
+            link.href = '';
+            link.href = href;
+        }
+    });
+}
+
 /**
  * Loads a font family (and optional weights) and resolves once the browser reports the fonts are available.
  * Gracefully resolves after a timeout even if the Font Loading API isn't supported.
  */
-export async function loadGoogleFontAsync(family: string, options: LoadFontOptions = {}): Promise<void> {
-    const weights = loadGoogleFont(family, options); // inject / update link first
-    if (typeof document === 'undefined' || !(document as any).fonts || !family) return; // SSR or unsupported
-    const fontFaceSet: FontFaceSet = (document as any).fonts;
-    // Use a reasonable sample size for load (using 32px to ensure glyph metrics stable)
-    const promises = weights.map((w) => {
-        try {
-            return fontFaceSet.load(`${w} 32px '${family}'`).catch(() => Promise.resolve());
-        } catch {
-            return Promise.resolve();
+export async function loadGoogleFontAsync(family: string, options: LoadFontOptions = {}): Promise<boolean> {
+    const normalizedFamily = family.trim();
+    if (
+        !normalizedFamily ||
+        isSystemFontFamily(normalizedFamily) ||
+        (typeof navigator !== 'undefined' && !navigator.onLine)
+    ) {
+        return isSystemFontFamily(normalizedFamily);
+    }
+    const weights = options.weights?.length ? options.weights : [400, 700];
+    const loaded = loadedFamilies.get(normalizedFamily);
+    if (loaded && weights.every((weight) => loaded.has(weight))) return true;
+
+    const requestKey = `${normalizedFamily}|${weights.slice().sort((a, b) => a - b).join(',')}|${Boolean(options.italics)}`;
+    if ((unavailableGoogleLoads.get(requestKey) ?? 0) > Date.now()) return false;
+    const pending = pendingGoogleLoads.get(requestKey);
+    if (pending) return pending;
+
+    const request = (async () => {
+        loadGoogleFont(normalizedFamily, options);
+        const stylesheetAvailable = await waitForGoogleStylesheet(normalizedFamily, options);
+        if (!stylesheetAvailable) {
+            // Rendering may call ensureFontLoaded repeatedly. Avoid repeatedly
+            // attempting a blocked remote request while offline, but allow a retry
+            // soon after connectivity returns.
+            unavailableGoogleLoads.set(requestKey, Date.now() + 30_000);
+            return false;
         }
-    });
-    const timeout = new Promise<void>((resolve) => setTimeout(() => resolve(), 3500));
-    await Promise.race([Promise.all(promises).then(() => undefined), timeout]);
-    // Dispatch a custom event so UI / canvas can react
+
+        const fontFaceSet = typeof document !== 'undefined' ? (document as any).fonts as FontFaceSet | undefined : undefined;
+        if (fontFaceSet) {
+            await Promise.all(
+                weights.map(async (weight) => {
+                    try {
+                        await fontFaceSet.load(`${weight} 32px '${normalizedFamily}'`);
+                    } catch {
+                        // The stylesheet loaded but an individual face did not.
+                        // Keep the browser fallback rather than failing rendering.
+                    }
+                })
+            );
+        }
+        const completed = loadedFamilies.get(normalizedFamily) ?? new Set<number>();
+        weights.forEach((weight) => completed.add(weight));
+        loadedFamilies.set(normalizedFamily, completed);
+        unavailableGoogleLoads.delete(requestKey);
+        dispatchFontLoaded(normalizedFamily, weights);
+        return true;
+    })();
+    pendingGoogleLoads.set(requestKey, request);
     try {
-        window.dispatchEvent(new CustomEvent('font-loaded', { detail: { family, weights } }));
-    } catch {
-        /* no-op */
+        return await request;
+    } finally {
+        pendingGoogleLoads.delete(requestKey);
     }
 }
 

@@ -16,11 +16,12 @@ class MockFontFace {
     }
 }
 
-describe('font-loader custom fonts', () => {
+describe('font-loader', () => {
     let FontBinaryStore: FontBinaryStoreType;
 
     beforeEach(async () => {
         vi.resetModules();
+        document.querySelectorAll('link[id^="gf-"]').forEach((link) => link.remove());
         ({ FontBinaryStore } = await import('@persistence/font-binary-store'));
         Object.defineProperty(globalThis, 'FontFace', {
             value: MockFontFace,
@@ -30,6 +31,7 @@ describe('font-loader custom fonts', () => {
         Object.defineProperty(document, 'fonts', {
             value: {
                 add: vi.fn(),
+                load: vi.fn().mockResolvedValue([]),
             },
             configurable: true,
         });
@@ -72,5 +74,35 @@ describe('font-loader custom fonts', () => {
 
         await module.ensureFontVariantsRegistered(asset, asset.variants);
         expect(module.isFontLoaded(token)).toBe(true);
+    });
+
+    it('uses installed system fonts without adding a Google stylesheet', async () => {
+        const { loadGoogleFontAsync } = await import('../font-loader');
+
+        await expect(loadGoogleFontAsync('Arial', { weights: [700] })).resolves.toBe(true);
+        expect(document.querySelector('link[id^="gf-"]')).toBeNull();
+    });
+
+    it('marks a Google font loaded only after its stylesheet has loaded', async () => {
+        const { loadGoogleFontAsync, isFontLoaded } = await import('../font-loader');
+
+        const loading = loadGoogleFontAsync('Inter', { weights: [400] });
+        expect(isFontLoaded('Inter')).toBe(false);
+        const link = document.getElementById('gf-Inter');
+        expect(link).not.toBeNull();
+        link?.dispatchEvent(new Event('load'));
+
+        await expect(loading).resolves.toBe(true);
+        expect(isFontLoaded('Inter')).toBe(true);
+    });
+
+    it('keeps Google fonts retryable after an unavailable stylesheet', async () => {
+        const { loadGoogleFontAsync, isFontLoaded } = await import('../font-loader');
+
+        const loading = loadGoogleFontAsync('Inter', { weights: [400] });
+        document.getElementById('gf-Inter')?.dispatchEvent(new Event('error'));
+
+        await expect(loading).resolves.toBe(false);
+        expect(isFontLoaded('Inter')).toBe(false);
     });
 });

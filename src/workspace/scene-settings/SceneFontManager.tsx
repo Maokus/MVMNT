@@ -110,10 +110,14 @@ const SceneFontManager: React.FC = () => {
 
     useEffect(() => {
         const apiKey = (import.meta as any).env?.VITE_GOOGLE_FONTS_API_KEY;
-        if (!apiKey) return;
+        if (!apiKey || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 3000);
         (async () => {
             try {
-                const resp = await fetch(`https://www.googleapis.com/webfonts/v1/webfonts?key=${apiKey}&sort=popularity`);
+                const resp = await fetch(`https://www.googleapis.com/webfonts/v1/webfonts?key=${apiKey}&sort=popularity`, {
+                    signal: controller.signal,
+                });
                 if (!resp.ok) throw new Error(resp.statusText);
                 const data = await resp.json();
                 if (Array.isArray(data.items)) {
@@ -126,9 +130,15 @@ const SceneFontManager: React.FC = () => {
                     );
                 }
             } catch (error: any) {
-                setFetchError(error?.message ?? 'Failed to fetch Google Fonts');
+                if (error?.name !== 'AbortError') {
+                    setFetchError('Full catalog unavailable; showing the built-in font list.');
+                }
             }
         })();
+        return () => {
+            window.clearTimeout(timeout);
+            controller.abort();
+        };
     }, []);
 
     useEffect(() => {
@@ -395,7 +405,7 @@ const SceneFontManager: React.FC = () => {
                         ) : (
                             <ul className="m-0 list-none space-y-1 p-0">
                                 {filteredFonts.map((family) => {
-                                    const isGoogleFont = remoteFontNames.includes(family);
+                                    const isGoogleFont = GOOGLE_FONTS.includes(family) || remoteFontNames.includes(family);
                                     const isCustomFont = customFontLookup.has(family);
                                     return (
                                         <li key={family}>
