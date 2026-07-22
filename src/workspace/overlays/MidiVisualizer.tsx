@@ -688,8 +688,14 @@ const TemplateInitializer: React.FC = () => {
                     // previously opened project and must never be paired with a
                     // different active file path.
                     if (window.mvmntDesktop && desktopRecoveryState !== 'dirty' && restoreRecovery) {
-                        const active = await window.mvmntDesktop.documents.restoreActive();
-                        if (!active.canceled && active.kind === 'project' && active.bytes) {
+                        const active = await window.mvmntDesktop.documents.restoreActive().catch((error) => {
+                            // A renderer can briefly outrun a restarted Electron main
+                            // process during development. Fall back safely instead of
+                            // surfacing a missing IPC handler as a startup failure.
+                            console.warn('[TemplateInitializer] Native active-document restore unavailable:', error);
+                            return null;
+                        });
+                        if (active && !active.canceled && active.kind === 'project' && active.bytes) {
                             const result = await importScene(active.bytes, {
                                 signal: abortController?.signal,
                                 onProgress: (progress, text) => updateTemplateLoading({ progress, message: text }),

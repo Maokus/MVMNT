@@ -140,7 +140,7 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
             useSceneMetadataStore.getState().setDescription(options.description);
             useSceneMetadataStore.getState().setAuthor(options.author);
             try {
-                await menuBarActions.saveScene(trimmed, { ...options, forceSaveAs: true });
+                await menuBarActions.saveProject(true);
             } finally {
                 closeExportModal();
             }

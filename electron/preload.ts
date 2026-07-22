@@ -4,6 +4,8 @@ import type {
     DesktopMenuCommand,
     DesktopOpenResult,
     DesktopSaveRequest,
+    DesktopSaveAsSelectionRequest,
+    DesktopWriteSaveAsRequest,
     DesktopExportBeginRequest,
     DesktopExportDestinationRequest,
     DesktopExportCompleteRequest,
@@ -24,7 +26,8 @@ const api: MvmntDesktopApi = {
     documents: {
         open: () => ipcRenderer.invoke('documents:open'),
         save: (request: DesktopSaveRequest) => ipcRenderer.invoke('documents:save', request),
-        saveAs: (request: DesktopSaveRequest) => ipcRenderer.invoke('documents:save-as', request),
+        chooseSaveAs: (request: DesktopSaveAsSelectionRequest) => ipcRenderer.invoke('documents:choose-save-as', request),
+        writeSaveAs: (request: DesktopWriteSaveAsRequest) => ipcRenderer.invoke('documents:write-save-as', request),
         getState: () => ipcRenderer.invoke('documents:get-state'),
         restoreActive: () => ipcRenderer.invoke('documents:restore-active'),
         rename: (request) => ipcRenderer.invoke('documents:rename', request),

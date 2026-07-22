@@ -41,7 +41,7 @@ interface UseMenuBarProps {
 }
 
 interface MenuBarActions {
-    saveScene: (projectName?: string, options?: { embedPlugins?: boolean; forceSaveAs?: boolean }) => Promise<boolean>;
+    saveScene: (projectName?: string, options?: { embedPlugins?: boolean; saveAsSelectionId?: string }) => Promise<boolean>;
     saveProject: (forceSaveAs?: boolean) => Promise<boolean>;
     loadScene: () => void;
     openDesktopFile: (result: DesktopOpenResult) => Promise<void>;
@@ -66,7 +66,7 @@ export const useMenuBar = ({
         /* provider may not exist in some tests */
     }
 
-    const saveScene = async (projectName?: string, options?: { embedPlugins?: boolean; forceSaveAs?: boolean }) => {
+    const saveScene = async (projectName?: string, options?: { embedPlugins?: boolean; saveAsSelectionId?: string }) => {
         const nameToUse = projectName?.trim() ? projectName.trim() : sceneName;
         const statusStore = useTemplateStatusStore.getState();
         statusStore.startLoading(`Saving ${nameToUse || 'scene'}…`, { progress: 0 });
@@ -97,8 +97,8 @@ export const useMenuBar = ({
             if (!desktop) throw new Error('MVMNT desktop services are unavailable.');
             useTemplateStatusStore.getState().updateLoading({ progress: 0.95, message: 'Writing project…' });
             const request = { bytes: res.zip, suggestedName: `${safeName}${extension}` };
-            const saveResult = options?.forceSaveAs
-                ? await desktop.documents.saveAs(request)
+            const saveResult = options?.saveAsSelectionId
+                ? await desktop.documents.writeSaveAs({ selectionId: options.saveAsSelectionId, bytes: res.zip })
                 : await desktop.documents.save(request);
             if (saveResult.status === 'error') {
                 alert(`Save failed: ${saveResult.error || 'Unknown error'}`);
@@ -127,14 +127,24 @@ export const useMenuBar = ({
     const saveProject = async (forceSaveAs = false): Promise<boolean> => {
         let canonicalName = sceneName;
         const desktop = window.mvmntDesktop;
-        if (desktop && !forceSaveAs) {
-            const document = await desktop.documents.getState();
-            if (document.status === 'saved' && document.displayName) {
-                canonicalName = document.displayName.replace(/\.mvt$/i, '');
-                if (canonicalName !== sceneName) onSceneNameChange(canonicalName);
+        if (!desktop) return false;
+        const document = await desktop.documents.getState();
+        if (forceSaveAs || document.status !== 'saved') {
+            const selection = await desktop.documents.chooseSaveAs({ suggestedName: `${canonicalName || 'Untitled'}.mvt` });
+            if (selection.status === 'canceled') return false;
+            if (selection.status === 'error' || !selection.selectionId || !selection.displayName) {
+                alert(`Save As failed: ${selection.error || 'Unknown error'}`);
+                return false;
             }
+            canonicalName = selection.displayName.replace(/\.mvt$/i, '');
+            onSceneNameChange(canonicalName);
+            return saveScene(canonicalName, { saveAsSelectionId: selection.selectionId });
         }
-        return saveScene(canonicalName, { forceSaveAs });
+        if (document.displayName) {
+            canonicalName = document.displayName.replace(/\.mvt$/i, '');
+            if (canonicalName !== sceneName) onSceneNameChange(canonicalName);
+        }
+        return saveScene(canonicalName);
     };
 
     const openDesktopFile = async (result: DesktopOpenResult): Promise<void> => {

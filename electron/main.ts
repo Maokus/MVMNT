@@ -1,4 +1,5 @@
 import { access, mkdir, open, readFile, readdir, rename, rm, stat, statfs, writeFile, type FileHandle } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile, execFileSync } from 'node:child_process';
@@ -27,6 +28,9 @@ import type {
     DesktopRenameResult,
     DesktopSaveRequest,
     DesktopSaveResult,
+    DesktopSaveAsSelectionRequest,
+    DesktopSaveAsSelectionResult,
+    DesktopWriteSaveAsRequest,
     DesktopExportBeginRequest,
     DesktopExportBeginResult,
     DesktopExportCompleteRequest,
@@ -50,6 +54,7 @@ import {
 import {
     PROJECT_EXTENSION,
     PLUGIN_EXTENSION,
+    ensureProjectExtension,
     isSupportedOpenPath,
     resolveRendererPath,
     sanitizeSuggestedName,
@@ -82,6 +87,7 @@ protocol.registerSchemesAsPrivileged([
 let mainWindow: BrowserWindow | null = null;
 let activeDocumentPath: string | null = null;
 let pendingOpenPath: string | null = null;
+let pendingSaveAs: { id: string; targetPath: string } | null = null;
 let documentDirty = false;
 let allowClose = false;
 let closeRequestPending = false;
@@ -805,27 +811,60 @@ async function chooseOpenPath(): Promise<DesktopOpenResult> {
     return readOpenPath(result.filePaths[0]);
 }
 
-async function chooseSavePath(suggestedName: string): Promise<string | null> {
-    if (!mainWindow) return null;
-    const result = await dialog.showSaveDialog(mainWindow, {
-        title: 'Save MVMNT Project',
-        defaultPath: suggestedName,
-        filters: [{ name: 'MVMNT Projects', extensions: ['mvt'] }],
-        properties: ['createDirectory', 'showOverwriteConfirmation'],
-    });
-    // The dialog chooses a destination; the project title owns the filename.
-    // Ignoring a manually edited basename keeps title and file identity equal.
-    return result.canceled || !result.filePath ? null : join(dirname(result.filePath), suggestedName);
+function validateBytes(value: unknown): Uint8Array {
+    if (!(value instanceof Uint8Array)) throw new Error('Project data must be binary.');
+    if (value.byteLength === 0) throw new Error('Project data is empty.');
+    return value;
 }
 
-async function saveDocument(value: unknown, forceSaveAs: boolean): Promise<DesktopSaveResult> {
+async function chooseSaveAs(value: unknown): Promise<DesktopSaveAsSelectionResult> {
+    try {
+        if (!value || typeof value !== 'object') throw new Error('Invalid Save As request.');
+        const request = value as Partial<DesktopSaveAsSelectionRequest>;
+        const suggestedName = sanitizeSuggestedName(request.suggestedName);
+        if (!mainWindow) return { status: 'canceled' };
+        const result = await dialog.showSaveDialog(mainWindow, {
+            title: 'Save MVMNT Project As',
+            defaultPath: suggestedName,
+            filters: [{ name: 'MVMNT Projects', extensions: ['mvt'] }],
+            properties: ['createDirectory', 'showOverwriteConfirmation'],
+        });
+        if (result.canceled || !result.filePath) return { status: 'canceled' };
+        const targetPath = ensureProjectExtension(result.filePath);
+        const selectionId = randomUUID();
+        pendingSaveAs = { id: selectionId, targetPath };
+        return { status: 'selected', selectionId, displayName: basename(targetPath) };
+    } catch (error) {
+        return { status: 'error', error: error instanceof Error ? error.message : String(error) };
+    }
+}
+
+async function saveDocument(value: unknown): Promise<DesktopSaveResult> {
     try {
         const request = validateSaveRequest(value);
-        const targetPath = forceSaveAs || !activeDocumentPath
-            ? await chooseSavePath(request.suggestedName)
-            : activeDocumentPath;
-        if (!targetPath) return { status: 'canceled' };
-        await atomicWrite(targetPath, request.bytes);
+        if (!activeDocumentPath) return { status: 'error', error: 'Choose a destination with Save As first.' };
+        await atomicWrite(activeDocumentPath, request.bytes);
+        pendingOpenPath = null;
+        documentDirty = false;
+        app.addRecentDocument(activeDocumentPath);
+        await persistDocumentState();
+        updateWindowTitle();
+        return { status: 'saved', displayName: basename(activeDocumentPath) };
+    } catch (error) {
+        return { status: 'error', error: error instanceof Error ? error.message : String(error) };
+    }
+}
+
+async function writeSaveAs(value: unknown): Promise<DesktopSaveResult> {
+    try {
+        if (!value || typeof value !== 'object') throw new Error('Invalid Save As write request.');
+        const request = value as Partial<DesktopWriteSaveAsRequest>;
+        if (!pendingSaveAs || request.selectionId !== pendingSaveAs.id) {
+            throw new Error('The Save As destination is no longer available. Choose a destination again.');
+        }
+        const targetPath = pendingSaveAs.targetPath;
+        pendingSaveAs = null;
+        await atomicWrite(targetPath, validateBytes(request.bytes));
         activeDocumentPath = targetPath;
         pendingOpenPath = null;
         documentDirty = false;
@@ -896,8 +935,9 @@ async function renameDocument(value: unknown): Promise<DesktopRenameResult> {
 
 function installIpcHandlers(): void {
     ipcMain.handle('documents:open', chooseOpenPath);
-    ipcMain.handle('documents:save', (_event, request) => saveDocument(request, false));
-    ipcMain.handle('documents:save-as', (_event, request) => saveDocument(request, true));
+    ipcMain.handle('documents:save', (_event, request) => saveDocument(request));
+    ipcMain.handle('documents:choose-save-as', (_event, request) => chooseSaveAs(request));
+    ipcMain.handle('documents:write-save-as', (_event, request) => writeSaveAs(request));
     ipcMain.handle('documents:get-state', () => documentState());
     ipcMain.handle('documents:restore-active', () => restoreActiveDocument());
     ipcMain.handle('documents:rename', (_event, request) => renameDocument(request));
@@ -913,6 +953,7 @@ function installIpcHandlers(): void {
     ipcMain.handle('documents:clear-active-path', async () => {
         activeDocumentPath = null;
         pendingOpenPath = null;
+        pendingSaveAs = null;
         await persistDocumentState();
         updateWindowTitle();
     });

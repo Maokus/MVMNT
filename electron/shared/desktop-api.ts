@@ -22,6 +22,22 @@ export interface DesktopSaveRequest {
     suggestedName: string;
 }
 
+export interface DesktopSaveAsSelectionRequest {
+    suggestedName: string;
+}
+
+export interface DesktopSaveAsSelectionResult {
+    status: 'selected' | 'canceled' | 'error';
+    selectionId?: string;
+    displayName?: string;
+    error?: string;
+}
+
+export interface DesktopWriteSaveAsRequest {
+    selectionId: string;
+    bytes: Uint8Array;
+}
+
 /** Renderer-safe document identity. Filesystem paths remain in the main process. */
 export interface DesktopDocumentState {
     status: 'untitled' | 'saved';
@@ -124,7 +140,8 @@ export interface MvmntDesktopApi {
     documents: {
         open(): Promise<DesktopOpenResult>;
         save(request: DesktopSaveRequest): Promise<DesktopSaveResult>;
-        saveAs(request: DesktopSaveRequest): Promise<DesktopSaveResult>;
+        chooseSaveAs(request: DesktopSaveAsSelectionRequest): Promise<DesktopSaveAsSelectionResult>;
+        writeSaveAs(request: DesktopWriteSaveAsRequest): Promise<DesktopSaveResult>;
         getState(): Promise<DesktopDocumentState>;
         /** Read the current native project without exposing its path. */
         restoreActive(): Promise<DesktopOpenResult>;
