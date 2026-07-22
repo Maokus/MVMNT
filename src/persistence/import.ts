@@ -32,7 +32,7 @@ import type { AudioCacheEntry } from '@audio/audioTypes';
 import { migrateSceneRotationUnitsV7 } from './migrations/rotationUnitsV7';
 import { migrateSceneMidiClipsV8 } from './migrations/midiClipsV8';
 import { migrateSceneAudioClipSourceTimeV10 } from './migrations/audioClipSourceTimeV10';
-import { migrateSceneTextBoundsV11 } from './migrations/textBoundsV11';
+import { migrateSceneTextBoundsV11, prepareTextBoundsMigrationFonts } from './migrations/textBoundsV11';
 
 const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
@@ -991,6 +991,8 @@ export async function importScene(
         pluginPayloads,
     } = parsed;
     options.onProgress?.(0.35, 'Validating scene…');
+    await prepareTextBoundsMigrationFonts(envelope, fontPayloads);
+    throwIfAborted(options.signal);
     const migratedEnvelope = migrateSceneTextBoundsV11(
         migrateSceneAudioClipSourceTimeV10(migrateSceneMidiClipsV8(migrateSceneRotationUnitsV7(envelope)))
     );

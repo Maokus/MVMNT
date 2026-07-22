@@ -1,3 +1,7 @@
+import { ensureFontLoaded, ensureFontVariantsRegistered } from '@fonts/font-loader';
+import { FontBinaryStore } from '@persistence/font-binary-store';
+import type { FontAsset } from '@state/scene/fonts';
+
 type RecordValue = Record<string, any>;
 
 export const TEXT_BOUNDS_SCHEMA_VERSION = 11;
@@ -50,6 +54,57 @@ function measurementContext(): CanvasRenderingContext2D | OffscreenCanvasRenderi
     } catch {
         return null;
     }
+}
+
+/**
+ * The offset correction must use the same glyph metrics as the renderer. Text
+ * overlays request their Google fonts lazily during their first render, which
+ * is too late for an import migration. Load constant Google selections and
+ * register referenced embedded-font variants before measuring.
+ */
+export async function prepareTextBoundsMigrationFonts(
+    envelope: RecordValue,
+    fontPayloads: ReadonlyMap<string, Uint8Array> = new Map()
+): Promise<void> {
+    if (!isRecord(envelope.scene) || !isRecord(envelope.scene.elements) || !measurementContext()) return;
+    const macroRoot = isRecord(envelope.scene.macros) ? envelope.scene.macros : {};
+    const macros = isRecord(macroRoot.macros) ? macroRoot.macros : isRecord(macroRoot.byId) ? macroRoot.byId : {};
+    const googleSelections = new Set<string>();
+    const customAssetIds = new Set<string>();
+
+    for (const element of Object.values(envelope.scene.elements)) {
+        if (!isRecord(element) || element.type !== TEXT_OVERLAY_TYPE) continue;
+        const properties = isRecord(element.properties)
+            ? element.properties
+            : isRecord(element.config)
+              ? element.config
+              : null;
+        if (!properties) continue;
+        const selection = constantValue(properties.fontFamily, macros);
+        if (typeof selection !== 'string' || !selection) continue;
+        if (selection.startsWith('Custom:')) {
+            const assetId = selection.slice('Custom:'.length).split('|')[0]?.trim();
+            if (assetId) customAssetIds.add(assetId);
+        } else {
+            googleSelections.add(selection);
+        }
+    }
+
+    const fontAssets = isRecord(envelope.scene.fontAssets) ? envelope.scene.fontAssets : {};
+    await Promise.all([
+        ...[...googleSelections].map((selection) =>
+            ensureFontLoaded(selection).catch(() => {
+                // Continue with the renderer's fallback font when the font is unavailable.
+            })
+        ),
+        ...[...customAssetIds].map(async (assetId) => {
+            const asset = fontAssets[assetId] as FontAsset | undefined;
+            const payload = fontPayloads.get(assetId);
+            if (!asset || !payload) return;
+            await FontBinaryStore.put(assetId, payload);
+            await ensureFontVariantsRegistered(asset, asset.variants ?? []);
+        }),
+    ]);
 }
 
 /**
