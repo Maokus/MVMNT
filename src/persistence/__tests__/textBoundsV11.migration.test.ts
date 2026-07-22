@@ -96,6 +96,51 @@ describe('text bounds v11 migration', () => {
         expect(migrateSceneTextBoundsV11(scene)).toBe(scene);
     });
 
+    it('measures custom font selections with their registered family name', () => {
+        let measuredFont = '';
+        const context = {
+            font: '',
+            textBaseline: 'alphabetic',
+            measureText: vi.fn(() => {
+                measuredFont = context.font;
+                return {
+                    width: 100,
+                    actualBoundingBoxAscent: 8,
+                    actualBoundingBoxDescent: 2,
+                    actualBoundingBoxLeft: 0,
+                    actualBoundingBoxRight: 100,
+                };
+            }),
+        };
+        vi.stubGlobal(
+            'OffscreenCanvas',
+            class {
+                getContext() {
+                    return context;
+                }
+            }
+        );
+
+        migrateSceneTextBoundsV11({
+            schemaVersion: 10,
+            scene: {
+                fontAssets: { leland: { id: 'leland', family: 'Leland', variants: [] } },
+                elements: {
+                    text: {
+                        type: 'textOverlay',
+                        properties: {
+                            text: { type: 'constant', value: 'Hello' },
+                            fontSize: { type: 'constant', value: 36 },
+                            fontFamily: { type: 'constant', value: 'Custom:leland|400' },
+                        },
+                    },
+                },
+            },
+        });
+
+        expect(measuredFont).toBe('400 36px Leland, sans-serif');
+    });
+
     it('loads selected Google and embedded fonts before measuring', async () => {
         vi.stubGlobal(
             'OffscreenCanvas',

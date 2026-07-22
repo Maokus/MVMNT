@@ -100,8 +100,8 @@ export async function prepareTextBoundsMigrationFonts(
         ...[...customAssetIds].map(async (assetId) => {
             const asset = fontAssets[assetId] as FontAsset | undefined;
             const payload = fontPayloads.get(assetId);
-            if (!asset || !payload) return;
-            await FontBinaryStore.put(assetId, payload);
+            if (!asset) return;
+            if (payload) await FontBinaryStore.put(assetId, payload);
             await ensureFontVariantsRegistered(asset, asset.variants ?? []);
         }),
     ]);
@@ -112,7 +112,11 @@ export async function prepareTextBoundsMigrationFonts(
  * ink-bound text measurement. A null result means the platform cannot measure
  * text, so it is safer to leave the scene untouched than apply an estimate.
  */
-function textOverlayAnchorDelta(properties: RecordValue, macros: RecordValue): { x: number; y: number } | null {
+function textOverlayAnchorDelta(
+    properties: RecordValue,
+    macros: RecordValue,
+    fontAssets: RecordValue
+): { x: number; y: number } | null {
     const ctx = measurementContext();
     if (!ctx) return null;
 
@@ -125,7 +129,14 @@ function textOverlayAnchorDelta(properties: RecordValue, macros: RecordValue): {
     if (typeof text !== 'string' || !finite(fontSize)) return null;
 
     const fontSelection = value('fontFamily', 'Inter|400');
-    const [family = 'Inter', weight = '400'] = typeof fontSelection === 'string' ? fontSelection.split('|') : [];
+    const [selectedFamily = 'Inter', weight = '400'] =
+        typeof fontSelection === 'string' ? fontSelection.split('|') : [];
+    const customAssetId = selectedFamily.startsWith('Custom:')
+        ? selectedFamily.slice('Custom:'.length).trim()
+        : undefined;
+    const family = customAssetId
+        ? ((fontAssets[customAssetId] as FontAsset | undefined)?.family ?? selectedFamily)
+        : selectedFamily;
     const font = `${weight || '400'} ${fontSize}px ${family || 'Inter'}, sans-serif`;
     const align = value('textAlign', 'center');
     const letterSpacing = finite(value('letterSpacing', 0)) ? value('letterSpacing', 0) : 0;
@@ -229,6 +240,7 @@ export function migrateSceneTextBoundsV11<T extends RecordValue>(envelope: T): T
         return envelope;
     const macroRoot = isRecord(envelope.scene.macros) ? envelope.scene.macros : {};
     const macros = isRecord(macroRoot.macros) ? macroRoot.macros : isRecord(macroRoot.byId) ? macroRoot.byId : {};
+    const fontAssets = isRecord(envelope.scene.fontAssets) ? envelope.scene.fontAssets : {};
     const deltas = new Map<string, { x: number; y: number }>();
     let elementsChanged = false;
     const elements: RecordValue = { ...envelope.scene.elements };
@@ -237,7 +249,7 @@ export function migrateSceneTextBoundsV11<T extends RecordValue>(envelope: T): T
         if (!isRecord(element) || element.type !== TEXT_OVERLAY_TYPE) continue;
         const containerKey = isRecord(element.properties) ? 'properties' : isRecord(element.config) ? 'config' : null;
         if (!containerKey) continue;
-        const delta = textOverlayAnchorDelta(element[containerKey], macros);
+        const delta = textOverlayAnchorDelta(element[containerKey], macros, fontAssets);
         if (!delta || (!delta.x && !delta.y)) continue;
         deltas.set(id, delta);
         const properties = element[containerKey];
