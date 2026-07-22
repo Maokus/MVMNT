@@ -683,18 +683,43 @@ const TemplateInitializer: React.FC = () => {
                         await window.mvmntDesktop?.documents.clearActivePath();
                         localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
                     }
+                    // A clean desktop launch restores the actual native document,
+                    // not the global recovery slot. The latter can belong to a
+                    // previously opened project and must never be paired with a
+                    // different active file path.
+                    if (window.mvmntDesktop && desktopRecoveryState !== 'dirty' && restoreRecovery) {
+                        const active = await window.mvmntDesktop.documents.restoreActive();
+                        if (!active.canceled && active.kind === 'project' && active.bytes) {
+                            const result = await importScene(active.bytes, {
+                                signal: abortController?.signal,
+                                onProgress: (progress, text) => updateTemplateLoading({ progress, message: text }),
+                            });
+                            if (result.ok) {
+                                const filename = active.displayName?.replace(/\.mvt$/i, '');
+                                if (filename) setSceneName(filename);
+                                await LocalFileStore.save(active.bytes).catch(() => undefined);
+                                refreshSceneUI();
+                                markSaveClean();
+                                didChange = true;
+                            } else {
+                                console.warn('[TemplateInitializer] Could not restore active desktop document:', result.errors);
+                            }
+                        }
+                    }
                     // Try to restore from the user's last local save first.
                     updateTemplateLoading({
                         progress: 0.05,
                         message: savedAt ? 'Loading last open file…' : 'Preparing default scene…',
                     });
-                    const localResult = restoreRecovery
+                    const localResult = !didChange && restoreRecovery
                         ? await LocalSaveService.loadSavedFile({
                             signal: abortController?.signal,
                             onProgress: (progress, text) => updateTemplateLoading({ progress, message: text }),
                         })
                         : { ok: true as const, loaded: false as const };
-                    if (localResult.ok && localResult.loaded) {
+                    if (didChange) {
+                        // The active native document is already hydrated.
+                    } else if (localResult.ok && localResult.loaded) {
                         if (window.mvmntDesktop) {
                             const document = await window.mvmntDesktop.documents.getState();
                             if (document.status === 'saved' && document.displayName) {

@@ -14,7 +14,7 @@ interface MenuBarProps {
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
-    const { sceneName, renameScene, saveToLocal, exportAsFile, isDirty, loadScene, createNewDefaultScene } = useScene();
+    const { sceneName, renameScene, saveToLocal, saveAs, isDirty, loadScene, createNewDefaultScene } = useScene();
     const [isEditingName, setIsEditingName] = useState(false);
     // temporary local state while editing so user can clear the input fully
     const [tempSceneName, setTempSceneName] = useState<string>(sceneName || '');
@@ -66,7 +66,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
     };
 
     const handleSave = () => { void saveToLocal(); setShowSceneMenu(false); };
-    const handleSaveAs = () => { exportAsFile(); setShowSceneMenu(false); };
+    const handleSaveAs = () => { void saveAs(); setShowSceneMenu(false); };
     const handleLoad = () => { loadScene(); setShowSceneMenu(false); };
     const handleNew = () => { createNewDefaultScene(); setShowSceneMenu(false); };
 

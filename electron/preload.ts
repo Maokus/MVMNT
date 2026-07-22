@@ -26,6 +26,7 @@ const api: MvmntDesktopApi = {
         save: (request: DesktopSaveRequest) => ipcRenderer.invoke('documents:save', request),
         saveAs: (request: DesktopSaveRequest) => ipcRenderer.invoke('documents:save-as', request),
         getState: () => ipcRenderer.invoke('documents:get-state'),
+        restoreActive: () => ipcRenderer.invoke('documents:restore-active'),
         rename: (request) => ipcRenderer.invoke('documents:rename', request),
         acceptOpen: () => ipcRenderer.invoke('documents:accept-open'),
         clearActivePath: () => ipcRenderer.invoke('documents:clear-active-path'),

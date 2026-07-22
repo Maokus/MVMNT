@@ -844,6 +844,20 @@ function documentState() {
         : { status: 'untitled' as const };
 }
 
+async function restoreActiveDocument(): Promise<DesktopOpenResult> {
+    if (!activeDocumentPath) return { canceled: true };
+    try {
+        const bytes = new Uint8Array(await readFile(activeDocumentPath));
+        return { canceled: false, kind: 'project', displayName: basename(activeDocumentPath), bytes };
+    } catch {
+        // Do not leave a stale path available as a future overwrite target.
+        activeDocumentPath = null;
+        await persistDocumentState();
+        updateWindowTitle();
+        return { canceled: true };
+    }
+}
+
 async function renameDocument(value: unknown): Promise<DesktopRenameResult> {
     try {
         if (!activeDocumentPath) return { status: 'error', error: 'This project has not been saved yet.' };
@@ -885,6 +899,7 @@ function installIpcHandlers(): void {
     ipcMain.handle('documents:save', (_event, request) => saveDocument(request, false));
     ipcMain.handle('documents:save-as', (_event, request) => saveDocument(request, true));
     ipcMain.handle('documents:get-state', () => documentState());
+    ipcMain.handle('documents:restore-active', () => restoreActiveDocument());
     ipcMain.handle('documents:rename', (_event, request) => renameDocument(request));
     ipcMain.handle('documents:accept-open', async () => {
         if (!pendingOpenPath) return;

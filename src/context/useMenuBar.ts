@@ -89,7 +89,9 @@ export const useMenuBar = ({
                     );
                 }
             }
-            const safeName = nameToUse.replace(/[^a-zA-Z0-9]/g, '_') || 'scene';
+            // The desktop filename is the canonical project name. Validation is
+            // performed before user renames, so preserve the human-readable stem.
+            const safeName = nameToUse || 'Untitled';
             const extension = '.mvt';
             const desktop = window.mvmntDesktop;
             if (!desktop) throw new Error('MVMNT desktop services are unavailable.');
@@ -103,6 +105,9 @@ export const useMenuBar = ({
                 return false;
             }
             if (saveResult.status === 'canceled') return false;
+            if (saveResult.displayName) {
+                onSceneNameChange(saveResult.displayName.replace(/\.mvt$/i, ''));
+            }
             await LocalFileStore.save(res.zip).catch((error) => {
                 console.warn('[saveScene] Recovery snapshot failed:', error);
             });
@@ -120,7 +125,16 @@ export const useMenuBar = ({
     };
 
     const saveProject = async (forceSaveAs = false): Promise<boolean> => {
-        return saveScene(sceneName, { forceSaveAs });
+        let canonicalName = sceneName;
+        const desktop = window.mvmntDesktop;
+        if (desktop && !forceSaveAs) {
+            const document = await desktop.documents.getState();
+            if (document.status === 'saved' && document.displayName) {
+                canonicalName = document.displayName.replace(/\.mvt$/i, '');
+                if (canonicalName !== sceneName) onSceneNameChange(canonicalName);
+            }
+        }
+        return saveScene(canonicalName, { forceSaveAs });
     };
 
     const openDesktopFile = async (result: DesktopOpenResult): Promise<void> => {

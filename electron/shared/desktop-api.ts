@@ -126,6 +126,8 @@ export interface MvmntDesktopApi {
         save(request: DesktopSaveRequest): Promise<DesktopSaveResult>;
         saveAs(request: DesktopSaveRequest): Promise<DesktopSaveResult>;
         getState(): Promise<DesktopDocumentState>;
+        /** Read the current native project without exposing its path. */
+        restoreActive(): Promise<DesktopOpenResult>;
         rename(request: DesktopRenameRequest): Promise<DesktopRenameResult>;
         acceptOpen(): Promise<void>;
         clearActivePath(): Promise<void>;

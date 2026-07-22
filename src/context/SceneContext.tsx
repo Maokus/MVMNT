@@ -168,7 +168,7 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
             if (isEditable) return;
             event.preventDefault();
             if (key === 's') {
-                if (event.shiftKey) openExportModal();
+                if (event.shiftKey) void saveAs();
                 else void saveToLocal();
             } else if (key === 'o') {
                 loadScene();
@@ -178,7 +178,7 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         };
         window.addEventListener('keydown', handler, { capture: true });
         return () => window.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
-    }, [loadScene, menuBarActions, openExportModal, saveToLocal]);
+    }, [loadScene, menuBarActions, saveAs, saveToLocal]);
 
     // -------------------------------------------------------------------------
     // Electron desktop bridge
@@ -204,9 +204,9 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
             if (command === 'new') menuBarActions.createNewDefaultScene();
             if (command === 'open') loadScene();
             if (command === 'save') void saveToLocal();
-            if (command === 'save-as') openExportModal();
+            if (command === 'save-as') void saveAs();
         });
-    }, [loadScene, menuBarActions, openExportModal, saveToLocal]);
+    }, [loadScene, menuBarActions, saveAs, saveToLocal]);
 
     useEffect(() => {
         const desktop = window.mvmntDesktop;
