@@ -85,6 +85,95 @@ describe('audio diagnostics store', () => {
         expect(detail.analysisProfileId).toBe('default');
     });
 
+    it('derives requirements from the current clips when a track gains a source', () => {
+        const sourceOne = 'source-one';
+        const sourceTwo = 'source-two';
+        const trackId = 'audioTrack';
+        const featureKey = buildFeatureTrackKey('spectrogram', 'default');
+        const cacheFor = (sourceId: string) => ({
+            version: 4,
+            audioSourceId: sourceId,
+            hopSeconds: 0.1,
+            startTimeSeconds: 0,
+            frameCount: 1,
+            featureTracks: {
+                [featureKey]: {
+                    key: featureKey,
+                    calculatorId: 'test.spectrogram',
+                    version: 1,
+                    frameCount: 1,
+                    channels: 1,
+                    hopSeconds: 0.1,
+                    startTimeSeconds: 0,
+                    data: new Float32Array([0]),
+                    format: 'float32',
+                    analysisProfileId: 'default',
+                },
+            },
+            analysisParams: {
+                windowSize: 1024,
+                hopSize: 512,
+                overlap: 0.5,
+                sampleRate: 44100,
+                calculatorVersions: { 'test.spectrogram': 1 },
+            },
+            defaultAnalysisProfileId: 'default',
+        });
+        const makeTrack = (sourceIds: string[]) => ({
+            id: trackId,
+            name: 'Audio Track',
+            type: 'audio' as const,
+            enabled: true,
+            mute: false,
+            solo: false,
+            gain: 1,
+            clips: sourceIds.map((sourceId, index) => ({
+                id: `clip-${index}`,
+                type: 'audio' as const,
+                sourceId,
+                offsetTicks: index * 1920,
+                sourceStartSeconds: 0,
+                sourceEndSeconds: 1,
+            })),
+        });
+        useTimelineStore.setState({
+            tracks: { [trackId]: makeTrack([sourceOne]) },
+            tracksOrder: [trackId],
+            audioFeatureCaches: { [sourceOne]: cacheFor(sourceOne) } as any,
+            audioFeatureCacheStatus: { [sourceOne]: { state: 'ready', updatedAt: Date.now() } },
+        });
+        publishAnalysisIntent(
+            'spectrogram-element',
+            'audioSpectrogram',
+            trackId,
+            [{ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' }],
+            { profile: 'default' }
+        );
+
+        useTimelineStore.setState((state) => ({
+            ...state,
+            tracks: { ...state.tracks, [trackId]: makeTrack([sourceOne, sourceTwo]) },
+        }));
+
+        const descriptorKey = `${buildDescriptorMatchKey({ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' })}|profile:default`;
+        const missingSecond = useAudioDiagnosticsStore.getState().diffs.find((diff) => diff.audioSourceId === sourceTwo);
+        expect(missingSecond?.trackRefs).toContain(trackId);
+        expect(missingSecond?.missing).toContain(descriptorKey);
+
+        useTimelineStore.setState((state) => ({
+            ...state,
+            audioFeatureCaches: { ...state.audioFeatureCaches, [sourceTwo]: cacheFor(sourceTwo) } as any,
+            audioFeatureCacheStatus: {
+                ...state.audioFeatureCacheStatus,
+                [sourceTwo]: { state: 'ready', updatedAt: Date.now() },
+            },
+        }));
+
+        const resolvedSecond = useAudioDiagnosticsStore.getState().diffs.find((diff) => diff.audioSourceId === sourceTwo);
+        expect(resolvedSecond?.missing).not.toContain(descriptorKey);
+        expect(resolvedSecond?.extraneous).not.toContain(descriptorKey);
+    });
+
     it('tracks profile override descriptors with unique identities', () => {
         useTimelineStore.setState({
             tracks: {

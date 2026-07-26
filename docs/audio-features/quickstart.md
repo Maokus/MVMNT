@@ -38,8 +38,11 @@ add `profileParams` to the requirement. External plugins must not import applica
 metadata registries or scene feature APIs.
 
 `audioTrackId` is clip-aware: the enabled clip under `time.seconds` selects the immutable source
-cache and gaps return silence. A failed `Result` is expected while data is unavailable; render an
-empty or placeholder state and use the diagnostics panel to monitor analysis.
+cache and gaps return silence. Requirements are owned by the track reference, not by whichever
+clip happened to exist when the element first rendered: adding or removing enabled clips updates
+the required source caches automatically. A failed `Result` is expected while new data is
+unavailable; render an empty or placeholder state and use the diagnostics panel to monitor
+analysis.
 
 ## 5. Register a custom calculator (optional)
 

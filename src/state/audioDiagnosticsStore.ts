@@ -151,7 +151,9 @@ interface AudioDiagnosticsState {
         trackRef: string,
         analysisProfileId: string | null,
         descriptors: string[],
-        reason?: RegenerationReason
+        reason?: RegenerationReason,
+        /** Internal concrete source target for multi-clip track requests. */
+        audioSourceId?: string
     ) => void;
     regenerateAll: () => void;
     deleteExtraneousCaches: () => void;
@@ -402,7 +404,11 @@ function computeCacheDiffs(
     const calculatorFeatureById = new Map(calculators.map((entry) => [entry.id, entry.featureKey]));
 
     for (const record of Object.values(intentsByElement)) {
-        for (const audioSourceId of record.audioSourceIds ?? resolveAudioSourceIds(record.trackRef, timelineState)) {
+        // An intent is owned by a track reference. Source IDs are derived here
+        // from the current clip list so adding/removing clips immediately changes
+        // the concrete analysis requirements without requiring the element to
+        // render or republish its intent.
+        for (const audioSourceId of resolveAudioSourceIds(record.trackRef, timelineState)) {
         const requestedAt = Date.parse(record.requestedAt) || Date.now();
         const ensureGroup = (preferredProfileId: string | null) => {
             const sanitizedPreferred = sanitizeProfileId(preferredProfileId);
@@ -959,13 +965,13 @@ export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsSta
             };
         });
     },
-    regenerateDescriptors(trackRef, analysisProfileId, descriptors, reason = 'manual') {
+    regenerateDescriptors(trackRef, analysisProfileId, descriptors, reason = 'manual', explicitSourceId) {
         const unique = Array.from(new Set(descriptors.filter(Boolean)));
         if (!unique.length) {
             return;
         }
         const timelineState = useTimelineStore.getState();
-        const sourceId = resolveAudioSourceId(trackRef, timelineState);
+        const sourceId = explicitSourceId ?? resolveAudioSourceId(trackRef, timelineState);
         const diff = get().diffs.find(
             (entry) =>
                 entry.audioSourceId === sourceId &&
@@ -1020,7 +1026,13 @@ export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsSta
             }
         }
         for (const entry of groups.values()) {
-            get().regenerateDescriptors(entry.trackRef, entry.analysisProfileId, entry.descriptors, 'manual');
+            get().regenerateDescriptors(
+                entry.trackRef,
+                entry.analysisProfileId,
+                entry.descriptors,
+                'manual',
+                entry.audioSourceId
+            );
         }
     },
     deleteExtraneousCaches() {
@@ -1257,6 +1269,22 @@ useTimelineStore.subscribe((state) => {
             useAudioDiagnosticsStore.getState().removeIntent(record.elementId);
         }
     }
+    // Keep the stored projection useful for diagnostics/history, but never use
+    // it as the authority when computing requirements (see computeCacheDiffs).
+    useAudioDiagnosticsStore.setState((current) => {
+        const intentsByElement: Record<string, AnalysisIntentRecord> = {};
+        const sourcesWithIntents: Record<string, number> = {};
+        for (const [elementId, record] of Object.entries(current.intentsByElement)) {
+            const audioSourceIds = resolveAudioSourceIds(record.trackRef, state);
+            const audioSourceId = audioSourceIds[0] ?? record.trackRef;
+            intentsByElement[elementId] = { ...record, audioSourceId, audioSourceIds };
+            for (const sourceId of audioSourceIds) {
+                sourcesWithIntents[sourceId] = (sourcesWithIntents[sourceId] ?? 0) + 1;
+            }
+        }
+        return { intentsByElement, sourcesWithIntents };
+    });
+    useAudioDiagnosticsStore.getState().recomputeDiffs();
 });
 
 export function formatCacheDiffDescriptor(diff: CacheDiff, descriptorId: string): string {

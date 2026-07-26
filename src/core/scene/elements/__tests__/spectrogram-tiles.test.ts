@@ -228,6 +228,13 @@ describe('spectrogram tile resources', () => {
         const first = getSpectrogramTile(request);
         expect(getSpectrogramTile(request)).toBe(first);
 
+        const beforeScene = getSpectrogramTile({ ...request, tileIndex: -1 });
+        const beforeSceneImage = (beforeScene?.drawable as unknown as MockOffscreenCanvas).context.putImageData
+            .mock.calls[0]?.[0] as MockImageData;
+        // Timeline time before 0 is supplied by the feature matrix as its silent floor,
+        // not treated as a missing/transparent tile column.
+        expect(beforeSceneImage.data[3]).toBe(255);
+
         useTimelineStore.getState().ingestAudioFeatureCache(sourceId, makeCache(-20));
         const replaced = getSpectrogramTile(request);
 

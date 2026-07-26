@@ -221,8 +221,6 @@ function sampleSpectrogramTileFrames(
     if (!matrix) return null;
     const frames: Array<readonly number[] | undefined> = new Array(SPECTROGRAM_TILE_COLUMNS);
     for (let column = 0; column < SPECTROGRAM_TILE_COLUMNS; column += 1) {
-        const time = matrix.startSeconds + column * matrix.stepSeconds;
-        if (time < 0) continue;
         const values = new Array<number>(matrix.valuesPerFrame);
         for (let bin = 0; bin < matrix.valuesPerFrame; bin += 1) {
             const value = matrix.data[column * matrix.valuesPerFrame + bin]!;
