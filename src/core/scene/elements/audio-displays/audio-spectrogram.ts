@@ -72,6 +72,10 @@ function formatNote(note: number): string {
     return `${names[((rounded % 12) + 12) % 12]}${Math.floor(rounded / 12) - 1}`;
 }
 
+function frequencyToMidiNote(frequency: number): number {
+    return A4_MIDI_NOTE + 12 * Math.log2(Math.max(frequency, 1e-3) / A4_FREQUENCY);
+}
+
 function timingValue(result: unknown): number | null {
     if (typeof result === 'number' && Number.isFinite(result)) return result;
     if (result && typeof result === 'object' && (result as { ok?: unknown }).ok === true) {
@@ -129,8 +133,10 @@ export class AudioSpectrogramElement extends SceneElement {
                     prop.number('frequencyGuideStep', 'Frequency Line Every (Hz)', 1000, { min: 1, max: 48000, step: 1 }),
                     prop.boolean('showOctaveGuides', 'Show Octave Lines', false),
                     prop.number('octaveGuideStep', 'Octave Line Every', 1, { min: 1, max: 8, step: 1 }),
+                    prop.number('octaveGuideStartNote', 'Octave Start Note (MIDI)', A4_MIDI_NOTE, { min: 0, max: 127, step: 1 }),
                     prop.boolean('showNoteGuides', 'Show Note Lines', false),
                     prop.number('noteGuideStep', 'Note Line Every (semitones)', 12, { min: 1, max: 48, step: 1 }),
+                    prop.number('noteGuideStartNote', 'Note Start Note (MIDI)', 0, { min: 0, max: 127, step: 1 }),
                     prop.boolean('showBeatGuides', 'Show Beat Lines', false),
                     prop.number('beatGuideStep', 'Beat Line Every', 1, { min: 0.25, max: 64, step: 0.25 }),
                     prop.boolean('showBarGuides', 'Show Bar Lines', false),
@@ -142,6 +148,32 @@ export class AudioSpectrogramElement extends SceneElement {
                     prop.number('guideLineWidth', 'Guide Line Width', 1, { min: 0.5, max: 8, step: 0.5 }),
                     prop.boolean('showGuideLabels', 'Show Guide Labels', true),
                     prop.number('guideLabelSize', 'Guide Label Size (px)', 10, { min: 6, max: 32, step: 1 }),
+                ], layout: [
+                    { kind: 'section', id: 'frequency-guides', label: 'Frequency', collapsed: false, children: [
+                        { kind: 'property', propertyKey: 'showFrequencyGuides' },
+                        { kind: 'property', propertyKey: 'frequencyGuideStep' },
+                        { kind: 'property', propertyKey: 'showOctaveGuides' },
+                        { kind: 'property', propertyKey: 'octaveGuideStep' },
+                        { kind: 'property', propertyKey: 'octaveGuideStartNote' },
+                        { kind: 'property', propertyKey: 'showNoteGuides' },
+                        { kind: 'property', propertyKey: 'noteGuideStep' },
+                        { kind: 'property', propertyKey: 'noteGuideStartNote' },
+                    ] },
+                    { kind: 'section', id: 'time-guides', label: 'Time', collapsed: false, children: [
+                        { kind: 'property', propertyKey: 'showBeatGuides' },
+                        { kind: 'property', propertyKey: 'beatGuideStep' },
+                        { kind: 'property', propertyKey: 'showBarGuides' },
+                        { kind: 'property', propertyKey: 'barGuideColor' },
+                        { kind: 'property', propertyKey: 'showSecondGuides' },
+                        { kind: 'property', propertyKey: 'secondGuideStep' },
+                    ] },
+                    { kind: 'section', id: 'guide-appearance', label: 'Appearance & Labels', collapsed: true, children: [
+                        { kind: 'property', propertyKey: 'guideColor' },
+                        { kind: 'property', propertyKey: 'guideOpacity' },
+                        { kind: 'property', propertyKey: 'guideLineWidth' },
+                        { kind: 'property', propertyKey: 'showGuideLabels' },
+                        { kind: 'property', propertyKey: 'guideLabelSize' },
+                    ] },
                 ] },
             ]),
             tab.appearance([
@@ -245,16 +277,19 @@ export class AudioSpectrogramElement extends SceneElement {
         }
         if (props.showOctaveGuides === true) {
             const step = Math.round(clamp(props.octaveGuideStep ?? 1, 1, 8));
-            const firstOctave = Math.ceil(Math.log2(Math.max(minFrequency, 1e-3) / A4_FREQUENCY) / step) * step;
-            for (let octave = firstOctave, count = 0; count < MAX_GUIDE_LINES; octave += step, count += 1) {
-                const frequency = A4_FREQUENCY * Math.pow(2, octave);
+            const startNote = Math.round(clamp(props.octaveGuideStartNote ?? A4_MIDI_NOTE, 0, 127));
+            const noteStep = 12 * step;
+            const firstNote = startNote + Math.ceil((frequencyToMidiNote(minFrequency) - startNote) / noteStep) * noteStep;
+            for (let note = firstNote, count = 0; count < MAX_GUIDE_LINES; note += noteStep, count += 1) {
+                const frequency = A4_FREQUENCY * Math.pow(2, (note - A4_MIDI_NOTE) / 12);
                 if (frequency > maxFrequency) break;
-                addFrequencyGuide(frequency, `A${4 + octave} · ${formatFrequency(frequency)}`);
+                addFrequencyGuide(frequency, `${formatNote(note)} · ${formatFrequency(frequency)}`);
             }
         }
         if (props.showNoteGuides === true) {
             const step = Math.round(clamp(props.noteGuideStep ?? 12, 1, 48));
-            const firstNote = Math.ceil((A4_MIDI_NOTE + 12 * Math.log2(Math.max(minFrequency, 1e-3) / A4_FREQUENCY)) / step) * step;
+            const startNote = Math.round(clamp(props.noteGuideStartNote ?? 0, 0, 127));
+            const firstNote = startNote + Math.ceil((frequencyToMidiNote(minFrequency) - startNote) / step) * step;
             for (let note = firstNote, count = 0; count < MAX_GUIDE_LINES; note += step, count += 1) {
                 const frequency = A4_FREQUENCY * Math.pow(2, (note - A4_MIDI_NOTE) / 12);
                 if (frequency > maxFrequency) break;
@@ -282,14 +317,16 @@ export class AudioSpectrogramElement extends SceneElement {
             const firstBeat = timingValue(context.timing?.secondsToBeats(startSeconds));
             const lastBeat = timingValue(context.timing?.secondsToBeats(endSeconds));
             if (firstBeat !== null && lastBeat !== null) {
+                const barSize = beatsPerBar(context.timing?.getTimeSignature());
                 if (props.showBeatGuides === true) {
                     for (let beat = Math.ceil(firstBeat / beatStep) * beatStep, count = 0; beat <= lastBeat + 1e-9 && count < MAX_GUIDE_LINES; beat += beatStep, count += 1) {
+                        const isBarBoundary = Math.abs(beat / barSize - Math.round(beat / barSize)) < 1e-9;
+                        if (props.showBarGuides === true && isBarBoundary) continue;
                         const seconds = timingValue(context.timing?.beatsToSeconds(beat));
                         if (seconds !== null) addTimeGuide(seconds, `${Number(beat.toFixed(2))}`);
                     }
                 }
                 if (props.showBarGuides === true) {
-                    const barSize = beatsPerBar(context.timing?.getTimeSignature());
                     const firstBarBeat = Math.ceil(firstBeat / barSize) * barSize;
                     const barColor = applyOpacity(props.barGuideColor ?? '#F8FAFC', clamp(props.guideOpacity ?? 0.35, 0, 1));
                     for (let beat = firstBarBeat, count = 0; beat <= lastBeat + 1e-9 && count < MAX_GUIDE_LINES; beat += barSize, count += 1) {
