@@ -242,4 +242,16 @@ describe('spectrogram tile resources', () => {
         expect(replaced).not.toBeNull();
         expect(replaced).not.toBe(first);
     });
+
+    it('does not retain a tile after an imported document clears render resources', () => {
+        const cache = new SpectrogramTileCache();
+        const first = cache.getOrCreate('document-a', 2, 2, () => new Uint8ClampedArray(16).fill(10));
+
+        cache.clear();
+
+        const restored = cache.getOrCreate('document-a', 2, 2, () => new Uint8ClampedArray(16).fill(20));
+        expect(restored).not.toBe(first);
+        expect((restored.drawable as unknown as MockOffscreenCanvas).context.putImageData)
+            .toHaveBeenCalledTimes(1);
+    });
 });

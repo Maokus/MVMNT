@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildSpectrogramPixels } from '@core/scene/elements/audio-displays/audio-spectrogram';
-import { buildVectorscopePoints } from '@core/scene/elements/audio-displays/audio-vectorscope';
+import { buildSpectrogramPixels, getSpectrogramFrequencyPosition } from '@core/scene/elements/audio-displays/audio-spectrogram';
+import { buildVectorscopePoints, buildVectorscopeRgbColors, getVectorscopeScaleMarkers } from '@core/scene/elements/audio-displays/audio-vectorscope';
 
 describe('audio spectrogram display helpers', () => {
     it('maps frequency bins vertically and leaves unavailable future columns transparent', () => {
@@ -31,6 +31,14 @@ describe('audio spectrogram display helpers', () => {
         );
         expect(pixels).toHaveLength(8 * 4);
         for (let index = 3; index < pixels.length; index += 4) expect(pixels[index]).toBe(255);
+    });
+
+    it('places frequency guides using the active spectrogram scale', () => {
+        expect(getSpectrogramFrequencyPosition(20, 20, 20000, 'log')).toBe(0);
+        expect(getSpectrogramFrequencyPosition(20000, 20, 20000, 'log')).toBe(1);
+        // A logarithmic scale gives the octave above 20 Hz equal visual distance.
+        expect(getSpectrogramFrequencyPosition(40, 20, 20000, 'log')).toBeCloseTo(Math.log10(2) / 3);
+        expect(getSpectrogramFrequencyPosition(10010, 20, 20000, 'linear')).toBeCloseTo(0.5);
     });
 });
 
@@ -70,5 +78,43 @@ describe('audio vectorscope display helpers', () => {
         expect(bipolar[1]?.x).toBeLessThan(100);
         expect(lissajous[0]).toMatchObject({ x: 150, y: 50 });
         expect(lissajous[1]).toMatchObject({ x: 50, y: 50 });
+    });
+
+    it('applies display scale after gain, so it can zoom without changing audio gain', () => {
+        const points = buildVectorscopePoints(
+            new Float32Array([0, 0.5]), new Float32Array([0, 0.5]), 200, 200, 2, 2, 'bipolar-scaled', 2
+        );
+
+        // 0.5 × gain 2 ÷ display scale 2 = 0.5, exactly as with unity gain at unity scale.
+        expect(points[1]?.x).toBe(100);
+        expect(points[1]?.y).toBeCloseTo(50);
+        expect(points[1]?.level).toBe(1);
+    });
+
+    it('derives grid marker values from both display scale and gain', () => {
+        expect(getVectorscopeScaleMarkers(2, 4)).toEqual([-0.5, -0.25, -0.125, 0, 0.125, 0.25, 0.5]);
+        expect(getVectorscopeScaleMarkers(1, 0)).toEqual([]);
+    });
+
+    it('maps low, mid, and high frequency energy to RGB point components', () => {
+        const sampleRate = 48_000;
+        const samplesFor = (frequency: number) => Float32Array.from(
+            { length: 8_192 }, (_, index) => 0.8 * Math.sin(2 * Math.PI * frequency * index / sampleRate)
+        );
+        const componentsFor = (frequency: number) => {
+            const samples = samplesFor(frequency);
+            const color = buildVectorscopeRgbColors(samples, samples, sampleRate, 1, samples.length).at(-1)!;
+            return color.match(/\d+/g)!.map(Number);
+        };
+
+        const [lowRed, lowGreen, lowBlue] = componentsFor(80);
+        const [midRed, midGreen, midBlue] = componentsFor(1_000);
+        const [highRed, highGreen, highBlue] = componentsFor(8_000);
+        expect(lowRed).toBeGreaterThan(lowGreen!);
+        expect(lowRed).toBeGreaterThan(lowBlue!);
+        expect(midGreen).toBeGreaterThan(midRed!);
+        expect(midGreen).toBeGreaterThan(midBlue!);
+        expect(highBlue).toBeGreaterThan(highRed!);
+        expect(highBlue).toBeGreaterThan(highGreen!);
     });
 });

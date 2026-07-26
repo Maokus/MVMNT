@@ -15,6 +15,7 @@ import { sha256Hex } from '@utils/hash/sha256';
 import { FontBinaryStore } from './font-binary-store';
 import { PluginBinaryStore } from './plugin-binary-store';
 import { loadPlugin, satisfiesVersion } from '@core/scene/plugins';
+import { clearSpectrogramTileCache } from '@core/scene/elements/audio-displays/spectrogram-tiles';
 import { usePluginStore } from '@state/pluginStore';
 import { ensureFontVariantsRegistered } from '@fonts/font-loader';
 import type { FontAsset } from '@state/scene/fonts';
@@ -245,8 +246,9 @@ function hydrateAudioFeatureCacheFromAssets(
     payloads: Map<string, Uint8Array>,
     cacheId: string,
     warnings: string[]
-): SerializedAudioFeatureCache | null {
+): { cache: SerializedAudioFeatureCache; complete: boolean } | null {
     const hydratedTracks: Record<string, SerializedAudioFeatureTrack> = {};
+    let complete = true;
     for (const [trackKey, track] of Object.entries(serialized.featureTracks || {})) {
         const hydrated: SerializedAudioFeatureTrack = { ...track };
         let includeTrack = true;
@@ -267,12 +269,18 @@ function hydrateAudioFeatureCacheFromAssets(
                     } else {
                         values = new Int16Array(buffer);
                     }
-                    if (ref.valueCount && values.length !== ref.valueCount) {
+                    const expectedValues = Math.max(0, Math.floor(track.frameCount)) * Math.max(1, Math.floor(track.channels));
+                    if (
+                        (ref.valueCount && values.length !== ref.valueCount) ||
+                        values.length !== expectedValues
+                    ) {
                         warnings.push(
-                            `Audio feature data length mismatch for ${cacheId}:${trackKey} (expected ${ref.valueCount}, got ${values.length})`
+                            `Audio feature data length mismatch for ${cacheId}:${trackKey} (expected ${expectedValues}, got ${values.length})`
                         );
+                        includeTrack = false;
+                    } else {
+                        hydrated.data = { type: ref.type, values };
                     }
-                    hydrated.data = { type: ref.type, values };
                 } else {
                     const values = new Float32Array(buffer);
                     const expected = (ref.minLength || 0) + (ref.maxLength || 0);
@@ -290,12 +298,13 @@ function hydrateAudioFeatureCacheFromAssets(
         }
         if (!hydrated.data) {
             if (!includeTrack) {
+                complete = false;
                 continue;
             }
         }
         hydratedTracks[trackKey] = hydrated;
     }
-    return { ...serialized, featureTracks: hydratedTracks };
+    return { cache: { ...serialized, featureTracks: hydratedTracks }, complete };
 }
 
 function buildDocumentShape(
@@ -320,6 +329,7 @@ function buildDocumentShape(
     const tl = envelope.timeline || {};
     const featureCaches: Record<string, any> = {};
     const featureWarnings: string[] = [];
+    const incompleteFeatureCacheIds = new Set<string>();
     if (tl.audioFeatureCaches && typeof tl.audioFeatureCaches === 'object') {
         for (const [id, cache] of Object.entries(tl.audioFeatureCaches as Record<string, any>)) {
             if (cache && typeof cache === 'object' && 'assetRef' in cache) {
@@ -328,12 +338,14 @@ function buildDocumentShape(
                 const payloadGroup = audioFeaturePayloads.get(assetId);
                 if (!payloadGroup) {
                     featureWarnings.push(`Missing audio feature payload for cache ${id}`);
+                    incompleteFeatureCacheIds.add(id);
                     continue;
                 }
                 try {
                     const metadataBytes = payloadGroup.get(AUDIO_FEATURE_ASSET_FILENAME);
                     if (!metadataBytes) {
                         featureWarnings.push(`Missing feature cache metadata for ${id}`);
+                        incompleteFeatureCacheIds.add(id);
                         continue;
                     }
                     const serialized = JSON.parse(decodeSceneText(metadataBytes));
@@ -344,11 +356,15 @@ function buildDocumentShape(
                         featureWarnings
                     );
                     if (hydrated) {
-                        featureCaches[id] = deserializeAudioFeatureCache(hydrated as any);
+                        featureCaches[id] = deserializeAudioFeatureCache(hydrated.cache as any);
+                        if (!hydrated.complete) {
+                            incompleteFeatureCacheIds.add(id);
+                        }
                     }
                 } catch (error) {
                     console.warn('[importScene] failed to parse audio feature payload', id, error);
                     featureWarnings.push(`Failed to parse audio feature payload for cache ${id}`);
+                    incompleteFeatureCacheIds.add(id);
                 }
                 continue;
             }
@@ -356,8 +372,18 @@ function buildDocumentShape(
                 featureCaches[id] = deserializeAudioFeatureCache(cache as any);
             } catch (error) {
                 console.warn('[importScene] failed to deserialize audio feature cache', id, error);
+                incompleteFeatureCacheIds.add(id);
             }
         }
+    }
+    const audioFeatureCacheStatus = { ...(tl.audioFeatureCacheStatus || {}) };
+    for (const id of incompleteFeatureCacheIds) {
+        audioFeatureCacheStatus[id] = {
+            ...(audioFeatureCacheStatus[id] || {}),
+            state: 'stale',
+            message: 'analysis cache incomplete after restore',
+            updatedAt: Date.now(),
+        };
     }
     return {
         doc: {
@@ -369,7 +395,7 @@ function buildDocumentShape(
             rowHeight: tl.rowHeight,
             midiCache: tl.midiCache || {},
             audioFeatureCaches: featureCaches,
-            audioFeatureCacheStatus: tl.audioFeatureCacheStatus || {},
+            audioFeatureCacheStatus,
             scene: { ...envelope.scene },
             metadata: envelope.metadata,
         },
@@ -1062,6 +1088,10 @@ export async function importScene(
     throwIfAborted(options.signal);
     options.onProgress?.(0.72, 'Applying scene…');
     DocumentGateway.apply(doc as any);
+    // Spectrogram resources are rendered snapshots, not document state. Clear
+    // them before the imported scene is rendered so same-ID tracks cannot show
+    // a tile sampled from the previously open document.
+    clearSpectrogramTileCache();
     const importTimelineGeneration = advanceTimelineMutationGeneration();
 
     // Populate visual asset registry and migrate assetRef bindings from File → asset ID

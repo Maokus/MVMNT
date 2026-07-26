@@ -275,9 +275,18 @@ export function getSpectrogramTile(request: SpectrogramTileRequest): Spectrogram
     });
 }
 
-export function clearSpectrogramTileCacheForTests(): void {
+/**
+ * Discard rendered spectrogram tiles when the backing scene is replaced.
+ *
+ * Tile pixels are derived from the active timeline store, so they must never
+ * survive a document import even if the next scene reuses the same element
+ * and track IDs.
+ */
+export function clearSpectrogramTileCache(): void {
     spectrogramTileCache.clear();
 }
+
+export const clearSpectrogramTileCacheForTests = clearSpectrogramTileCache;
 
 export function getSpectrogramTileCacheStats(): { entries: number; retainedBytes: number } {
     return spectrogramTileCache.getStats();

@@ -6,6 +6,7 @@ import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 import { parseScenePackage } from '@persistence/scene-package';
 import { buildFeatureTrackKey, DEFAULT_ANALYSIS_PROFILE_ID } from '@audio/features/featureTrackIdentity';
 import { deserializeAudioFeatureCache, serializeAudioFeatureCache } from '@audio/features/audioFeatureAnalysis';
+import { unzipSync, zipSync } from 'fflate';
 
 function createFeatureCache(sourceId: string): AudioFeatureCache {
     const frameCount = 10;
@@ -313,5 +314,42 @@ describe('audio feature cache persistence', () => {
         const status = useTimelineStore.getState().audioFeatureCacheStatus[trackId];
         expect(status?.state).toBe('ready');
         expect(status?.message).toBeUndefined();
+    });
+
+    it('marks a cache stale instead of retaining a truncated spectrogram after restore', async () => {
+        const trackId = 'aud_truncated';
+        useTimelineStore.setState((state) => ({
+            ...state,
+            tracks: {
+                [trackId]: {
+                    id: trackId,
+                    name: 'Truncated cache',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    clips: [{ id: `${trackId}__audio_clip`, type: 'audio', sourceId: trackId, offsetTicks: 0 }],
+                    gain: 1,
+                },
+            },
+            tracksOrder: [trackId],
+            audioFeatureCaches: { [trackId]: createFeatureCache(trackId) },
+            audioFeatureCacheStatus: { [trackId]: { state: 'ready', updatedAt: 1 } },
+        }));
+        const exported = await exportZippedScene();
+        const archive = unzipSync(exported.zip);
+        const payloadPath = Object.keys(archive).find((path) => path.startsWith('assets/audio-features/') && path.endsWith('.f32'));
+        expect(payloadPath).toBeDefined();
+        archive[payloadPath!] = archive[payloadPath!]!.slice(0, -4);
+
+        useTimelineStore.getState().resetTimeline();
+        const imported = await importScene(zipSync(archive));
+
+        expect(imported.ok).toBe(true);
+        expect(useTimelineStore.getState().audioFeatureCacheStatus[trackId]).toMatchObject({
+            state: 'stale',
+            message: 'analysis cache incomplete after restore',
+        });
+        expect(useTimelineStore.getState().audioFeatureCaches[trackId]?.featureTracks).toEqual({});
     });
 });
