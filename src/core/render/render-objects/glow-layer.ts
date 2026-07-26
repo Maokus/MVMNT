@@ -1,57 +1,6 @@
 import { RenderConfig } from './base';
 import { EmptyRenderObject } from './empty';
-
-// Shared offscreen canvas — reused each frame to avoid allocation pressure.
-// Safe because rendering is synchronous (no two GlowLayers render concurrently).
-let _offscreenEl: HTMLCanvasElement | null = null;
-let _offscreenCtx: CanvasRenderingContext2D | null = null;
-
-// Second shared offscreen used for the downscaled blur pass (see glowResolution).
-let _glowScaleEl: HTMLCanvasElement | null = null;
-let _glowScaleCtx: CanvasRenderingContext2D | null = null;
-
-function resetOffscreenCtx(ctx: CanvasRenderingContext2D): void {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.filter = 'none';
-}
-
-function getOffscreenCtx(w: number, h: number): CanvasRenderingContext2D | null {
-    if (typeof document === 'undefined') return null;
-    if (!_offscreenEl || !_offscreenCtx) {
-        _offscreenEl = document.createElement('canvas');
-        _offscreenCtx = _offscreenEl.getContext('2d');
-        if (!_offscreenCtx) return null;
-    }
-    if (_offscreenEl.width !== w || _offscreenEl.height !== h) {
-        // Assigning width/height resets pixels AND context state automatically.
-        _offscreenEl.width = w;
-        _offscreenEl.height = h;
-    }
-    // clearRect is affected by the current transform, so reset state before
-    // clearing. Otherwise a transformed GlowLayer can leave stale pixels in
-    // the shared buffer for the next frame.
-    resetOffscreenCtx(_offscreenCtx);
-    _offscreenCtx.clearRect(0, 0, w, h);
-    return _offscreenCtx;
-}
-
-function getScaledGlowCtx(w: number, h: number): CanvasRenderingContext2D | null {
-    if (typeof document === 'undefined') return null;
-    if (!_glowScaleEl || !_glowScaleCtx) {
-        _glowScaleEl = document.createElement('canvas');
-        _glowScaleCtx = _glowScaleEl.getContext('2d');
-        if (!_glowScaleCtx) return null;
-    }
-    if (_glowScaleEl.width !== w || _glowScaleEl.height !== h) {
-        _glowScaleEl.width = w;
-        _glowScaleEl.height = h;
-    } else {
-        _glowScaleCtx.clearRect(0, 0, w, h);
-    }
-    return _glowScaleCtx;
-}
+import { renderResourceManager } from '../render-resource-manager';
 
 /**
  * A container that renders its children twice:
@@ -104,41 +53,48 @@ export class GlowLayer extends EmptyRenderObject {
         if (this.glowBlur <= 0 || this.glowOpacity <= 0) return;
 
         const mainCanvas = config.canvas;
-        const offCtx = mainCanvas ? getOffscreenCtx(mainCanvas.width, mainCanvas.height) : null;
+        const surface = mainCanvas
+            ? renderResourceManager.acquireScratch(mainCanvas.width, mainCanvas.height)
+            : null;
 
-        if (offCtx) {
-            offCtx.setTransform(ctx.getTransform());
-            this._applyLayerTransform(offCtx);
-            for (const child of this.getChildren()) child.render(offCtx, config, currentTime);
+        if (surface) {
+            const offCtx = surface.context;
+            let scaledSurface: ReturnType<typeof renderResourceManager.acquireScratch> | null = null;
+            try {
+                offCtx.setTransform(ctx.getTransform());
+                this._applyLayerTransform(offCtx);
+                for (const child of this.getChildren()) child.render(offCtx, config, currentTime);
 
-            // Downscale the offscreen to glowResolution before blurring.
-            // The blur filter operates on fewer pixels, giving the same visual
-            // glow radius at a fraction of the GPU cost.
-            const canvasW = mainCanvas!.width;
-            const canvasH = mainCanvas!.height;
-            const glowScale = Math.max(0.05, Math.min(1.0, this.glowResolution));
-            let blurSource: CanvasImageSource = _offscreenEl!;
-            let blurSourceW = canvasW;
-            let blurSourceH = canvasH;
-            if (glowScale < 1.0) {
-                const gw = Math.max(1, Math.ceil(canvasW * glowScale));
-                const gh = Math.max(1, Math.ceil(canvasH * glowScale));
-                const scaledCtx = getScaledGlowCtx(gw, gh);
-                if (scaledCtx) {
-                    scaledCtx.drawImage(_offscreenEl!, 0, 0, gw, gh);
-                    blurSource = _glowScaleEl!;
+                // Downscale the offscreen to glowResolution before blurring.
+                // The blur filter operates on fewer pixels, giving the same visual
+                // glow radius at a fraction of the GPU cost.
+                const canvasW = mainCanvas!.width;
+                const canvasH = mainCanvas!.height;
+                const glowScale = Math.max(0.05, Math.min(1.0, this.glowResolution));
+                let blurSource: CanvasImageSource = surface.canvas;
+                let blurSourceW = canvasW;
+                let blurSourceH = canvasH;
+                if (glowScale < 1.0) {
+                    const gw = Math.max(1, Math.ceil(canvasW * glowScale));
+                    const gh = Math.max(1, Math.ceil(canvasH * glowScale));
+                    scaledSurface = renderResourceManager.acquireScratch(gw, gh);
+                    scaledSurface.context.drawImage(surface.canvas, 0, 0, gw, gh);
+                    blurSource = scaledSurface.canvas;
                     blurSourceW = gw;
                     blurSourceH = gh;
                 }
-            }
 
-            ctx.save();
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.globalAlpha *= this.opacity * this.glowOpacity;
-            ctx.globalCompositeOperation = this.glowBlendMode;
-            ctx.filter = `blur(${this.glowBlur}px)`;
-            ctx.drawImage(blurSource, 0, 0, blurSourceW, blurSourceH, 0, 0, canvasW, canvasH);
-            ctx.restore();
+                ctx.save();
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.globalAlpha *= this.opacity * this.glowOpacity;
+                ctx.globalCompositeOperation = this.glowBlendMode;
+                ctx.filter = `blur(${this.glowBlur}px)`;
+                ctx.drawImage(blurSource, 0, 0, blurSourceW, blurSourceH, 0, 0, canvasW, canvasH);
+                ctx.restore();
+            } finally {
+                scaledSurface?.release();
+                surface.release();
+            }
         } else {
             // Fallback when no main canvas in config: per-shape blur (original approach).
             ctx.save();

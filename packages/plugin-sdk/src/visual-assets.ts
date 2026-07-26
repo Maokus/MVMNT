@@ -34,12 +34,22 @@ export interface GridAtlasLayout {
     readonly frameDurationMs?: number;
 }
 
+export interface GeneratedRasterRequest {
+    readonly contentKey: string;
+    readonly width: number;
+    readonly height: number;
+    readonly format: 'rgba8';
+    /** Runs synchronously only on a cache miss. */
+    readonly build: () => Uint8ClampedArray;
+}
+
 export interface AssetApi {
     load(path: string): Promise<Result<AssetHandle>>;
     project(): ProjectVisualAssetHandle;
     bundledImage(path: string): BundledVisualAssetHandle;
     bundledSparrow(imagePath: string, xmlPath: string, defaultFps?: number): BundledVisualAssetHandle;
     bundledGridAtlas(imagePath: string, layout: GridAtlasLayout): BundledVisualAssetHandle;
+    generatedRaster(request: GeneratedRasterRequest): Result<VisualAssetSnapshot>;
 }
 
 /** Standalone adapters for every scoped asset operation. */
@@ -60,6 +70,10 @@ export const loadBundledGridAtlas = (
     imagePath: string,
     layout: GridAtlasLayout
 ): ReturnType<AssetApi['bundledGridAtlas']> => assets.bundledGridAtlas(imagePath, layout);
+export const createGeneratedRaster = (
+    assets: AssetApi,
+    request: GeneratedRasterRequest
+): ReturnType<AssetApi['generatedRaster']> => assets.generatedRaster(request);
 
 export class VisualMediaPlayback {
     speed = 1;

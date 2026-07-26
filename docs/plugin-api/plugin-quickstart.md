@@ -49,6 +49,18 @@ npm run typecheck
 SDK 2 plugins use `definePluginElement()` and imports from `@mvmnt-app/plugin-sdk`. Do not import
 MVMNT application aliases such as `@core/*` or `@state/*`.
 
+## Cache expensive generated visuals without element state
+
+Keep `render()` deterministic: derive output from `props`, `time`, and callback-scoped host
+snapshots. For dense audio displays, request a packed window with
+`context.audio.sampleFeatureMatrix()`, then pass its opaque `revision` plus presentation settings
+as the `contentKey` for `context.assets.generatedRaster()`. The pixel builder runs only on a cache
+miss; the returned snapshot can be passed to `VisualMedia.setResource()`.
+
+Do not retain render objects, canvas contexts, or host snapshots between renders. Resource
+lifetimes, eviction, scratch surfaces, and memory budgets are owned by MVMNT, so cache state can
+change render cost but never the pixels associated with a content key.
+
 ## Preview with hot reload
 
 Run these commands from the MVMNT checkout:

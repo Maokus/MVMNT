@@ -3,8 +3,13 @@ import { createPluginHostServices, PLUGIN_CAPABILITIES } from '../host-api/plugi
 import { createPluginDefinitionScope } from '../v2-runtime';
 import { definePluginElement, type CapabilityContext } from '../../../../../packages/plugin-sdk/src/scene';
 import { getElementSubscriptionSnapshot } from '@audio/features/sceneApi';
+import { renderResourceManager } from '@core/render/render-resource-manager';
 
-afterEach(() => document.querySelectorAll('link[id^="gf-"]').forEach((link) => link.remove()));
+afterEach(() => {
+    document.querySelectorAll('link[id^="gf-"]').forEach((link) => link.remove());
+    renderResourceManager.clear();
+    vi.unstubAllGlobals();
+});
 
 function installHost() {
     const state = {
@@ -27,6 +32,61 @@ function installHost() {
 }
 
 describe('SDK v2 runtime', () => {
+    it('exposes namespaced generated rasters as opaque visual snapshots', async () => {
+        class MockCanvas {
+            readonly context = { putImageData: vi.fn() };
+            constructor(readonly width: number, readonly height: number) {}
+            getContext() {
+                return this.context;
+            }
+        }
+        vi.stubGlobal('OffscreenCanvas', MockCanvas);
+        vi.stubGlobal('ImageData', class {
+            constructor(
+                readonly data: Uint8ClampedArray,
+                readonly width: number,
+                readonly height: number
+            ) {}
+        });
+        const build = vi.fn(() => new Uint8ClampedArray(16).fill(12));
+        let context!: CapabilityContext;
+        const definition = definePluginElement({
+            type: 'raster-test',
+            metadata: { name: 'Raster test' },
+            schema: { tabs: [] },
+            capabilities: { required: [], optional: [] },
+            load(value) {
+                context = value;
+            },
+            render() {
+                return [];
+            },
+        });
+        const scope = createPluginDefinitionScope(definition, {
+            pluginId: 'com.example.raster',
+            services: installHost(),
+            synchronousInitialization: true,
+            loadAsset: async () => 'blob:test',
+            report: vi.fn(),
+        });
+
+        const request = {
+            contentKey: 'input-revision:1',
+            width: 2,
+            height: 2,
+            format: 'rgba8' as const,
+            build,
+        };
+        const cold = context.assets.generatedRaster(request);
+        const warm = context.assets.generatedRaster(request);
+
+        expect(cold).toMatchObject({ ok: true, value: { status: 'ready' } });
+        expect(warm).toMatchObject({ ok: true, value: { status: 'ready' } });
+        expect(build).toHaveBeenCalledTimes(1);
+        if (cold.ok && warm.ok) expect(warm.value.resource).toBe(cold.value.resource);
+        await scope.dispose();
+    });
+
     it('keeps feature requirements attached after an external plugin element receives its qualified type', async () => {
         const host = installHost();
         const definition = definePluginElement({

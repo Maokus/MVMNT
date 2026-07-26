@@ -79,6 +79,7 @@ describe('plugin SDK v2 contract', () => {
     it('accepts SDK 2 and rejects removed API lines', () => {
         expect(supportsPluginApiRange('^1.0.0')).toBe(false);
         expect(supportsPluginApiRange('^2.0.0')).toBe(true);
+        expect(supportsPluginApiRange('^2.1.0')).toBe(true);
         expect(supportsPluginApiRange('^3.0.0')).toBe(false);
     });
 

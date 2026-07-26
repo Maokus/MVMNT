@@ -8,4 +8,4 @@
  *
  * Plugins declare a semver range in their manifest `apiVersion` field.
  */
-export const PLUGIN_SDK_VERSION = '2.0.0' as const;
+export const PLUGIN_SDK_VERSION = '2.1.0' as const;

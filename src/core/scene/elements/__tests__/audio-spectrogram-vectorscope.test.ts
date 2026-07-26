@@ -54,4 +54,21 @@ describe('audio vectorscope display helpers', () => {
         expect(points[0]?.age).toBe(0);
         expect(points.at(-1)?.age).toBe(1);
     });
+
+    it('supports unipolar, bipolar, and lissajous coordinate modes', () => {
+        const left = new Float32Array([0.5, -0.5]);
+        const right = new Float32Array([0.5, 0.5]);
+        const bipolar = buildVectorscopePoints(left, right, 200, 200, 1, 2, 'bipolar-scaled');
+        const unipolar = buildVectorscopePoints(left, right, 200, 200, 1, 2, 'unipolar-scaled');
+        const lissajous = buildVectorscopePoints(left, right, 200, 200, 1, 2, 'lissajous');
+
+        // Unipolar modes use the full positive mid/side quadrant, with a lower-left origin.
+        expect(unipolar.every((point) => point.x >= 0 && point.y <= 200)).toBe(true);
+        expect(unipolar[0]?.x).toBe(0);
+        expect(unipolar[0]?.y).toBeCloseTo(100);
+        // Bipolar preserves phase polarity, while Lissajous directly plots left against right.
+        expect(bipolar[1]?.x).toBeLessThan(100);
+        expect(lissajous[0]).toMatchObject({ x: 150, y: 50 });
+        expect(lissajous[1]).toMatchObject({ x: 50, y: 50 });
+    });
 });

@@ -1,4 +1,4 @@
-export const SDK_VERSION = '2.0.0';
+export const SDK_VERSION = '2.1.0';
 export const PLUGIN_CAPABILITIES = Object.freeze({
   timelineRead: 'timeline.read',
   audioFeaturesRead: 'audio.features.read',

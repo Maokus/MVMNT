@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { PerspectiveCompositor } from './perspective-compositor';
 import { PerspectiveElementRoot } from './render-objects/perspective-element-root';
+import { renderResourceManager } from './render-resource-manager';
 
 export interface RenderObject {
     render?: (ctx: CanvasRenderingContext2D, config: any, time: number) => void;
@@ -58,6 +59,7 @@ export class ModularRenderer {
 
     dispose(): void {
         this.perspectiveCompositor.dispose();
+        renderResourceManager.clear();
     }
 
     clearCanvas(ctx: CanvasRenderingContext2D, width: number, height: number, backgroundColor: string) {

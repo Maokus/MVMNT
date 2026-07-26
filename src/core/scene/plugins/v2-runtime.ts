@@ -14,6 +14,7 @@ import type { CapabilityContext, PluginElementDefinition } from '../../../../pac
 import { err, ok, type PluginDiagnostic, type Result } from '../../../../packages/plugin-sdk/src/api';
 import { registerScopedFeatureRequirements } from '@audio/audioElementMetadata';
 import { ensureFontLoaded } from '@fonts/font-loader';
+import { renderResourceManager } from '@core/render/render-resource-manager';
 
 const diagnostic = (
     code: PluginDiagnostic['code'],
@@ -145,6 +146,36 @@ function createContext(
                     get: () => Object.freeze({ ...tracked.handle.get() }),
                     dispose: tracked.dispose,
                 });
+            },
+            generatedRaster(request: {
+                contentKey: string;
+                width: number;
+                height: number;
+                format: 'rgba8';
+                build: () => Uint8ClampedArray;
+            }) {
+                if (controller.signal.aborted)
+                    return err(diagnostic('ABORTED', 'Raster generation was aborted', 'assets.generatedRaster'));
+                try {
+                    const generated = renderResourceManager.generatedRaster({
+                        namespace: `plugin:${options.pluginId}:sdk-v2`,
+                        ...request,
+                    });
+                    return ok(
+                        Object.freeze({
+                            resource: generated.resource,
+                            status: 'ready' as const,
+                        })
+                    );
+                } catch (error) {
+                    return err(
+                        diagnostic(
+                            'INVALID_ARGUMENT',
+                            error instanceof Error ? error.message : String(error),
+                            'assets.generatedRaster'
+                        )
+                    );
+                }
             },
         }),
     };
@@ -355,6 +386,65 @@ function createContext(
                         })
                     )
                 );
+            },
+            sampleFeatureMatrix(args: {
+                trackId: string;
+                feature: string | { key: string; channel?: string | number };
+                startSeconds: number;
+                stepSeconds: number;
+                frameCount: number;
+                interpolation?: 'linear' | 'nearest';
+            }) {
+                if (!granted(PLUGIN_CAPABILITIES.audioFeaturesRead))
+                    return unavailable(PLUGIN_CAPABILITIES.audioFeaturesRead, 'audio.sampleFeatureMatrix');
+                if (
+                    !Number.isFinite(args.startSeconds) ||
+                    !Number.isFinite(args.stepSeconds) ||
+                    args.stepSeconds <= 0 ||
+                    !Number.isInteger(args.frameCount) ||
+                    args.frameCount <= 0
+                ) {
+                    return err(
+                        diagnostic('INVALID_ARGUMENT', 'Matrix range and frameCount are invalid', 'audio.sampleFeatureMatrix')
+                    );
+                }
+                const featureKey = typeof args.feature === 'string' ? args.feature : args.feature?.key;
+                if (!featureKey)
+                    return err(diagnostic('INVALID_ARGUMENT', 'Feature key is required', 'audio.sampleFeatureMatrix'));
+                let matrix;
+                try {
+                    matrix = host.audio.sampleFeatureMatrix({
+                        trackId: args.trackId,
+                        featureKey,
+                        startSeconds: args.startSeconds,
+                        stepSeconds: args.stepSeconds,
+                        frameCount: args.frameCount,
+                        interpolation: args.interpolation,
+                    });
+                } catch (error) {
+                    return err(
+                        diagnostic(
+                            'INVALID_ARGUMENT',
+                            error instanceof Error ? error.message : String(error),
+                            'audio.sampleFeatureMatrix'
+                        )
+                    );
+                }
+                return matrix
+                    ? ok(
+                          Object.freeze({
+                              ...matrix,
+                              data: matrix.data.slice(),
+                              coverage: matrix.coverage.slice(),
+                          })
+                      )
+                    : err(
+                          diagnostic(
+                              'RESOURCE_UNAVAILABLE',
+                              'Audio feature matrix is unavailable',
+                              'audio.sampleFeatureMatrix'
+                          )
+                      );
             },
             getRawSamples(args: { trackId: string; startSeconds: number; endSeconds: number; channel?: any }) {
                 if (!granted(PLUGIN_CAPABILITIES.audioRawRead))

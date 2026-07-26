@@ -1,5 +1,17 @@
 # Plugin SDK changelog
 
+## 2.1.0
+
+Adds two bounded, callback-scoped performance primitives:
+
+- `audio.sampleFeatureMatrix()` returns row-major feature data, clip coverage, and an
+  opaque session revision without exposing feature caches or timeline state.
+- `assets.generatedRaster()` memoizes deterministic RGBA pixels by a plugin-namespaced
+  content key. Builders run synchronously only on a miss and are subject to host quotas.
+
+Plugins receive immutable snapshots only. Canvas contexts, cache instances, eviction
+budgets, scratch surfaces, and persisted revision identifiers remain host implementation details.
+
 ## 2.0.0
 
 Introduces the workspace package, definition/callback authoring, readonly DTOs, structured

@@ -454,7 +454,11 @@ new PixelGrid(x, y, cols: number, rows: number, options?: PixelGridOptions)
 updatePixels(pixels: Uint8ClampedArray)   // cols × rows × 4 bytes, RGBA
 ```
 
-Cache the instance and call `updatePixels()` each frame rather than recreating. Renders with nearest-neighbour scaling (no smoothing).
+Renders with nearest-neighbour scaling (no smoothing). Built-in renderers should prefer
+host-managed generated rasters for repeatable pixel content: derive a content key from
+render inputs and create a fresh lightweight draw object each frame. Persistent
+`PixelGrid` instances remain supported for compatibility, but should not be used as
+scene-element state because doing so makes render order and invalidation harder to reason about.
 
 ---
 

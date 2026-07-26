@@ -1,6 +1,6 @@
 {
     "package": "@mvmnt-app/plugin-sdk",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "runtimeFormat": "commonjs",
     "subpaths": [
         ".",
@@ -82,6 +82,7 @@
             "getAudioChannelMetadata",
             "sampleAudioFeature",
             "sampleAudioFeatureRange",
+            "sampleAudioFeatureMatrix",
             "getRawAudioSamples",
             "getAudioRms",
             "registerAudioCalculator",
@@ -103,6 +104,7 @@
             "loadBundledImage",
             "loadBundledSparrow",
             "loadBundledGridAtlas"
+            ,"createGeneratedRaster"
         ],
         "api": ["SDK_VERSION", "PLUGIN_CAPABILITIES", "PluginContractError", "ok", "err"],
         "animation": ["clamp", "lerp", "invLerp", "remap", "easings", "FloatCurve"],
@@ -111,6 +113,7 @@
             "getAudioChannelMetadata",
             "sampleAudioFeature",
             "sampleAudioFeatureRange",
+            "sampleAudioFeatureMatrix",
             "getRawAudioSamples",
             "getAudioRms",
             "registerAudioCalculator"
@@ -167,6 +170,7 @@
             "loadBundledImage",
             "loadBundledSparrow",
             "loadBundledGridAtlas"
+            ,"createGeneratedRaster"
         ]
     }
 }

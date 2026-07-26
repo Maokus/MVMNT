@@ -19,7 +19,7 @@ export function validateArchivePaths(paths: readonly string[]): string[] {
 }
 
 export function supportsPluginApiRange(range: string): boolean {
-    return satisfiesVersion('2.0.0', range);
+    return satisfiesVersion(sdkManifest.version, range);
 }
 
 export function normalizeElementCapabilities(element: PluginElementManifest): {

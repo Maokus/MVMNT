@@ -30,6 +30,21 @@ export interface AudioFeatureFrame {
     readonly sampleRate?: number;
 }
 
+export interface AudioFeatureMatrix {
+    /** Opaque, session-local content revision suitable for generated-resource keys. */
+    readonly revision: string;
+    readonly startSeconds: number;
+    readonly stepSeconds: number;
+    readonly frameCount: number;
+    readonly valuesPerFrame: number;
+    /** Row-major values: frame * valuesPerFrame + channel. */
+    readonly data: Float32Array;
+    /** One when an enabled clip covers the frame, zero for a timeline gap. */
+    readonly coverage: Uint8Array;
+    readonly format: 'float32' | 'uint8' | 'int16';
+    readonly sampleRate?: number;
+}
+
 export interface AudioApi {
     /** Registers analysis requirements for this element instance and is automatically disposed with its lifecycle scope. */
     requireFeatures(requirements: readonly AudioFeatureRequirement[]): Result<ScopedFeatureRequirements>;
@@ -46,6 +61,20 @@ export interface AudioApi {
             stepSeconds: number;
         }>
     ): Result<readonly AudioFeatureFrame[]>;
+    /**
+     * Samples a packed feature window in one host call. The host resolves clip
+     * placement once and caps the result at 1,048,576 scalar values.
+     */
+    sampleFeatureMatrix(
+        args: Readonly<{
+            trackId: string;
+            feature: AudioFeatureInput;
+            startSeconds: number;
+            stepSeconds: number;
+            frameCount: number;
+            interpolation?: 'linear' | 'nearest';
+        }>
+    ): Result<AudioFeatureMatrix>;
     /** Allocates and returns an unbounded defensive copy. Prefer features for long windows. */
     getRawSamples(
         args: Readonly<{ trackId: string; startSeconds: number; endSeconds: number; channel?: AudioChannel }>
@@ -105,6 +134,11 @@ export const sampleAudioFeatureRange = (
     audio: AudioApi,
     args: Parameters<AudioApi['sampleFeatureRange']>[0]
 ): ReturnType<AudioApi['sampleFeatureRange']> => audio.sampleFeatureRange(args);
+
+export const sampleAudioFeatureMatrix = (
+    audio: AudioApi,
+    args: Parameters<AudioApi['sampleFeatureMatrix']>[0]
+): ReturnType<AudioApi['sampleFeatureMatrix']> => audio.sampleFeatureMatrix(args);
 
 export const getRawAudioSamples = (
     audio: AudioApi,

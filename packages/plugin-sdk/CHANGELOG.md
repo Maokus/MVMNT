@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.0
+
+- Added packed `sampleFeatureMatrix()` audio reads with clip coverage and opaque revisions.
+- Added content-addressed `generatedRaster()` assets backed by host-managed memory budgets.
+
 ## 2.0.0
 
 - Added `definePluginElement()` and callback-scoped capability contexts.

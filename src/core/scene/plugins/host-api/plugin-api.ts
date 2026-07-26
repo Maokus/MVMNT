@@ -34,6 +34,10 @@ import { beatsToTicks, ticksToBeats } from '@core/timing/ppq';
 import { getAudioClipSegmentsInSeconds, getAudioClipTimelineSegments } from '@state/timeline/audioClips';
 import type { AudioTrack } from '@audio/audioTypes';
 import { PLUGIN_CAPABILITIES, type PluginCapability } from '../../../../../packages/plugin-sdk/src/api';
+import {
+    readAudioFeatureMatrix,
+    type AudioFeatureMatrix,
+} from '@audio/features/audioFeatureMatrix';
 export { PLUGIN_CAPABILITIES } from '../../../../../packages/plugin-sdk/src/api';
 
 const CLIP_RAW_FALLBACK_SAMPLE_RATE = 48_000;
@@ -191,6 +195,15 @@ export interface PluginAudioApi {
         stepSec: number;
         samplingOptions?: AudioSamplingOptions | null;
     }): FeatureDataRangeResult[];
+    sampleFeatureMatrix(args: {
+        trackId: string;
+        featureKey: string;
+        startSeconds: number;
+        stepSeconds: number;
+        frameCount: number;
+        interpolation?: 'linear' | 'nearest';
+        analysisProfileId?: string | null;
+    }): AudioFeatureMatrix | null;
 
     /**
      * Return a copy of the decoded PCM samples for a time window on a specific channel.
@@ -557,6 +570,10 @@ export function createPluginHostServices(
                     stepSec,
                     samplingOptions ?? null
                 );
+            },
+            sampleFeatureMatrix(args) {
+                if (!hasAudioFeaturesRead || !timelineStore) return null;
+                return readAudioFeatureMatrix(timelineStore.getState(), args);
             },
             getRawSamples({ trackId, startSec, endSec, channel = 'mono', signal }) {
                 if (!hasAudioRawRead || !timelineStore) return null;
