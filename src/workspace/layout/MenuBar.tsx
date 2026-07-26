@@ -46,6 +46,27 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
         }
     }, [showSceneMenu]);
 
+    useEffect(() => {
+        const handleSceneSettingsShortcut = (event: KeyboardEvent) => {
+            if (!event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.key !== ',') {
+                return;
+            }
+
+            const target = event.target as HTMLElement | null;
+            const tag = target?.tagName;
+            if (target?.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || target?.getAttribute('role') === 'textbox') {
+                return;
+            }
+
+            event.preventDefault();
+            setShowSceneMenu(false);
+            setShowSettingsModal(true);
+        };
+
+        window.addEventListener('keydown', handleSceneSettingsShortcut, { capture: true });
+        return () => window.removeEventListener('keydown', handleSceneSettingsShortcut, { capture: true });
+    }, []);
+
     const handleSceneNameSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         // commit temporary name to store when form submitted (Enter)

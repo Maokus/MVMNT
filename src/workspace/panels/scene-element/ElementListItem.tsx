@@ -15,9 +15,10 @@ interface ElementListItemProps {
     onDuplicate: () => void;
     onDelete: () => void;
     onUpdateId: (oldId: string, newId: string) => boolean;
-    onDragStart: (height: number) => void;
-    onDragOver: (event: React.DragEvent<HTMLDivElement>) => void;
-    onDragEnd: () => void;
+    onPointerDragStart: (height: number, event: React.PointerEvent<HTMLDivElement>) => void;
+    onPointerDragMove: (event: React.PointerEvent<HTMLDivElement>) => void;
+    onPointerDragEnd: (event: React.PointerEvent<HTMLDivElement>) => void;
+    onPointerDragCancel: () => void;
 }
 
 const ElementListItem: React.FC<ElementListItemProps> = ({
@@ -33,9 +34,10 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
     onDuplicate,
     onDelete,
     onUpdateId,
-    onDragStart,
-    onDragOver,
-    onDragEnd,
+    onPointerDragStart,
+    onPointerDragMove,
+    onPointerDragEnd,
+    onPointerDragCancel,
 }) => {
     const [isEditingId, setIsEditingId] = useState(false);
     const [editValue, setEditValue] = useState(element.id);
@@ -138,32 +140,38 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
         action();
     };
 
-    const baseItem = "flex items-center justify-between px-3 py-0.5 mb-1 border rounded cursor-pointer transition";
+    const isInteractiveTarget = (target: EventTarget) =>
+        target instanceof Element && Boolean(target.closest('button, input, textarea, select, a, [contenteditable="true"]'));
+
+    const baseItem = "flex items-center justify-between px-3 py-0.5 mb-1 border rounded cursor-pointer transition select-none touch-none";
     const unselected = "bg-[color:var(--twc-control)] border-[color:var(--twc-control2)] hover:bg-[color:var(--twc-control2)] hover:border-neutral-500";
     const selected = "bg-[#0e639c] border-[#1177bb] text-white";
-    const draggingState = isDragging ? 'opacity-0 pointer-events-none' : '';
+    const draggingState = isDragging ? 'opacity-0' : '';
     return (
         <div
             ref={containerRef}
             className={`${baseItem} ${isSelected ? selected : unselected} ${draggingState}`}
             onClick={onSelect}
-            draggable={!isEditingId}
+            draggable={false}
             onDragStart={(event) => {
-                if (isEditingId) {
-                    event.preventDefault();
-                    return;
-                }
-
-                event.dataTransfer.effectAllowed = 'move';
-                event.dataTransfer.setData('text/plain', element.id);
-
-                const rect = containerRef.current?.getBoundingClientRect();
-                const computedHeight = rect?.height ?? containerRef.current?.offsetHeight ?? 0;
-                onDragStart(computedHeight > 0 ? computedHeight : 1);
+                event.preventDefault();
             }}
-            onDragOver={onDragOver}
-            onDragEnd={() => {
-                onDragEnd();
+            onPointerDown={(event) => {
+                if (isEditingId || event.button > 0 || isInteractiveTarget(event.target)) return;
+                const rect = containerRef.current?.getBoundingClientRect();
+                const height = rect?.height ?? containerRef.current?.offsetHeight ?? 1;
+                event.currentTarget.setPointerCapture(event.pointerId);
+                onPointerDragStart(height, event);
+            }}
+            onPointerMove={onPointerDragMove}
+            onPointerUp={(event) => {
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                    event.currentTarget.releasePointerCapture(event.pointerId);
+                }
+                onPointerDragEnd(event);
+            }}
+            onPointerCancel={() => {
+                onPointerDragCancel();
             }}
         >
             <div className="flex-1" ref={idContainerRef}>

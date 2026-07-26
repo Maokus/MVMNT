@@ -13,6 +13,7 @@ import ScenePluginsTab from '../scene-settings/ScenePluginsTab';
 import {
     connectToDevPluginServer,
     getDevPluginConnectionStatus,
+    setDevPluginServerContinuousScanning,
     subscribeToDevPluginConnectionStatus,
     type DevPluginConnectionStatus,
 } from '@core/scene/plugins/dev-plugin-watcher';
@@ -534,20 +535,52 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                         <h4 className="m-0 text-[12px] font-medium text-neutral-100">Development Plugin Server</h4>
                                         <p className="m-0 mt-1 text-[11px] text-neutral-400">
                                             {devPluginConnection.state === 'idle' && 'Not connected. Connect to enable development plugin hot reload.'}
-                                            {devPluginConnection.state === 'connecting' && 'Connecting to the local development plugin server…'}
-                                            {devPluginConnection.state === 'connected' && `Connected to ${devPluginConnection.serverUrl}.`}
-                                            {devPluginConnection.state === 'failed' && 'Unable to connect. Start npm run dev-plugin and try again.'}
+                                            {devPluginConnection.state === 'connecting' && `Scanning local ports ${devPluginConnection.portRange}…`}
+                                            {devPluginConnection.state === 'connected' && (devPluginConnection.scanning ? `Connected while scanning ports ${devPluginConnection.portRange}.` : 'Connected to a development plugin server.')}
+                                            {devPluginConnection.state === 'failed' && `No development plugin server responded on ports ${devPluginConnection.portRange}.`}
                                             {devPluginConnection.state === 'unavailable' && 'Development plugin servers are available only while running MVMNT in development mode.'}
                                         </p>
                                     </div>
                                     <button
                                         type="button"
                                         onClick={connectToDevPluginServer}
-                                        disabled={devPluginConnection.state === 'connecting' || devPluginConnection.state === 'connected' || devPluginConnection.state === 'unavailable'}
+                                        disabled={devPluginConnection.scanning || devPluginConnection.state === 'unavailable'}
                                         className="shrink-0 rounded bg-sky-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-400"
                                     >
-                                        {devPluginConnection.state === 'connecting' ? 'Connecting…' : devPluginConnection.state === 'connected' ? 'Connected' : 'Connect'}
+                                        {devPluginConnection.scanning ? 'Scanning…' : devPluginConnection.servers.length > 0 ? 'Scan Again' : 'Scan'}
                                     </button>
+                                </div>
+                                <div className="mt-3 border-t border-neutral-700 pt-3">
+                                    <div className="flex items-center justify-between gap-3 text-[11px] text-neutral-300">
+                                        <span>Scanning ports {devPluginConnection.portRange}</span>
+                                        <label className="flex cursor-pointer items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={devPluginConnection.continuousScanning}
+                                                disabled={devPluginConnection.state === 'unavailable'}
+                                                onChange={(event) => setDevPluginServerContinuousScanning(event.target.checked)}
+                                            />
+                                            Continue scanning
+                                        </label>
+                                    </div>
+                                    {devPluginConnection.continuousScanning && (
+                                        <p className="m-0 mt-1 text-[11px] text-neutral-500">Checks once every few seconds for servers that start later.</p>
+                                    )}
+                                    <div className="mt-2 rounded bg-neutral-950/40 px-2 py-1.5 text-[11px]">
+                                        <div className="font-medium text-neutral-300">Connected servers</div>
+                                        {devPluginConnection.servers.length > 0 ? (
+                                            <ul className="m-0 mt-1 list-none space-y-1 p-0 text-emerald-300">
+                                                {devPluginConnection.servers.map((server) => (
+                                                    <li key={server.serverUrl}>
+                                                        <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                                                        localhost:{server.port}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p className="m-0 mt-1 text-neutral-500">No servers connected.</p>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>

@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { PerspectiveElementRoot, Rectangle, type Arc, type RenderObject } from '@core/render/render-objects';
 import { SceneElement } from '../base';
-import { BasicShapesElement } from '..';
+import { BasicShapesElement, basicShapes } from '..';
+import type { PropertyDefinition } from '@core/types';
 import { enableFeatureForSession } from '@utils/featureFlags';
 
 afterEach(() => enableFeatureForSession('elementPerspectiveWarp', false));
@@ -105,5 +106,29 @@ describe('BasicShapesElement angles', () => {
 
         expect(arc.startAngle).toBeCloseTo(Math.PI / 2);
         expect(arc.endAngle).toBeCloseTo(Math.PI);
+    });
+});
+
+describe('Basic Shapes property visibility', () => {
+    const schema = basicShapes.schema as {
+        tabs: Array<{ groups: Array<{ properties: PropertyDefinition[] }> }>;
+    };
+    const properties = schema.tabs.flatMap((tab) => tab.groups).flatMap((group) => group.properties);
+
+    it('only shows arc controls for circles', () => {
+        for (const key of ['startAngle', 'endAngle', 'anticlockwise', 'circleFillStyle']) {
+            expect(properties.find((property) => property.key === key)?.visibleWhen).toEqual([
+                { key: 'shapeType', equals: 'circle' },
+            ]);
+        }
+    });
+
+    it('only shows polygon and line controls for their matching shape types', () => {
+        expect(properties.find((property) => property.key === 'sides')?.visibleWhen).toEqual([
+            { key: 'shapeType', equals: 'triangle' },
+        ]);
+        expect(properties.find((property) => property.key === 'lineLength')?.visibleWhen).toEqual([
+            { key: 'shapeType', equals: 'line' },
+        ]);
     });
 });

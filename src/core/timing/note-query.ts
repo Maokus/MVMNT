@@ -112,7 +112,12 @@ export function getNotesInWindow(
             }
             const cache = state.midiCache[clip.sourceId];
             if (!cache) continue;
-            const map = cache.tempoMap ?? state.timeline.masterTempoMap;
+            // Imported MIDI tempo is source metadata. Once the file is placed on
+            // the timeline, note timing must follow the timeline's tempo map (or
+            // global BPM fallback), just like transport and audio playback.
+            // Otherwise changing the project BPM leaves preview notes at the
+            // MIDI file's original tempo.
+            const map = state.timeline.masterTempoMap;
             const offsetSec = clipOffsetSeconds(state, clip);
             let loLocal = startSec - offsetSec;
             let hiLocal = endSec - offsetSec;

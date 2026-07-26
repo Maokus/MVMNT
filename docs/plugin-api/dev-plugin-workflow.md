@@ -57,13 +57,16 @@ serve any number of plugin directories.
    - `/status` — all served plugin IDs, revisions, readiness, and build errors.
    - `/<plugin-id>.mvmnt-plugin` — each latest archive with caching disabled.
 
-5. In MVMNT's **Scene Settings → Debug** tab, select **Connect** under Development Plugin Server.
-   When its `EventSource` connects, the app reads `/status` and fetches every current archive. The
-   connection automatically retries, so the plugin server may start after connecting.
+5. In MVMNT's **Scene Settings → Debug** tab, select **Scan** under Development Plugin Server.
+   MVMNT probes the configured port (or the default range) once, opens an `EventSource` only for
+   responding servers, then fetches every current archive. Enable **Continue scanning** if the
+   plugin server may start later; discovery cycles are summarised in one console message rather
+   than logging a connection error for each closed port.
 6. The normal runtime loader stores the archive, injects SDK 2 modules, registers element types as
    `<plugin-id>:<element-type>`, and refreshes matching scene instances.
 
-The browser reconnects automatically after it has been explicitly connected from the Debug tab.
+Connected servers continue to receive hot-reload events. If a server goes away, scan again (or
+enable **Continue scanning**) to discover it when it returns.
 
 ## What happens after a save
 

@@ -69,4 +69,36 @@ describe('MIDI preview synth', () => {
         expect(context.oscillators[0].stops).toHaveLength(2);
         engine.dispose();
     });
+
+    it('uses the current timeline BPM instead of the MIDI file tempo', async () => {
+        useTimelineStore.setState({
+            timeline: { ...useTimelineStore.getState().timeline, globalBpm: 240 },
+            tracks: {
+                midi1: { id: 'midi1', name: 'MIDI', type: 'midi', enabled: true, mute: false, solo: false, clips: [{ id: 'clip1', type: 'midi', sourceId: 'source1', offsetTicks: 0, enabled: true }] },
+            },
+            tracksOrder: ['midi1'],
+            midiCache: {
+                source1: {
+                    midiData: {} as any,
+                    ticksPerQuarter: 960,
+                    // This is the 120 BPM tempo embedded in the imported MIDI file.
+                    tempoMap: [{ time: 0, tempo: 500_000 }],
+                    notesRaw: [{ note: 69, channel: 0, startTick: 0, endTick: 960, durationTicks: 960, velocity: 127 }],
+                    ccRaw: [],
+                    bounds: { minTick: 0, maxTick: 960, minNote: 69, maxNote: 69, maxDurationTicks: 960 },
+                },
+            },
+            midiPreviewTrackIds: { midi1: true },
+        } as any);
+        const context = new SynthTestContext();
+        const engine = new AudioEngine();
+        (engine as any).ctx = context;
+
+        await engine.playTick(0);
+
+        // A one-beat note at 240 BPM lasts 0.25 seconds. Before the fix it
+        // used the embedded 120 BPM map and lasted 0.5 seconds.
+        expect(context.oscillators[0].stops[0]).toBeCloseTo(0.251);
+        engine.dispose();
+    });
 });

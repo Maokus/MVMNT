@@ -1,9 +1,10 @@
 /**
  * Development plugin watcher.
  *
- * Reconciles plugins advertised by local dev-plugin servers. The EventSources
- * deliberately stay open across failed connections, so the plugin server can
- * be started after the user has connected from the Debug menu.
+ * Reconciles plugins advertised by local dev-plugin servers. Discovery uses
+ * short-lived status requests; EventSources are opened only for servers that
+ * answer those requests. This avoids persistent browser network errors for
+ * every unused port in the development server range.
  */
 
 import { loadPlugin, unloadPlugin } from './plugin-loader';
@@ -14,6 +15,8 @@ const DEV_PLUGIN_SERVER_PORT =
     Number.isInteger(configuredPort) && configuredPort > 0 && configuredPort <= 65535 ? configuredPort : 7741;
 const DEFAULT_PORT_RANGE_SIZE = 10;
 const DISCONNECT_GRACE_MS = 5_000;
+const SCAN_INTERVAL_MS = 3_000;
+const STATUS_REQUEST_TIMEOUT_MS = 1_500;
 
 interface DevPluginStatus {
     id: string;
@@ -32,15 +35,30 @@ const lastKnownGoodBundle = new Map<string, ArrayBuffer>();
 const reloads = new Map<string, Promise<void>>();
 const serverByPlugin = new Map<string, string>();
 const connectedServers = new Set<string>();
+const eventSources = new Map<string, EventSource>();
 const connectionListeners = new Set<(status: DevPluginConnectionStatus) => void>();
-let watcherStarted = false;
+
+let scanTimer: ReturnType<typeof setTimeout> | undefined;
+let scanInProgress = false;
+let continuousScanning = false;
+let scanCycle = 0;
 
 export interface DevPluginConnectionStatus {
     state: 'idle' | 'connecting' | 'connected' | 'failed' | 'unavailable';
     serverUrl?: string;
+    servers: Array<{ serverUrl: string; port: number }>;
+    scanning: boolean;
+    continuousScanning: boolean;
+    portRange: string;
 }
 
-let connectionStatus: DevPluginConnectionStatus = { state: 'idle' };
+let connectionStatus: DevPluginConnectionStatus = {
+    state: 'idle',
+    servers: [],
+    scanning: false,
+    continuousScanning: false,
+    portRange: configuredPort ? String(DEV_PLUGIN_SERVER_PORT) : `${DEV_PLUGIN_SERVER_PORT}-${DEV_PLUGIN_SERVER_PORT + DEFAULT_PORT_RANGE_SIZE - 1}`,
+};
 
 function setConnectionStatus(status: DevPluginConnectionStatus): void {
     connectionStatus = status;
@@ -61,6 +79,26 @@ export function subscribeToDevPluginConnectionStatus(listener: (status: DevPlugi
 function serverUrls(): string[] {
     const ports = configuredPort ? [DEV_PLUGIN_SERVER_PORT] : Array.from({ length: DEFAULT_PORT_RANGE_SIZE }, (_, index) => DEV_PLUGIN_SERVER_PORT + index);
     return ports.map((port) => `http://localhost:${port}`);
+}
+
+function buildConnectionStatus(state: DevPluginConnectionStatus['state'], overrides: Partial<DevPluginConnectionStatus> = {}): DevPluginConnectionStatus {
+    const servers = [...connectedServers]
+        .sort()
+        .map((serverUrl) => ({ serverUrl, port: Number(new URL(serverUrl).port) }));
+    return {
+        state,
+        serverUrl: servers[0]?.serverUrl,
+        servers,
+        scanning: scanInProgress,
+        continuousScanning,
+        portRange: connectionStatus.portRange,
+        ...overrides,
+    };
+}
+
+function publishConnectionStatus(): void {
+    const state = connectedServers.size > 0 ? 'connected' : scanInProgress ? 'connecting' : scanCycle > 0 ? 'failed' : 'idle';
+    setConnectionStatus(buildConnectionStatus(state));
 }
 
 function isDevelopmentPlugin(pluginId: string): boolean {
@@ -162,18 +200,67 @@ async function reconcile(serverUrl: string, status: DevServerStatus): Promise<vo
  */
 export function connectToDevPluginServer(): void {
     if (!import.meta.env.DEV) {
-        setConnectionStatus({ state: 'unavailable' });
+        setConnectionStatus(buildConnectionStatus('unavailable'));
         return;
     }
-    if (watcherStarted) return;
+    void scanForDevPluginServers();
+}
 
-    watcherStarted = true;
-    setConnectionStatus({ state: 'connecting' });
-    for (const serverUrl of serverUrls()) startServerWatcher(serverUrl);
+/** Enable or pause repeated discovery scans. Existing server connections remain open. */
+export function setDevPluginServerContinuousScanning(enabled: boolean): void {
+    continuousScanning = enabled;
+    if (!enabled && scanTimer) {
+        clearTimeout(scanTimer);
+        scanTimer = undefined;
+    }
+    publishConnectionStatus();
+    if (enabled && import.meta.env.DEV) void scanForDevPluginServers();
+}
+
+function scheduleNextScan(): void {
+    if (!continuousScanning || scanTimer) return;
+    scanTimer = setTimeout(() => {
+        scanTimer = undefined;
+        void scanForDevPluginServers();
+    }, SCAN_INTERVAL_MS);
+}
+
+async function scanForDevPluginServers(): Promise<void> {
+    if (scanInProgress) return;
+    scanInProgress = true;
+    scanCycle += 1;
+    publishConnectionStatus();
+    console.info(`[DevPluginWatcher] Scanning development plugin ports ${connectionStatus.portRange} (cycle ${scanCycle}).`);
+
+    await Promise.all(serverUrls().map((serverUrl) => probeServer(serverUrl)));
+
+    scanInProgress = false;
+    publishConnectionStatus();
+    scheduleNextScan();
+}
+
+async function probeServer(serverUrl: string): Promise<void> {
+    if (eventSources.has(serverUrl)) return;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), STATUS_REQUEST_TIMEOUT_MS);
+    try {
+        const response = await fetch(`${serverUrl}/status`, { cache: 'no-store', signal: controller.signal });
+        if (!response.ok) return;
+        const status = await response.json() as DevServerStatus;
+        startServerWatcher(serverUrl);
+        await reconcile(serverUrl, status);
+    } catch {
+        // Closed ports are an expected part of scanning. Report only the cycle,
+        // rather than one connection-refused message per port.
+    } finally {
+        clearTimeout(timeout);
+    }
 }
 
 function startServerWatcher(serverUrl: string): void {
+    if (eventSources.has(serverUrl)) return;
     const eventSource = new EventSource(`${serverUrl}/events`);
+    eventSources.set(serverUrl, eventSource);
     let disconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
     const scheduleDisconnectCleanup = () => {
@@ -186,18 +273,11 @@ function startServerWatcher(serverUrl: string): void {
 
     eventSource.onopen = () => {
         connectedServers.add(serverUrl);
-        setConnectionStatus({ state: 'connected', serverUrl });
+        publishConnectionStatus();
         if (disconnectTimer) {
             clearTimeout(disconnectTimer);
             disconnectTimer = undefined;
         }
-        fetch(`${serverUrl}/status`, { cache: 'no-store' })
-            .then((response) => {
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                return response.json() as Promise<DevServerStatus>;
-            })
-            .then((status) => reconcile(serverUrl, status))
-            .catch((error) => console.warn('[DevPluginWatcher] Could not reconcile dev plugins:', error));
     };
 
     eventSource.onmessage = (event) => {
@@ -214,10 +294,15 @@ function startServerWatcher(serverUrl: string): void {
     };
 
     eventSource.onerror = () => {
+        // Do not let EventSource retry a server that has gone away: each retry
+        // creates a noisy browser connection-refused error. A later scan can
+        // discover it again, including automatically when continuous scanning
+        // is enabled from Scene Settings.
+        eventSource.close();
+        eventSources.delete(serverUrl);
         connectedServers.delete(serverUrl);
-        if (connectedServers.size === 0) setConnectionStatus({ state: 'failed' });
-        // EventSource automatically retries. Cleanup is intentionally delayed so
-        // restarting the dev server does not make scene elements flicker away.
+        publishConnectionStatus();
         scheduleDisconnectCleanup();
+        scheduleNextScan();
     };
 }
