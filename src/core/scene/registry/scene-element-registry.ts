@@ -232,6 +232,8 @@ export class SceneElementRegistry {
         this.registerElementFromDefinition('audioWaveform', elements.audioWaveform);
         this.registerElementFromDefinition('audioPeaks', elements.audioPeaks);
         this.registerElementFromDefinition('audioLockedOscilloscope', elements.audioLockedOscilloscope);
+        this.registerElementFromDefinition('audioSpectrogram', elements.audioSpectrogram);
+        this.registerElementFromDefinition('audioVectorscope', elements.audioVectorscope);
 
         this.registerElementFromDefinition('debug', elements.debug);
     }

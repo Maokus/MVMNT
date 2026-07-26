@@ -21,9 +21,11 @@ export const BUILTIN_ELEMENT_TYPES = [
     'chordEstimateDisplay',
     'ccMonitor',
     'audioSpectrum',
+    'audioSpectrogram',
     'audioVolumeMeter',
     'audioWaveform',
     'audioLockedOscilloscope',
     'audioPeaks',
+    'audioVectorscope',
     'debug',
 ];

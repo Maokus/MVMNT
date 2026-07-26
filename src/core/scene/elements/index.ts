@@ -31,3 +31,5 @@ export { AudioVolumeMeterElement, audioVolumeMeter } from './audio-displays/audi
 export { AudioWaveformElement, audioWaveform } from './audio-displays/audio-waveform';
 export { AudioPeaksElement, audioPeaks } from './audio-displays/audio-peaks';
 export { AudioLockedOscilloscopeElement, audioLockedOscilloscope } from './audio-displays/audio-locked-oscilloscope';
+export { AudioSpectrogramElement, audioSpectrogram } from './audio-displays/audio-spectrogram';
+export { AudioVectorscopeElement, audioVectorscope } from './audio-displays/audio-vectorscope';

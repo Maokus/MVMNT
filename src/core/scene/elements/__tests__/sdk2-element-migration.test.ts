@@ -31,6 +31,8 @@ const builtIns = [
     elements.audioWaveform,
     elements.audioPeaks,
     elements.audioLockedOscilloscope,
+    elements.audioSpectrogram,
+    elements.audioVectorscope,
     elements.debug,
 ];
 
