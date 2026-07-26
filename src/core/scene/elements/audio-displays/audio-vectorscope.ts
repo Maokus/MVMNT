@@ -212,9 +212,12 @@ export class AudioVectorscopeElement extends SceneElement {
             ]),
             tab.appearance([
                 propGroup.appearance({ blendMode: true }),
-                { id: 'trace', label: 'Trace', collapsed: false, properties: [prop.color('color', 'Trace Color', DEFAULT_TRACE_COLOR), prop.range('opacity', 'Trace Opacity', 1, { min: 0, max: 1, step: 0.01 })] },
-                { id: 'grid', label: 'Grid', collapsed: true, properties: [prop.color('gridColor', 'Grid Color', DEFAULT_GRID_COLOR), prop.range('gridOpacity', 'Grid Opacity', 0.5, { min: 0, max: 1, step: 0.01 })] },
-                { id: 'background', label: 'Background', collapsed: true, properties: [prop.color('backgroundColor', 'Background Color', DEFAULT_BACKGROUND_COLOR), prop.range('backgroundOpacity', 'Background Opacity', 1, { min: 0, max: 1, step: 0.01 })] },
+                { id: 'trace', label: 'Trace', collapsed: false, properties: [prop.color('color', 'Trace Color', DEFAULT_TRACE_COLOR), prop.number('opacity', 'Trace Opacity', 1, { min: 0, max: 1, step: 0.01 })],
+                layout: [{ kind: 'control', control: 'slider', bindings: { value: 'opacity' } }, { kind: 'property', propertyKey: 'opacity' }] },
+                { id: 'grid', label: 'Grid', collapsed: true, properties: [prop.color('gridColor', 'Grid Color', DEFAULT_GRID_COLOR), prop.number('gridOpacity', 'Grid Opacity', 0.5, { min: 0, max: 1, step: 0.01 })],
+                layout: [{ kind: 'control', control: 'slider', bindings: { value: 'gridOpacity' } }, { kind: 'property', propertyKey: 'gridOpacity' }] },
+                { id: 'background', label: 'Background', collapsed: true, properties: [prop.color('backgroundColor', 'Background Color', DEFAULT_BACKGROUND_COLOR), prop.number('backgroundOpacity', 'Background Opacity', 1, { min: 0, max: 1, step: 0.01 })],
+                layout: [{ kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } }, { kind: 'property', propertyKey: 'backgroundOpacity' }] },
             ]),
         ]);
     }

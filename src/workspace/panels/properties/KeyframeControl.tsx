@@ -22,13 +22,12 @@ interface KeyframeControlProps {
     isDelinked?: boolean;
 }
 
-const AUTOMATABLE_TYPES = new Set(['number', 'range', 'boolean', 'color', 'colorAlpha', 'string', 'longString', 'font']);
+const AUTOMATABLE_TYPES = new Set(['number', 'boolean', 'color', 'colorAlpha', 'string', 'longString', 'font']);
 
 /** Map a PropertyDefinition.type to an AutomationValueType. Returns null if not automatable. */
 export function resolveAutomationValueType(propertyType: string): AutomationValueType | null {
     switch (propertyType) {
         case 'number':
-        case 'range':
             return 'number';
         case 'boolean':
             return 'boolean';

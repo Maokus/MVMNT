@@ -36,7 +36,7 @@ const requireNumericPorts = (ports: string[]) => (bindings: Record<string, strin
         const key = bindings[port];
         const property = key ? properties.get(key) : undefined;
         if (!property) return `missing ${port} binding`;
-        if (property.type !== 'number' && property.type !== 'range') return `${key} must be numeric`;
+        if (property.type !== 'number') return `${key} must be numeric`;
     }
     return null;
 };
@@ -78,7 +78,7 @@ const NumericControl: React.FC<PropertyControlProps & { ports: string[]; label: 
     </fieldset>;
 };
 
-const SliderNumber: React.FC<PropertyControlProps> = (props) => <NumericControl {...props} ports={['value']} label={String(props.options?.label ?? props.properties.get(props.bindings.value)?.label ?? 'Value')} />;
+const Slider: React.FC<PropertyControlProps> = (props) => <NumericControl {...props} ports={['value']} label={String(props.options?.label ?? props.properties.get(props.bindings.value)?.label ?? 'Value')} />;
 const XYPad: React.FC<PropertyControlProps> = (props) => <NumericControl {...props} ports={['x', 'y']} label={String(props.options?.label ?? 'XY control')} />;
 const PointGrid: React.FC<PropertyControlProps> = (props) => <NumericControl {...props} ports={['x', 'y']} label={String(props.options?.label ?? 'Point')} />;
 
@@ -95,7 +95,7 @@ const DerivedNumber: React.FC<PropertyControlProps> = ({ bindings, options, prop
 };
 
 export const propertyControlRegistry = new PropertyControlRegistry();
-propertyControlRegistry.register({ id: 'slider-number', validate: requireNumericPorts(['value']), component: SliderNumber });
+propertyControlRegistry.register({ id: 'slider', validate: requireNumericPorts(['value']), component: Slider });
 propertyControlRegistry.register({ id: 'xy-pad', validate: requireNumericPorts(['x', 'y']), component: XYPad });
 propertyControlRegistry.register({ id: 'point-grid', validate: requireNumericPorts(['x', 'y']), component: PointGrid });
 propertyControlRegistry.register({ id: 'derived-number', validate: requireNumericPorts(['value']), component: DerivedNumber });

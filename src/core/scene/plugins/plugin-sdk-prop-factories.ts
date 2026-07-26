@@ -67,27 +67,11 @@ function normalizeChoices(choices: SelectChoice[]): Array<{ value: any; label: s
  * ]
  */
 export const prop = {
-    /** A finite number. Rendered as a slider/number input. */
+    /** A finite number. Layout metadata can additionally render it as a slider. */
     number(key: string, label: string, defaultValue: number, opts?: NumericOpts): PropertyDefinition {
         return {
             key,
             type: 'number',
-            label,
-            default: defaultValue,
-            ...(opts?.min !== undefined && { min: opts.min }),
-            ...(opts?.max !== undefined && { max: opts.max }),
-            ...(opts?.step !== undefined && { step: opts.step }),
-            ...(opts?.description && { description: opts.description }),
-            ...(opts?.visibleWhen && { visibleWhen: opts.visibleWhen }),
-            runtime: { transform: asNumber, defaultValue },
-        };
-    },
-
-    /** A finite number rendered as a range slider. */
-    range(key: string, label: string, defaultValue: number, opts?: NumericOpts): PropertyDefinition {
-        return {
-            key,
-            type: 'range',
             label,
             default: defaultValue,
             ...(opts?.min !== undefined && { min: opts.min }),
@@ -337,7 +321,7 @@ export const prop = {
                 },
                 {
                     key: `${keyPrefix}Opacity`,
-                    type: 'range',
+                    type: 'number',
                     label: `${label} Opacity`,
                     default: opts?.opacityDefault ?? 1,
                     min: 0,

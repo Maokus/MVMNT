@@ -144,29 +144,6 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
         );
     }
 
-    if (type === 'range') {
-        const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-            const numValue = parseFloat(e.target.value);
-            if (!isNaN(numValue)) emitChange(numValue);
-        };
-
-        return (
-            <div className="range-input-container">
-                <input
-                    type="range"
-                    id={id}
-                    value={value ?? schema?.default ?? 0}
-                    min={schema?.min}
-                    max={schema?.max}
-                    step={schema?.step}
-                    disabled={disabled}
-                    title={title}
-                    onChange={handleChange}
-                />
-            </div>
-        );
-    }
-
     if (type === 'number') {
         const evaluateNumberInput = (rawValue: string): number | null => {
             const trimmed = rawValue.trim();

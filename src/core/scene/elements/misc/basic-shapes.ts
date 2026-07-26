@@ -89,7 +89,7 @@ export const basicShapes = definePluginElement<Props, undefined>({
                             {
                                 key: 'opacity',
                                 label: 'Fill Opacity',
-                                type: 'range',
+                                type: 'number',
                                 default: 1,
                                 min: 0,
                                 max: 1,
@@ -107,6 +107,7 @@ export const basicShapes = definePluginElement<Props, undefined>({
                                 ],
                             },
                         ],
+                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'opacity' } }, { kind: 'property', propertyKey: 'opacity' }],
                     },
                     {
                         id: 'shapeStroke',
@@ -117,7 +118,7 @@ export const basicShapes = definePluginElement<Props, undefined>({
                             {
                                 key: 'strokeOpacity',
                                 label: 'Stroke Opacity',
-                                type: 'range',
+                                type: 'number',
                                 default: 1,
                                 min: 0,
                                 max: 1,
@@ -138,6 +139,7 @@ export const basicShapes = definePluginElement<Props, undefined>({
                             number('dashGap', 'Dash Gap (px)', 4, { min: 0 }),
                             number('dashOffset', 'Dash Offset (px)', 0),
                         ],
+                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'strokeOpacity' } }, { kind: 'property', propertyKey: 'strokeOpacity' }],
                     },
                     {
                         id: 'shadow',

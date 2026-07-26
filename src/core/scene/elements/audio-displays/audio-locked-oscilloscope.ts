@@ -103,7 +103,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                         label: 'Pitch Detection',
                         collapsed: true,
                         properties: [
-                            prop.range('confidenceThreshold', 'Confidence Threshold', 0.3, {
+                            prop.number('confidenceThreshold', 'Confidence Threshold', 0.3, {
                                 min: 0,
                                 max: 1,
                                 step: 0.01,
@@ -111,6 +111,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                             prop.boolean('disableConfidenceFade', 'Disable Confidence Fade', false),
                             prop.boolean('showInfo', 'Show Info', false),
                         ],
+                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'confidenceThreshold' } }, { kind: 'property', propertyKey: 'confidenceThreshold' }],
                     },
                 ]),
                 tab.appearance([
@@ -121,12 +122,13 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                         collapsed: true,
                         properties: [
                             prop.color('backgroundColor', 'Background Color', DEFAULT_BACKGROUND_COLOR),
-                            prop.range('backgroundOpacity', 'Background Opacity', 0, {
+                            prop.number('backgroundOpacity', 'Background Opacity', 0, {
                                 min: 0,
                                 max: 1,
                                 step: 0.01,
                             }),
                         ],
+                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } }, { kind: 'property', propertyKey: 'backgroundOpacity' }],
                     },
                 ]),
             ]

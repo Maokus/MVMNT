@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { readAudioFeatureMatrix, validateAudioFeatureMatrixSize } from '../audioFeatureMatrix';
+import {
+    getAudioFeatureMatrixRevision,
+    readAudioFeatureMatrix,
+    validateAudioFeatureMatrixSize,
+} from '../audioFeatureMatrix';
 import { buildFeatureTrackKey, DEFAULT_ANALYSIS_PROFILE_ID } from '../featureTrackIdentity';
 import { useTimelineStore } from '@state/timelineStore';
 
@@ -96,5 +100,65 @@ describe('readAudioFeatureMatrix', () => {
     it('rejects matrices above the scalar safety limit', () => {
         expect(() => validateAudioFeatureMatrixSize(524_289, 2)).toThrow(/1048576/);
         expect(validateAudioFeatureMatrixSize(524_288, 2)).toBe(1_048_576);
+    });
+
+    it('changes revision when source metadata arrives after its feature cache', () => {
+        const sourceId = 'source';
+        const trackId = 'audio';
+        const profile = DEFAULT_ANALYSIS_PROFILE_ID;
+        const featureKey = buildFeatureTrackKey('spectrogram', profile);
+        useTimelineStore.setState((state) => ({
+            ...state,
+            tracks: {
+                [trackId]: {
+                    id: trackId,
+                    name: 'Audio',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    gain: 1,
+                    clips: [{ id: 'clip', type: 'audio', sourceId, offsetTicks: 0 }],
+                },
+            },
+            tracksOrder: [trackId],
+            audioFeatureCaches: {
+                [sourceId]: {
+                    version: 4,
+                    audioSourceId: sourceId,
+                    hopSeconds: 1,
+                    startTimeSeconds: 0,
+                    frameCount: 2,
+                    analysisParams: { windowSize: 2, hopSize: 1, overlap: 1, sampleRate: 48_000, calculatorVersions: {} },
+                    defaultAnalysisProfileId: profile,
+                    featureTracks: {
+                        [featureKey]: {
+                            key: featureKey,
+                            calculatorId: 'test',
+                            version: 1,
+                            frameCount: 2,
+                            channels: 1,
+                            hopSeconds: 1,
+                            startTimeSeconds: 0,
+                            format: 'float32',
+                            data: new Float32Array([1, 2]),
+                            analysisProfileId: profile,
+                        },
+                    },
+                },
+            },
+        }));
+
+        const beforeHydration = getAudioFeatureMatrixRevision(useTimelineStore.getState(), trackId, 'spectrogram');
+        useTimelineStore.setState((state) => ({
+            ...state,
+            audioCache: {
+                [sourceId]: { durationSeconds: 2, durationSamples: 96_000, sampleRate: 48_000, channels: 1 },
+            },
+        }));
+        const afterHydration = getAudioFeatureMatrixRevision(useTimelineStore.getState(), trackId, 'spectrogram');
+
+        expect(beforeHydration).not.toBeNull();
+        expect(afterHydration).not.toBe(beforeHydration);
     });
 });

@@ -116,7 +116,7 @@ export class AudioSpectrogramElement extends SceneElement {
                     prop.number('width', 'Width (px)', 800, { min: 1, step: 1 }),
                     prop.number('height', 'Height (px)', 300, { min: 1, step: 1 }),
                     { key: 'windowSeconds', type: 'number', label: 'Window (seconds)', default: 6, min: 0.1, max: 60, step: 0.1, runtime: { transform: positiveNumber(6, 0.1, 60), defaultValue: 6 } },
-                    { key: 'playheadPosition', type: 'range', label: 'Playhead Position', default: 0.5, min: 0, max: 1, step: 0.01, runtime: { transform: positiveNumber(0.5, 0, 1), defaultValue: 0.5 } },
+                    { key: 'playheadPosition', type: 'number', label: 'Playhead Position', default: 0.5, min: 0, max: 1, step: 0.01, runtime: { transform: positiveNumber(0.5, 0, 1), defaultValue: 0.5 } },
                     prop.boolean('seeFuture', 'See Future', false),
                     prop.boolean('showPlayhead', 'Show Playhead', true),
                     prop.color('playheadColor', 'Playhead Color', DEFAULT_PLAYHEAD_COLOR),
@@ -127,7 +127,8 @@ export class AudioSpectrogramElement extends SceneElement {
                     prop.number('maxDecibels', 'Maximum Value', 0, { min: -120, max: 0, step: 1 }),
                     prop.number('gain', 'Gain', 1, { min: 0, max: 10, step: 0.01 }),
                     { key: 'colorMap', type: 'select', label: 'Color Map', default: 'viridis', options: SPECTROGRAM_COLOR_MAPS.map((value) => ({ label: value[0]!.toUpperCase() + value.slice(1), value })), runtime: { transform: (value) => normalizeColorMap(value), defaultValue: 'viridis' } },
-                ] },
+                ],
+                layout: [{ kind: 'control', control: 'slider', bindings: { value: 'playheadPosition' } }, { kind: 'property', propertyKey: 'playheadPosition' }] },
                 { id: 'guides', label: 'Guides', collapsed: true, properties: [
                     prop.boolean('showFrequencyGuides', 'Show Frequency Lines', false),
                     prop.number('frequencyGuideStep', 'Frequency Line Every (Hz)', 1000, { min: 1, max: 48000, step: 1 }),
@@ -144,7 +145,7 @@ export class AudioSpectrogramElement extends SceneElement {
                     prop.boolean('showSecondGuides', 'Show Second Lines', false),
                     prop.number('secondGuideStep', 'Second Line Every', 1, { min: 0.1, max: 60, step: 0.1 }),
                     prop.color('guideColor', 'Guide Color', '#E2E8F0'),
-                    prop.range('guideOpacity', 'Guide Opacity', 0.35, { min: 0, max: 1, step: 0.01 }),
+                    prop.number('guideOpacity', 'Guide Opacity', 0.35, { min: 0, max: 1, step: 0.01 }),
                     prop.number('guideLineWidth', 'Guide Line Width', 1, { min: 0.5, max: 8, step: 0.5 }),
                     prop.boolean('showGuideLabels', 'Show Guide Labels', true),
                     prop.number('guideLabelSize', 'Guide Label Size (px)', 10, { min: 6, max: 32, step: 1 }),
@@ -180,8 +181,9 @@ export class AudioSpectrogramElement extends SceneElement {
                 propGroup.appearance({ blendMode: true }),
                 { id: 'background', label: 'Background', collapsed: true, properties: [
                     prop.color('backgroundColor', 'Background Color', DEFAULT_BACKGROUND_COLOR),
-                    prop.range('backgroundOpacity', 'Background Opacity', 1, { min: 0, max: 1, step: 0.01 }),
-                ] },
+                    prop.number('backgroundOpacity', 'Background Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                ],
+                layout: [{ kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } }, { kind: 'property', propertyKey: 'backgroundOpacity' }] },
             ]),
         ]);
     }

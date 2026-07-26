@@ -269,13 +269,14 @@ export class AudioPeaksElement extends SceneElement {
                                 max: 10_000,
                                 step: 1,
                             }),
-                            prop.range('beatGridOpacity', 'Line Opacity', 0.45, {
+                            prop.number('beatGridOpacity', 'Line Opacity', 0.45, {
                                 min: 0,
                                 max: 1,
                                 step: 0.01,
                             }),
                             prop.number('beatGridWidth', 'Line Width (px)', 1, { min: 0.5, max: 8, step: 0.5 }),
                         ],
+                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'beatGridOpacity' } }, { kind: 'property', propertyKey: 'beatGridOpacity' }],
                     },
                     {
                         id: 'primaryChannel',
@@ -331,7 +332,7 @@ export class AudioPeaksElement extends SceneElement {
                         collapsed: false,
                         properties: [
                             prop.color('color', 'Primary Color', DEFAULT_PRIMARY_COLOR),
-                            prop.range('opacity', 'Primary Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                            prop.number('opacity', 'Primary Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                             prop.select(
                                 'primaryBlendMode',
                                 'Blend Mode',
@@ -340,6 +341,7 @@ export class AudioPeaksElement extends SceneElement {
                                 { description: 'Canvas composite blending operation.' }
                             ),
                         ],
+                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'opacity' } }, { kind: 'property', propertyKey: 'opacity' }],
                     },
                     {
                         id: 'secondaryColors',
@@ -363,7 +365,7 @@ export class AudioPeaksElement extends SceneElement {
                                     defaultValue: DEFAULT_SECONDARY_COLOR,
                                 },
                             },
-                            prop.range('secondaryOpacity', 'Secondary Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                            prop.number('secondaryOpacity', 'Secondary Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                             prop.select(
                                 'secondaryBlendMode',
                                 'Blend Mode',
@@ -372,6 +374,7 @@ export class AudioPeaksElement extends SceneElement {
                                 { description: 'Canvas composite blending operation.' }
                             ),
                         ],
+                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'secondaryOpacity' } }, { kind: 'property', propertyKey: 'secondaryOpacity' }],
                     },
                     {
                         id: 'background',
@@ -387,7 +390,7 @@ export class AudioPeaksElement extends SceneElement {
                             },
                             {
                                 key: 'backgroundOpacity',
-                                type: 'range',
+                                type: 'number',
                                 label: 'Background Opacity',
                                 default: 0,
                                 min: 0,
@@ -396,6 +399,7 @@ export class AudioPeaksElement extends SceneElement {
                                 runtime: { transform: asNumber, defaultValue: 0 },
                             },
                         ],
+                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } }, { kind: 'property', propertyKey: 'backgroundOpacity' }],
                     },
                 ]),
             ]

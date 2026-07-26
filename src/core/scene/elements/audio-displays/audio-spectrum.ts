@@ -270,8 +270,9 @@ export class AudioSpectrumElement extends SceneElement {
                         collapsed: true,
                         properties: [
                             prop.color('backgroundColor', 'Background Color', DEFAULT_BACKGROUND_COLOR),
-                            prop.range('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
+                            prop.number('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
                         ],
+                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } }, { kind: 'property', propertyKey: 'backgroundOpacity' }],
                     },
                 ]),
             ]

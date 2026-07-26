@@ -59,8 +59,9 @@ export const notesPlayedTracker = definePluginElement<Props, undefined>({
                         collapsed: false,
                         properties: [
                             { key: 'color', label: 'Color', type: 'colorAlpha', default: '#CCCCCCFF' },
-                            { key: 'opacity', label: 'Opacity', type: 'range', default: 1, min: 0, max: 1 },
+                            { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1 },
                         ],
+                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'opacity' } }, { kind: 'property', propertyKey: 'opacity' }],
                     },
                     {
                         id: 'typography',
@@ -93,7 +94,7 @@ export const notesPlayedTracker = definePluginElement<Props, undefined>({
                             {
                                 key: 'backgroundOpacity',
                                 label: 'Background Opacity',
-                                type: 'range',
+                                type: 'number',
                                 default: 0.8,
                                 min: 0,
                                 max: 1,
@@ -102,6 +103,7 @@ export const notesPlayedTracker = definePluginElement<Props, undefined>({
                             { key: 'backgroundPaddingY', label: 'Vertical Padding', type: 'number', default: 4 },
                             { key: 'backgroundCornerRadius', label: 'Corner Radius', type: 'number', default: 4 },
                         ],
+                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } }, { kind: 'property', propertyKey: 'backgroundOpacity' }],
                     },
                 ],
             },

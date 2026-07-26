@@ -99,7 +99,7 @@ describe('PropertyGroupPanel', () => {
         const group: PropertyGroup = {
             id: 'perspective', label: 'Perspective', collapsed: false, properties,
             layout: [
-                { kind: 'control', control: 'slider-number', bindings: { value: 'strength' } },
+                { kind: 'control', control: 'slider', bindings: { value: 'strength' } },
                 { kind: 'property', propertyKey: 'strength' },
             ],
         };

@@ -378,15 +378,6 @@
         width: 120px;
     }
 
-    .range-input-container {
-        @apply flex items-center gap-2.5;
-        width: 120px;
-    }
-
-    .range-input-container input[type='range'] {
-        @apply flex-1;
-    }
-
     .field-description {
         @apply text-neutral-300 text-[11px] italic mt-1;
     }

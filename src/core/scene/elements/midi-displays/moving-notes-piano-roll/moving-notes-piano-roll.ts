@@ -189,7 +189,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             prop.color('playheadColor', 'Playhead Color', '#ff6b6b', {
                                 visibleWhen: [{ key: 'showPlayhead', truthy: true }],
                             }),
-                            prop.range('playheadOpacity', 'Playhead Opacity', 1, {
+                            prop.number('playheadOpacity', 'Playhead Opacity', 1, {
                                 min: 0,
                                 max: 1,
                                 step: 0.01,
@@ -202,6 +202,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                                 visibleWhen: [{ key: 'showPlayhead', truthy: true }],
                             }),
                         ],
+                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'playheadOpacity' } }, { kind: 'property', propertyKey: 'playheadOpacity' }],
                     },
                 ]),
                 tab.custom('annotation', 'Annotation', [

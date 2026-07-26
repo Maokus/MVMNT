@@ -76,7 +76,7 @@ export const propGroup = {
             collapsed: false,
             properties: [
                 prop.color(keyFor('color'), 'Color', '#ffffff'),
-                prop.range(keyFor('opacity'), 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                prop.number(keyFor('opacity'), 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                 ...(opts?.blendMode
                     ? [
                           prop.select(
@@ -87,9 +87,13 @@ export const propGroup = {
                               {
                                   description: 'Canvas composite blending operation.',
                               }
-                          ),
+                ),
                       ]
                     : []),
+            ],
+            layout: [
+                { kind: 'control', control: 'slider', bindings: { value: keyFor('opacity') } },
+                { kind: 'property', propertyKey: keyFor('opacity') },
             ],
         };
     },
@@ -164,9 +168,19 @@ export const propGroup = {
             collapsed: true,
             properties: [
                 prop.color(keyFor('borderColor'), 'Border Color', '#ffffff'),
-                prop.range(keyFor('borderWidth'), 'Border Width', 1, { min: 0, max: 50, step: 0.5 }),
+                prop.number(keyFor('borderWidth'), 'Border Width', 1, { min: 0, max: 50, step: 0.5 }),
                 ...(opts?.cornerRadius
-                    ? [prop.range(keyFor('cornerRadius'), 'Corner Radius', 0, { min: 0, max: 200, step: 1 })]
+                    ? [prop.number(keyFor('cornerRadius'), 'Corner Radius', 0, { min: 0, max: 200, step: 1 })]
+                    : []),
+            ],
+            layout: [
+                { kind: 'control', control: 'slider', bindings: { value: keyFor('borderWidth') } },
+                { kind: 'property', propertyKey: keyFor('borderWidth') },
+                ...(opts?.cornerRadius
+                    ? [
+                          { kind: 'control' as const, control: 'slider', bindings: { value: keyFor('cornerRadius') } },
+                          { kind: 'property' as const, propertyKey: keyFor('cornerRadius') },
+                      ]
                     : []),
             ],
         };
@@ -186,31 +200,32 @@ export const propGroup = {
                 prop.color('backgroundColor', 'Background Color', '#000000', {
                     visibleWhen: [{ key: 'showBackground', equals: true }],
                 }),
-                prop.range('backgroundOpacity', 'Background Opacity', 0.8, {
+                prop.number('backgroundOpacity', 'Background Opacity', 0.8, {
                     min: 0,
                     max: 1,
                     step: 0.01,
                     visibleWhen: [{ key: 'showBackground', equals: true }],
                 }),
-                prop.range('backgroundPaddingX', 'Padding X', 8, {
+                prop.number('backgroundPaddingX', 'Padding X', 8, {
                     min: 0,
                     max: 200,
                     step: 1,
                     visibleWhen: [{ key: 'showBackground', equals: true }],
                 }),
-                prop.range('backgroundPaddingY', 'Padding Y', 4, {
+                prop.number('backgroundPaddingY', 'Padding Y', 4, {
                     min: 0,
                     max: 200,
                     step: 1,
                     visibleWhen: [{ key: 'showBackground', equals: true }],
                 }),
-                prop.range('backgroundCornerRadius', 'Corner Radius', 4, {
+                prop.number('backgroundCornerRadius', 'Corner Radius', 4, {
                     min: 0,
                     max: 200,
                     step: 1,
                     visibleWhen: [{ key: 'showBackground', equals: true }],
                 }),
             ],
+            layout: [{ kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } }, { kind: 'property', propertyKey: 'backgroundOpacity' }, { kind: 'control', control: 'slider', bindings: { value: 'backgroundPaddingX' } }, { kind: 'property', propertyKey: 'backgroundPaddingX' }, { kind: 'control', control: 'slider', bindings: { value: 'backgroundPaddingY' } }, { kind: 'property', propertyKey: 'backgroundPaddingY' }, { kind: 'control', control: 'slider', bindings: { value: 'backgroundCornerRadius' } }, { kind: 'property', propertyKey: 'backgroundCornerRadius' }],
         };
     },
 
@@ -332,7 +347,7 @@ export function colorSlotProps(
  *   ]),
  *   section.appearance([
  *     prop.color('color', 'Color', '#ffffff'),
- *     prop.range('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+ *     prop.number('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
  *   ]),
  *   propGroup.typography(),
  *   propGroup.container(),

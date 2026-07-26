@@ -110,7 +110,8 @@ The bundle is written to `dist/plugins/com.example.pulse-0.1.0.mvmnt-plugin`. In
 - [Lifecycle](plugin-lifecycle.md): setup, state, cleanup, and abort signals.
 - [SDK API inventory](plugin-sdk-api-inventory.md): exports and supported import paths.
 - [Plugin manifest schema](plugin-manifest.schema.json): all `plugin.json` fields.
-- [SDK 1 to SDK 2 migration](plugin-v1-to-v2.md): update an existing legacy plugin.
+- [SDK 1 to SDK 2 migration](plugin-v1-to-v2.md): update an existing legacy plugin,
+  including the `range` to numeric-slider-layout schema migration.
   plugins.
 
 Place packaged files under `assets/` and access them through `context.assets`.

@@ -1151,7 +1151,7 @@ export class SceneElement implements SceneElementInterface {
                                         { kind: 'property', propertyKey: 'perspectiveRotationY' },
                                         {
                                             kind: 'control',
-                                            control: 'slider-number',
+                                            control: 'slider',
                                             bindings: { value: 'perspectiveStrength' },
                                         },
                                         { kind: 'property', propertyKey: 'perspectiveStrength' },

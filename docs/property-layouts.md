@@ -6,8 +6,9 @@ same canonical properties into richer, reusable controls. Layout is workspace
 UI metadata: it is not stored in scene documents and does not create a new
 runtime property or binding type.
 
-This is currently an internal host API. It is intentionally not part of
-`@mvmnt/plugin-sdk`; plugins continue to use the stable scalar property schema.
+This is public, serializable SDK 2 inspector metadata. Plugin schemas may use
+the same layout nodes through `ElementPropertyGroup.layout`; layouts never
+become scene data or runtime property values.
 
 ## Layout nodes
 
@@ -50,9 +51,17 @@ compound control port and an exact scalar row.
 ## Built-in controls and fallback
 
 The workspace owns `PropertyControlRegistry`. The initial registrations are
-`slider-number`, `xy-pad`, `point-grid`, and `derived-number`. Numeric controls
-validate that every required binding exists in the group and is a `number` or
-`range` property before rendering.
+`slider`, `xy-pad`, `point-grid`, and `derived-number`. Numeric controls
+validate that every required binding exists in the group and is a `number`
+property before rendering. A slider is paired with its ordinary property row to
+retain macro, keyframe, drag, and precise numeric-entry affordances:
+
+```ts
+layout: [
+    { kind: 'control', control: 'slider', bindings: { value: 'opacity' } },
+    { kind: 'property', propertyKey: 'opacity' },
+];
+```
 
 Unknown controls, missing ports, and incompatible bindings log a development
 warning and render their bound scalar rows instead. This keeps schemas editable

@@ -6,6 +6,7 @@ const schema = {
         id: 'properties', label: 'Properties', groups: [{
             id: 'main', label: 'Main', collapsed: false, properties: [
                 { key: 'size', label: 'Size', type: 'number', default: 24 },
+                { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 0.01 },
                 { key: 'enabled', label: 'Enabled', type: 'boolean', default: true },
                 { key: 'color', label: 'Color', type: 'colorAlpha', default: '#FFFFFFFF' },
                 {
@@ -16,6 +17,10 @@ const schema = {
                 },
                 { key: 'trackIds', label: 'Tracks', type: 'timelineTrackRef', allowMultiple: true },
                 { key: 'imageId', label: 'Image', type: 'assetRef' },
+            ],
+            layout: [
+                { kind: 'control', control: 'slider', bindings: { value: 'opacity' } },
+                { kind: 'property', propertyKey: 'opacity' },
             ],
         }],
     }],
@@ -31,6 +36,7 @@ describe('schema-inferred plugin props', () => {
             create(props) {
                 expectTypeOf(props).toEqualTypeOf<PropsFromSchema<typeof schema>>();
                 expectTypeOf(props.size).toEqualTypeOf<number>();
+                expectTypeOf(props.opacity).toEqualTypeOf<number>();
                 expectTypeOf(props.enabled).toEqualTypeOf<boolean>();
                 expectTypeOf(props.color).toEqualTypeOf<string>();
                 expectTypeOf(props.align).toEqualTypeOf<'left' | 'right'>();

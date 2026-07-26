@@ -56,13 +56,14 @@ export const PropertyLayoutRenderer: React.FC<Props> = ({ nodes, properties, val
             </div>);
             return result;
         }
+        const boundProperties = Object.values(node.bindings).map((key) => propertyMap.get(key)).filter(Boolean) as PropertyDefinition[];
+        if (boundProperties.some((property) => !passes(property.visibleWhen, values))) return result;
         const registration = propertyControlRegistry.get(node.control);
         const error = !registration ? `unknown control ${node.control}` : registration.validate(node.bindings, propertyMap);
         if (error) {
             console.warn('[PropertyLayoutRenderer] Falling back to property rows', { control: node.control, error });
-            const fallbackProperties = Object.values(node.bindings).map((key) => propertyMap.get(key)).filter(Boolean) as PropertyDefinition[];
-            fallbackProperties.forEach((property) => laidOut.add(property.key));
-            result.push(...fallbackProperties.map((property) => renderProperty(property, nested)));
+            boundProperties.forEach((property) => laidOut.add(property.key));
+            result.push(...boundProperties.map((property) => renderProperty(property, nested)));
             return result;
         }
         Object.values(node.bindings).forEach((key) => laidOut.add(key));

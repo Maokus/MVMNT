@@ -41,7 +41,6 @@ export type ElementPropertyType =
     | 'color'
     | 'colorAlpha'
     | 'select'
-    | 'range'
     | 'file'
     | 'file-midi'
     | 'file-image'
@@ -96,12 +95,37 @@ export interface ElementPropertyDefinition<Type extends ElementPropertyType = El
     readonly visibleWhen?: readonly ElementPropertyVisibilityCondition[];
 }
 
+/** Serializable inspector composition metadata. It never becomes scene data. */
+export type ElementPropertyLayoutNode =
+    | Readonly<{ kind: 'property'; propertyKey: string }>
+    | Readonly<{
+          kind: 'control';
+          control: string;
+          bindings: Readonly<Record<string, string>>;
+          options?: Readonly<Record<string, unknown>>;
+          visibleWhen?: readonly ElementPropertyVisibilityCondition[];
+      }>
+    | Readonly<{
+          kind: 'section';
+          id: string;
+          label?: string;
+          collapsed?: boolean;
+          visibleWhen?: readonly ElementPropertyVisibilityCondition[];
+          children: readonly ElementPropertyLayoutNode[];
+      }>
+    | Readonly<{
+          kind: 'actions';
+          visibleWhen?: readonly ElementPropertyVisibilityCondition[];
+          actions: readonly Readonly<{ id: string; label: string; patch: Readonly<Record<string, unknown>> }> [];
+      }>;
+
 export interface ElementPropertyGroup {
     readonly id: string;
     readonly label: string;
     readonly collapsed: boolean;
     readonly description?: string;
     readonly properties: readonly ElementPropertyDefinition[];
+    readonly layout?: readonly ElementPropertyLayoutNode[];
     readonly presets?: readonly ElementPreset[];
 }
 
@@ -158,8 +182,6 @@ export const BLEND_MODE_CHOICES = Object.freeze(
 export const prop = Object.freeze({
     number: (key: string, label: string, value: number, options?: NumericPropertyOptions) =>
         property('number', key, label, value, options as Record<string, unknown>),
-    range: (key: string, label: string, value: number, options?: NumericPropertyOptions) =>
-        property('range', key, label, value, options as Record<string, unknown>),
     boolean: (key: string, label: string, value: boolean, options?: CommonPropertyOptions) =>
         property('boolean', key, label, value, options as Record<string, unknown>),
     string: (key: string, label: string, value: string, options?: CommonPropertyOptions) =>
@@ -369,7 +391,6 @@ type SelectValue<Property extends ElementPropertyDefinition> = Property extends 
 /** The runtime value supplied to callbacks for one inspector property. */
 export type ElementPropertyValue<Property extends ElementPropertyDefinition> = Property['type'] extends
     | 'number'
-    | 'range'
     ? number
     : Property['type'] extends 'boolean'
       ? boolean

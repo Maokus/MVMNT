@@ -24,8 +24,9 @@ export const background = definePluginElement<BackgroundProps, undefined>({
                         collapsed: false,
                         properties: [
                             { key: 'color', label: 'Color', type: 'colorAlpha', default: '#1a1a1a' },
-                            { key: 'opacity', label: 'Opacity', type: 'range', default: 1, min: 0, max: 1, step: 0.01 },
+                            { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 0.01 },
                         ],
+                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'opacity' } }, { kind: 'property', propertyKey: 'opacity' }],
                     },
                 ],
             },

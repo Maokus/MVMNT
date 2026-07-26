@@ -16,7 +16,6 @@ type SupportedFormInputType =
     | 'color'
     | 'colorAlpha'
     | 'select'
-    | 'range'
     | 'file'
     | 'font'
     | 'timelineTrackRef'
@@ -37,7 +36,6 @@ function resolveFormInputType(property: PropertyDefinition): SupportedFormInputT
         rawType === 'color' ||
         rawType === 'colorAlpha' ||
         rawType === 'select' ||
-        rawType === 'range' ||
         rawType === 'font' ||
         rawType === 'timelineTrackRef' ||
         rawType === 'audioAnalysisProfile' ||
@@ -87,7 +85,6 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     const reportedUnsupportedTypesRef = useRef<Set<string>>(new Set());
 
     const canAssignMacro = (propertyType: string) => {
-        const normalizedType = propertyType === 'range' ? 'number' : propertyType;
         return [
             'number',
             'string',
@@ -100,11 +97,11 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             'font',
             'timelineTrackRef',
             'assetRef',
-        ].includes(normalizedType);
+        ].includes(propertyType);
     };
 
     const getMacroOptions = (propertyType: string, propertySchema: PropertyDefinition) => {
-        let macroType = propertyType === 'range' ? 'number' : propertyType;
+        let macroType = propertyType;
         if (macroType === 'file') {
             const accept = propertySchema?.accept;
             let targetFileType = 'file';
@@ -135,7 +132,6 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
     const mapPropertyToMacroType = (prop: PropertyDefinition, currentValue: any): { type: string; options: any; value: any } => {
         let macroType: string = prop.type;
-        if (macroType === 'range') macroType = 'number';
         if (macroType === 'file') {
             if (prop.accept) {
                 if (/(\.mid|\.midi)/i.test(prop.accept)) macroType = 'file-midi';

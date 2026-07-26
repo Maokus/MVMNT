@@ -58,12 +58,12 @@ export const progressDisplay = definePluginElement<Props, undefined>({
                         collapsed: true,
                         properties: [
                             { key: 'barColor', label: 'Bar Color', type: 'colorAlpha', default: '#CCCCCCFF' },
-                            { key: 'barOpacity', label: 'Bar Opacity', type: 'range', default: 1, min: 0, max: 1 },
+                            { key: 'barOpacity', label: 'Bar Opacity', type: 'number', default: 1, min: 0, max: 1 },
                             { key: 'barBgColor', label: 'Background Color', type: 'colorAlpha', default: '#FFFFFFFF' },
                             {
                                 key: 'barBgOpacity',
                                 label: 'Background Opacity',
-                                type: 'range',
+                                type: 'number',
                                 default: 0.1,
                                 min: 0,
                                 max: 1,
@@ -72,7 +72,7 @@ export const progressDisplay = definePluginElement<Props, undefined>({
                             {
                                 key: 'borderOpacity',
                                 label: 'Border Opacity',
-                                type: 'range',
+                                type: 'number',
                                 default: 0.3,
                                 min: 0,
                                 max: 1,
@@ -81,12 +81,13 @@ export const progressDisplay = definePluginElement<Props, undefined>({
                             {
                                 key: 'statsTextOpacity',
                                 label: 'Text Opacity',
-                                type: 'range',
+                                type: 'number',
                                 default: 1,
                                 min: 0,
                                 max: 1,
                             },
                         ],
+                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'barOpacity' } }, { kind: 'property', propertyKey: 'barOpacity' }, { kind: 'control', control: 'slider', bindings: { value: 'barBgOpacity' } }, { kind: 'property', propertyKey: 'barBgOpacity' }, { kind: 'control', control: 'slider', bindings: { value: 'borderOpacity' } }, { kind: 'property', propertyKey: 'borderOpacity' }, { kind: 'control', control: 'slider', bindings: { value: 'statsTextOpacity' } }, { kind: 'property', propertyKey: 'statsTextOpacity' }],
                     },
                     {
                         id: 'typography',

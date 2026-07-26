@@ -76,6 +76,18 @@ function read(track: PreparedSource['track'], frameIndex: number, channel: numbe
     return raw;
 }
 
+/**
+ * Feature tracks can arrive before their audio asset has been hydrated during
+ * scene import. The asset duration determines whether a clip has a timeline
+ * segment at all, so it is part of the rendered matrix identity as well.
+ */
+function sourceAvailabilityIdentity(state: TimelineState, sourceId: string): string {
+    const durationSeconds = state.audioCache[sourceId]?.durationSeconds;
+    return typeof durationSeconds === 'number' && Number.isFinite(durationSeconds) && durationSeconds > 0
+        ? String(durationSeconds)
+        : 'unavailable';
+}
+
 export function getAudioFeatureMatrixRevision(
     state: TimelineState,
     trackId: string,
@@ -98,6 +110,7 @@ export function getAudioFeatureMatrixRevision(
                 clip.offsetTicks,
                 clip.sourceStartSeconds ?? '',
                 clip.sourceEndSeconds ?? '',
+                sourceAvailabilityIdentity(state, clip.sourceId),
                 featureTrackId(resolved.track),
             ].join(':')
         );

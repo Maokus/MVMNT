@@ -100,7 +100,7 @@ export const notesPlayingDisplay = definePluginElement<Props, undefined>({
                         collapsed: false,
                         properties: [
                             { key: 'textColor', label: 'Text Color', type: 'colorAlpha', default: '#CCCCCCFF' },
-                            { key: 'textOpacity', label: 'Text Opacity', type: 'range', default: 1, min: 0, max: 1 },
+                            { key: 'textOpacity', label: 'Text Opacity', type: 'number', default: 1, min: 0, max: 1 },
                             {
                                 key: 'gridFillColor',
                                 label: 'Grid Fill Color',
@@ -110,12 +110,13 @@ export const notesPlayingDisplay = definePluginElement<Props, undefined>({
                             {
                                 key: 'gridFillOpacity',
                                 label: 'Grid Fill Opacity',
-                                type: 'range',
+                                type: 'number',
                                 default: 1,
                                 min: 0,
                                 max: 1,
                             },
                         ],
+                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'textOpacity' } }, { kind: 'property', propertyKey: 'textOpacity' }, { kind: 'control', control: 'slider', bindings: { value: 'gridFillOpacity' } }, { kind: 'property', propertyKey: 'gridFillOpacity' }],
                     },
                     {
                         id: 'typography',
@@ -148,7 +149,7 @@ export const notesPlayingDisplay = definePluginElement<Props, undefined>({
                             {
                                 key: 'backgroundOpacity',
                                 label: 'Background Opacity',
-                                type: 'range',
+                                type: 'number',
                                 default: 0.8,
                                 min: 0,
                                 max: 1,
@@ -157,6 +158,7 @@ export const notesPlayingDisplay = definePluginElement<Props, undefined>({
                             num('backgroundPaddingY', 'Vertical Padding', 4),
                             num('backgroundCornerRadius', 'Corner Radius', 4),
                         ],
+                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } }, { kind: 'property', propertyKey: 'backgroundOpacity' }],
                     },
                 ],
             },
