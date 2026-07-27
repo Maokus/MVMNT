@@ -34,7 +34,7 @@ export function createSpectrogramCalculator({
 }: SpectrogramCalculatorDependencies): AudioFeatureCalculator {
     return {
         id: 'mvmnt.spectrogram',
-        version: 3,
+        version: 4,
         featureKey: 'spectrogram',
         label: 'Spectrogram',
         async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
@@ -51,6 +51,10 @@ export function createSpectrogramCalculator({
             const window = hannWindow(windowSize);
             const output = new Float32Array(frameCount * binCount);
             const sampleRate = audioBuffer.sampleRate || 44100;
+            // Each FFT represents the entire window, so its timestamp belongs at the
+            // window centre rather than its first sample. This keeps visual events
+            // aligned with timeline beat markers and audio playback.
+            const windowCenterSeconds = windowSize / (2 * sampleRate);
             const magnitudeScale = 2 / Math.max(1, windowSize);
             const binYieldInterval = Math.max(1, Math.floor(binCount / 8));
             const frameYieldInterval = Math.max(1, Math.floor(frameCount / 4));
@@ -92,7 +96,7 @@ export function createSpectrogramCalculator({
                 channels: binCount,
                 hopTicks,
                 hopSeconds,
-                startTimeSeconds: 0,
+                startTimeSeconds: windowCenterSeconds,
                 tempoProjection: cloneTempoProjection(context.tempoProjection, hopTicks),
                 format: 'float32',
                 data: output,
@@ -101,6 +105,7 @@ export function createSpectrogramCalculator({
                     hopSize,
                     sampleRate,
                     window: 'hann',
+                    windowCenterSeconds,
                     minDecibels: SPECTROGRAM_MIN_DECIBELS,
                     maxDecibels: SPECTROGRAM_MAX_DECIBELS,
                 },
@@ -111,6 +116,7 @@ export function createSpectrogramCalculator({
                     minDecibels: SPECTROGRAM_MIN_DECIBELS,
                     maxDecibels: SPECTROGRAM_MAX_DECIBELS,
                     window: 'hann',
+                    windowCenterSeconds,
                 },
                 analysisProfileId: context.analysisProfileId,
                 channelLayout: null,

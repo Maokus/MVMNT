@@ -52,7 +52,7 @@ describe('audio feature analysis', () => {
         const waveformKey = buildFeatureTrackKey('peaks', defaultProfile);
         expect(cache.featureTracks[spectrogramKey]).toBeDefined();
         expect(cache.featureTracks[waveformKey]).toBeDefined();
-        expect(cache.analysisParams.calculatorVersions['mvmnt.spectrogram']).toBe(3);
+        expect(cache.analysisParams.calculatorVersions['mvmnt.spectrogram']).toBe(4);
         expect(cache.hopTicks).toBeGreaterThan(0);
         expect(cache.version).toBe(4);
         expect(cache.startTimeSeconds).toBe(0);
@@ -63,6 +63,7 @@ describe('audio feature analysis', () => {
         const spectrogramTrack = cache.featureTracks[spectrogramKey]!;
         expect(spectrogramTrack.metadata?.minDecibels).toBe(-80);
         expect(spectrogramTrack.metadata?.maxDecibels).toBe(0);
+        expect(spectrogramTrack.startTimeSeconds).toBeCloseTo(2048 / (2 * buffer.sampleRate));
         const values = Array.from((spectrogramTrack.data as Float32Array).slice(0, spectrogramTrack.channels));
         expect(values.every((value) => value >= -80 && value <= 0)).toBe(true);
     });

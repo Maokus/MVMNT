@@ -39,6 +39,9 @@ const ChangelogPage: React.FC = () => {
                             "Honestly I don't know how to write this changelog basically the whole thing changed..."
                         ],
                         "Features", [
+                            "Vectorscope and spectrogram",
+                            "Pseudo-3d perspective transform",
+                            "Improved graphics caching",
                             "Transparent video export",
                             "Bulk edit keyframe interpolation",
                             "MIDI Audio synthesized preview",
