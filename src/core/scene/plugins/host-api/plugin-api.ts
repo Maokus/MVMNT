@@ -34,10 +34,7 @@ import { beatsToTicks, ticksToBeats } from '@core/timing/ppq';
 import { getAudioClipSegmentsInSeconds, getAudioClipTimelineSegments } from '@state/timeline/audioClips';
 import type { AudioTrack } from '@audio/audioTypes';
 import { PLUGIN_CAPABILITIES, type PluginCapability } from '../../../../../packages/plugin-sdk/src/api';
-import {
-    readAudioFeatureMatrix,
-    type AudioFeatureMatrix,
-} from '@audio/features/audioFeatureMatrix';
+import { readAudioFeatureMatrix, type AudioFeatureMatrix } from '@audio/features/audioFeatureMatrix';
 export { PLUGIN_CAPABILITIES } from '../../../../../packages/plugin-sdk/src/api';
 
 const CLIP_RAW_FALLBACK_SAMPLE_RATE = 48_000;
@@ -399,9 +396,7 @@ function adaptPluginCalculator(plugin: PluginAudioCalculator): InternalAudioFeat
     };
 }
 
-export function createPluginHostServices(
-    deps: CreatePluginHostServicesDeps = {}
-): CreatePluginHostServicesResult {
+export function createPluginHostServices(deps: CreatePluginHostServicesDeps = {}): CreatePluginHostServicesResult {
     const timelineStore = deps.timelineStore === undefined ? useTimelineStore : deps.timelineStore;
     const selectNotesInWindow =
         deps.selectNotesInWindow === undefined ? selectNotesInWindowSelector : deps.selectNotesInWindow;

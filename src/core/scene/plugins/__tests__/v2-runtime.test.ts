@@ -35,19 +35,25 @@ describe('SDK v2 runtime', () => {
     it('exposes namespaced generated rasters as opaque visual snapshots', async () => {
         class MockCanvas {
             readonly context = { putImageData: vi.fn() };
-            constructor(readonly width: number, readonly height: number) {}
+            constructor(
+                readonly width: number,
+                readonly height: number
+            ) {}
             getContext() {
                 return this.context;
             }
         }
         vi.stubGlobal('OffscreenCanvas', MockCanvas);
-        vi.stubGlobal('ImageData', class {
-            constructor(
-                readonly data: Uint8ClampedArray,
-                readonly width: number,
-                readonly height: number
-            ) {}
-        });
+        vi.stubGlobal(
+            'ImageData',
+            class {
+                constructor(
+                    readonly data: Uint8ClampedArray,
+                    readonly width: number,
+                    readonly height: number
+                ) {}
+            }
+        );
         const build = vi.fn(() => new Uint8ClampedArray(16).fill(12));
         let context!: CapabilityContext;
         const definition = definePluginElement({

@@ -4,7 +4,11 @@ import { ExportPerformanceTracker, createExportDiagnostics } from '../export-per
 describe('export performance diagnostics', () => {
     it('records bounded stage metrics without project content', () => {
         const now = vi.spyOn(performance, 'now');
-        now.mockReturnValueOnce(0).mockReturnValueOnce(10).mockReturnValueOnce(30).mockReturnValueOnce(35).mockReturnValueOnce(35);
+        now.mockReturnValueOnce(0)
+            .mockReturnValueOnce(10)
+            .mockReturnValueOnce(30)
+            .mockReturnValueOnce(35)
+            .mockReturnValueOnce(35);
         const tracker = new ExportPerformanceTracker();
         tracker.stage('rendering');
         tracker.stage('finalizing');

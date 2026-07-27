@@ -92,13 +92,16 @@ export const CacheDiagnosticsPopup: React.FC = () => {
                             aria-valuemax={100}
                             aria-valuenow={progress}
                         >
-                            <div className="h-full rounded bg-emerald-400 transition-[width] duration-150" style={{ width: `${progress}%` }} />
+                            <div
+                                className="h-full rounded bg-emerald-400 transition-[width] duration-150"
+                                style={{ width: `${progress}%` }}
+                            />
                         </div>
                     </div>
                 ) : (
                     <p className="m-0 text-neutral-200">
-                        elements exist which require feature tracks that are not yet calculated. Calculate requested feature
-                        tracks?
+                        elements exist which require feature tracks that are not yet calculated. Calculate requested
+                        feature tracks?
                     </p>
                 )}
                 <div className="flex flex-wrap justify-end gap-2">

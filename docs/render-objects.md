@@ -172,14 +172,14 @@ new Line(x1, y1, x2, y2, options?: LineOptions)
 
 The constructor accepts start and end points. Internally the end point is stored as a delta so translating the object keeps the line shape intact.
 
-| Option                             | Type            | Default  |
-| ---------------------------------- | --------------- | -------- |
+| Option                             | Type            | Default     |
+| ---------------------------------- | --------------- | ----------- |
 | `color`                            | `string`        | `'#FFFFFF'` |
-| `lineWidth`                        | `number`        | `1`      |
-| `lineCap`                          | `CanvasLineCap` | `'butt'` |
-| `lineDash`                         | `number[]`      | `[]`     |
-| `lineDashOffset`                   | `number`        | `0`      |
-| `shadowColor/Blur/OffsetX/OffsetY` | —               | —        |
+| `lineWidth`                        | `number`        | `1`         |
+| `lineCap`                          | `CanvasLineCap` | `'butt'`    |
+| `lineDash`                         | `number[]`      | `[]`        |
+| `lineDashOffset`                   | `number`        | `0`         |
+| `shadowColor/Blur/OffsetX/OffsetY` | —               | —           |
 
 **Static factories:**
 
@@ -256,16 +256,16 @@ Bounds are computed from Bezier extrema (derivative roots), not a simple boundin
 new Text(x, y, text: string, font: string, options?: TextOptions)
 ```
 
-| Option          | Type                                | Default        |
-| --------------- | ----------------------------------- | -------------- |
-| `color`         | `string`                            | `'#FFFFFF'`    |
-| `align`         | `CanvasTextAlign`                   | `'left'`       |
-| `baseline`      | `CanvasTextBaseline`                | `'top'`        |
-| `strokeColor`   | `string`                            | —              |
-| `strokeWidth`   | `number`                            | `1`            |
-| `maxWidth`      | `number`                            | —              |
-| `letterSpacing` | `number`                            | —              |
-| `shadow`        | `{ color, blur, offsetX, offsetY }` | —              |
+| Option          | Type                                | Default     |
+| --------------- | ----------------------------------- | ----------- |
+| `color`         | `string`                            | `'#FFFFFF'` |
+| `align`         | `CanvasTextAlign`                   | `'left'`    |
+| `baseline`      | `CanvasTextBaseline`                | `'top'`     |
+| `strokeColor`   | `string`                            | —           |
+| `strokeWidth`   | `number`                            | `1`         |
+| `maxWidth`      | `number`                            | —           |
+| `letterSpacing` | `number`                            | —           |
+| `shadow`        | `{ color, blur, offsetX, offsetY }` | —           |
 
 Key methods: `setText(text)`, `setFont(font)`, `setColor(color)`, `setAlignment(align, baseline)`, `setStroke(color, width)`, `setMaxWidth(w)`, `setShadow(color, blur, ox, oy)`
 

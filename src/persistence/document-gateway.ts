@@ -55,7 +55,15 @@ export interface PersistentDocumentV1 {
     midiCache: any;
     audioFeatureCaches?: Record<string, any>;
     audioFeatureCacheStatus?: Record<string, any>;
-    scene: { elements: Record<string, any>; elementsOrder?: string[]; sceneSettings?: any; macros?: any; fontAssets?: any; fontLicensingAcknowledgedAt?: number; automation?: any };
+    scene: {
+        elements: Record<string, any>;
+        elementsOrder?: string[];
+        sceneSettings?: any;
+        macros?: any;
+        fontAssets?: any;
+        fontLicensingAcknowledgedAt?: number;
+        automation?: any;
+    };
     metadata?: Partial<SceneMetadataState>;
 }
 
@@ -156,7 +164,9 @@ export const DocumentGateway = {
             }
             return doc;
         }
-        const withEphemeral = Object.assign(doc, { __ephemeral: { currentTick: timeline?.currentTick, transport, timelineView } });
+        const withEphemeral = Object.assign(doc, {
+            __ephemeral: { currentTick: timeline?.currentTick, transport, timelineView },
+        });
         if (elementWarnings?.length) {
             return Object.assign(withEphemeral, { _warnings: elementWarnings });
         }
@@ -219,12 +229,11 @@ export const DocumentGateway = {
         // masterTempoMap from keyframes (keyframes are the source of truth).
         try {
             const restored = useTimelineStore.getState().timeline;
-            if (restored.tempoAutomation?.enabled &&
-                restored.tempoAutomation.keyframes.length > 0) {
+            if (restored.tempoAutomation?.enabled && restored.tempoAutomation.keyframes.length > 0) {
                 const derivedMap = resolveTempoKeyframes(
                     restored.tempoAutomation.keyframes,
                     restored.globalBpm,
-                    CANONICAL_PPQ,
+                    CANONICAL_PPQ
                 );
                 useTimelineStore.getState().setMasterTempoMap(derivedMap);
             }

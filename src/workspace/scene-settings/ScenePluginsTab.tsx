@@ -1,12 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { usePluginStore } from '@state/pluginStore';
-import {
-    disablePlugin,
-    enablePlugin,
-    loadPlugin,
-    unloadPlugin,
-    upgradePlugin,
-} from '@core/scene/plugins';
+import { disablePlugin, enablePlugin, loadPlugin, unloadPlugin, upgradePlugin } from '@core/scene/plugins';
 
 const ScenePluginsTab: React.FC = () => {
     const { plugins, loading } = usePluginStore((state) => ({
@@ -124,7 +118,9 @@ const ScenePluginsTab: React.FC = () => {
             <section className="rounded-lg border border-neutral-800 bg-neutral-900/70 p-4">
                 <h4 className="m-0 text-[12px] font-semibold text-white">Import Plugin</h4>
                 <p className="mt-2 text-[12px] text-neutral-300">
-                    Select a <code className="rounded bg-neutral-800 px-1.5 py-0.5 text-neutral-300">.mvmnt-plugin</code> file to import.
+                    Select a{' '}
+                    <code className="rounded bg-neutral-800 px-1.5 py-0.5 text-neutral-300">.mvmnt-plugin</code> file to
+                    import.
                 </p>
 
                 <input
@@ -173,8 +169,8 @@ const ScenePluginsTab: React.FC = () => {
                     <div className="mt-3 rounded border border-sky-500/40 bg-sky-900/20 p-3 space-y-2">
                         <p className="text-[12px] font-medium text-sky-200">Plugin already installed</p>
                         <p className="text-[12px] text-sky-300/80 leading-relaxed">
-                            A plugin with this ID is already installed. Would you like to upgrade it?
-                            The existing plugin will be replaced if the new version is newer.
+                            A plugin with this ID is already installed. Would you like to upgrade it? The existing
+                            plugin will be replaced if the new version is newer.
                         </p>
                         <div className="flex gap-2 pt-1">
                             <button
@@ -217,17 +213,20 @@ const ScenePluginsTab: React.FC = () => {
                             return (
                                 <div
                                     key={plugin.manifest.id}
-                                    className={`rounded-lg border p-3 transition ${hasError
-                                        ? 'border-rose-500/40 bg-rose-900/20'
-                                        : plugin.enabled
-                                            ? 'border-emerald-500/40 bg-emerald-900/20'
-                                            : 'border-neutral-700 bg-neutral-800/50'
-                                        }`}
+                                    className={`rounded-lg border p-3 transition ${
+                                        hasError
+                                            ? 'border-rose-500/40 bg-rose-900/20'
+                                            : plugin.enabled
+                                              ? 'border-emerald-500/40 bg-emerald-900/20'
+                                              : 'border-neutral-700 bg-neutral-800/50'
+                                    }`}
                                 >
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="flex-1">
                                             <div className="flex flex-wrap items-center gap-2">
-                                                <h5 className="m-0 text-[13px] font-semibold text-white">{plugin.manifest.name}</h5>
+                                                <h5 className="m-0 text-[13px] font-semibold text-white">
+                                                    {plugin.manifest.name}
+                                                </h5>
                                                 <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-[10px] font-medium text-neutral-300">
                                                     v{plugin.manifest.version}
                                                 </span>
@@ -263,7 +262,8 @@ const ScenePluginsTab: React.FC = () => {
                                                 {plugin.manifest.author && <span>By {plugin.manifest.author}</span>}
                                                 <span>•</span>
                                                 <span>
-                                                    {plugin.manifest.elements.length} element{plugin.manifest.elements.length !== 1 ? 's' : ''}
+                                                    {plugin.manifest.elements.length} element
+                                                    {plugin.manifest.elements.length !== 1 ? 's' : ''}
                                                 </span>
                                             </div>
 
@@ -291,10 +291,11 @@ const ScenePluginsTab: React.FC = () => {
                                                 type="button"
                                                 onClick={() => handleTogglePlugin(plugin.manifest.id, plugin.enabled)}
                                                 disabled={isLoading}
-                                                className={`rounded px-3 py-1.5 text-[11px] font-medium transition ${plugin.enabled
-                                                    ? 'bg-amber-600 text-white hover:bg-amber-500'
-                                                    : 'bg-emerald-600 text-white hover:bg-emerald-500'
-                                                    } disabled:bg-neutral-700 disabled:text-neutral-400`}
+                                                className={`rounded px-3 py-1.5 text-[11px] font-medium transition ${
+                                                    plugin.enabled
+                                                        ? 'bg-amber-600 text-white hover:bg-amber-500'
+                                                        : 'bg-emerald-600 text-white hover:bg-emerald-500'
+                                                } disabled:bg-neutral-700 disabled:text-neutral-400`}
                                             >
                                                 {plugin.enabled ? 'Disable' : 'Enable'}
                                             </button>
@@ -314,7 +315,6 @@ const ScenePluginsTab: React.FC = () => {
                     </div>
                 )}
             </section>
-
         </div>
     );
 };

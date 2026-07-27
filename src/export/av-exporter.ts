@@ -220,7 +220,10 @@ export class AVExporter {
                             channels: desiredMixChannels,
                             normalize: normalizeAudio,
                         });
-                        const safeName = String(track.name || trackId).replace(/[^a-z0-9_.-]+/gi, '_').replace(/^_|_$/g, '') || `track_${stemIndex + 1}`;
+                        const safeName =
+                            String(track.name || trackId)
+                                .replace(/[^a-z0-9_.-]+/gi, '_')
+                                .replace(/^_|_$/g, '') || `track_${stemIndex + 1}`;
                         artifacts.push({
                             filename: `${String(++stemIndex).padStart(2, '0')}_${safeName}.wav`,
                             blob: audioBufferToWavBlob(stem.buffer, audioWavBitDepth),
@@ -254,7 +257,11 @@ export class AVExporter {
             // Setup mediabunny output
             onProgress(8, 'Configuring video encoder...');
             // Transparent video requires WebM with VP9 alpha.
-            let resolvedContainer: 'mp4' | 'webm' = transparentBackground ? 'webm' : container === 'webm' ? 'webm' : 'mp4';
+            let resolvedContainer: 'mp4' | 'webm' = transparentBackground
+                ? 'webm'
+                : container === 'webm'
+                  ? 'webm'
+                  : 'mp4';
             // Video codec resolution
             // Resolve video codec. Accept user alias 'h264' which maps to internal 'avc'. Prefer vp9 for webm.
             const defaultCodecForContainer = transparentBackground || resolvedContainer === 'webm' ? 'vp9' : 'avc';
@@ -295,8 +302,8 @@ export class AVExporter {
                 typeof videoBitrate === 'number' && videoBitrate > 0
                     ? videoBitrate
                     : typeof bitrate === 'number' && bitrate > 0
-                    ? bitrate
-                    : null;
+                      ? bitrate
+                      : null;
             if (upstreamBitrateCandidate != null) {
                 resolvedBitrate = upstreamBitrateCandidate;
             } else {

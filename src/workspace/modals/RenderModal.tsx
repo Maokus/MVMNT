@@ -18,25 +18,26 @@ interface RenderModalProps {
 
 // Simple modal to configure export settings & trigger video export.
 const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
-    const { exportSettings, exportVideo, exportSequence, setExportSettings, sceneName, exportKind, totalDuration } = useVisualizer();
+    const { exportSettings, exportVideo, exportSequence, setExportSettings, sceneName, exportKind, totalDuration } =
+        useVisualizer();
 
-    const [form, setForm] = useState<FormState>(() =>
-        deriveInitialFormState(exportSettings, exportKind, sceneName),
-    );
+    const [form, setForm] = useState<FormState>(() => deriveInitialFormState(exportSettings, exportKind, sceneName));
     const updateForm = useCallback((patch: Partial<FormState>) => {
-        setForm(prev => ({ ...prev, ...patch }));
+        setForm((prev) => ({ ...prev, ...patch }));
     }, []);
 
     // When sceneName changes and user hasn't customized the filename, sync it.
     useEffect(() => {
-        setForm(prev => {
+        setForm((prev) => {
             if (prev.filename && prev.filename !== sceneName) return prev;
             return { ...prev, filename: sceneName || '' };
         });
     }, [sceneName]);
 
     useEffect(() => {
-        const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+        const esc = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
         window.addEventListener('keydown', esc);
         return () => window.removeEventListener('keydown', esc);
     }, [onClose]);
@@ -59,17 +60,31 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             width: settings.width ?? previous.width,
             height: settings.height ?? previous.height,
             format: settings.format ?? previous.format,
-            fpsMode: settings.fps === 24 || settings.fps === 30 || settings.fps === 60 ? String(settings.fps) as FpsMode : settings.fps ? 'custom' : previous.fpsMode,
+            fpsMode:
+                settings.fps === 24 || settings.fps === 30 || settings.fps === 60
+                    ? (String(settings.fps) as FpsMode)
+                    : settings.fps
+                      ? 'custom'
+                      : previous.fpsMode,
             customFps: settings.fps ?? previous.customFps,
             fullDuration: settings.fullDuration ?? previous.fullDuration,
             startTime: settings.startTime ?? previous.startTime,
             endTime: settings.endTime ?? previous.endTime,
             includeAudio: settings.includeAudio ?? previous.includeAudio,
-            container: settings.transparentBackground ? 'webm' : settings.container === 'webm' ? 'webm' : settings.container === 'mp4' ? 'mp4' : previous.container,
-            videoCodec: settings.transparentBackground ? 'vp9' : settings.videoCodec ?? previous.videoCodec,
-            videoBitrateSetting: settings.videoBitrateMode === 'manual' ? 'manual' : settings.qualityPreset ?? previous.videoBitrateSetting,
+            container: settings.transparentBackground
+                ? 'webm'
+                : settings.container === 'webm'
+                  ? 'webm'
+                  : settings.container === 'mp4'
+                    ? 'mp4'
+                    : previous.container,
+            videoCodec: settings.transparentBackground ? 'vp9' : (settings.videoCodec ?? previous.videoCodec),
+            videoBitrateSetting:
+                settings.videoBitrateMode === 'manual'
+                    ? 'manual'
+                    : (settings.qualityPreset ?? previous.videoBitrateSetting),
             videoBitrate: settings.videoBitrate ?? previous.videoBitrate,
-            audioCodec: settings.transparentBackground ? 'opus' : settings.audioCodec ?? previous.audioCodec,
+            audioCodec: settings.transparentBackground ? 'opus' : (settings.audioCodec ?? previous.audioCodec),
             audioBitrate: settings.audioBitrate ?? previous.audioBitrate,
             audioSampleRate: settings.audioSampleRate ?? previous.audioSampleRate,
             audioChannels: settings.audioChannels ?? previous.audioChannels,
@@ -109,15 +124,21 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         if (preferred !== form.audioCodec) updateForm({ audioCodec: preferred });
     }, [audioCodecs, autoAudioCodec, form.audioCodec, form.format, form.container, getPreferredAudioCodec, updateForm]);
 
-    const handleVideoCodecSelect = useCallback((codec: string) => {
-        setAutoVideoCodec(false);
-        updateForm({ videoCodec: codec });
-    }, [updateForm]);
+    const handleVideoCodecSelect = useCallback(
+        (codec: string) => {
+            setAutoVideoCodec(false);
+            updateForm({ videoCodec: codec });
+        },
+        [updateForm]
+    );
 
-    const handleAudioCodecSelect = useCallback((codec: string) => {
-        setAutoAudioCodec(false);
-        updateForm({ audioCodec: codec });
-    }, [updateForm]);
+    const handleAudioCodecSelect = useCallback(
+        (codec: string) => {
+            setAutoAudioCodec(false);
+            updateForm({ audioCodec: codec });
+        },
+        [updateForm]
+    );
 
     // Prefetch encoder chunk when user selects MP3 or AAC to reduce export latency.
     useEffect(() => {
@@ -125,60 +146,79 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         else if (form.audioCodec === 'aac') ensureAacEncoderRegistered();
     }, [form.audioCodec]);
 
-    const handleFormatChange = useCallback((nextFormat: ExportFormat) => {
-        setAutoVideoCodec(true);
-        setAutoAudioCodec(true);
-        setForm(prev => {
-            if (prev.format === nextFormat) return prev;
-            const next: FormState = {
-                ...prev,
-                format: nextFormat,
-                outputPath: updateDestinationExtension(prev.outputPath, nextFormat, prev.container, prev.transparentBackground),
-            };
-            if (nextFormat !== 'video') return next;
-            return {
-                ...next,
-                videoCodec: getPreferredVideoCodec(next.container),
-                audioCodec: getPreferredAudioCodec(next.container),
-            };
-        });
-    }, [getPreferredAudioCodec, getPreferredVideoCodec]);
+    const handleFormatChange = useCallback(
+        (nextFormat: ExportFormat) => {
+            setAutoVideoCodec(true);
+            setAutoAudioCodec(true);
+            setForm((prev) => {
+                if (prev.format === nextFormat) return prev;
+                const next: FormState = {
+                    ...prev,
+                    format: nextFormat,
+                    outputPath: updateDestinationExtension(
+                        prev.outputPath,
+                        nextFormat,
+                        prev.container,
+                        prev.transparentBackground
+                    ),
+                };
+                if (nextFormat !== 'video') return next;
+                return {
+                    ...next,
+                    videoCodec: getPreferredVideoCodec(next.container),
+                    audioCodec: getPreferredAudioCodec(next.container),
+                };
+            });
+        },
+        [getPreferredAudioCodec, getPreferredVideoCodec]
+    );
 
-    const handleContainerChange = useCallback((nextContainer: VideoContainer) => {
-        setAutoVideoCodec(true);
-        setAutoAudioCodec(true);
-        setForm(prev => {
-            if (prev.container === nextContainer) return prev;
-            const next: FormState = {
-                ...prev,
-                container: nextContainer,
-                outputPath: updateDestinationExtension(prev.outputPath, prev.format, nextContainer, prev.transparentBackground),
-            };
-            if (next.format !== 'video') return next;
-            return {
-                ...next,
-                videoCodec: getPreferredVideoCodec(nextContainer),
-                audioCodec: getPreferredAudioCodec(nextContainer),
-            };
-        });
-    }, [getPreferredAudioCodec, getPreferredVideoCodec]);
+    const handleContainerChange = useCallback(
+        (nextContainer: VideoContainer) => {
+            setAutoVideoCodec(true);
+            setAutoAudioCodec(true);
+            setForm((prev) => {
+                if (prev.container === nextContainer) return prev;
+                const next: FormState = {
+                    ...prev,
+                    container: nextContainer,
+                    outputPath: updateDestinationExtension(
+                        prev.outputPath,
+                        prev.format,
+                        nextContainer,
+                        prev.transparentBackground
+                    ),
+                };
+                if (next.format !== 'video') return next;
+                return {
+                    ...next,
+                    videoCodec: getPreferredVideoCodec(nextContainer),
+                    audioCodec: getPreferredAudioCodec(nextContainer),
+                };
+            });
+        },
+        [getPreferredAudioCodec, getPreferredVideoCodec]
+    );
 
-    const handleTransparentBackgroundChange = useCallback((transparentBackground: boolean) => {
-        if (!transparentBackground) {
-            updateForm({ transparentBackground });
-            return;
-        }
-        setAutoVideoCodec(true);
-        setAutoAudioCodec(true);
-        setForm(prev => ({
-            ...prev,
-            transparentBackground,
-            container: 'webm',
-            videoCodec: 'vp9',
-            audioCodec: 'opus',
-            outputPath: updateDestinationExtension(prev.outputPath, prev.format, 'webm', transparentBackground),
-        }));
-    }, [updateForm]);
+    const handleTransparentBackgroundChange = useCallback(
+        (transparentBackground: boolean) => {
+            if (!transparentBackground) {
+                updateForm({ transparentBackground });
+                return;
+            }
+            setAutoVideoCodec(true);
+            setAutoAudioCodec(true);
+            setForm((prev) => ({
+                ...prev,
+                transparentBackground,
+                container: 'webm',
+                videoCodec: 'vp9',
+                audioCodec: 'opus',
+                outputPath: updateDestinationExtension(prev.outputPath, prev.format, 'webm', transparentBackground),
+            }));
+        },
+        [updateForm]
+    );
 
     const {
         effectiveFps,
@@ -223,11 +263,9 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             normalizeAudio: form.normalizeAudio,
         };
         const overrides: Partial<ExportSettings> =
-            resolvedVideoBitrate != null
-                ? { ...baseOverrides, videoBitrate: resolvedVideoBitrate }
-                : baseOverrides;
+            resolvedVideoBitrate != null ? { ...baseOverrides, videoBitrate: resolvedVideoBitrate } : baseOverrides;
 
-        setExportSettings(prev => ({ ...prev, ...overrides }));
+        setExportSettings((prev) => ({ ...prev, ...overrides }));
         setIsExporting(true);
         try {
             if (form.format !== 'video') {
@@ -246,28 +284,42 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
     const chooseDestination = async () => {
         const desktop = window.mvmntDesktop;
         if (!desktop) return;
-        const extension = form.format === 'video'
-            ? (form.transparentBackground || form.container === 'webm' ? '.webm' : '.mp4')
-            : undefined;
+        const extension =
+            form.format === 'video'
+                ? form.transparentBackground || form.container === 'webm'
+                    ? '.webm'
+                    : '.mp4'
+                : undefined;
         const result = await desktop.exports.chooseDestination({
             kind: form.format === 'video' ? 'video' : 'image-sequence',
             suggestedName: form.filename.trim() || sceneName || 'export',
             extension,
         });
         if (result.status === 'selected' && result.outputPath) {
-            const outputPath = updateDestinationExtension(result.outputPath, form.format, form.container, form.transparentBackground);
+            const outputPath = updateDestinationExtension(
+                result.outputPath,
+                form.format,
+                form.container,
+                form.transparentBackground
+            );
             updateForm({ outputPath, filename: result.displayName?.replace(/\.[^.]+$/, '') || form.filename });
-            setExportSettings(prev => ({ ...prev, outputPath }));
+            setExportSettings((prev) => ({ ...prev, outputPath }));
         } else if (result.status === 'error') {
             alert(result.error || 'Could not choose an export destination.');
         }
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9700]" role="dialog" aria-modal="true">
+        <div
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9700]"
+            role="dialog"
+            aria-modal="true"
+        >
             <div className="border rounded-lg w-[560px] max-w-[92vw] max-h-[90vh] overflow-y-auto p-5 [background-color:var(--twc-menubar)] [border-color:var(--twc-border)] shadow-2xl relative">
                 <h2 className="m-0 text-xl font-semibold mb-2">Render / Export</h2>
-                <p className="m-0 mb-4 text-sm opacity-80">Choose output format and settings. Resolution is set in Global Properties.</p>
+                <p className="m-0 mb-4 text-sm opacity-80">
+                    Choose output format and settings. Resolution is set in Global Properties.
+                </p>
 
                 <div ref={presetMenuRef} className="absolute top-4 right-4">
                     <button
@@ -282,7 +334,11 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                         <FaEllipsisV aria-hidden="true" />
                     </button>
                     {presetMenuOpen && (
-                        <div role="menu" aria-label="Export presets" className="absolute right-0 top-10 z-10 w-56 rounded border border-neutral-600 bg-neutral-800 p-1 shadow-xl text-xs">
+                        <div
+                            role="menu"
+                            aria-label="Export presets"
+                            className="absolute right-0 top-10 z-10 w-56 rounded border border-neutral-600 bg-neutral-800 p-1 shadow-xl text-xs"
+                        >
                             <div className="px-2 py-1.5 text-neutral-400">Presets</div>
                             {presets.map((preset) => (
                                 <button
@@ -305,17 +361,25 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
-                    <FormField label="Filename" span2 hint="Extension is automatic. Templates: {scene}, {width}, {height}, {fps}, {range}, {date}.">
+                    <FormField
+                        label="Filename"
+                        span2
+                        hint="Extension is automatic. Templates: {scene}, {width}, {height}, {fps}, {range}, {date}."
+                    >
                         <input
                             type="text"
                             placeholder={sceneName || 'filename'}
                             value={form.filename}
-                            onChange={e => updateForm({ filename: e.target.value })}
+                            onChange={(e) => updateForm({ filename: e.target.value })}
                             className={inputCls}
                         />
                     </FormField>
 
-                    <FormField label="Export destination" span2 hint="Choose the filename and location with the native file picker.">
+                    <FormField
+                        label="Export destination"
+                        span2
+                        hint="Choose the filename and location with the native file picker."
+                    >
                         <div className="flex gap-2">
                             <input
                                 type="text"
@@ -324,7 +388,11 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                 value={form.outputPath}
                                 className={`${inputCls} flex-1 opacity-80`}
                             />
-                            <button type="button" className="rounded border border-neutral-600 px-3 text-sm text-neutral-100 hover:bg-neutral-700" onClick={() => void chooseDestination()}>
+                            <button
+                                type="button"
+                                className="rounded border border-neutral-600 px-3 text-sm text-neutral-100 hover:bg-neutral-700"
+                                onClick={() => void chooseDestination()}
+                            >
                                 Choose…
                             </button>
                         </div>
@@ -333,7 +401,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                     <FormField label="Format">
                         <select
                             value={form.format}
-                            onChange={e => {
+                            onChange={(e) => {
                                 const v = e.target.value;
                                 if (v === 'video' || v === 'png') handleFormatChange(v);
                             }}
@@ -348,7 +416,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                         <FormField label="Container">
                             <select
                                 value={form.container}
-                                onChange={e => {
+                                onChange={(e) => {
                                     const v = e.target.value;
                                     if (v === 'mp4' || v === 'webm') handleContainerChange(v);
                                 }}
@@ -364,7 +432,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                         <input
                             type="checkbox"
                             checked={form.transparentBackground}
-                            onChange={e => handleTransparentBackgroundChange(e.target.checked)}
+                            onChange={(e) => handleTransparentBackgroundChange(e.target.checked)}
                         />
                         <span>Transparent background{form.format === 'video' ? ' (WebM/VP9)' : ''}</span>
                     </label>
@@ -373,7 +441,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                         <div className="flex gap-2 items-center">
                             <select
                                 value={form.fpsMode}
-                                onChange={e => updateForm({ fpsMode: e.target.value as FpsMode })}
+                                onChange={(e) => updateForm({ fpsMode: e.target.value as FpsMode })}
                                 className={`${inputCls} flex-1`}
                             >
                                 <option value="24">24 fps</option>
@@ -387,7 +455,9 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                     min={1}
                                     max={240}
                                     value={form.customFps}
-                                    onChange={e => updateForm({ customFps: Math.max(1, Number(e.target.value) || 1) })}
+                                    onChange={(e) =>
+                                        updateForm({ customFps: Math.max(1, Number(e.target.value) || 1) })
+                                    }
                                     className={`w-20 ${inputCls}`}
                                 />
                             )}
@@ -397,7 +467,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                     <FormField label="Export Range">
                         <select
                             value={form.fullDuration ? 'full' : 'range'}
-                            onChange={e => updateForm({ fullDuration: e.target.value === 'full' })}
+                            onChange={(e) => updateForm({ fullDuration: e.target.value === 'full' })}
                             className={inputCls}
                         >
                             <option value="full">Full</option>
@@ -412,7 +482,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                     type="number"
                                     min={0}
                                     value={form.startTime}
-                                    onChange={e => updateForm({ startTime: Number(e.target.value) || 0 })}
+                                    onChange={(e) => updateForm({ startTime: Number(e.target.value) || 0 })}
                                     className={inputCls}
                                 />
                             </FormField>
@@ -421,7 +491,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                     type="number"
                                     min={0}
                                     value={form.endTime}
-                                    onChange={e => updateForm({ endTime: Number(e.target.value) || 0 })}
+                                    onChange={(e) => updateForm({ endTime: Number(e.target.value) || 0 })}
                                     className={inputCls}
                                 />
                             </FormField>
@@ -434,17 +504,23 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                 <select
                                     disabled={!capLoaded}
                                     value={form.videoCodec}
-                                    onChange={e => handleVideoCodecSelect(e.target.value)}
+                                    onChange={(e) => handleVideoCodecSelect(e.target.value)}
                                     className={inputCls}
                                 >
-                                    {videoCodecs.map(c => <option key={c} value={c}>{c}</option>)}
+                                    {videoCodecs.map((c) => (
+                                        <option key={c} value={c}>
+                                            {c}
+                                        </option>
+                                    ))}
                                 </select>
                             </FormField>
 
                             <FormField label="Video Bitrate">
                                 <select
                                     value={form.videoBitrateSetting}
-                                    onChange={e => updateForm({ videoBitrateSetting: e.target.value as VideoBitrateSetting })}
+                                    onChange={(e) =>
+                                        updateForm({ videoBitrateSetting: e.target.value as VideoBitrateSetting })
+                                    }
                                     className={inputCls}
                                 >
                                     <option value="low">Low</option>
@@ -462,7 +538,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                             min={500000}
                                             step={100000}
                                             value={form.videoBitrate}
-                                            onChange={e => updateForm({ videoBitrate: Number(e.target.value) || 0 })}
+                                            onChange={(e) => updateForm({ videoBitrate: Number(e.target.value) || 0 })}
                                             className={`${inputCls} flex-1`}
                                         />
                                         <span className="text-[10px] opacity-60">bps</span>
@@ -472,7 +548,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                 <FormField label="Estimated Bitrate">
                                     <div className="text-xs opacity-80 h-[32px] flex items-center">
                                         {autoBitrateEstimate
-                                            ? `${Math.round(autoBitrateEstimate / 1_000_000 * 10) / 10} Mbps (${form.videoBitrateSetting})`
+                                            ? `${Math.round((autoBitrateEstimate / 1_000_000) * 10) / 10} Mbps (${form.videoBitrateSetting})`
                                             : 'Computing…'}
                                     </div>
                                 </FormField>
@@ -482,7 +558,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                 <input
                                     type="checkbox"
                                     checked={form.includeAudio}
-                                    onChange={e => updateForm({ includeAudio: e.target.checked })}
+                                    onChange={(e) => updateForm({ includeAudio: e.target.checked })}
                                 />
                                 <span>Include Audio</span>
                             </label>
@@ -493,10 +569,14 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                         <select
                                             disabled={!capLoaded}
                                             value={form.audioCodec}
-                                            onChange={e => handleAudioCodecSelect(e.target.value)}
+                                            onChange={(e) => handleAudioCodecSelect(e.target.value)}
                                             className={inputCls}
                                         >
-                                            {audioCodecs.map(c => <option key={c} value={c}>{c}</option>)}
+                                            {audioCodecs.map((c) => (
+                                                <option key={c} value={c}>
+                                                    {c}
+                                                </option>
+                                            ))}
                                         </select>
                                     </FormField>
 
@@ -507,7 +587,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                             max={512000}
                                             step={16000}
                                             value={form.audioBitrate}
-                                            onChange={e => updateForm({ audioBitrate: Number(e.target.value) || 0 })}
+                                            onChange={(e) => updateForm({ audioBitrate: Number(e.target.value) || 0 })}
                                             className={inputCls}
                                         />
                                     </FormField>
@@ -515,11 +595,14 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                     <FormField label="Sample Rate">
                                         <select
                                             value={form.audioSampleRate}
-                                            onChange={e => updateForm({
-                                                audioSampleRate: e.target.value === 'auto'
-                                                    ? 'auto'
-                                                    : (Number(e.target.value) as 44100 | 48000),
-                                            })}
+                                            onChange={(e) =>
+                                                updateForm({
+                                                    audioSampleRate:
+                                                        e.target.value === 'auto'
+                                                            ? 'auto'
+                                                            : (Number(e.target.value) as 44100 | 48000),
+                                                })
+                                            }
                                             className={inputCls}
                                         >
                                             <option value="auto">Auto</option>
@@ -531,14 +614,15 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                     <FormField label="Channels">
                                         <select
                                             value={form.audioChannels}
-                                            onChange={e => updateForm({ audioChannels: Number(e.target.value) === 1 ? 1 : 2 })}
+                                            onChange={(e) =>
+                                                updateForm({ audioChannels: Number(e.target.value) === 1 ? 1 : 2 })
+                                            }
                                             className={inputCls}
                                         >
                                             <option value={1}>Mono</option>
                                             <option value={2}>Stereo</option>
                                         </select>
                                     </FormField>
-
                                 </>
                             )}
                         </>
@@ -548,30 +632,52 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                 <details className="mt-3 text-xs">
                     <summary className="cursor-pointer opacity-80">Advanced settings</summary>
                     <label className="mt-2 flex items-center gap-2 select-none">
-                        <input type="checkbox" checked={form.exportManifest} onChange={e => updateForm({ exportManifest: e.target.checked })} />
+                        <input
+                            type="checkbox"
+                            checked={form.exportManifest}
+                            onChange={(e) => updateForm({ exportManifest: e.target.checked })}
+                        />
                         <span>Write export manifest</span>
                     </label>
                     {form.format === 'video' && form.includeAudio && (
                         <div className="mt-2 grid grid-cols-2 gap-3">
                             <label className="flex items-center gap-2 col-span-2 select-none">
-                                <input type="checkbox" checked={form.exportAudioMaster} onChange={e => updateForm({ exportAudioMaster: e.target.checked })} />
+                                <input
+                                    type="checkbox"
+                                    checked={form.exportAudioMaster}
+                                    onChange={(e) => updateForm({ exportAudioMaster: e.target.checked })}
+                                />
                                 <span>Write mixed WAV master beside video</span>
                             </label>
                             <label className="flex items-center gap-2 col-span-2 select-none">
-                                <input type="checkbox" checked={form.exportAudioStems} onChange={e => updateForm({ exportAudioStems: e.target.checked })} />
+                                <input
+                                    type="checkbox"
+                                    checked={form.exportAudioStems}
+                                    onChange={(e) => updateForm({ exportAudioStems: e.target.checked })}
+                                />
                                 <span>Write one WAV stem per audio track</span>
                             </label>
                             {(form.exportAudioMaster || form.exportAudioStems) && (
                                 <>
                                     <FormField label="WAV Bit Depth">
-                                        <select value={form.audioWavBitDepth} onChange={e => updateForm({ audioWavBitDepth: Number(e.target.value) as 16 | 24 | 32 })} className={inputCls}>
+                                        <select
+                                            value={form.audioWavBitDepth}
+                                            onChange={(e) =>
+                                                updateForm({ audioWavBitDepth: Number(e.target.value) as 16 | 24 | 32 })
+                                            }
+                                            className={inputCls}
+                                        >
                                             <option value={16}>16-bit PCM</option>
                                             <option value={24}>24-bit PCM</option>
                                             <option value={32}>32-bit PCM</option>
                                         </select>
                                     </FormField>
                                     <label className="flex items-center gap-2 select-none self-end pb-2">
-                                        <input type="checkbox" checked={form.normalizeAudio} onChange={e => updateForm({ normalizeAudio: e.target.checked })} />
+                                        <input
+                                            type="checkbox"
+                                            checked={form.normalizeAudio}
+                                            onChange={(e) => updateForm({ normalizeAudio: e.target.checked })}
+                                        />
                                         <span>Normalize to −1 dBFS</span>
                                     </label>
                                 </>
@@ -601,9 +707,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                     </div>
                     {fileSizeEstimate && (
                         <div className="mt-2 text-xs text-neutral-500">
-                            {effectiveDuration > 0 && (
-                                <span>Duration: {effectiveDuration.toFixed(1)}s • </span>
-                            )}
+                            {effectiveDuration > 0 && <span>Duration: {effectiveDuration.toFixed(1)}s • </span>}
                             {form.width}×{form.height} @ {effectiveFps} fps
                             {fileSizeEstimate.breakdown.video != null &&
                                 fileSizeEstimate.breakdown.audio != null &&
@@ -615,9 +719,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                     </span>
                                 )}
                             {form.format === 'png' && fileSizeEstimate.breakdown.frames != null && (
-                                <span className="block mt-1">
-                                    {Math.ceil(effectiveFps * effectiveDuration)} frames
-                                </span>
+                                <span className="block mt-1">{Math.ceil(effectiveFps * effectiveDuration)} frames</span>
                             )}
                         </div>
                     )}

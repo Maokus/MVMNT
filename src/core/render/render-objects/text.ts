@@ -35,13 +35,7 @@ export class Text extends RenderObject {
     letterSpacing: number;
     static __measureCtx?: CanvasRenderingContext2D | null; // offscreen measure context cache
 
-    constructor(
-        x: number,
-        y: number,
-        text: string,
-        font = '16px Arial',
-        options: TextOptions = {}
-    ) {
+    constructor(x: number, y: number, text: string, font = '16px Arial', options: TextOptions = {}) {
         const maxPosition = 1_000_000;
         const clampedX = Math.max(-maxPosition, Math.min(maxPosition, x));
         const clampedY = Math.max(-maxPosition, Math.min(maxPosition, y));

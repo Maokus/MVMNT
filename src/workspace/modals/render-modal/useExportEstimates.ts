@@ -17,18 +17,19 @@ export interface ExportEstimates {
 export function useExportEstimates(
     form: FormState,
     exportSettings: ExportSettings,
-    totalDuration: number,
+    totalDuration: number
 ): ExportEstimates {
     const effectiveFps = useMemo(
         () => (form.fpsMode === 'custom' ? Math.max(1, form.customFps || 1) : Number(form.fpsMode)),
-        [form.fpsMode, form.customFps],
+        [form.fpsMode, form.customFps]
     );
 
     const isManualVideoBitrate = form.videoBitrateSetting === 'manual';
 
-    const resolvedQualityPreset = (
-        isManualVideoBitrate ? 'high' : form.videoBitrateSetting
-    ) as Exclude<VideoBitrateSetting, 'manual'>;
+    const resolvedQualityPreset = (isManualVideoBitrate ? 'high' : form.videoBitrateSetting) as Exclude<
+        VideoBitrateSetting,
+        'manual'
+    >;
 
     const autoBitrateEstimate = useMemo(() => {
         const { width: w, height: h } = form;

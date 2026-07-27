@@ -476,9 +476,12 @@ function deserializeTrack(track: SerializedAudioFeatureTrack): AudioFeatureTrack
         format: track.format,
         metadata: track.metadata,
         analysisParams: track.analysisParams,
-        channelLayout: track.channelLayout === undefined
-            ? (track.channelAliases ? { aliases: track.channelAliases.slice() } : undefined)
-            : (track.channelLayout ?? null),
+        channelLayout:
+            track.channelLayout === undefined
+                ? track.channelAliases
+                    ? { aliases: track.channelAliases.slice() }
+                    : undefined
+                : (track.channelLayout ?? null),
         analysisProfileId: track.analysisProfileId ?? null,
         data: payload,
     };
@@ -555,7 +558,9 @@ export function deserializeAudioFeatureCache(serialized: SerializedAudioFeatureC
                 ? clonePlainObject(serialized.analysisProfiles)
                 : buildDefaultProfile(serialized.analysisParams),
         defaultAnalysisProfileId: serialized.defaultAnalysisProfileId || DEFAULT_ANALYSIS_PROFILE_ID,
-        channelLayout: serialized.channelLayout ?? (serialized.channelAliases ? { aliases: serialized.channelAliases.slice() } : undefined),
+        channelLayout:
+            serialized.channelLayout ??
+            (serialized.channelAliases ? { aliases: serialized.channelAliases.slice() } : undefined),
     };
 }
 
@@ -716,11 +721,12 @@ export async function analyzeAudioBufferFeatures(
             const resolvedTrackProfile = sanitizeAnalysisProfileId(track.analysisProfileId) ?? requestedProfileId;
             track.analysisProfileId = resolvedTrackProfile;
             if (track.channelLayout === undefined) {
-                const aliases = track.channels > 1 && track.channels <= 8
-                    ? inferChannelAliases(track.channels)
-                    : track.channels <= 1
-                      ? inferChannelAliases(options.audioBuffer.numberOfChannels || 1)
-                      : null;
+                const aliases =
+                    track.channels > 1 && track.channels <= 8
+                        ? inferChannelAliases(track.channels)
+                        : track.channels <= 1
+                          ? inferChannelAliases(options.audioBuffer.numberOfChannels || 1)
+                          : null;
                 track.channelLayout = aliases ? { aliases } : null;
             }
             const trackIdentity = parseFeatureTrackKey(track.key);

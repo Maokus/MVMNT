@@ -40,7 +40,7 @@ function resolveColor(alias: string | null, index: number): string {
 }
 
 export function channelColorPalette(
-    trackChannels: Array<string | null | undefined> | number | null | undefined,
+    trackChannels: Array<string | null | undefined> | number | null | undefined
 ): ChannelPaletteEntry[] {
     let aliases: Array<string | null> = [];
     if (Array.isArray(trackChannels)) {

@@ -67,7 +67,16 @@ const DYNAMIC_MODES: ModeEntry[] = [
 ];
 
 const MODES_WITH_DIRECTION: ReadonlySet<SegmentInterpolationMode> = new Set([
-    'sine', 'quad', 'cubic', 'quart', 'quint', 'expo', 'circ', 'back', 'bounce', 'elastic',
+    'sine',
+    'quad',
+    'cubic',
+    'quart',
+    'quint',
+    'expo',
+    'circ',
+    'back',
+    'bounce',
+    'elastic',
 ]);
 
 const MODES_WITH_PARAMS: ReadonlySet<SegmentInterpolationMode> = new Set(['back', 'elastic']);
@@ -163,7 +172,12 @@ const DIRECTION_OPTIONS: Array<{ value: EasingDirection; label: string }> = [
 // Main component
 // ---------------------------------------------------------------------------
 
-const InterpolationPicker: React.FC<InterpolationPickerProps> = ({ current, onSelect, handleType, onHandleTypeChange }) => {
+const InterpolationPicker: React.FC<InterpolationPickerProps> = ({
+    current,
+    onSelect,
+    handleType,
+    onHandleTypeChange,
+}) => {
     // Local state for direction and params that updates live
     const [localDirection, setLocalDirection] = useState<EasingDirection>(current.direction);
     const [localParams, setLocalParams] = useState<SegmentInterpolationParams>(current.params ?? {});
@@ -175,24 +189,33 @@ const InterpolationPicker: React.FC<InterpolationPickerProps> = ({ current, onSe
     const showDirection = MODES_WITH_DIRECTION.has(selectedMode);
     const showParams = MODES_WITH_PARAMS.has(selectedMode);
 
-    const handleModeSelect = useCallback((mode: SegmentInterpolationMode) => {
-        const direction: EasingDirection = hasExplicitDirection.current ? localDirection : 'auto';
-        if (!hasExplicitDirection.current) setLocalDirection('auto');
-        setLocalParams({});
-        onSelect({ mode, direction, params: undefined });
-    }, [onSelect, localDirection]);
+    const handleModeSelect = useCallback(
+        (mode: SegmentInterpolationMode) => {
+            const direction: EasingDirection = hasExplicitDirection.current ? localDirection : 'auto';
+            if (!hasExplicitDirection.current) setLocalDirection('auto');
+            setLocalParams({});
+            onSelect({ mode, direction, params: undefined });
+        },
+        [onSelect, localDirection]
+    );
 
-    const handleDirectionChange = useCallback((direction: EasingDirection) => {
-        hasExplicitDirection.current = true;
-        setLocalDirection(direction);
-        onSelect({ mode: selectedMode, direction, params: localParams });
-    }, [onSelect, selectedMode, localParams]);
+    const handleDirectionChange = useCallback(
+        (direction: EasingDirection) => {
+            hasExplicitDirection.current = true;
+            setLocalDirection(direction);
+            onSelect({ mode: selectedMode, direction, params: localParams });
+        },
+        [onSelect, selectedMode, localParams]
+    );
 
-    const handleParamChange = useCallback((key: keyof SegmentInterpolationParams, value: number) => {
-        const next = { ...localParams, [key]: value };
-        setLocalParams(next);
-        onSelect({ mode: selectedMode, direction: localDirection, params: next });
-    }, [onSelect, selectedMode, localDirection, localParams]);
+    const handleParamChange = useCallback(
+        (key: keyof SegmentInterpolationParams, value: number) => {
+            const next = { ...localParams, [key]: value };
+            setLocalParams(next);
+            onSelect({ mode: selectedMode, direction: localDirection, params: next });
+        },
+        [onSelect, selectedMode, localDirection, localParams]
+    );
 
     // Use the current direction for thumbnail previews of the selected mode
     const previewDirection = showDirection ? localDirection : 'auto';

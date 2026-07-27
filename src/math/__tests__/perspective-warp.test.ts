@@ -20,9 +20,13 @@ describe('perspective warp geometry', () => {
     const affine = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
     const viewport = { width: 1000, height: 500 };
     const projection = {
-        rotationX: 0, rotationY: 0, strength: 50,
-        pivotX: 0.5, pivotY: 0.5,
-        vanishingPointX: 0.5, vanishingPointY: 0.5,
+        rotationX: 0,
+        rotationY: 0,
+        strength: 50,
+        pivotX: 0.5,
+        pivotY: 0.5,
+        vanishingPointX: 0.5,
+        vanishingPointY: 0.5,
     };
 
     it('derives identity at zero rotation and a valid aspect-aware tilted projection', () => {
@@ -32,7 +36,9 @@ describe('perspective warp geometry', () => {
         });
 
         const tilted = createPerspectiveCameraWarp(bounds, affine, viewport, {
-            ...projection, rotationX: 20, rotationY: -15,
+            ...projection,
+            rotationX: 20,
+            rotationY: -15,
         });
         expect(tilted.kind).toBe('projected');
         expect(validatePerspectiveWarp(tilted.warp).valid).toBe(true);
@@ -41,7 +47,9 @@ describe('perspective warp geometry', () => {
 
     it('supports independent pivots and canvas-relative vanishing points', () => {
         const centered = createPerspectiveCameraWarp(bounds, affine, viewport, {
-            ...projection, rotationX: 20, rotationY: 20,
+            ...projection,
+            rotationX: 20,
+            rotationY: 20,
         });
         const offset = createPerspectiveCameraWarp(bounds, affine, viewport, {
             ...projection,
@@ -56,12 +64,24 @@ describe('perspective warp geometry', () => {
         expect(offset).not.toEqual(centered);
         expect(offset.kind).toBe('projected');
         expect(validatePerspectiveWarp(offset.warp).valid).toBe(true);
-        expect(isPerspectiveEdgeOn(createPerspectiveCameraWarp(bounds, affine, viewport, {
-            ...projection, rotationX: 90, vanishingPointY: 0.1,
-        }).warp)).toBe(true);
-        expect(isPerspectiveEdgeOn(createPerspectiveCameraWarp(bounds, affine, viewport, {
-            ...projection, rotationX: 89.9, vanishingPointY: 0.1,
-        }).warp)).toBe(false);
+        expect(
+            isPerspectiveEdgeOn(
+                createPerspectiveCameraWarp(bounds, affine, viewport, {
+                    ...projection,
+                    rotationX: 90,
+                    vanishingPointY: 0.1,
+                }).warp
+            )
+        ).toBe(true);
+        expect(
+            isPerspectiveEdgeOn(
+                createPerspectiveCameraWarp(bounds, affine, viewport, {
+                    ...projection,
+                    rotationX: 89.9,
+                    vanishingPointY: 0.1,
+                }).warp
+            )
+        ).toBe(false);
     });
 
     it('maps perspective strength to a safe camera distance', () => {
@@ -94,35 +114,59 @@ describe('perspective warp geometry', () => {
 
     it('preserves arbitrary tilts beyond a quarter turn', () => {
         const positiveTilt = createPerspectiveCameraWarp(bounds, affine, viewport, {
-            ...projection, rotationX: 120,
+            ...projection,
+            rotationX: 120,
         });
         const negativeTilt = createPerspectiveCameraWarp(bounds, affine, viewport, {
-            ...projection, rotationY: -120,
+            ...projection,
+            rotationY: -120,
         });
 
         expect(positiveTilt.kind).toBe('projected');
         expect(negativeTilt.kind).toBe('projected');
-        expect(positiveTilt.warp).not.toEqual(createPerspectiveCameraWarp(bounds, affine, viewport, {
-            ...projection, rotationX: 90,
-        }).warp);
-        expect(negativeTilt.warp).not.toEqual(createPerspectiveCameraWarp(bounds, affine, viewport, {
-            ...projection, rotationY: -90,
-        }).warp);
-        expect(createPerspectiveCameraWarp(bounds, affine, viewport, {
-            ...projection, rotationX: 270, vanishingPointY: 0.1,
-        }).kind).toBe('edge-on');
-        expect(createPerspectiveCameraWarp(bounds, affine, viewport, {
-            ...projection, rotationY: -270, vanishingPointX: 0.1,
-        }).kind).toBe('edge-on');
+        expect(positiveTilt.warp).not.toEqual(
+            createPerspectiveCameraWarp(bounds, affine, viewport, {
+                ...projection,
+                rotationX: 90,
+            }).warp
+        );
+        expect(negativeTilt.warp).not.toEqual(
+            createPerspectiveCameraWarp(bounds, affine, viewport, {
+                ...projection,
+                rotationY: -90,
+            }).warp
+        );
+        expect(
+            createPerspectiveCameraWarp(bounds, affine, viewport, {
+                ...projection,
+                rotationX: 270,
+                vanishingPointY: 0.1,
+            }).kind
+        ).toBe('edge-on');
+        expect(
+            createPerspectiveCameraWarp(bounds, affine, viewport, {
+                ...projection,
+                rotationY: -270,
+                vanishingPointX: 0.1,
+            }).kind
+        ).toBe('edge-on');
     });
 
     it('reports exact quarter turns as edge-on', () => {
-        expect(createPerspectiveCameraWarp(bounds, affine, viewport, {
-            ...projection, rotationX: 90, vanishingPointY: 0.1,
-        }).kind).toBe('edge-on');
-        expect(createPerspectiveCameraWarp(bounds, affine, viewport, {
-            ...projection, rotationY: -90, vanishingPointX: 0.1,
-        }).kind).toBe('edge-on');
+        expect(
+            createPerspectiveCameraWarp(bounds, affine, viewport, {
+                ...projection,
+                rotationX: 90,
+                vanishingPointY: 0.1,
+            }).kind
+        ).toBe('edge-on');
+        expect(
+            createPerspectiveCameraWarp(bounds, affine, viewport, {
+                ...projection,
+                rotationY: -90,
+                vanishingPointX: 0.1,
+            }).kind
+        ).toBe('edge-on');
     });
 
     it('keeps a quarter-turn projection drawable when its vanishing point is off the plane', () => {
@@ -149,7 +193,12 @@ describe('perspective warp geometry', () => {
         };
         const matrix = createHomography(warp)!;
         const corners = [warp.topLeft, warp.topRight, warp.bottomRight, warp.bottomLeft];
-        const sources = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }];
+        const sources = [
+            { x: 0, y: 0 },
+            { x: 1, y: 0 },
+            { x: 1, y: 1 },
+            { x: 0, y: 1 },
+        ];
         sources.forEach((source, index) => {
             expect(projectPerspectivePoint(matrix, source)?.x).toBeCloseTo(corners[index].x, 8);
             expect(projectPerspectivePoint(matrix, source)?.y).toBeCloseTo(corners[index].y, 8);
@@ -158,8 +207,10 @@ describe('perspective warp geometry', () => {
 
     it('round-trips points through the inverse homography', () => {
         const matrix = createHomography({
-            topLeft: { x: 0.1, y: 0 }, topRight: { x: 0.9, y: 0.2 },
-            bottomRight: { x: 1.1, y: 1 }, bottomLeft: { x: -0.2, y: 0.85 },
+            topLeft: { x: 0.1, y: 0 },
+            topRight: { x: 0.9, y: 0.2 },
+            bottomRight: { x: 1.1, y: 1 },
+            bottomLeft: { x: -0.2, y: 0.85 },
         })!;
         const inverse = invertHomography(matrix)!;
         const source = { x: 0.37, y: 0.62 };
@@ -171,8 +222,10 @@ describe('perspective warp geometry', () => {
 
     it('composes warp before the existing affine transform', () => {
         const matrix = createHomography({
-            topLeft: { x: 0, y: 0 }, topRight: { x: 1, y: 0 },
-            bottomRight: { x: 0.8, y: 1 }, bottomLeft: { x: 0.2, y: 1 },
+            topLeft: { x: 0, y: 0 },
+            topRight: { x: 1, y: 0 },
+            bottomRight: { x: 0.8, y: 1 },
+            bottomLeft: { x: 0.2, y: 1 },
         })!;
         const local = warpLocalPoint(matrix, { x: 10, y: 20, width: 200, height: 100 }, { x: 210, y: 120 })!;
         const world = applyAffinePoint({ a: 2, b: 0, c: 0, d: 3, e: 5, f: 7 }, local);
@@ -181,21 +234,53 @@ describe('perspective warp geometry', () => {
     });
 
     it('computes projected and viewport-clipped AABBs', () => {
-        expect(getProjectedBounds([{ x: -10, y: 5 }, { x: 30, y: -5 }, { x: 20, y: 40 }])).toEqual({
-            x: -10, y: -5, width: 40, height: 45,
+        expect(
+            getProjectedBounds([
+                { x: -10, y: 5 },
+                { x: 30, y: -5 },
+                { x: 20, y: 40 },
+            ])
+        ).toEqual({
+            x: -10,
+            y: -5,
+            width: 40,
+            height: 45,
         });
         expect(clipPerspectiveBounds({ x: -10, y: 5, width: 40, height: 50 }, 20, 30)).toEqual({
-            x: 0, y: 5, width: 20, height: 25,
+            x: 0,
+            y: 5,
+            width: 20,
+            height: 25,
         });
         expect(clipPerspectiveBounds({ x: 30, y: 5, width: 10, height: 10 }, 20, 30)).toBeNull();
     });
 
     it('rejects non-finite, concave, crossed, and degenerate quadrilaterals', () => {
         const invalid = [
-            { topLeft: { x: NaN, y: 0 }, topRight: { x: 1, y: 0 }, bottomRight: { x: 1, y: 1 }, bottomLeft: { x: 0, y: 1 } },
-            { topLeft: { x: 0, y: 0 }, topRight: { x: 1, y: 0 }, bottomRight: { x: 0.2, y: 0.2 }, bottomLeft: { x: 0, y: 1 } },
-            { topLeft: { x: 0, y: 0 }, topRight: { x: 1, y: 1 }, bottomRight: { x: 1, y: 0 }, bottomLeft: { x: 0, y: 1 } },
-            { topLeft: { x: 0, y: 0 }, topRight: { x: 1, y: 0 }, bottomRight: { x: 2, y: 0 }, bottomLeft: { x: 0, y: 1 } },
+            {
+                topLeft: { x: NaN, y: 0 },
+                topRight: { x: 1, y: 0 },
+                bottomRight: { x: 1, y: 1 },
+                bottomLeft: { x: 0, y: 1 },
+            },
+            {
+                topLeft: { x: 0, y: 0 },
+                topRight: { x: 1, y: 0 },
+                bottomRight: { x: 0.2, y: 0.2 },
+                bottomLeft: { x: 0, y: 1 },
+            },
+            {
+                topLeft: { x: 0, y: 0 },
+                topRight: { x: 1, y: 1 },
+                bottomRight: { x: 1, y: 0 },
+                bottomLeft: { x: 0, y: 1 },
+            },
+            {
+                topLeft: { x: 0, y: 0 },
+                topRight: { x: 1, y: 0 },
+                bottomRight: { x: 2, y: 0 },
+                bottomLeft: { x: 0, y: 1 },
+            },
         ];
         invalid.forEach((warp) => expect(validatePerspectiveWarp(warp).valid).toBe(false));
     });

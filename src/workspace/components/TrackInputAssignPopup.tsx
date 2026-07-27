@@ -40,9 +40,7 @@ const TrackInputAssignPopup: React.FC<Props> = ({ elementId, trackInputs, onDism
                 <div className="text-[13px] font-semibold text-amber-100">
                     Added element with track input{trackInputs.length > 1 ? 's' : ''}
                 </div>
-                <p className="m-0 text-neutral-200">
-                    Assign track input{trackInputs.length > 1 ? 's' : ''}?
-                </p>
+                <p className="m-0 text-neutral-200">Assign track input{trackInputs.length > 1 ? 's' : ''}?</p>
                 <div className="flex flex-col gap-2">
                     {trackInputs.map((t) => (
                         <div key={t.key} className="flex flex-col gap-1">

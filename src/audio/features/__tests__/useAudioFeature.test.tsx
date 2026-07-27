@@ -37,12 +37,12 @@ describe('useAudioFeature', () => {
     });
 
     it('provides audio samples and tracks loading state', () => {
-        const { result, rerender, unmount } = renderHook<
-            UseAudioFeatureResult,
-            { track: string | null }
-        >(({ track }) => useAudioFeature(track, 'rms'), {
-            initialProps: { track: 'track-1' },
-        });
+        const { result, rerender, unmount } = renderHook<UseAudioFeatureResult, { track: string | null }>(
+            ({ track }) => useAudioFeature(track, 'rms'),
+            {
+                initialProps: { track: 'track-1' },
+            }
+        );
 
         expect(result.current.isLoading).toBe(true);
 

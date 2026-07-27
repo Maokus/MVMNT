@@ -121,17 +121,16 @@ function updatePatch(trackId: string, before: AudioClip[], after: AudioClip[]): 
 
 export function createAddAudioClipCommand(
     payload: AddAudioClipPayload,
-    metadataOverride?: TimelineCommand['metadata'],
+    metadataOverride?: TimelineCommand['metadata']
 ): TimelineCommand<AddAudioClipResult> {
     return {
         id: 'timeline.addAudioClip',
         mode: 'serial',
-        metadata:
-            metadataOverride ?? {
-                commandId: 'timeline.addAudioClip',
-                undoLabel: 'Add Audio Clip',
-                telemetryEvent: 'timeline_add_audio_clip',
-            },
+        metadata: metadataOverride ?? {
+            commandId: 'timeline.addAudioClip',
+            undoLabel: 'Add Audio Clip',
+            telemetryEvent: 'timeline_add_audio_clip',
+        },
         async execute(context): Promise<TimelineCommandExecuteResult<AddAudioClipResult>> {
             const track = getAudioTrack(context, payload.trackId);
             if (!track) throw new Error(`Audio track not found: ${payload.trackId}`);
@@ -142,7 +141,10 @@ export function createAddAudioClipCommand(
             const before = normalizeStoredClips(track, context);
             const state = context.getState();
             const after = resolveAudioClipOverlapWithCache(
-                { ...track, clips: before }, clip, state.audioCache, createTimelineTimingContext(state)
+                { ...track, clips: before },
+                clip,
+                state.audioCache,
+                createTimelineTimingContext(state)
             );
             const patch = updatePatch(payload.trackId, before, after);
             applyPatch(context, patch);
@@ -159,17 +161,16 @@ export function createAddAudioClipCommand(
 
 export function createUpdateAudioClipsCommand(
     payload: UpdateAudioClipsPayload,
-    metadataOverride?: TimelineCommand['metadata'],
+    metadataOverride?: TimelineCommand['metadata']
 ): TimelineCommand<void> {
     return {
         id: 'timeline.updateAudioClips',
         mode: 'serial',
-        metadata:
-            metadataOverride ?? {
-                commandId: 'timeline.updateAudioClips',
-                undoLabel: 'Update Audio Clips',
-                telemetryEvent: 'timeline_update_audio_clips',
-            },
+        metadata: metadataOverride ?? {
+            commandId: 'timeline.updateAudioClips',
+            undoLabel: 'Update Audio Clips',
+            telemetryEvent: 'timeline_update_audio_clips',
+        },
         async execute(context): Promise<TimelineCommandExecuteResult<void>> {
             const updatesByTrack = new Map<string, UpdateAudioClipsPayload['updates']>();
             for (const update of payload.updates ?? []) {
@@ -218,7 +219,10 @@ export function createUpdateAudioClipsCommand(
                 });
                 for (const edited of editedClips) {
                     next = resolveAudioClipOverlapWithCache(
-                        { ...track, clips: next }, edited, context.getState().audioCache, createTimelineTimingContext(context.getState())
+                        { ...track, clips: next },
+                        edited,
+                        context.getState().audioCache,
+                        createTimelineTimingContext(context.getState())
                     );
                 }
                 redoUpdates.push({ trackId, clips: next });
@@ -242,7 +246,7 @@ export function createUpdateAudioClipsCommand(
 
 export function createSetMultipleAudioClipOffsetsCommand(
     payload: SetMultipleAudioClipOffsetsPayload,
-    metadataOverride?: TimelineCommand['metadata'],
+    metadataOverride?: TimelineCommand['metadata']
 ): TimelineCommand<void> {
     const updateCommand = createUpdateAudioClipsCommand(
         {
@@ -256,7 +260,7 @@ export function createSetMultipleAudioClipOffsetsCommand(
             commandId: 'timeline.setMultipleAudioClipOffsets',
             undoLabel: (payload.offsets?.length ?? 0) > 1 ? 'Move Audio Clips' : 'Move Audio Clip',
             telemetryEvent: 'timeline_set_multiple_audio_clip_offsets',
-        },
+        }
     );
     return {
         ...updateCommand,
@@ -266,17 +270,16 @@ export function createSetMultipleAudioClipOffsetsCommand(
 
 export function createRemoveAudioClipsCommand(
     payload: RemoveAudioClipsPayload,
-    metadataOverride?: TimelineCommand['metadata'],
+    metadataOverride?: TimelineCommand['metadata']
 ): TimelineCommand<void> {
     return {
         id: 'timeline.removeAudioClips',
         mode: 'serial',
-        metadata:
-            metadataOverride ?? {
-                commandId: 'timeline.removeAudioClips',
-                undoLabel: 'Remove Audio Clips',
-                telemetryEvent: 'timeline_remove_audio_clips',
-            },
+        metadata: metadataOverride ?? {
+            commandId: 'timeline.removeAudioClips',
+            undoLabel: 'Remove Audio Clips',
+            telemetryEvent: 'timeline_remove_audio_clips',
+        },
         async execute(context): Promise<TimelineCommandExecuteResult<void>> {
             const targetsByTrack = new Map<string, Set<string>>();
             for (const target of payload.clips ?? []) {
@@ -304,7 +307,9 @@ export function createRemoveAudioClipsCommand(
             const referencedAfter = findReferencedAudioSourceIds({ ...snapshot, tracks: nextTracks });
             const removedSources = new Set(restoreClips.map((entry) => entry.clip.sourceId));
             const audioCacheKeys = [...removedSources].filter((sourceId) => !referencedAfter.has(sourceId));
-            const audioFeatureCacheKeys = audioCacheKeys.filter((sourceId) => Boolean(snapshot.audioFeatureCaches[sourceId]));
+            const audioFeatureCacheKeys = audioCacheKeys.filter((sourceId) =>
+                Boolean(snapshot.audioFeatureCaches[sourceId])
+            );
             const restoreCache = audioCacheKeys
                 .map((key) => {
                     const value = snapshot.audioCache[key];
@@ -314,7 +319,9 @@ export function createRemoveAudioClipsCommand(
             const restoreFeatureCaches = audioFeatureCacheKeys
                 .map((key) => {
                     const value = snapshot.audioFeatureCaches[key];
-                    return value && estimateFeatureCacheBytes(value) <= LARGE_UNDO_FEATURE_CACHE_BYTES ? { key, value } : null;
+                    return value && estimateFeatureCacheBytes(value) <= LARGE_UNDO_FEATURE_CACHE_BYTES
+                        ? { key, value }
+                        : null;
                 })
                 .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
 
@@ -328,7 +335,11 @@ export function createRemoveAudioClipsCommand(
                 undo: [
                     {
                         action: 'timeline/RESTORE_AUDIO_CLIPS',
-                        payload: { clips: restoreClips, audioCache: restoreCache, audioFeatureCaches: restoreFeatureCaches },
+                        payload: {
+                            clips: restoreClips,
+                            audioCache: restoreCache,
+                            audioFeatureCaches: restoreFeatureCaches,
+                        },
                     },
                 ],
             };
@@ -346,17 +357,16 @@ export function createRemoveAudioClipsCommand(
 
 export function createMoveAudioClipsBetweenTracksCommand(
     payload: MoveAudioClipsBetweenTracksPayload,
-    metadataOverride?: TimelineCommand['metadata'],
+    metadataOverride?: TimelineCommand['metadata']
 ): TimelineCommand<MoveAudioClipsBetweenTracksResult> {
     return {
         id: 'timeline.moveAudioClipsBetweenTracks',
         mode: 'serial',
-        metadata:
-            metadataOverride ?? {
-                commandId: 'timeline.moveAudioClipsBetweenTracks',
-                undoLabel: (payload.moves?.length ?? 0) > 1 ? 'Move Audio Clips' : 'Move Audio Clip',
-                telemetryEvent: 'timeline_move_audio_clips_between_tracks',
-            },
+        metadata: metadataOverride ?? {
+            commandId: 'timeline.moveAudioClipsBetweenTracks',
+            undoLabel: (payload.moves?.length ?? 0) > 1 ? 'Move Audio Clips' : 'Move Audio Clip',
+            telemetryEvent: 'timeline_move_audio_clips_between_tracks',
+        },
         async execute(context): Promise<TimelineCommandExecuteResult<MoveAudioClipsBetweenTracksResult>> {
             const snapshot = context.getState();
             const affectedTrackIds = new Set<string>();
@@ -389,8 +399,11 @@ export function createMoveAudioClipsBetweenTracksCommand(
                 workingByTrack.set(
                     move.destinationTrackId,
                     resolveAudioClipOverlapWithCache(
-                        { ...destTrack, clips: destClips }, movedClip, snapshot.audioCache, createTimelineTimingContext(snapshot)
-                    ),
+                        { ...destTrack, clips: destClips },
+                        movedClip,
+                        snapshot.audioCache,
+                        createTimelineTimingContext(snapshot)
+                    )
                 );
                 movedClipIds.push(clip.id);
             }
@@ -418,22 +431,21 @@ export function createMoveAudioClipsBetweenTracksCommand(
 
 export function createPasteAudioClipsCommand(
     payload: PasteAudioClipsPayload,
-    metadataOverride?: TimelineCommand['metadata'],
+    metadataOverride?: TimelineCommand['metadata']
 ): TimelineCommand<PasteAudioClipsResult> {
     return {
         id: 'timeline.pasteAudioClips',
         mode: 'serial',
-        metadata:
-            metadataOverride ?? {
-                commandId: 'timeline.pasteAudioClips',
-                undoLabel: 'Paste Audio Clips',
-                telemetryEvent: 'timeline_paste_audio_clips',
-            },
+        metadata: metadataOverride ?? {
+            commandId: 'timeline.pasteAudioClips',
+            undoLabel: 'Paste Audio Clips',
+            telemetryEvent: 'timeline_paste_audio_clips',
+        },
         async execute(context): Promise<TimelineCommandExecuteResult<PasteAudioClipsResult>> {
             const snapshot = context.getState();
             const missingAudioCache = (payload.audioCache ?? []).filter((entry) => !snapshot.audioCache[entry.key]);
             const missingFeatureCaches = (payload.audioFeatureCaches ?? []).filter(
-                (entry) => !snapshot.audioFeatureCaches[entry.key],
+                (entry) => !snapshot.audioFeatureCaches[entry.key]
             );
             const effectiveAudioCache = {
                 ...snapshot.audioCache,
@@ -476,7 +488,10 @@ export function createPasteAudioClipsCommand(
             for (const [trackId, pastedClips] of clipsByTrack) {
                 const track = virtualTracks[trackId] as AudioTrack | undefined;
                 if (!track || track.type !== 'audio') continue;
-                const before = trackId in snapshot.tracks ? normalizeStoredClips(snapshot.tracks[trackId] as AudioTrack, context) : [];
+                const before =
+                    trackId in snapshot.tracks
+                        ? normalizeStoredClips(snapshot.tracks[trackId] as AudioTrack, context)
+                        : [];
                 let next = before;
                 for (const clip of pastedClips.sort((a, b) => {
                     const timing = createTimelineTimingContext(snapshot);
@@ -485,7 +500,10 @@ export function createPasteAudioClipsCommand(
                     return (aBounds?.startTick ?? a.offsetTicks) - (bBounds?.startTick ?? b.offsetTicks);
                 })) {
                     next = resolveAudioClipOverlapWithCache(
-                        { ...track, clips: next }, clip, effectiveAudioCache, createTimelineTimingContext(snapshot)
+                        { ...track, clips: next },
+                        clip,
+                        effectiveAudioCache,
+                        createTimelineTimingContext(snapshot)
                     );
                 }
                 redoUpdates.push({ trackId, clips: next });
@@ -538,7 +556,9 @@ export function createPasteAudioClipsCommand(
                 patches: patch,
                 result: {
                     clipIds,
-                    trackIds: [...new Set([...clipsByTrack.keys(), ...createdTrackPayloads.map((entry) => entry.track.id)])],
+                    trackIds: [
+                        ...new Set([...clipsByTrack.keys(), ...createdTrackPayloads.map((entry) => entry.track.id)]),
+                    ],
                 },
             };
         },

@@ -101,9 +101,7 @@ describe('timeline command gateway', () => {
         expect(trackId).toBeTruthy();
 
         await timelineCommandGateway.dispatchById('timeline.setTrackProperties', {
-            updates: [
-                { trackId, patch: { mute: true, regionStartTick: 120 } },
-            ],
+            updates: [{ trackId, patch: { mute: true, regionStartTick: 120 } }],
         });
 
         const state = useTimelineStore.getState();

@@ -16,19 +16,19 @@ When asked to "implement phase x" of a plan, read through the requirements and g
 
 ## Directory Structure
 
--   `/docs` – Documentation for implemented features. Start here for architecture overviews and API references.
--   `/src` – Main application source:
-    -   `core/` – Runtime engine: scene element registry, rendering, timing, MIDI parsing, and the plugin host API.
-    -   `state/` – Zustand stores, selectors, command gateways, and undo infrastructure.
-    -   `workspace/` – All workspace UI components (panels, forms, modals, layout).
-    -   `persistence/` – Scene file export/import, migrations, validation.
-    -   `audio/` – Audio analysis, caching, and feature extraction.
-    -   `export/` – Video/image export pipeline.
-    -   `plugins/` – External/user-authored plugin directory (not the SDK itself).
-    -   `math/` – Math, geometry, and numeric helpers.
-    -   `utils/` – Shared utilities (logging, throttling, feature flags).
-    -   `templates/` – Pre-built `.mvt` scene template files.
--   `/thoughts` – Exploratory planning documents. May be outdated; cross-check with `/docs`.
+- `/docs` – Documentation for implemented features. Start here for architecture overviews and API references.
+- `/src` – Main application source:
+    - `core/` – Runtime engine: scene element registry, rendering, timing, MIDI parsing, and the plugin host API.
+    - `state/` – Zustand stores, selectors, command gateways, and undo infrastructure.
+    - `workspace/` – All workspace UI components (panels, forms, modals, layout).
+    - `persistence/` – Scene file export/import, migrations, validation.
+    - `audio/` – Audio analysis, caching, and feature extraction.
+    - `export/` – Video/image export pipeline.
+    - `plugins/` – External/user-authored plugin directory (not the SDK itself).
+    - `math/` – Math, geometry, and numeric helpers.
+    - `utils/` – Shared utilities (logging, throttling, feature flags).
+    - `templates/` – Pre-built `.mvt` scene template files.
+- `/thoughts` – Exploratory planning documents. May be outdated; cross-check with `/docs`.
 
 ## Plugin / Scene Element System
 

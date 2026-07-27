@@ -44,15 +44,19 @@ export function stripDescriptorArraySmoothing(entries: unknown): {
 export function logSmoothingMigration(
     elementId: string | null | undefined,
     elementType: string | null | undefined,
-    smoothing: number,
+    smoothing: number
 ): void {
     if (process.env.NODE_ENV !== 'development') {
         return;
     }
-    const label = elementId ? `${elementType ?? 'element'}#${elementId}` : elementType ?? 'element';
-    console.info(`[%caudio-migration%c] migrated descriptor smoothing to element property`, 'color:#22d3ee', 'color:inherit', {
-        element: label,
-        smoothing,
-    });
+    const label = elementId ? `${elementType ?? 'element'}#${elementId}` : (elementType ?? 'element');
+    console.info(
+        `[%caudio-migration%c] migrated descriptor smoothing to element property`,
+        'color:#22d3ee',
+        'color:inherit',
+        {
+            element: label,
+            smoothing,
+        }
+    );
 }
-

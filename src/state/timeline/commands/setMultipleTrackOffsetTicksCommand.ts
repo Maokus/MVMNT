@@ -1,14 +1,8 @@
 import type { TimelineCommand } from '../commandTypes';
 import type { TimelineCommandContext, TimelineCommandExecuteResult } from '../commandTypes';
-import {
-    autoAdjustSceneRangeIfNeeded,
-    createTimelineTimingContext,
-} from '../timelineShared';
+import { autoAdjustSceneRangeIfNeeded, createTimelineTimingContext } from '../timelineShared';
 import { secondsToTicksAt } from '../../timelineTime';
-import {
-    type TimelineCommandPatch,
-    type TimelinePatchAction,
-} from '../patches';
+import { type TimelineCommandPatch, type TimelinePatchAction } from '../patches';
 
 export interface SetMultipleTrackOffsetTicksPayload {
     offsets: Array<{ trackId: string; offsetTicks: number }>;
@@ -16,17 +10,16 @@ export interface SetMultipleTrackOffsetTicksPayload {
 
 export function createSetMultipleTrackOffsetTicksCommand(
     payload: SetMultipleTrackOffsetTicksPayload,
-    metadataOverride?: TimelineCommand['metadata'],
+    metadataOverride?: TimelineCommand['metadata']
 ): TimelineCommand<void> {
     return {
         id: 'timeline.setMultipleTrackOffsetTicks',
         mode: 'serial',
-        metadata:
-            metadataOverride ?? {
-                commandId: 'timeline.setMultipleTrackOffsetTicks',
-                undoLabel: 'Move Clips',
-                telemetryEvent: 'timeline_set_multiple_track_offsets',
-            },
+        metadata: metadataOverride ?? {
+            commandId: 'timeline.setMultipleTrackOffsetTicks',
+            undoLabel: 'Move Clips',
+            telemetryEvent: 'timeline_set_multiple_track_offsets',
+        },
         async execute(context: TimelineCommandContext): Promise<TimelineCommandExecuteResult<void>> {
             const state = context.getState();
             const redoActions: TimelinePatchAction[] = [];
@@ -35,9 +28,8 @@ export function createSetMultipleTrackOffsetTicksCommand(
             for (const { trackId, offsetTicks } of payload.offsets) {
                 const track = state.tracks[trackId];
                 if (!track) continue;
-                const previousOffset = track.type === 'audio'
-                    ? (track.clips[0]?.offsetTicks ?? 0)
-                    : (track.offsetTicks ?? 0);
+                const previousOffset =
+                    track.type === 'audio' ? (track.clips[0]?.offsetTicks ?? 0) : (track.offsetTicks ?? 0);
 
                 redoActions.push({
                     action: 'timeline/SET_TRACK_OFFSET_TICKS',
@@ -59,9 +51,8 @@ export function createSetMultipleTrackOffsetTicksCommand(
                 for (const { trackId, offsetTicks } of payload.offsets) {
                     const track = current.tracks[trackId];
                     if (!track) continue;
-                    const previousOffset = track.type === 'audio'
-                        ? (track.clips[0]?.offsetTicks ?? 0)
-                        : (track.offsetTicks ?? 0);
+                    const previousOffset =
+                        track.type === 'audio' ? (track.clips[0]?.offsetTicks ?? 0) : (track.offsetTicks ?? 0);
                     const nextTrack: any = track.type === 'audio' ? { ...track } : { ...track, offsetTicks };
                     if ((nextTrack.type === 'midi' || nextTrack.type === 'audio') && Array.isArray(nextTrack.clips)) {
                         if (nextTrack.clips.length === 1) {
@@ -87,16 +78,10 @@ export function createSetMultipleTrackOffsetTicksCommand(
             };
             return { patches: patch };
         },
-        async undo(
-            _context: TimelineCommandContext,
-            patch: TimelineCommandPatch,
-        ): Promise<TimelinePatchAction[]> {
+        async undo(_context: TimelineCommandContext, patch: TimelineCommandPatch): Promise<TimelinePatchAction[]> {
             return patch.undo;
         },
-        async redo(
-            _context: TimelineCommandContext,
-            patch: TimelineCommandPatch,
-        ): Promise<TimelinePatchAction[]> {
+        async redo(_context: TimelineCommandContext, patch: TimelineCommandPatch): Promise<TimelinePatchAction[]> {
             return patch.redo;
         },
     };

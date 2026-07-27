@@ -75,7 +75,7 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
 
             const computedLength = Math.max(
                 8,
-                Math.min(64, Math.floor((width - paddingAllowance) / averageCharacterWidth)),
+                Math.min(64, Math.floor((width - paddingAllowance) / averageCharacterWidth))
             );
 
             setMaxIdLength((current) => (current === computedLength ? current : computedLength));
@@ -141,11 +141,14 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
     };
 
     const isInteractiveTarget = (target: EventTarget) =>
-        target instanceof Element && Boolean(target.closest('button, input, textarea, select, a, [contenteditable="true"]'));
+        target instanceof Element &&
+        Boolean(target.closest('button, input, textarea, select, a, [contenteditable="true"]'));
 
-    const baseItem = "flex items-center justify-between px-3 py-0.5 mb-1 border rounded cursor-pointer transition select-none touch-none";
-    const unselected = "bg-[color:var(--twc-control)] border-[color:var(--twc-control2)] hover:bg-[color:var(--twc-control2)] hover:border-neutral-500";
-    const selected = "bg-[#0e639c] border-[#1177bb] text-white";
+    const baseItem =
+        'flex items-center justify-between px-3 py-0.5 mb-1 border rounded cursor-pointer transition select-none touch-none';
+    const unselected =
+        'bg-[color:var(--twc-control)] border-[color:var(--twc-control2)] hover:bg-[color:var(--twc-control2)] hover:border-neutral-500';
+    const selected = 'bg-[#0e639c] border-[#1177bb] text-white';
     const draggingState = isDragging ? 'opacity-0' : '';
     return (
         <div

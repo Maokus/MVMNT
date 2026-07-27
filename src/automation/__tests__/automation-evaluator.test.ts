@@ -9,7 +9,7 @@ function kf(tick: number, value: unknown): AutomationKeyframe {
 function makeChannel(
     id: string,
     keyframes: AutomationKeyframe[],
-    opts: Partial<AutomationChannel> = {},
+    opts: Partial<AutomationChannel> = {}
 ): AutomationChannel {
     const parts = id.split('.');
     return {

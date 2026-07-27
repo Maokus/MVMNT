@@ -62,9 +62,12 @@ export class PerspectiveDiagnostics {
 
     getSnapshot(): PerspectiveRollingDiagnostics {
         const latest = this.history[this.history.length - 1] ?? this.current;
-        const totals = this.history.map((sample) => sample.sourceRasterMs + sample.gpuSubmissionMs + sample.canvasCompositeMs);
+        const totals = this.history.map(
+            (sample) => sample.sourceRasterMs + sample.gpuSubmissionMs + sample.canvasCompositeMs
+        );
         const sorted = [...totals].sort((a, b) => a - b);
-        const percentile = (ratio: number) => sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * ratio))] : 0;
+        const percentile = (ratio: number) =>
+            sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * ratio))] : 0;
         return {
             ...latest,
             surfaceReallocations: this.lifetimeSurfaceReallocations,

@@ -15,17 +15,26 @@ describe('audio clip source-time timing', () => {
     const timing = createTimingContext({
         globalBpm: 120,
         beatsPerBar: 4,
-        masterTempoMap: [{ time: 0, bpm: 120 }, { time: 2, bpm: 60 }],
+        masterTempoMap: [
+            { time: 0, bpm: 120 },
+            { time: 2, bpm: 60 },
+        ],
     });
 
     it('derives a fixed source duration across a tempo boundary', () => {
         const clip: AudioClip = {
-            id: 'crossing', type: 'audio', sourceId: 'source', offsetTicks: 3 * 960,
-            sourceStartSeconds: 0, sourceEndSeconds: 3,
+            id: 'crossing',
+            type: 'audio',
+            sourceId: 'source',
+            offsetTicks: 3 * 960,
+            sourceStartSeconds: 0,
+            sourceEndSeconds: 3,
         };
         const bounds = getAudioClipTimelineBounds(cache, clip, timing);
         expect(bounds?.startTick).toBe(3 * 960);
-        expect(ticksToSeconds(timing, bounds?.endTick ?? 0) - ticksToSeconds(timing, bounds?.startTick ?? 0)).toBeCloseTo(3, 3);
+        expect(
+            ticksToSeconds(timing, bounds?.endTick ?? 0) - ticksToSeconds(timing, bounds?.startTick ?? 0)
+        ).toBeCloseTo(3, 3);
         expect(bounds?.endTick).toBe(6240);
     });
 
@@ -36,7 +45,11 @@ describe('audio clip source-time timing', () => {
         expect(getAudioClipSourceBounds(cache, second)).toEqual({ startSeconds: 0, endSeconds: 3 });
         const firstBounds = getAudioClipTimelineBounds(cache, first, timing);
         const secondBounds = getAudioClipTimelineBounds(cache, second, timing);
-        expect(ticksToSeconds(timing, firstBounds!.endTick) - ticksToSeconds(timing, firstBounds!.startTick)).toBeCloseTo(3, 3);
-        expect(ticksToSeconds(timing, secondBounds!.endTick) - ticksToSeconds(timing, secondBounds!.startTick)).toBeCloseTo(3, 3);
+        expect(
+            ticksToSeconds(timing, firstBounds!.endTick) - ticksToSeconds(timing, firstBounds!.startTick)
+        ).toBeCloseTo(3, 3);
+        expect(
+            ticksToSeconds(timing, secondBounds!.endTick) - ticksToSeconds(timing, secondBounds!.startTick)
+        ).toBeCloseTo(3, 3);
     });
 });

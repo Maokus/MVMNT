@@ -141,7 +141,7 @@ function resolveSelectionIds(payloadSelection: string[] | undefined): string[] {
 function insertTrackAtIndex(
     state: TimelineState,
     track: TimelineTrackLike,
-    index: number | undefined,
+    index: number | undefined
 ): { tracks: TimelineState['tracks']; tracksOrder: string[] } {
     const nextTracks = { ...state.tracks, [track.id]: track };
     const nextOrder = [...state.tracksOrder];
@@ -153,7 +153,10 @@ function insertTrackAtIndex(
     return { tracks: nextTracks, tracksOrder: nextOrder };
 }
 
-function removeTracks(state: TimelineState, trackIds: string[]): {
+function removeTracks(
+    state: TimelineState,
+    trackIds: string[]
+): {
     tracks: TimelineState['tracks'];
     tracksOrder: string[];
 } {
@@ -259,7 +262,9 @@ function applyRestoreTracks(context: TimelinePatchContext, payload: TimelinePatc
         }
         if (entry.audioFeatureCache) {
             nextAudioFeatureCaches[entry.audioFeatureCache.key] = entry.audioFeatureCache.value;
-            nextAudioFeatureStatus[entry.audioFeatureCache.key] = buildReadyFeatureStatus(entry.audioFeatureCache.value);
+            nextAudioFeatureStatus[entry.audioFeatureCache.key] = buildReadyFeatureStatus(
+                entry.audioFeatureCache.value
+            );
         }
     }
     setState((_state) => ({
@@ -273,20 +278,13 @@ function applyRestoreTracks(context: TimelinePatchContext, payload: TimelinePatc
     useSelectionStore.getState().selectTracks(resolveSelectionIds(payload.selection));
 }
 
-function applySetTrackOffset(
-    context: TimelinePatchContext,
-    payload: TimelinePatchSetTrackOffsetPayload,
-): void {
+function applySetTrackOffset(context: TimelinePatchContext, payload: TimelinePatchSetTrackOffsetPayload): void {
     const { getState, setState } = context;
     setState((state) => {
         const track = state.tracks[payload.trackId];
         if (!track) return state;
-        const previousOffset = track.type === 'audio'
-            ? (track.clips[0]?.offsetTicks ?? 0)
-            : (track.offsetTicks ?? 0);
-        const nextTrack: any = track.type === 'audio'
-            ? { ...track }
-            : { ...track, offsetTicks: payload.offsetTicks };
+        const previousOffset = track.type === 'audio' ? (track.clips[0]?.offsetTicks ?? 0) : (track.offsetTicks ?? 0);
+        const nextTrack: any = track.type === 'audio' ? { ...track } : { ...track, offsetTicks: payload.offsetTicks };
         if ((nextTrack.type === 'midi' || nextTrack.type === 'audio') && Array.isArray(nextTrack.clips)) {
             if (nextTrack.clips.length === 1) {
                 nextTrack.clips = [{ ...nextTrack.clips[0], offsetTicks: payload.offsetTicks }];
@@ -331,8 +329,12 @@ function applyUpdateTracks(context: TimelinePatchContext, payload: TimelinePatch
                 (nextTrack as any).clips = [
                     {
                         ...nextTrack.clips[0],
-                        ...('regionStartTick' in update.patch ? { regionStartTick: (update.patch as any).regionStartTick } : {}),
-                        ...('regionEndTick' in update.patch ? { regionEndTick: (update.patch as any).regionEndTick } : {}),
+                        ...('regionStartTick' in update.patch
+                            ? { regionStartTick: (update.patch as any).regionStartTick }
+                            : {}),
+                        ...('regionEndTick' in update.patch
+                            ? { regionEndTick: (update.patch as any).regionEndTick }
+                            : {}),
                     },
                 ];
             }
@@ -345,7 +347,7 @@ function applyUpdateTracks(context: TimelinePatchContext, payload: TimelinePatch
 
 function applySetTrackOrder(context: TimelinePatchContext, payload: TimelinePatchSetTrackOrderPayload): void {
     const { setState } = context;
-    setState(() => ({ tracksOrder: [...payload.order] } as TimelineState));
+    setState(() => ({ tracksOrder: [...payload.order] }) as TimelineState);
 }
 
 function applyAddMidiClip(context: TimelinePatchContext, payload: TimelinePatchAddMidiClipPayload): void {
@@ -400,7 +402,8 @@ function applyRestoreMidiClips(context: TimelinePatchContext, payload: TimelineP
             if (!track || track.type !== 'midi') continue;
             const clips = Array.isArray(track.clips) ? [...track.clips] : [];
             if (clips.some((clip) => clip.id === entry.clip.id)) continue;
-            const index = typeof entry.index === 'number' ? Math.max(0, Math.min(entry.index, clips.length)) : clips.length;
+            const index =
+                typeof entry.index === 'number' ? Math.max(0, Math.min(entry.index, clips.length)) : clips.length;
             clips.splice(index, 0, entry.clip);
             if (!mutated) {
                 nextTracks = { ...state.tracks };
@@ -485,7 +488,8 @@ function applyRestoreAudioClips(context: TimelinePatchContext, payload: Timeline
             if (!track || track.type !== 'audio') continue;
             const clips = Array.isArray(track.clips) ? [...track.clips] : [];
             if (clips.some((clip) => clip.id === entry.clip.id)) continue;
-            const index = typeof entry.index === 'number' ? Math.max(0, Math.min(entry.index, clips.length)) : clips.length;
+            const index =
+                typeof entry.index === 'number' ? Math.max(0, Math.min(entry.index, clips.length)) : clips.length;
             clips.splice(index, 0, entry.clip);
             if (!mutated) {
                 nextTracks = { ...state.tracks };
@@ -532,10 +536,7 @@ function applyUpdateAudioClips(context: TimelinePatchContext, payload: TimelineP
     });
 }
 
-export function applyTimelinePatchActions(
-    context: TimelinePatchContext,
-    actions: TimelinePatchAction[],
-): void {
+export function applyTimelinePatchActions(context: TimelinePatchContext, actions: TimelinePatchAction[]): void {
     if (!actions.length) return;
     for (const action of actions) {
         switch (action.action) {

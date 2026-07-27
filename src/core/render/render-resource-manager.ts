@@ -99,7 +99,8 @@ export class RenderResourceManager {
     generatedRaster(request: GeneratedRasterRequest): GeneratedRasterResult {
         const width = request.width;
         const height = request.height;
-        if (!request.namespace || !request.contentKey) throw new RangeError('Raster namespace and contentKey are required');
+        if (!request.namespace || !request.contentKey)
+            throw new RangeError('Raster namespace and contentKey are required');
         if (request.format !== 'rgba8') throw new RangeError("Only the 'rgba8' raster format is supported");
         if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
             throw new RangeError('Raster dimensions must be positive finite integers');
@@ -206,8 +207,7 @@ export class RenderResourceManager {
             (this.retainedBytes > this.totalBudgetBytes ||
                 (this.namespaceBytes.get(namespace) ?? 0) > this.namespaceBudgetBytes)
         ) {
-            const namespaceOverBudget =
-                (this.namespaceBytes.get(namespace) ?? 0) > this.namespaceBudgetBytes;
+            const namespaceOverBudget = (this.namespaceBytes.get(namespace) ?? 0) > this.namespaceBudgetBytes;
             const oldestKey = namespaceOverBudget
                 ? [...this.rasters].find(([, entry]) => entry.namespace === namespace)?.[0]
                 : (this.rasters.keys().next().value as string | undefined);

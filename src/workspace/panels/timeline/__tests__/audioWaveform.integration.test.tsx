@@ -6,8 +6,12 @@ import { useTimelineStore } from '@state/timelineStore';
 
 // Mocks for jsdom environment
 class RO {
-    observe() { /* noop */ }
-    disconnect() { /* noop */ }
+    observe() {
+        /* noop */
+    }
+    disconnect() {
+        /* noop */
+    }
 }
 // @ts-ignore
 global.ResizeObserver = RO;
@@ -16,15 +20,15 @@ global.ResizeObserver = RO;
 HTMLCanvasElement.prototype.getContext = function () {
     return {
         canvas: this,
-        clearRect: () => { },
-        fillRect: () => { },
-        beginPath: () => { },
-        moveTo: () => { },
-        lineTo: () => { },
-        stroke: () => { },
-        fillText: () => { },
-        scale: () => { },
-        strokeRect: () => { },
+        clearRect: () => {},
+        fillRect: () => {},
+        beginPath: () => {},
+        moveTo: () => {},
+        lineTo: () => {},
+        stroke: () => {},
+        fillText: () => {},
+        scale: () => {},
+        strokeRect: () => {},
         font: '',
         fillStyle: '',
         strokeStyle: '',
@@ -46,45 +50,57 @@ describe('AudioWaveform integration in TrackLanes', () => {
             getChannelData: () => new Float32Array(44100).fill(0),
         };
 
-        useTimelineStore.setState({
-            tracks: {
-                'audio1': {
-                    id: 'audio1',
-                    name: 'Audio Track 1',
-                    type: 'audio',
-                    clips: [{ id: 'clip1', type: 'audio', sourceId: 'audio1', offsetTicks: 0 }],
-                    enabled: true,
-                    mute: false,
-                    solo: false,
-                    gain: 1,
-                }
-            },
-            audioCache: {
-                'audio1': {
-                    waveform: {
-                        version: 1,
-                        channelPeaks: new Float32Array(
-                            Array.from({ length: 128 }, (_, i) => Math.sin(i / 8) * 0.5 + 0.5).map((v) =>
-                                Math.max(0, Math.min(1, v))
-                            )
-                        ),
-                        sampleStep: 1024,
+        useTimelineStore.setState(
+            {
+                tracks: {
+                    audio1: {
+                        id: 'audio1',
+                        name: 'Audio Track 1',
+                        type: 'audio',
+                        clips: [{ id: 'clip1', type: 'audio', sourceId: 'audio1', offsetTicks: 0 }],
+                        enabled: true,
+                        mute: false,
+                        solo: false,
+                        gain: 1,
                     },
-                    durationSeconds: 1,
-                    durationSamples: 44100,
-                    audioBuffer: fakeAudioBuffer,
-                    sampleRate: 44100,
-                    channels: 1,
-                }
+                },
+                audioCache: {
+                    audio1: {
+                        waveform: {
+                            version: 1,
+                            channelPeaks: new Float32Array(
+                                Array.from({ length: 128 }, (_, i) => Math.sin(i / 8) * 0.5 + 0.5).map((v) =>
+                                    Math.max(0, Math.min(1, v))
+                                )
+                            ),
+                            sampleStep: 1024,
+                        },
+                        durationSeconds: 1,
+                        durationSamples: 44100,
+                        audioBuffer: fakeAudioBuffer,
+                        sampleRate: 44100,
+                        channels: 1,
+                    },
+                },
+                audioFeatureCaches: {},
+                audioFeatureCacheStatus: {},
+                midiCache: {},
+                timeline: { id: 'tl1', name: 'Test', currentTick: 0, globalBpm: 120, beatsPerBar: 4 },
+                timelineView: { startTick: 0, endTick: 800 },
+                transport: {
+                    state: 'idle',
+                    isPlaying: false,
+                    loopEnabled: false,
+                    rate: 1,
+                    quantize: 'bar',
+                    adaptiveSnap: false,
+                    arbitrarySnapN: 8,
+                    autoKeying: false,
+                },
+                rowHeight: 60,
             },
-            audioFeatureCaches: {},
-            audioFeatureCacheStatus: {},
-            midiCache: {},
-            timeline: { id: 'tl1', name: 'Test', currentTick: 0, globalBpm: 120, beatsPerBar: 4 },
-            timelineView: { startTick: 0, endTick: 800 },
-            transport: { state: 'idle', isPlaying: false, loopEnabled: false, rate: 1, quantize: 'bar', adaptiveSnap: false, arbitrarySnapN: 8, autoKeying: false },
-            rowHeight: 60,
-        }, true);
+            true
+        );
     });
 
     it('renders a canvas for audio track waveform', () => {

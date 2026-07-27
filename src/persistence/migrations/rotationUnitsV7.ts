@@ -238,8 +238,7 @@ function migrateAutomation(automation: unknown, elementTypes: Map<string, unknow
         const propertyKey = typeof channel.propertyKey === 'string' ? channel.propertyKey : channelId.split('.').pop();
         if (!propertyKey || !DEGREE_MIGRATED_PROPERTIES.has(propertyKey)) continue;
 
-        const elementType =
-            typeof channel.elementId === 'string' ? elementTypes.get(channel.elementId) : undefined;
+        const elementType = typeof channel.elementId === 'string' ? elementTypes.get(channel.elementId) : undefined;
         if (!shouldConvertProperty(elementType, propertyKey)) continue;
         if (!Array.isArray(channel.keyframes)) continue;
 
@@ -249,7 +248,11 @@ function migrateAutomation(automation: unknown, elementTypes: Map<string, unknow
             const value = radiansToDegrees(keyframe.value);
             const leftHandle = migrateBezierHandle(keyframe.leftHandle);
             const rightHandle = migrateBezierHandle(keyframe.rightHandle);
-            if (value === keyframe.value && leftHandle === keyframe.leftHandle && rightHandle === keyframe.rightHandle) {
+            if (
+                value === keyframe.value &&
+                leftHandle === keyframe.leftHandle &&
+                rightHandle === keyframe.rightHandle
+            ) {
                 return keyframe;
             }
             channelChanged = true;

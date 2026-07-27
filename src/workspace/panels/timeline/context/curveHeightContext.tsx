@@ -8,26 +8,19 @@ interface CurveHeightCtx {
 
 const CurveHeightContext = createContext<CurveHeightCtx>({
     getHeight: () => CURVE_EDITOR_HEIGHT,
-    setHeight: () => { },
+    setHeight: () => {},
 });
 
 export function CurveHeightProvider({ children }: { children: React.ReactNode }) {
     const [heights, setHeights] = useState<Record<string, number>>({});
 
-    const getHeight = useCallback(
-        (channelId: string) => heights[channelId] ?? CURVE_EDITOR_HEIGHT,
-        [heights],
-    );
+    const getHeight = useCallback((channelId: string) => heights[channelId] ?? CURVE_EDITOR_HEIGHT, [heights]);
 
     const setHeight = useCallback((channelId: string, height: number) => {
         setHeights((prev) => ({ ...prev, [channelId]: Math.max(60, Math.min(400, height)) }));
     }, []);
 
-    return (
-        <CurveHeightContext.Provider value={{ getHeight, setHeight }}>
-            {children}
-        </CurveHeightContext.Provider>
-    );
+    return <CurveHeightContext.Provider value={{ getHeight, setHeight }}>{children}</CurveHeightContext.Provider>;
 }
 
 export function useCurveHeight(channelId: string): number {

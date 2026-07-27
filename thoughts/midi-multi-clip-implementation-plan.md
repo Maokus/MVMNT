@@ -27,11 +27,11 @@ This is a phased implementation plan for the current React/TypeScript/Vite codeb
 - Returned note and CC events include optional `clipId` and `sourceId` metadata.
 - Clips on the same track must never overlap.
 - Editing follows Ableton Arrangement View style selection behavior:
-  - the clip timeline has its own time/track selection, separate from the playhead;
-  - selection may be a rectangular range across one or more tracks, or a zero-width insertion point on a specific track;
-  - the selected range/insertion point is highlighted in the clip lane area;
-  - paste occurs at the top-left of the clip timeline selection, not at the playhead;
-  - if there is no clip timeline selection, create a sensible insertion point from the current focused/selected MIDI track and current playhead only as a fallback.
+    - the clip timeline has its own time/track selection, separate from the playhead;
+    - selection may be a rectangular range across one or more tracks, or a zero-width insertion point on a specific track;
+    - the selected range/insertion point is highlighted in the clip lane area;
+    - paste occurs at the top-left of the clip timeline selection, not at the playhead;
+    - if there is no clip timeline selection, create a sensible insertion point from the current focused/selected MIDI track and current playhead only as a fallback.
 - Cross-document clipboard is out of scope. Initial copy/paste references existing `midiCache` source ids within the current document.
 - Use schema V8 for persisted multi-clip tracks before exposing UI editing.
 
@@ -93,16 +93,18 @@ Legacy adapter:
 
 ```ts
 if (!Array.isArray(track.clips)) {
-    return [{
-        id: `${track.id}__legacy_clip`,
-        type: 'midi',
-        sourceId: track.midiSourceId ?? track.id,
-        offsetTicks: track.offsetTicks ?? 0,
-        regionStartTick: track.regionStartTick,
-        regionEndTick: track.regionEndTick,
-        name: track.name,
-        enabled: true,
-    }];
+    return [
+        {
+            id: `${track.id}__legacy_clip`,
+            type: 'midi',
+            sourceId: track.midiSourceId ?? track.id,
+            offsetTicks: track.offsetTicks ?? 0,
+            regionStartTick: track.regionStartTick,
+            regionEndTick: track.regionEndTick,
+            name: track.name,
+            enabled: true,
+        },
+    ];
 }
 ```
 
@@ -115,8 +117,8 @@ The invariant is: within a single MIDI track, clip timeline ranges must not over
 Represent clip range as:
 
 ```ts
-clipStart = clip.offsetTicks + effectiveRegionStart
-clipEnd = clip.offsetTicks + effectiveRegionEnd
+clipStart = clip.offsetTicks + effectiveRegionStart;
+clipEnd = clip.offsetTicks + effectiveRegionEnd;
 ```
 
 Where effective region bounds use explicit clip region ticks when present, otherwise source cache bounds.
@@ -156,20 +158,13 @@ export interface TimelineInsertionSelection {
 }
 
 export type ClipTimelineSelection =
-    | { type: 'range'; range: TimelineRangeSelection }
-    | { type: 'point'; point: TimelineInsertionSelection };
+    { type: 'range'; range: TimelineRangeSelection } | { type: 'point'; point: TimelineInsertionSelection };
 ```
 
 Update selection target:
 
 ```ts
-export type SelectionTarget =
-    | 'none'
-    | 'elements'
-    | 'tracks'
-    | 'keyframes'
-    | 'timelineClips'
-    | 'clipTimeline';
+export type SelectionTarget = 'none' | 'elements' | 'tracks' | 'keyframes' | 'timelineClips' | 'clipTimeline';
 ```
 
 Required behavior:
@@ -181,9 +176,9 @@ Required behavior:
 - Track header selection remains track selection, separate from clip timeline selection.
 - Delete removes selected clips when `activeTarget === 'timelineClips'`; it clears range/point selection when `activeTarget === 'clipTimeline'`.
 - Paste uses clip timeline selection first:
-  - range selection: paste at `range.startTick` on the first selected track row;
-  - point selection: paste at `point.tick` on `point.trackId`;
-  - no clip timeline selection: fallback to current focused/selected MIDI track and playhead.
+    - range selection: paste at `range.startTick` on the first selected track row;
+    - point selection: paste at `point.tick` on `point.trackId`;
+    - no clip timeline selection: fallback to current focused/selected MIDI track and playhead.
 
 Visual requirements:
 
@@ -320,20 +315,20 @@ Tasks:
 - New MIDI imports create a track with one clip.
 - First clip uses `sourceId = trackId` unless a separate source id is explicitly introduced.
 - Migrate legacy MIDI tracks to V8 clips:
-  - `track.offsetTicks` -> first clip `offsetTicks`;
-  - `track.regionStartTick` / `track.regionEndTick` -> first clip region;
-  - `track.midiSourceId ?? track.id` -> first clip `sourceId`.
+    - `track.offsetTicks` -> first clip `offsetTicks`;
+    - `track.regionStartTick` / `track.regionEndTick` -> first clip region;
+    - `track.midiSourceId ?? track.id` -> first clip `sourceId`.
 - Export V8 tracks with `clips`.
 - Do not export legacy MIDI placement fields once all read paths are clip-based.
 - Validate V8 clips:
-  - clip array exists on MIDI tracks,
-  - string `id`,
-  - string `sourceId`,
-  - finite `offsetTicks`,
-  - valid optional region ticks,
-  - no duplicate clip ids in a track,
-  - no overlapping clips in a track,
-  - `sourceId` exists in `midiCache`.
+    - clip array exists on MIDI tracks,
+    - string `id`,
+    - string `sourceId`,
+    - finite `offsetTicks`,
+    - valid optional region ticks,
+    - no duplicate clip ids in a track,
+    - no overlapping clips in a track,
+    - `sourceId` exists in `midiCache`.
 
 Tests:
 
@@ -496,4 +491,3 @@ Exit criteria:
 - Deleting the last clip does not delete the track.
 - Shared MIDI sources are not deleted while referenced.
 - `npm run test`, `npm run build`, and `npm run compile` pass.
-

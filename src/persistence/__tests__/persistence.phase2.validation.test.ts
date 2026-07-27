@@ -120,7 +120,12 @@ describe('Persistence validation extended', () => {
         expect(validateSceneEnvelope(missingSource).errors[0].code).toBe('ERR_MIDI_CLIP_SOURCE');
 
         const duplicate = structuredClone(env);
-        duplicate.timeline.tracks.track1.clips.push({ id: 'clip1', type: 'midi', sourceId: 'source1', offsetTicks: 2000 });
+        duplicate.timeline.tracks.track1.clips.push({
+            id: 'clip1',
+            type: 'midi',
+            sourceId: 'source1',
+            offsetTicks: 2000,
+        });
         expect(validateSceneEnvelope(duplicate).errors[0].code).toBe('ERR_MIDI_CLIP_DUPLICATE');
 
         const overlap = structuredClone(env);
@@ -132,8 +137,23 @@ describe('Persistence validation extended', () => {
         const env = await makeValidEnvelope();
         env.timeline.tracks = {
             audio1: {
-                id: 'audio1', name: 'Audio', type: 'audio', enabled: true, mute: false, solo: false, gain: 1,
-                clips: [{ id: 'clip1', type: 'audio', sourceId: 'source1', offsetTicks: 0, sourceStartSeconds: 0.25, sourceEndSeconds: 1 }],
+                id: 'audio1',
+                name: 'Audio',
+                type: 'audio',
+                enabled: true,
+                mute: false,
+                solo: false,
+                gain: 1,
+                clips: [
+                    {
+                        id: 'clip1',
+                        type: 'audio',
+                        sourceId: 'source1',
+                        offsetTicks: 0,
+                        sourceStartSeconds: 0.25,
+                        sourceEndSeconds: 1,
+                    },
+                ],
             },
         };
         env.timeline.tracksOrder = ['audio1'];

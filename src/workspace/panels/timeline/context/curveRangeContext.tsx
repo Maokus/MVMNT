@@ -18,8 +18,8 @@ const DEFAULT_RANGE: ChannelRange = { autoRange: true, manualMin: 0, manualMax: 
 
 const CurveRangeContext = createContext<CurveRangeCtx>({
     getRange: () => DEFAULT_RANGE,
-    setAutoRange: () => { },
-    setManualRange: () => { },
+    setAutoRange: () => {},
+    setManualRange: () => {},
     displayedRefs: { current: {} },
 });
 
@@ -27,10 +27,7 @@ export function CurveRangeProvider({ children }: { children: React.ReactNode }) 
     const [ranges, setRanges] = useState<Record<string, ChannelRange>>({});
     const displayedRefs = useRef<Record<string, { min: number; max: number }>>({});
 
-    const getRange = useCallback(
-        (channelId: string): ChannelRange => ranges[channelId] ?? DEFAULT_RANGE,
-        [ranges],
-    );
+    const getRange = useCallback((channelId: string): ChannelRange => ranges[channelId] ?? DEFAULT_RANGE, [ranges]);
 
     const setAutoRange = useCallback((channelId: string, auto: boolean) => {
         setRanges((prev) => ({

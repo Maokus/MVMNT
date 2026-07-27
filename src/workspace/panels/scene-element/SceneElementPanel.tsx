@@ -40,7 +40,7 @@ const SceneElementPanel: React.FC = () => {
                     style={{
                         minHeight: '20px',
                         flex: 1,
-                        cursor: 'default'
+                        cursor: 'default',
                     }}
                 />
             </div>

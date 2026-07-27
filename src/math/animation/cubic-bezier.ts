@@ -16,18 +16,13 @@ import type { BezierHandle } from '@automation/types';
 /** Evaluate a 1D cubic bezier at parameter u. */
 export function evaluateCubicBezier1D(u: number, p0: number, p1: number, p2: number, p3: number): number {
     const inv = 1 - u;
-    return inv * inv * inv * p0
-        + 3 * inv * inv * u * p1
-        + 3 * inv * u * u * p2
-        + u * u * u * p3;
+    return inv * inv * inv * p0 + 3 * inv * inv * u * p1 + 3 * inv * u * u * p2 + u * u * u * p3;
 }
 
 /** Evaluate the derivative of a 1D cubic bezier at parameter u. */
 function cubicBezierDerivative(u: number, p0: number, p1: number, p2: number, p3: number): number {
     const inv = 1 - u;
-    return 3 * inv * inv * (p1 - p0)
-        + 6 * inv * u * (p2 - p1)
-        + 3 * u * u * (p3 - p2);
+    return 3 * inv * inv * (p1 - p0) + 6 * inv * u * (p2 - p1) + 3 * u * u * (p3 - p2);
 }
 
 /**
@@ -48,7 +43,7 @@ export function solveCubicBezierT(
     x1: number,
     x2: number,
     x3: number,
-    tolerance: number = 1e-6,
+    tolerance: number = 1e-6
 ): number {
     // Quick bounds check
     if (targetX <= x0) return 0;
@@ -107,7 +102,7 @@ export function evaluateSegmentBezier(
     prevRightHandle: BezierHandle,
     nextTick: number,
     nextValue: number,
-    nextLeftHandle: BezierHandle,
+    nextLeftHandle: BezierHandle
 ): number {
     const span = nextTick - prevTick;
     if (span <= 0) return nextValue;

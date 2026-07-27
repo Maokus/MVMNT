@@ -34,7 +34,7 @@ if (typeof HTMLCanvasElement !== 'undefined') {
                         hangingBaseline: 0,
                         alphabeticBaseline: 0,
                         ideographicBaseline: 0,
-                    } as TextMetrics),
+                    }) as TextMetrics,
             } as unknown as CanvasRenderingContext2D;
             return stub;
         }

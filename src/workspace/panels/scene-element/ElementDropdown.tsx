@@ -29,8 +29,7 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
     }, [types]);
 
     const sortedCategories = useMemo(() => {
-        const isPluginCategory = (cat: string) =>
-            (categories[cat] ?? []).some((t: any) => t.pluginId != null);
+        const isPluginCategory = (cat: string) => (categories[cat] ?? []).some((t: any) => t.pluginId != null);
         return Object.keys(categories).sort((a, b) => {
             const aPlugin = isPluginCategory(a);
             const bPlugin = isPluginCategory(b);
@@ -39,10 +38,11 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
         });
     }, [categories]);
     const categoryEntries = useMemo(
-        () => sortedCategories.map((category) => ({
-            category,
-            items: [...(categories[category] ?? [])].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')),
-        })),
+        () =>
+            sortedCategories.map((category) => ({
+                category,
+                items: [...(categories[category] ?? [])].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')),
+            })),
         [categories, sortedCategories]
     );
     const [openCategory, setOpenCategory] = useState<string | null>(null);
@@ -127,10 +127,11 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
                             key={category}
                             onMouseEnter={(event) => handleCategoryEnter(category, event)}
                             onFocus={(event) => handleCategoryFocus(category, event)}
-                            className={`flex items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors ${openCategory === category
-                                ? 'bg-neutral-800/80 text-white'
-                                : 'text-neutral-300 hover:bg-neutral-800/70 hover:text-white'
-                                }`}
+                            className={`flex items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors ${
+                                openCategory === category
+                                    ? 'bg-neutral-800/80 text-white'
+                                    : 'text-neutral-300 hover:bg-neutral-800/70 hover:text-white'
+                            }`}
                         >
                             <FaChevronLeft className="text-xs opacity-70" />
                             <span className="font-medium">{formattedCategoryName(category)}</span>

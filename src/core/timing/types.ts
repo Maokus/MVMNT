@@ -36,6 +36,6 @@ export interface TimelineCCEvent {
  * The BPM value takes effect at `tick` and holds until the next keyframe.
  */
 export interface TempoKeyframe {
-    tick: number;   // absolute tick position
-    bpm: number;    // tempo starting at this tick (hold interpolation)
+    tick: number; // absolute tick position
+    bpm: number; // tempo starting at this tick (hold interpolation)
 }

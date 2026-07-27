@@ -29,15 +29,7 @@ const modules = [
     'utils',
     'visual-assets',
 ];
-const sourceRuntimeModules = new Set([
-    'animation',
-    'audio',
-    'scene',
-    'timeline',
-    'timing',
-    'utils',
-    'visual-assets',
-]);
+const sourceRuntimeModules = new Set(['animation', 'audio', 'scene', 'timeline', 'timing', 'utils', 'visual-assets']);
 for (const moduleName of modules) {
     const entry = sourceRuntimeModules.has(moduleName)
         ? resolve(root, 'src', `${moduleName}.ts`)

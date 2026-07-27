@@ -34,13 +34,12 @@ export type DesktopAutomationResult =
     | { type: 'error'; code: 'input' | 'render' | 'output'; message: string };
 
 export type DesktopDeepLinkCommand =
-    | { command: 'show-recovery' }
-    | { command: 'show-storage' }
-    | { command: 'open-community'; id?: string };
+    { command: 'show-recovery' } | { command: 'show-storage' } | { command: 'open-community'; id?: string };
 
 function positiveInteger(flag: string, value: string | undefined): number {
     const parsed = Number(value);
-    if (!Number.isSafeInteger(parsed) || parsed <= 0 || parsed > 16_384) throw new Error(`${flag} requires a positive integer up to 16384.`);
+    if (!Number.isSafeInteger(parsed) || parsed <= 0 || parsed > 16_384)
+        throw new Error(`${flag} requires a positive integer up to 16384.`);
     return parsed;
 }
 
@@ -53,7 +52,10 @@ export function parseRenderCommand(argv: string[]): ParsedRenderCommand | null {
     let json = false;
     for (let index = marker + 2; index < argv.length; index++) {
         const flag = argv[index];
-        if (flag === '--json') { json = true; continue; }
+        if (flag === '--json') {
+            json = true;
+            continue;
+        }
         if (!flag.startsWith('--')) throw new Error(`Unexpected argument: ${flag}`);
         const value = argv[++index];
         if (!value || value.startsWith('--')) throw new Error(`${flag} requires a value.`);
@@ -69,7 +71,8 @@ export function parseRenderCommand(argv: string[]): ParsedRenderCommand | null {
     let range: ParsedRenderCommand['range'];
     if (values.has('--range')) {
         const match = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/.exec(values.get('--range')!);
-        if (!match || Number(match[1]) >= Number(match[2])) throw new Error('--range must be start:end in seconds, with end after start.');
+        if (!match || Number(match[1]) >= Number(match[2]))
+            throw new Error('--range must be start:end in seconds, with end after start.');
         range = { start: Number(match[1]), end: Number(match[2]) };
     }
     return {

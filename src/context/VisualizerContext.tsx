@@ -10,13 +10,13 @@ import { ExportKind, ExportSettings, DebugSettings } from './visualizer/types';
 import { useVisualizerBootstrap } from './visualizer/useVisualizerBootstrap';
 import { useRenderLoop } from './visualizer/useRenderLoop';
 import { useTransportBridge } from './visualizer/useTransportBridge';
+import { createExportJob, useExportJobStore, type ExportJob, type ExportJobKind } from '@export/export-job-store';
 import {
-    createExportJob,
-    useExportJobStore,
-    type ExportJob,
-    type ExportJobKind,
-} from '@export/export-job-store';
-import { beginDesktopExport, blobToBytes, createDesktopStreamSink, writeDesktopFrame } from '@export/desktop-export-sink';
+    beginDesktopExport,
+    blobToBytes,
+    createDesktopStreamSink,
+    writeDesktopFrame,
+} from '@export/desktop-export-sink';
 import { createExportManifest } from '@export/export-manifest';
 import { BUILTIN_EXPORT_PRESETS, expandExportFilename } from '@export/export-presets';
 import { ExportPerformanceTracker } from '@export/export-performance';
@@ -37,8 +37,14 @@ function readBackgroundExportBootstrap(): BackgroundExportBootstrap | null {
         const raw = sessionStorage.getItem(BACKGROUND_EXPORT_KEY);
         if (!raw) return null;
         const value = JSON.parse(raw) as Partial<BackgroundExportBootstrap>;
-        if (typeof value.jobId !== 'string' || (value.kind !== 'video' && value.kind !== 'png') ||
-            typeof value.sceneName !== 'string' || !value.settings || typeof value.settings !== 'object') return null;
+        if (
+            typeof value.jobId !== 'string' ||
+            (value.kind !== 'video' && value.kind !== 'png') ||
+            typeof value.sceneName !== 'string' ||
+            !value.settings ||
+            typeof value.settings !== 'object'
+        )
+            return null;
         return value as BackgroundExportBootstrap;
     } catch {
         return null;
@@ -75,7 +81,16 @@ interface VisualizerContextValue {
     // TimelineService removed from context; use timeline store + note-query utilities instead.
     // Expose convenience store hooks
     useTimeline: () => TimelineState['timeline'];
-    useTransport: () => { transport: TimelineState['transport']; actions: { play: () => void; pause: () => void; togglePlay: () => void; scrubTick: (to: number) => void; setCurrentTick: (t: number) => void } };
+    useTransport: () => {
+        transport: TimelineState['transport'];
+        actions: {
+            play: () => void;
+            pause: () => void;
+            togglePlay: () => void;
+            scrubTick: (to: number) => void;
+            setCurrentTick: (t: number) => void;
+        };
+    };
 }
 
 const VisualizerContext = createContext<VisualizerContextValue | undefined>(undefined);
@@ -152,7 +167,11 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     // (Removed duplicate view sync; see effect near bottom that also clamps current time)
 
     // Removed listener for auto-binding newly added tracks; user chooses explicitly now.
-    useEffect(() => { return () => { /* cleanup only */ }; }, []);
+    useEffect(() => {
+        return () => {
+            /* cleanup only */
+        };
+    }, []);
 
     useEffect(() => {
         if (!sceneSettings) return;
@@ -252,7 +271,9 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         if (!visualizer) return;
         const hasUserRange = typeof playbackRange?.startTick === 'number' && typeof playbackRange?.endTick === 'number';
         if (!hasUserRange) {
-            try { visualizer.clearPlayRange?.(); } catch { }
+            try {
+                visualizer.clearPlayRange?.();
+            } catch {}
             return;
         }
         const st = useTimelineStore.getState();
@@ -290,231 +311,295 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         const widthSec = secEnd - secStart;
         const isExactlyDefault = Math.abs(widthSec - 60) < 1e-6 || widthSec === 0;
         if (isExactlyDefault) {
-            const endTick = Math.max(1, duration * tm2.ticksPerQuarter * (st2.timeline.globalBpm || 120) / 60); // approximate ticks for duration
+            const endTick = Math.max(1, (duration * tm2.ticksPerQuarter * (st2.timeline.globalBpm || 120)) / 60); // approximate ticks for duration
             setTimelineViewTicks(0, endTick);
             if (!(typeof playbackRange?.startTick === 'number' && typeof playbackRange?.endTick === 'number')) {
                 setPlaybackRangeTicks(0, endTick);
             }
             didAutoFitRef.current = true;
         }
-    }, [totalDuration, tView.startTick, tView.endTick, setTimelineViewTicks, playbackRange?.startTick, playbackRange?.endTick, setPlaybackRangeTicks]);
+    }, [
+        totalDuration,
+        tView.startTick,
+        tView.endTick,
+        setTimelineViewTicks,
+        playbackRange?.startTick,
+        playbackRange?.endTick,
+        setPlaybackRangeTicks,
+    ]);
 
-    const runExportJob = useCallback(async (job: ExportJob) => {
-        if (!visualizer || !imageSequenceGenerator || !videoExporter) throw new Error('Export engine is not ready.');
-        const store = useExportJobStore.getState();
-        const settings = job.snapshot.settings;
-        const controller = new AbortController();
-        exportAbortControllersRef.current.set(job.id, controller);
-        const tracker = new ExportPerformanceTracker();
-        const duration = Number(visualizer.getCurrentDuration?.() ?? totalDuration ?? 0);
-        const exportDuration = settings.fullDuration
-            ? duration
-            : Math.max(0, Math.min(duration, settings.endTime) - Math.max(0, settings.startTime));
-        let startFrame = 0;
-        let maxFrames: number | null = null;
-        if (!settings.fullDuration) {
-            startFrame = Math.floor(Math.max(0, settings.startTime) * settings.fps);
-            maxFrames = Math.ceil(exportDuration * settings.fps);
-        }
-        const updateProgress = (progress: number, text = 'Exporting…') => {
-            const status = progress >= 95 ? 'finalizing' : progress > 5 ? 'rendering' : 'preparing';
-            tracker.stage(status);
-            useExportJobStore.getState().update(job.id, { progress, text, status });
-            setProgressData({ progress, text });
-            if (automationJobRef.current === job.id) {
-                window.mvmntDesktop?.automation.reportProgress({ type: 'progress', progress, message: text });
+    const runExportJob = useCallback(
+        async (job: ExportJob) => {
+            if (!visualizer || !imageSequenceGenerator || !videoExporter)
+                throw new Error('Export engine is not ready.');
+            const store = useExportJobStore.getState();
+            const settings = job.snapshot.settings;
+            const controller = new AbortController();
+            exportAbortControllersRef.current.set(job.id, controller);
+            const tracker = new ExportPerformanceTracker();
+            const duration = Number(visualizer.getCurrentDuration?.() ?? totalDuration ?? 0);
+            const exportDuration = settings.fullDuration
+                ? duration
+                : Math.max(0, Math.min(duration, settings.endTime) - Math.max(0, settings.startTime));
+            let startFrame = 0;
+            let maxFrames: number | null = null;
+            if (!settings.fullDuration) {
+                startFrame = Math.floor(Math.max(0, settings.startTime) * settings.fps);
+                maxFrames = Math.ceil(exportDuration * settings.fps);
             }
-            if (backgroundJobRef.current === job.id) {
-                window.mvmntDesktop?.background.update({ jobId: job.id, patch: { progress, text, status } });
-            }
-        };
-        let desktopSink: ReturnType<typeof createDesktopStreamSink> | null = null;
-        let desktopSessionId: string | null = null;
-        const artifacts: Array<{ filename: string; blob: Blob }> = [];
-        try {
-            store.update(job.id, { status: 'preparing', startedAt: new Date().toISOString(), text: 'Choosing destination…' });
-            setShowProgressOverlay(true);
-            setExportKind(job.kind);
-            const rangeLabel = settings.fullDuration ? 'full' : `${settings.startTime}-${settings.endTime}s`;
-            const filename = expandExportFilename(settings.filename, {
-                scene: job.snapshot.sceneName,
-                width: settings.width,
-                height: settings.height,
-                fps: settings.fps,
-                range: rangeLabel,
-            });
-            const desktop = window.mvmntDesktop;
-            if (!desktop) throw new Error('MVMNT desktop export services are unavailable.');
-            const extension = job.kind === 'video'
-                ? (settings.transparentBackground || settings.container === 'webm' ? '.webm' : '.mp4')
-                : undefined;
-            const expectedFrameCount = Math.ceil(exportDuration * settings.fps);
-            const estimatedBytes = job.kind === 'video'
-                ? Math.ceil(((settings.videoBitrate ?? settings.bitrate ?? 8_000_000) / 8) * exportDuration * 1.15)
-                : Math.ceil(settings.width * settings.height * 0.35 * expectedFrameCount);
-            const begin = await beginDesktopExport({
-                kind: job.kind === 'video' ? 'video' : 'image-sequence',
-                suggestedName: job.kind === 'png' ? `${filename}_sequence` : filename,
-                extension,
-                estimatedBytes,
-                outputDirectory: settings.outputDirectory,
-                outputPath: settings.outputPath,
-            });
-            if (begin.status === 'canceled') throw new DOMException('Export cancelled', 'AbortError');
-            if (begin.status !== 'ready' || !begin.sessionId) throw new Error(begin.error ?? 'Could not create export destination.');
-            desktopSessionId = begin.sessionId;
-            store.update(job.id, { outputName: begin.displayName });
-            if (job.kind === 'video') desktopSink = createDesktopStreamSink(begin.sessionId, begin.displayName ?? filename);
-            if (controller.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
-            if (job.kind === 'png') {
-                await imageSequenceGenerator.generateImageSequence({
-                    fps: settings.fps,
-                    width: settings.width,
-                    height: settings.height,
-                    sceneName: job.snapshot.sceneName,
-                    maxFrames,
-                    _startFrame: startFrame,
-                    transparent: settings.transparentBackground ?? false,
-                    signal: controller.signal,
-                    frameSink: (frameName: string, blob: Blob) => writeDesktopFrame(desktopSessionId!, frameName, blob),
-                    onProgress: updateProgress,
-                });
-            } else {
-                let startTick: number | undefined;
-                let endTick: number | undefined;
-                if (settings.includeAudio) {
-                    const timeline = useTimelineStore.getState();
-                    const timing = getSharedTimingManager();
-                    timing.setBPM(timeline.timeline.globalBpm || 120);
-                    if (timeline.timeline.masterTempoMap) timing.setTempoMap(timeline.timeline.masterTempoMap, 'seconds');
-                    const startSeconds = settings.fullDuration ? 0 : settings.startTime;
-                    const endSeconds = settings.fullDuration ? duration : settings.endTime;
-                    startTick = Math.floor(timing.secondsToBeats(startSeconds) * timing.ticksPerQuarter);
-                    endTick = Math.ceil(timing.secondsToBeats(endSeconds) * timing.ticksPerQuarter);
+            const updateProgress = (progress: number, text = 'Exporting…') => {
+                const status = progress >= 95 ? 'finalizing' : progress > 5 ? 'rendering' : 'preparing';
+                tracker.stage(status);
+                useExportJobStore.getState().update(job.id, { progress, text, status });
+                setProgressData({ progress, text });
+                if (automationJobRef.current === job.id) {
+                    window.mvmntDesktop?.automation.reportProgress({ type: 'progress', progress, message: text });
                 }
-                await videoExporter.exportVideo({
-                    fps: settings.fps,
+                if (backgroundJobRef.current === job.id) {
+                    window.mvmntDesktop?.background.update({ jobId: job.id, patch: { progress, text, status } });
+                }
+            };
+            let desktopSink: ReturnType<typeof createDesktopStreamSink> | null = null;
+            let desktopSessionId: string | null = null;
+            const artifacts: Array<{ filename: string; blob: Blob }> = [];
+            try {
+                store.update(job.id, {
+                    status: 'preparing',
+                    startedAt: new Date().toISOString(),
+                    text: 'Choosing destination…',
+                });
+                setShowProgressOverlay(true);
+                setExportKind(job.kind);
+                const rangeLabel = settings.fullDuration ? 'full' : `${settings.startTime}-${settings.endTime}s`;
+                const filename = expandExportFilename(settings.filename, {
+                    scene: job.snapshot.sceneName,
                     width: settings.width,
                     height: settings.height,
-                    sceneName: job.snapshot.sceneName,
-                    maxFrames,
-                    _startFrame: startFrame,
-                    qualityPreset: settings.qualityPreset,
-                    includeAudio: settings.includeAudio,
-                    videoCodec: settings.videoCodec,
-                    videoBitrateMode: settings.videoBitrateMode,
-                    videoBitrate: settings.videoBitrate,
-                    audioCodec: settings.audioCodec,
-                    audioBitrate: settings.audioBitrate,
-                    audioSampleRate: settings.audioSampleRate,
-                    audioChannels: settings.audioChannels,
-                    container: settings.container,
-                    startTick,
-                    endTick,
-                    outputTarget: desktopSink?.target,
-                    signal: controller.signal,
-                    exportAudioMaster: settings.exportAudioMaster,
-                    exportAudioStems: settings.exportAudioStems,
-                    onArtifacts: (items) => { artifacts.push(...items); },
-                    audioWavBitDepth: settings.audioWavBitDepth,
-                    normalizeAudio: settings.normalizeAudio,
-                    transparentBackground: settings.transparentBackground,
-                    onProgress: updateProgress,
+                    fps: settings.fps,
+                    range: rangeLabel,
                 });
-            }
-            if (artifacts.length > 0) {
-                updateProgress(96, 'Writing audio masters and stems…');
-                for (const artifact of artifacts) {
-                    if (controller.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
-                    await desktop.exports.writeArtifact({
-                        sessionId: desktopSessionId!,
-                        filename: artifact.filename,
-                        bytes: await blobToBytes(artifact.blob),
+                const desktop = window.mvmntDesktop;
+                if (!desktop) throw new Error('MVMNT desktop export services are unavailable.');
+                const extension =
+                    job.kind === 'video'
+                        ? settings.transparentBackground || settings.container === 'webm'
+                            ? '.webm'
+                            : '.mp4'
+                        : undefined;
+                const expectedFrameCount = Math.ceil(exportDuration * settings.fps);
+                const estimatedBytes =
+                    job.kind === 'video'
+                        ? Math.ceil(
+                              ((settings.videoBitrate ?? settings.bitrate ?? 8_000_000) / 8) * exportDuration * 1.15
+                          )
+                        : Math.ceil(settings.width * settings.height * 0.35 * expectedFrameCount);
+                const begin = await beginDesktopExport({
+                    kind: job.kind === 'video' ? 'video' : 'image-sequence',
+                    suggestedName: job.kind === 'png' ? `${filename}_sequence` : filename,
+                    extension,
+                    estimatedBytes,
+                    outputDirectory: settings.outputDirectory,
+                    outputPath: settings.outputPath,
+                });
+                if (begin.status === 'canceled') throw new DOMException('Export cancelled', 'AbortError');
+                if (begin.status !== 'ready' || !begin.sessionId)
+                    throw new Error(begin.error ?? 'Could not create export destination.');
+                desktopSessionId = begin.sessionId;
+                store.update(job.id, { outputName: begin.displayName });
+                if (job.kind === 'video')
+                    desktopSink = createDesktopStreamSink(begin.sessionId, begin.displayName ?? filename);
+                if (controller.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
+                if (job.kind === 'png') {
+                    await imageSequenceGenerator.generateImageSequence({
+                        fps: settings.fps,
+                        width: settings.width,
+                        height: settings.height,
+                        sceneName: job.snapshot.sceneName,
+                        maxFrames,
+                        _startFrame: startFrame,
+                        transparent: settings.transparentBackground ?? false,
+                        signal: controller.signal,
+                        frameSink: (frameName: string, blob: Blob) =>
+                            writeDesktopFrame(desktopSessionId!, frameName, blob),
+                        onProgress: updateProgress,
+                    });
+                } else {
+                    let startTick: number | undefined;
+                    let endTick: number | undefined;
+                    if (settings.includeAudio) {
+                        const timeline = useTimelineStore.getState();
+                        const timing = getSharedTimingManager();
+                        timing.setBPM(timeline.timeline.globalBpm || 120);
+                        if (timeline.timeline.masterTempoMap)
+                            timing.setTempoMap(timeline.timeline.masterTempoMap, 'seconds');
+                        const startSeconds = settings.fullDuration ? 0 : settings.startTime;
+                        const endSeconds = settings.fullDuration ? duration : settings.endTime;
+                        startTick = Math.floor(timing.secondsToBeats(startSeconds) * timing.ticksPerQuarter);
+                        endTick = Math.ceil(timing.secondsToBeats(endSeconds) * timing.ticksPerQuarter);
+                    }
+                    await videoExporter.exportVideo({
+                        fps: settings.fps,
+                        width: settings.width,
+                        height: settings.height,
+                        sceneName: job.snapshot.sceneName,
+                        maxFrames,
+                        _startFrame: startFrame,
+                        qualityPreset: settings.qualityPreset,
+                        includeAudio: settings.includeAudio,
+                        videoCodec: settings.videoCodec,
+                        videoBitrateMode: settings.videoBitrateMode,
+                        videoBitrate: settings.videoBitrate,
+                        audioCodec: settings.audioCodec,
+                        audioBitrate: settings.audioBitrate,
+                        audioSampleRate: settings.audioSampleRate,
+                        audioChannels: settings.audioChannels,
+                        container: settings.container,
+                        startTick,
+                        endTick,
+                        outputTarget: desktopSink?.target,
+                        signal: controller.signal,
+                        exportAudioMaster: settings.exportAudioMaster,
+                        exportAudioStems: settings.exportAudioStems,
+                        onArtifacts: (items) => {
+                            artifacts.push(...items);
+                        },
+                        audioWavBitDepth: settings.audioWavBitDepth,
+                        normalizeAudio: settings.normalizeAudio,
+                        transparentBackground: settings.transparentBackground,
+                        onProgress: updateProgress,
                     });
                 }
-            }
-            const frameCount = Math.ceil(exportDuration * settings.fps);
-            const metrics = tracker.finish({
-                frames: Math.ceil(exportDuration * settings.fps),
-                artifacts: artifacts.length,
-            });
-            metrics.averageFps = metrics.elapsedMs > 0 ? Math.round((frameCount / (metrics.elapsedMs / 1000)) * 100) / 100 : 0;
-            let completion: Awaited<ReturnType<NonNullable<typeof window.mvmntDesktop>['exports']['complete']>> | undefined;
-            if (desktopSessionId) {
-                const version = await window.mvmntDesktop!.app.getVersion().catch(() => 'unknown');
-                const manifest = settings.exportManifest ? createExportManifest(job, version, duration, metrics) : undefined;
-                completion = desktopSink
-                    ? await desktopSink.complete(manifest)
-                    : await window.mvmntDesktop!.exports.complete({ sessionId: desktopSessionId, manifest, expectedFrames: frameCount });
-                if (completion.status !== 'completed') throw new Error(completion.error ?? 'Export finalization failed.');
-            }
-            useExportJobStore.getState().update(job.id, {
-                status: 'completed',
-                progress: 100,
-                text: 'Export complete',
-                outputId: completion?.outputId,
-                outputName: completion?.displayName ?? useExportJobStore.getState().jobs.find((item) => item.id === job.id)?.outputName,
-                bytesWritten: completion?.bytesWritten,
-                metrics,
-                finishedAt: new Date().toISOString(),
-            });
-            useExportJobStore.getState().log(job.id, 'info', `Export completed in ${(metrics.elapsedMs / 1000).toFixed(2)} seconds.`);
-            window.mvmntDesktop?.app.notify('MVMNT export complete', completion?.displayName ?? filename);
-            if (automationJobRef.current === job.id) {
-                automationJobRef.current = null;
-                window.mvmntDesktop?.automation.reportResult({
-                    type: 'complete',
-                    outputName: completion?.displayName ?? filename,
+                if (artifacts.length > 0) {
+                    updateProgress(96, 'Writing audio masters and stems…');
+                    for (const artifact of artifacts) {
+                        if (controller.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
+                        await desktop.exports.writeArtifact({
+                            sessionId: desktopSessionId!,
+                            filename: artifact.filename,
+                            bytes: await blobToBytes(artifact.blob),
+                        });
+                    }
+                }
+                const frameCount = Math.ceil(exportDuration * settings.fps);
+                const metrics = tracker.finish({
+                    frames: Math.ceil(exportDuration * settings.fps),
+                    artifacts: artifacts.length,
+                });
+                metrics.averageFps =
+                    metrics.elapsedMs > 0 ? Math.round((frameCount / (metrics.elapsedMs / 1000)) * 100) / 100 : 0;
+                let completion:
+                    Awaited<ReturnType<NonNullable<typeof window.mvmntDesktop>['exports']['complete']>> | undefined;
+                if (desktopSessionId) {
+                    const version = await window.mvmntDesktop!.app.getVersion().catch(() => 'unknown');
+                    const manifest = settings.exportManifest
+                        ? createExportManifest(job, version, duration, metrics)
+                        : undefined;
+                    completion = desktopSink
+                        ? await desktopSink.complete(manifest)
+                        : await window.mvmntDesktop!.exports.complete({
+                              sessionId: desktopSessionId,
+                              manifest,
+                              expectedFrames: frameCount,
+                          });
+                    if (completion.status !== 'completed')
+                        throw new Error(completion.error ?? 'Export finalization failed.');
+                }
+                useExportJobStore.getState().update(job.id, {
+                    status: 'completed',
+                    progress: 100,
+                    text: 'Export complete',
+                    outputId: completion?.outputId,
+                    outputName:
+                        completion?.displayName ??
+                        useExportJobStore.getState().jobs.find((item) => item.id === job.id)?.outputName,
                     bytesWritten: completion?.bytesWritten,
+                    metrics,
+                    finishedAt: new Date().toISOString(),
                 });
-            }
-            if (backgroundJobRef.current === job.id) {
-                window.mvmntDesktop?.background.complete({
-                    jobId: job.id,
-                    patch: {
-                        status: 'completed', progress: 100, text: 'Export complete', outputId: completion?.outputId,
-                        outputName: completion?.displayName ?? filename, bytesWritten: completion?.bytesWritten,
-                        metrics, finishedAt: new Date().toISOString(),
-                    },
+                useExportJobStore
+                    .getState()
+                    .log(job.id, 'info', `Export completed in ${(metrics.elapsedMs / 1000).toFixed(2)} seconds.`);
+                window.mvmntDesktop?.app.notify('MVMNT export complete', completion?.displayName ?? filename);
+                if (automationJobRef.current === job.id) {
+                    automationJobRef.current = null;
+                    window.mvmntDesktop?.automation.reportResult({
+                        type: 'complete',
+                        outputName: completion?.displayName ?? filename,
+                        bytesWritten: completion?.bytesWritten,
+                    });
+                }
+                if (backgroundJobRef.current === job.id) {
+                    window.mvmntDesktop?.background.complete({
+                        jobId: job.id,
+                        patch: {
+                            status: 'completed',
+                            progress: 100,
+                            text: 'Export complete',
+                            outputId: completion?.outputId,
+                            outputName: completion?.displayName ?? filename,
+                            bytesWritten: completion?.bytesWritten,
+                            metrics,
+                            finishedAt: new Date().toISOString(),
+                        },
+                    });
+                }
+            } catch (error) {
+                if (desktopSink) await desktopSink.abort().catch(() => undefined);
+                else if (desktopSessionId)
+                    await window.mvmntDesktop?.exports.abort(desktopSessionId).catch(() => undefined);
+                const cancelled =
+                    controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError');
+                useExportJobStore.getState().update(job.id, {
+                    status: cancelled ? 'cancelled' : 'failed',
+                    text: cancelled ? 'Export cancelled' : 'Export failed',
+                    error: cancelled ? undefined : error instanceof Error ? error.message : String(error),
+                    finishedAt: new Date().toISOString(),
                 });
+                useExportJobStore
+                    .getState()
+                    .log(
+                        job.id,
+                        cancelled ? 'info' : 'error',
+                        cancelled
+                            ? 'Export cancelled and temporary output removed.'
+                            : error instanceof Error
+                              ? error.message
+                              : String(error)
+                    );
+                if (!cancelled)
+                    window.mvmntDesktop?.app.notify(
+                        'MVMNT export failed',
+                        error instanceof Error ? error.message : String(error)
+                    );
+                if (automationJobRef.current === job.id) {
+                    automationJobRef.current = null;
+                    window.mvmntDesktop?.automation.reportResult({
+                        type: 'error',
+                        code: desktopSessionId ? 'render' : 'output',
+                        message: cancelled
+                            ? 'Export cancelled.'
+                            : error instanceof Error
+                              ? error.message
+                              : String(error),
+                    });
+                }
+                if (backgroundJobRef.current === job.id) {
+                    window.mvmntDesktop?.background.complete({
+                        jobId: job.id,
+                        patch: {
+                            status: cancelled ? 'cancelled' : 'failed',
+                            text: cancelled ? 'Export cancelled' : 'Export failed',
+                            error: cancelled ? undefined : error instanceof Error ? error.message : String(error),
+                            finishedAt: new Date().toISOString(),
+                        },
+                    });
+                }
+            } finally {
+                exportAbortControllersRef.current.delete(job.id);
             }
-        } catch (error) {
-            if (desktopSink) await desktopSink.abort().catch(() => undefined);
-            else if (desktopSessionId) await window.mvmntDesktop?.exports.abort(desktopSessionId).catch(() => undefined);
-            const cancelled = controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError');
-            useExportJobStore.getState().update(job.id, {
-                status: cancelled ? 'cancelled' : 'failed',
-                text: cancelled ? 'Export cancelled' : 'Export failed',
-                error: cancelled ? undefined : error instanceof Error ? error.message : String(error),
-                finishedAt: new Date().toISOString(),
-            });
-            useExportJobStore.getState().log(job.id, cancelled ? 'info' : 'error', cancelled
-                ? 'Export cancelled and temporary output removed.'
-                : error instanceof Error ? error.message : String(error));
-            if (!cancelled) window.mvmntDesktop?.app.notify('MVMNT export failed', error instanceof Error ? error.message : String(error));
-            if (automationJobRef.current === job.id) {
-                automationJobRef.current = null;
-                window.mvmntDesktop?.automation.reportResult({
-                    type: 'error',
-                    code: desktopSessionId ? 'render' : 'output',
-                    message: cancelled ? 'Export cancelled.' : error instanceof Error ? error.message : String(error),
-                });
-            }
-            if (backgroundJobRef.current === job.id) {
-                window.mvmntDesktop?.background.complete({
-                    jobId: job.id,
-                    patch: {
-                        status: cancelled ? 'cancelled' : 'failed',
-                        text: cancelled ? 'Export cancelled' : 'Export failed',
-                        error: cancelled ? undefined : error instanceof Error ? error.message : String(error),
-                        finishedAt: new Date().toISOString(),
-                    },
-                });
-            }
-        } finally {
-            exportAbortControllersRef.current.delete(job.id);
-        }
-    }, [imageSequenceGenerator, totalDuration, videoExporter, visualizer]);
+        },
+        [imageSequenceGenerator, totalDuration, videoExporter, visualizer]
+    );
 
     const drainExportQueue = useCallback(async () => {
         if (drainingExportsRef.current) return;
@@ -524,7 +609,13 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 const job = pendingExportsRef.current.shift()!;
                 const latest = useExportJobStore.getState().jobs.find((item) => item.id === job.id);
                 if (latest?.cancelRequested) {
-                    useExportJobStore.getState().update(job.id, { status: 'cancelled', text: 'Export cancelled', finishedAt: new Date().toISOString() });
+                    useExportJobStore
+                        .getState()
+                        .update(job.id, {
+                            status: 'cancelled',
+                            text: 'Export cancelled',
+                            finishedAt: new Date().toISOString(),
+                        });
                     continue;
                 }
                 await runExportJob(job);
@@ -535,58 +626,75 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         }
     }, [runExportJob]);
 
-    const enqueueExport = useCallback((kind: ExportJobKind, override?: Partial<ExportSettings>, presetName?: string) => {
-        const settings = { ...exportSettings, ...(override ?? {}) } as ExportSettings;
-        if (!settings.fullDuration && (settings.startTime == null || settings.endTime == null || settings.startTime >= settings.endTime)) {
-            throw new Error('Invalid start/end time for export.');
-        }
-        if (presetName) settings.filename = settings.filename
-            ? `${settings.filename}_{preset}`.replace('{preset}', presetName)
-            : `{scene}_${presetName}_{width}x{height}`;
-        const sceneState = useSceneStore.getState() as any;
-        const timelineState = useTimelineStore.getState();
-        const job = createExportJob(
-            kind,
-            sceneNameRef.current,
-            settings,
-            Object.keys(sceneState.elements ?? {}).length,
-            Object.keys(timelineState.tracks ?? {}).length,
-        );
-        useExportJobStore.getState().enqueue(job);
-        // Desktop exports are rendered in an isolated hidden renderer. The
-        // package is built after the job snapshot is made, so later edits in
-        // this workspace cannot affect the running export.
-        if (window.mvmntDesktop && !readBackgroundExportBootstrap()) {
-            setShowProgressOverlay(true);
-            setExportKind(kind);
-            setProgressData({ progress: 0, text: 'Packaging background export…' });
-            useExportJobStore.getState().update(job.id, { status: 'preparing', text: 'Packaging background export…' });
-            void (async () => {
-                try {
-                    const packaged = await exportScene(job.snapshot.sceneName);
-                    if (!packaged.ok) throw new Error(packaged.errors.map((item) => item.message).join('\n') || 'Could not package the export scene.');
-                    const result = await window.mvmntDesktop!.background.start({
-                        jobId: job.id,
-                        kind,
-                        sceneName: job.snapshot.sceneName,
-                        settings: structuredClone(settings) as unknown as Record<string, unknown>,
-                        bytes: packaged.zip,
-                    });
-                    if (!result.accepted) throw new Error(result.error ?? 'Could not start background export.');
-                    useExportJobStore.getState().update(job.id, { status: 'queued', text: 'Queued in background renderer' });
-                } catch (error) {
-                    useExportJobStore.getState().update(job.id, {
-                        status: 'failed', text: 'Could not start background export',
-                        error: error instanceof Error ? error.message : String(error), finishedAt: new Date().toISOString(),
-                    });
-                }
-            })();
+    const enqueueExport = useCallback(
+        (kind: ExportJobKind, override?: Partial<ExportSettings>, presetName?: string) => {
+            const settings = { ...exportSettings, ...(override ?? {}) } as ExportSettings;
+            if (
+                !settings.fullDuration &&
+                (settings.startTime == null || settings.endTime == null || settings.startTime >= settings.endTime)
+            ) {
+                throw new Error('Invalid start/end time for export.');
+            }
+            if (presetName)
+                settings.filename = settings.filename
+                    ? `${settings.filename}_{preset}`.replace('{preset}', presetName)
+                    : `{scene}_${presetName}_{width}x{height}`;
+            const sceneState = useSceneStore.getState() as any;
+            const timelineState = useTimelineStore.getState();
+            const job = createExportJob(
+                kind,
+                sceneNameRef.current,
+                settings,
+                Object.keys(sceneState.elements ?? {}).length,
+                Object.keys(timelineState.tracks ?? {}).length
+            );
+            useExportJobStore.getState().enqueue(job);
+            // Desktop exports are rendered in an isolated hidden renderer. The
+            // package is built after the job snapshot is made, so later edits in
+            // this workspace cannot affect the running export.
+            if (window.mvmntDesktop && !readBackgroundExportBootstrap()) {
+                setShowProgressOverlay(true);
+                setExportKind(kind);
+                setProgressData({ progress: 0, text: 'Packaging background export…' });
+                useExportJobStore
+                    .getState()
+                    .update(job.id, { status: 'preparing', text: 'Packaging background export…' });
+                void (async () => {
+                    try {
+                        const packaged = await exportScene(job.snapshot.sceneName);
+                        if (!packaged.ok)
+                            throw new Error(
+                                packaged.errors.map((item) => item.message).join('\n') ||
+                                    'Could not package the export scene.'
+                            );
+                        const result = await window.mvmntDesktop!.background.start({
+                            jobId: job.id,
+                            kind,
+                            sceneName: job.snapshot.sceneName,
+                            settings: structuredClone(settings) as unknown as Record<string, unknown>,
+                            bytes: packaged.zip,
+                        });
+                        if (!result.accepted) throw new Error(result.error ?? 'Could not start background export.');
+                        useExportJobStore
+                            .getState()
+                            .update(job.id, { status: 'queued', text: 'Queued in background renderer' });
+                    } catch (error) {
+                        useExportJobStore.getState().update(job.id, {
+                            status: 'failed',
+                            text: 'Could not start background export',
+                            error: error instanceof Error ? error.message : String(error),
+                            finishedAt: new Date().toISOString(),
+                        });
+                    }
+                })();
+                return job;
+            }
+            pendingExportsRef.current.push(job);
+            void drainExportQueue();
             return job;
-        }
-        pendingExportsRef.current.push(job);
-        void drainExportQueue();
-        return job;
-    }, [drainExportQueue, exportSettings]);
+        },
+        [drainExportQueue, exportSettings]
+    );
 
     // The hidden renderer starts only after its packaged scene has imported.
     // It creates the same job ID as the editor so IPC progress can be merged.
@@ -595,8 +703,14 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         if (!background || backgroundJobRef.current) return;
         let started = false;
         const start = () => {
-            if (started || sessionStorage.getItem(`${BACKGROUND_EXPORT_KEY}.imported`) !== '1' ||
-                !visualizer || !imageSequenceGenerator || !videoExporter) return;
+            if (
+                started ||
+                sessionStorage.getItem(`${BACKGROUND_EXPORT_KEY}.imported`) !== '1' ||
+                !visualizer ||
+                !imageSequenceGenerator ||
+                !videoExporter
+            )
+                return;
             started = true;
             backgroundJobRef.current = background.jobId;
             const scene = useSceneStore.getState();
@@ -607,7 +721,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 background.settings as ExportSettings,
                 Object.keys(scene.elements ?? {}).length,
                 Object.keys(timeline.tracks ?? {}).length,
-                background.jobId,
+                background.jobId
             );
             useExportJobStore.getState().enqueue(job);
             pendingExportsRef.current.push(job);
@@ -642,13 +756,19 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         });
     }, []);
 
-    const exportSequence = useCallback(async (override?: Partial<ExportSettings>) => {
-        enqueueExport('png', override);
-    }, [enqueueExport]);
+    const exportSequence = useCallback(
+        async (override?: Partial<ExportSettings>) => {
+            enqueueExport('png', override);
+        },
+        [enqueueExport]
+    );
 
-    const exportVideo = useCallback(async (override?: Partial<ExportSettings>) => {
-        enqueueExport('video', override);
-    }, [enqueueExport]);
+    const exportVideo = useCallback(
+        async (override?: Partial<ExportSettings>) => {
+            enqueueExport('video', override);
+        },
+        [enqueueExport]
+    );
 
     useEffect(() => {
         if (!window.mvmntDesktop || !visualizer || !imageSequenceGenerator || !videoExporter) return;
@@ -669,17 +789,21 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     ...(request.width ? { width: request.width } : {}),
                     ...(request.height ? { height: request.height } : {}),
                     ...(request.fps ? { fps: request.fps } : {}),
-                    ...(request.range ? {
-                        fullDuration: false,
-                        startTime: request.range.start,
-                        endTime: request.range.end,
-                    } : { fullDuration: true }),
+                    ...(request.range
+                        ? {
+                              fullDuration: false,
+                              startTime: request.range.start,
+                              endTime: request.range.end,
+                          }
+                        : { fullDuration: true }),
                 };
                 const job = enqueueExport(request.kind, settings, preset?.name);
                 automationJobRef.current = job.id;
             } catch (error) {
                 window.mvmntDesktop?.automation.reportResult({
-                    type: 'error', code: 'render', message: error instanceof Error ? error.message : String(error),
+                    type: 'error',
+                    code: 'render',
+                    message: error instanceof Error ? error.message : String(error),
                 });
             }
         };

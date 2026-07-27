@@ -12,7 +12,11 @@ function makeChannel(keyframes: AutomationKeyframe[], opts: Partial<AutomationCh
     };
 }
 
-function kf(tick: number, value: unknown, segmentInterpolation: SegmentInterpolation = { mode: 'linear', direction: 'auto' }): AutomationKeyframe {
+function kf(
+    tick: number,
+    value: unknown,
+    segmentInterpolation: SegmentInterpolation = { mode: 'linear', direction: 'auto' }
+): AutomationKeyframe {
     return { tick, value, segmentInterpolation };
 }
 
@@ -66,7 +70,11 @@ describe('AutomationCurve', () => {
     describe('stepped interpolation', () => {
         it('holds previous keyframe value until next tick', () => {
             const curve = new AutomationCurve(
-                makeChannel([kf(0, 10, { mode: 'constant', direction: 'auto' }), kf(100, 20, { mode: 'constant', direction: 'auto' }), kf(200, 30)])
+                makeChannel([
+                    kf(0, 10, { mode: 'constant', direction: 'auto' }),
+                    kf(100, 20, { mode: 'constant', direction: 'auto' }),
+                    kf(200, 30),
+                ])
             );
             expect(curve.evaluate(0)).toBe(10);
             expect(curve.evaluate(50)).toBe(10);
@@ -81,7 +89,11 @@ describe('AutomationCurve', () => {
             // Without tolerance, findSegmentIndex would return kf[0] (prevIdx=0) and
             // stepped mode would return 10 (old hold value) instead of 20 (new value).
             const curve = new AutomationCurve(
-                makeChannel([kf(0, 10, { mode: 'constant', direction: 'auto' }), kf(100, 20, { mode: 'constant', direction: 'auto' }), kf(200, 30)])
+                makeChannel([
+                    kf(0, 10, { mode: 'constant', direction: 'auto' }),
+                    kf(100, 20, { mode: 'constant', direction: 'auto' }),
+                    kf(200, 30),
+                ])
             );
             expect(curve.evaluate(99.9999)).toBe(20);
             expect(curve.evaluate(199.9999)).toBe(30);
@@ -100,7 +112,9 @@ describe('AutomationCurve', () => {
         });
 
         it('uses linear interpolation when selected explicitly', () => {
-            const curve = new AutomationCurve(makeChannel([kf(0, 0, { mode: 'linear', direction: 'auto' }), kf(100, 100)]));
+            const curve = new AutomationCurve(
+                makeChannel([kf(0, 0, { mode: 'linear', direction: 'auto' }), kf(100, 100)])
+            );
             expect(curve.evaluate(50)).toBeCloseTo(50, 1);
         });
     });

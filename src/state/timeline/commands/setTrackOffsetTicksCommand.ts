@@ -1,16 +1,8 @@
 import type { TimelineCommand } from '../commandTypes';
 import type { TimelineCommandContext, TimelineCommandExecuteResult } from '../commandTypes';
-import {
-    autoAdjustSceneRangeIfNeeded,
-    createTimelineTimingContext,
-} from '../timelineShared';
-import {
-    secondsToTicksAt,
-} from '../../timelineTime';
-import {
-    type TimelineCommandPatch,
-    type TimelinePatchAction,
-} from '../patches';
+import { autoAdjustSceneRangeIfNeeded, createTimelineTimingContext } from '../timelineShared';
+import { secondsToTicksAt } from '../../timelineTime';
+import { type TimelineCommandPatch, type TimelinePatchAction } from '../patches';
 
 export interface SetTrackOffsetTicksPayload {
     trackId: string;
@@ -19,17 +11,16 @@ export interface SetTrackOffsetTicksPayload {
 
 export function createSetTrackOffsetTicksCommand(
     payload: SetTrackOffsetTicksPayload,
-    metadataOverride?: TimelineCommand['metadata'],
+    metadataOverride?: TimelineCommand['metadata']
 ): TimelineCommand<void> {
     return {
         id: 'timeline.setTrackOffsetTicks',
         mode: 'serial',
-        metadata:
-            metadataOverride ?? {
-                commandId: 'timeline.setTrackOffsetTicks',
-                undoLabel: 'Adjust Track Offset',
-                telemetryEvent: 'timeline_set_track_offset',
-            },
+        metadata: metadataOverride ?? {
+            commandId: 'timeline.setTrackOffsetTicks',
+            undoLabel: 'Adjust Track Offset',
+            telemetryEvent: 'timeline_set_track_offset',
+        },
         async execute(context: TimelineCommandContext): Promise<TimelineCommandExecuteResult<void>> {
             const state = context.getState();
             const track = state.tracks[payload.trackId];
@@ -41,14 +32,14 @@ export function createSetTrackOffsetTicksCommand(
                     },
                 };
             }
-            const previousOffset = track.type === 'audio'
-                ? (track.clips[0]?.offsetTicks ?? 0)
-                : (track.offsetTicks ?? 0);
+            const previousOffset =
+                track.type === 'audio' ? (track.clips[0]?.offsetTicks ?? 0) : (track.offsetTicks ?? 0);
             context.setState((current) => {
                 const currentTrack = current.tracks[payload.trackId];
-                const nextTrack: any = currentTrack?.type === 'audio'
-                    ? { ...currentTrack }
-                    : { ...currentTrack, offsetTicks: payload.offsetTicks };
+                const nextTrack: any =
+                    currentTrack?.type === 'audio'
+                        ? { ...currentTrack }
+                        : { ...currentTrack, offsetTicks: payload.offsetTicks };
                 if ((nextTrack.type === 'midi' || nextTrack.type === 'audio') && Array.isArray(nextTrack.clips)) {
                     if (nextTrack.clips.length === 1) {
                         nextTrack.clips = [{ ...nextTrack.clips[0], offsetTicks: payload.offsetTicks }];
@@ -84,16 +75,10 @@ export function createSetTrackOffsetTicksCommand(
             };
             return { patches: patch };
         },
-        async undo(
-            _context: TimelineCommandContext,
-            patch: TimelineCommandPatch,
-        ): Promise<TimelinePatchAction[]> {
+        async undo(_context: TimelineCommandContext, patch: TimelineCommandPatch): Promise<TimelinePatchAction[]> {
             return patch.undo;
         },
-        async redo(
-            _context: TimelineCommandContext,
-            patch: TimelineCommandPatch,
-        ): Promise<TimelinePatchAction[]> {
+        async redo(_context: TimelineCommandContext, patch: TimelineCommandPatch): Promise<TimelinePatchAction[]> {
             return patch.redo;
         },
     };

@@ -116,7 +116,7 @@ export type ElementPropertyLayoutNode =
     | Readonly<{
           kind: 'actions';
           visibleWhen?: readonly ElementPropertyVisibilityCondition[];
-          actions: readonly Readonly<{ id: string; label: string; patch: Readonly<Record<string, unknown>> }> [];
+          actions: readonly Readonly<{ id: string; label: string; patch: Readonly<Record<string, unknown>> }>[];
       }>;
 
 export interface ElementPropertyGroup {
@@ -389,8 +389,7 @@ type SelectValue<Property extends ElementPropertyDefinition> = Property extends 
       : unknown;
 
 /** The runtime value supplied to callbacks for one inspector property. */
-export type ElementPropertyValue<Property extends ElementPropertyDefinition> = Property['type'] extends
-    | 'number'
+export type ElementPropertyValue<Property extends ElementPropertyDefinition> = Property['type'] extends 'number'
     ? number
     : Property['type'] extends 'boolean'
       ? boolean

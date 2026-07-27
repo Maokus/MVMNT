@@ -109,7 +109,8 @@ const InsertKeyframeController: React.FC = () => {
         const onKeyDown = (e: KeyboardEvent) => {
             if (e.key !== 'i') return;
             const target = e.target as HTMLElement | null;
-            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable))
+                return;
             if (!selectedElement || !selectedElementSchema) return;
             e.preventDefault();
 
@@ -126,7 +127,8 @@ const InsertKeyframeController: React.FC = () => {
                     let currentValue: unknown;
                     if (isAutomated) {
                         const override = sceneState.propertyOverrides[channelId];
-                        currentValue = override !== undefined ? override : automationEvaluator.evaluate(channelId, tick);
+                        currentValue =
+                            override !== undefined ? override : automationEvaluator.evaluate(channelId, tick);
                     } else {
                         const binding = selectedElement.bindings[propertyKey];
                         currentValue = binding?.type === 'constant' ? (binding as any).value : undefined;
@@ -139,18 +141,35 @@ const InsertKeyframeController: React.FC = () => {
                                 elementId: selectedElement.id,
                                 propertyKey,
                                 valueType,
-                                initialKeyframes: [{ tick: tick > 0 ? tick : 0, value: currentValue, segmentInterpolation: { mode: 'cubic' as const, direction: 'ease_in_out' as const }, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }],
+                                initialKeyframes: [
+                                    {
+                                        tick: tick > 0 ? tick : 0,
+                                        value: currentValue,
+                                        segmentInterpolation: {
+                                            mode: 'cubic' as const,
+                                            direction: 'ease_in_out' as const,
+                                        },
+                                        leftHandleType: 'auto_clamped' as const,
+                                        rightHandleType: 'auto_clamped' as const,
+                                    },
+                                ],
                             },
-                            { source: 'keyframe-hotkey' },
+                            { source: 'keyframe-hotkey' }
                         );
                     } else {
                         dispatchSceneCommand(
                             {
                                 type: 'addKeyframe',
                                 channelId,
-                                keyframe: { tick, value: currentValue, segmentInterpolation: { mode: 'cubic', direction: 'ease_in_out' }, leftHandleType: 'auto_clamped', rightHandleType: 'auto_clamped' },
+                                keyframe: {
+                                    tick,
+                                    value: currentValue,
+                                    segmentInterpolation: { mode: 'cubic', direction: 'ease_in_out' },
+                                    leftHandleType: 'auto_clamped',
+                                    rightHandleType: 'auto_clamped',
+                                },
                             },
-                            { source: 'keyframe-hotkey' },
+                            { source: 'keyframe-hotkey' }
                         );
                         if (sceneState.propertyOverrides[channelId] !== undefined) {
                             sceneState.clearPropertyOverride(channelId);
@@ -181,7 +200,8 @@ const InsertKeyframeController: React.FC = () => {
 
 // Inner component that consumes context so provider mount is clean
 const MidiVisualizerInner: React.FC = () => {
-    const { showProgressOverlay, progressData, closeProgress, exportKind, cancelExport, revealExport, removeExport } = useVisualizer() as any;
+    const { showProgressOverlay, progressData, closeProgress, exportKind, cancelExport, revealExport, removeExport } =
+        useVisualizer() as any;
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [sidePanelsCollapsed, setSidePanelsCollapsed] = useState(false);
     const [timelineCollapsed, setTimelineCollapsed] = useState(false);
@@ -230,7 +250,9 @@ const MidiVisualizerInner: React.FC = () => {
                 setShowOnboarding(true);
                 localStorage.setItem(KEY, '1'); // set immediately to avoid race on reload
             }
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
     }, []);
 
     // Small-screen warning modal logic
@@ -270,7 +292,9 @@ const MidiVisualizerInner: React.FC = () => {
     }, [getTimelineBounds]);
 
     const proceedSmallScreen = () => {
-        try { localStorage.setItem('mvmnt_small_screen_override_v1', '1'); } catch { }
+        try {
+            localStorage.setItem('mvmnt_small_screen_override_v1', '1');
+        } catch {}
         setShowSmallScreenWarning(false);
     };
 
@@ -306,7 +330,9 @@ const MidiVisualizerInner: React.FC = () => {
     const handleSideResizeUp = (e: React.PointerEvent<HTMLDivElement>) => {
         if (!sideResizeRef.current) return;
         sideResizeRef.current = null;
-        try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { }
+        try {
+            (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        } catch {}
     };
 
     const handleAssetResizeDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -331,7 +357,9 @@ const MidiVisualizerInner: React.FC = () => {
     const handleAssetResizeUp = (e: React.PointerEvent<HTMLDivElement>) => {
         if (!assetResizeRef.current) return;
         assetResizeRef.current = null;
-        try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { }
+        try {
+            (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        } catch {}
     };
 
     const handleTimelineResizeDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -356,7 +384,9 @@ const MidiVisualizerInner: React.FC = () => {
     const handleTimelineResizeUp = (e: React.PointerEvent<HTMLDivElement>) => {
         if (!timelineResizeRef.current) return;
         timelineResizeRef.current = null;
-        try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { }
+        try {
+            (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        } catch {}
     };
 
     // Listen for render modal open events
@@ -369,9 +399,7 @@ const MidiVisualizerInner: React.FC = () => {
     return (
         <div className="app-container">
             <TemplateLoadingOverlay />
-            <MenuBar
-                onHelp={() => setShowOnboarding(true)}
-            />
+            <MenuBar onHelp={() => setShowOnboarding(true)} />
             <SceneSelectionProvider>
                 <>
                     <InsertKeyframeController />
@@ -379,7 +407,10 @@ const MidiVisualizerInner: React.FC = () => {
                     <div className="main-workspace" ref={workspaceRef}>
                         {/* Asset manager panel — left of preview, hidden in compact mode */}
                         {!isCompact && !assetPanelCollapsed && (
-                            <div className="h-full flex-none overflow-hidden" style={{ width: `${Math.round(assetPanelWidth)}px` }}>
+                            <div
+                                className="h-full flex-none overflow-hidden"
+                                style={{ width: `${Math.round(assetPanelWidth)}px` }}
+                            >
                                 <AssetManagerPanel />
                             </div>
                         )}
@@ -399,7 +430,9 @@ const MidiVisualizerInner: React.FC = () => {
                                 <div className="absolute top-1/2 left-1/2 w-[2px] h-12 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
                             </div>
                         )}
-                        <div className={`flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col overflow-hidden min-h-0${isCompact ? ' min-h-[200px]' : ''}`}>
+                        <div
+                            className={`flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col overflow-hidden min-h-0${isCompact ? ' min-h-[200px]' : ''}`}
+                        >
                             <PreviewPanel />
                         </div>
                         {!isCompact && (
@@ -420,7 +453,9 @@ const MidiVisualizerInner: React.FC = () => {
                         )}
                         {!sidePanelsCollapsed && (
                             <div
-                                className={isCompact ? 'flex-1 min-h-[160px] w-full overflow-hidden' : 'h-full flex-none'}
+                                className={
+                                    isCompact ? 'flex-1 min-h-[160px] w-full overflow-hidden' : 'h-full flex-none'
+                                }
                                 style={isCompact ? undefined : { width: `${Math.round(sidePanelWidth)}px` }}
                             >
                                 <SidePanels />
@@ -443,7 +478,11 @@ const MidiVisualizerInner: React.FC = () => {
                         <div className="absolute left-1/2 top-1/2 h-[2px] w-16 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
                     </div>
                     {!timelineCollapsed && (
-                        <div className="timeline-container" data-preserve-selection="true" style={{ height: `${Math.round(timelineHeight)}px` }}>
+                        <div
+                            className="timeline-container"
+                            data-preserve-selection="true"
+                            style={{ height: `${Math.round(timelineHeight)}px` }}
+                        >
                             <TimelinePanel />
                         </div>
                     )}
@@ -468,7 +507,7 @@ const MidiVisualizerInner: React.FC = () => {
                 </Suspense>
             )}
 
-            {showSmallScreenWarning && (<SmallScreenWarning onProceed={proceedSmallScreen} />)}
+            {showSmallScreenWarning && <SmallScreenWarning onProceed={proceedSmallScreen} />}
             {showRenderModal && (
                 <Suspense fallback={null}>
                     <RenderModal onClose={() => setShowRenderModal(false)} />
@@ -501,7 +540,13 @@ const TemplateInitializer: React.FC = () => {
     const setSceneAuthor = useSceneMetadataStore((state) => state.setAuthor);
     const setSceneAttribution = useSceneMetadataStore((state) => state.setAttribution);
     const setSceneName = useSceneMetadataStore((state) => state.setName);
-    const undo = (() => { try { return useUndo(); } catch { return null; } })();
+    const undo = (() => {
+        try {
+            return useUndo();
+        } catch {
+            return null;
+        }
+    })();
     const location = useLocation();
     const navigate = useNavigate();
     const startTemplateLoading = useTemplateStatusStore((state) => state.startLoading);
@@ -529,8 +574,8 @@ const TemplateInitializer: React.FC = () => {
         const message = shouldImport
             ? 'Importing scene…'
             : shouldLoadTemplate
-                ? 'Loading template…'
-                : 'Checking for last open file…';
+              ? 'Loading template…'
+              : 'Checking for last open file…';
 
         let finished = false;
         let unsubscribeHydration: (() => void) | null = null;
@@ -599,7 +644,8 @@ const TemplateInitializer: React.FC = () => {
                                 const importedAuthor = metadataStore.metadata?.author?.trim() || '';
                                 undo?.reset();
                                 refreshSceneUI();
-                                const isBackgroundExport = sessionStorage.getItem('mvmnt.desktop.background-export.v1') !== null;
+                                const isBackgroundExport =
+                                    sessionStorage.getItem('mvmnt.desktop.background-export.v1') !== null;
                                 if (isBackgroundExport) {
                                     setSceneName(importedName);
                                     sessionStorage.setItem('mvmnt.desktop.background-export.v1.imported', '1');
@@ -609,9 +655,14 @@ const TemplateInitializer: React.FC = () => {
                                     // Desktop files use their filename as the canonical scene name.
                                     setSceneName(fallbackName || importedName);
                                     await window.mvmntDesktop.documents.acceptOpen();
-                                    const recovery = await LocalSaveService.saveCurrentFile(fallbackName || importedName);
+                                    const recovery = await LocalSaveService.saveCurrentFile(
+                                        fallbackName || importedName
+                                    );
                                     if (!recovery.ok) {
-                                        console.warn('[Import] Could not save desktop recovery snapshot:', recovery.error);
+                                        console.warn(
+                                            '[Import] Could not save desktop recovery snapshot:',
+                                            recovery.error
+                                        );
                                     }
                                     localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
                                     markSaveClean();
@@ -650,7 +701,10 @@ const TemplateInitializer: React.FC = () => {
                 } else if (shouldLoadTemplate) {
                     updateTemplateLoading({ progress: null, message: 'Loading template…', onAbort: null });
                     const tpl = state.template as string;
-                    dispatchSceneCommand({ type: 'clearScene', clearMacros: true }, { source: 'TemplateInitializer.template' });
+                    dispatchSceneCommand(
+                        { type: 'clearScene', clearMacros: true },
+                        { source: 'TemplateInitializer.template' }
+                    );
                     try {
                         useTimelineStore.getState().resetTimeline();
                     } catch {}
@@ -680,9 +734,9 @@ const TemplateInitializer: React.FC = () => {
                     const desktopRecoveryState = window.mvmntDesktop
                         ? localStorage.getItem('mvmnt.desktop.recovery-state')
                         : null;
-                    const restoreRecovery = desktopRecoveryState !== 'dirty' || window.confirm(
-                        'MVMNT found changes recovered from the previous session. Restore them?',
-                    );
+                    const restoreRecovery =
+                        desktopRecoveryState !== 'dirty' ||
+                        window.confirm('MVMNT found changes recovered from the previous session. Restore them?');
                     if (!restoreRecovery) {
                         await LocalFileStore.clear();
                         await window.mvmntDesktop?.documents.clearActivePath();
@@ -713,7 +767,10 @@ const TemplateInitializer: React.FC = () => {
                                 markSaveClean();
                                 didChange = true;
                             } else {
-                                console.warn('[TemplateInitializer] Could not restore active desktop document:', result.errors);
+                                console.warn(
+                                    '[TemplateInitializer] Could not restore active desktop document:',
+                                    result.errors
+                                );
                             }
                         }
                     }
@@ -722,12 +779,13 @@ const TemplateInitializer: React.FC = () => {
                         progress: 0.05,
                         message: savedAt ? 'Loading last open file…' : 'Preparing default scene…',
                     });
-                    const localResult = !didChange && restoreRecovery
-                        ? await LocalSaveService.loadSavedFile({
-                            signal: abortController?.signal,
-                            onProgress: (progress, text) => updateTemplateLoading({ progress, message: text }),
-                        })
-                        : { ok: true as const, loaded: false as const };
+                    const localResult =
+                        !didChange && restoreRecovery
+                            ? await LocalSaveService.loadSavedFile({
+                                  signal: abortController?.signal,
+                                  onProgress: (progress, text) => updateTemplateLoading({ progress, message: text }),
+                              })
+                            : { ok: true as const, loaded: false as const };
                     if (didChange) {
                         // The active native document is already hydrated.
                     } else if (localResult.ok && localResult.loaded) {
@@ -743,7 +801,10 @@ const TemplateInitializer: React.FC = () => {
                         didChange = true;
                     } else {
                         if (!localResult.ok) {
-                            console.warn('[TemplateInitializer] Could not load local save, falling back to default scene:', localResult.error);
+                            console.warn(
+                                '[TemplateInitializer] Could not load local save, falling back to default scene:',
+                                localResult.error
+                            );
                         }
                         // No local save found (or corrupt) – load the default template.
                         updateTemplateLoading({ progress: null, message: 'Preparing default scene…', onAbort: null });

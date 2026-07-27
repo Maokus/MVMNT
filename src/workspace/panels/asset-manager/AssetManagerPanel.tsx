@@ -35,8 +35,12 @@ const AssetCard: React.FC<{
         return () => URL.revokeObjectURL(url);
     }, [entry.file]);
 
-    useEffect(() => { setDraft(entry.name); }, [entry.name]);
-    useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
+    useEffect(() => {
+        setDraft(entry.name);
+    }, [entry.name]);
+    useEffect(() => {
+        if (editing) inputRef.current?.select();
+    }, [editing]);
 
     const commitRename = () => {
         const trimmed = draft.trim();
@@ -85,7 +89,10 @@ const AssetCard: React.FC<{
                         onBlur={commitRename}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') commitRename();
-                            if (e.key === 'Escape') { setDraft(entry.name); setEditing(false); }
+                            if (e.key === 'Escape') {
+                                setDraft(entry.name);
+                                setEditing(false);
+                            }
                         }}
                     />
                 ) : (
@@ -101,7 +108,10 @@ const AssetCard: React.FC<{
                     <button
                         className="shrink-0 text-neutral-500 hover:text-red-400 text-sm leading-none transition-colors"
                         title="Remove asset"
-                        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete();
+                        }}
                         type="button"
                     >
                         ×
@@ -113,7 +123,7 @@ const AssetCard: React.FC<{
 };
 
 const AssetManagerPanel: React.FC = () => {
-    const { assets, assetsOrder, addAsset, removeAsset, renameAsset } = useVisualAssetRegistryStore(state => state);
+    const { assets, assetsOrder, addAsset, removeAsset, renameAsset } = useVisualAssetRegistryStore((state) => state);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [dragOver, setDragOver] = useState(false);
     const [filterOpen, setFilterOpen] = useState(false);
@@ -152,7 +162,10 @@ const AssetManagerPanel: React.FC = () => {
     return (
         <div
             className={`flex flex-col h-full bg-neutral-950 transition-colors${dragOver ? ' ring-1 ring-inset ring-accent/50' : ''}`}
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+            }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
         >
@@ -196,7 +209,9 @@ const AssetManagerPanel: React.FC = () => {
                         {...getFloatingProps()}
                         className="z-50 min-w-[180px] rounded border border-neutral-700 bg-neutral-900 shadow-lg py-2 px-3"
                     >
-                        <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">Filters</p>
+                        <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">
+                            Filters
+                        </p>
                         <label className="flex items-center gap-2 cursor-pointer select-none">
                             <input
                                 type="checkbox"

@@ -51,7 +51,7 @@ export interface UseAudioFeatureResult {
 export function useAudioFeature(
     trackId: string | null | undefined,
     feature: FeatureInput,
-    samplingOptions?: AudioSamplingOptions | null,
+    samplingOptions?: AudioSamplingOptions | null
 ): UseAudioFeatureResult {
     const stateRef = useRef<HookState | null>(null);
     if (!stateRef.current) {
@@ -66,11 +66,14 @@ export function useAudioFeature(
         stateRef.current!.lastResult = null;
     }, [normalizedTrackId, featureKey, samplingKey]);
 
-    useEffect(() => () => {
-        if (stateRef.current) {
-            clearFeatureData(stateRef.current.element);
-        }
-    }, []);
+    useEffect(
+        () => () => {
+            if (stateRef.current) {
+                clearFeatureData(stateRef.current.element);
+            }
+        },
+        []
+    );
 
     const getData = useCallback(
         (time: number) => {
@@ -83,19 +86,13 @@ export function useAudioFeature(
                 stateRef.current.lastResult = null;
                 return null;
             }
-            const result = getFeatureData(
-                elementRef,
-                normalizedTrackId,
-                feature,
-                time,
-                samplingOptions ?? undefined,
-            );
+            const result = getFeatureData(elementRef, normalizedTrackId, feature, time, samplingOptions ?? undefined);
             if (result) {
                 stateRef.current.lastResult = result;
             }
             return result;
         },
-        [normalizedTrackId, feature, samplingOptions],
+        [normalizedTrackId, feature, samplingOptions]
     );
 
     const isLoading = Boolean(normalizedTrackId) && stateRef.current?.lastResult == null;

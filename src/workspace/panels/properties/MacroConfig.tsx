@@ -16,24 +16,24 @@ interface MacroConfigProps {
 interface Macro {
     name: string;
     type:
-    | 'number'
-    | 'string'
-    | 'boolean'
-    | 'color'
-    | 'colorAlpha'
-    | 'select'
-    | 'file'
-    | 'file-midi'
-    | 'file-image'
-    | 'font'
-    | 'timelineTrackRef'
-    | 'assetRef';
+        | 'number'
+        | 'string'
+        | 'boolean'
+        | 'color'
+        | 'colorAlpha'
+        | 'select'
+        | 'file'
+        | 'file-midi'
+        | 'file-image'
+        | 'font'
+        | 'timelineTrackRef'
+        | 'assetRef';
     value: any;
     options: {
         min?: number;
         max?: number;
         step?: number;
-        selectOptions?: { value: any; label: string; }[];
+        selectOptions?: { value: any; label: string }[];
         accept?: string;
         [key: string]: any;
     };
@@ -54,9 +54,10 @@ interface MacroNumberInputProps {
 }
 
 const MacroNumberInput: React.FC<MacroNumberInputProps> = ({ macro, value, onChange, onBlur, onCommit, onKeyDown }) => {
-    const numericStep = typeof macro.options.step === 'number' && isFinite(macro.options.step) && macro.options.step > 0
-        ? macro.options.step
-        : undefined;
+    const numericStep =
+        typeof macro.options.step === 'number' && isFinite(macro.options.step) && macro.options.step > 0
+            ? macro.options.step
+            : undefined;
     const min = typeof macro.options.min === 'number' ? macro.options.min : undefined;
     const max = typeof macro.options.max === 'number' ? macro.options.max : undefined;
     const fallbackValue = typeof macro.value === 'number' ? macro.value : 0;
@@ -94,7 +95,16 @@ const MacroNumberInput: React.FC<MacroNumberInputProps> = ({ macro, value, onCha
 };
 
 const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = true }) => {
-    const { macros: contextMacros, create, updateValue, rename, reorder, delete: deleteMacro, get, assignListener } = useMacros();
+    const {
+        macros: contextMacros,
+        create,
+        updateValue,
+        rename,
+        reorder,
+        delete: deleteMacro,
+        get,
+        assignListener,
+    } = useMacros();
     const storeAssignments = useMacroAssignments();
     const assignmentMap = useMemo(() => {
         const map = new Map<string, MacroAssignment[]>();
@@ -116,13 +126,14 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
     const stringMacroComposingRef = useRef(false);
     const [newMacro, setNewMacro] = useState({
         name: '',
-        type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'colorAlpha' | 'select' | 'file' | 'font' | 'timelineTrackRef',
+        type: 'number' as
+            'number' | 'string' | 'boolean' | 'color' | 'colorAlpha' | 'select' | 'file' | 'font' | 'timelineTrackRef',
         value: '',
         min: '',
         max: '',
         step: '',
         options: '',
-        accept: '.mid,.midi'
+        accept: '.mid,.midi',
     });
 
     useEffect(() => {
@@ -255,9 +266,10 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             if (newMacro.max) options.max = parseFloat(newMacro.max);
             if (newMacro.step) options.step = parseFloat(newMacro.step);
         } else if (newMacro.type === 'select') {
-            options.selectOptions = newMacro.options.split('\n')
-                .filter(line => line.trim())
-                .map(line => {
+            options.selectOptions = newMacro.options
+                .split('\n')
+                .filter((line) => line.trim())
+                .map((line) => {
                     const [value, label] = line.split('|');
                     return { value: value.trim(), label: (label || value).trim() };
                 });
@@ -270,13 +282,22 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             setShowCreateDialog(false);
             setNewMacro({
                 name: '',
-                type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'colorAlpha' | 'select' | 'file' | 'font' | 'timelineTrackRef',
+                type: 'number' as
+                    | 'number'
+                    | 'string'
+                    | 'boolean'
+                    | 'color'
+                    | 'colorAlpha'
+                    | 'select'
+                    | 'file'
+                    | 'font'
+                    | 'timelineTrackRef',
                 value: '',
                 min: '',
                 max: '',
                 step: '',
                 options: '',
-                accept: '.mid,.midi'
+                accept: '.mid,.midi',
             });
         } else {
             alert('Failed to create macro. Name might already exist.');
@@ -300,9 +321,9 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
         console.log(`MacroConfig: Number input change for '${macroName}':`, inputValue);
 
         // Update local input state immediately for responsive UI
-        setInputValues(prev => ({
+        setInputValues((prev) => ({
             ...prev,
-            [macroName]: inputValue
+            [macroName]: inputValue,
         }));
 
         // Try to parse and update the macro if valid
@@ -327,9 +348,9 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
         // On blur, ensure the input shows the actual macro value
         const macro = get(macroName);
         if (macro) {
-            setInputValues(prev => ({
+            setInputValues((prev) => ({
                 ...prev,
-                [macroName]: macro.value.toString()
+                [macroName]: macro.value.toString(),
             }));
         }
     };
@@ -349,7 +370,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
 
     const handleDeleteMacro = (name: string) => {
         deleteMacro(name);
-        setMacros(prev => prev.filter(m => m.name !== name));
+        setMacros((prev) => prev.filter((m) => m.name !== name));
     };
 
     const handleDragEnd = () => {
@@ -357,7 +378,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             const newOrder = [...macros];
             const [removed] = newOrder.splice(draggedIndex, 1);
             newOrder.splice(dragOverIndex, 0, removed);
-            reorder(newOrder.map(m => m.name));
+            reorder(newOrder.map((m) => m.name));
         }
         setDraggedIndex(null);
         setDragOverIndex(null);
@@ -366,18 +387,31 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
     const handleShowAssignmentDialog = (macroName: string) => {
         const assignments = assignmentMap.get(macroName) ?? [];
         if (assignments.length === 0) {
-            alert(`Macro "${macroName}" has no assignments.\n\nTo assign this macro to element properties, you'll need to select an element and look for the macro assignment options in the property editor.`);
+            alert(
+                `Macro "${macroName}" has no assignments.\n\nTo assign this macro to element properties, you'll need to select an element and look for the macro assignment options in the property editor.`
+            );
         } else {
-            const assignmentsList = assignments.map((a: MacroAssignment) => `• ${a.elementId}.${a.propertyPath}`).join('\n');
+            const assignmentsList = assignments
+                .map((a: MacroAssignment) => `• ${a.elementId}.${a.propertyPath}`)
+                .join('\n');
             alert(`Macro "${macroName}" is assigned to:\n\n${assignmentsList}`);
         }
     };
 
     const handleMacroTypeChange = (type: string) => {
-        setNewMacro(prev => {
+        setNewMacro((prev) => {
             const updated = {
                 ...prev,
-                type: type as 'number' | 'string' | 'boolean' | 'color' | 'colorAlpha' | 'select' | 'file' | 'font' | 'timelineTrackRef',
+                type: type as
+                    | 'number'
+                    | 'string'
+                    | 'boolean'
+                    | 'color'
+                    | 'colorAlpha'
+                    | 'select'
+                    | 'file'
+                    | 'font'
+                    | 'timelineTrackRef',
             };
             switch (type) {
                 case 'number':
@@ -414,9 +448,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
         if (Array.isArray(allowedTypes) && allowedTypes.length > 0) return true;
         if (typeof macro.options?.allowMultiple === 'boolean') return true;
 
-        const normalizedName = (macro.name || '')
-            .replace(/[^a-z0-9]+/gi, '')
-            .toLowerCase();
+        const normalizedName = (macro.name || '').replace(/[^a-z0-9]+/gi, '').toLowerCase();
         const trackSuffixes = ['track', 'trackid', 'trackref', 'miditrack', 'miditrackid', 'timelinetrack'];
         const nameSuggestsTrack = trackSuffixes.some((suffix) => normalizedName.endsWith(suffix));
         if (nameSuggestsTrack) return true;
@@ -431,7 +463,9 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
     const renderTrackSelectControl = (macro: Macro) => {
         const allowMultiple = Boolean(macro.options?.allowMultiple) || Array.isArray(macro.value);
         const inferTrackTypeFromValue = () => {
-            const candidate = Array.isArray(macro.value) ? macro.value.find((entry) => typeof entry === 'string') : macro.value;
+            const candidate = Array.isArray(macro.value)
+                ? macro.value.find((entry) => typeof entry === 'string')
+                : macro.value;
             if (typeof candidate !== 'string') return undefined;
             if (/audio[-_]?track/i.test(candidate)) return ['audio'] as Array<'audio'>;
             if (/midi[-_]?track/i.test(candidate)) return ['midi'] as Array<'midi'>;
@@ -445,7 +479,9 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
         let normalizedValue: string | string[] | null;
         if (allowMultiple) {
             if (Array.isArray(macro.value)) {
-                normalizedValue = macro.value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
+                normalizedValue = macro.value.filter(
+                    (entry): entry is string => typeof entry === 'string' && entry.length > 0
+                );
             } else if (typeof macro.value === 'string' && macro.value.length > 0) {
                 normalizedValue = [macro.value];
             } else {
@@ -455,7 +491,8 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             if (typeof macro.value === 'string' && macro.value.length > 0) {
                 normalizedValue = macro.value;
             } else if (Array.isArray(macro.value)) {
-                normalizedValue = macro.value.find((entry): entry is string => typeof entry === 'string' && entry.length > 0) ?? null;
+                normalizedValue =
+                    macro.value.find((entry): entry is string => typeof entry === 'string' && entry.length > 0) ?? null;
             } else if (macro.value == null) {
                 normalizedValue = null;
             } else {
@@ -528,11 +565,8 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             case 'select':
                 const options = macro.options.selectOptions || [];
                 return (
-                    <select
-                        value={macro.value}
-                        onChange={(e) => handleUpdateMacroValue(macro.name, e.target.value)}
-                    >
-                        {options.map(opt => (
+                    <select value={macro.value} onChange={(e) => handleUpdateMacroValue(macro.name, e.target.value)}>
+                        {options.map((opt) => (
                             <option key={opt.value} value={opt.value}>
                                 {opt.label}
                             </option>
@@ -586,42 +620,42 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                 );
             }
             default: // string
-                return (
-                    (() => {
-                        // Heuristic: legacy scenes may store track refs as strings
-                        if (macro.type === 'string') {
-                            if (shouldTreatStringMacroAsTimelineTrack(macro)) {
-                                return renderTrackSelectControl(macro);
-                            }
-                            if (/track$/i.test(macro.name)) {
-                                return (
-                                    <TimelineTrackSelect
-                                        id={`macro-track-${macro.name}`}
-                                        value={macro.value ?? null}
-                                        schema={{ allowMultiple: false }}
-                                        onChange={(val: any) => handleUpdateMacroValue(macro.name, val)}
-                                    />
-                                );
-                            }
+                return (() => {
+                    // Heuristic: legacy scenes may store track refs as strings
+                    if (macro.type === 'string') {
+                        if (shouldTreatStringMacroAsTimelineTrack(macro)) {
+                            return renderTrackSelectControl(macro);
                         }
-                        return (
-                            <input
-                                type="text"
-                                value={macro.value}
-                                onChange={(e) => {
-                                    if (stringMacroComposingRef.current) return;
-                                    handleUpdateMacroValue(macro.name, e.target.value);
-                                }}
-                                onCompositionStart={() => { stringMacroComposingRef.current = true; }}
-                                onCompositionEnd={(e) => {
-                                    stringMacroComposingRef.current = false;
-                                    handleUpdateMacroValue(macro.name, (e.target as HTMLInputElement).value);
-                                }}
-                                onKeyDown={handleKeyDown}
-                            />
-                        );
-                    })()
-                );
+                        if (/track$/i.test(macro.name)) {
+                            return (
+                                <TimelineTrackSelect
+                                    id={`macro-track-${macro.name}`}
+                                    value={macro.value ?? null}
+                                    schema={{ allowMultiple: false }}
+                                    onChange={(val: any) => handleUpdateMacroValue(macro.name, val)}
+                                />
+                            );
+                        }
+                    }
+                    return (
+                        <input
+                            type="text"
+                            value={macro.value}
+                            onChange={(e) => {
+                                if (stringMacroComposingRef.current) return;
+                                handleUpdateMacroValue(macro.name, e.target.value);
+                            }}
+                            onCompositionStart={() => {
+                                stringMacroComposingRef.current = true;
+                            }}
+                            onCompositionEnd={(e) => {
+                                stringMacroComposingRef.current = false;
+                                handleUpdateMacroValue(macro.name, (e.target as HTMLInputElement).value);
+                            }}
+                            onKeyDown={handleKeyDown}
+                        />
+                    );
+                })();
         }
     };
 
@@ -694,7 +728,8 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                 <div className="macro-assignments">
                     {assignments.length > 0 ? (
                         <small>
-                            {assignments.length} assignment(s): {assignments.map((a: MacroAssignment) => `${a.elementId}.${a.propertyPath}`).join(', ')}
+                            {assignments.length} assignment(s):{' '}
+                            {assignments.map((a: MacroAssignment) => `${a.elementId}.${a.propertyPath}`).join(', ')}
                         </small>
                     ) : (
                         <small>No assignments</small>
@@ -735,10 +770,15 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                             key={macro.name}
                             draggable
                             onDragStart={() => setDraggedIndex(index)}
-                            onDragOver={(e) => { e.preventDefault(); setDragOverIndex(index); }}
+                            onDragOver={(e) => {
+                                e.preventDefault();
+                                setDragOverIndex(index);
+                            }}
                             onDragEnd={handleDragEnd}
                             style={{ opacity: draggedIndex === index ? 0.4 : 1 }}
-                            className={dragOverIndex === index && draggedIndex !== index ? 'border-t-2 border-t-blue-400' : ''}
+                            className={
+                                dragOverIndex === index && draggedIndex !== index ? 'border-t-2 border-t-blue-400' : ''
+                            }
                         >
                             {renderMacroItem(macro)}
                         </div>
@@ -757,7 +797,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                                 id="newMacroName"
                                 placeholder="e.g., MainTempo, PrimaryColor"
                                 value={newMacro.name}
-                                onChange={(e) => setNewMacro(prev => ({ ...prev, name: e.target.value }))}
+                                onChange={(e) => setNewMacro((prev) => ({ ...prev, name: e.target.value }))}
                             />
                         </div>
                         <div className="form-group">
@@ -785,7 +825,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                                     type={newMacro.type === 'number' ? 'number' : 'text'}
                                     id="newMacroValue"
                                     value={newMacro.value}
-                                    onChange={(e) => setNewMacro(prev => ({ ...prev, value: e.target.value }))}
+                                    onChange={(e) => setNewMacro((prev) => ({ ...prev, value: e.target.value }))}
                                     disabled={newMacro.type === 'file'}
                                     placeholder={newMacro.type === 'file' ? 'No file selected' : ''}
                                 />
@@ -798,7 +838,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                                     id="newMacroFont"
                                     value={newMacro.value || 'Arial|400'}
                                     schema={{ default: 'Arial|400' }}
-                                    onChange={(val: string) => setNewMacro(prev => ({ ...prev, value: val }))}
+                                    onChange={(val: string) => setNewMacro((prev) => ({ ...prev, value: val }))}
                                 />
                             </div>
                         )}
@@ -810,21 +850,21 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                                     placeholder="Min"
                                     style={{ width: '45%' }}
                                     value={newMacro.min}
-                                    onChange={(e) => setNewMacro(prev => ({ ...prev, min: e.target.value }))}
+                                    onChange={(e) => setNewMacro((prev) => ({ ...prev, min: e.target.value }))}
                                 />
                                 <input
                                     type="number"
                                     placeholder="Max"
                                     style={{ width: '45%' }}
                                     value={newMacro.max}
-                                    onChange={(e) => setNewMacro(prev => ({ ...prev, max: e.target.value }))}
+                                    onChange={(e) => setNewMacro((prev) => ({ ...prev, max: e.target.value }))}
                                 />
                                 <input
                                     type="number"
                                     placeholder="Step"
                                     style={{ width: '100%', marginTop: '5px' }}
                                     value={newMacro.step}
-                                    onChange={(e) => setNewMacro(prev => ({ ...prev, step: e.target.value }))}
+                                    onChange={(e) => setNewMacro((prev) => ({ ...prev, step: e.target.value }))}
                                 />
                             </div>
                         )}
@@ -835,7 +875,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                                     rows={4}
                                     placeholder="option1|Option 1&#10;option2|Option 2"
                                     value={newMacro.options}
-                                    onChange={(e) => setNewMacro(prev => ({ ...prev, options: e.target.value }))}
+                                    onChange={(e) => setNewMacro((prev) => ({ ...prev, options: e.target.value }))}
                                 />
                             </div>
                         )}
@@ -847,7 +887,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                                     id="newMacroAccept"
                                     placeholder=".mid,.midi"
                                     value={newMacro.accept}
-                                    onChange={(e) => setNewMacro(prev => ({ ...prev, accept: e.target.value }))}
+                                    onChange={(e) => setNewMacro((prev) => ({ ...prev, accept: e.target.value }))}
                                 />
                             </div>
                         )}

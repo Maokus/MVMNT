@@ -48,8 +48,7 @@ class PatchUndoController implements UndoController {
         if (!event.success) return;
         const undo = event.patch?.undo;
         const redo = event.patch?.redo;
-        const hasScenePatch =
-            Array.isArray(undo) && Array.isArray(redo) && undo.length > 0 && redo.length > 0;
+        const hasScenePatch = Array.isArray(undo) && Array.isArray(redo) && undo.length > 0 && redo.length > 0;
 
         if (!hasScenePatch) {
             if (event.mergeKey) {
@@ -137,10 +136,7 @@ class PatchUndoController implements UndoController {
         };
     }
 
-    private mergeScenes(
-        existing: UndoStackEntry['scene'],
-        incoming: UndoStackEntry['scene'],
-    ): UndoStackEntry['scene'] {
+    private mergeScenes(existing: UndoStackEntry['scene'], incoming: UndoStackEntry['scene']): UndoStackEntry['scene'] {
         if (!existing) return incoming;
         if (!incoming) return existing;
         return {
@@ -151,7 +147,7 @@ class PatchUndoController implements UndoController {
 
     private mergeTimelines(
         existing: UndoStackEntry['timeline'],
-        incoming: UndoStackEntry['timeline'],
+        incoming: UndoStackEntry['timeline']
     ): UndoStackEntry['timeline'] {
         if (!existing) return incoming;
         if (!incoming) return existing;
@@ -191,7 +187,7 @@ class PatchUndoController implements UndoController {
                 getState: () => useTimelineStore.getState(),
                 setState: (updater) => useTimelineStore.setState(updater as any),
             },
-            patch,
+            patch
         );
     }
 
@@ -303,9 +299,6 @@ class PatchUndoController implements UndoController {
     }
 }
 
-export function createPatchUndoController(
-    _store: unknown,
-    options: CreatePatchUndoOptions = {}
-): PatchUndoController {
+export function createPatchUndoController(_store: unknown, options: CreatePatchUndoOptions = {}): PatchUndoController {
     return new PatchUndoController(options);
 }

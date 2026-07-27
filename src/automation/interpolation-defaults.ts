@@ -5,12 +5,7 @@
  * computes auto bezier handles using Catmull-Rom tangents.
  */
 
-import type {
-    AutomationKeyframe,
-    BezierHandle,
-    HandleType,
-    SegmentInterpolation,
-} from './types';
+import type { AutomationKeyframe, BezierHandle, HandleType, SegmentInterpolation } from './types';
 
 // Default constants are defined in types.ts to avoid circular imports.
 // We re-export them here for convenience.
@@ -46,7 +41,7 @@ export function computeAutoHandles(
     prev: AutomationKeyframe | null,
     curr: AutomationKeyframe,
     next: AutomationKeyframe | null,
-    handleType: 'auto' | 'auto_clamped' = 'auto_clamped',
+    handleType: 'auto' | 'auto_clamped' = 'auto_clamped'
 ): { left: BezierHandle; right: BezierHandle } {
     const currVal = typeof curr.value === 'number' ? curr.value : 0;
     const prevVal = prev ? (typeof prev.value === 'number' ? prev.value : 0) : currVal;
@@ -62,14 +57,11 @@ export function computeAutoHandles(
     // Auto-clamped: prevent overshoot by zeroing tangent at local extrema
     if (handleType === 'auto_clamped') {
         const isLocalExtremum =
-            (prev && next && (currVal >= prevVal) !== (currVal < nextVal)) ||
-            (prev && !next) ||
-            (!prev && next);
+            (prev && next && currVal >= prevVal !== currVal < nextVal) || (prev && !next) || (!prev && next);
 
         if (prev && next) {
             // If the current value is a local min or max, flatten tangent
-            if ((currVal <= prevVal && currVal <= nextVal) ||
-                (currVal >= prevVal && currVal >= nextVal)) {
+            if ((currVal <= prevVal && currVal <= nextVal) || (currVal >= prevVal && currVal >= nextVal)) {
                 slope = 0;
             }
         }
@@ -78,23 +70,21 @@ export function computeAutoHandles(
         if (prev && next && slope !== 0) {
             const leftSpan = curr.tick - prevTick;
             const rightSpan = nextTick - curr.tick;
-            const leftDv = slope * leftSpan / 3;
-            const rightDv = slope * rightSpan / 3;
+            const leftDv = (slope * leftSpan) / 3;
+            const rightDv = (slope * rightSpan) / 3;
 
             // Ensure handles don't overshoot adjacent values
             const minAdj = Math.min(prevVal, nextVal);
             const maxAdj = Math.max(prevVal, nextVal);
             if (currVal - leftDv < minAdj || currVal - leftDv > maxAdj) {
-                const safeLeftDv = currVal > prevVal
-                    ? Math.min(leftDv, (currVal - prevVal))
-                    : Math.max(leftDv, (currVal - prevVal));
-                slope = safeLeftDv * 3 / leftSpan;
+                const safeLeftDv =
+                    currVal > prevVal ? Math.min(leftDv, currVal - prevVal) : Math.max(leftDv, currVal - prevVal);
+                slope = (safeLeftDv * 3) / leftSpan;
             }
             if (currVal + rightDv < minAdj || currVal + rightDv > maxAdj) {
-                const safeRightDv = currVal < nextVal
-                    ? Math.min(rightDv, (nextVal - currVal))
-                    : Math.max(rightDv, (nextVal - currVal));
-                slope = safeRightDv * 3 / rightSpan;
+                const safeRightDv =
+                    currVal < nextVal ? Math.min(rightDv, nextVal - currVal) : Math.max(rightDv, nextVal - currVal);
+                slope = (safeRightDv * 3) / rightSpan;
             }
         }
     }

@@ -118,10 +118,16 @@ export function createPerspectiveCameraWarp(
     const strength = Math.max(0, Math.min(100, Number.isFinite(projection.strength) ? projection.strength : 50));
     const pivotX = Math.max(0, Math.min(1, Number.isFinite(projection.pivotX) ? projection.pivotX : 0.5));
     const pivotY = Math.max(0, Math.min(1, Number.isFinite(projection.pivotY) ? projection.pivotY : 0.5));
-    const vanishingPointX = Math.max(-2, Math.min(3, Number.isFinite(projection.vanishingPointX) ? projection.vanishingPointX : 0.5));
-    const vanishingPointY = Math.max(-2, Math.min(3, Number.isFinite(projection.vanishingPointY) ? projection.vanishingPointY : 0.5));
-    const pitch = rotationX * Math.PI / 180;
-    const yaw = rotationY * Math.PI / 180;
+    const vanishingPointX = Math.max(
+        -2,
+        Math.min(3, Number.isFinite(projection.vanishingPointX) ? projection.vanishingPointX : 0.5)
+    );
+    const vanishingPointY = Math.max(
+        -2,
+        Math.min(3, Number.isFinite(projection.vanishingPointY) ? projection.vanishingPointY : 0.5)
+    );
+    const pitch = (rotationX * Math.PI) / 180;
+    const yaw = (rotationY * Math.PI) / 180;
     const cosPitch = Math.cos(pitch);
     const sinPitch = Math.sin(pitch);
     const cosYaw = Math.cos(yaw);
@@ -180,8 +186,9 @@ export function perspectiveWarpPoints(warp: PerspectiveWarp): PerspectivePoint[]
 export function isIdentityPerspectiveWarp(warp: PerspectiveWarp, epsilon = 1e-10): boolean {
     const actual = perspectiveWarpPoints(warp);
     const expected = perspectiveWarpPoints(IDENTITY_PERSPECTIVE_WARP);
-    return actual.every((point, index) =>
-        Math.abs(point.x - expected[index].x) <= epsilon && Math.abs(point.y - expected[index].y) <= epsilon
+    return actual.every(
+        (point, index) =>
+            Math.abs(point.x - expected[index].x) <= epsilon && Math.abs(point.y - expected[index].y) <= epsilon
     );
 }
 
@@ -266,7 +273,17 @@ export function invertHomography(matrix: Homography): Homography | null {
     const determinant = a * A + b * D + c * G;
     if (!Number.isFinite(determinant) || Math.abs(determinant) <= EPSILON) return null;
     const inverse = 1 / determinant;
-    const result: Homography = [A * inverse, B * inverse, C * inverse, D * inverse, E * inverse, F * inverse, G * inverse, H * inverse, I * inverse];
+    const result: Homography = [
+        A * inverse,
+        B * inverse,
+        C * inverse,
+        D * inverse,
+        E * inverse,
+        F * inverse,
+        G * inverse,
+        H * inverse,
+        I * inverse,
+    ];
     return result.every(Number.isFinite) ? result : null;
 }
 
@@ -289,7 +306,11 @@ export function getProjectedBounds(points: readonly PerspectivePoint[]): Perspec
     return { x: minX, y: minY, width: Math.max(0, maxX - minX), height: Math.max(0, maxY - minY) };
 }
 
-export function clipPerspectiveBounds(bounds: PerspectiveBounds, viewportWidth: number, viewportHeight: number): PerspectiveBounds | null {
+export function clipPerspectiveBounds(
+    bounds: PerspectiveBounds,
+    viewportWidth: number,
+    viewportHeight: number
+): PerspectiveBounds | null {
     const x = Math.max(0, bounds.x);
     const y = Math.max(0, bounds.y);
     const right = Math.min(viewportWidth, bounds.x + bounds.width);
@@ -308,7 +329,10 @@ export interface AffineTransform {
 }
 
 export function applyAffinePoint(matrix: AffineTransform, point: PerspectivePoint): PerspectivePoint {
-    return { x: matrix.a * point.x + matrix.c * point.y + matrix.e, y: matrix.b * point.x + matrix.d * point.y + matrix.f };
+    return {
+        x: matrix.a * point.x + matrix.c * point.y + matrix.e,
+        y: matrix.b * point.x + matrix.d * point.y + matrix.f,
+    };
 }
 
 export function invertAffineTransform(matrix: AffineTransform): AffineTransform | null {
@@ -332,9 +356,7 @@ export function warpLocalPoint(
     if (Math.abs(bounds.width) <= EPSILON || Math.abs(bounds.height) <= EPSILON) return null;
     const normalized = { x: (localPoint.x - bounds.x) / bounds.width, y: (localPoint.y - bounds.y) / bounds.height };
     const projected = projectPerspectivePoint(warpMatrix, normalized);
-    return projected
-        ? { x: bounds.x + projected.x * bounds.width, y: bounds.y + projected.y * bounds.height }
-        : null;
+    return projected ? { x: bounds.x + projected.x * bounds.width, y: bounds.y + projected.y * bounds.height } : null;
 }
 
 export function unwarpLocalPoint(

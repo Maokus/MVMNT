@@ -3,7 +3,12 @@ import { createWithEqualityFn } from 'zustand/traditional';
 import { shallow } from 'zustand/shallow';
 import type { MIDIData } from '@core/types';
 import type { AudioTrack, AudioCacheEntry, AudioCacheOriginalFile, AudioCacheWaveform } from '@audio/audioTypes';
-import { estimateAudioBufferBytes, estimateFeatureCacheBytes, formatBytes, summarizeAudioMemory } from '@audio/audioMemoryDiagnostics';
+import {
+    estimateAudioBufferBytes,
+    estimateFeatureCacheBytes,
+    formatBytes,
+    summarizeAudioMemory,
+} from '@audio/audioMemoryDiagnostics';
 import { recordAudioMemoryDiagnostic } from './audioMemoryDiagnosticsStore';
 import { AudioAssetStore } from '@persistence/audio-asset-store';
 import type {
@@ -254,8 +259,17 @@ export type TimelineState = {
         progress?: AudioFeatureCacheStatusProgress | null
     ) => void;
     stopAudioFeatureAnalysis: (id: string) => void;
-    restartAudioFeatureAnalysis: (id: string, analysisProfileId?: string | null, profileParams?: AudioAnalysisProfileOverrides) => void;
-    reanalyzeAudioFeatureCalculators: (id: string, calculatorIds: string[], analysisProfileId?: string | null, profileParams?: AudioAnalysisProfileOverrides) => void;
+    restartAudioFeatureAnalysis: (
+        id: string,
+        analysisProfileId?: string | null,
+        profileParams?: AudioAnalysisProfileOverrides
+    ) => void;
+    reanalyzeAudioFeatureCalculators: (
+        id: string,
+        calculatorIds: string[],
+        analysisProfileId?: string | null,
+        profileParams?: AudioAnalysisProfileOverrides
+    ) => void;
     removeAudioFeatureTracks: (id: string, featureKeys: string[], analysisProfileId?: string | null) => void;
     clearAudioFeatureCache: (id: string) => void;
     clearAllTracks: () => void;
@@ -754,7 +768,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         await timelineCommandGateway.dispatchById(
             'timeline.updateAudioClips',
             { updates: [input] },
-            { source: 'timeline-store' },
+            { source: 'timeline-store' }
         );
     },
     async updateAudioClips(input: UpdateAudioClipsPayload) {
@@ -806,7 +820,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                             changed = true;
                         }
                     }
-                    return changed ? { midiPreviewTrackIds: next } as TimelineState : state;
+                    return changed ? ({ midiPreviewTrackIds: next } as TimelineState) : state;
                 });
             })
             .catch((error) => {
@@ -1322,7 +1336,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                                                         enabled: true,
                                                     },
                                                 ]
-                                              : existingTrack.clips ?? [],
+                                              : (existingTrack.clips ?? []),
                                   },
                               }
                             : s.tracks,
@@ -1351,7 +1365,11 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 (options?.waveform?.channelPeaks?.byteLength ?? 0);
             const memorySummary = summarizeAudioMemory(get().audioCache, get().audioFeatureCaches);
             recordAudioMemoryDiagnostic({
-                severity: sourceRetainedBytes >= 512 * 1024 * 1024 || memorySummary.retainedAudioBytes >= 1.5 * 1024 * 1024 * 1024 ? 'warning' : 'info',
+                severity:
+                    sourceRetainedBytes >= 512 * 1024 * 1024 ||
+                    memorySummary.retainedAudioBytes >= 1.5 * 1024 * 1024 * 1024
+                        ? 'warning'
+                        : 'info',
                 stage: 'audio-cache-ingest',
                 message: `Cached source ${id}; source retained ${formatBytes(sourceRetainedBytes)}, project retained audio ${formatBytes(memorySummary.retainedAudioBytes)}`,
                 sourceId: id,
@@ -1443,7 +1461,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             version: 4,
             featureTracks: { ...cache.featureTracks },
             analysisProfiles: cache.analysisProfiles ? { ...cache.analysisProfiles } : undefined,
-            channelLayout: cache.channelLayout ? { ...cache.channelLayout, aliases: cache.channelLayout.aliases?.slice() } : cache.channelLayout,
+            channelLayout: cache.channelLayout
+                ? { ...cache.channelLayout, aliases: cache.channelLayout.aliases?.slice() }
+                : cache.channelLayout,
         };
         const sourceHash = computeFeatureCacheSourceHash(normalized);
         set((s: TimelineState) => ({
@@ -1463,7 +1483,10 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         const memorySummary = summarizeAudioMemory(get().audioCache, get().audioFeatureCaches);
         const cacheBytes = estimateFeatureCacheBytes(normalized);
         recordAudioMemoryDiagnostic({
-            severity: cacheBytes >= LARGE_FEATURE_CACHE_BYTES || memorySummary.featureCacheBytes >= 512 * 1024 * 1024 ? 'warning' : 'info',
+            severity:
+                cacheBytes >= LARGE_FEATURE_CACHE_BYTES || memorySummary.featureCacheBytes >= 512 * 1024 * 1024
+                    ? 'warning'
+                    : 'info',
             stage: 'feature-cache-ingest',
             message: `Feature cache updated for ${id}; cache ${formatBytes(cacheBytes)}, feature payloads now ${formatBytes(memorySummary.featureCacheBytes)}`,
             sourceId: id,
@@ -1550,7 +1573,11 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         });
     },
 
-    restartAudioFeatureAnalysis(id: string, analysisProfileId?: string | null, profileParams?: AudioAnalysisProfileOverrides) {
+    restartAudioFeatureAnalysis(
+        id: string,
+        analysisProfileId?: string | null,
+        profileParams?: AudioAnalysisProfileOverrides
+    ) {
         const buffer = get().audioCache[id]?.audioBuffer;
         if (!buffer) {
             void rehydrateAudioSourceInternal(id, get, set).then((ready) => {
@@ -1575,7 +1602,12 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         scheduleAudioFeatureAnalysis(id, buffer, get, set, { analysisProfileId, profileParams });
     },
 
-    reanalyzeAudioFeatureCalculators(id: string, calculatorIds: string[], analysisProfileId?: string | null, profileParams?: AudioAnalysisProfileOverrides) {
+    reanalyzeAudioFeatureCalculators(
+        id: string,
+        calculatorIds: string[],
+        analysisProfileId?: string | null,
+        profileParams?: AudioAnalysisProfileOverrides
+    ) {
         const unique = Array.from(new Set((calculatorIds || []).filter((entry): entry is string => !!entry)));
         if (!unique.length) {
             return;

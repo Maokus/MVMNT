@@ -24,7 +24,9 @@ const TimeIndicator: React.FC = () => {
             // Reuse shared timing manager (already has BPM/tempo map set via store actions)
             seconds = sharedTimingManager.beatsToSeconds(beatsFloat);
         }
-    } catch { /* ignore */ }
+    } catch {
+        /* ignore */
+    }
     const fmt = (s: number) => {
         const sign = s < 0 ? '-' : '';
         const abs = Math.abs(s);

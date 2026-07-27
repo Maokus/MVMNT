@@ -73,10 +73,7 @@ export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const rename = useCallback(
         (currentId: string, nextId: string) => {
-            const success = runCommand(
-                { type: 'renameMacro', currentId, nextId },
-                'MacroContext.rename'
-            );
+            const success = runCommand({ type: 'renameMacro', currentId, nextId }, 'MacroContext.rename');
             return success;
         },
         [runCommand]

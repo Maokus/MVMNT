@@ -100,10 +100,7 @@ function readBytesFromStoredValue(value: unknown): Uint8Array | null {
     return null;
 }
 
-async function runTransaction<T>(
-    mode: IDBTransactionMode,
-    fn: (store: IDBObjectStore) => Promise<T> | T,
-): Promise<T> {
+async function runTransaction<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => Promise<T> | T): Promise<T> {
     const db = await openDatabase();
     const tx = db.transaction(STORE_NAME, mode);
     const store = tx.objectStore(STORE_NAME);
@@ -169,15 +166,15 @@ export const LocalFileStore = {
                     metaRequest.onerror = () =>
                         reject(metaRequest.error ?? new Error('LocalFileStore.load metadata failed'));
                     metaRequest.onsuccess = async () => {
-                        const meta = metaRequest.result as
-                            | { byteLength?: number; chunkCount?: number }
-                            | undefined;
+                        const meta = metaRequest.result as { byteLength?: number; chunkCount?: number } | undefined;
                         if (meta && typeof meta.byteLength === 'number' && typeof meta.chunkCount === 'number') {
                             try {
                                 const bytes = new Uint8Array(meta.byteLength);
                                 let offset = 0;
                                 for (let index = 0; index < meta.chunkCount; index++) {
-                                    const chunk = readBytesFromStoredValue(await requestToPromise(store.get(chunkKey(index))));
+                                    const chunk = readBytesFromStoredValue(
+                                        await requestToPromise(store.get(chunkKey(index)))
+                                    );
                                     if (!chunk) {
                                         resolve(null);
                                         return;
@@ -192,8 +189,7 @@ export const LocalFileStore = {
                             return;
                         }
                         const request = store.get(CURRENT_FILE_KEY);
-                        request.onerror = () =>
-                            reject(request.error ?? new Error('LocalFileStore.load failed'));
+                        request.onerror = () => reject(request.error ?? new Error('LocalFileStore.load failed'));
                         request.onsuccess = () => resolve(readBytesFromStoredValue(request.result));
                     };
                 });
@@ -214,8 +210,7 @@ export const LocalFileStore = {
             return await runTransaction('readonly', (store) => {
                 return new Promise<boolean>((resolve, reject) => {
                     const request = store.count(CURRENT_FILE_META_KEY);
-                    request.onerror = () =>
-                        reject(request.error ?? new Error('LocalFileStore.exists failed'));
+                    request.onerror = () => reject(request.error ?? new Error('LocalFileStore.exists failed'));
                     request.onsuccess = () => {
                         if (request.result > 0) {
                             resolve(true);
@@ -240,8 +235,7 @@ export const LocalFileStore = {
             return await runTransaction('readonly', (store) => {
                 return new Promise<number | null>((resolve, reject) => {
                     const request = store.get(CURRENT_FILE_SAVED_AT_KEY);
-                    request.onerror = () =>
-                        reject(request.error ?? new Error('LocalFileStore.savedAt failed'));
+                    request.onerror = () => reject(request.error ?? new Error('LocalFileStore.savedAt failed'));
                     request.onsuccess = () => {
                         const value = request.result;
                         resolve(typeof value === 'number' ? value : null);

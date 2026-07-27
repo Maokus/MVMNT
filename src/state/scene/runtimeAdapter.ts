@@ -110,8 +110,7 @@ export class SceneRuntimeAdapter {
         };
         this.handlePluginAvailabilityChanged = (event: Event) => {
             const detail = (event as CustomEvent)?.detail as
-                | { registeredTypes?: string[]; unregisteredTypes?: string[] }
-                | undefined;
+                { registeredTypes?: string[]; unregisteredTypes?: string[] } | undefined;
             const types = new Set<string>();
             if (Array.isArray(detail?.registeredTypes)) {
                 for (const type of detail.registeredTypes) {
@@ -138,7 +137,10 @@ export class SceneRuntimeAdapter {
         if (typeof window !== 'undefined') {
             window.addEventListener('font-loaded', this.handleFontLoaded as EventListener);
             window.addEventListener('mvmnt-plugin-installed', this.handlePluginInstalled as EventListener);
-            window.addEventListener('mvmnt-plugin-availability-changed', this.handlePluginAvailabilityChanged as EventListener);
+            window.addEventListener(
+                'mvmnt-plugin-availability-changed',
+                this.handlePluginAvailabilityChanged as EventListener
+            );
         }
     }
 
@@ -147,7 +149,10 @@ export class SceneRuntimeAdapter {
         if (typeof window !== 'undefined') {
             window.removeEventListener('font-loaded', this.handleFontLoaded as EventListener);
             window.removeEventListener('mvmnt-plugin-installed', this.handlePluginInstalled as EventListener);
-            window.removeEventListener('mvmnt-plugin-availability-changed', this.handlePluginAvailabilityChanged as EventListener);
+            window.removeEventListener(
+                'mvmnt-plugin-availability-changed',
+                this.handlePluginAvailabilityChanged as EventListener
+            );
         }
         this.unsubscribe?.();
         this.cache.forEach((entry) => {

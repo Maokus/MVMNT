@@ -5,16 +5,16 @@ computed through the shared `TimingManager` using the tempo map + global BPM fal
 
 ## Canonical Concepts
 
-| Concept                       | Stored Field(s)                                        | Notes                                                               |
-| ----------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------- |
-| Playhead                      | `timeline.currentTick`                                 | Always integer tick.                                                |
-| Loop Range                    | `transport.loopStartTick`, `transport.loopEndTick`     | Optional; inclusive start, exclusive end semantics for comparisons. |
-| Timeline View Window          | `timelineView.startTick`, `timelineView.endTick`       | UI pan/zoom.                                                        |
-| Playback Range (Scene Bounds) | `playbackRange.startTick`, `playbackRange.endTick`     | Optional explicit scene trimming.                                   |
-| MIDI track offsets            | `tracks[id].offsetTicks`                               | Applied additively to note start/end ticks for global position.     |
-| Notes                         | `note.startTick`, `note.endTick`, `note.durationTicks` | Ingest normalizes to canonical PPQ.                                 |
-| Audio clip placement          | `audioClip.offsetTicks`                                | Musical start of source time zero.                                  |
-| Audio source and clip trim    | `durationSeconds`, `sourceStartSeconds`, `sourceEndSeconds` | Immutable media-time offsets; never tempo-scaled.               |
+| Concept                       | Stored Field(s)                                             | Notes                                                               |
+| ----------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------- |
+| Playhead                      | `timeline.currentTick`                                      | Always integer tick.                                                |
+| Loop Range                    | `transport.loopStartTick`, `transport.loopEndTick`          | Optional; inclusive start, exclusive end semantics for comparisons. |
+| Timeline View Window          | `timelineView.startTick`, `timelineView.endTick`            | UI pan/zoom.                                                        |
+| Playback Range (Scene Bounds) | `playbackRange.startTick`, `playbackRange.endTick`          | Optional explicit scene trimming.                                   |
+| MIDI track offsets            | `tracks[id].offsetTicks`                                    | Applied additively to note start/end ticks for global position.     |
+| Notes                         | `note.startTick`, `note.endTick`, `note.durationTicks`      | Ingest normalizes to canonical PPQ.                                 |
+| Audio clip placement          | `audioClip.offsetTicks`                                     | Musical start of source time zero.                                  |
+| Audio source and clip trim    | `durationSeconds`, `sourceStartSeconds`, `sourceEndSeconds` | Immutable media-time offsets; never tempo-scaled.                   |
 
 No seconds (`currentTimeSec`, `loopStartSec`, `offsetSec`, etc.) or beats fields are persisted in state. Beats/seconds are computed on demand.
 

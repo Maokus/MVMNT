@@ -23,7 +23,7 @@ interface ElementPropertiesPanelProps {
     onConfigChange: (
         elementId: string,
         changes: { [key: string]: any },
-        options?: Omit<SceneCommandOptions, 'source'>,
+        options?: Omit<SceneCommandOptions, 'source'>
     ) => void;
     refreshToken?: number;
 }
@@ -45,7 +45,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     refreshToken = 0,
 }) => {
     const [enhancedSchema, setEnhancedSchema] = useState<EnhancedConfigSchema | null>(
-        () => (schema as EnhancedConfigSchema) ?? null,
+        () => (schema as EnhancedConfigSchema) ?? null
     );
     const [propertyValues, setPropertyValues] = useState<PropertyValues>({});
     const [macroAssignments, setMacroAssignments] = useState<MacroAssignments>({});
@@ -80,14 +80,21 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const searchInputRef = useRef<HTMLInputElement>(null);
 
     const { assignListener, macros: macroList } = useMacros();
-    const macroLookup = useMemo(() => new Map((macroList as any[]).map((macro: any) => [macro.name, macro])), [macroList]);
+    const macroLookup = useMemo(
+        () => new Map((macroList as any[]).map((macro: any) => [macro.name, macro])),
+        [macroList]
+    );
     const currentTick = useCurrentTick();
     const autoKeying = useTimelineStore((s) => s.transport.autoKeying);
     const automationChannels = useSceneStore(useCallback((s) => s.automation.channels, []));
     const propertyOverrides = useSceneStore(useCallback((s) => s.propertyOverrides, []));
-    const groupCollapseState = useSceneStore(useCallback((s) => s.interaction.expandedPropertyGroups[elementId] ?? {}, [elementId]));
+    const groupCollapseState = useSceneStore(
+        useCallback((s) => s.interaction.expandedPropertyGroups[elementId] ?? {}, [elementId])
+    );
     const setPropertyGroupCollapseState = useSceneStore((s) => s.setPropertyGroupCollapseState);
-    const storedActiveTabId = useSceneStore(useCallback((s) => s.interaction.activePropertyTab[elementId], [elementId]));
+    const storedActiveTabId = useSceneStore(
+        useCallback((s) => s.interaction.activePropertyTab[elementId], [elementId])
+    );
     const setActivePropertyTab = useSceneStore((s) => s.setActivePropertyTab);
     const propertyClipboard = useSceneStore(useCallback((s) => s.interaction.propertyClipboard, []));
     const setPropertyClipboard = useSceneStore((s) => s.setPropertyClipboard);
@@ -95,9 +102,11 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     // Fast property-type lookup used by auto-keying logic
     const propertyTypeMap = useMemo(() => {
         const map = new Map<string, string>();
-        enhancedSchema?.tabs.flatMap((t) => t.groups).forEach((group) => {
-            group.properties.forEach((prop) => map.set(prop.key, prop.type));
-        });
+        enhancedSchema?.tabs
+            .flatMap((t) => t.groups)
+            .forEach((group) => {
+                group.properties.forEach((prop) => map.set(prop.key, prop.type));
+            });
         return map;
     }, [enhancedSchema]);
 
@@ -114,17 +123,19 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const delinkedKeys = useMemo(() => {
         const keys = new Set<string>();
         if (!enhancedSchema) return keys;
-        enhancedSchema.tabs.flatMap((t) => t.groups).forEach((group) => {
-            group.properties.forEach((property) => {
-                const binding = bindingsMemo[property.key];
-                if (binding?.type === 'keyframes') {
-                    const chId = makeChannelId(elementId, property.key);
-                    if (propertyOverrides[chId] !== undefined) {
-                        keys.add(property.key);
+        enhancedSchema.tabs
+            .flatMap((t) => t.groups)
+            .forEach((group) => {
+                group.properties.forEach((property) => {
+                    const binding = bindingsMemo[property.key];
+                    if (binding?.type === 'keyframes') {
+                        const chId = makeChannelId(elementId, property.key);
+                        if (propertyOverrides[chId] !== undefined) {
+                            keys.add(property.key);
+                        }
                     }
-                }
+                });
             });
-        });
         return keys;
     }, [enhancedSchema, bindingsMemo, propertyOverrides, elementId]);
 
@@ -151,61 +162,65 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         const nextValues: PropertyValues = {};
         const nextAssignments: MacroAssignments = {};
 
-        groupedSchema.tabs.flatMap((t) => t.groups).forEach((group) => {
-            group.properties.forEach((property) => {
-                const binding = bindingsMemo[property.key];
-                if (binding?.type === 'macro') {
-                    nextAssignments[property.key] = binding.macroId;
-                    const macro = macroLookup.get(binding.macroId);
-                    if (macro) {
-                        const macroValue = macro.value;
-                        nextValues[property.key] = macroValue;
-                    } else {
-                        nextValues[property.key] = property.default ?? null;
-                    }
-                } else if (binding?.type === 'keyframes') {
-                    // Evaluate automation at current tick for display.
-                    // Check transient override first (set when auto key is off and user manually
-                    // changes a keyframed property — clears automatically on scrub/play).
-                    const chId = makeChannelId(elementId, property.key);
-                    const override = propertyOverrides[chId];
-                    if (override !== undefined) {
-                        nextValues[property.key] = override;
-                    } else {
-                        // Read directly from automationChannels (hook-captured, always current) first.
-                        // This avoids stale evaluator-curve-cache results when a keyframe was just
-                        // added/modified at the current tick — the exact-match path bypasses the cache.
-                        const channel = automationChannels[chId];
-                        if (channel) {
-                            const kfAtTick = findKeyframeAtTick(channel.keyframes, currentTick);
-                            if (kfAtTick !== null) {
-                                nextValues[property.key] = kfAtTick.value;
-                            } else {
-                                const evaluated = automationEvaluator.evaluate(chId, currentTick);
-                                nextValues[property.key] = evaluated ?? property.default;
-                            }
+        groupedSchema.tabs
+            .flatMap((t) => t.groups)
+            .forEach((group) => {
+                group.properties.forEach((property) => {
+                    const binding = bindingsMemo[property.key];
+                    if (binding?.type === 'macro') {
+                        nextAssignments[property.key] = binding.macroId;
+                        const macro = macroLookup.get(binding.macroId);
+                        if (macro) {
+                            const macroValue = macro.value;
+                            nextValues[property.key] = macroValue;
                         } else {
                             nextValues[property.key] = property.default ?? null;
                         }
+                    } else if (binding?.type === 'keyframes') {
+                        // Evaluate automation at current tick for display.
+                        // Check transient override first (set when auto key is off and user manually
+                        // changes a keyframed property — clears automatically on scrub/play).
+                        const chId = makeChannelId(elementId, property.key);
+                        const override = propertyOverrides[chId];
+                        if (override !== undefined) {
+                            nextValues[property.key] = override;
+                        } else {
+                            // Read directly from automationChannels (hook-captured, always current) first.
+                            // This avoids stale evaluator-curve-cache results when a keyframe was just
+                            // added/modified at the current tick — the exact-match path bypasses the cache.
+                            const channel = automationChannels[chId];
+                            if (channel) {
+                                const kfAtTick = findKeyframeAtTick(channel.keyframes, currentTick);
+                                if (kfAtTick !== null) {
+                                    nextValues[property.key] = kfAtTick.value;
+                                } else {
+                                    const evaluated = automationEvaluator.evaluate(chId, currentTick);
+                                    nextValues[property.key] = evaluated ?? property.default;
+                                }
+                            } else {
+                                nextValues[property.key] = property.default ?? null;
+                            }
+                        }
+                    } else if (binding?.type === 'constant') {
+                        nextValues[property.key] = binding.value ?? property.default;
+                    } else {
+                        nextValues[property.key] = property.default ?? null;
                     }
-                } else if (binding?.type === 'constant') {
-                    nextValues[property.key] = binding.value ?? property.default;
-                } else {
-                    nextValues[property.key] = property.default ?? null;
-                }
+                });
             });
-        });
 
         setPropertyValues(nextValues);
         setMacroAssignments(nextAssignments);
 
         // Initialize any groups that don't yet have a stored collapse state
         const currentGroupState = useSceneStore.getState().interaction.expandedPropertyGroups[elementId] ?? {};
-        groupedSchema.tabs.flatMap((t) => t.groups).forEach((group) => {
-            if (!Object.prototype.hasOwnProperty.call(currentGroupState, group.id) && group.collapsed) {
-                setPropertyGroupCollapseState(elementId, group.id, true);
-            }
-        });
+        groupedSchema.tabs
+            .flatMap((t) => t.groups)
+            .forEach((group) => {
+                if (!Object.prototype.hasOwnProperty.call(currentGroupState, group.id) && group.collapsed) {
+                    setPropertyGroupCollapseState(elementId, group.id, true);
+                }
+            });
     }, [
         schema,
         bindingsMemo,
@@ -242,7 +257,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 return true;
             });
         },
-        [propertyValues],
+        [propertyValues]
     );
 
     // visibleWhen conditions are evaluated across all tabs regardless of the active tab —
@@ -271,10 +286,13 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
             .filter(({ properties }) => properties.length > 0);
     }, [enhancedSchema, activeTabId, propertyPassesVisibility, searchActive, searchTerm]);
 
-    const handleCollapseToggle = useCallback((groupId: string) => {
-        const current = useSceneStore.getState().interaction.expandedPropertyGroups[elementId] ?? {};
-        setPropertyGroupCollapseState(elementId, groupId, !current[groupId]);
-    }, [elementId, setPropertyGroupCollapseState]);
+    const handleCollapseToggle = useCallback(
+        (groupId: string) => {
+            const current = useSceneStore.getState().interaction.expandedPropertyGroups[elementId] ?? {};
+            setPropertyGroupCollapseState(elementId, groupId, !current[groupId]);
+        },
+        [elementId, setPropertyGroupCollapseState]
+    );
 
     const handleValuesChange = useCallback(
         (patch: Record<string, any>, meta?: FormInputChange['meta']) => {
@@ -291,15 +309,29 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                     const valueType = resolveAutomationValueType(propertyTypeMap.get(key) ?? '');
                     if (!valueType) continue;
                     const channelId = makeChannelId(elementId, key);
-                    commands.push(existingChannels[channelId]
-                        ? { type: 'addKeyframe', channelId, keyframe: createKeyframe(currentTick, value) }
-                        : { type: 'enablePropertyAutomation', elementId, propertyKey: key, valueType, initialKeyframes: [createKeyframe(currentTick, value)] });
+                    commands.push(
+                        existingChannels[channelId]
+                            ? { type: 'addKeyframe', channelId, keyframe: createKeyframe(currentTick, value) }
+                            : {
+                                  type: 'enablePropertyAutomation',
+                                  elementId,
+                                  propertyKey: key,
+                                  valueType,
+                                  initialKeyframes: [createKeyframe(currentTick, value)],
+                              }
+                    );
                 }
                 if (commands.length === Object.keys(patch).length && commands.length > 0) {
                     const session = meta?.mergeSession;
                     dispatchSceneCommand(
                         commands.length === 1 ? commands[0] : { type: 'batch', commands },
-                        session ? { source: 'property-panel', mergeKey: `property-gesture:${elementId}:${session.id}`, transient: !session.finalize } : { source: 'property-panel' },
+                        session
+                            ? {
+                                  source: 'property-panel',
+                                  mergeKey: `property-gesture:${elementId}:${session.id}`,
+                                  transient: !session.finalize,
+                              }
+                            : { source: 'property-panel' }
                     );
                     return;
                 }
@@ -315,23 +347,27 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                         transient: !session.finalize,
                         canMergeWith: (other) => {
                             const command = other.command;
-                            return command.type === 'updateElementConfig' &&
+                            return (
+                                command.type === 'updateElementConfig' &&
                                 command.elementId === elementId &&
-                                Object.keys(patch).every((key) => Object.prototype.hasOwnProperty.call(command.patch ?? {}, key));
+                                Object.keys(patch).every((key) =>
+                                    Object.prototype.hasOwnProperty.call(command.patch ?? {}, key)
+                                )
+                            );
                         },
                     };
                 }
                 onConfigChange(elementId, patch, options);
             }
         },
-        [elementId, onConfigChange, currentTick, autoKeying, propertyTypeMap],
+        [elementId, onConfigChange, currentTick, autoKeying, propertyTypeMap]
     );
 
     const handleValueChange = useCallback(
         (key: string, value: any, meta?: FormInputChange['meta']) => {
             handleValuesChange({ [key]: value, ...(meta?.linkedUpdates ?? {}) }, meta);
         },
-        [handleValuesChange],
+        [handleValuesChange]
     );
 
     const handleMacroAssignment = useCallback(
@@ -354,19 +390,21 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
             }
             setMacroListenerKey((prev) => prev + 1);
         },
-        [elementId, onConfigChange, propertyValues],
+        [elementId, onConfigChange, propertyValues]
     );
 
     const handleResetAll = useCallback(() => {
         if (!enhancedSchema) return;
         const defaults: Record<string, any> = {};
-        enhancedSchema.tabs.flatMap((t) => t.groups).forEach((group) => {
-            group.properties.forEach((prop) => {
-                if (prop.default !== undefined) {
-                    defaults[prop.key] = prop.default;
-                }
+        enhancedSchema.tabs
+            .flatMap((t) => t.groups)
+            .forEach((group) => {
+                group.properties.forEach((prop) => {
+                    if (prop.default !== undefined) {
+                        defaults[prop.key] = prop.default;
+                    }
+                });
             });
-        });
         if (Object.keys(defaults).length > 0) {
             onConfigChange(elementId, defaults);
         }
@@ -375,20 +413,22 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const handleCopy = useCallback(() => {
         if (!enhancedSchema) return;
         const values: Record<string, any> = {};
-        enhancedSchema.tabs.flatMap((t) => t.groups).forEach((group) => {
-            group.properties.forEach((prop) => {
-                if (!macroAssignments[prop.key]) {
-                    values[prop.key] = propertyValues[prop.key];
-                }
+        enhancedSchema.tabs
+            .flatMap((t) => t.groups)
+            .forEach((group) => {
+                group.properties.forEach((prop) => {
+                    if (!macroAssignments[prop.key]) {
+                        values[prop.key] = propertyValues[prop.key];
+                    }
+                });
             });
-        });
         setPropertyClipboard({ elementType, values });
     }, [enhancedSchema, elementType, propertyValues, macroAssignments, setPropertyClipboard]);
 
     const handlePaste = useCallback(() => {
         if (!propertyClipboard || !enhancedSchema) return;
         const schemaKeys = new Set(
-            enhancedSchema.tabs.flatMap((t) => t.groups).flatMap((g) => g.properties.map((p) => p.key)),
+            enhancedSchema.tabs.flatMap((t) => t.groups).flatMap((g) => g.properties.map((p) => p.key))
         );
         const patch: Record<string, any> = {};
         Object.entries(propertyClipboard.values).forEach(([key, value]) => {
@@ -418,7 +458,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 openSearch();
             }
         },
-        [openSearch],
+        [openSearch]
     );
 
     const handleSearchKeyDown = useCallback(
@@ -427,7 +467,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 closeSearch();
             }
         },
-        [closeSearch],
+        [closeSearch]
     );
 
     const overflowActions = useMemo<OverflowAction[]>(() => {

@@ -9,7 +9,7 @@ import { registerBuiltInAudioFeatureCalculators } from '@audio/features/audioFea
 import { useTimelineStore } from '@state/timelineStore';
 import { selectNotesInWindow } from '@selectors/timelineSelectors';
 if (import.meta.env.DEV) {
-  void import('@devtools/registerWindowTools');
+    void import('@devtools/registerWindowTools');
 }
 import { setCanonicalPPQ } from '@core/timing/ppq';
 
@@ -20,40 +20,40 @@ import { setCanonicalPPQ } from '@core/timing/ppq';
 
 const mvmntGlobal = ((globalThis as any).MVMNT ??= {});
 mvmntGlobal.state = {
-  ...(mvmntGlobal.state ?? {}),
-  timelineStore: useTimelineStore,
+    ...(mvmntGlobal.state ?? {}),
+    timelineStore: useTimelineStore,
 };
 mvmntGlobal.selectors = {
-  ...(mvmntGlobal.selectors ?? {}),
-  selectNotesInWindow,
+    ...(mvmntGlobal.selectors ?? {}),
+    selectNotesInWindow,
 };
 
 // Early initialization: allow overriding canonical PPQ via Vite env var VITE_CANONICAL_PPQ
 try {
-  const envPPQRaw = (import.meta as any).env.VITE_CANONICAL_PPQ;
-  if (envPPQRaw != null && envPPQRaw !== '') {
-    const parsed = Number(envPPQRaw);
-    if (Number.isFinite(parsed) && parsed > 0) {
-      setCanonicalPPQ(parsed);
-      // eslint-disable-next-line no-console
-      console.info(`[timing] Canonical PPQ set from env: ${parsed}`);
-    } else {
-      // eslint-disable-next-line no-console
-      console.warn(`[timing] Ignoring invalid VITE_CANONICAL_PPQ value: ${envPPQRaw}`);
+    const envPPQRaw = (import.meta as any).env.VITE_CANONICAL_PPQ;
+    if (envPPQRaw != null && envPPQRaw !== '') {
+        const parsed = Number(envPPQRaw);
+        if (Number.isFinite(parsed) && parsed > 0) {
+            setCanonicalPPQ(parsed);
+            // eslint-disable-next-line no-console
+            console.info(`[timing] Canonical PPQ set from env: ${parsed}`);
+        } else {
+            // eslint-disable-next-line no-console
+            console.warn(`[timing] Ignoring invalid VITE_CANONICAL_PPQ value: ${envPPQRaw}`);
+        }
     }
-  }
 } catch (e) {
-  // eslint-disable-next-line no-console
-  console.warn('[timing] Failed to initialize canonical PPQ from env', e);
+    // eslint-disable-next-line no-console
+    console.warn('[timing] Failed to initialize canonical PPQ from env', e);
 }
 
 registerBuiltInAudioFeatureCalculators();
 
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
 root.render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </React.StrictMode>
+    <React.StrictMode>
+        <BrowserRouter>
+            <App />
+        </BrowserRouter>
+    </React.StrictMode>
 );

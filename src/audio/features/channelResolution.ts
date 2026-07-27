@@ -13,7 +13,7 @@ function clampChannel(index: number, channelCount: number | null | undefined): n
         throw new Error(
             `[channelResolution] Channel index ${index} is out of range for track with ${channelCount} channel$${
                 channelCount === 1 ? '' : 's'
-            }.`,
+            }.`
         );
     }
     return index;
@@ -51,10 +51,7 @@ const WELL_KNOWN_ALIASES: Record<string, number> = {
     high: 1,
 };
 
-export function resolveChannel(
-    channel: number | string | null | undefined,
-    trackConfig: TrackChannelConfig,
-): number {
+export function resolveChannel(channel: number | string | null | undefined, trackConfig: TrackChannelConfig): number {
     const channelCount = trackConfig.track?.channels ?? null;
     if (typeof channel === 'number' && Number.isFinite(channel)) {
         return clampChannel(Math.trunc(channel), channelCount);
@@ -86,18 +83,20 @@ export function resolveChannel(
                 throw new Error(
                     `[channelResolution] Alias \"${channel}\" resolves to channel ${fallback}, but the track only exposes ${channelCount} channel$${
                         channelCount === 1 ? '' : 's'
-                    }.`,
+                    }.`
                 );
             }
             return fallback;
         }
         throw new Error(
-            `[channelResolution] Unknown channel alias \"${channel}\". Available aliases: ${[
-                ...((trackConfig.track?.channelLayout?.aliases ?? []) as string[]),
-                ...((trackConfig.cacheLayout?.aliases ?? []) as string[]),
-            ]
-                .filter(Boolean)
-                .join(', ') || 'none'}.`,
+            `[channelResolution] Unknown channel alias \"${channel}\". Available aliases: ${
+                [
+                    ...((trackConfig.track?.channelLayout?.aliases ?? []) as string[]),
+                    ...((trackConfig.cacheLayout?.aliases ?? []) as string[]),
+                ]
+                    .filter(Boolean)
+                    .join(', ') || 'none'
+            }.`
         );
     }
     throw new Error(`[channelResolution] Unsupported channel value: ${String(channel)}`);

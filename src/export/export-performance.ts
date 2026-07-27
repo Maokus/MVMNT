@@ -12,7 +12,8 @@ export class ExportPerformanceTracker {
     stage(name: string): void {
         if (name === this.currentStage) return;
         const now = performance.now();
-        this.stages[`${this.currentStage}Ms`] = (this.stages[`${this.currentStage}Ms`] ?? 0) + now - this.stageStartedAt;
+        this.stages[`${this.currentStage}Ms`] =
+            (this.stages[`${this.currentStage}Ms`] ?? 0) + now - this.stageStartedAt;
         this.currentStage = name;
         this.stageStartedAt = now;
         this.peakHeapBytes = Math.max(this.peakHeapBytes, this.readHeap());

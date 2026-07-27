@@ -41,7 +41,9 @@ export function useAudioImport() {
     const importAudioFile = useCallback(
         async (file: File) => {
             if (isMidiFile(file)) {
-                alert('MIDI files are not allowed for audio tracks. Please use an audio file (wav, mp3, ogg, flac, m4a).');
+                alert(
+                    'MIDI files are not allowed for audio tracks. Please use an audio file (wav, mp3, ogg, flac, m4a).'
+                );
                 return false;
             }
             if (!isAudioFile(file)) {
@@ -67,12 +69,15 @@ export function useAudioImport() {
                 return true;
             } catch (error) {
                 console.error('Failed to import audio track', error);
-                const reason = error instanceof Error ? error.message : 'The format may be unsupported or the file may be corrupted.';
+                const reason =
+                    error instanceof Error
+                        ? error.message
+                        : 'The format may be unsupported or the file may be corrupted.';
                 alert(`Unable to import ${file.name}. ${reason}`);
                 return false;
             }
         },
-        [addAudioTrack],
+        [addAudioTrack]
     );
 
     const cancelAudioImport = useCallback(() => {
@@ -104,7 +109,8 @@ export function useAudioImport() {
             });
 
             if (estimate.retainedHeapBytes >= AUDIO_IMPORT_WARNING_BYTES) {
-                const severityLabel = estimate.retainedHeapBytes >= AUDIO_IMPORT_DANGER_BYTES ? 'High risk' : 'Large import';
+                const severityLabel =
+                    estimate.retainedHeapBytes >= AUDIO_IMPORT_DANGER_BYTES ? 'High risk' : 'Large import';
                 const proceed = window.confirm(
                     `${severityLabel}: this audio batch is estimated to retain about ${formatBytes(estimate.retainedHeapBytes)} before later memory-reduction phases.\n\nFiles: ${audioFiles.length}\nOriginal bytes: ${formatBytes(estimate.fileBytes)}\nDecoded PCM estimate: ${formatBytes(estimate.decodedPcmBytes)}\n\nContinue importing?`
                 );
@@ -195,7 +201,7 @@ export function useAudioImport() {
             }));
             return { imported, skipped, failed, canceled };
         },
-        [importAudioFile],
+        [importAudioFile]
     );
 
     const handleAddAudio = useCallback(
@@ -205,7 +211,7 @@ export function useAudioImport() {
             await importAudioFiles(files);
             if (audioFileRef.current) audioFileRef.current.value = '';
         },
-        [importAudioFiles],
+        [importAudioFiles]
     );
 
     return { audioFileRef, importAudioFile, importAudioFiles, handleAddAudio, audioImportProgress, cancelAudioImport };

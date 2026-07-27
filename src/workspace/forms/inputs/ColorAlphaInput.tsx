@@ -183,7 +183,7 @@ const ColorAlphaInput: React.FC<ColorAlphaInputProps> = ({ id, value, schema, di
             setCurrentColor(hexWithAlpha);
             onChange(hexWithAlpha);
         },
-        [onChange, schemaDefault],
+        [onChange, schemaDefault]
     );
 
     const displayLabel = useMemo(() => describeAlpha(currentColor), [currentColor]);

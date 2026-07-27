@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-    DEFAULT_SNAP_TOLERANCE,
-    snapPoint,
-    snapTranslation,
-    type SnapBounds,
-    type SnapTarget,
-} from '../snapping';
+import { DEFAULT_SNAP_TOLERANCE, snapPoint, snapTranslation, type SnapBounds, type SnapTarget } from '../snapping';
 
 describe('snapTranslation', () => {
     const bounds: SnapBounds = { x: 92, y: 200, width: 20, height: 40 };
@@ -46,7 +40,11 @@ describe('snapPoint', () => {
         expect(result.y).toBeCloseTo(80);
         expect(result.guides).toHaveLength(2);
         expect(result.guides[0]).toMatchObject({ orientation: 'vertical', position: 50 });
-        expect(result.guides[1]).toMatchObject({ orientation: 'horizontal', position: 80, sourceElementId: 'element-1' });
+        expect(result.guides[1]).toMatchObject({
+            orientation: 'horizontal',
+            position: 80,
+            sourceElementId: 'element-1',
+        });
     });
 
     it('returns original coordinates when no targets provided', () => {

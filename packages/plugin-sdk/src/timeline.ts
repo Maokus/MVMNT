@@ -55,10 +55,8 @@ export interface TimelineApi {
 export const getTimelineMetadata = (timeline: TimelineApi): ReturnType<TimelineApi['getMetadata']> =>
     timeline.getMetadata();
 
-export const getTimelineTrack = (
-    timeline: TimelineApi,
-    trackId: string
-): ReturnType<TimelineApi['getTrack']> => timeline.getTrack(trackId);
+export const getTimelineTrack = (timeline: TimelineApi, trackId: string): ReturnType<TimelineApi['getTrack']> =>
+    timeline.getTrack(trackId);
 
 export const getTimelineTracks = (
     timeline: TimelineApi,

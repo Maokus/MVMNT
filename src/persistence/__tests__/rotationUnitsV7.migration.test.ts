@@ -68,7 +68,11 @@ describe('rotation units v7 migration', () => {
                             valueType: 'number',
                             keyframes: [
                                 { tick: 0, value: 0, segmentInterpolation: { mode: 'linear', direction: 'auto' } },
-                                { tick: 120, value: Math.PI, segmentInterpolation: { mode: 'linear', direction: 'auto' } },
+                                {
+                                    tick: 120,
+                                    value: Math.PI,
+                                    segmentInterpolation: { mode: 'linear', direction: 'auto' },
+                                },
                             ],
                         },
                         'text.elementRotation': {

@@ -44,9 +44,8 @@ export function useTransportBridge({ visualizer, setIsPlaying }: UseTransportBri
                 e.preventDefault();
                 try {
                     const st = useTimelineStore.getState();
-                    const next = e.code === 'ArrowLeft'
-                        ? Math.max(0, st.timeline.currentTick - 1)
-                        : st.timeline.currentTick + 1;
+                    const next =
+                        e.code === 'ArrowLeft' ? Math.max(0, st.timeline.currentTick - 1) : st.timeline.currentTick + 1;
                     st.seekTick(next);
                 } catch {}
                 return;

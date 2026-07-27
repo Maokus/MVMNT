@@ -17,9 +17,9 @@ Chrome/page heap test:
 - Baseline selected-page heap: about 42 MB used.
 - After 20 plugin-source edits/reloads: about 22 MB used.
 - Heap snapshots stayed effectively flat:
-  - Baseline: 182,852 nodes, 15 MB snapshot file.
-  - After 20 reloads: 182,982 nodes, 15 MB snapshot file.
-  - Both snapshots retained one native `EventSource`, one native Vite `WebSocket`, and the same `JSArrayBufferData` size.
+    - Baseline: 182,852 nodes, 15 MB snapshot file.
+    - After 20 reloads: 182,982 nodes, 15 MB snapshot file.
+    - Both snapshots retained one native `EventSource`, one native Vite `WebSocket`, and the same `JSArrayBufferData` size.
 
 Process RSS test:
 

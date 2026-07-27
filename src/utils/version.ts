@@ -6,10 +6,10 @@
  * Parse a semantic version string into components.
  */
 export interface SemanticVersion {
-	major: number;
-	minor: number;
-	patch: number;
-	prerelease?: string;
+    major: number;
+    minor: number;
+    patch: number;
+    prerelease?: string;
 }
 
 /**
@@ -18,52 +18,47 @@ export interface SemanticVersion {
  * @returns Parsed version object or null if invalid
  */
 export function parseVersion(version: string): SemanticVersion | null {
-	const match = version.match(
-		/^(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z0-9.-]+))?$/
-	);
-	if (!match) {
-		return null;
-	}
+    const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z0-9.-]+))?$/);
+    if (!match) {
+        return null;
+    }
 
-	return {
-		major: parseInt(match[1], 10),
-		minor: parseInt(match[2], 10),
-		patch: parseInt(match[3], 10),
-		prerelease: match[4],
-	};
+    return {
+        major: parseInt(match[1], 10),
+        minor: parseInt(match[2], 10),
+        patch: parseInt(match[3], 10),
+        prerelease: match[4],
+    };
 }
 
 /**
  * Compare two semantic versions.
  * @returns -1 if a < b, 0 if a === b, 1 if a > b
  */
-export function compareVersions(
-	a: SemanticVersion,
-	b: SemanticVersion
-): number {
-	if (a.major !== b.major) {
-		return a.major < b.major ? -1 : 1;
-	}
-	if (a.minor !== b.minor) {
-		return a.minor < b.minor ? -1 : 1;
-	}
-	if (a.patch !== b.patch) {
-		return a.patch < b.patch ? -1 : 1;
-	}
+export function compareVersions(a: SemanticVersion, b: SemanticVersion): number {
+    if (a.major !== b.major) {
+        return a.major < b.major ? -1 : 1;
+    }
+    if (a.minor !== b.minor) {
+        return a.minor < b.minor ? -1 : 1;
+    }
+    if (a.patch !== b.patch) {
+        return a.patch < b.patch ? -1 : 1;
+    }
 
-	// Handle prerelease comparison
-	// Versions without prerelease are greater than versions with prerelease
-	if (!a.prerelease && b.prerelease) {
-		return 1;
-	}
-	if (a.prerelease && !b.prerelease) {
-		return -1;
-	}
-	if (a.prerelease && b.prerelease) {
-		return a.prerelease < b.prerelease ? -1 : a.prerelease > b.prerelease ? 1 : 0;
-	}
+    // Handle prerelease comparison
+    // Versions without prerelease are greater than versions with prerelease
+    if (!a.prerelease && b.prerelease) {
+        return 1;
+    }
+    if (a.prerelease && !b.prerelease) {
+        return -1;
+    }
+    if (a.prerelease && b.prerelease) {
+        return a.prerelease < b.prerelease ? -1 : a.prerelease > b.prerelease ? 1 : 0;
+    }
 
-	return 0;
+    return 0;
 }
 
 /**
@@ -82,122 +77,119 @@ export function compareVersions(
  * @returns True if version satisfies the range
  */
 export function satisfiesRange(version: string, range: string): boolean {
-	const parsedVersion = parseVersion(version);
-	if (!parsedVersion) {
-		return false;
-	}
+    const parsedVersion = parseVersion(version);
+    if (!parsedVersion) {
+        return false;
+    }
 
-	// Handle multiple range parts (e.g., ">=1.2.0 <2.0.0")
-	const rangeParts = range.trim().split(/\s+/);
+    // Handle multiple range parts (e.g., ">=1.2.0 <2.0.0")
+    const rangeParts = range.trim().split(/\s+/);
 
-	return rangeParts.every((part) => satisfiesSingleRange(parsedVersion, part));
+    return rangeParts.every((part) => satisfiesSingleRange(parsedVersion, part));
 }
 
 /**
  * Check if a version satisfies a single range constraint.
  */
-function satisfiesSingleRange(
-	version: SemanticVersion,
-	range: string
-): boolean {
-	// Caret range (^): ^1.2.3 := >=1.2.3 <2.0.0
-	if (range.startsWith("^")) {
-		const rangeVersion = parseVersion(range.slice(1));
-		if (!rangeVersion) {
-			return false;
-		}
+function satisfiesSingleRange(version: SemanticVersion, range: string): boolean {
+    // Caret range (^): ^1.2.3 := >=1.2.3 <2.0.0
+    if (range.startsWith('^')) {
+        const rangeVersion = parseVersion(range.slice(1));
+        if (!rangeVersion) {
+            return false;
+        }
 
-		// Must be >= range version
-		if (compareVersions(version, rangeVersion) < 0) {
-			return false;
-		}
+        // Must be >= range version
+        if (compareVersions(version, rangeVersion) < 0) {
+            return false;
+        }
 
-		// Must be < next major version
-		const nextMajor: SemanticVersion = {
-			major: rangeVersion.major + 1,
-			minor: 0,
-			patch: 0,
-		};
-		return compareVersions(version, nextMajor) < 0;
-	}
+        // Must be < next major version
+        const nextMajor: SemanticVersion = {
+            major: rangeVersion.major + 1,
+            minor: 0,
+            patch: 0,
+        };
+        return compareVersions(version, nextMajor) < 0;
+    }
 
-	// Tilde range (~): ~1.2.3 := >=1.2.3 <1.3.0
-	if (range.startsWith("~")) {
-		const rangeVersion = parseVersion(range.slice(1));
-		if (!rangeVersion) {
-			return false;
-		}
+    // Tilde range (~): ~1.2.3 := >=1.2.3 <1.3.0
+    if (range.startsWith('~')) {
+        const rangeVersion = parseVersion(range.slice(1));
+        if (!rangeVersion) {
+            return false;
+        }
 
-		// Must be >= range version
-		if (compareVersions(version, rangeVersion) < 0) {
-			return false;
-		}
+        // Must be >= range version
+        if (compareVersions(version, rangeVersion) < 0) {
+            return false;
+        }
 
-		// Must be < next minor version
-		const nextMinor: SemanticVersion = {
-			major: rangeVersion.major,
-			minor: rangeVersion.minor + 1,
-			patch: 0,
-		};
-		return compareVersions(version, nextMinor) < 0;
-	}
+        // Must be < next minor version
+        const nextMinor: SemanticVersion = {
+            major: rangeVersion.major,
+            minor: rangeVersion.minor + 1,
+            patch: 0,
+        };
+        return compareVersions(version, nextMinor) < 0;
+    }
 
-	// Greater than or equal: >=1.2.3
-	if (range.startsWith(">=")) {
-		const rangeVersion = parseVersion(range.slice(2));
-		if (!rangeVersion) {
-			return false;
-		}
-		return compareVersions(version, rangeVersion) >= 0;
-	}
+    // Greater than or equal: >=1.2.3
+    if (range.startsWith('>=')) {
+        const rangeVersion = parseVersion(range.slice(2));
+        if (!rangeVersion) {
+            return false;
+        }
+        return compareVersions(version, rangeVersion) >= 0;
+    }
 
-	// Greater than: >1.2.3
-	if (range.startsWith(">")) {
-		const rangeVersion = parseVersion(range.slice(1));
-		if (!rangeVersion) {
-			return false;
-		}
-		return compareVersions(version, rangeVersion) > 0;
-	}
+    // Greater than: >1.2.3
+    if (range.startsWith('>')) {
+        const rangeVersion = parseVersion(range.slice(1));
+        if (!rangeVersion) {
+            return false;
+        }
+        return compareVersions(version, rangeVersion) > 0;
+    }
 
-	// Less than or equal: <=1.2.3
-	if (range.startsWith("<=")) {
-		const rangeVersion = parseVersion(range.slice(2));
-		if (!rangeVersion) {
-			return false;
-		}
-		return compareVersions(version, rangeVersion) <= 0;
-	}
+    // Less than or equal: <=1.2.3
+    if (range.startsWith('<=')) {
+        const rangeVersion = parseVersion(range.slice(2));
+        if (!rangeVersion) {
+            return false;
+        }
+        return compareVersions(version, rangeVersion) <= 0;
+    }
 
-	// Less than: <1.2.3
-	if (range.startsWith("<")) {
-		const rangeVersion = parseVersion(range.slice(1));
-		if (!rangeVersion) {
-			return false;
-		}
-		return compareVersions(version, rangeVersion) < 0;
-	}
+    // Less than: <1.2.3
+    if (range.startsWith('<')) {
+        const rangeVersion = parseVersion(range.slice(1));
+        if (!rangeVersion) {
+            return false;
+        }
+        return compareVersions(version, rangeVersion) < 0;
+    }
 
-	// Exact match (no operator)
-	const rangeVersion = parseVersion(range);
-	if (!rangeVersion) {
-		return false;
-	}
-	return compareVersions(version, rangeVersion) === 0;
+    // Exact match (no operator)
+    const rangeVersion = parseVersion(range);
+    if (!rangeVersion) {
+        return false;
+    }
+    return compareVersions(version, rangeVersion) === 0;
 }
 
 /**
  * Get a human-readable explanation of a version range.
  */
 export function explainRange(range: string): string {
-	if (range.startsWith("^")) {
-		return `compatible with version ${range.slice(1)} (same major version)`;
-	}
-	if (range.startsWith("~")) {
-		return `compatible with version ${range.slice(1)} (same minor version)`;
-	}
-	if (range.startsWith(">=") || range.startsWith(">") || range.startsWith("<=") || range.startsWith("<")) {
-		return `version ${range}`;
-	}
-	return `exactly version ${range}`;
+    if (range.startsWith('^')) {
+        return `compatible with version ${range.slice(1)} (same major version)`;
+    }
+    if (range.startsWith('~')) {
+        return `compatible with version ${range.slice(1)} (same minor version)`;
+    }
+    if (range.startsWith('>=') || range.startsWith('>') || range.startsWith('<=') || range.startsWith('<')) {
+        return `version ${range}`;
+    }
+    return `exactly version ${range}`;
 }

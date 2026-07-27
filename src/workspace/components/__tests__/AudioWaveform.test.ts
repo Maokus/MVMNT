@@ -17,12 +17,14 @@ describe('getWaveformBinAtTimelineTick', () => {
         // first second at 120 BPM, then 960 ticks in the second at 60 BPM.
         // The midpoint in ticks is only 0.75 seconds into the source, so it
         // must select bin 3 rather than the uniform-stretch bin 4.
-        expect(getWaveformBinAtTimelineTick({
-            tick: 1_440,
-            clipStartTick: 0,
-            sourceDurationSeconds: 2,
-            binCount: 8,
-            timing,
-        })).toBe(3);
+        expect(
+            getWaveformBinAtTimelineTick({
+                tick: 1_440,
+                clipStartTick: 0,
+                sourceDurationSeconds: 2,
+                binCount: 8,
+                timing,
+            })
+        ).toBe(3);
     });
 });

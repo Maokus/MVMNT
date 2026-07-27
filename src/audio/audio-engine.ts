@@ -110,7 +110,8 @@ export class AudioEngine {
                 }
                 if (this.playbackActive && this.ctx) {
                     for (const trackId of nextPreviewIds) {
-                        if (!previousPreviewIds.has(trackId)) this.scheduleMidiPreview(this.lastPlayheadTick, [trackId]);
+                        if (!previousPreviewIds.has(trackId))
+                            this.scheduleMidiPreview(this.lastPlayheadTick, [trackId]);
                     }
                 }
                 lastSnapshot = next;
@@ -214,7 +215,9 @@ export class AudioEngine {
     applyMuteState(trackId: string, muted: boolean) {
         for (const [key, node] of this.active) {
             if (key !== trackId && !key.startsWith(`${trackId}:`)) continue;
-            const target = muted ? 0 : ((useTimelineStore.getState().tracks[trackId] as any).gain ?? 1) * (node.clipGain ?? 1);
+            const target = muted
+                ? 0
+                : ((useTimelineStore.getState().tracks[trackId] as any).gain ?? 1) * (node.clipGain ?? 1);
             const param = node.gainNode.gain as AudioParam & { value?: number };
             if (typeof param.setTargetAtTime === 'function') {
                 param.setTargetAtTime(target, this.ctx!.currentTime, 0.005);
@@ -268,7 +271,11 @@ export class AudioEngine {
         // Timeline positions are musical ticks; buffer offsets are immutable source seconds.
         const tmgr = getSharedTimingManager();
         const timingCtx = createTimingContext(
-            { globalBpm: s.timeline.globalBpm, beatsPerBar: s.timeline.beatsPerBar, masterTempoMap: s.timeline.masterTempoMap },
+            {
+                globalBpm: s.timeline.globalBpm,
+                beatsPerBar: s.timeline.beatsPerBar,
+                masterTempoMap: s.timeline.masterTempoMap,
+            },
             tmgr.ticksPerQuarter
         );
         const audible = this.getAudibleClips();
@@ -353,7 +360,10 @@ export class AudioEngine {
             this.active.set(`${track.id}:${clip.id}`, {
                 source,
                 gainNode,
-                startTick: playFromSeconds < earliestAudibleSeconds ? Math.round(secondsToTicks(timingCtx, earliestAudibleSeconds)) : playFromTick,
+                startTick:
+                    playFromSeconds < earliestAudibleSeconds
+                        ? Math.round(secondsToTicks(timingCtx, earliestAudibleSeconds))
+                        : playFromTick,
                 region: {
                     startTick: Math.round(secondsToTicks(timingCtx, earliestAudibleSeconds)),
                     endTick: Math.round(secondsToTicks(timingCtx, regionEndSeconds)),
@@ -413,7 +423,11 @@ export class AudioEngine {
         if (!enabledIds.length) return;
 
         const timing = createTimingContext(
-            { globalBpm: state.timeline.globalBpm, beatsPerBar: state.timeline.beatsPerBar, masterTempoMap: state.timeline.masterTempoMap },
+            {
+                globalBpm: state.timeline.globalBpm,
+                beatsPerBar: state.timeline.beatsPerBar,
+                masterTempoMap: state.timeline.masterTempoMap,
+            },
             getSharedTimingManager().ticksPerQuarter
         );
         const nowTimelineSeconds = ticksToSeconds(timing, playFromTick);
@@ -452,7 +466,10 @@ export class AudioEngine {
             oscillator.type = 'sine';
             oscillator.frequency.setValueAtTime(frequency, startAt);
             gainNode.gain.setValueAtTime(0, startAt);
-            gainNode.gain.linearRampToValueAtTime(targetGain, startAt + Math.min(MIDI_PREVIEW_ATTACK_SECONDS, durationSeconds / 2));
+            gainNode.gain.linearRampToValueAtTime(
+                targetGain,
+                startAt + Math.min(MIDI_PREVIEW_ATTACK_SECONDS, durationSeconds / 2)
+            );
             gainNode.gain.setValueAtTime(targetGain, Math.max(startAt, endAt - MIDI_PREVIEW_RELEASE_SECONDS));
             gainNode.gain.linearRampToValueAtTime(0, endAt);
         } catch {
@@ -464,14 +481,20 @@ export class AudioEngine {
             if (this.activeMidiVoices.get(voiceKey)?.oscillator === oscillator) {
                 this.activeMidiVoices.delete(voiceKey);
             }
-            try { oscillator.disconnect(); gainNode.disconnect(); } catch {}
+            try {
+                oscillator.disconnect();
+                gainNode.disconnect();
+            } catch {}
         };
         try {
             oscillator.start(startAt);
             oscillator.stop(endAt + 0.001);
             this.activeMidiVoices.set(voiceKey, { oscillator, gainNode, trackId });
         } catch {
-            try { oscillator.disconnect(); gainNode.disconnect(); } catch {}
+            try {
+                oscillator.disconnect();
+                gainNode.disconnect();
+            } catch {}
         }
     }
 
@@ -490,7 +513,10 @@ export class AudioEngine {
                     voice.oscillator.stop();
                 }
             } catch {}
-            try { voice.oscillator.disconnect(); voice.gainNode.disconnect(); } catch {}
+            try {
+                voice.oscillator.disconnect();
+                voice.gainNode.disconnect();
+            } catch {}
             this.activeMidiVoices.delete(key);
         }
     }
@@ -501,15 +527,18 @@ export class AudioEngine {
         const entry = store.audioCache[sourceId];
         if (!entry || entry.decodedState === 'decoding') return;
         this.rehydratingSources.add(sourceId);
-        void store.rehydrateAudioSource(sourceId).then((ready) => {
-            this.rehydratingSources.delete(sourceId);
-            if (!ready || !this.ctx) return;
-            if (!this.playbackActive) return;
-            const latest = useTimelineStore.getState();
-            void this.seek(latest.timeline.currentTick ?? this.lastPlayheadTick);
-        }).catch(() => {
-            this.rehydratingSources.delete(sourceId);
-        });
+        void store
+            .rehydrateAudioSource(sourceId)
+            .then((ready) => {
+                this.rehydratingSources.delete(sourceId);
+                if (!ready || !this.ctx) return;
+                if (!this.playbackActive) return;
+                const latest = useTimelineStore.getState();
+                void this.seek(latest.timeline.currentTick ?? this.lastPlayheadTick);
+            })
+            .catch(() => {
+                this.rehydratingSources.delete(sourceId);
+            });
     }
 
     private rehydrateAudibleSourcesForPlayback(): Promise<unknown[]> | undefined {

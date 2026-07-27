@@ -44,7 +44,10 @@ export function isCustomFontToken(token: string | undefined): token is string {
     return typeof token === 'string' && token.startsWith(CUSTOM_PREFIX);
 }
 
-export function parseFontSelectionToken(token?: string, resolver?: (assetId: string) => FontAsset | undefined): ParsedFontSelection {
+export function parseFontSelectionToken(
+    token?: string,
+    resolver?: (assetId: string) => FontAsset | undefined
+): ParsedFontSelection {
     if (!token) {
         return { family: '', token: '', italic: false };
     }

@@ -1,4 +1,9 @@
-import type { DesktopAutomationProgress, DesktopAutomationResult, DesktopDeepLinkCommand, DesktopRenderRequest } from './automation.js';
+import type {
+    DesktopAutomationProgress,
+    DesktopAutomationResult,
+    DesktopDeepLinkCommand,
+    DesktopRenderRequest,
+} from './automation.js';
 
 export type DesktopMenuCommand = 'new' | 'open' | 'save' | 'save-as' | 'undo' | 'redo' | 'recovery' | 'storage';
 

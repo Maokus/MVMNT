@@ -63,28 +63,34 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         [setSceneName]
     );
 
-    const renameScene = useCallback(async (value: string): Promise<boolean> => {
-        const name = value.trim();
-        if (!name || name === sceneName) return name === sceneName;
-        if (/[\\/:*?"<>|]/.test(name) || /[\u0000-\u001f]/.test(name) || /\.$/.test(name)) {
-            alert('Scene names must be valid filenames and cannot contain \\ / : * ? " < > |, control characters, or end with a period.');
-            return false;
-        }
-        if (window.mvmntDesktop) {
-            const state = await window.mvmntDesktop.documents.getState();
-            if (state.status === 'saved') {
-                const ok = window.confirm(`Rename the scene and its file to “${name}.mvt”?`);
-                if (!ok) return false;
-                const result = await window.mvmntDesktop.documents.rename({ filename: `${name}.mvt` });
-                if (result.status !== 'renamed') {
-                    if (result.status === 'error') alert(`Could not rename project: ${result.error || 'Unknown error'}`);
-                    return false;
+    const renameScene = useCallback(
+        async (value: string): Promise<boolean> => {
+            const name = value.trim();
+            if (!name || name === sceneName) return name === sceneName;
+            if (/[\\/:*?"<>|]/.test(name) || /[\u0000-\u001f]/.test(name) || /\.$/.test(name)) {
+                alert(
+                    'Scene names must be valid filenames and cannot contain \\ / : * ? " < > |, control characters, or end with a period.'
+                );
+                return false;
+            }
+            if (window.mvmntDesktop) {
+                const state = await window.mvmntDesktop.documents.getState();
+                if (state.status === 'saved') {
+                    const ok = window.confirm(`Rename the scene and its file to “${name}.mvt”?`);
+                    if (!ok) return false;
+                    const result = await window.mvmntDesktop.documents.rename({ filename: `${name}.mvt` });
+                    if (result.status !== 'renamed') {
+                        if (result.status === 'error')
+                            alert(`Could not rename project: ${result.error || 'Unknown error'}`);
+                        return false;
+                    }
                 }
             }
-        }
-        updateSceneName(name);
-        return true;
-    }, [sceneName, updateSceneName]);
+            updateSceneName(name);
+            return true;
+        },
+        [sceneName, updateSceneName]
+    );
 
     // Bump the store runtime metadata to notify all components about scene changes
     const refreshSceneUI = useCallback(() => {
@@ -177,7 +183,9 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
             const trimmed = name.trim();
             if (!trimmed) return;
             if (/[\\/:*?"<>|]/.test(trimmed) || /[\u0000-\u001f]/.test(trimmed) || /\.$/.test(trimmed)) {
-                alert('Scene names must be valid filenames and cannot contain \\ / : * ? " < > |, control characters, or end with a period.');
+                alert(
+                    'Scene names must be valid filenames and cannot contain \\ / : * ? " < > |, control characters, or end with a period.'
+                );
                 return;
             }
             updateSceneName(trimmed);
@@ -316,21 +324,44 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         <SceneContext.Provider value={value}>
             {children}
             {isExportModalOpen && (
-                <SaveSceneModal
-                    initialName={sceneName}
-                    onCancel={closeExportModal}
-                    onConfirm={handleConfirmExport}
-                />
+                <SaveSceneModal initialName={sceneName} onCancel={closeExportModal} onConfirm={handleConfirmExport} />
             )}
             {isLeavePromptOpen && (
-                <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="leave-workspace-title">
+                <div
+                    className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="leave-workspace-title"
+                >
                     <div className="w-full max-w-sm rounded-lg border border-neutral-700 bg-neutral-900 p-5 text-neutral-100 shadow-2xl">
-                        <h2 id="leave-workspace-title" className="text-base font-semibold">Save changes?</h2>
-                        <p className="mt-2 text-sm leading-6 text-neutral-400">Your current scene has unsaved changes. Save them before leaving the workspace?</p>
+                        <h2 id="leave-workspace-title" className="text-base font-semibold">
+                            Save changes?
+                        </h2>
+                        <p className="mt-2 text-sm leading-6 text-neutral-400">
+                            Your current scene has unsaved changes. Save them before leaving the workspace?
+                        </p>
                         <div className="mt-5 flex justify-end gap-3">
-                            <button type="button" onClick={() => chooseLeaveDecision('discard')} className="rounded bg-neutral-700 px-3 py-2 text-sm font-medium hover:bg-neutral-600">Don’t save</button>
-                            <button type="button" onClick={() => chooseLeaveDecision('cancel')} className="rounded bg-neutral-700 px-3 py-2 text-sm font-medium hover:bg-neutral-600">Cancel</button>
-                            <button type="button" onClick={() => chooseLeaveDecision('save')} className="rounded bg-indigo-600 px-3 py-2 text-sm font-medium hover:bg-indigo-500">Save</button>
+                            <button
+                                type="button"
+                                onClick={() => chooseLeaveDecision('discard')}
+                                className="rounded bg-neutral-700 px-3 py-2 text-sm font-medium hover:bg-neutral-600"
+                            >
+                                Don’t save
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => chooseLeaveDecision('cancel')}
+                                className="rounded bg-neutral-700 px-3 py-2 text-sm font-medium hover:bg-neutral-600"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => chooseLeaveDecision('save')}
+                                className="rounded bg-indigo-600 px-3 py-2 text-sm font-medium hover:bg-indigo-500"
+                            >
+                                Save
+                            </button>
                         </div>
                     </div>
                 </div>

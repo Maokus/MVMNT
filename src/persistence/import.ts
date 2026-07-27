@@ -269,11 +269,9 @@ function hydrateAudioFeatureCacheFromAssets(
                     } else {
                         values = new Int16Array(buffer);
                     }
-                    const expectedValues = Math.max(0, Math.floor(track.frameCount)) * Math.max(1, Math.floor(track.channels));
-                    if (
-                        (ref.valueCount && values.length !== ref.valueCount) ||
-                        values.length !== expectedValues
-                    ) {
+                    const expectedValues =
+                        Math.max(0, Math.floor(track.frameCount)) * Math.max(1, Math.floor(track.channels));
+                    if ((ref.valueCount && values.length !== ref.valueCount) || values.length !== expectedValues) {
                         warnings.push(
                             `Audio feature data length mismatch for ${cacheId}:${trackKey} (expected ${expectedValues}, got ${values.length})`
                         );

@@ -75,7 +75,10 @@ describe('audio clip helpers', () => {
         const state = {
             tracks: {
                 first: trackWith([{ id: 'a', type: 'audio', sourceId: 'sourceA', offsetTicks: 0 }]),
-                second: { ...trackWith([{ id: 'b', type: 'audio', sourceId: 'sourceB', offsetTicks: 0 }]), id: 'second' },
+                second: {
+                    ...trackWith([{ id: 'b', type: 'audio', sourceId: 'sourceB', offsetTicks: 0 }]),
+                    id: 'second',
+                },
             },
         } as unknown as TimelineState;
 
@@ -122,15 +125,22 @@ describe('audio clip helpers', () => {
         const variableTiming = createTimingContext({
             globalBpm: 120,
             beatsPerBar: 4,
-            masterTempoMap: [{ time: 0, bpm: 120 }, { time: 2, bpm: 60 }],
+            masterTempoMap: [
+                { time: 0, bpm: 120 },
+                { time: 2, bpm: 60 },
+            ],
         });
         const track = trackWith([
             { id: 'left', type: 'audio', sourceId: 'sourceA', offsetTicks: 0 },
             { id: 'right', type: 'audio', sourceId: 'sourceA', offsetTicks: 3600 },
         ]);
         const edited: AudioClip = {
-            id: 'edited', type: 'audio', sourceId: 'sourceA', offsetTicks: 2880,
-            sourceStartSeconds: 0, sourceEndSeconds: 0.75,
+            id: 'edited',
+            type: 'audio',
+            sourceId: 'sourceA',
+            offsetTicks: 2880,
+            sourceStartSeconds: 0,
+            sourceEndSeconds: 0.75,
         };
 
         const resolved = resolveAudioClipOverlapWithCache(track, edited, cache, variableTiming);

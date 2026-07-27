@@ -9,7 +9,9 @@ interface OnboardingOverlayProps {
 const OnboardingOverlay: React.FC<OnboardingOverlayProps> = ({ onClose }) => {
     // Allow ESC key to close
     useEffect(() => {
-        const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
     }, [onClose]);
@@ -22,9 +24,12 @@ const OnboardingOverlay: React.FC<OnboardingOverlayProps> = ({ onClose }) => {
             aria-labelledby="onboarding-title"
         >
             <div className="border rounded-[10px] px-9 py-8 max-w-[640px] w-[92vw] shadow-2xl [background-color:var(--twc-menubar)] [border-color:var(--twc-border)]">
-                <h2 id="onboarding-title" className="m-0 mb-4 text-2xl font-semibold tracking-wide">Welcome to MVMNT</h2>
+                <h2 id="onboarding-title" className="m-0 mb-4 text-2xl font-semibold tracking-wide">
+                    Welcome to MVMNT
+                </h2>
                 <p style={{ opacity: 0.85, lineHeight: 1.4 }}>
-                    MVMNT is still in early development, so if you have any feedback or run into any issues, please let me know on the discord: https://maok.us/discord
+                    MVMNT is still in early development, so if you have any feedback or run into any issues, please let
+                    me know on the discord: https://maok.us/discord
                 </p>
                 <p style={{ opacity: 0.85, lineHeight: 1.4 }}> Some tips to get started: </p>
                 <ul className="list-disc pl-5 my-3 flex flex-col gap-1.5 text-sm">
@@ -47,7 +52,9 @@ const OnboardingOverlay: React.FC<OnboardingOverlayProps> = ({ onClose }) => {
                         More Info
                     </Link>
                 </div>
-                <p className="text-[11px] opacity-60 mt-[18px]">(You can open the About page any time via the logo in the top right.)</p>
+                <p className="text-[11px] opacity-60 mt-[18px]">
+                    (You can open the About page any time via the logo in the top right.)
+                </p>
             </div>
         </div>
     );

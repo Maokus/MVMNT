@@ -34,7 +34,7 @@ describe('audio memory diagnostics', () => {
                     },
                 }),
             },
-            {},
+            {}
         );
 
         expect(summary.decodedPcmBytes).toBe(1600);

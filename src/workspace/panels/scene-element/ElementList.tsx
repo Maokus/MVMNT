@@ -50,12 +50,15 @@ const ElementList: React.FC<ElementListProps> = ({
         setDropIndex((currentIndex) => (currentIndex === index ? currentIndex : index));
     }, []);
 
-    const startDrag = useCallback((elementId: string, height: number) => {
-        draggingElementIdRef.current = elementId;
-        setDraggingElementId(elementId);
-        setDraggingHeight(height);
-        setDropTarget(null);
-    }, [setDropTarget]);
+    const startDrag = useCallback(
+        (elementId: string, height: number) => {
+            draggingElementIdRef.current = elementId;
+            setDraggingElementId(elementId);
+            setDraggingHeight(height);
+            setDropTarget(null);
+        },
+        [setDropTarget]
+    );
 
     const commitDrag = useCallback(() => {
         const draggedId = draggingElementIdRef.current;
@@ -83,45 +86,57 @@ const ElementList: React.FC<ElementListProps> = ({
         resetDragState();
     }, [elements, onMoveElement, resetDragState]);
 
-    const updateDropTargetForPointer = useCallback((clientY: number) => {
-        for (let index = 0; index < elements.length; index += 1) {
-            const element = elements[index];
-            const rect = itemRefs.current.get(element.id)?.getBoundingClientRect();
-            if (rect && clientY < rect.top + rect.height / 2) {
-                setDropTarget(index);
-                return;
+    const updateDropTargetForPointer = useCallback(
+        (clientY: number) => {
+            for (let index = 0; index < elements.length; index += 1) {
+                const element = elements[index];
+                const rect = itemRefs.current.get(element.id)?.getBoundingClientRect();
+                if (rect && clientY < rect.top + rect.height / 2) {
+                    setDropTarget(index);
+                    return;
+                }
             }
-        }
-        setDropTarget(elements.length);
-    }, [elements, setDropTarget]);
+            setDropTarget(elements.length);
+        },
+        [elements, setDropTarget]
+    );
 
-    const handlePointerDragStart = useCallback((elementId: string, height: number, event: React.PointerEvent<HTMLDivElement>) => {
-        pointerDragRef.current = { pointerId: event.pointerId, startY: event.clientY };
-        draggingElementIdRef.current = elementId;
-        setDraggingHeight(height);
-        setDropTarget(null);
-    }, [setDropTarget]);
+    const handlePointerDragStart = useCallback(
+        (elementId: string, height: number, event: React.PointerEvent<HTMLDivElement>) => {
+            pointerDragRef.current = { pointerId: event.pointerId, startY: event.clientY };
+            draggingElementIdRef.current = elementId;
+            setDraggingHeight(height);
+            setDropTarget(null);
+        },
+        [setDropTarget]
+    );
 
-    const handlePointerDragMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-        const pointerDrag = pointerDragRef.current;
-        if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;
+    const handlePointerDragMove = useCallback(
+        (event: React.PointerEvent<HTMLDivElement>) => {
+            const pointerDrag = pointerDragRef.current;
+            if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;
 
-        if (!draggingElementId) {
-            if (Math.abs(event.clientY - pointerDrag.startY) < 4) return;
-            const draggedId = draggingElementIdRef.current;
-            if (!draggedId) return;
-            startDrag(draggedId, draggingHeight ?? 1);
-        }
+            if (!draggingElementId) {
+                if (Math.abs(event.clientY - pointerDrag.startY) < 4) return;
+                const draggedId = draggingElementIdRef.current;
+                if (!draggedId) return;
+                startDrag(draggedId, draggingHeight ?? 1);
+            }
 
-        updateDropTargetForPointer(event.clientY);
-    }, [draggingElementId, draggingHeight, startDrag, updateDropTargetForPointer]);
+            updateDropTargetForPointer(event.clientY);
+        },
+        [draggingElementId, draggingHeight, startDrag, updateDropTargetForPointer]
+    );
 
-    const handlePointerDragEnd = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-        const pointerDrag = pointerDragRef.current;
-        if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;
-        if (draggingElementIdRef.current && dropIndexRef.current !== null) commitDrag();
-        else resetDragState();
-    }, [commitDrag, resetDragState]);
+    const handlePointerDragEnd = useCallback(
+        (event: React.PointerEvent<HTMLDivElement>) => {
+            const pointerDrag = pointerDragRef.current;
+            if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;
+            if (draggingElementIdRef.current && dropIndexRef.current !== null) commitDrag();
+            else resetDragState();
+        },
+        [commitDrag, resetDragState]
+    );
 
     const placeholderStyle = useMemo(() => {
         if (draggingHeight === null) {
@@ -142,7 +157,7 @@ const ElementList: React.FC<ElementListProps> = ({
 
             return <div className="h-0.5 bg-[#1177bb] rounded my-1" />;
         },
-        [dropIndex],
+        [dropIndex]
     );
 
     return (
@@ -173,7 +188,9 @@ const ElementList: React.FC<ElementListProps> = ({
                                 onDuplicate={() => onDuplicateElement(element.id)}
                                 onDelete={() => onDeleteElement(element.id)}
                                 onUpdateId={onUpdateElementId}
-                                onPointerDragStart={(height, event) => handlePointerDragStart(element.id, height, event)}
+                                onPointerDragStart={(height, event) =>
+                                    handlePointerDragStart(element.id, height, event)
+                                }
                                 onPointerDragMove={handlePointerDragMove}
                                 onPointerDragEnd={handlePointerDragEnd}
                                 onPointerDragCancel={resetDragState}

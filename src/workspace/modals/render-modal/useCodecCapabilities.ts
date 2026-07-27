@@ -37,7 +37,9 @@ export function useCodecCapabilities(): CodecCapabilities {
                     if (!mapped.includes('h264') && vcs.includes('avc')) mapped.unshift('h264');
                     setVideoCodecs(mapped);
                 }
-            } catch { /* ignore */ }
+            } catch {
+                /* ignore */
+            }
             try {
                 const acs = await (getEncodableAudioCodecs?.() || []);
                 if (mounted) {
@@ -63,18 +65,34 @@ export function useCodecCapabilities(): CodecCapabilities {
             }
             if (mounted) setCapLoaded(true);
         })();
-        return () => { mounted = false; };
+        return () => {
+            mounted = false;
+        };
     }, []);
 
-    const getPreferredVideoCodec = useCallback((container: VideoContainer): string => {
-        const priority = VIDEO_CODEC_PRIORITY[container];
-        return priority.find((c) => videoCodecs.includes(c)) ?? videoCodecs[0] ?? (container === 'webm' ? 'vp9' : 'h264');
-    }, [videoCodecs]);
+    const getPreferredVideoCodec = useCallback(
+        (container: VideoContainer): string => {
+            const priority = VIDEO_CODEC_PRIORITY[container];
+            return (
+                priority.find((c) => videoCodecs.includes(c)) ??
+                videoCodecs[0] ??
+                (container === 'webm' ? 'vp9' : 'h264')
+            );
+        },
+        [videoCodecs]
+    );
 
-    const getPreferredAudioCodec = useCallback((container: VideoContainer): string => {
-        const priority = AUDIO_CODEC_PRIORITY[container];
-        return priority.find((c) => audioCodecs.includes(c)) ?? audioCodecs[0] ?? (container === 'webm' ? 'opus' : 'aac');
-    }, [audioCodecs]);
+    const getPreferredAudioCodec = useCallback(
+        (container: VideoContainer): string => {
+            const priority = AUDIO_CODEC_PRIORITY[container];
+            return (
+                priority.find((c) => audioCodecs.includes(c)) ??
+                audioCodecs[0] ??
+                (container === 'webm' ? 'opus' : 'aac')
+            );
+        },
+        [audioCodecs]
+    );
 
     return { videoCodecs, audioCodecs, capLoaded, getPreferredVideoCodec, getPreferredAudioCodec };
 }

@@ -76,17 +76,14 @@ const TimelineRuler: React.FC = () => {
     }, [bars, width, toX, beatsPerBar]);
 
     // Pointer interactions: click to seek, drag braces
-    const dragState = useRef<
-        | null
-        | {
-            type: 'seek' | 'loop-start' | 'loop-end' | 'play-start' | 'play-end';
-            originX: number;
-            originSec: number;
-            startSec: number | undefined;
-            endSec: number | undefined;
-            alt: boolean;
-        }
-    >(null);
+    const dragState = useRef<null | {
+        type: 'seek' | 'loop-start' | 'loop-end' | 'play-start' | 'play-end';
+        originX: number;
+        originSec: number;
+        startSec: number | undefined;
+        endSec: number | undefined;
+        alt: boolean;
+    }>(null);
 
     const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
         if (!containerRef.current) return;
@@ -205,7 +202,7 @@ const TimelineRuler: React.FC = () => {
         dragState.current = null;
         try {
             (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-        } catch { }
+        } catch {}
     };
 
     const playheadX = toX(currentTick, width);
@@ -223,7 +220,10 @@ const TimelineRuler: React.FC = () => {
             className="timeline-ruler relative select-none bg-neutral-900/40 border-y border-neutral-800"
             style={{ height, clipPath: 'border-box' }}
             onPointerDown={onPointerDown}
-            onPointerMove={(e) => { onPointerMove(e); onPointerMoveRoot(e); }}
+            onPointerMove={(e) => {
+                onPointerMove(e);
+                onPointerMoveRoot(e);
+            }}
             onPointerUp={onPointerUp}
             role="group"
             aria-label="Timeline ruler"
@@ -258,8 +258,16 @@ const TimelineRuler: React.FC = () => {
                         className="absolute top-0 bottom-0 bg-yellow-400/10 pointer-events-none"
                         style={{ left: playStartX, width: Math.max(0, playEndX - playStartX) }}
                     />
-                    <div className="absolute top-0 bottom-0 w-0 border-l-2 border-yellow-400" style={{ left: playStartX }} aria-hidden />
-                    <div className="absolute top-0 bottom-0 w-0 border-l-2 border-yellow-400" style={{ left: playEndX }} aria-hidden />
+                    <div
+                        className="absolute top-0 bottom-0 w-0 border-l-2 border-yellow-400"
+                        style={{ left: playStartX }}
+                        aria-hidden
+                    />
+                    <div
+                        className="absolute top-0 bottom-0 w-0 border-l-2 border-yellow-400"
+                        style={{ left: playEndX }}
+                        aria-hidden
+                    />
                 </>
             )}
 

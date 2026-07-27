@@ -105,7 +105,16 @@ describe('Offline mixer & reproducibility hash', () => {
             a1: {
                 id: 'a1',
                 type: 'audio',
-                clips: [{ id: 'clip-a1', type: 'audio', sourceId: 'a1', offsetTicks: 10, sourceStartSeconds: 0, sourceEndSeconds: 1 }],
+                clips: [
+                    {
+                        id: 'clip-a1',
+                        type: 'audio',
+                        sourceId: 'a1',
+                        offsetTicks: 10,
+                        sourceStartSeconds: 0,
+                        sourceEndSeconds: 1,
+                    },
+                ],
                 gain: 1,
                 mute: false,
                 solo: false,

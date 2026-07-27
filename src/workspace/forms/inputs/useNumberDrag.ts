@@ -102,55 +102,58 @@ export function useNumberDrag(options: UseNumberDragOptions) {
         };
     }, []);
 
-    const handlePointerMove = useCallback((e: ReactPointerEvent<HTMLInputElement>) => {
-        const drag = dragStateRef.current;
-        if (!drag || drag.pointerId !== e.pointerId) return;
+    const handlePointerMove = useCallback(
+        (e: ReactPointerEvent<HTMLInputElement>) => {
+            const drag = dragStateRef.current;
+            if (!drag || drag.pointerId !== e.pointerId) return;
 
-        if (e.buttons === 0) {
-            if (drag.hadChange) {
-                const { onChange } = optionsRef.current;
-                onChange(drag.lastValue, { sessionId: drag.sessionId, finalize: true });
+            if (e.buttons === 0) {
+                if (drag.hadChange) {
+                    const { onChange } = optionsRef.current;
+                    onChange(drag.lastValue, { sessionId: drag.sessionId, finalize: true });
+                }
+                finishPointerDrag(e.currentTarget, e.pointerId);
+                return;
             }
-            finishPointerDrag(e.currentTarget, e.pointerId);
-            return;
-        }
 
-        const deltaY = drag.startY - e.clientY;
+            const deltaY = drag.startY - e.clientY;
 
-        if (!drag.active) {
-            if (Math.abs(deltaY) < DRAG_THRESHOLD) return;
-            drag.active = true;
-            document.body.style.cursor = 'ns-resize';
-            document.body.style.userSelect = 'none';
-            try {
-                e.currentTarget.setPointerCapture(e.pointerId);
-                drag.captured = true;
-            } catch {}
-        }
+            if (!drag.active) {
+                if (Math.abs(deltaY) < DRAG_THRESHOLD) return;
+                drag.active = true;
+                document.body.style.cursor = 'ns-resize';
+                document.body.style.userSelect = 'none';
+                try {
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                    drag.captured = true;
+                } catch {}
+            }
 
-        const modifier = e.shiftKey ? 5 : e.ctrlKey || e.metaKey ? 0.1 : 1;
-        const baseStep = drag.step || 1;
-        let next = drag.startValue + deltaY * baseStep * modifier;
+            const modifier = e.shiftKey ? 5 : e.ctrlKey || e.metaKey ? 0.1 : 1;
+            const baseStep = drag.step || 1;
+            let next = drag.startValue + deltaY * baseStep * modifier;
 
-        if (drag.step > 0) {
-            const stepped = Math.round(next / drag.step) * drag.step;
-            next = drag.decimals > 0 ? parseFloat(stepped.toFixed(drag.decimals)) : stepped;
-        }
+            if (drag.step > 0) {
+                const stepped = Math.round(next / drag.step) * drag.step;
+                next = drag.decimals > 0 ? parseFloat(stepped.toFixed(drag.decimals)) : stepped;
+            }
 
-        if (typeof drag.min === 'number') next = Math.max(drag.min, next);
-        if (typeof drag.max === 'number') next = Math.min(drag.max, next);
+            if (typeof drag.min === 'number') next = Math.max(drag.min, next);
+            if (typeof drag.max === 'number') next = Math.min(drag.max, next);
 
-        if (!isFinite(next) || next === drag.lastValue) return;
+            if (!isFinite(next) || next === drag.lastValue) return;
 
-        drag.lastValue = next;
-        drag.hadChange = true;
+            drag.lastValue = next;
+            drag.hadChange = true;
 
-        const { onPreview, onChange } = optionsRef.current;
-        onPreview?.(next);
-        onChange(next, { sessionId: drag.sessionId, finalize: false });
+            const { onPreview, onChange } = optionsRef.current;
+            onPreview?.(next);
+            onChange(next, { sessionId: drag.sessionId, finalize: false });
 
-        e.preventDefault();
-    }, [finishPointerDrag]);
+            e.preventDefault();
+        },
+        [finishPointerDrag]
+    );
 
     const emitFinalizeIfNeeded = useCallback((drag: NumberDragState | null) => {
         if (!drag || !drag.hadChange) return;
@@ -168,7 +171,7 @@ export function useNumberDrag(options: UseNumberDragOptions) {
             emitFinalizeIfNeeded(drag);
             finishPointerDrag(e.currentTarget, e.pointerId);
         },
-        [emitFinalizeIfNeeded, finishPointerDrag],
+        [emitFinalizeIfNeeded, finishPointerDrag]
     );
 
     const handlePointerCancel = useCallback(
@@ -179,7 +182,7 @@ export function useNumberDrag(options: UseNumberDragOptions) {
             }
             finishPointerDrag(e.currentTarget, e.pointerId);
         },
-        [emitFinalizeIfNeeded, finishPointerDrag],
+        [emitFinalizeIfNeeded, finishPointerDrag]
     );
 
     return {

@@ -59,14 +59,7 @@ export abstract class RenderObject {
     /** Optional CSS filter string (e.g. 'blur(8px)') applied within this object's save/restore scope. */
     filter: string | null;
 
-    constructor(
-        x = 0,
-        y = 0,
-        scaleX = 1,
-        scaleY = 1,
-        opacity = 1,
-        options?: RenderObjectOptions
-    ) {
+    constructor(x = 0, y = 0, scaleX = 1, scaleY = 1, opacity = 1, options?: RenderObjectOptions) {
         this.x = x;
         this.y = y;
         this.scaleX = scaleX;

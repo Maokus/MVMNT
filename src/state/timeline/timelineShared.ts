@@ -63,7 +63,8 @@ function computeContentEndTick(state: TimelineState): number {
                             [clip.sourceId]: {
                                 sampleRate: featureCache.analysisParams.sampleRate,
                                 channels: 1,
-                                durationSeconds: featureCache.startTimeSeconds + featureCache.frameCount * featureCache.hopSeconds,
+                                durationSeconds:
+                                    featureCache.startTimeSeconds + featureCache.frameCount * featureCache.hopSeconds,
                                 durationSamples: 0,
                             },
                         }
@@ -102,7 +103,8 @@ function computeContentStartTick(state: TimelineState): number {
                             [clip.sourceId]: {
                                 sampleRate: featureCache.analysisParams.sampleRate,
                                 channels: 1,
-                                durationSeconds: featureCache.startTimeSeconds + featureCache.frameCount * featureCache.hopSeconds,
+                                durationSeconds:
+                                    featureCache.startTimeSeconds + featureCache.frameCount * featureCache.hopSeconds,
                                 durationSamples: 0,
                             },
                         }

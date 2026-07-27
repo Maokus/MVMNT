@@ -10,28 +10,28 @@ The `src/workspace` directory contains the main UI components and panels for the
 
 Components in this directory consume state from Zustand stores via selectors and dispatch commands through gateways:
 
--   **timelineStore** – Timeline tracks, transport state, playback range, zoom/view parameters
--   **sceneStore** – Scene elements, configurations, macros, bindings
--   **useScene** context hook – High-level scene operations (save, load, clear)
--   **useSceneSelection** context hook – Element selection state and manipulation
--   **useVisualizer** context hook – Rendering context, export settings, canvas reference
+- **timelineStore** – Timeline tracks, transport state, playback range, zoom/view parameters
+- **sceneStore** – Scene elements, configurations, macros, bindings
+- **useScene** context hook – High-level scene operations (save, load, clear)
+- **useSceneSelection** context hook – Element selection state and manipulation
+- **useVisualizer** context hook – Rendering context, export settings, canvas reference
 
 ### Command Gateway Pattern
 
 State mutations flow through command gateways (`dispatchSceneCommand`, `dispatchTimelineCommand`) that:
 
--   Validate inputs
--   Apply store mutations
--   Track undo/redo history
--   Emit telemetry events for diagnostics
--   Support merge sessions for grouping rapid updates
+- Validate inputs
+- Apply store mutations
+- Track undo/redo history
+- Emit telemetry events for diagnostics
+- Support merge sessions for grouping rapid updates
 
 ### Real-Time Synchronization
 
--   Canvas rendering updates are driven by store subscriptions and React's useEffect
--   Timeline waveforms and note previews refresh when cache data changes
--   Transport coordinator broadcasts tick updates for synchronized playback
--   Developer overlay subscribes to command events for live telemetry
+- Canvas rendering updates are driven by store subscriptions and React's useEffect
+- Timeline waveforms and note previews refresh when cache data changes
+- Transport coordinator broadcasts tick updates for synchronized playback
+- Developer overlay subscribes to command events for live telemetry
 
 ### Merge Sessions
 
@@ -79,16 +79,16 @@ Number drag interactions and other rapid updates use merge sessions to group con
 
 ## Testing Considerations
 
--   Components assume store initialization – tests should mock Zustand stores
--   Timeline components depend on timing utilities and transport coordinator
--   Canvas interactions require mocked canvas context and bounding client rect
--   File upload components should mock `FileReader` and file input events
--   Export/render components depend on `mediabunny` library – use dynamic imports with fallbacks
+- Components assume store initialization – tests should mock Zustand stores
+- Timeline components depend on timing utilities and transport coordinator
+- Canvas interactions require mocked canvas context and bounding client rect
+- File upload components should mock `FileReader` and file input events
+- Export/render components depend on `mediabunny` library – use dynamic imports with fallbacks
 
 ## Performance Notes
 
--   **AudioWaveform** renders on `<canvas>` to avoid DOM overhead for long tracks
--   **TrackLanes** uses single canvas for all timeline track content to minimize repaints
--   **ElementList** uses drag state in refs to avoid re-renders during drag operations
--   **Number drag** interactions throttle onChange calls and use merge sessions to batch undo entries
--   **Selector memoization** is critical – components should use specific selectors rather than subscribing to entire store
+- **AudioWaveform** renders on `<canvas>` to avoid DOM overhead for long tracks
+- **TrackLanes** uses single canvas for all timeline track content to minimize repaints
+- **ElementList** uses drag state in refs to avoid re-renders during drag operations
+- **Number drag** interactions throttle onChange calls and use merge sessions to batch undo entries
+- **Selector memoization** is critical – components should use specific selectors rather than subscribing to entire store

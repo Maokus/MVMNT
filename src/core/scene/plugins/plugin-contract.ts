@@ -7,15 +7,10 @@ export const SDK_CAPABILITIES = Object.freeze([...sdkManifest.capabilities]);
 export const SUPPORTED_API_RANGE = '^2.0.0';
 
 const validArchivePath = (value: string): boolean =>
-    value.length > 0 &&
-    !value.startsWith('/') &&
-    !value.startsWith('\\') &&
-    !value.split(/[\\/]/).includes('..');
+    value.length > 0 && !value.startsWith('/') && !value.startsWith('\\') && !value.split(/[\\/]/).includes('..');
 
 export function validateArchivePaths(paths: readonly string[]): string[] {
-    return paths
-        .filter((path) => !validArchivePath(path))
-        .map((path) => `Unsafe plugin archive path '${path}'`);
+    return paths.filter((path) => !validArchivePath(path)).map((path) => `Unsafe plugin archive path '${path}'`);
 }
 
 export function supportsPluginApiRange(range: string): boolean {
@@ -54,11 +49,13 @@ export function validateCapabilityDeclaration(capabilities: unknown, label: stri
 }
 
 export function validatePluginManifest(manifest: unknown): string[] {
-    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) return ['Invalid manifest: not an object'];
+    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest))
+        return ['Invalid manifest: not an object'];
     const value = manifest as Partial<PluginManifest>;
     const errors: string[] = [];
     for (const field of ['id', 'name', 'version'] as const) {
-        if (!value[field] || typeof value[field] !== 'string') errors.push(`Invalid manifest: missing required field '${field}'`);
+        if (!value[field] || typeof value[field] !== 'string')
+            errors.push(`Invalid manifest: missing required field '${field}'`);
     }
     const range = value.apiVersion;
     if (!range) errors.push("Invalid manifest: missing required field 'apiVersion'");
@@ -83,15 +80,17 @@ export function validatePluginManifest(manifest: unknown): string[] {
 
 export function capabilityDeclarationsMatch(
     manifest: PluginElementManifest,
-    definition: { capabilities?: { required?: readonly string[]; optional?: readonly string[] } },
+    definition: { capabilities?: { required?: readonly string[]; optional?: readonly string[] } }
 ): boolean {
     const expected = normalizeElementCapabilities(manifest);
     const actual = {
         required: [...(definition.capabilities?.required ?? [])],
         optional: [...(definition.capabilities?.optional ?? [])],
     };
-    return expected.required.length === actual.required.length &&
+    return (
+        expected.required.length === actual.required.length &&
         expected.optional.length === actual.optional.length &&
         expected.required.every((value, index) => value === actual.required[index]) &&
-        expected.optional.every((value, index) => value === actual.optional[index]);
+        expected.optional.every((value, index) => value === actual.optional[index])
+    );
 }

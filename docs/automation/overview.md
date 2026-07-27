@@ -21,15 +21,15 @@ This ordering lets macro adjustments sit on top of automation without requiring 
 ```typescript
 interface AutomationKeyframe {
     tick: number;
-    value: unknown;          // number | string (hex color) | boolean
-    easingId: string;        // key into src/math/animation/easing.ts
+    value: unknown; // number | string (hex color) | boolean
+    easingId: string; // key into src/math/animation/easing.ts
 }
 
 interface AutomationChannel {
-    id: string;              // `${elementId}.${propertyKey}`
+    id: string; // `${elementId}.${propertyKey}`
     elementId: string;
     propertyKey: string;
-    keyframes: AutomationKeyframe[];  // sorted ascending by tick
+    keyframes: AutomationKeyframe[]; // sorted ascending by tick
     interpolation: 'linear' | 'stepped' | 'eased';
     valueType: 'number' | 'color' | 'boolean';
 }
@@ -48,13 +48,14 @@ Channel IDs are generated via `makeChannelId(elementId, propertyKey)` and parsed
 
 ### Curve Evaluation (`src/automation/`)
 
-| File | Purpose |
-|------|---------|
-| `automation-curve.ts` | Evaluates a channel at a tick: binary search for segment, applies easing to `t` parameter |
-| `color-interpolation.ts` | `parseColor` / `formatColor` / `lerpColor` for hex colors |
+| File                      | Purpose                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `automation-curve.ts`     | Evaluates a channel at a tick: binary search for segment, applies easing to `t` parameter                                 |
+| `color-interpolation.ts`  | `parseColor` / `formatColor` / `lerpColor` for hex colors                                                                 |
 | `automation-evaluator.ts` | Singleton `AutomationEvaluator` with lazy curve cache per channel; `invalidateChannel` / `invalidateAll` on state changes |
 
 Evaluation rules:
+
 - **Number:** lerp with easing applied to `t`
 - **Color:** decompose to RGBA, lerp each component, recompose
 - **Boolean / stepped:** hold value until next keyframe
@@ -65,6 +66,7 @@ Easing functions come from `src/math/animation/easing.ts` (30+ presets) referenc
 ### Binding System (`src/bindings/`)
 
 `KeyframeBinding<T>` extends `PropertyBinding<T>`:
+
 - `getValueWithContext(context)` converts `context.targetTime` (seconds) to ticks via `TimingManager.secondsToTicks()`, then delegates to the evaluator
 - `getValue()` evaluates at current timeline tick (fallback path)
 - `setValue()` is a no-op — edits go through scene commands
@@ -73,21 +75,22 @@ Easing functions come from `src/math/animation/easing.ts` (30+ presets) referenc
 
 ### Scene Commands (`src/state/scene/commandGateway.ts`)
 
-| Command | Purpose |
-|---------|---------|
-| `enablePropertyAutomation` | Create channel, set binding to `'keyframes'`, optionally seed with initial keyframe |
-| `disablePropertyAutomation` | Remove channel, revert to constant at current tick value |
-| `addKeyframe` | Insert/replace keyframe at a tick |
-| `removeKeyframe` | Remove keyframe at a tick |
-| `updateKeyframe` | Patch value or easingId at a tick |
-| `moveKeyframe` | Change a keyframe's tick position |
-| `batchUpdateKeyframes` | Replace all keyframes in a channel (bulk ops) |
+| Command                     | Purpose                                                                             |
+| --------------------------- | ----------------------------------------------------------------------------------- |
+| `enablePropertyAutomation`  | Create channel, set binding to `'keyframes'`, optionally seed with initial keyframe |
+| `disablePropertyAutomation` | Remove channel, revert to constant at current tick value                            |
+| `addKeyframe`               | Insert/replace keyframe at a tick                                                   |
+| `removeKeyframe`            | Remove keyframe at a tick                                                           |
+| `updateKeyframe`            | Patch value or easingId at a tick                                                   |
+| `moveKeyframe`              | Change a keyframe's tick position                                                   |
+| `batchUpdateKeyframes`      | Replace all keyframes in a channel (bulk ops)                                       |
 
 All commands have undo inverses in `buildSceneCommandPatch()`. Drag operations use merge keys (`kf-drag:${channelId}:${sessionId}`) to collapse continuous drags into a single undo entry.
 
 ### Property Panel UI
 
 `KeyframeControl.tsx` renders a diamond-shaped toggle per automatable property row with three visual states:
+
 - **inactive** (no automation): dimmed fill
 - **automated** (channel exists, no keyframe at tick): outlined diamond
 - **active** (keyframe at current tick): solid fill
@@ -104,19 +107,19 @@ Automation channels are serialized under the `automation` key in the scene envel
 
 ## Key File Map
 
-| File | Role |
-|------|------|
-| `src/automation/types.ts` | All automation types and ID utilities |
-| `src/automation/automation-curve.ts` | Per-channel curve evaluator |
-| `src/automation/automation-evaluator.ts` | Singleton evaluator with cache |
-| `src/automation/color-interpolation.ts` | Hex color interpolation |
-| `src/automation/hooks.ts` | `useAutomationChannel`, `useKeyframeAtTick`, `useCurrentTick` |
-| `src/bindings/keyframe-binding.ts` | `KeyframeBinding<T>` class |
-| `src/workspace/panels/properties/KeyframeControl.tsx` | Diamond toggle UI |
-| `src/state/sceneStore.ts` | `AutomationState` slice, store actions |
-| `src/state/scene/commandGateway.ts` | 7 automation scene commands |
-| `src/core/scene/elements/base.ts` | `'keyframes'` binding detection, per-frame cache invalidation |
-| `src/state/scene/runtimeAdapter.ts` | Automation change detection, evaluator cache invalidation |
+| File                                                  | Role                                                          |
+| ----------------------------------------------------- | ------------------------------------------------------------- |
+| `src/automation/types.ts`                             | All automation types and ID utilities                         |
+| `src/automation/automation-curve.ts`                  | Per-channel curve evaluator                                   |
+| `src/automation/automation-evaluator.ts`              | Singleton evaluator with cache                                |
+| `src/automation/color-interpolation.ts`               | Hex color interpolation                                       |
+| `src/automation/hooks.ts`                             | `useAutomationChannel`, `useKeyframeAtTick`, `useCurrentTick` |
+| `src/bindings/keyframe-binding.ts`                    | `KeyframeBinding<T>` class                                    |
+| `src/workspace/panels/properties/KeyframeControl.tsx` | Diamond toggle UI                                             |
+| `src/state/sceneStore.ts`                             | `AutomationState` slice, store actions                        |
+| `src/state/scene/commandGateway.ts`                   | 7 automation scene commands                                   |
+| `src/core/scene/elements/base.ts`                     | `'keyframes'` binding detection, per-frame cache invalidation |
+| `src/state/scene/runtimeAdapter.ts`                   | Automation change detection, evaluator cache invalidation     |
 
 Path alias `@automation/*` resolves to `src/automation/` (configured in `tsconfig.json` and `vite.config.ts`).
 

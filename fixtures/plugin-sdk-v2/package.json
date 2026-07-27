@@ -1,9 +1,9 @@
 {
-  "name": "mvmnt-plugin-sdk-v2-fixture",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "@mvmnt-app/plugin-sdk": "file:../../packages/plugin-sdk"
-  }
+    "name": "mvmnt-plugin-sdk-v2-fixture",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "dependencies": {
+        "@mvmnt-app/plugin-sdk": "file:../../packages/plugin-sdk"
+    }
 }

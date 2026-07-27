@@ -26,12 +26,7 @@ interface ElementSnapshot {
     children?: unknown;
 }
 
-const SMOOTHING_ELEMENT_TYPES = new Set([
-    'audioSpectrum',
-    'audioVolumeMeter',
-    'audioWaveform',
-    'audioOscilloscope',
-]);
+const SMOOTHING_ELEMENT_TYPES = new Set(['audioSpectrum', 'audioVolumeMeter', 'audioWaveform', 'audioOscilloscope']);
 
 function resolveSmoothingProperty(elementType: string | null | undefined): string | null {
     if (!elementType) return null;
@@ -63,9 +58,10 @@ function sanitizeDescriptor(entry: unknown): MigratedDescriptorChannelsResult {
     const descriptor: AudioFeatureDescriptor = {
         featureKey,
         calculatorId: (source.calculatorId as string | null | undefined) ?? null,
-        bandIndex: typeof source.bandIndex === 'number' && Number.isFinite(source.bandIndex)
-            ? Math.trunc(source.bandIndex)
-            : null,
+        bandIndex:
+            typeof source.bandIndex === 'number' && Number.isFinite(source.bandIndex)
+                ? Math.trunc(source.bandIndex)
+                : null,
     };
     for (const [key, value] of Object.entries(source)) {
         if (key === 'featureKey' || key === 'calculatorId' || key === 'bandIndex') continue;
@@ -75,10 +71,7 @@ function sanitizeDescriptor(entry: unknown): MigratedDescriptorChannelsResult {
     return { descriptor, channelSelector: migrated.channelSelector };
 }
 
-function attachChannelSelectors(
-    target: Record<string, unknown>,
-    results: MigratedDescriptorChannelsResult[],
-): void {
+function attachChannelSelectors(target: Record<string, unknown>, results: MigratedDescriptorChannelsResult[]): void {
     if (!Array.isArray(results) || results.length === 0) {
         return;
     }
@@ -112,7 +105,7 @@ function cloneBinding(binding: any): Record<string, unknown> {
 function migrateBindings(
     elementId: string | null | undefined,
     elementType: string | null | undefined,
-    bindings: Record<string, unknown> | null | undefined,
+    bindings: Record<string, unknown> | null | undefined
 ): Record<string, unknown> | null {
     if (!bindings || typeof bindings !== 'object') {
         return bindings ?? null;
@@ -198,7 +191,7 @@ function migrateBindings(
 function migrateElementConfig(
     elementId: string | null | undefined,
     elementType: string | null | undefined,
-    config: Record<string, unknown> | null | undefined,
+    config: Record<string, unknown> | null | undefined
 ): Record<string, unknown> | null {
     if (!config || typeof config !== 'object') {
         return config ?? null;
@@ -279,7 +272,10 @@ function buildElementSnapshot(entry: unknown): ElementSnapshot | null {
         id: typeof source.id === 'string' ? source.id : null,
         type: typeof source.type === 'string' ? source.type : null,
         config: source.config && typeof source.config === 'object' ? (source.config as Record<string, unknown>) : null,
-        bindings: source.bindings && typeof source.bindings === 'object' ? (source.bindings as Record<string, unknown>) : null,
+        bindings:
+            source.bindings && typeof source.bindings === 'object'
+                ? (source.bindings as Record<string, unknown>)
+                : null,
         children: Array.isArray(source.children) ? source.children : undefined,
     };
     return snapshot;
@@ -299,7 +295,7 @@ function migrateElementCollection(collection: unknown): unknown {
 
 function migrateBindingsIndex(
     scene: SceneLike,
-    migratedElements: Record<string, { type?: string | null }>,
+    migratedElements: Record<string, { type?: string | null }>
 ): Record<string, unknown> | undefined {
     const bindings = scene.bindings;
     if (!bindings || typeof bindings !== 'object') {
@@ -347,7 +343,12 @@ function collectElementMetadata(scene: SceneLike): Record<string, { type?: strin
     if (scene.elements && typeof scene.elements === 'object' && !Array.isArray(scene.elements)) {
         for (const [id, entry] of Object.entries(scene.elements as Record<string, unknown>)) {
             if (!map[id]) {
-                map[id] = { type: typeof (entry as { type?: string }).type === 'string' ? (entry as { type?: string }).type : null };
+                map[id] = {
+                    type:
+                        typeof (entry as { type?: string }).type === 'string'
+                            ? (entry as { type?: string }).type
+                            : null,
+                };
             }
         }
     }
@@ -413,7 +414,10 @@ function collectDescriptorEntries(source: unknown): Record<string, unknown>[] {
     return descriptors;
 }
 
-function extractSmoothingFromConfig(config: Record<string, unknown> | null | undefined, key: string | null): number | null {
+function extractSmoothingFromConfig(
+    config: Record<string, unknown> | null | undefined,
+    key: string | null
+): number | null {
     if (!config || !key) return null;
     const value = config[key];
     if (typeof value === 'number' && Number.isFinite(value)) {
@@ -425,7 +429,10 @@ function extractSmoothingFromConfig(config: Record<string, unknown> | null | und
     return null;
 }
 
-function extractSmoothingFromBindings(bindings: Record<string, unknown> | null | undefined, key: string | null): number | null {
+function extractSmoothingFromBindings(
+    bindings: Record<string, unknown> | null | undefined,
+    key: string | null
+): number | null {
     if (!bindings || !key) return null;
     const binding = bindings[key];
     if (!binding || typeof binding !== 'object') {
@@ -501,7 +508,10 @@ function collectElementSnapshots(state: unknown): Record<string, ElementSnapshot
                     result[id] = {
                         ...existing,
                         id,
-                        bindings: bindings && typeof bindings === 'object' ? (bindings as Record<string, unknown>) : existing.bindings,
+                        bindings:
+                            bindings && typeof bindings === 'object'
+                                ? (bindings as Record<string, unknown>)
+                                : existing.bindings,
                     };
                 }
             }
@@ -512,7 +522,10 @@ function collectElementSnapshots(state: unknown): Record<string, ElementSnapshot
                 result[id] = {
                     ...existing,
                     id,
-                    type: typeof (entry as { type?: string }).type === 'string' ? (entry as { type?: string }).type : existing.type,
+                    type:
+                        typeof (entry as { type?: string }).type === 'string'
+                            ? (entry as { type?: string }).type
+                            : existing.type,
                 };
             }
         }

@@ -22,7 +22,11 @@ class MockAudioContext {
         };
     }
     createGain(): any {
-        return { gain: { setValueAtTime: () => {}, setTargetAtTime: () => {} }, connect: () => ({ connect: () => {} }), disconnect: () => {} };
+        return {
+            gain: { setValueAtTime: () => {}, setTargetAtTime: () => {} },
+            connect: () => ({ connect: () => {} }),
+            disconnect: () => {},
+        };
     }
     get destination() {
         return {};

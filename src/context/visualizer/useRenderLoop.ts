@@ -58,7 +58,7 @@ export function useRenderLoop({
                 let tempoMapVersion: string | null = null;
                 const map = state.timeline.masterTempoMap;
                 if (map && map.length) {
-                    tempoMapVersion = map.map(e => `${e.time}:${e.bpm}`).join(',');
+                    tempoMapVersion = map.map((e) => `${e.time}:${e.bpm}`).join(',');
                 }
                 let bpmChanged = false;
                 if (lastAppliedBpm !== bpm) {
@@ -145,7 +145,8 @@ export function useRenderLoop({
                     try {
                         const tmConv = getSharedTimingManager();
                         const secFromTick = tmConv.beatsToSeconds(next / tmConv.ticksPerQuarter);
-                        if (Math.abs((visualizer.currentTime || 0) - secFromTick) > 0.03) visualizer.seek?.(secFromTick);
+                        if (Math.abs((visualizer.currentTime || 0) - secFromTick) > 0.03)
+                            visualizer.seek?.(secFromTick);
                     } catch {}
                 }
             } else if (!state.transport.isPlaying) {
@@ -155,7 +156,8 @@ export function useRenderLoop({
                     try {
                         const tmConv = getSharedTimingManager();
                         const secFromTick = tmConv.beatsToSeconds(currentTickVal / tmConv.ticksPerQuarter);
-                        if (Math.abs((visualizer.currentTime || 0) - secFromTick) > 0.001) visualizer.seek?.(secFromTick);
+                        if (Math.abs((visualizer.currentTime || 0) - secFromTick) > 0.001)
+                            visualizer.seek?.(secFromTick);
                     } catch {}
                     lastAppliedTickRef.current = currentTickVal;
                 }
@@ -168,7 +170,9 @@ export function useRenderLoop({
                     const tmDisp = getSharedTimingManager();
                     const tick = stNow.timeline.currentTick;
                     const sec = tmDisp.beatsToSeconds(tick / tmDisp.ticksPerQuarter);
-                    const total = visualizer.getCurrentDuration ? visualizer.getCurrentDuration() : visualizer.duration || 0;
+                    const total = visualizer.getCurrentDuration
+                        ? visualizer.getCurrentDuration()
+                        : visualizer.duration || 0;
                     const format = (s: number) => {
                         const sign = s < 0 ? '-' : '';
                         const abs = Math.abs(s);

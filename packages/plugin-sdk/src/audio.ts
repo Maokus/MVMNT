@@ -120,10 +120,8 @@ export const requireAudioFeatures = (
     requirements: readonly AudioFeatureRequirement[]
 ): ReturnType<AudioApi['requireFeatures']> => audio.requireFeatures(requirements);
 
-export const getAudioChannelMetadata = (
-    audio: AudioApi,
-    trackId: string
-): ReturnType<AudioApi['getChannelMetadata']> => audio.getChannelMetadata(trackId);
+export const getAudioChannelMetadata = (audio: AudioApi, trackId: string): ReturnType<AudioApi['getChannelMetadata']> =>
+    audio.getChannelMetadata(trackId);
 
 export const sampleAudioFeature = (
     audio: AudioApi,
@@ -145,10 +143,8 @@ export const getRawAudioSamples = (
     args: Parameters<AudioApi['getRawSamples']>[0]
 ): ReturnType<AudioApi['getRawSamples']> => audio.getRawSamples(args);
 
-export const getAudioRms = (
-    audio: AudioApi,
-    args: Parameters<AudioApi['getRms']>[0]
-): ReturnType<AudioApi['getRms']> => audio.getRms(args);
+export const getAudioRms = (audio: AudioApi, args: Parameters<AudioApi['getRms']>[0]): ReturnType<AudioApi['getRms']> =>
+    audio.getRms(args);
 
 export const registerAudioCalculator = (
     calculators: AudioCalculatorsApi,

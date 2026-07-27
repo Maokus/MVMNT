@@ -44,13 +44,7 @@ import {
 } from '@mvmnt-app/plugin-sdk/visual-assets';
 
 void (null as unknown as
-    | AudioApi
-    | TimelineApi
-    | TimingApi
-    | AssetApi
-    | CapabilityContext
-    | PluginDiagnostic
-    | Result<number>);
+    AudioApi | TimelineApi | TimingApi | AssetApi | CapabilityContext | PluginDiagnostic | Result<number>);
 void SDK_VERSION;
 void PLUGIN_CAPABILITIES;
 void midiNoteToName(60);

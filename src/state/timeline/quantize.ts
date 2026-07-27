@@ -49,7 +49,7 @@ export function formatQuantizeShortLabel(setting: QuantizeSetting, arbitraryN?: 
 export function quantizeSettingToBeats(
     setting: QuantizeSetting,
     beatsPerBar: number,
-    arbitraryN?: number,
+    arbitraryN?: number
 ): number | null {
     const safeBeatsPerBar = Number.isFinite(beatsPerBar) && beatsPerBar > 0 ? beatsPerBar : 4;
     switch (setting) {
@@ -86,7 +86,7 @@ export function quantizeSettingToTicks(
     setting: QuantizeSetting,
     beatsPerBar: number,
     ticksPerQuarter: number = CANONICAL_PPQ,
-    arbitraryN?: number,
+    arbitraryN?: number
 ): number | null {
     const beatLength = quantizeSettingToBeats(setting, beatsPerBar, arbitraryN);
     if (beatLength == null) return null;
@@ -101,7 +101,7 @@ export function quantizeSettingToTicks(
 export function getAdaptiveSnapSetting(
     viewRangeTicks: number,
     beatsPerBar: number,
-    ticksPerQuarter: number = CANONICAL_PPQ,
+    ticksPerQuarter: number = CANONICAL_PPQ
 ): SnapQuantizeOption {
     const safeBpb = Number.isFinite(beatsPerBar) && beatsPerBar > 0 ? beatsPerBar : 4;
     const barsVisible = viewRangeTicks / (safeBpb * ticksPerQuarter);
@@ -120,7 +120,7 @@ export function getAdaptiveGridSubdivisions(
     widthPx: number,
     viewRangeTicks: number,
     beatsPerBar: number,
-    ticksPerQuarter: number = CANONICAL_PPQ,
+    ticksPerQuarter: number = CANONICAL_PPQ
 ): { showBeats: boolean; showEighths: boolean; showSixteenths: boolean } {
     const MIN_PX = 18;
     if (viewRangeTicks <= 0 || widthPx <= 0) return { showBeats: false, showEighths: false, showSixteenths: false };

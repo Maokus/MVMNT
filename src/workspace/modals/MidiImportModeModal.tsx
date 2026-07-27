@@ -44,20 +44,21 @@ export function MidiImportModeModal({
                 <h2 className="m-0 text-lg font-semibold text-white">Import MIDI Tracks</h2>
                 <p className="mt-3 text-[13px] leading-relaxed text-neutral-300">
                     <span className="font-medium text-white">{fileName}</span> contains{' '}
-                    <span className="font-semibold text-white">{playableCount}</span> playable MIDI tracks. Choose how you would
-                    like to import them.
+                    <span className="font-semibold text-white">{playableCount}</span> playable MIDI tracks. Choose how
+                    you would like to import them.
                 </p>
                 <ul className="mt-4 flex flex-col gap-2 rounded border border-neutral-700/70 bg-neutral-800/40 p-3 text-[12px] text-neutral-200">
                     {tracks.map((track, index) => {
                         const label = track.name?.trim().length ? track.name.trim() : `Track ${index + 1}`;
                         const channels = track.channels.length
-                            ? track.channels
-                                  .map((channel) => `Ch ${channel + 1}`)
-                                  .join(', ')
+                            ? track.channels.map((channel) => `Ch ${channel + 1}`).join(', ')
                             : 'Channels unknown';
                         const notesLabel = `${track.noteCount} note${track.noteCount === 1 ? '' : 's'}`;
                         return (
-                            <li key={`${track.trackIndex}-${label}`} className="flex flex-col gap-1 rounded bg-neutral-900/60 px-3 py-2">
+                            <li
+                                key={`${track.trackIndex}-${label}`}
+                                className="flex flex-col gap-1 rounded bg-neutral-900/60 px-3 py-2"
+                            >
                                 <span className="text-[13px] font-medium text-white">{label}</span>
                                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-neutral-300">
                                     <span>{notesLabel}</span>

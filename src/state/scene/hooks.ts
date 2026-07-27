@@ -39,16 +39,18 @@ function resolveZIndex(bindings: ElementBindings, fallbackIndex: number): number
 
 export function useSceneElements(): SceneElementListItem[] {
     const ordered = useSceneStore(sceneSelectors.selectOrderedElements, shallow);
-    return useMemo(() =>
-        ordered.map((entry) => ({
-            id: entry.id,
-            type: entry.type,
-            index: entry.index,
-            bindings: entry.bindings,
-            visible: resolveVisibility(entry.bindings),
-            zIndex: resolveZIndex(entry.bindings, entry.index),
-        })),
-    [ordered]);
+    return useMemo(
+        () =>
+            ordered.map((entry) => ({
+                id: entry.id,
+                type: entry.type,
+                index: entry.index,
+                bindings: entry.bindings,
+                visible: resolveVisibility(entry.bindings),
+                zIndex: resolveZIndex(entry.bindings, entry.index),
+            })),
+        [ordered]
+    );
 }
 
 export function useSceneSelection(): SceneSelectionView {
@@ -76,13 +78,18 @@ function cloneMacroOptions(options?: Macro['options']): Macro['options'] {
 }
 
 export function useSceneMacros(): Macro[] {
-    const macroState = useSceneStore((state) => state.macros, (a, b) => a === b);
-    return useMemo(() =>
-        macroState.allIds
-            .map((id) => macroState.byId[id])
-            .filter((macro): macro is Macro => Boolean(macro))
-            .map((macro) => ({ ...macro, options: cloneMacroOptions(macro.options) })),
-    [macroState]);
+    const macroState = useSceneStore(
+        (state) => state.macros,
+        (a, b) => a === b
+    );
+    return useMemo(
+        () =>
+            macroState.allIds
+                .map((id) => macroState.byId[id])
+                .filter((macro): macro is Macro => Boolean(macro))
+                .map((macro) => ({ ...macro, options: cloneMacroOptions(macro.options) })),
+        [macroState]
+    );
 }
 
 export function useInteractionState(): SceneInteractionState {
@@ -92,6 +99,6 @@ export function useInteractionState(): SceneInteractionState {
 export function useSceneElementRecord(elementId: string | null) {
     return useSceneStore(
         (state: SceneStoreState) => (elementId ? state.elements[elementId] : undefined),
-        (a, b) => a === b,
+        (a, b) => a === b
     );
 }

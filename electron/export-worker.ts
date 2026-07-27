@@ -7,9 +7,14 @@ interface HashRequest {
     path: string;
 }
 
-const parentPort = (process as NodeJS.Process & {
-    parentPort?: { on(event: 'message', listener: (event: { data: HashRequest }) => void): void; postMessage(value: unknown): void };
-}).parentPort;
+const parentPort = (
+    process as NodeJS.Process & {
+        parentPort?: {
+            on(event: 'message', listener: (event: { data: HashRequest }) => void): void;
+            postMessage(value: unknown): void;
+        };
+    }
+).parentPort;
 
 parentPort?.on('message', ({ data }) => {
     if (!data || data.type !== 'sha256' || typeof data.id !== 'string' || typeof data.path !== 'string') return;

@@ -52,7 +52,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
                 onChange(nextValue);
             }
         },
-        [onChange],
+        [onChange]
     );
 
     const numberDragHandlers = useNumberDrag({
@@ -65,24 +65,32 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
             setLocalValue(next.toString());
         },
         onChange: (next, meta) => {
-            emitChange(next, meta
-                ? {
-                    mergeSession: {
-                        id: meta.sessionId,
-                        finalize: meta.finalize,
-                    },
-                }
-                : undefined);
+            emitChange(
+                next,
+                meta
+                    ? {
+                          mergeSession: {
+                              id: meta.sessionId,
+                              finalize: meta.finalize,
+                          },
+                      }
+                    : undefined
+            );
         },
     });
 
     useEffect(() => {
         if (type === 'number') {
-            const displayValue = typeof value === 'number' && !isNaN(value) ? value.toString() :
-                (typeof schema?.default === 'number' ? schema.default.toString() : '0');
+            const displayValue =
+                typeof value === 'number' && !isNaN(value)
+                    ? value.toString()
+                    : typeof schema?.default === 'number'
+                      ? schema.default.toString()
+                      : '0';
             setLocalValue(displayValue);
         } else if (type === 'string' || type === 'text' || type === 'longString') {
-            const displayValue = typeof value === 'string' ? value : (typeof schema?.default === 'string' ? schema.default : '');
+            const displayValue =
+                typeof value === 'string' ? value : typeof schema?.default === 'string' ? schema.default : '';
             setLocalValue(displayValue);
         }
     }, [value, schema?.default, type]);
@@ -128,13 +136,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
 
     if (type === 'select') {
         return (
-            <select
-                id={id}
-                value={value}
-                disabled={disabled}
-                title={title}
-                onChange={(e) => onChange(e.target.value)}
-            >
+            <select id={id} value={value} disabled={disabled} title={title} onChange={(e) => onChange(e.target.value)}>
                 {schema?.options?.map((option: any) => (
                     <option key={option.value} value={option.value}>
                         {option.label || option.value}
@@ -183,8 +185,12 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
             const inputValue = e.target.value;
 
             const revertToActual = () => {
-                const displayValue = typeof value === 'number' && !isNaN(value) ? value.toString() :
-                    (typeof schema?.default === 'number' ? schema.default.toString() : '0');
+                const displayValue =
+                    typeof value === 'number' && !isNaN(value)
+                        ? value.toString()
+                        : typeof schema?.default === 'number'
+                          ? schema.default.toString()
+                          : '0';
                 setLocalValue(displayValue);
             };
 
@@ -213,7 +219,9 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
                 // Commit the current value, then forward the keypress from a non-input
                 // context so InsertKeyframeController can handle it.
                 e.currentTarget.blur();
-                document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'i', bubbles: true, cancelable: true }));
+                document.body.dispatchEvent(
+                    new KeyboardEvent('keydown', { key: 'i', bubbles: true, cancelable: true })
+                );
             }
         };
 
@@ -240,14 +248,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
 
     if (type === 'file') {
         return (
-            <FileInput
-                id={id}
-                value={value}
-                schema={schema}
-                disabled={disabled}
-                title={title}
-                onChange={onChange}
-            />
+            <FileInput id={id} value={value} schema={schema} disabled={disabled} title={title} onChange={onChange} />
         );
     }
 

@@ -19,12 +19,7 @@ export function parseColor(hex: string): [number, number, number, number] {
     const b = parseInt(h.slice(4, 6), 16);
     const a = h.length >= 8 ? parseInt(h.slice(6, 8), 16) : 255;
 
-    return [
-        Number.isNaN(r) ? 0 : r,
-        Number.isNaN(g) ? 0 : g,
-        Number.isNaN(b) ? 0 : b,
-        Number.isNaN(a) ? 255 : a,
-    ];
+    return [Number.isNaN(r) ? 0 : r, Number.isNaN(g) ? 0 : g, Number.isNaN(b) ? 0 : b, Number.isNaN(a) ? 255 : a];
 }
 
 /** Format [r, g, b, a] components (each 0-255) back to a hex color string. */

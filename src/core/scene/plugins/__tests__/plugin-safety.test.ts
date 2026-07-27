@@ -17,11 +17,7 @@ describe('Plugin Safety Controls', () => {
 
     describe('withRenderSafety', () => {
         it('should execute function successfully and return result', () => {
-            const result = withRenderSafety(
-                () => [1, 2, 3],
-                DEFAULT_SAFETY_CONFIG,
-                mockContext
-            );
+            const result = withRenderSafety(() => [1, 2, 3], DEFAULT_SAFETY_CONFIG, mockContext);
             expect(result).toEqual([1, 2, 3]);
         });
 
@@ -86,21 +82,13 @@ describe('Plugin Safety Controls', () => {
         });
 
         it('should handle empty arrays', () => {
-            const result = limitRenderObjects(
-                [],
-                DEFAULT_SAFETY_CONFIG,
-                mockContext
-            );
+            const result = limitRenderObjects([], DEFAULT_SAFETY_CONFIG, mockContext);
             expect(result).toEqual([]);
         });
 
         it('should use default config maxRenderObjectsPerElement', () => {
             const objects = Array.from({ length: DEFAULT_SAFETY_CONFIG.maxRenderObjectsPerElement + 100 }, (_, i) => i);
-            const result = limitRenderObjects(
-                objects,
-                DEFAULT_SAFETY_CONFIG,
-                mockContext
-            );
+            const result = limitRenderObjects(objects, DEFAULT_SAFETY_CONFIG, mockContext);
             expect(result.length).toBe(DEFAULT_SAFETY_CONFIG.maxRenderObjectsPerElement);
         });
     });
@@ -129,23 +117,13 @@ describe('Plugin Safety Controls', () => {
     describe('checkCapability', () => {
         it('should return true when capability exists', () => {
             const capabilities = ['audio-analysis', 'midi-events'];
-            const result = checkCapability(
-                capabilities,
-                'audio-analysis',
-                DEFAULT_SAFETY_CONFIG,
-                mockContext
-            );
+            const result = checkCapability(capabilities, 'audio-analysis', DEFAULT_SAFETY_CONFIG, mockContext);
             expect(result).toBe(true);
         });
 
         it('should return false when capability missing', () => {
             const capabilities = ['audio-analysis'];
-            const result = checkCapability(
-                capabilities,
-                'network',
-                DEFAULT_SAFETY_CONFIG,
-                mockContext
-            );
+            const result = checkCapability(capabilities, 'network', DEFAULT_SAFETY_CONFIG, mockContext);
             expect(result).toBe(false);
         });
 
@@ -161,12 +139,7 @@ describe('Plugin Safety Controls', () => {
         });
 
         it('should return false for undefined capabilities', () => {
-            const result = checkCapability(
-                undefined,
-                'audio-analysis',
-                DEFAULT_SAFETY_CONFIG,
-                mockContext
-            );
+            const result = checkCapability(undefined, 'audio-analysis', DEFAULT_SAFETY_CONFIG, mockContext);
             expect(result).toBe(false);
         });
     });

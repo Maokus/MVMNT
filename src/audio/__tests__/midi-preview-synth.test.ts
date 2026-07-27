@@ -6,7 +6,9 @@ class SynthTestContext {
     currentTime = 0;
     state: AudioContextState = 'running';
     oscillators: Array<{ frequency: number; starts: number[]; stops: number[] }> = [];
-    get destination() { return {}; }
+    get destination() {
+        return {};
+    }
     resume = async () => {};
     createGain(): any {
         return {
@@ -25,7 +27,11 @@ class SynthTestContext {
         this.oscillators.push(entry);
         return {
             type: 'sine',
-            frequency: { setValueAtTime: (value: number) => { entry.frequency = value; } },
+            frequency: {
+                setValueAtTime: (value: number) => {
+                    entry.frequency = value;
+                },
+            },
             connect: () => ({ connect: () => {} }),
             disconnect: () => {},
             start: (when: number) => entry.starts.push(when),
@@ -41,7 +47,15 @@ describe('MIDI preview synth', () => {
     it('schedules enabled MIDI preview notes and releases them when disabled', async () => {
         useTimelineStore.setState({
             tracks: {
-                midi1: { id: 'midi1', name: 'MIDI', type: 'midi', enabled: true, mute: false, solo: false, clips: [{ id: 'clip1', type: 'midi', sourceId: 'source1', offsetTicks: 0, enabled: true }] },
+                midi1: {
+                    id: 'midi1',
+                    name: 'MIDI',
+                    type: 'midi',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    clips: [{ id: 'clip1', type: 'midi', sourceId: 'source1', offsetTicks: 0, enabled: true }],
+                },
             },
             tracksOrder: ['midi1'],
             midiCache: {
@@ -74,7 +88,15 @@ describe('MIDI preview synth', () => {
         useTimelineStore.setState({
             timeline: { ...useTimelineStore.getState().timeline, globalBpm: 240 },
             tracks: {
-                midi1: { id: 'midi1', name: 'MIDI', type: 'midi', enabled: true, mute: false, solo: false, clips: [{ id: 'clip1', type: 'midi', sourceId: 'source1', offsetTicks: 0, enabled: true }] },
+                midi1: {
+                    id: 'midi1',
+                    name: 'MIDI',
+                    type: 'midi',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    clips: [{ id: 'clip1', type: 'midi', sourceId: 'source1', offsetTicks: 0, enabled: true }],
+                },
             },
             tracksOrder: ['midi1'],
             midiCache: {

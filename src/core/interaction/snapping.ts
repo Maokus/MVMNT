@@ -119,11 +119,7 @@ export function snapPoint(
         return { x, y, guides: [] };
     }
     const guides: SnapGuide[] = [];
-    const verticalSnap = evaluateBestSnap(
-        [{ orientation: 'vertical', position: x }],
-        targets,
-        tolerance
-    );
+    const verticalSnap = evaluateBestSnap([{ orientation: 'vertical', position: x }], targets, tolerance);
     if (verticalSnap) {
         x += verticalSnap.diff;
         guides.push({
@@ -133,11 +129,7 @@ export function snapPoint(
             sourceElementId: verticalSnap.target.elementId,
         });
     }
-    const horizontalSnap = evaluateBestSnap(
-        [{ orientation: 'horizontal', position: y }],
-        targets,
-        tolerance
-    );
+    const horizontalSnap = evaluateBestSnap([{ orientation: 'horizontal', position: y }], targets, tolerance);
     if (horizontalSnap) {
         y += horizontalSnap.diff;
         guides.push({

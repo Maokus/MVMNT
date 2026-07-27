@@ -152,9 +152,9 @@ function buildFromOptions(
     options: FeatureDescriptorBuilderOptions
 ): FeatureDescriptorBuildResult {
     const calculatorId =
-        options.calculatorId === null ? null : sanitizeString(options.calculatorId) ?? defaults.calculatorId;
+        options.calculatorId === null ? null : (sanitizeString(options.calculatorId) ?? defaults.calculatorId);
     const bandIndex =
-        options.bandIndex === null ? null : sanitizeBandIndex(options.bandIndex ?? undefined) ?? defaults.bandIndex;
+        options.bandIndex === null ? null : (sanitizeBandIndex(options.bandIndex ?? undefined) ?? defaults.bandIndex);
     const requestedProfile = sanitizeString(options.profile) ?? getDefaultProfile();
     const sanitizedOverrides = sanitizeProfileOverrides(options.profileParams);
 

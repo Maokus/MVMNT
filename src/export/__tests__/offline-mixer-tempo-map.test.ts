@@ -2,12 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { offlineMix } from '@audio/offline-audio-mixer';
 import type { AudioTrack, AudioCacheEntry } from '@audio/audioTypes';
 
-function makeTestAudioBuffer(
-    durationSeconds: number,
-    sampleRate = 48000,
-    channels = 1,
-    fillValue = 0.5
-): AudioBuffer {
+function makeTestAudioBuffer(durationSeconds: number, sampleRate = 48000, channels = 1, fillValue = 0.5): AudioBuffer {
     const frameCount = Math.floor(durationSeconds * sampleRate);
     const data = Array.from({ length: channels }, () => {
         const arr = new Float32Array(frameCount);

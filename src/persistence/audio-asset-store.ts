@@ -125,7 +125,10 @@ export const AudioAssetStore = {
                         if (value instanceof ArrayBuffer) {
                             resolve(value.slice(0));
                         } else if (value && typeof Blob !== 'undefined' && value instanceof Blob) {
-                            value.arrayBuffer().then((buffer) => resolve(buffer)).catch(reject);
+                            value
+                                .arrayBuffer()
+                                .then((buffer) => resolve(buffer))
+                                .catch(reject);
                         } else if (value) {
                             resolve(toArrayBuffer(value));
                         } else {

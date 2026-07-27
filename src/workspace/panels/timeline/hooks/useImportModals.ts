@@ -27,7 +27,7 @@ export function useImportModals() {
                 multiTrackResolverRef.current = resolve;
                 setMultiTrackPrompt(info);
             }),
-        [],
+        []
     );
 
     const resolveImportMode = useCallback((choice: MultiTrackChoice) => {
@@ -43,7 +43,7 @@ export function useImportModals() {
                 tempoImportResolverRef.current = resolve;
                 setTempoImportPrompt({ count, hasExisting });
             }),
-        [],
+        []
     );
 
     const resolveTempoImport = useCallback((choice: TempoImportChoice) => {

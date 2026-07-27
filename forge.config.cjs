@@ -1,12 +1,13 @@
 const path = require('node:path');
 
-const notarize = process.env.APPLE_ID && process.env.APPLE_APP_SPECIFIC_PASSWORD && process.env.APPLE_TEAM_ID
-    ? {
-        appleId: process.env.APPLE_ID,
-        appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
-        teamId: process.env.APPLE_TEAM_ID,
-    }
-    : undefined;
+const notarize =
+    process.env.APPLE_ID && process.env.APPLE_APP_SPECIFIC_PASSWORD && process.env.APPLE_TEAM_ID
+        ? {
+              appleId: process.env.APPLE_ID,
+              appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
+              teamId: process.env.APPLE_TEAM_ID,
+          }
+        : undefined;
 
 module.exports = {
     packagerConfig: {
@@ -21,9 +22,7 @@ module.exports = {
         // Testing builds run in CI without release certificates; release builds retain signing.
         osxSign: process.env.CI && !process.env.MVMNT_SKIP_MAC_SIGNING ? {} : undefined,
         osxNotarize: notarize,
-        protocols: [
-            { name: 'MVMNT Project', schemes: ['mvmnt'] },
-        ],
+        protocols: [{ name: 'MVMNT Project', schemes: ['mvmnt'] }],
         extendInfo: {
             CFBundleDocumentTypes: [
                 {

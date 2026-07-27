@@ -113,9 +113,7 @@ function getPendingStatusLabel(status: PendingDescriptorSummary['status']): stri
 }
 
 function getFeatureTrackLabel(track: AudioFeatureTrack): string {
-    const calculator = track.calculatorId
-        ? audioFeatureCalculatorRegistry.get(track.calculatorId)
-        : undefined;
+    const calculator = track.calculatorId ? audioFeatureCalculatorRegistry.get(track.calculatorId) : undefined;
     if (calculator?.label) {
         return calculator.label;
     }
@@ -131,7 +129,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
             caches: state.audioFeatureCaches,
             audioCache: state.audioCache,
         }),
-        shallow,
+        shallow
     );
     const stopAnalysis = useTimelineStore((state) => state.stopAudioFeatureAnalysis);
     const restartAnalysis = useTimelineStore((state) => state.restartAudioFeatureAnalysis);
@@ -144,28 +142,30 @@ const SceneAnalysisCachesTab: React.FC = () => {
         return timelineState.order
             .map((trackId) => timelineState.tracks[trackId])
             .filter((track): track is AudioTrack => Boolean(track) && track.type === 'audio')
-            .flatMap((track) => getAudioTrackSourceIds(track).map((sourceId) => {
-                const status = timelineState.status[sourceId];
-                const cache = timelineState.caches[sourceId];
-                const hasAudioBuffer = Boolean(timelineState.audioCache[sourceId]?.audioBuffer);
-                const features = Object.values(cache?.featureTracks ?? {})
-                    .map((feature) => ({
-                        key: feature.key,
-                        label: getFeatureTrackLabel(feature),
-                        calculatorId: feature.calculatorId,
-                    }))
-                    .sort((a, b) => a.label.localeCompare(b.label));
-                return {
-                    trackId: track.id,
-                    trackName: track.name ?? track.id,
-                    sourceId,
-                    status,
-                    hasCache: !!cache,
-                    hasAudioBuffer,
-                    updatedAt: status?.updatedAt,
-                    features,
-                };
-            }));
+            .flatMap((track) =>
+                getAudioTrackSourceIds(track).map((sourceId) => {
+                    const status = timelineState.status[sourceId];
+                    const cache = timelineState.caches[sourceId];
+                    const hasAudioBuffer = Boolean(timelineState.audioCache[sourceId]?.audioBuffer);
+                    const features = Object.values(cache?.featureTracks ?? {})
+                        .map((feature) => ({
+                            key: feature.key,
+                            label: getFeatureTrackLabel(feature),
+                            calculatorId: feature.calculatorId,
+                        }))
+                        .sort((a, b) => a.label.localeCompare(b.label));
+                    return {
+                        trackId: track.id,
+                        trackName: track.name ?? track.id,
+                        sourceId,
+                        status,
+                        hasCache: !!cache,
+                        hasAudioBuffer,
+                        updatedAt: status?.updatedAt,
+                        features,
+                    };
+                })
+            );
     }, [timelineState]);
 
     const diagnosticsBySource = useMemo(() => {
@@ -231,16 +231,13 @@ const SceneAnalysisCachesTab: React.FC = () => {
 
     const totalPendingDescriptors = useMemo(
         () => diffs.reduce((acc, diff) => acc + diff.missing.length + diff.stale.length, 0),
-        [diffs],
+        [diffs]
     );
     const totalExtraneousDescriptors = useMemo(
         () => diffs.reduce((acc, diff) => acc + diff.extraneous.length, 0),
-        [diffs],
+        [diffs]
     );
-    const totalBadRequests = useMemo(
-        () => diffs.reduce((acc, diff) => acc + diff.badRequest.length, 0),
-        [diffs],
-    );
+    const totalBadRequests = useMemo(() => diffs.reduce((acc, diff) => acc + diff.badRequest.length, 0), [diffs]);
 
     const deleteExtraneousDisabled = totalExtraneousDescriptors === 0;
     const regenerateAllDisabled = totalPendingDescriptors === 0;
@@ -259,14 +256,14 @@ const SceneAnalysisCachesTab: React.FC = () => {
         (sourceId: string) => {
             stopAnalysis(sourceId);
         },
-        [stopAnalysis],
+        [stopAnalysis]
     );
 
     const handleRestart = useCallback(
         (sourceId: string) => {
             restartAnalysis(sourceId);
         },
-        [restartAnalysis],
+        [restartAnalysis]
     );
 
     const handleReanalyzeFeature = useCallback(
@@ -276,7 +273,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
             }
             reanalyzeFeature(sourceId, [calculatorId]);
         },
-        [reanalyzeFeature],
+        [reanalyzeFeature]
     );
 
     return (
@@ -305,10 +302,11 @@ const SceneAnalysisCachesTab: React.FC = () => {
                     <div className="flex flex-wrap items-center gap-2">
                         <button
                             type="button"
-                            className={`rounded border px-2 py-1 text-[11px] transition-colors ${deleteExtraneousDisabled
-                                ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                : 'border-rose-500/60 text-rose-200 hover:bg-rose-500/10'
-                                }`}
+                            className={`rounded border px-2 py-1 text-[11px] transition-colors ${
+                                deleteExtraneousDisabled
+                                    ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
+                                    : 'border-rose-500/60 text-rose-200 hover:bg-rose-500/10'
+                            }`}
                             onClick={deleteExtraneousCaches}
                             disabled={deleteExtraneousDisabled}
                         >
@@ -316,10 +314,11 @@ const SceneAnalysisCachesTab: React.FC = () => {
                         </button>
                         <button
                             type="button"
-                            className={`rounded border px-2 py-1 text-[11px] transition-colors ${regenerateAllDisabled
-                                ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                : 'border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/10'
-                                }`}
+                            className={`rounded border px-2 py-1 text-[11px] transition-colors ${
+                                regenerateAllDisabled
+                                    ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
+                                    : 'border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/10'
+                            }`}
                             onClick={regenerateAll}
                             disabled={regenerateAllDisabled}
                         >
@@ -339,9 +338,10 @@ const SceneAnalysisCachesTab: React.FC = () => {
                         const pendingDescriptors = rowDiagnostics?.pending ?? [];
                         const extraneousCount = rowDiagnostics?.extraneousCount ?? 0;
                         const statusMeta = getStatusMeta(row.status);
-                        const percent = row.status?.state === 'pending' && row.status.progress
-                            ? Math.round(Math.max(0, Math.min(1, row.status.progress.value)) * 100)
-                            : 0;
+                        const percent =
+                            row.status?.state === 'pending' && row.status.progress
+                                ? Math.round(Math.max(0, Math.min(1, row.status.progress.value)) * 100)
+                                : 0;
                         const updatedLabel = formatUpdatedAt(row.updatedAt);
                         const stopDisabled = row.status?.state !== 'pending';
                         const restartDisabled = !row.hasAudioBuffer;
@@ -393,8 +393,9 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                         <div className="text-neutral-400">
                                             {row.hasCache
                                                 ? row.features.length
-                                                    ? `Cached ${row.features.length} feature ${row.features.length === 1 ? 'track' : 'tracks'
-                                                    }.`
+                                                    ? `Cached ${row.features.length} feature ${
+                                                          row.features.length === 1 ? 'track' : 'tracks'
+                                                      }.`
                                                     : 'Cached feature metadata available.'
                                                 : 'No analysed feature data stored yet.'}
                                             {extraneousCount > 0 && (
@@ -408,10 +409,11 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                         <div className="flex items-center gap-2">
                                             <button
                                                 type="button"
-                                                className={`rounded border px-2 py-1 transition-colors ${stopDisabled
-                                                    ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                                    : 'border-rose-500/60 text-rose-200 hover:bg-rose-500/10'
-                                                    }`}
+                                                className={`rounded border px-2 py-1 transition-colors ${
+                                                    stopDisabled
+                                                        ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
+                                                        : 'border-rose-500/60 text-rose-200 hover:bg-rose-500/10'
+                                                }`}
                                                 onClick={() => handleStop(row.sourceId)}
                                                 disabled={stopDisabled}
                                             >
@@ -419,10 +421,11 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                             </button>
                                             <button
                                                 type="button"
-                                                className={`rounded border px-2 py-1 transition-colors ${restartDisabled
-                                                    ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                                    : 'border-sky-500/60 text-sky-200 hover:bg-sky-500/10'
-                                                    }`}
+                                                className={`rounded border px-2 py-1 transition-colors ${
+                                                    restartDisabled
+                                                        ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
+                                                        : 'border-sky-500/60 text-sky-200 hover:bg-sky-500/10'
+                                                }`}
                                                 onClick={() => handleRestart(row.sourceId)}
                                                 disabled={restartDisabled}
                                                 title={restartTitle}
@@ -453,7 +456,8 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                                             </span>
                                                         </div>
                                                         <div className="text-[10px] text-neutral-500">
-                                                            Profile: <span className="text-neutral-300">{pending.profile}</span>
+                                                            Profile:{' '}
+                                                            <span className="text-neutral-300">{pending.profile}</span>
                                                             {pending.owners.length > 0 && (
                                                                 <>
                                                                     {' '}
@@ -477,16 +481,16 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                             <div className="flex flex-col gap-1">
                                                 {row.features.map((feature) => {
                                                     const reanalyzeDisabled =
-                                                        row.status?.state === 'pending'
-                                                        || !row.hasAudioBuffer
-                                                        || !feature.calculatorId;
+                                                        row.status?.state === 'pending' ||
+                                                        !row.hasAudioBuffer ||
+                                                        !feature.calculatorId;
                                                     const reanalyzeTitle = !row.hasAudioBuffer
                                                         ? 'Audio buffer unavailable for this track.'
                                                         : row.status?.state === 'pending'
-                                                            ? 'Analysis already in progress.'
-                                                            : feature.calculatorId
-                                                                ? 'Re-analyse this feature track.'
-                                                                : 'Calculator metadata unavailable.';
+                                                          ? 'Analysis already in progress.'
+                                                          : feature.calculatorId
+                                                            ? 'Re-analyse this feature track.'
+                                                            : 'Calculator metadata unavailable.';
                                                     return (
                                                         <div
                                                             key={`${row.sourceId}-${feature.key}`}
@@ -497,7 +501,10 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                                                     {feature.label}
                                                                 </span>
                                                                 <span className="text-[10px] text-neutral-500">
-                                                                    Key: <span className="text-neutral-300">{feature.key}</span>
+                                                                    Key:{' '}
+                                                                    <span className="text-neutral-300">
+                                                                        {feature.key}
+                                                                    </span>
                                                                     {feature.calculatorId && (
                                                                         <>
                                                                             {' '}
@@ -511,13 +518,17 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                                             </div>
                                                             <button
                                                                 type="button"
-                                                                className={`rounded border px-2 py-1 transition-colors ${reanalyzeDisabled
-                                                                    ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                                                    : 'border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/10'
-                                                                    }`}
+                                                                className={`rounded border px-2 py-1 transition-colors ${
+                                                                    reanalyzeDisabled
+                                                                        ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
+                                                                        : 'border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/10'
+                                                                }`}
                                                                 onClick={() =>
-                                                                    feature.calculatorId
-                                                                    && handleReanalyzeFeature(row.sourceId, feature.calculatorId)
+                                                                    feature.calculatorId &&
+                                                                    handleReanalyzeFeature(
+                                                                        row.sourceId,
+                                                                        feature.calculatorId
+                                                                    )
                                                                 }
                                                                 disabled={reanalyzeDisabled}
                                                                 title={reanalyzeTitle}

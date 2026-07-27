@@ -10,20 +10,22 @@ Feature requirements are lifecycle scoped:
 import { definePluginElement } from '@mvmnt-app/plugin-sdk';
 
 export const meter = definePluginElement({
-  type: 'meter',
-  metadata: { name: 'Meter' },
-  schema: { tabs: [] },
-  capabilities: { required: ['audio.features.read'], optional: [] },
-  load(context) {
-    const registration = context.audio!.requireFeatures([{ feature: 'rms' }]);
-    if (!registration.ok) throw new Error(registration.error.message);
-  },
-  render(_props, _state, time, context) {
-    const frame = context.audio!.sampleFeature({
-      trackId: 'audio-track', feature: 'rms', timeSeconds: time.seconds,
-    });
-    return frame.ok ? [] : [];
-  },
+    type: 'meter',
+    metadata: { name: 'Meter' },
+    schema: { tabs: [] },
+    capabilities: { required: ['audio.features.read'], optional: [] },
+    load(context) {
+        const registration = context.audio!.requireFeatures([{ feature: 'rms' }]);
+        if (!registration.ok) throw new Error(registration.error.message);
+    },
+    render(_props, _state, time, context) {
+        const frame = context.audio!.sampleFeature({
+            trackId: 'audio-track',
+            feature: 'rms',
+            timeSeconds: time.seconds,
+        });
+        return frame.ok ? [] : [];
+    },
 });
 ```
 

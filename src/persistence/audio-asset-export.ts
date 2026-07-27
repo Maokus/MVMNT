@@ -99,7 +99,9 @@ function findCacheIdForReferencedAudioSource(
         return sourceId;
     }
 
-    const hashMatch = unreferencedCacheIds.find((cacheId) => state.audioCache[cacheId]?.originalFile?.hash === sourceId);
+    const hashMatch = unreferencedCacheIds.find(
+        (cacheId) => state.audioCache[cacheId]?.originalFile?.hash === sourceId
+    );
     if (hashMatch) {
         return hashMatch;
     }
@@ -107,7 +109,10 @@ function findCacheIdForReferencedAudioSource(
     return unreferencedCacheIds.length === 1 ? unreferencedCacheIds[0] : sourceId;
 }
 
-async function resolveBytes(entry: AudioCacheEntry, sourceId: string): Promise<{
+async function resolveBytes(
+    entry: AudioCacheEntry,
+    sourceId: string
+): Promise<{
     bytes: Uint8Array;
     mimeType: string;
     kind: 'original' | 'wav';
@@ -213,7 +218,7 @@ export async function collectAudioAssets(options: CollectAssetsOptions): Promise
                 });
                 const buffer = peaksArray.buffer.slice(
                     peaksArray.byteOffset,
-                    peaksArray.byteOffset + peaksArray.byteLength,
+                    peaksArray.byteOffset + peaksArray.byteLength
                 );
                 waveformAssetPayloads.set(`${assetId}/${WAVEFORM_BINARY_FILENAME}`, {
                     bytes: new Uint8Array(buffer),

@@ -25,12 +25,20 @@ export const TemplateLoadingOverlay: React.FC = () => {
                     aria-hidden="true"
                 />
                 <div className="relative flex h-11 w-11 items-center justify-center">
-                    <span className="absolute h-11 w-11 animate-ping rounded-full bg-indigo-400/20" aria-hidden="true" />
-                    <span className="relative h-11 w-11 animate-spin rounded-full border-[3px] border-indigo-300/65 border-t-transparent" aria-hidden="true" />
+                    <span
+                        className="absolute h-11 w-11 animate-ping rounded-full bg-indigo-400/20"
+                        aria-hidden="true"
+                    />
+                    <span
+                        className="relative h-11 w-11 animate-spin rounded-full border-[3px] border-indigo-300/65 border-t-transparent"
+                        aria-hidden="true"
+                    />
                 </div>
                 <div className="relative space-y-1">
                     <p className="text-sm font-semibold tracking-tight text-neutral-100">{message}</p>
-                    <p className="text-xs font-normal text-neutral-400">This can take a couple of seconds—thanks for your patience.</p>
+                    <p className="text-xs font-normal text-neutral-400">
+                        This can take a couple of seconds—thanks for your patience.
+                    </p>
                 </div>
                 {typeof progress === 'number' && (
                     <div className="relative w-full" aria-label={`Loading progress ${Math.round(progress * 100)}%`}>
@@ -40,7 +48,9 @@ export const TemplateLoadingOverlay: React.FC = () => {
                                 style={{ width: `${Math.max(0, Math.min(1, progress)) * 100}%` }}
                             />
                         </div>
-                        <div className="mt-1 text-right text-[11px] text-neutral-400">{Math.round(Math.max(0, Math.min(1, progress)) * 100)}%</div>
+                        <div className="mt-1 text-right text-[11px] text-neutral-400">
+                            {Math.round(Math.max(0, Math.min(1, progress)) * 100)}%
+                        </div>
                     </div>
                 )}
                 {onAbort && (

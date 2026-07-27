@@ -187,7 +187,7 @@ export function createEmptyAutomationState(): AutomationState {
 export function createChannel(
     elementId: string,
     propertyKey: string,
-    valueType: AutomationValueType,
+    valueType: AutomationValueType
 ): AutomationChannel {
     return {
         id: makeChannelId(elementId, propertyKey),
@@ -199,11 +199,7 @@ export function createChannel(
 }
 
 /** Create a keyframe with sensible defaults for the new interpolation system. */
-export function createKeyframe(
-    tick: number,
-    value: unknown,
-    interpolation?: SegmentInterpolation,
-): AutomationKeyframe {
+export function createKeyframe(tick: number, value: unknown, interpolation?: SegmentInterpolation): AutomationKeyframe {
     return {
         tick,
         value,
@@ -221,7 +217,7 @@ export function createKeyframe(
 export function insertKeyframeSorted(
     keyframes: readonly AutomationKeyframe[],
     keyframe: AutomationKeyframe,
-    tolerance: number = 0.5,
+    tolerance: number = 0.5
 ): AutomationKeyframe[] {
     const result: AutomationKeyframe[] = [];
     let inserted = false;
@@ -254,7 +250,7 @@ export function insertKeyframeSorted(
 export function removeKeyframeAtTick(
     keyframes: readonly AutomationKeyframe[],
     tick: number,
-    tolerance: number = 0.5,
+    tolerance: number = 0.5
 ): AutomationKeyframe[] {
     return keyframes.filter((kf) => Math.abs(kf.tick - tick) >= tolerance);
 }
@@ -281,7 +277,7 @@ export function cloneChannel(channel: AutomationChannel, newElementId?: string):
 export function findKeyframeAtTick(
     keyframes: readonly AutomationKeyframe[],
     tick: number,
-    tolerance: number = 0.5,
+    tolerance: number = 0.5
 ): AutomationKeyframe | null {
     for (const kf of keyframes) {
         if (Math.abs(kf.tick - tick) < tolerance) return kf;

@@ -4,7 +4,10 @@ import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 interface SaveSceneModalProps {
     initialName: string;
     onCancel: () => void;
-    onConfirm: (name: string, options: { embedPlugins: boolean; description: string; author: string }) => void | Promise<void>;
+    onConfirm: (
+        name: string,
+        options: { embedPlugins: boolean; description: string; author: string }
+    ) => void | Promise<void>;
 }
 
 export function SaveSceneModal({ initialName, onCancel, onConfirm }: SaveSceneModalProps) {

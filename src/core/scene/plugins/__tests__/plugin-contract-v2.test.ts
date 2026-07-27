@@ -26,18 +26,20 @@ const validManifest = () => ({
     name: 'V2',
     version: '1.0.0',
     apiVersion: '^2.0.0',
-    elements: [{
-        type: 'example',
-        entry: 'elements/example.js',
-        capabilities: { required: ['timeline.read'], optional: ['audio.features.read'] },
-    }],
+    elements: [
+        {
+            type: 'example',
+            entry: 'elements/example.js',
+            capabilities: { required: ['timeline.read'], optional: ['audio.features.read'] },
+        },
+    ],
 });
 
 describe('plugin SDK v2 contract', () => {
     it('keeps package exports, runtime modules, manifest, and docs in parity', () => {
         const packageSubpaths = Object.keys(packageManifest.exports)
             .filter((key) => !['./manifest', './package.json'].includes(key))
-            .map((key) => key === '.' ? '@mvmnt-app/plugin-sdk' : `@mvmnt-app/plugin-sdk/${key.slice(2)}`);
+            .map((key) => (key === '.' ? '@mvmnt-app/plugin-sdk' : `@mvmnt-app/plugin-sdk/${key.slice(2)}`));
         expect(packageSubpaths).toEqual(sdkManifest.runtimeModules);
         expect(SDK_RUNTIME_MODULE_IDS).toEqual(sdkManifest.runtimeModules);
         expect(getPluginRuntimeModuleIds()).toEqual(sdkManifest.runtimeModules);
@@ -70,7 +72,10 @@ describe('plugin SDK v2 contract', () => {
         );
         expect([...sdkManifest.publicExports['.']].sort()).toEqual([...allSubpathExports].sort());
 
-        const docs = readFileSync(resolve(__dirname, '../../../../../docs/plugin-api/plugin-sdk-api-inventory.md'), 'utf8');
+        const docs = readFileSync(
+            resolve(__dirname, '../../../../../docs/plugin-api/plugin-sdk-api-inventory.md'),
+            'utf8'
+        );
         for (const subpath of sdkManifest.subpaths.filter((value) => value !== '.')) {
             expect(docs).toContain(`/${subpath}`);
         }
@@ -107,8 +112,10 @@ describe('plugin SDK v2 contract', () => {
     it('requires exact manifest/definition capability parity', () => {
         const element = validManifest().elements[0] as any;
         expect(capabilityDeclarationsMatch(element, element)).toBe(true);
-        expect(capabilityDeclarationsMatch(element, {
-            capabilities: { required: ['timeline.read', 'audio.features.read'], optional: [] },
-        })).toBe(false);
+        expect(
+            capabilityDeclarationsMatch(element, {
+                capabilities: { required: ['timeline.read', 'audio.features.read'], optional: [] },
+            })
+        ).toBe(false);
     });
 });

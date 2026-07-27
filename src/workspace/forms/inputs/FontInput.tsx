@@ -28,7 +28,11 @@ interface FontInputRowProps {
     onChange: (value: string) => void;
 }
 
-interface RemoteFontMeta { family: string; category?: string; variants?: string[] }
+interface RemoteFontMeta {
+    family: string;
+    category?: string;
+    variants?: string[];
+}
 
 const LOCAL_STORAGE_KEY = 'recentFonts_v1';
 
@@ -38,11 +42,13 @@ type WeightOption = {
     italic: boolean;
 };
 
-const FALLBACK_WEIGHT_OPTIONS: WeightOption[] = ['100', '200', '300', '400', '500', '600', '700', '800', '900'].map((entry) => ({
-    value: entry,
-    label: entry,
-    italic: false,
-}));
+const FALLBACK_WEIGHT_OPTIONS: WeightOption[] = ['100', '200', '300', '400', '500', '600', '700', '800', '900'].map(
+    (entry) => ({
+        value: entry,
+        label: entry,
+        italic: false,
+    })
+);
 
 const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, title, onChange }) => {
     const fontsState = useSceneStore((state) => state.fonts);
@@ -54,19 +60,25 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
     const [fetchError, setFetchError] = useState<string | null>(null);
     const familySearchRef = useRef<HTMLInputElement | null>(null);
 
-    const parsedSelection = parseFontSelectionToken(value || schema.default || 'Arial', (assetId) => fontsState.assets[assetId]);
+    const parsedSelection = parseFontSelectionToken(
+        value || schema.default || 'Arial',
+        (assetId) => fontsState.assets[assetId]
+    );
     const currentFamily = parsedSelection.family || 'Arial';
     const currentWeightValue = parsedSelection.weight
         ? `${parsedSelection.weight}${parsedSelection.italic ? 'i' : ''}`
         : parsedSelection.italic
-            ? `400i`
-            : '400';
+          ? `400i`
+          : '400';
     const isCustomSelection = Boolean(parsedSelection.isCustom && parsedSelection.assetId);
     const { visualizer } = useVisualizer();
     const [loading, setLoading] = useState(false);
     const [availableWeights, setAvailableWeights] = useState<WeightOption[]>(FALLBACK_WEIGHT_OPTIONS);
     const customFonts = useMemo(
-        () => fontsState.order.map((fontId) => fontsState.assets[fontId]).filter((asset): asset is FontAsset => Boolean(asset)),
+        () =>
+            fontsState.order
+                .map((fontId) => fontsState.assets[fontId])
+                .filter((asset): asset is FontAsset => Boolean(asset)),
         [fontsState]
     );
 
@@ -110,11 +122,11 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
     useEffect(() => {
         if (isCustomSelection) return;
         if (!remoteFonts) return;
-        const meta = remoteFonts.find(f => f.family === currentFamily);
+        const meta = remoteFonts.find((f) => f.family === currentFamily);
         if (meta?.variants?.length) {
             // Google variants come like 'regular','500','700','italic','500italic'
             const weightMap = new Map<string, WeightOption>();
-            meta.variants.forEach(v => {
+            meta.variants.forEach((v) => {
                 const match = v.match(/(\d+)|regular/);
                 if (!match) return;
                 const weight = match[0] === 'regular' ? '400' : match[0];
@@ -172,13 +184,15 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
         try {
             const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
             if (raw) setRecent(JSON.parse(raw));
-        } catch { }
+        } catch {}
     }, []);
 
     const saveRecent = useCallback((family: string) => {
-        setRecent(prev => {
-            const next = [family, ...prev.filter(f => f !== family)].slice(0, 8);
-            try { localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(next)); } catch { }
+        setRecent((prev) => {
+            const next = [family, ...prev.filter((f) => f !== family)].slice(0, 8);
+            try {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(next));
+            } catch {}
             return next;
         });
     }, []);
@@ -191,16 +205,26 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
         const timeout = window.setTimeout(() => controller.abort(), 3000);
         (async () => {
             try {
-                const resp = await fetch(`https://www.googleapis.com/webfonts/v1/webfonts?key=${apiKey}&sort=popularity`, {
-                    signal: controller.signal,
-                });
+                const resp = await fetch(
+                    `https://www.googleapis.com/webfonts/v1/webfonts?key=${apiKey}&sort=popularity`,
+                    {
+                        signal: controller.signal,
+                    }
+                );
                 if (!resp.ok) throw new Error(resp.statusText);
                 const data = await resp.json();
                 if (data.items) {
-                    setRemoteFonts(data.items.map((it: any) => ({ family: it.family, category: it.category, variants: it.variants })));
+                    setRemoteFonts(
+                        data.items.map((it: any) => ({
+                            family: it.family,
+                            category: it.category,
+                            variants: it.variants,
+                        }))
+                    );
                 }
             } catch (e: any) {
-                if (e?.name !== 'AbortError') setFetchError('Full catalog unavailable; showing the built-in font list.');
+                if (e?.name !== 'AbortError')
+                    setFetchError('Full catalog unavailable; showing the built-in font list.');
             }
         })();
         return () => {
@@ -209,7 +233,7 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
         };
     }, []);
 
-    const remoteFontNames = useMemo(() => remoteFonts?.map(f => f.family) || [], [remoteFonts]);
+    const remoteFontNames = useMemo(() => remoteFonts?.map((f) => f.family) || [], [remoteFonts]);
 
     const allFonts = useMemo(() => {
         const system = ['Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana'];
@@ -221,7 +245,7 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
     const filtered = useMemo(() => {
         if (!query) return allFonts;
         const q = query.toLowerCase();
-        return allFonts.filter(f => f.toLowerCase().includes(q));
+        return allFonts.filter((f) => f.toLowerCase().includes(q));
     }, [allFonts, query]);
 
     const {
@@ -315,11 +339,10 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
             weights: [parseInt(defaultWeight, 10) || 400],
             italics: false,
             display: 'swap',
-        })
-            .finally(() => {
-                setLoading(false);
-                visualizer?.invalidateRender?.();
-            });
+        }).finally(() => {
+            setLoading(false);
+            visualizer?.invalidateRender?.();
+        });
         onChange(`${family}|${defaultWeight}`);
     };
 
@@ -330,8 +353,7 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                 const variant =
                     asset.variants.find(
                         (entry) => `${entry.weight}${entry.style === 'italic' ? 'i' : ''}` === option.value
-                    ) ??
-                    asset.variants.find((entry) => String(entry.weight) === option.value.replace(/i$/, ''));
+                    ) ?? asset.variants.find((entry) => String(entry.weight) === option.value.replace(/i$/, ''));
                 if (variant) {
                     onChange(encodeCustomFontToken(asset.id, variant.weight, variant.style === 'italic'));
                     void ensureFontVariantsRegistered(asset, [variant]).then(() => {
@@ -351,11 +373,10 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
             weights: [parseInt(option.value, 10) || 400],
             italics: option.italic,
             display: 'swap',
-        })
-            .finally(() => {
-                setLoading(false);
-                visualizer?.invalidateRender?.();
-            });
+        }).finally(() => {
+            setLoading(false);
+            visualizer?.invalidateRender?.();
+        });
         onChange(`${currentFamily}|${option.value}`);
         setWeightOpen(false);
     };
@@ -407,17 +428,20 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                                     )}
                                     {recent.length > 0 && (
                                         <div className="mt-3">
-                                            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Recent</div>
+                                            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                                                Recent
+                                            </div>
                                             <div className="flex flex-wrap gap-1">
                                                 {recent.map((r) => (
                                                     <button
                                                         key={r}
                                                         type="button"
                                                         onClick={() => handleFamilySelect(r)}
-                                                        className={`rounded-full border px-2 py-1 text-[11px] transition ${r === currentFamily
-                                                            ? 'border-sky-500/80 bg-sky-500/20 text-sky-100'
-                                                            : 'border-neutral-700 bg-neutral-800/60 text-neutral-200 hover:border-neutral-500 hover:bg-neutral-800'
-                                                            }`}
+                                                        className={`rounded-full border px-2 py-1 text-[11px] transition ${
+                                                            r === currentFamily
+                                                                ? 'border-sky-500/80 bg-sky-500/20 text-sky-100'
+                                                                : 'border-neutral-700 bg-neutral-800/60 text-neutral-200 hover:border-neutral-500 hover:bg-neutral-800'
+                                                        }`}
                                                     >
                                                         {r}
                                                     </button>
@@ -430,17 +454,19 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                                     {filtered.length > 0 ? (
                                         <ul className="m-0 list-none p-0">
                                             {filtered.map((f) => {
-                                                const isGoogleFont = GOOGLE_FONTS.includes(f) || remoteFontNames.includes(f);
+                                                const isGoogleFont =
+                                                    GOOGLE_FONTS.includes(f) || remoteFontNames.includes(f);
                                                 const isCustomFont = customFontLookup.has(f);
                                                 return (
                                                     <li key={f}>
                                                         <button
                                                             type="button"
                                                             onClick={() => handleFamilySelect(f)}
-                                                            className={`flex w-full items-center justify-between px-3 py-2 text-left transition ${f === currentFamily
-                                                                ? 'bg-sky-500/20 text-sky-100'
-                                                                : 'text-neutral-200 hover:bg-neutral-800/60 hover:text-white'
-                                                                }`}
+                                                            className={`flex w-full items-center justify-between px-3 py-2 text-left transition ${
+                                                                f === currentFamily
+                                                                    ? 'bg-sky-500/20 text-sky-100'
+                                                                    : 'text-neutral-200 hover:bg-neutral-800/60 hover:text-white'
+                                                            }`}
                                                             style={{ fontFamily: `'${f}', sans-serif` }}
                                                         >
                                                             <span className="truncate">{f}</span>
@@ -456,7 +482,9 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                                             })}
                                         </ul>
                                     ) : (
-                                        <div className="p-4 text-center text-[12px] text-neutral-500">No matching fonts</div>
+                                        <div className="p-4 text-center text-[12px] text-neutral-500">
+                                            No matching fonts
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -498,17 +526,20 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                                                 <button
                                                     type="button"
                                                     onClick={() => handleWeightSelect(option)}
-                                                    className={`flex w-full items-center justify-between rounded px-3 py-2 text-left transition ${option.value === currentWeightValue
-                                                        ? 'bg-sky-500/20 text-sky-100'
-                                                        : 'text-neutral-200 hover:bg-neutral-800/60 hover:text-white'
-                                                        }`}
+                                                    className={`flex w-full items-center justify-between rounded px-3 py-2 text-left transition ${
+                                                        option.value === currentWeightValue
+                                                            ? 'bg-sky-500/20 text-sky-100'
+                                                            : 'text-neutral-200 hover:bg-neutral-800/60 hover:text-white'
+                                                    }`}
                                                 >
                                                     <span>{option.label}</span>
                                                 </button>
                                             </li>
                                         ))
                                     ) : (
-                                        <li className="px-3 py-2 text-center text-[12px] text-neutral-500">No weights</li>
+                                        <li className="px-3 py-2 text-center text-[12px] text-neutral-500">
+                                            No weights
+                                        </li>
                                     )}
                                 </ul>
                             </div>
@@ -520,7 +551,6 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
     );
 
     return renderLibrary();
-
 };
 
 export default FontInput;

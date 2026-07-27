@@ -41,24 +41,86 @@ beforeEach(() => {
     useTimelineStore.setState((state) => ({
         ...state,
         audioCache: {
-            sourceA: { durationSeconds: 3, durationTicks: 5760, sampleRate: 48000, channels: 1, durationSamples: 144000 },
-            sourceB: { durationSeconds: 3, durationTicks: 5760, sampleRate: 48000, channels: 1, durationSamples: 144000 },
+            sourceA: {
+                durationSeconds: 3,
+                durationTicks: 5760,
+                sampleRate: 48000,
+                channels: 1,
+                durationSamples: 144000,
+            },
+            sourceB: {
+                durationSeconds: 3,
+                durationTicks: 5760,
+                sampleRate: 48000,
+                channels: 1,
+                durationSamples: 144000,
+            },
         },
         tracks: {
             clips: {
-                id: 'clips', name: 'Clips', type: 'audio', enabled: true, mute: false, solo: false, gain: 1,
+                id: 'clips',
+                name: 'Clips',
+                type: 'audio',
+                enabled: true,
+                mute: false,
+                solo: false,
+                gain: 1,
                 clips: [
-                    { id: 'a', type: 'audio', sourceId: 'sourceA', offsetTicks: 0, sourceStartSeconds: 0, sourceEndSeconds: 1 },
-                    { id: 'b', type: 'audio', sourceId: 'sourceB', offsetTicks: 3840, sourceStartSeconds: 0, sourceEndSeconds: 1 },
+                    {
+                        id: 'a',
+                        type: 'audio',
+                        sourceId: 'sourceA',
+                        offsetTicks: 0,
+                        sourceStartSeconds: 0,
+                        sourceEndSeconds: 1,
+                    },
+                    {
+                        id: 'b',
+                        type: 'audio',
+                        sourceId: 'sourceB',
+                        offsetTicks: 3840,
+                        sourceStartSeconds: 0,
+                        sourceEndSeconds: 1,
+                    },
                 ],
             },
             first: {
-                id: 'first', name: 'First', type: 'audio', enabled: true, mute: false, solo: false, gain: 1,
-                clips: [{ id: 'firstClip', type: 'audio', sourceId: 'sourceA', offsetTicks: 0, sourceStartSeconds: 0, sourceEndSeconds: 3 }],
+                id: 'first',
+                name: 'First',
+                type: 'audio',
+                enabled: true,
+                mute: false,
+                solo: false,
+                gain: 1,
+                clips: [
+                    {
+                        id: 'firstClip',
+                        type: 'audio',
+                        sourceId: 'sourceA',
+                        offsetTicks: 0,
+                        sourceStartSeconds: 0,
+                        sourceEndSeconds: 3,
+                    },
+                ],
             },
             later: {
-                id: 'later', name: 'Later', type: 'audio', enabled: true, mute: false, solo: false, gain: 1,
-                clips: [{ id: 'laterClip', type: 'audio', sourceId: 'sourceA', offsetTicks: 3840, sourceStartSeconds: 0, sourceEndSeconds: 3 }],
+                id: 'later',
+                name: 'Later',
+                type: 'audio',
+                enabled: true,
+                mute: false,
+                solo: false,
+                gain: 1,
+                clips: [
+                    {
+                        id: 'laterClip',
+                        type: 'audio',
+                        sourceId: 'sourceA',
+                        offsetTicks: 3840,
+                        sourceStartSeconds: 0,
+                        sourceEndSeconds: 3,
+                    },
+                ],
             },
         },
         tracksOrder: ['clips', 'first', 'later'],
@@ -70,15 +132,25 @@ beforeEach(() => {
 describe('clip-aware feature sampling', () => {
     it('samples each clip source at its source-local time and returns silence in a gap', () => {
         const state = useTimelineStore.getState();
-        expect(getTempoAlignedFrame(state, { trackId: 'clips', featureKey: 'rms', tick: 960 }).sample?.values[0]).toBe(1);
-        expect(getTempoAlignedFrame(state, { trackId: 'clips', featureKey: 'rms', tick: 4800 }).sample?.values[0]).toBe(11);
-        expect(getTempoAlignedFrame(state, { trackId: 'clips', featureKey: 'rms', tick: 2880 }).sample?.values[0]).toBe(0);
+        expect(getTempoAlignedFrame(state, { trackId: 'clips', featureKey: 'rms', tick: 960 }).sample?.values[0]).toBe(
+            1
+        );
+        expect(getTempoAlignedFrame(state, { trackId: 'clips', featureKey: 'rms', tick: 4800 }).sample?.values[0]).toBe(
+            11
+        );
+        expect(getTempoAlignedFrame(state, { trackId: 'clips', featureKey: 'rms', tick: 2880 }).sample?.values[0]).toBe(
+            0
+        );
     });
 
     it('does not reuse a shared source sample across differently placed tracks', () => {
         const state = useTimelineStore.getState();
         // At 2.5s, the first track is at source 2.5s while the later clip is at source 0.5s.
-        expect(getTempoAlignedFrame(state, { trackId: 'first', featureKey: 'rms', tick: 4800 }).sample?.values[0]).toBe(5);
-        expect(getTempoAlignedFrame(state, { trackId: 'later', featureKey: 'rms', tick: 4800 }).sample?.values[0]).toBe(1);
+        expect(getTempoAlignedFrame(state, { trackId: 'first', featureKey: 'rms', tick: 4800 }).sample?.values[0]).toBe(
+            5
+        );
+        expect(getTempoAlignedFrame(state, { trackId: 'later', featureKey: 'rms', tick: 4800 }).sample?.values[0]).toBe(
+            1
+        );
     });
 });

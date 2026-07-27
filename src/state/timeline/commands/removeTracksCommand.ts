@@ -21,17 +21,16 @@ export interface RemoveTracksCommandPayload {
 
 export function createRemoveTracksCommand(
     payload: RemoveTracksCommandPayload,
-    metadataOverride?: TimelineCommand['metadata'],
+    metadataOverride?: TimelineCommand['metadata']
 ): TimelineCommand<void> {
     return {
         id: 'timeline.removeTracks',
         mode: 'serial',
-        metadata:
-            metadataOverride ?? {
-                commandId: 'timeline.removeTracks',
-                undoLabel: payload.trackIds.length > 1 ? 'Remove Tracks' : 'Remove Track',
-                telemetryEvent: 'timeline_remove_tracks',
-            },
+        metadata: metadataOverride ?? {
+            commandId: 'timeline.removeTracks',
+            undoLabel: payload.trackIds.length > 1 ? 'Remove Tracks' : 'Remove Track',
+            telemetryEvent: 'timeline_remove_tracks',
+        },
         async execute(context: TimelineCommandContext): Promise<TimelineCommandExecuteResult<void>> {
             const state = context.getState();
             const selectionBefore = useSelectionStore.getState().selectedTrackIds;
@@ -63,7 +62,10 @@ export function createRemoveTracksCommand(
                     restorePayload.tracks.push(restoreEntry);
                 } else if (track.type === 'audio') {
                     const audioTrack = track as AudioTrack;
-                    const restoreEntry: TimelinePatchRestoreTracksPayload['tracks'][number] = { track: audioTrack, index };
+                    const restoreEntry: TimelinePatchRestoreTracksPayload['tracks'][number] = {
+                        track: audioTrack,
+                        index,
+                    };
                     const sourceIds = new Set(getAudioClipsForTrack(audioTrack).map((clip) => clip.sourceId));
                     for (const key of sourceIds) {
                         const cache = state.audioCache[key];
@@ -71,9 +73,12 @@ export function createRemoveTracksCommand(
                             restoreEntry.audioCache = { key, value: buildLightweightAudioCacheEntry(cache) };
                         }
                         const featureCache = (state as any).audioFeatureCaches?.[key] as
-                            | import('@audio/features/audioFeatureTypes').AudioFeatureCache
-                            | undefined;
-                        if (featureCache && estimateFeatureCacheBytes(featureCache) <= LARGE_UNDO_FEATURE_CACHE_BYTES && !restoreEntry.audioFeatureCache) {
+                            import('@audio/features/audioFeatureTypes').AudioFeatureCache | undefined;
+                        if (
+                            featureCache &&
+                            estimateFeatureCacheBytes(featureCache) <= LARGE_UNDO_FEATURE_CACHE_BYTES &&
+                            !restoreEntry.audioFeatureCache
+                        ) {
                             restoreEntry.audioFeatureCache = { key, value: featureCache };
                         }
                     }
@@ -109,29 +114,16 @@ export function createRemoveTracksCommand(
                 removePayload.audioFeatureCacheKeys = [...new Set(featureKeys)];
             }
             const patch: TimelineCommandPatch = {
-                redo: [
-                    { action: 'timeline/REMOVE_TRACKS', payload: removePayload },
-                ],
-                undo: [
-                    { action: 'timeline/RESTORE_TRACKS', payload: restorePayload },
-                ],
+                redo: [{ action: 'timeline/REMOVE_TRACKS', payload: removePayload }],
+                undo: [{ action: 'timeline/RESTORE_TRACKS', payload: restorePayload }],
             };
-            applyTimelinePatchActions(
-                { getState: context.getState, setState: context.setState },
-                patch.redo,
-            );
+            applyTimelinePatchActions({ getState: context.getState, setState: context.setState }, patch.redo);
             return { patches: patch };
         },
-        async undo(
-            _context: TimelineCommandContext,
-            patch: TimelineCommandPatch,
-        ): Promise<TimelinePatchAction[]> {
+        async undo(_context: TimelineCommandContext, patch: TimelineCommandPatch): Promise<TimelinePatchAction[]> {
             return patch.undo;
         },
-        async redo(
-            _context: TimelineCommandContext,
-            patch: TimelineCommandPatch,
-        ): Promise<TimelinePatchAction[]> {
+        async redo(_context: TimelineCommandContext, patch: TimelineCommandPatch): Promise<TimelinePatchAction[]> {
             return patch.redo;
         },
     };

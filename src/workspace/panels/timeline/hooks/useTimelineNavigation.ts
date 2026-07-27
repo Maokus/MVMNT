@@ -254,9 +254,7 @@ export function useTimelineNavigation() {
         if (clipSelection?.type === 'clips' && clipSelection.clips.length) {
             // Find first track (in track order) that has selected clips
             const clipTrackIds = new Set(clipSelection.clips.map((c) => c.trackId));
-            const firstTrackId = timelineState.tracksOrder.find(
-                (id) => clipTrackIds.has(id) && isCompatible(id)
-            );
+            const firstTrackId = timelineState.tracksOrder.find((id) => clipTrackIds.has(id) && isCompatible(id));
             if (firstTrackId) {
                 // Paste at the minimum offset of selected clips on that track
                 const track = timelineState.tracks[firstTrackId];
@@ -282,7 +280,9 @@ export function useTimelineNavigation() {
         const selectedTrack = selection.selectedTrackIds.find(isCompatible);
         if (selectedTrack) return { trackId: selectedTrack, tick: timelineState.timeline.currentTick };
         const firstCompatibleTrack = timelineState.tracksOrder.find(isCompatible);
-        return firstCompatibleTrack ? { trackId: firstCompatibleTrack, tick: timelineState.timeline.currentTick } : null;
+        return firstCompatibleTrack
+            ? { trackId: firstCompatibleTrack, tick: timelineState.timeline.currentTick }
+            : null;
     };
 
     // Helper: execute a paste and update selection to pasted clips
@@ -297,7 +297,11 @@ export function useTimelineNavigation() {
             tasks.push(
                 timelineCommandGateway.dispatchById(
                     'timeline.pasteMidiClips',
-                    { clips: prepared.midiClips, createTracks: prepared.createMidiTracks, midiCache: prepared.midiCache },
+                    {
+                        clips: prepared.midiClips,
+                        createTracks: prepared.createMidiTracks,
+                        midiCache: prepared.midiCache,
+                    },
                     { source: 'timeline-clipboard' }
                 )
             );
@@ -306,7 +310,11 @@ export function useTimelineNavigation() {
             tasks.push(
                 timelineCommandGateway.dispatchById(
                     'timeline.pasteAudioClips',
-                    { clips: prepared.audioClips, createTracks: prepared.createAudioTracks, audioCache: prepared.audioCache },
+                    {
+                        clips: prepared.audioClips,
+                        createTracks: prepared.createAudioTracks,
+                        audioCache: prepared.audioCache,
+                    },
                     { source: 'timeline-clipboard' }
                 )
             );

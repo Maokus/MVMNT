@@ -1,6 +1,10 @@
 import React from 'react';
 import { formatBytes, summarizeAudioMemory } from '@audio/audioMemoryDiagnostics';
-import type { AudioFeatureCache, AudioFeatureCacheStatus, AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
+import type {
+    AudioFeatureCache,
+    AudioFeatureCacheStatus,
+    AudioFeatureDescriptor,
+} from '@audio/features/audioFeatureTypes';
 import {
     formatCacheDiffDescriptor,
     useAudioDiagnosticsStore,
@@ -189,11 +193,7 @@ const DiagnosticsList: React.FC<DiagnosticsListProps> = ({
                 }}
             >
                 {title}
-                {hint ? (
-                    <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6 }}>
-                        ({hint})
-                    </span>
-                ) : null}
+                {hint ? <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6 }}>({hint})</span> : null}
             </div>
             <ul style={{ listStyle: 'disc', paddingLeft: 18, margin: 0, display: 'grid', gap: 6 }}>
                 {descriptorIds.map((id) => {
@@ -208,22 +208,13 @@ const DiagnosticsList: React.FC<DiagnosticsListProps> = ({
                         detail?.channelCount != null && detail.channelCount > 1 && (owners?.length ?? 0) > 0;
                     return (
                         <li key={`${diff.audioSourceId}-${diff.analysisProfileId ?? 'default'}-${title}-${id}`}>
-                            <div style={{ fontSize: 12, fontWeight: 600 }}>
-                                {formatCacheDiffDescriptor(diff, id)}
-                            </div>
+                            <div style={{ fontSize: 12, fontWeight: 600 }}>{formatCacheDiffDescriptor(diff, id)}</div>
                             <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>
-                                Descriptor ID:{' '}
-                                <code style={{ fontSize: 11 }}>{id}</code>
+                                Descriptor ID: <code style={{ fontSize: 11 }}>{id}</code>
                             </div>
-                            {meta ? (
-                                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
-                                    {meta}
-                                </div>
-                            ) : null}
+                            {meta ? <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>{meta}</div> : null}
                             {channelSummary ? (
-                                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
-                                    {channelSummary}
-                                </div>
+                                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>{channelSummary}</div>
                             ) : null}
                             {filteredLocally ? (
                                 <div style={{ fontSize: 10, opacity: 0.65, marginTop: 2 }}>
@@ -257,13 +248,10 @@ export const AudioMemoryDiagnosticsSection: React.FC<AudioDiagnosticsSectionProp
 
     const memorySummary = React.useMemo(
         () => summarizeAudioMemory(audioCache ?? {}, audioFeatureCaches ?? {}),
-        [audioCache, audioFeatureCaches],
+        [audioCache, audioFeatureCaches]
     );
 
-    const recentMemoryEvents = React.useMemo(
-        () => [...memoryEvents].reverse().slice(0, 8),
-        [memoryEvents],
-    );
+    const recentMemoryEvents = React.useMemo(() => [...memoryEvents].reverse().slice(0, 8), [memoryEvents]);
 
     return (
         <Section
@@ -288,7 +276,10 @@ export const AudioMemoryDiagnosticsSection: React.FC<AudioDiagnosticsSectionProp
                     >
                         <MetricCell label="Decoded PCM" value={formatBytes(memorySummary.decodedPcmBytes)} />
                         <MetricCell label="Original heap" value={formatBytes(memorySummary.originalFileBytes)} />
-                        <MetricCell label="Original assets" value={formatBytes(memorySummary.externalOriginalFileBytes)} />
+                        <MetricCell
+                            label="Original assets"
+                            value={formatBytes(memorySummary.externalOriginalFileBytes)}
+                        />
                         <MetricCell label="Waveforms" value={formatBytes(memorySummary.waveformBytes)} />
                         <MetricCell label="Feature caches" value={formatBytes(memorySummary.featureCacheBytes)} />
                         <MetricCell label="Retained audio" value={formatBytes(memorySummary.retainedAudioBytes)} />
@@ -335,8 +326,8 @@ export const AudioMemoryDiagnosticsSection: React.FC<AudioDiagnosticsSectionProp
                                             event.severity === 'warning'
                                                 ? 'rgba(120, 53, 15, 0.32)'
                                                 : event.severity === 'error'
-                                                    ? 'rgba(127, 29, 29, 0.32)'
-                                                    : 'rgba(15, 23, 42, 0.35)',
+                                                  ? 'rgba(127, 29, 29, 0.32)'
+                                                  : 'rgba(15, 23, 42, 0.35)',
                                         padding: '7px 8px',
                                     }}
                                 >
@@ -394,10 +385,7 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
     }, [intentsByElement]);
 
     const cacheEntries = React.useMemo<CacheEntry[]>(() => {
-        const keys = new Set([
-            ...Object.keys(audioFeatureCaches ?? {}),
-            ...Object.keys(audioFeatureCacheStatus ?? {}),
-        ]);
+        const keys = new Set([...Object.keys(audioFeatureCaches ?? {}), ...Object.keys(audioFeatureCacheStatus ?? {})]);
         return Array.from(keys)
             .map((key) => ({
                 key,
@@ -424,10 +412,7 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
         setAudioSubSectionsOpen((prev) => ({ ...prev, [key]: !prev[key] }));
     };
 
-    const toggleExpanded = (
-        updater: React.Dispatch<React.SetStateAction<Record<string, boolean>>>,
-        key: string,
-    ) => {
+    const toggleExpanded = (updater: React.Dispatch<React.SetStateAction<Record<string, boolean>>>, key: string) => {
         updater((prev) => ({ ...prev, [key]: !prev[key] }));
     };
 
@@ -487,7 +472,15 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
                                             }}
                                         >
                                             <div style={{ flex: 1 }}>
-                                                <div style={{ fontSize: 12, fontWeight: 600, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                                <div
+                                                    style={{
+                                                        fontSize: 12,
+                                                        fontWeight: 600,
+                                                        display: 'flex',
+                                                        gap: 6,
+                                                        flexWrap: 'wrap',
+                                                    }}
+                                                >
                                                     <span>{record.elementId}</span>
                                                     <span style={{ opacity: 0.65, fontWeight: 400 }}>
                                                         ({record.elementType})
@@ -495,25 +488,24 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
                                                     <span style={{ opacity: 0.5 }}>
                                                         · last track: {record.lastPublishedTrackRef}
                                                         {record.previousTrackRef &&
-                                                            record.previousTrackRef !== record.lastPublishedTrackRef ? (
-                                                            <span>
-                                                                {' '}
-                                                                (prev: {record.previousTrackRef})
-                                                            </span>
+                                                        record.previousTrackRef !== record.lastPublishedTrackRef ? (
+                                                            <span> (prev: {record.previousTrackRef})</span>
                                                         ) : null}
                                                     </span>
                                                 </div>
                                                 <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
                                                     {descriptors.length} descriptor{descriptors.length === 1 ? '' : 's'}
-                                                    {record.analysisProfileId ? ` · profile:${record.analysisProfileId}` : ''}
+                                                    {record.analysisProfileId
+                                                        ? ` · profile:${record.analysisProfileId}`
+                                                        : ''}
                                                     {record.autoManaged ? ' · auto-managed' : ''}
                                                 </div>
                                             </div>
-                                            <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <span
+                                                style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}
+                                            >
                                                 {hasIssues ? (
-                                                    <span style={{ color: '#f97316', fontWeight: 600 }}>
-                                                        Issues
-                                                    </span>
+                                                    <span style={{ color: '#f97316', fontWeight: 600 }}>Issues</span>
                                                 ) : (
                                                     <span style={{ opacity: 0.6 }}>OK</span>
                                                 )}
@@ -521,12 +513,35 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
                                             </span>
                                         </button>
                                         {expanded ? (
-                                            <div style={{ padding: '0 12px 12px 12px', fontSize: 11, display: 'grid', gap: 8 }}>
+                                            <div
+                                                style={{
+                                                    padding: '0 12px 12px 12px',
+                                                    fontSize: 11,
+                                                    display: 'grid',
+                                                    gap: 8,
+                                                }}
+                                            >
                                                 <div>
-                                                    <div style={{ opacity: 0.6, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10, marginBottom: 4 }}>
+                                                    <div
+                                                        style={{
+                                                            opacity: 0.6,
+                                                            textTransform: 'uppercase',
+                                                            letterSpacing: 0.5,
+                                                            fontSize: 10,
+                                                            marginBottom: 4,
+                                                        }}
+                                                    >
                                                         Requested descriptors
                                                     </div>
-                                                    <ul style={{ listStyle: 'disc', paddingLeft: 18, margin: 0, display: 'grid', gap: 2 }}>
+                                                    <ul
+                                                        style={{
+                                                            listStyle: 'disc',
+                                                            paddingLeft: 18,
+                                                            margin: 0,
+                                                            display: 'grid',
+                                                            gap: 2,
+                                                        }}
+                                                    >
                                                         {descriptors.map((label, index) => (
                                                             <li key={`${key}-descriptor-${index}`}>{label}</li>
                                                         ))}
@@ -534,7 +549,15 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
                                                 </div>
                                                 {record.trackHistory && record.trackHistory.length > 1 ? (
                                                     <div>
-                                                        <div style={{ opacity: 0.6, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10, marginBottom: 4 }}>
+                                                        <div
+                                                            style={{
+                                                                opacity: 0.6,
+                                                                textTransform: 'uppercase',
+                                                                letterSpacing: 0.5,
+                                                                fontSize: 10,
+                                                                marginBottom: 4,
+                                                            }}
+                                                        >
                                                             Track history
                                                         </div>
                                                         <div>{record.trackHistory.join(' → ')}</div>
@@ -542,10 +565,27 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
                                                 ) : null}
                                                 {missingRequirements.length ? (
                                                     <div>
-                                                        <div style={{ color: '#f97316', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                                                        <div
+                                                            style={{
+                                                                color: '#f97316',
+                                                                fontWeight: 600,
+                                                                fontSize: 10,
+                                                                textTransform: 'uppercase',
+                                                                letterSpacing: 0.5,
+                                                                marginBottom: 4,
+                                                            }}
+                                                        >
                                                             Unsatisfied requirements
                                                         </div>
-                                                        <ul style={{ listStyle: 'disc', paddingLeft: 18, margin: 0, display: 'grid', gap: 2 }}>
+                                                        <ul
+                                                            style={{
+                                                                listStyle: 'disc',
+                                                                paddingLeft: 18,
+                                                                margin: 0,
+                                                                display: 'grid',
+                                                                gap: 2,
+                                                            }}
+                                                        >
                                                             {missingRequirements.map((label, index) => (
                                                                 <li key={`${key}-missing-${index}`}>{label}</li>
                                                             ))}
@@ -617,23 +657,48 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
                                                     {statusLabel}
                                                 </div>
                                             </div>
-                                            <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <span
+                                                style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}
+                                            >
                                                 {updatedAgo ? <span style={{ opacity: 0.6 }}>{updatedAgo}</span> : null}
                                                 <span>{expanded ? '▾' : '▸'}</span>
                                             </span>
                                         </button>
                                         {expanded ? (
-                                            <div style={{ padding: '0 12px 12px 12px', fontSize: 11, display: 'grid', gap: 8 }}>
+                                            <div
+                                                style={{
+                                                    padding: '0 12px 12px 12px',
+                                                    fontSize: 11,
+                                                    display: 'grid',
+                                                    gap: 8,
+                                                }}
+                                            >
                                                 <div style={{ opacity: 0.7 }}>
                                                     Source: {entry.cache?.audioSourceId ?? '—'}
                                                     {entry.cache ? ` · ${entry.cache.frameCount} frames` : ''}
                                                 </div>
                                                 {labels.length ? (
                                                     <div>
-                                                        <div style={{ opacity: 0.6, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10, marginBottom: 4 }}>
+                                                        <div
+                                                            style={{
+                                                                opacity: 0.6,
+                                                                textTransform: 'uppercase',
+                                                                letterSpacing: 0.5,
+                                                                fontSize: 10,
+                                                                marginBottom: 4,
+                                                            }}
+                                                        >
                                                             Cached Feature Tracks
                                                         </div>
-                                                        <ul style={{ listStyle: 'disc', paddingLeft: 18, margin: 0, display: 'grid', gap: 2 }}>
+                                                        <ul
+                                                            style={{
+                                                                listStyle: 'disc',
+                                                                paddingLeft: 18,
+                                                                margin: 0,
+                                                                display: 'grid',
+                                                                gap: 2,
+                                                            }}
+                                                        >
                                                             {labels.map((label, index) => (
                                                                 <li key={`${key}-feature-${index}`}>{label}</li>
                                                             ))}
@@ -720,13 +785,18 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
                                                         {diff.status}
                                                     </span>
                                                     <span style={{ opacity: 0.7 }}>
-                                                        · {diff.descriptorsRequested.length} requested · {diff.descriptorsCached.length} cached
+                                                        · {diff.descriptorsRequested.length} requested ·{' '}
+                                                        {diff.descriptorsCached.length} cached
                                                     </span>
                                                 </div>
                                             </div>
-                                            <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <span
+                                                style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}
+                                            >
                                                 {issueCount ? (
-                                                    <span style={{ color: '#f97316', fontWeight: 600 }}>{issueCount}</span>
+                                                    <span style={{ color: '#f97316', fontWeight: 600 }}>
+                                                        {issueCount}
+                                                    </span>
                                                 ) : (
                                                     <span style={{ opacity: 0.6 }}>0</span>
                                                 )}
@@ -734,12 +804,27 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
                                             </span>
                                         </button>
                                         {expanded ? (
-                                            <div style={{ padding: '0 12px 12px 12px', fontSize: 11, display: 'grid', gap: 10 }}>
+                                            <div
+                                                style={{
+                                                    padding: '0 12px 12px 12px',
+                                                    fontSize: 11,
+                                                    display: 'grid',
+                                                    gap: 10,
+                                                }}
+                                            >
                                                 <div style={{ opacity: 0.75 }}>
                                                     Audio source: <strong>{diff.audioSourceId}</strong> · Primary track{' '}
-                                                    <strong>{primaryTrack}</strong> · Updated {formatRelativeTime(diff.updatedAt)}
+                                                    <strong>{primaryTrack}</strong> · Updated{' '}
+                                                    {formatRelativeTime(diff.updatedAt)}
                                                 </div>
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, opacity: 0.75 }}>
+                                                <div
+                                                    style={{
+                                                        display: 'flex',
+                                                        flexWrap: 'wrap',
+                                                        gap: 12,
+                                                        opacity: 0.75,
+                                                    }}
+                                                >
                                                     <span>Bad requests: {diff.badRequest.length}</span>
                                                     <span>Missing: {diff.missing.length}</span>
                                                     <span>Stale: {diff.stale.length}</span>

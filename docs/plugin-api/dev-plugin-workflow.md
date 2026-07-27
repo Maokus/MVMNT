@@ -53,9 +53,9 @@ serve any number of plugin directories.
    directory, keeps its bytes in memory, and removes the temporary files.
 4. It exposes three HTTP endpoints:
 
-   - `/events` — Server-Sent Events announcing successful rebuilds.
-   - `/status` — all served plugin IDs, revisions, readiness, and build errors.
-   - `/<plugin-id>.mvmnt-plugin` — each latest archive with caching disabled.
+    - `/events` — Server-Sent Events announcing successful rebuilds.
+    - `/status` — all served plugin IDs, revisions, readiness, and build errors.
+    - `/<plugin-id>.mvmnt-plugin` — each latest archive with caching disabled.
 
 5. In MVMNT's **Scene Settings → Debug** tab, select **Scan** under Development Plugin Server.
    MVMNT probes the configured port (or the default range) once, opens an `EventSource` only for

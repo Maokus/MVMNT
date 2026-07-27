@@ -70,20 +70,21 @@ export const TelemetrySection: React.FC<TelemetrySectionProps> = ({
 
     return (
         <Section title={title} open={open} onToggle={onToggle} subtitle={subtitle}>
-            <div>Total commands: <span>{metrics.totalCommands}</span></div>
             <div>
-                Errors:{' '}
-                <span style={{ color: metrics.errorCount ? '#f87171' : '#cbd5f5' }}>
-                    {metrics.errorCount}
-                </span>
+                Total commands: <span>{metrics.totalCommands}</span>
             </div>
-            <div>Avg duration: <span>{average}</span></div>
+            <div>
+                Errors: <span style={{ color: metrics.errorCount ? '#f87171' : '#cbd5f5' }}>{metrics.errorCount}</span>
+            </div>
+            <div>
+                Avg duration: <span>{average}</span>
+            </div>
             {metrics.lastEvent ? (
                 <div style={{ marginTop: 4 }}>
                     Last command:{' '}
                     <span>
-                        {metrics.lastEvent.label} · {metrics.lastEvent.source} · {formatMs(metrics.lastEvent.durationMs)} ·{' '}
-                        {metrics.lastEvent.success ? 'ok' : 'failed'}
+                        {metrics.lastEvent.label} · {metrics.lastEvent.source} ·{' '}
+                        {formatMs(metrics.lastEvent.durationMs)} · {metrics.lastEvent.success ? 'ok' : 'failed'}
                     </span>
                 </div>
             ) : null}

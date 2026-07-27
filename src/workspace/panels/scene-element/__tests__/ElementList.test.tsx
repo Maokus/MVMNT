@@ -32,7 +32,7 @@ describe('ElementList', () => {
                 onDuplicateElement={vi.fn()}
                 onDeleteElement={vi.fn()}
                 onUpdateElementId={vi.fn(() => true)}
-            />,
+            />
         );
 
         const items = Array.from(container.querySelectorAll('[draggable="false"]')) as HTMLDivElement[];

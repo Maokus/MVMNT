@@ -15,7 +15,7 @@ The compositor exposes rolling diagnostics through `visualizer.getPerspectiveDia
 Developer tooling can override the implementation for a session with:
 
 ```ts
-enableFeatureForSession('elementPerspectiveWarp', false)
+enableFeatureForSession('elementPerspectiveWarp', false);
 ```
 
 The inspector is the editing surface for perspective. Retired four-corner controls are no longer exposed.

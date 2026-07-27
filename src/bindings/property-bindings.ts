@@ -28,9 +28,7 @@ export function registerKeyframeBindingFactory(factory: (channelId: string) => P
 }
 
 export type PropertyBindingData =
-    | { type: 'constant'; value: any }
-    | { type: 'macro'; macroId: string }
-    | { type: 'keyframes'; channelId: string };
+    { type: 'constant'; value: any } | { type: 'macro'; macroId: string } | { type: 'keyframes'; channelId: string };
 
 /**
  * Abstract base class for property bindings
@@ -85,7 +83,9 @@ export abstract class PropertyBinding<T = any> {
                     throw new Error('Keyframes binding requires channelId');
                 }
                 if (!keyframeBindingFactory) {
-                    throw new Error('KeyframeBinding factory not registered — ensure keyframe-binding module is imported');
+                    throw new Error(
+                        'KeyframeBinding factory not registered — ensure keyframe-binding module is imported'
+                    );
                 }
                 return keyframeBindingFactory(data.channelId);
             }

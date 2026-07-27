@@ -78,11 +78,12 @@ const ColorInput: React.FC<ColorInputProps> = ({ id, value, schema, disabled = f
 
     const handleColorChange = useCallback(
         (nextColor: ColorResult) => {
-            const hex = typeof nextColor?.hex === 'string' && nextColor.hex ? nextColor.hex.toUpperCase() : DEFAULT_COLOR;
+            const hex =
+                typeof nextColor?.hex === 'string' && nextColor.hex ? nextColor.hex.toUpperCase() : DEFAULT_COLOR;
             setCurrentColor(hex);
             onChange(hex);
         },
-        [onChange],
+        [onChange]
     );
 
     const displayLabel = useMemo(() => {

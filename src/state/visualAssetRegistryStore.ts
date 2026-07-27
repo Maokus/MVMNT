@@ -154,9 +154,7 @@ export const useVisualAssetRegistryStore = create<VisualAssetRegistryStore>((set
  * Returns null when the ID is absent, the registry entry is not found, or a
  * Sparrow entry is missing its XML file.
  */
-export function resolveProjectAssetDescriptor(
-    assetIdOrSource: string | File | null
-): VisualSourceDescriptor | null {
+export function resolveProjectAssetDescriptor(assetIdOrSource: string | File | null): VisualSourceDescriptor | null {
     if (!assetIdOrSource) return null;
 
     // Legacy File passed directly (e.g. pre-registry project import).

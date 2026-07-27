@@ -41,7 +41,10 @@ interface UseMenuBarProps {
 }
 
 interface MenuBarActions {
-    saveScene: (projectName?: string, options?: { embedPlugins?: boolean; saveAsSelectionId?: string }) => Promise<boolean>;
+    saveScene: (
+        projectName?: string,
+        options?: { embedPlugins?: boolean; saveAsSelectionId?: string }
+    ) => Promise<boolean>;
     saveProject: (forceSaveAs?: boolean) => Promise<boolean>;
     loadScene: () => void;
     openDesktopFile: (result: DesktopOpenResult) => Promise<void>;
@@ -66,14 +69,18 @@ export const useMenuBar = ({
         /* provider may not exist in some tests */
     }
 
-    const saveScene = async (projectName?: string, options?: { embedPlugins?: boolean; saveAsSelectionId?: string }) => {
+    const saveScene = async (
+        projectName?: string,
+        options?: { embedPlugins?: boolean; saveAsSelectionId?: string }
+    ) => {
         const nameToUse = projectName?.trim() ? projectName.trim() : sceneName;
         const statusStore = useTemplateStatusStore.getState();
         statusStore.startLoading(`Saving ${nameToUse || 'scene'}…`, { progress: 0 });
         try {
             const res = await exportScene(nameToUse, {
                 embedPlugins: options?.embedPlugins,
-                onProgress: (progress, message) => useTemplateStatusStore.getState().updateLoading({ progress, message }),
+                onProgress: (progress, message) =>
+                    useTemplateStatusStore.getState().updateLoading({ progress, message }),
             });
             if (!res.ok) {
                 alert(res.errors?.map((e) => e.message).join('\n') || 'Export failed.');
@@ -130,7 +137,9 @@ export const useMenuBar = ({
         if (!desktop) return false;
         const document = await desktop.documents.getState();
         if (forceSaveAs || document.status !== 'saved') {
-            const selection = await desktop.documents.chooseSaveAs({ suggestedName: `${canonicalName || 'Untitled'}.mvt` });
+            const selection = await desktop.documents.chooseSaveAs({
+                suggestedName: `${canonicalName || 'Untitled'}.mvt`,
+            });
             if (selection.status === 'canceled') return false;
             if (selection.status === 'error' || !selection.selectionId || !selection.displayName) {
                 alert(`Save As failed: ${selection.error || 'Unknown error'}`);
@@ -155,7 +164,7 @@ export const useMenuBar = ({
         }
         if (result.kind === 'plugin') {
             const trusted = window.confirm(
-                `Install ${result.displayName || 'this plugin'}?\n\nPlugins execute code inside MVMNT. Only install plugins from authors you trust.`,
+                `Install ${result.displayName || 'this plugin'}?\n\nPlugins execute code inside MVMNT. Only install plugins from authors you trust.`
             );
             if (!trusted) return;
             const pluginResult = await loadPlugin(toArrayBuffer(result.bytes));
@@ -173,13 +182,16 @@ export const useMenuBar = ({
         try {
             const imported = await importScene(result.bytes, {
                 signal: abortController.signal,
-                onProgress: (progress, text) => statusStore.updateLoading({
-                    progress: 0.35 + progress * 0.65,
-                    message: text ?? `Loading ${fileName}…`,
-                }),
+                onProgress: (progress, text) =>
+                    statusStore.updateLoading({
+                        progress: 0.35 + progress * 0.65,
+                        message: text ?? `Loading ${fileName}…`,
+                    }),
             });
             if (!imported.ok) {
-                alert('Import failed: ' + (imported.errors.map(humanReadableImportError).join('\n') || 'Unknown error'));
+                alert(
+                    'Import failed: ' + (imported.errors.map(humanReadableImportError).join('\n') || 'Unknown error')
+                );
                 return;
             }
             const fallbackName = fileName.replace(/\.mvt$/i, '');
@@ -253,17 +265,21 @@ export const useMenuBar = ({
             if (window.mvmntDesktop) await window.mvmntDesktop.documents.clearActivePath();
             const result = dispatchSceneCommand(
                 { type: 'clearScene', clearMacros: true },
-                { source: 'useMenuBar.createNewBlankScene' },
+                { source: 'useMenuBar.createNewBlankScene' }
             );
             if (!result.success) {
                 console.warn('Failed to create blank scene', result.error);
                 return;
             }
-            try { useTimelineStore.getState().resetTimeline(); } catch {}
+            try {
+                useTimelineStore.getState().resetTimeline();
+            } catch {}
             onSceneNameChange(SceneNameGenerator.generate());
             try {
                 const settings = useSceneStore.getState().settings;
-                visualizer?.canvas?.dispatchEvent(new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } }));
+                visualizer?.canvas?.dispatchEvent(
+                    new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } })
+                );
             } catch {}
             visualizer?.invalidateRender?.();
             onSceneRefresh?.();

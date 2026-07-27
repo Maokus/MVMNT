@@ -60,13 +60,22 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
                         ref={nameInputRef}
                         aria-label="Track name"
                         className="truncate rounded border border-blue-400 bg-neutral-800 px-1 text-neutral-100 focus:outline-none"
-                        style={{ fontSize: baseFontSize, height: pillHeight, minWidth: 0, width: '100%', maxWidth: 120 }}
+                        style={{
+                            fontSize: baseFontSize,
+                            height: pillHeight,
+                            minWidth: 0,
+                            width: '100%',
+                            maxWidth: 120,
+                        }}
                         defaultValue={track.name}
                         autoFocus
                         onBlur={commitName}
                         onKeyDown={(e) => {
-                            if (e.key === 'Enter') { commitName(); }
-                            else if (e.key === 'Escape') { setEditingName(false); }
+                            if (e.key === 'Enter') {
+                                commitName();
+                            } else if (e.key === 'Escape') {
+                                setEditingName(false);
+                            }
                         }}
                         onClick={(e) => e.stopPropagation()}
                     />
@@ -74,8 +83,13 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
                     <div
                         className="truncate text-neutral-200 cursor-text"
                         title={`${track.name} (double-click to rename)`}
-                        onDoubleClick={(e) => { e.stopPropagation(); setEditingName(true); }}
-                    >{track.name}</div>
+                        onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            setEditingName(true);
+                        }}
+                    >
+                        {track.name}
+                    </div>
                 )}
                 {track.type === 'midi' && (
                     <button
@@ -103,7 +117,9 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
                             }}
                             title={track.mute ? 'Muted (click to unmute)' : 'Mute track'}
                             style={{ height: pillHeight, minHeight: pillHeight, fontSize: smallFontSize }}
-                        >M</button>
+                        >
+                            M
+                        </button>
                         <button
                             aria-label={track.solo ? 'Unsolo track' : 'Solo track'}
                             className={`rounded border px-1 ${track.solo ? 'bg-yellow-600/40 border-yellow-400 text-yellow-200' : 'border-neutral-600 text-neutral-200 hover:bg-neutral-700/40'}`}
@@ -112,13 +128,21 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
                             }}
                             title={track.solo ? 'Solo active (click to clear)' : 'Solo track'}
                             style={{ height: pillHeight, minHeight: pillHeight, fontSize: smallFontSize }}
-                        >S</button>
+                        >
+                            S
+                        </button>
                     </div>
                 )}
                 {/* Gain (dB) text input for audio tracks. 0.0 dB => gain 1. */}
                 {track.type === 'audio' && (
-                    <div className="flex items-center gap-1 ml-2 shrink min-w-0" onClick={(e) => e.stopPropagation()} title={`Gain ${(track as any).gain?.toFixed?.(3)} (linear)`}>
-                        <span className="opacity-70" style={{ fontSize: smallFontSize }}>dB</span>
+                    <div
+                        className="flex items-center gap-1 ml-2 shrink min-w-0"
+                        onClick={(e) => e.stopPropagation()}
+                        title={`Gain ${(track as any).gain?.toFixed?.(3)} (linear)`}
+                    >
+                        <span className="opacity-70" style={{ fontSize: smallFontSize }}>
+                            dB
+                        </span>
                         {(() => {
                             // Convert current linear gain to dB for display; guard against zero.
                             const lin = (track as any).gain ?? 1;
@@ -166,7 +190,10 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
                 className="flex items-center justify-center rounded border border-neutral-700 text-neutral-300 hover:border-red-500 hover:text-red-300"
                 title="Delete track"
                 aria-label="Delete track"
-                onClick={(e) => { e.stopPropagation(); removeTrack(trackId); }}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    removeTrack(trackId);
+                }}
                 style={{ width: controlSize, height: pillHeight }}
             >
                 <FaTrash />

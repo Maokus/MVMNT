@@ -36,12 +36,12 @@ Each asset is assigned a stable UUID at upload time. That ID is what gets stored
 `CapabilityContext.assets` provides lifecycle-scoped handles. Every returned handle is disposed
 automatically with the element:
 
-| Method                                       | Returns                | Use for                                       |
-| -------------------------------------------- | ---------------------- | --------------------------------------------- |
-| `context.assets.project()`                   | `AssetHandle`          | User-selected project asset                   |
-| `context.assets.bundledImage(filename)`      | `AssetHandle`          | Image or GIF shipped with the plugin          |
-| `context.assets.bundledSparrow(png, xml)`    | `AssetHandle`          | Sparrow atlas shipped with the plugin         |
-| `context.assets.bundledGridAtlas(image, grid)` | `AssetHandle`        | Grid atlas shipped with the plugin            |
+| Method                                         | Returns       | Use for                               |
+| ---------------------------------------------- | ------------- | ------------------------------------- |
+| `context.assets.project()`                     | `AssetHandle` | User-selected project asset           |
+| `context.assets.bundledImage(filename)`        | `AssetHandle` | Image or GIF shipped with the plugin  |
+| `context.assets.bundledSparrow(png, xml)`      | `AssetHandle` | Sparrow atlas shipped with the plugin |
+| `context.assets.bundledGridAtlas(image, grid)` | `AssetHandle` | Grid atlas shipped with the plugin    |
 
 Do not construct host resource handles directly.
 
@@ -52,12 +52,22 @@ Do not construct host resource handles directly.
 ### 1. Declare the property
 
 ```typescript
-const schema = { tabs: [{
-    id: 'content', label: 'Content', groups: [{
-        id: 'imageSource', label: 'Image', collapsed: false,
-        properties: [{ key: 'imageSource', label: 'Image', type: 'assetRef', default: null }],
-    }],
-}] } as const;
+const schema = {
+    tabs: [
+        {
+            id: 'content',
+            label: 'Content',
+            groups: [
+                {
+                    id: 'imageSource',
+                    label: 'Image',
+                    collapsed: false,
+                    properties: [{ key: 'imageSource', label: 'Image', type: 'assetRef', default: null }],
+                },
+            ],
+        },
+    ],
+} as const;
 ```
 
 ### 2. Load and draw the asset
@@ -67,7 +77,9 @@ import { definePluginElement } from '@mvmnt-app/plugin-sdk';
 import { VisualMedia } from '@mvmnt-app/plugin-sdk/render';
 
 export const myImage = definePluginElement({
-    type: 'my-image', metadata: { name: 'My Image' }, schema: { tabs: [] },
+    type: 'my-image',
+    metadata: { name: 'My Image' },
+    schema: { tabs: [] },
     capabilities: { required: [], optional: [] },
     create(_props, context) {
         return { handle: context.assets.project(), media: new VisualMedia(0, 0, 200, 200) };
@@ -228,10 +240,10 @@ const body = context.assets.bundledImage('characters/body.png');
 
 ## What to use when
 
-| Situation                            | Property            | API                                                     |
-| ------------------------------------ | ------------------- | ------------------------------------------------------- |
-| User-selected image from registry    | `assetRef` | `context.assets.project()`                  |
-| User-selected spritesheet            | `assetRef` | `context.assets.project()`                  |
-| Plugin-bundled default image         | —          | `context.assets.bundledImage()`             |
-| Plugin-bundled default Sparrow atlas | —          | `context.assets.bundledSparrow()`           |
-| Non-image file                       | `file`     | n/a                                         |
+| Situation                            | Property   | API                               |
+| ------------------------------------ | ---------- | --------------------------------- |
+| User-selected image from registry    | `assetRef` | `context.assets.project()`        |
+| User-selected spritesheet            | `assetRef` | `context.assets.project()`        |
+| Plugin-bundled default image         | —          | `context.assets.bundledImage()`   |
+| Plugin-bundled default Sparrow atlas | —          | `context.assets.bundledSparrow()` |
+| Non-image file                       | `file`     | n/a                               |

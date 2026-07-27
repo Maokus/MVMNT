@@ -2,28 +2,41 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import { definePluginElement, type PropsFromSchema } from '../../../../../packages/plugin-sdk/src/scene';
 
 const schema = {
-    tabs: [{
-        id: 'properties', label: 'Properties', groups: [{
-            id: 'main', label: 'Main', collapsed: false, properties: [
-                { key: 'size', label: 'Size', type: 'number', default: 24 },
-                { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 0.01 },
-                { key: 'enabled', label: 'Enabled', type: 'boolean', default: true },
-                { key: 'color', label: 'Color', type: 'colorAlpha', default: '#FFFFFFFF' },
+    tabs: [
+        {
+            id: 'properties',
+            label: 'Properties',
+            groups: [
                 {
-                    key: 'align', label: 'Alignment', type: 'select', default: 'left', options: [
-                        { value: 'left', label: 'Left' },
-                        { value: 'right', label: 'Right' },
+                    id: 'main',
+                    label: 'Main',
+                    collapsed: false,
+                    properties: [
+                        { key: 'size', label: 'Size', type: 'number', default: 24 },
+                        { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 0.01 },
+                        { key: 'enabled', label: 'Enabled', type: 'boolean', default: true },
+                        { key: 'color', label: 'Color', type: 'colorAlpha', default: '#FFFFFFFF' },
+                        {
+                            key: 'align',
+                            label: 'Alignment',
+                            type: 'select',
+                            default: 'left',
+                            options: [
+                                { value: 'left', label: 'Left' },
+                                { value: 'right', label: 'Right' },
+                            ],
+                        },
+                        { key: 'trackIds', label: 'Tracks', type: 'timelineTrackRef', allowMultiple: true },
+                        { key: 'imageId', label: 'Image', type: 'assetRef' },
+                    ],
+                    layout: [
+                        { kind: 'control', control: 'slider', bindings: { value: 'opacity' } },
+                        { kind: 'property', propertyKey: 'opacity' },
                     ],
                 },
-                { key: 'trackIds', label: 'Tracks', type: 'timelineTrackRef', allowMultiple: true },
-                { key: 'imageId', label: 'Image', type: 'assetRef' },
             ],
-            layout: [
-                { kind: 'control', control: 'slider', bindings: { value: 'opacity' } },
-                { kind: 'property', propertyKey: 'opacity' },
-            ],
-        }],
-    }],
+        },
+    ],
 } as const;
 
 describe('schema-inferred plugin props', () => {
@@ -55,8 +68,12 @@ describe('schema-inferred plugin props', () => {
     });
 
     it('preserves the explicit props and state generic form', () => {
-        interface LegacyProps extends Readonly<Record<string, unknown>> { readonly label: string }
-        interface LegacyState { frames: number }
+        interface LegacyProps extends Readonly<Record<string, unknown>> {
+            readonly label: string;
+        }
+        interface LegacyState {
+            frames: number;
+        }
 
         const definition = definePluginElement<LegacyProps, LegacyState>({
             type: 'legacy-props',

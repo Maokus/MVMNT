@@ -6,11 +6,7 @@
  * and a resolver that maps (mode, direction, params) → easing function.
  */
 
-import type {
-    EasingDirection,
-    SegmentInterpolationMode,
-    SegmentInterpolationParams,
-} from '@automation/types';
+import type { EasingDirection, SegmentInterpolationMode, SegmentInterpolationParams } from '@automation/types';
 import {
     DEFAULT_BACK_OVERSHOOT,
     DEFAULT_ELASTIC_AMPLITUDE,
@@ -26,23 +22,26 @@ type EasingFn = (t: number) => number;
 
 /** Create Back easing functions with a custom overshoot factor. */
 export function createBackEasing(overshoot: number = DEFAULT_BACK_OVERSHOOT): {
-    easeIn: EasingFn; easeOut: EasingFn; easeInOut: EasingFn;
+    easeIn: EasingFn;
+    easeOut: EasingFn;
+    easeInOut: EasingFn;
 } {
     const c3 = overshoot + 1;
     const c2 = overshoot * 1.525;
     return {
         easeIn: (x) => c3 * x * x * x - overshoot * x * x,
         easeOut: (x) => 1 + c3 * Math.pow(x - 1, 3) + overshoot * Math.pow(x - 1, 2),
-        easeInOut: (x) => x < 0.5
-            ? (Math.pow(2 * x, 2) * ((c2 + 1) * 2 * x - c2)) / 2
-            : (Math.pow(2 * x - 2, 2) * ((c2 + 1) * (x * 2 - 2) + c2) + 2) / 2,
+        easeInOut: (x) =>
+            x < 0.5
+                ? (Math.pow(2 * x, 2) * ((c2 + 1) * 2 * x - c2)) / 2
+                : (Math.pow(2 * x - 2, 2) * ((c2 + 1) * (x * 2 - 2) + c2) + 2) / 2,
     };
 }
 
 /** Create Elastic easing functions with custom amplitude and period. */
 export function createElasticEasing(
     amplitude: number = DEFAULT_ELASTIC_AMPLITUDE,
-    period: number = DEFAULT_ELASTIC_PERIOD,
+    period: number = DEFAULT_ELASTIC_PERIOD
 ): { easeIn: EasingFn; easeOut: EasingFn; easeInOut: EasingFn } {
     const a = Math.max(1, amplitude);
     const p = period;
@@ -51,25 +50,27 @@ export function createElasticEasing(
     return {
         easeIn: (x) => {
             if (x === 0 || x === 1) return x;
-            return -(a * Math.pow(2, 10 * (x - 1)) * Math.sin(((x - 1) - s) * (2 * Math.PI) / p));
+            return -(a * Math.pow(2, 10 * (x - 1)) * Math.sin(((x - 1 - s) * (2 * Math.PI)) / p));
         },
         easeOut: (x) => {
             if (x === 0 || x === 1) return x;
-            return a * Math.pow(2, -10 * x) * Math.sin((x - s) * (2 * Math.PI) / p) + 1;
+            return a * Math.pow(2, -10 * x) * Math.sin(((x - s) * (2 * Math.PI)) / p) + 1;
         },
         easeInOut: (x) => {
             if (x === 0 || x === 1) return x;
             if (x < 0.5) {
-                return -(a * Math.pow(2, 20 * x - 10) * Math.sin((20 * x - 10 - s * 2) * Math.PI / p)) / 2;
+                return -(a * Math.pow(2, 20 * x - 10) * Math.sin(((20 * x - 10 - s * 2) * Math.PI) / p)) / 2;
             }
-            return (a * Math.pow(2, -20 * x + 10) * Math.sin((20 * x - 10 - s * 2) * Math.PI / p)) / 2 + 1;
+            return (a * Math.pow(2, -20 * x + 10) * Math.sin(((20 * x - 10 - s * 2) * Math.PI) / p)) / 2 + 1;
         },
     };
 }
 
 /** Create Bounce easing functions (no parameters, but structured for consistency). */
 export function createBounceEasing(): {
-    easeIn: EasingFn; easeOut: EasingFn; easeInOut: EasingFn;
+    easeIn: EasingFn;
+    easeOut: EasingFn;
+    easeInOut: EasingFn;
 } {
     const bounceOut: EasingFn = (x) => {
         const n1 = 7.5625;
@@ -83,9 +84,7 @@ export function createBounceEasing(): {
     return {
         easeIn: (x) => 1 - bounceOut(1 - x),
         easeOut: bounceOut,
-        easeInOut: (x) => x < 0.5
-            ? (1 - bounceOut(1 - 2 * x)) / 2
-            : (1 + bounceOut(2 * x - 1)) / 2,
+        easeInOut: (x) => (x < 0.5 ? (1 - bounceOut(1 - 2 * x)) / 2 : (1 + bounceOut(2 * x - 1)) / 2),
     };
 }
 
@@ -108,9 +107,12 @@ function resolveAutoDirection(mode: SegmentInterpolationMode): 'ease_in' | 'ease
 function standardEasingId(mode: SegmentInterpolationMode, direction: 'ease_in' | 'ease_out' | 'ease_in_out'): string {
     const familyName = mode.charAt(0).toUpperCase() + mode.slice(1);
     switch (direction) {
-        case 'ease_in': return `easeIn${familyName}`;
-        case 'ease_out': return `easeOut${familyName}`;
-        case 'ease_in_out': return `easeInOut${familyName}`;
+        case 'ease_in':
+            return `easeIn${familyName}`;
+        case 'ease_out':
+            return `easeOut${familyName}`;
+        case 'ease_in_out':
+            return `easeInOut${familyName}`;
     }
 }
 
@@ -128,7 +130,7 @@ function standardEasingId(mode: SegmentInterpolationMode, direction: 'ease_in' |
 export function resolveParametricEasing(
     mode: SegmentInterpolationMode,
     direction: EasingDirection,
-    params?: SegmentInterpolationParams,
+    params?: SegmentInterpolationParams
 ): EasingFn | null {
     if (mode === 'bezier') return null;
     if (mode === 'constant') return () => 0; // Stepped: always returns start value
@@ -166,8 +168,11 @@ export function resolveParametricEasing(
 
 function directionKey(dir: 'ease_in' | 'ease_out' | 'ease_in_out'): 'easeIn' | 'easeOut' | 'easeInOut' {
     switch (dir) {
-        case 'ease_in': return 'easeIn';
-        case 'ease_out': return 'easeOut';
-        case 'ease_in_out': return 'easeInOut';
+        case 'ease_in':
+            return 'easeIn';
+        case 'ease_out':
+            return 'easeOut';
+        case 'ease_in_out':
+            return 'easeInOut';
     }
 }

@@ -12,13 +12,7 @@ export abstract class BoxRenderObject extends RenderObject {
     width: number;
     height: number;
 
-    constructor(
-        x: number,
-        y: number,
-        width: number,
-        height: number,
-        options?: RenderObjectOptions
-    ) {
+    constructor(x: number, y: number, width: number, height: number, options?: RenderObjectOptions) {
         super(x, y, 1, 1, 1, options);
         this.width = Math.max(0, width);
         this.height = Math.max(0, height);

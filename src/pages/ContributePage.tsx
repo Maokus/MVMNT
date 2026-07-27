@@ -11,15 +11,19 @@ const ContributePage: React.FC = () => {
                     <div>
                         <h1 className="text-4xl font-extrabold tracking-tight text-white">Contribute</h1>
                         <p className="mt-3 text-neutral-400 leading-relaxed max-w-2xl">
-                            MVMNT is a passion project developed and hosted entirely at my own expense.
-                            Your support keeps the app running, builds new features, and motivates continued development.
+                            MVMNT is a passion project developed and hosted entirely at my own expense. Your support
+                            keeps the app running, builds new features, and motivates continued development.
                         </p>
                     </div>
-                    <Link to="/" className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium shrink-0">Back to Home</Link>
+                    <Link
+                        to="/"
+                        className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium shrink-0"
+                    >
+                        Back to Home
+                    </Link>
                 </div>
 
                 <div className="space-y-8">
-
                     {/* Spread the word */}
                     <section>
                         <h2 className="text-xl font-bold text-white mb-1">Spread the word</h2>
@@ -70,8 +74,8 @@ const ContributePage: React.FC = () => {
                     <section>
                         <h2 className="text-xl font-bold text-white mb-1">Beta testing</h2>
                         <p className="text-neutral-400 text-sm mb-4">
-                            Beta testers help catch bugs early and shape the direction of new features.
-                            If you're interested in testing, drop me a dm on Discord.
+                            Beta testers help catch bugs early and shape the direction of new features. If you're
+                            interested in testing, drop me a dm on Discord.
                         </p>
                         <a
                             href="https://maok.us/discord"
@@ -88,8 +92,8 @@ const ContributePage: React.FC = () => {
                     <section>
                         <h2 className="text-xl font-bold text-white mb-1">Financial support</h2>
                         <p className="text-neutral-400 text-sm mb-4">
-                            Server costs, domain fees, and development time all add up. Financial contributions
-                            go directly towards keeping the infrastructure online and making future development possible.
+                            Server costs, domain fees, and development time all add up. Financial contributions go
+                            directly towards keeping the infrastructure online and making future development possible.
                         </p>
                         <div className="flex flex-wrap gap-3">
                             <a
@@ -117,7 +121,8 @@ const ContributePage: React.FC = () => {
                     <section>
                         <h2 className="text-xl font-bold text-white mb-1">Building Plugins</h2>
                         <p className="text-neutral-400 text-sm mb-4">
-                            It literally takes 15 minutes to build a plugin!! Please give it a try, I worked hard on this :")
+                            It literally takes 15 minutes to build a plugin!! Please give it a try, I worked hard on
+                            this :")
                         </p>
                         <a
                             href="https://github.com/Maokus/MVMNT/blob/main/docs/plugin-quickstart.md"
@@ -129,12 +134,12 @@ const ContributePage: React.FC = () => {
                             Read quickstart guide
                         </a>
                     </section>
-
-
                 </div>
 
                 <div className="mt-12">
-                    <Link to="/" className="px-4 py-2 rounded bg-neutral-800 hover:bg-neutral-700 text-xs font-medium">Back to Home</Link>
+                    <Link to="/" className="px-4 py-2 rounded bg-neutral-800 hover:bg-neutral-700 text-xs font-medium">
+                        Back to Home
+                    </Link>
                 </div>
             </main>
         </div>

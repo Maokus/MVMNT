@@ -1,10 +1,5 @@
 export type HashSource =
-    | ArrayBuffer
-    | ArrayBufferView
-    | Uint8Array
-    | Blob
-    | AsyncIterable<Uint8Array>
-    | Iterable<Uint8Array>;
+    ArrayBuffer | ArrayBufferView | Uint8Array | Blob | AsyncIterable<Uint8Array> | Iterable<Uint8Array>;
 
 function isBlob(value: unknown): value is Blob {
     return typeof Blob !== 'undefined' && value instanceof Blob;
@@ -110,9 +105,11 @@ async function subtleHash(chunks: AsyncIterable<Uint8Array>): Promise<string> {
         const digest = await crypto.subtle.digest('SHA-256', merged.buffer);
         return toHex(new Uint8Array(digest));
     }
-    const nodeResult = await nodeHash((async function* () {
-        yield merged;
-    })());
+    const nodeResult = await nodeHash(
+        (async function* () {
+            yield merged;
+        })()
+    );
     if (nodeResult) return nodeResult;
     throw new Error('No crypto implementation available for SHA-256');
 }

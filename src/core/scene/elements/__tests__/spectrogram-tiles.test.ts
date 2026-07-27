@@ -70,8 +70,7 @@ describe('spectrogram tile resources', () => {
 
         expect(buildFirst).toHaveBeenCalledTimes(2);
         expect(cache.getStats()).toEqual({ entries: 1, retainedBytes: 16 });
-        expect((regenerated.drawable as unknown as MockOffscreenCanvas).context.putImageData)
-            .toHaveBeenCalledTimes(1);
+        expect((regenerated.drawable as unknown as MockOffscreenCanvas).context.putImageData).toHaveBeenCalledTimes(1);
     });
 
     it('derives tile ranges solely from the requested time window', () => {
@@ -91,11 +90,7 @@ describe('spectrogram tile resources', () => {
         const touchedTiles = new Set<number>();
         for (let frame = 0; frame < 10 * fps; frame += 1) {
             const targetTime = 10 + frame / fps;
-            const { firstTile, lastTile } = getSpectrogramTileRange(
-                targetTime - 3,
-                targetTime,
-                stepSeconds
-            );
+            const { firstTile, lastTile } = getSpectrogramTileRange(targetTime - 3, targetTime, stepSeconds);
             for (let tile = firstTile; tile <= lastTile; tile += 1) touchedTiles.add(tile);
         }
 
@@ -160,14 +155,16 @@ describe('spectrogram tile resources', () => {
                     mute: false,
                     solo: false,
                     gain: 1,
-                    clips: [{
-                        id: 'clip',
-                        type: 'audio',
-                        sourceId,
-                        offsetTicks: 0,
-                        sourceStartSeconds: 0,
-                        sourceEndSeconds: 2,
-                    }],
+                    clips: [
+                        {
+                            id: 'clip',
+                            type: 'audio',
+                            sourceId,
+                            offsetTicks: 0,
+                            sourceStartSeconds: 0,
+                            sourceEndSeconds: 2,
+                        },
+                    ],
                 },
             },
             tracksOrder: [trackId],
@@ -229,8 +226,8 @@ describe('spectrogram tile resources', () => {
         expect(getSpectrogramTile(request)).toBe(first);
 
         const beforeScene = getSpectrogramTile({ ...request, tileIndex: -1 });
-        const beforeSceneImage = (beforeScene?.drawable as unknown as MockOffscreenCanvas).context.putImageData
-            .mock.calls[0]?.[0] as MockImageData;
+        const beforeSceneImage = (beforeScene?.drawable as unknown as MockOffscreenCanvas).context.putImageData.mock
+            .calls[0]?.[0] as MockImageData;
         // Timeline time before 0 is supplied by the feature matrix as its silent floor,
         // not treated as a missing/transparent tile column.
         expect(beforeSceneImage.data[3]).toBe(255);
@@ -251,7 +248,6 @@ describe('spectrogram tile resources', () => {
 
         const restored = cache.getOrCreate('document-a', 2, 2, () => new Uint8ClampedArray(16).fill(20));
         expect(restored).not.toBe(first);
-        expect((restored.drawable as unknown as MockOffscreenCanvas).context.putImageData)
-            .toHaveBeenCalledTimes(1);
+        expect((restored.drawable as unknown as MockOffscreenCanvas).context.putImageData).toHaveBeenCalledTimes(1);
     });
 });

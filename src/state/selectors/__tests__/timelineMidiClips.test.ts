@@ -21,7 +21,14 @@ function seedMultiClipState() {
         clips: [
             { id: 'clipA', type: 'midi', sourceId: 'sourceA', offsetTicks: 0 },
             { id: 'clipB', type: 'midi', sourceId: 'sourceA', offsetTicks: ppq * 4 },
-            { id: 'clipTrimmed', type: 'midi', sourceId: 'sourceB', offsetTicks: ppq * 8, regionStartTick: ppq, regionEndTick: ppq * 2 },
+            {
+                id: 'clipTrimmed',
+                type: 'midi',
+                sourceId: 'sourceB',
+                offsetTicks: ppq * 8,
+                regionStartTick: ppq,
+                regionEndTick: ppq * 2,
+            },
         ],
     };
     useTimelineStore.setState((state) => ({
@@ -62,7 +69,11 @@ describe('timeline MIDI clip selectors', () => {
     it('returns notes from multiple clips on one track with clip metadata', () => {
         seedMultiClipState();
 
-        const notes = selectNotesInWindow(useTimelineStore.getState(), { trackIds: ['track1'], startSec: 0, endSec: 10 });
+        const notes = selectNotesInWindow(useTimelineStore.getState(), {
+            trackIds: ['track1'],
+            startSec: 0,
+            endSec: 10,
+        });
 
         expect(notes.map((note) => [note.note, note.clipId, note.sourceId])).toEqual([
             [60, 'clipA', 'sourceA'],
@@ -77,7 +88,11 @@ describe('timeline MIDI clip selectors', () => {
         seedMultiClipState();
 
         const sourceCount = Object.keys(useTimelineStore.getState().midiCache).length;
-        const notes = selectNotesInWindow(useTimelineStore.getState(), { trackIds: ['track1'], startSec: 0, endSec: 10 });
+        const notes = selectNotesInWindow(useTimelineStore.getState(), {
+            trackIds: ['track1'],
+            startSec: 0,
+            endSec: 10,
+        });
 
         expect(sourceCount).toBe(2);
         expect(notes.filter((note) => note.sourceId === 'sourceA')).toHaveLength(4);
@@ -86,7 +101,11 @@ describe('timeline MIDI clip selectors', () => {
     it('queries region-trimmed clips by local tick bounds', () => {
         seedMultiClipState();
 
-        const notes = selectNotesInWindow(useTimelineStore.getState(), { trackIds: ['track1'], startSec: 4, endSec: 6 });
+        const notes = selectNotesInWindow(useTimelineStore.getState(), {
+            trackIds: ['track1'],
+            startSec: 4,
+            endSec: 6,
+        });
 
         expect(notes.map((note) => note.note)).toEqual([72]);
     });

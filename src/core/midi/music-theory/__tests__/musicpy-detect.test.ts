@@ -375,7 +375,9 @@ describe('detectMusicpy — polychord split rules (Phase 5)', () => {
 
     it('5-note polychord: lower = single bass note, upper = remaining 4', () => {
         // C4 as bass + D4 F#4 A4 C5 = Dm7 or D7 — check split structure
-        const D4 = 62, Fs4 = 66, A4_midi = 69;
+        const D4 = 62,
+            Fs4 = 66,
+            A4_midi = 69;
         const r = detectMusicpy([C4, D4, Fs4, A4_midi, C5], { polyChordFirst: true });
         // May or may not form a valid polychord, but if it does the lower must be [C4]
         if (r && r.isPolychord) {
@@ -385,7 +387,9 @@ describe('detectMusicpy — polychord split rules (Phase 5)', () => {
 
     it('6-note polychord: lower = first 3 notes, upper = last 3', () => {
         // C4 E4 G4 | D4 F#4 A4 = C major + D major
-        const D4 = 62, Fs4 = 66, A4_midi = 69;
+        const D4 = 62,
+            Fs4 = 66,
+            A4_midi = 69;
         const r = detectMusicpy([C4, D4, E4, Fs4, G4, A4_midi], { polyChordFirst: true });
         if (r && r.isPolychord) {
             // lower = [C4,D4,E4], upper = [Fs4,G4,A4_midi]

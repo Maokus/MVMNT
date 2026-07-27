@@ -70,18 +70,18 @@ injects the SDK 2 callback runtime selected by `apiVersion`.
 
 ### SDK Domains
 
-| Sub-path               | Contents                                               |
-| ---------------------- | ------------------------------------------------------ |
-| `animation`     | Easing, interpolation, FloatCurve                      |
-| `render`        | Canvas render object constructors                      |
-| `scene`         | Definition callbacks, schemas, and capability context  |
-| `api`           | Capability constants and structured results            |
-| `timeline`      | Timeline read API and note selection                    |
-| `audio`         | Audio sampling and custom calculator registration      |
-| `timing`        | Seconds/beats/ticks helpers                             |
-| `safety`        | Author-side safety helpers                              |
-| `utils`         | MIDI helpers and utilities                              |
-| `visual-assets` | Lifecycle-scoped visual asset handles                   |
+| Sub-path        | Contents                                              |
+| --------------- | ----------------------------------------------------- |
+| `animation`     | Easing, interpolation, FloatCurve                     |
+| `render`        | Canvas render object constructors                     |
+| `scene`         | Definition callbacks, schemas, and capability context |
+| `api`           | Capability constants and structured results           |
+| `timeline`      | Timeline read API and note selection                  |
+| `audio`         | Audio sampling and custom calculator registration     |
+| `timing`        | Seconds/beats/ticks helpers                           |
+| `safety`        | Author-side safety helpers                            |
+| `utils`         | MIDI helpers and utilities                            |
+| `visual-assets` | Lifecycle-scoped visual asset handles                 |
 
 ### Capability Model
 
@@ -131,13 +131,13 @@ See also: [plugin quickstart](plugin-api/plugin-quickstart.md),
 
 ## Build Tooling
 
-| Command                  | Purpose                           |
-| ------------------------ | --------------------------------- |
-| `npm run dev`            | Vite dev server                   |
-| `npm run build`          | Production build → `./dist/`      |
-| `npm run test`           | Vitest suite                      |
-| `npm run compile`        | TypeScript check (`tsc --noEmit`) |
-| `npm run build-plugin`   | Build an external plugin          |
+| Command                | Purpose                           |
+| ---------------------- | --------------------------------- |
+| `npm run dev`          | Vite dev server                   |
+| `npm run build`        | Production build → `./dist/`      |
+| `npm run test`         | Vitest suite                      |
+| `npm run compile`      | TypeScript check (`tsc --noEmit`) |
+| `npm run build-plugin` | Build an external plugin          |
 
 Application path aliases are defined in `tsconfig.json`. External plugins use only
 `@mvmnt-app/plugin-sdk`; the loader resolves its declared runtime modules.

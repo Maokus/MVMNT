@@ -1,4 +1,16 @@
-import { access, mkdir, open, readFile, readdir, rename, rm, stat, statfs, writeFile, type FileHandle } from 'node:fs/promises';
+import {
+    access,
+    mkdir,
+    open,
+    readFile,
+    readdir,
+    rename,
+    rm,
+    stat,
+    statfs,
+    writeFile,
+    type FileHandle,
+} from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -123,7 +135,11 @@ const DROP_RULES: Array<{ extensions: string[]; category: DesktopDroppedFile['ca
     { extensions: ['.mvt'], category: 'project', maxBytes: 1024 * 1024 * 1024 },
     { extensions: ['.mvmnt-plugin'], category: 'plugin', maxBytes: 100 * 1024 * 1024 },
     { extensions: ['.mid', '.midi'], category: 'midi', maxBytes: 100 * 1024 * 1024 },
-    { extensions: ['.wav', '.mp3', '.ogg', '.flac', '.aac', '.m4a'], category: 'audio', maxBytes: 4 * 1024 * 1024 * 1024 },
+    {
+        extensions: ['.wav', '.mp3', '.ogg', '.flac', '.aac', '.m4a'],
+        category: 'audio',
+        maxBytes: 4 * 1024 * 1024 * 1024,
+    },
     { extensions: ['.png', '.jpg', '.jpeg', '.webp', '.gif'], category: 'image', maxBytes: 512 * 1024 * 1024 },
     { extensions: ['.ttf', '.otf', '.woff', '.woff2'], category: 'font', maxBytes: 100 * 1024 * 1024 },
 ];
@@ -133,13 +149,15 @@ function exportLedgerPath(): string {
 }
 
 async function persistExportSessions(): Promise<void> {
-    const entries = [...exportSessions.values()].map(({ id, kind, temporaryPath, displayName, artifactsTemporaryPath }) => ({
-        id,
-        kind,
-        temporaryPath,
-        displayName,
-        artifactsTemporaryPath,
-    }));
+    const entries = [...exportSessions.values()].map(
+        ({ id, kind, temporaryPath, displayName, artifactsTemporaryPath }) => ({
+            id,
+            kind,
+            temporaryPath,
+            displayName,
+            artifactsTemporaryPath,
+        })
+    );
     await writeFile(exportLedgerPath(), JSON.stringify({ version: 1, entries }), 'utf8').catch(() => undefined);
 }
 
@@ -160,10 +178,13 @@ async function cleanupInterruptedExports(): Promise<void> {
     } catch {}
 }
 
-function automationOutput(value: DesktopAutomationProgress | DesktopAutomationResult | { type: 'error'; code: string; message: string }): void {
+function automationOutput(
+    value: DesktopAutomationProgress | DesktopAutomationResult | { type: 'error'; code: string; message: string }
+): void {
     if (renderCommand?.json) process.stdout.write(`${JSON.stringify(value)}\n`);
     else if (value.type === 'progress') process.stdout.write(`[${Math.round(value.progress)}%] ${value.message}\n`);
-    else if (value.type === 'complete') process.stdout.write(`Export complete${value.outputName ? `: ${value.outputName}` : ''}\n`);
+    else if (value.type === 'complete')
+        process.stdout.write(`Export complete${value.outputName ? `: ${value.outputName}` : ''}\n`);
     else process.stderr.write(`${value.code}: ${value.message}\n`);
 }
 
@@ -203,14 +224,19 @@ async function inspectStorage(): Promise<DesktopStorageReport> {
         for (const entry of entries) {
             if (!entry.name.startsWith('.mvmnt-export-')) continue;
             temporaryCount += 1;
-            try { temporaryBytes += (await stat(join(userData, entry.name))).size; } catch {}
+            try {
+                temporaryBytes += (await stat(join(userData, entry.name))).size;
+            } catch {}
         }
     } catch {}
     const updateCachePath = join(app.getPath('userData'), '..', 'SquirrelTemp');
     const updateCache = await directorySummary(updateCachePath);
     return {
         location: userData,
-        temporaryExports: { count: temporaryCount, bytes: temporaryBytes || (exportSessions.size ? exportLedger.bytes : 0) },
+        temporaryExports: {
+            count: temporaryCount,
+            bytes: temporaryBytes || (exportSessions.size ? exportLedger.bytes : 0),
+        },
         updateCache,
     };
 }
@@ -243,8 +269,13 @@ async function readDroppedFiles(value: unknown): Promise<DesktopDroppedFile[]> {
         const rule = DROP_RULES.find((item) => item.extensions.includes(extname(candidate).toLowerCase()));
         if (!rule) continue;
         const info = await stat(candidate);
-        if (!info.isFile() || info.size <= 0 || info.size > rule.maxBytes) throw new Error(`${basename(candidate)} exceeds the allowed size.`);
-        results.push({ name: basename(candidate), category: rule.category, bytes: new Uint8Array(await readFile(candidate)) });
+        if (!info.isFile() || info.size <= 0 || info.size > rule.maxBytes)
+            throw new Error(`${basename(candidate)} exceeds the allowed size.`);
+        results.push({
+            name: basename(candidate),
+            category: rule.category,
+            bytes: new Uint8Array(await readFile(candidate)),
+        });
     }
     return results;
 }
@@ -254,9 +285,11 @@ async function deliverRenderRequest(): Promise<void> {
     renderRequestDelivered = true;
     try {
         const inputPath = resolve(renderCommand.inputPath);
-        if (extname(inputPath).toLowerCase() !== PROJECT_EXTENSION) throw new Error('Render input must be a .mvt project.');
+        if (extname(inputPath).toLowerCase() !== PROJECT_EXTENSION)
+            throw new Error('Render input must be a .mvt project.');
         const info = await stat(inputPath);
-        if (!info.isFile() || info.size <= 0 || info.size > 1024 * 1024 * 1024) throw new Error('Render input is empty or exceeds 1 GB.');
+        if (!info.isFile() || info.size <= 0 || info.size > 1024 * 1024 * 1024)
+            throw new Error('Render input is empty or exceeds 1 GB.');
         mainWindow.webContents.send('automation:render-request', {
             inputName: basename(inputPath),
             bytes: new Uint8Array(await readFile(inputPath)),
@@ -268,7 +301,11 @@ async function deliverRenderRequest(): Promise<void> {
             fps: renderCommand.fps,
         });
     } catch (error) {
-        finishAutomation({ type: 'error', code: 'input', message: error instanceof Error ? error.message : String(error) });
+        finishAutomation({
+            type: 'error',
+            code: 'input',
+            message: error instanceof Error ? error.message : String(error),
+        });
     }
 }
 
@@ -334,16 +371,20 @@ async function restoreRecentDocuments(): Promise<void> {
         const statePath = join(app.getPath('userData'), 'recent-documents.json');
         const parsed = JSON.parse(await readFile(statePath, 'utf8')) as unknown;
         if (!Array.isArray(parsed)) return;
-        recentDocuments = parsed.flatMap((entry): RecentDocumentRecord[] => {
-            if (!entry || typeof entry !== 'object') return [];
-            const value = entry as Partial<RecentDocumentRecord>;
-            if (typeof value.path !== 'string' || !value.path.toLowerCase().endsWith(PROJECT_EXTENSION)) return [];
-            return [{
-                path: value.path,
-                displayName: typeof value.displayName === 'string' ? value.displayName : basename(value.path),
-                openedAt: typeof value.openedAt === 'number' ? value.openedAt : 0,
-            }];
-        }).slice(0, 5);
+        recentDocuments = parsed
+            .flatMap((entry): RecentDocumentRecord[] => {
+                if (!entry || typeof entry !== 'object') return [];
+                const value = entry as Partial<RecentDocumentRecord>;
+                if (typeof value.path !== 'string' || !value.path.toLowerCase().endsWith(PROJECT_EXTENSION)) return [];
+                return [
+                    {
+                        path: value.path,
+                        displayName: typeof value.displayName === 'string' ? value.displayName : basename(value.path),
+                        openedAt: typeof value.openedAt === 'number' ? value.openedAt : 0,
+                    },
+                ];
+            })
+            .slice(0, 5);
     } catch {}
 }
 
@@ -400,7 +441,7 @@ function validateSaveRequest(value: unknown): DesktopSaveRequest {
 async function atomicWrite(filePath: string, bytes: Uint8Array): Promise<void> {
     const temporaryPath = join(
         dirname(filePath),
-        `.${basename(filePath)}.${process.pid}.${Date.now().toString(36)}.tmp`,
+        `.${basename(filePath)}.${process.pid}.${Date.now().toString(36)}.tmp`
     );
     try {
         await writeFile(temporaryPath, bytes);
@@ -452,17 +493,22 @@ function validateExportBegin(value: unknown): DesktopExportBeginRequest {
         kind: request.kind,
         suggestedName: sanitizeSuggestedName(request.suggestedName),
         extension,
-        estimatedBytes: typeof request.estimatedBytes === 'number' && request.estimatedBytes > 0
-            ? Math.floor(request.estimatedBytes)
-            : undefined,
-        outputDirectory: typeof request.outputDirectory === 'string' && request.outputDirectory.trim()
-            && resolve(request.outputDirectory.trim()) === request.outputDirectory.trim()
-            ? request.outputDirectory.trim()
-            : undefined,
-        outputPath: typeof request.outputPath === 'string' && request.outputPath.trim() &&
+        estimatedBytes:
+            typeof request.estimatedBytes === 'number' && request.estimatedBytes > 0
+                ? Math.floor(request.estimatedBytes)
+                : undefined,
+        outputDirectory:
+            typeof request.outputDirectory === 'string' &&
+            request.outputDirectory.trim() &&
+            resolve(request.outputDirectory.trim()) === request.outputDirectory.trim()
+                ? request.outputDirectory.trim()
+                : undefined,
+        outputPath:
+            typeof request.outputPath === 'string' &&
+            request.outputPath.trim() &&
             resolve(request.outputPath.trim()) === request.outputPath.trim()
-            ? request.outputPath.trim()
-            : undefined,
+                ? request.outputPath.trim()
+                : undefined,
     };
 }
 
@@ -471,16 +517,20 @@ async function chooseExportDestination(value: unknown): Promise<DesktopExportDes
         if (!mainWindow || !value || typeof value !== 'object') return { status: 'canceled' };
         const request = value as Partial<DesktopExportDestinationRequest>;
         if (request.kind !== 'video' && request.kind !== 'image-sequence') throw new Error('Unsupported export kind.');
-        const extension = request.kind === 'video' && (request.extension === '.webm' || request.extension === '.mp4')
-            ? request.extension
-            : request.kind === 'video' ? '.mp4' : undefined;
+        const extension =
+            request.kind === 'video' && (request.extension === '.webm' || request.extension === '.mp4')
+                ? request.extension
+                : request.kind === 'video'
+                  ? '.mp4'
+                  : undefined;
         const stem = sanitizeSuggestedName(request.suggestedName ?? 'export').replace(/\.[^.]+$/, '') || 'export';
         const result = await dialog.showSaveDialog(mainWindow, {
             title: request.kind === 'image-sequence' ? 'Choose PNG sequence folder name' : 'Save export',
             defaultPath: request.kind === 'image-sequence' ? `${stem}_sequence` : `${stem}${extension}`,
-            filters: request.kind === 'video'
-                ? [{ name: extension === '.webm' ? 'WebM video' : 'MP4 video', extensions: [extension!.slice(1)] }]
-                : [{ name: 'PNG sequence folder', extensions: ['png'] }],
+            filters:
+                request.kind === 'video'
+                    ? [{ name: extension === '.webm' ? 'WebM video' : 'MP4 video', extensions: [extension!.slice(1)] }]
+                    : [{ name: 'PNG sequence folder', extensions: ['png'] }],
             properties: ['createDirectory', 'showOverwriteConfirmation'],
         });
         if (result.canceled || !result.filePath) return { status: 'canceled' };
@@ -526,7 +576,8 @@ async function beginExport(value: unknown): Promise<DesktopExportBeginResult> {
                 await mkdir(temporaryPath, { recursive: false });
             } else {
                 const extension = request.extension ?? '.mp4';
-                if (!targetPath.toLowerCase().endsWith(extension)) throw new Error(`Output must end with ${extension}.`);
+                if (!targetPath.toLowerCase().endsWith(extension))
+                    throw new Error(`Output must end with ${extension}.`);
                 displayName = basename(targetPath);
                 await mkdir(dirname(targetPath), { recursive: true });
                 temporaryPath = join(dirname(targetPath), `.mvmnt-export-${id}${extension}.tmp`);
@@ -542,7 +593,9 @@ async function beginExport(value: unknown): Promise<DesktopExportBeginResult> {
                 await mkdir(temporaryPath, { recursive: false });
             } else {
                 const extension = request.extension ?? (request.kind === 'audio' ? '.wav' : '.mp4');
-                targetPath = request.outputPath.toLowerCase().endsWith(extension) ? request.outputPath : `${request.outputPath}${extension}`;
+                targetPath = request.outputPath.toLowerCase().endsWith(extension)
+                    ? request.outputPath
+                    : `${request.outputPath}${extension}`;
                 displayName = basename(targetPath);
                 temporaryPath = join(dirname(targetPath), `.mvmnt-export-${id}${extension}.tmp`);
                 await mkdir(dirname(targetPath), { recursive: true });
@@ -569,7 +622,9 @@ async function beginExport(value: unknown): Promise<DesktopExportBeginResult> {
 
         if (!(await hasEnoughDiskSpace(dirname(targetPath), request.estimatedBytes))) {
             await handle?.close().catch(() => undefined);
-            await rm(temporaryPath, { force: true, recursive: request.kind === 'image-sequence' }).catch(() => undefined);
+            await rm(temporaryPath, { force: true, recursive: request.kind === 'image-sequence' }).catch(
+                () => undefined
+            );
             return { status: 'error', error: 'The selected destination does not have enough free space.' };
         }
         exportSessions.set(id, {
@@ -600,7 +655,8 @@ async function writeExport(value: unknown): Promise<void> {
     const request = value as Partial<DesktopExportWriteRequest>;
     const session = requireExportSession(request.sessionId);
     if (!session.handle || !(request.bytes instanceof Uint8Array)) throw new Error('Invalid export bytes.');
-    const position = Number.isSafeInteger(request.position) && request.position! >= 0 ? request.position! : session.bytesWritten;
+    const position =
+        Number.isSafeInteger(request.position) && request.position! >= 0 ? request.position! : session.bytesWritten;
     await session.handle.write(request.bytes, 0, request.bytes.byteLength, position);
     session.bytesWritten = Math.max(session.bytesWritten, position + request.bytes.byteLength);
 }
@@ -609,7 +665,8 @@ async function writeExportFrame(value: unknown): Promise<void> {
     if (!value || typeof value !== 'object') throw new Error('Invalid frame write.');
     const request = value as Partial<DesktopExportWriteRequest>;
     const session = requireExportSession(request.sessionId);
-    if (session.kind !== 'image-sequence' || !(request.bytes instanceof Uint8Array)) throw new Error('Invalid frame bytes.');
+    if (session.kind !== 'image-sequence' || !(request.bytes instanceof Uint8Array))
+        throw new Error('Invalid frame bytes.');
     if (typeof request.filename !== 'string' || !/^frame_\d{5,9}\.png$/.test(request.filename)) {
         throw new Error('Invalid frame filename.');
     }
@@ -641,7 +698,9 @@ async function abortExport(sessionId: unknown): Promise<void> {
     exportSessions.delete(session.id);
     await persistExportSessions();
     await session.handle?.close().catch(() => undefined);
-    await rm(session.temporaryPath, { force: true, recursive: session.kind === 'image-sequence' }).catch(() => undefined);
+    await rm(session.temporaryPath, { force: true, recursive: session.kind === 'image-sequence' }).catch(
+        () => undefined
+    );
     if (session.artifactsTemporaryPath) {
         await rm(session.artifactsTemporaryPath, { force: true, recursive: true }).catch(() => undefined);
     }
@@ -659,17 +718,22 @@ async function completeExport(value: unknown): Promise<DesktopExportCompleteResu
         if (session.kind === 'image-sequence') {
             const files = await readdir(session.temporaryPath);
             const frameFiles = files.filter((name) => /^frame_\d{5,9}\.png$/.test(name));
-            const expectedFrames = typeof request.expectedFrames === 'number'
-                ? request.expectedFrames
-                : typeof request.manifest?.frameCount === 'number' ? request.manifest.frameCount : undefined;
+            const expectedFrames =
+                typeof request.expectedFrames === 'number'
+                    ? request.expectedFrames
+                    : typeof request.manifest?.frameCount === 'number'
+                      ? request.manifest.frameCount
+                      : undefined;
             if (frameFiles.length === 0 || (expectedFrames !== undefined && frameFiles.length !== expectedFrames)) {
-                throw new Error(`Image sequence verification failed: expected ${expectedFrames ?? 'at least one'} frame(s), found ${frameFiles.length}.`);
+                throw new Error(
+                    `Image sequence verification failed: expected ${expectedFrames ?? 'at least one'} frame(s), found ${frameFiles.length}.`
+                );
             }
             if (request.manifest) {
                 await writeFile(
                     join(session.temporaryPath, 'manifest.json'),
                     JSON.stringify(request.manifest, null, 2),
-                    { flag: 'wx' },
+                    { flag: 'wx' }
                 );
             }
         } else {
@@ -678,13 +742,15 @@ async function completeExport(value: unknown): Promise<DesktopExportCompleteResu
             await session.handle?.read(header, 0, header.byteLength, 0);
             await session.handle?.close();
             const temporaryStats = await stat(session.temporaryPath);
-            if (!temporaryStats.isFile() || temporaryStats.size === 0) throw new Error('Export verification failed: output is empty.');
+            if (!temporaryStats.isFile() || temporaryStats.size === 0)
+                throw new Error('Export verification failed: output is empty.');
             const extension = extname(session.targetPath).toLowerCase();
-            const validHeader = extension === '.mp4'
-                ? new TextDecoder().decode(header.slice(4, 8)) === 'ftyp'
-                : extension === '.webm'
-                    ? header[0] === 0x1a && header[1] === 0x45 && header[2] === 0xdf && header[3] === 0xa3
-                    : extension === '.wav'
+            const validHeader =
+                extension === '.mp4'
+                    ? new TextDecoder().decode(header.slice(4, 8)) === 'ftyp'
+                    : extension === '.webm'
+                      ? header[0] === 0x1a && header[1] === 0x45 && header[2] === 0xdf && header[3] === 0xa3
+                      : extension === '.wav'
                         ? new TextDecoder().decode(header.slice(0, 4)) === 'RIFF'
                         : true;
             if (!validHeader) throw new Error(`Export verification failed: invalid ${extension || 'media'} header.`);
@@ -702,7 +768,9 @@ async function completeExport(value: unknown): Promise<DesktopExportCompleteResu
                 console.warn('Could not checksum export:', error);
                 return null;
             });
-            const manifest = checksum ? { ...request.manifest, outputSha256: checksum.sha256, outputBytes: checksum.bytes } : request.manifest;
+            const manifest = checksum
+                ? { ...request.manifest, outputSha256: checksum.sha256, outputBytes: checksum.bytes }
+                : request.manifest;
             const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest, null, 2));
             await atomicWrite(`${session.targetPath}.manifest.json`, manifestBytes).catch((error) => {
                 console.warn('Could not write export manifest:', error);
@@ -724,7 +792,9 @@ async function completeExport(value: unknown): Promise<DesktopExportCompleteResu
 }
 
 async function hashExportFile(filePath: string): Promise<{ sha256: string; bytes: number }> {
-    const child = utilityProcess.fork(join(sourceDirectory, 'export-worker.js'), [], { serviceName: 'MVMNT Export Verifier' });
+    const child = utilityProcess.fork(join(sourceDirectory, 'export-worker.js'), [], {
+        serviceName: 'MVMNT Export Verifier',
+    });
     const id = randomToken();
     return new Promise((resolvePromise, rejectPromise) => {
         const timeout = setTimeout(() => {
@@ -738,7 +808,9 @@ async function hashExportFile(filePath: string): Promise<{ sha256: string; bytes
             if (message.ok && typeof message.sha256 === 'string' && typeof message.bytes === 'number') {
                 resolvePromise({ sha256: message.sha256, bytes: message.bytes });
             } else {
-                rejectPromise(new Error(typeof message?.error === 'string' ? message.error : 'Export checksum failed.'));
+                rejectPromise(
+                    new Error(typeof message?.error === 'string' ? message.error : 'Export checksum failed.')
+                );
             }
         });
         child.once('exit', (code) => {
@@ -1053,9 +1125,14 @@ function installIpcHandlers(): void {
         return true;
     });
     ipcMain.handle('background:start', async (_event, request: DesktopBackgroundExportRequest) => {
-        if (!request || typeof request.jobId !== 'string' || !request.jobId ||
+        if (
+            !request ||
+            typeof request.jobId !== 'string' ||
+            !request.jobId ||
             (request.kind !== 'video' && request.kind !== 'png') ||
-            !(request.bytes instanceof Uint8Array) || backgroundExportHosts.has(request.jobId)) {
+            !(request.bytes instanceof Uint8Array) ||
+            backgroundExportHosts.has(request.jobId)
+        ) {
             return { accepted: false, error: 'Invalid or duplicate background export request.' };
         }
         try {
@@ -1079,7 +1156,11 @@ function installIpcHandlers(): void {
                     backgroundExportHosts.delete(request.jobId);
                     mainWindow?.webContents.send('background:update', {
                         jobId: request.jobId,
-                        patch: { status: 'failed', text: 'Background export host closed unexpectedly', finishedAt: new Date().toISOString() },
+                        patch: {
+                            status: 'failed',
+                            text: 'Background export host closed unexpectedly',
+                            finishedAt: new Date().toISOString(),
+                        },
                     } satisfies DesktopBackgroundExportUpdate);
                 }
             });
@@ -1105,12 +1186,24 @@ function installIpcHandlers(): void {
     });
     ipcMain.on('background:update', (event, update: DesktopBackgroundExportUpdate) => {
         const host = backgroundExportHosts.get(update?.jobId);
-        if (!host || host.window.webContents.id !== event.sender.id || !update.patch || typeof update.patch !== 'object') return;
+        if (
+            !host ||
+            host.window.webContents.id !== event.sender.id ||
+            !update.patch ||
+            typeof update.patch !== 'object'
+        )
+            return;
         mainWindow?.webContents.send('background:update', update);
     });
     ipcMain.on('background:complete', (event, update: DesktopBackgroundExportUpdate) => {
         const host = backgroundExportHosts.get(update?.jobId);
-        if (!host || host.window.webContents.id !== event.sender.id || !update.patch || typeof update.patch !== 'object') return;
+        if (
+            !host ||
+            host.window.webContents.id !== event.sender.id ||
+            !update.patch ||
+            typeof update.patch !== 'object'
+        )
+            return;
         mainWindow?.webContents.send('background:update', update);
         backgroundExportHosts.delete(update.jobId);
         host.window.destroy();
@@ -1131,7 +1224,11 @@ function installIpcHandlers(): void {
     ipcMain.handle('storage:cleanup', (_event, category) => cleanupStorage(category));
     ipcMain.on('automation:progress', (_event, progress: DesktopAutomationProgress) => {
         if (!renderCommand || progress?.type !== 'progress') return;
-        automationOutput({ type: 'progress', progress: Math.max(0, Math.min(100, Number(progress.progress) || 0)), message: String(progress.message || '') });
+        automationOutput({
+            type: 'progress',
+            progress: Math.max(0, Math.min(100, Number(progress.progress) || 0)),
+            message: String(progress.message || ''),
+        });
     });
     ipcMain.on('automation:ready', () => void deliverRenderRequest());
     ipcMain.on('automation:result', (_event, result: DesktopAutomationResult) => {
@@ -1270,18 +1367,27 @@ async function createWindow(): Promise<void> {
             } finally {
                 await rm(smokePath, { force: true }).catch(() => undefined);
             }
-            void mainWindow?.webContents.executeJavaScript(`({
+            void mainWindow?.webContents
+                .executeJavaScript(
+                    `({
                 protocol: location.protocol,
                 hasRoot: Boolean(document.querySelector('#root')?.firstElementChild),
                 hasBridge: typeof window.mvmntDesktop?.app?.getVersion === 'function'
-            })`).then((result: { protocol?: string; hasRoot?: boolean; hasBridge?: boolean }) => {
-                const passed = result.protocol === `${APP_SCHEME}:` && result.hasRoot === true && result.hasBridge === true && hasVerifier;
-                console.log(`[electron-smoke] ${passed ? 'passed' : 'failed'}`, { ...result, hasVerifier });
-                app.exit(passed ? 0 : 1);
-            }).catch((error) => {
-                console.error('[electron-smoke] failed', error);
-                app.exit(1);
-            });
+            })`
+                )
+                .then((result: { protocol?: string; hasRoot?: boolean; hasBridge?: boolean }) => {
+                    const passed =
+                        result.protocol === `${APP_SCHEME}:` &&
+                        result.hasRoot === true &&
+                        result.hasBridge === true &&
+                        hasVerifier;
+                    console.log(`[electron-smoke] ${passed ? 'passed' : 'failed'}`, { ...result, hasVerifier });
+                    app.exit(passed ? 0 : 1);
+                })
+                .catch((error) => {
+                    console.error('[electron-smoke] failed', error);
+                    app.exit(1);
+                });
         }
     });
 
@@ -1356,7 +1462,9 @@ if (!hasSingleInstanceLock) {
         await createWindow();
         const startupPath = process.argv.find(isSupportedOpenPath);
         if (startupPath) void deliverOpenPath(startupPath);
-        const startupLink = process.argv.map(parseDeepLink).find((value): value is DesktopDeepLinkCommand => Boolean(value));
+        const startupLink = process.argv
+            .map(parseDeepLink)
+            .find((value): value is DesktopDeepLinkCommand => Boolean(value));
         if (startupLink && !renderCommand) {
             if (rendererReady) mainWindow?.webContents.send('automation:deep-link', startupLink);
             else pendingDeepLink = startupLink;

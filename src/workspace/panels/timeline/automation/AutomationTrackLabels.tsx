@@ -1,9 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FaChevronDown, FaChevronRight, FaTimes, FaChartLine, FaAngleLeft, FaAngleRight, FaSearch } from 'react-icons/fa';
+import {
+    FaChevronDown,
+    FaChevronRight,
+    FaTimes,
+    FaChartLine,
+    FaAngleLeft,
+    FaAngleRight,
+    FaSearch,
+} from 'react-icons/fa';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
-import { useAutomatedElementIds, useElementChannels, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
+import {
+    useAutomatedElementIds,
+    useElementChannels,
+    useAutomationExpanded,
+    useCurveEditorExpanded,
+} from '@automation/hooks';
 import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, AUTOMATION_SEARCH_HEIGHT } from '../constants';
 import { useCurveHeight } from '../context/curveHeightContext';
 import { useCurveRange, useCurveRangeControls } from '../context/curveRangeContext';
@@ -38,25 +51,31 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
         if (!maxFocusedRef.current) setMaxText(manualMax.toFixed(2));
     }, [manualMax]);
 
-    const commitMin = useCallback((text: string) => {
-        const v = parseFloat(text);
-        if (!isNaN(v)) {
-            setManualRange(channelId, v, manualMax);
-            setMinText(v.toFixed(2));
-        } else {
-            setMinText(manualMin.toFixed(2));
-        }
-    }, [channelId, manualMin, manualMax, setManualRange]);
+    const commitMin = useCallback(
+        (text: string) => {
+            const v = parseFloat(text);
+            if (!isNaN(v)) {
+                setManualRange(channelId, v, manualMax);
+                setMinText(v.toFixed(2));
+            } else {
+                setMinText(manualMin.toFixed(2));
+            }
+        },
+        [channelId, manualMin, manualMax, setManualRange]
+    );
 
-    const commitMax = useCallback((text: string) => {
-        const v = parseFloat(text);
-        if (!isNaN(v)) {
-            setManualRange(channelId, manualMin, v);
-            setMaxText(v.toFixed(2));
-        } else {
-            setMaxText(manualMax.toFixed(2));
-        }
-    }, [channelId, manualMin, manualMax, setManualRange]);
+    const commitMax = useCallback(
+        (text: string) => {
+            const v = parseFloat(text);
+            if (!isNaN(v)) {
+                setManualRange(channelId, manualMin, v);
+                setMaxText(v.toFixed(2));
+            } else {
+                setMaxText(manualMax.toFixed(2));
+            }
+        },
+        [channelId, manualMin, manualMax, setManualRange]
+    );
 
     const handleToggleAuto = useCallback(() => {
         if (autoRange) {
@@ -107,13 +126,19 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
                 <input
                     type="text"
                     style={inputStyle(autoRange)}
-                    value={autoRange
-                        ? autoDisplayMin.toFixed(2)
-                        : minText}
+                    value={autoRange ? autoDisplayMin.toFixed(2) : minText}
                     readOnly={autoRange}
-                    onChange={(e) => { if (!autoRange) setMinText(e.target.value); }}
-                    onFocus={(e) => { minFocusedRef.current = true; if (!autoRange) e.currentTarget.select(); }}
-                    onBlur={(e) => { minFocusedRef.current = false; if (!autoRange) commitMin(e.currentTarget.value); }}
+                    onChange={(e) => {
+                        if (!autoRange) setMinText(e.target.value);
+                    }}
+                    onFocus={(e) => {
+                        minFocusedRef.current = true;
+                        if (!autoRange) e.currentTarget.select();
+                    }}
+                    onBlur={(e) => {
+                        minFocusedRef.current = false;
+                        if (!autoRange) commitMin(e.currentTarget.value);
+                    }}
                     onKeyDown={(e) => {
                         if (!autoRange && e.key === 'Enter') {
                             commitMin((e.target as HTMLInputElement).value);
@@ -121,18 +146,23 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
                         }
                     }}
                 />
-                -
-                {/* Max input */}
+                -{/* Max input */}
                 <input
                     type="text"
                     style={inputStyle(autoRange)}
-                    value={autoRange
-                        ? autoDisplayMax.toFixed(2)
-                        : maxText}
+                    value={autoRange ? autoDisplayMax.toFixed(2) : maxText}
                     readOnly={autoRange}
-                    onChange={(e) => { if (!autoRange) setMaxText(e.target.value); }}
-                    onFocus={(e) => { maxFocusedRef.current = true; if (!autoRange) e.currentTarget.select(); }}
-                    onBlur={(e) => { maxFocusedRef.current = false; if (!autoRange) commitMax(e.currentTarget.value); }}
+                    onChange={(e) => {
+                        if (!autoRange) setMaxText(e.target.value);
+                    }}
+                    onFocus={(e) => {
+                        maxFocusedRef.current = true;
+                        if (!autoRange) e.currentTarget.select();
+                    }}
+                    onBlur={(e) => {
+                        maxFocusedRef.current = false;
+                        if (!autoRange) commitMax(e.currentTarget.value);
+                    }}
                     onKeyDown={(e) => {
                         if (!autoRange && e.key === 'Enter') {
                             commitMax((e.target as HTMLInputElement).value);
@@ -140,7 +170,6 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
                         }
                     }}
                 />
-
                 {/* Auto toggle button */}
                 <button
                     type="button"
@@ -160,7 +189,6 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
                 >
                     auto
                 </button>
-
             </div>
         </div>
     );
@@ -181,9 +209,7 @@ const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: 
     const toggleCurve = useCallback(() => {
         useSceneStore.setState((state) => {
             const list = state.interaction.automationExpandedCurves;
-            const next = curveExpanded
-                ? list.filter((id) => id !== channelId)
-                : [...list, channelId];
+            const next = curveExpanded ? list.filter((id) => id !== channelId) : [...list, channelId];
             return {
                 interaction: { ...state.interaction, automationExpandedCurves: next },
             };
@@ -235,10 +261,11 @@ const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: 
                     </button>
                     {channel?.valueType !== 'string' && (
                         <button
-                            className={`flex items-center justify-center w-4 h-4 rounded ${curveExpanded
-                                ? 'text-blue-400 bg-blue-900/30'
-                                : 'text-neutral-500 hover:text-blue-400 hover:bg-blue-900/20'
-                                }`}
+                            className={`flex items-center justify-center w-4 h-4 rounded ${
+                                curveExpanded
+                                    ? 'text-blue-400 bg-blue-900/30'
+                                    : 'text-neutral-500 hover:text-blue-400 hover:bg-blue-900/20'
+                            }`}
                             title={curveExpanded ? 'Hide curve editor' : 'Show curve editor'}
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -282,9 +309,7 @@ const ElementAutomationGroup: React.FC<{ elementId: string }> = ({ elementId }) 
     const toggleExpanded = useCallback(() => {
         useSceneStore.setState((state) => {
             const list = state.interaction.automationExpandedElements;
-            const next = expanded
-                ? list.filter((id) => id !== elementId)
-                : [...list, elementId];
+            const next = expanded ? list.filter((id) => id !== elementId) : [...list, elementId];
             return {
                 interaction: { ...state.interaction, automationExpandedElements: next },
             };
@@ -317,14 +342,10 @@ const ElementAutomationGroup: React.FC<{ elementId: string }> = ({ elementId }) 
             </div>
 
             {/* Channel rows (when expanded) */}
-            {isExpanded && visibleChannels.map((ch) => (
-                <ChannelRow
-                    key={ch.id}
-                    channelId={ch.id}
-                    elementId={ch.elementId}
-                    propertyKey={ch.propertyKey}
-                />
-            ))}
+            {isExpanded &&
+                visibleChannels.map((ch) => (
+                    <ChannelRow key={ch.id} channelId={ch.id} elementId={ch.elementId} propertyKey={ch.propertyKey} />
+                ))}
         </>
     );
 };
@@ -353,7 +374,10 @@ const AutomationTrackLabels: React.FC = () => {
             </div>
 
             {/* Search bar */}
-            <div className="flex items-center gap-1 px-2 border-b border-neutral-800 bg-neutral-900/40" style={{ height: AUTOMATION_SEARCH_HEIGHT }}>
+            <div
+                className="flex items-center gap-1 px-2 border-b border-neutral-800 bg-neutral-900/40"
+                style={{ height: AUTOMATION_SEARCH_HEIGHT }}
+            >
                 <FaSearch className="text-[9px] text-neutral-500 shrink-0" />
                 <input
                     type="text"
@@ -363,10 +387,7 @@ const AutomationTrackLabels: React.FC = () => {
                     className="flex-1 bg-transparent text-[11px] text-neutral-300 placeholder-neutral-600 outline-none min-w-0"
                 />
                 {searchQuery && (
-                    <button
-                        className="text-neutral-500 hover:text-neutral-200"
-                        onClick={() => setSearchQuery('')}
-                    >
+                    <button className="text-neutral-500 hover:text-neutral-200" onClick={() => setSearchQuery('')}>
                         <FaTimes className="text-[9px]" />
                     </button>
                 )}

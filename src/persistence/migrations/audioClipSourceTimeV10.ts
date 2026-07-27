@@ -14,7 +14,11 @@ function sourceDurationSeconds(envelope: any, sourceId: string): number | undefi
     return finite(asset?.durationSeconds) && asset.durationSeconds >= 0 ? asset.durationSeconds : undefined;
 }
 
-function migrateClip(clip: any, durationSeconds: number | undefined, timing: ReturnType<typeof createTimingContext>): any {
+function migrateClip(
+    clip: any,
+    durationSeconds: number | undefined,
+    timing: ReturnType<typeof createTimingContext>
+): any {
     if (!clip || typeof clip !== 'object') return clip;
     const offset = finite(clip.offsetTicks) ? clip.offsetTicks : 0;
     const baseSeconds = ticksToSeconds(timing, offset);
@@ -23,13 +27,17 @@ function migrateClip(clip: any, durationSeconds: number | undefined, timing: Ret
     const sourceStartSeconds = finite(clip.sourceStartSeconds)
         ? Math.max(0, clip.sourceStartSeconds)
         : Math.max(0, ticksToSeconds(timing, offset + startTick) - baseSeconds);
-    const projectedEnd = endTick == null
-        ? undefined
-        : Math.max(sourceStartSeconds, ticksToSeconds(timing, offset + endTick) - baseSeconds);
+    const projectedEnd =
+        endTick == null
+            ? undefined
+            : Math.max(sourceStartSeconds, ticksToSeconds(timing, offset + endTick) - baseSeconds);
     const sourceEndSeconds = finite(clip.sourceEndSeconds) ? clip.sourceEndSeconds : projectedEnd;
     const next = { ...clip, offsetTicks: offset, sourceStartSeconds };
     if (sourceEndSeconds != null) {
-        next.sourceEndSeconds = Math.max(sourceStartSeconds, durationSeconds == null ? sourceEndSeconds : Math.min(durationSeconds, sourceEndSeconds));
+        next.sourceEndSeconds = Math.max(
+            sourceStartSeconds,
+            durationSeconds == null ? sourceEndSeconds : Math.min(durationSeconds, sourceEndSeconds)
+        );
     }
     delete next.regionStartTick;
     delete next.regionEndTick;
@@ -57,18 +65,26 @@ export function migrateSceneAudioClipSourceTimeV10<T extends Record<string, any>
         const sourceId = typeof audioTrack.audioSourceId === 'string' ? audioTrack.audioSourceId : id;
         const inputClips = Array.isArray(audioTrack.clips)
             ? audioTrack.clips
-            : [{
-                  id: `${id}__legacy_audio_clip`,
-                  type: 'audio',
-                  sourceId,
-                  offsetTicks: audioTrack.offsetTicks,
-                  regionStartTick: audioTrack.regionStartTick,
-                  regionEndTick: audioTrack.regionEndTick,
-                  name: audioTrack.name,
-                  enabled: audioTrack.enabled,
-                  gain: audioTrack.gain,
-              }];
-        const { offsetTicks: _offsetTicks, regionStartTick: _regionStartTick, regionEndTick: _regionEndTick, audioSourceId: _audioSourceId, ...currentTrack } = audioTrack;
+            : [
+                  {
+                      id: `${id}__legacy_audio_clip`,
+                      type: 'audio',
+                      sourceId,
+                      offsetTicks: audioTrack.offsetTicks,
+                      regionStartTick: audioTrack.regionStartTick,
+                      regionEndTick: audioTrack.regionEndTick,
+                      name: audioTrack.name,
+                      enabled: audioTrack.enabled,
+                      gain: audioTrack.gain,
+                  },
+              ];
+        const {
+            offsetTicks: _offsetTicks,
+            regionStartTick: _regionStartTick,
+            regionEndTick: _regionEndTick,
+            audioSourceId: _audioSourceId,
+            ...currentTrack
+        } = audioTrack;
         nextTracks[id] = {
             ...currentTrack,
             clips: inputClips.map((clip: any) =>

@@ -17,11 +17,7 @@ export interface QuantizeHopOptions {
     tempoProjection?: AudioFeatureTempoProjection | null;
 }
 
-export function quantizeHopTicks({
-    hopSeconds,
-    tempoMapper,
-    tempoProjection,
-}: QuantizeHopOptions): number {
+export function quantizeHopTicks({ hopSeconds, tempoMapper, tempoProjection }: QuantizeHopOptions): number {
     const projected = clampHopTicks(tempoProjection?.hopTicks);
     if (projected != null) {
         return projected;

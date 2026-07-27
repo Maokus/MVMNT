@@ -21,11 +21,7 @@ describe('tempoAlignedViewAdapter.applySmoothingWindow', () => {
         ];
 
         const smoothed = applySmoothingWindow(samples, 1);
-        expect(smoothed).toEqual([
-            (0.25 + 0.5 + 0.75) / 3,
-            (0.5 + 1 + 1.5) / 3,
-            (0.75 + 1.5 + 2.25) / 3,
-        ]);
+        expect(smoothed).toEqual([(0.25 + 0.5 + 0.75) / 3, (0.5 + 1 + 1.5) / 3, (0.75 + 1.5 + 2.25) / 3]);
     });
 
     it('returns an empty vector when samples are missing data', () => {

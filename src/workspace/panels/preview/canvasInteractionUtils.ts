@@ -31,11 +31,7 @@ export interface InteractionDeps {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
     visualizer: any; // runtime visualizer instance
     selectElement: (id: string | null) => void;
-    updateElementConfig?: (
-        id: string,
-        cfg: any,
-        options?: Omit<SceneCommandOptions, 'source'>,
-    ) => void;
+    updateElementConfig?: (id: string, cfg: any, options?: Omit<SceneCommandOptions, 'source'>) => void;
     incrementPropertyPanelRefresh: () => void;
 }
 
@@ -62,12 +58,7 @@ function ensureDragCommandOptions(meta: any, elementId: string): DragCommandOpti
     return base;
 }
 
-function applyDragUpdate(
-    meta: any,
-    elementId: string,
-    cfg: Record<string, unknown>,
-    deps: InteractionDeps,
-) {
+function applyDragUpdate(meta: any, elementId: string, cfg: Record<string, unknown>, deps: InteractionDeps) {
     const { updateElementConfig } = deps;
     if (!updateElementConfig) return;
     meta.dragElementId = elementId;
@@ -95,12 +86,14 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
             startY: y,
             baseBounds: rec?.baseBounds ? { ...rec.baseBounds } : null,
             affineTransform: rec?.affineTransform ? { ...rec.affineTransform } : null,
-            origWarp: rec?.warp ? {
-                topLeft: { ...rec.warp.topLeft },
-                topRight: { ...rec.warp.topRight },
-                bottomRight: { ...rec.warp.bottomRight },
-                bottomLeft: { ...rec.warp.bottomLeft },
-            } : null,
+            origWarp: rec?.warp
+                ? {
+                      topLeft: { ...rec.warp.topLeft },
+                      topRight: { ...rec.warp.topRight },
+                      bottomRight: { ...rec.warp.bottomRight },
+                      bottomLeft: { ...rec.warp.bottomLeft },
+                  }
+                : null,
             dragElementId: selectedId,
             snapTargets: buildSnapTargets(vis, selectedId),
             snapTolerance: DEFAULT_SNAP_TOLERANCE,
@@ -123,11 +116,11 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
               y: (corners.TL.y + corners.TR.y + corners.BR.y + corners.BL.y) / 4,
           }
         : rec?.bounds
-        ? {
-              x: (rec.bounds.x || 0) + (rec.bounds.width || 0) / 2,
-              y: (rec.bounds.y || 0) + (rec.bounds.height || 0) / 2,
-          }
-        : null;
+          ? {
+                x: (rec.bounds.x || 0) + (rec.bounds.width || 0) / 2,
+                y: (rec.bounds.y || 0) + (rec.bounds.height || 0) / 2,
+            }
+          : null;
     const centerLocal = baseBounds
         ? { x: baseBounds.x + baseBounds.width / 2, y: baseBounds.y + baseBounds.height / 2 }
         : null;
@@ -277,7 +270,7 @@ function updateScaleDrag(
             origAnchorX: meta.origAnchorX,
             origAnchorY: meta.origAnchorY,
             warp: meta.warp,
-            },
+        },
         shiftKey,
         altKey &&
             (meta.mode === 'scale-ne' ||

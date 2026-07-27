@@ -37,12 +37,19 @@ function makeCapabilityContext(
                 return entry == null ? unavailable() : ok(toFeatureFrame(entry, args.timeSeconds));
             },
             sampleFeatureRange: (args: any) => {
-                const legacyArgs = { ...args, startTime: args.startSeconds, endTime: args.endSeconds, stepSec: args.stepSeconds };
+                const legacyArgs = {
+                    ...args,
+                    startTime: args.startSeconds,
+                    endTime: args.endSeconds,
+                    stepSec: args.stepSeconds,
+                };
                 const entries = overrides.sampleFeatureRange?.(legacyArgs) ?? [];
-                return ok(entries.map((entry: any, index: number) => {
-                    const result = entry && typeof entry === 'object' && 'result' in entry ? entry.result : entry;
-                    return toFeatureFrame(result, args.startSeconds + index * args.stepSeconds);
-                }));
+                return ok(
+                    entries.map((entry: any, index: number) => {
+                        const result = entry && typeof entry === 'object' && 'result' in entry ? entry.result : entry;
+                        return toFeatureFrame(result, args.startSeconds + index * args.stepSeconds);
+                    })
+                );
             },
             getRawSamples: (args: unknown) => {
                 const value = overrides.getRawSamples?.(args);
@@ -52,12 +59,13 @@ function makeCapabilityContext(
                 const value = overrides.getRmsInWindow?.(args);
                 return value == null ? unavailable() : ok(value);
             },
-            getChannelMetadata: () => ok({
-                sampleRate: overrides.getSampleRate?.({}) ?? 44100,
-                channelCount: 2,
-                durationSeconds: 60,
-                channelLabels: ['left', 'right'],
-            }),
+            getChannelMetadata: () =>
+                ok({
+                    sampleRate: overrides.getSampleRate?.({}) ?? 44100,
+                    channelCount: 2,
+                    durationSeconds: 60,
+                    channelLabels: ['left', 'right'],
+                }),
             requireFeatures: () => ok({ dispose() {} }),
         },
         timing: {
@@ -70,7 +78,14 @@ function makeCapabilityContext(
             getTimeSignature: () => ok({ numerator: 4, denominator: 4 }),
         },
         timeline: {
-            getMetadata: () => ok({ durationSeconds: 60, playbackStartSeconds: 0, playbackEndSeconds: 60, tempoBpm: 120, timeSignature: { numerator: 4, denominator: 4 } }),
+            getMetadata: () =>
+                ok({
+                    durationSeconds: 60,
+                    playbackStartSeconds: 0,
+                    playbackEndSeconds: 60,
+                    tempoBpm: 120,
+                    timeSignature: { numerator: 4, denominator: 4 },
+                }),
         },
         assets: {},
         diagnostics: { report() {} },
@@ -194,8 +209,7 @@ describe('simplified audio scene elements', () => {
 
         const [container] = element.buildRenderObjects({}, 2);
         const waveform = (container as any).children.find((child: unknown) => child instanceof Poly) as
-            | Poly
-            | undefined;
+            Poly | undefined;
 
         expect(waveform).toBeInstanceOf(Poly);
     });
@@ -264,7 +278,9 @@ describe('simplified audio scene elements', () => {
                 };
             });
         });
-        vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(makeCapabilityContext({ sampleFeatureRange }));
+        vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(
+            makeCapabilityContext({ sampleFeatureRange })
+        );
 
         const element = new AudioPeaksElement('peaks', {
             audioTrackId: 'track-1',
@@ -286,10 +302,15 @@ describe('simplified audio scene elements', () => {
             const count = Math.round((args.endTime - args.startTime) / args.stepSec) + 1;
             return Array.from({ length: count }, () => ({
                 values: [-1, 1],
-                metadata: { channels: 1, frame: { channels: 1, channelValues: [[-1, 1]], format: 'waveform-minmax' as const } },
+                metadata: {
+                    channels: 1,
+                    frame: { channels: 1, channelValues: [[-1, 1]], format: 'waveform-minmax' as const },
+                },
             }));
         });
-        vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(makeCapabilityContext({ sampleFeatureRange }));
+        vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(
+            makeCapabilityContext({ sampleFeatureRange })
+        );
 
         const element = new AudioPeaksElement('peaks', {
             audioTrackId: 'track-1',
@@ -311,7 +332,10 @@ describe('simplified audio scene elements', () => {
             const count = Math.round((args.endTime - args.startTime) / args.stepSec) + 1;
             return Array.from({ length: count }, () => ({
                 values: [0, 0],
-                metadata: { channels: 1, frame: { channels: 1, channelValues: [[0, 0]], format: 'waveform-minmax' as const } },
+                metadata: {
+                    channels: 1,
+                    frame: { channels: 1, channelValues: [[0, 0]], format: 'waveform-minmax' as const },
+                },
             }));
         });
         vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(
@@ -369,8 +393,7 @@ describe('simplified audio scene elements', () => {
 
         const [container] = element.buildRenderObjects({}, 2.5);
         const waveform = (container as any).children.find((child: unknown) => child instanceof Poly) as
-            | Poly
-            | undefined;
+            Poly | undefined;
 
         expect(waveform).toBeInstanceOf(Poly);
         expect((waveform as Poly).strokeColor).toBe('#FF00FFFF');
@@ -397,5 +420,4 @@ describe('simplified audio scene elements', () => {
         // 0.25 × gain 2 = 0.5, so the second point is 10px above the 20px center line.
         expect(waveform.points[1]?.y).toBeCloseTo(10);
     });
-
 });

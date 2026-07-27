@@ -19,14 +19,21 @@ interface AudioWaveformProps {
     visibleEndTickAbs?: number;
 }
 
-export function getWaveformBinAtTimelineTick({ tick, clipStartTick, sourceDurationSeconds, binCount, timing }: {
+export function getWaveformBinAtTimelineTick({
+    tick,
+    clipStartTick,
+    sourceDurationSeconds,
+    binCount,
+    timing,
+}: {
     tick: number;
     clipStartTick: number;
     sourceDurationSeconds: number;
     binCount: number;
     timing: TimelineTimingContext;
 }): number {
-    if (!Number.isFinite(tick) || !Number.isFinite(clipStartTick) || sourceDurationSeconds <= 0 || binCount <= 0) return 0;
+    if (!Number.isFinite(tick) || !Number.isFinite(clipStartTick) || sourceDurationSeconds <= 0 || binCount <= 0)
+        return 0;
     const sourceSeconds = ticksToSeconds(timing, tick) - ticksToSeconds(timing, clipStartTick);
     const sourceFraction = Math.max(0, Math.min(1, sourceSeconds / sourceDurationSeconds));
     return Math.min(binCount - 1, Math.floor(sourceFraction * binCount));
@@ -72,7 +79,12 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
             context.fillRect(0, 0, width, height);
         }
         const peaks = cache?.waveform?.channelPeaks;
-        if (!peaks?.length || durationSeconds <= 0 || sourceEndSeconds <= sourceStartSeconds || visibleEnd <= visibleStart) {
+        if (
+            !peaks?.length ||
+            durationSeconds <= 0 ||
+            sourceEndSeconds <= sourceStartSeconds ||
+            visibleEnd <= visibleStart
+        ) {
             context.fillStyle = '#999';
             context.font = '10px sans-serif';
             context.fillText('Loading waveform…', 4, height / 2);
@@ -103,9 +115,28 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
             context.lineWidth = 2;
             context.strokeRect(1, 1, width - 2, height - 2);
         }
-    }, [background, cache?.waveform?.channelPeaks, clipOffsetTicks, color, durationSeconds, height, selected, sourceEndSeconds, sourceStartSeconds, timing, visibleEnd, visibleStart]);
+    }, [
+        background,
+        cache?.waveform?.channelPeaks,
+        clipOffsetTicks,
+        color,
+        durationSeconds,
+        height,
+        selected,
+        sourceEndSeconds,
+        sourceStartSeconds,
+        timing,
+        visibleEnd,
+        visibleStart,
+    ]);
 
-    return <canvas ref={canvasRef} style={{ width: '100%', height: `${height}px`, display: 'block' }} data-track={trackId} />;
+    return (
+        <canvas
+            ref={canvasRef}
+            style={{ width: '100%', height: `${height}px`, display: 'block' }}
+            data-track={trackId}
+        />
+    );
 };
 
 export default AudioWaveform;

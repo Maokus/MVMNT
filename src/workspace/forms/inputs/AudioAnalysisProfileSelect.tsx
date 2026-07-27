@@ -19,9 +19,7 @@ interface AudioAnalysisProfileSelectProps {
     onChange: (value: string | null) => void;
 }
 
-const normalizeTrackId = (
-    trackId: AudioAnalysisProfileSelectSchema['trackId'],
-): string | null => {
+const normalizeTrackId = (trackId: AudioAnalysisProfileSelectSchema['trackId']): string | null => {
     if (!trackId) return null;
     if (Array.isArray(trackId)) {
         return trackId.find((entry) => typeof entry === 'string' && entry.length > 0) ?? null;
@@ -47,7 +45,9 @@ export const AudioAnalysisProfileSelect: React.FC<AudioAnalysisProfileSelectProp
 
     const { profiles, defaultProfileId } = useTimelineStore(
         React.useCallback(
-            (state): {
+            (
+                state
+            ): {
                 profiles: Record<string, AudioFeatureAnalysisProfileDescriptor>;
                 defaultProfileId: string | null;
             } => {
@@ -63,11 +63,12 @@ export const AudioAnalysisProfileSelect: React.FC<AudioAnalysisProfileSelectProp
                 const profiles = Object.assign({}, ...caches.map((cache) => cache?.analysisProfiles ?? {}));
                 return {
                     profiles,
-                    defaultProfileId: caches.find((cache) => cache?.defaultAnalysisProfileId)?.defaultAnalysisProfileId ?? null,
+                    defaultProfileId:
+                        caches.find((cache) => cache?.defaultAnalysisProfileId)?.defaultAnalysisProfileId ?? null,
                 };
             },
-            [trackKey],
-        ),
+            [trackKey]
+        )
     );
 
     const options = useMemo(() => {
@@ -93,9 +94,7 @@ export const AudioAnalysisProfileSelect: React.FC<AudioAnalysisProfileSelectProp
                 title={glossaryTitle ?? title}
             >
                 {!hasProfiles && <option value="">No profiles available</option>}
-                {hasProfiles && (
-                    <option value="">Default ({defaultProfileId ?? 'cache'})</option>
-                )}
+                {hasProfiles && <option value="">Default ({defaultProfileId ?? 'cache'})</option>}
                 {options.map((profile) => (
                     <option key={profile.id} value={profile.id}>
                         {profile.id}

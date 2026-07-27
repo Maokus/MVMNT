@@ -190,10 +190,7 @@ export function readAudioFeatureMatrix(
     const valuesPerFrame = Math.max(1, firstSource.track.channels);
     const scalarCount = validateAudioFeatureMatrixSize(frameCount, valuesPerFrame);
     for (const source of sources.values()) {
-        if (
-            source.track.channels !== valuesPerFrame ||
-            source.track.format !== firstSource.track.format
-        ) {
+        if (source.track.channels !== valuesPerFrame || source.track.format !== firstSource.track.format) {
             return null;
         }
     }
@@ -233,12 +230,8 @@ export function readAudioFeatureMatrix(
     }
 
     const revision =
-        getAudioFeatureMatrixRevision(
-            state,
-            request.trackId,
-            request.featureKey,
-            request.analysisProfileId
-        ) ?? identities.join(',');
+        getAudioFeatureMatrixRevision(state, request.trackId, request.featureKey, request.analysisProfileId) ??
+        identities.join(',');
     const sampleRate = metadataNumber(firstSource.track, 'sampleRate');
     return {
         revision,

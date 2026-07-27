@@ -27,7 +27,7 @@ export function useResizeHandle({ channelId, height, setHeight }: UseResizeHandl
             (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
             dragRef.current = { startY: e.clientY, startHeight: height };
         },
-        [height],
+        [height]
     );
 
     const handleResizeMove = useCallback(
@@ -36,17 +36,18 @@ export function useResizeHandle({ channelId, height, setHeight }: UseResizeHandl
             const { startY, startHeight } = dragRef.current;
             setHeight(channelId, startHeight + (e.clientY - startY));
         },
-        [channelId, setHeight],
+        [channelId, setHeight]
     );
 
-    const handleResizeUp = useCallback(
-        (e: React.PointerEvent<HTMLDivElement>) => {
-            if (!dragRef.current) return;
-            try { (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-            dragRef.current = null;
-        },
-        [],
-    );
+    const handleResizeUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        if (!dragRef.current) return;
+        try {
+            (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
+        } catch {
+            /* ignore */
+        }
+        dragRef.current = null;
+    }, []);
 
     return { handleResizeDown, handleResizeMove, handleResizeUp };
 }

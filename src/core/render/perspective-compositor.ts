@@ -60,13 +60,19 @@ void main() {
 `;
 
 const bucket = (value: number): number => Math.max(64, Math.ceil(value / 64) * 64);
-const now = (): number => typeof performance !== 'undefined' ? performance.now() : Date.now();
+const now = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 function matrixForWebGL(matrix: Homography): Float32Array {
     return new Float32Array([
-        matrix[0], matrix[3], matrix[6],
-        matrix[1], matrix[4], matrix[7],
-        matrix[2], matrix[5], matrix[8],
+        matrix[0],
+        matrix[3],
+        matrix[6],
+        matrix[1],
+        matrix[4],
+        matrix[7],
+        matrix[2],
+        matrix[5],
+        matrix[8],
     ]);
 }
 
@@ -84,8 +90,9 @@ function projectedRectBounds(root: PerspectiveElementRoot, bounds: Bounds): Pers
         { x: bounds.x + bounds.width, y: bounds.y },
         { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
         { x: bounds.x, y: bounds.y + bounds.height },
-    ].map((point) => warpLocalPoint(matrix, base, point))
-     .map((point) => point ? applyAffinePoint(affine, point) : null);
+    ]
+        .map((point) => warpLocalPoint(matrix, base, point))
+        .map((point) => (point ? applyAffinePoint(affine, point) : null));
     return points.some((point) => !point) ? null : getProjectedBounds(points as Array<{ x: number; y: number }>);
 }
 
@@ -134,7 +141,12 @@ export class PerspectiveCompositor {
         this.diagnostics.endFrame();
     }
 
-    renderElement(root: PerspectiveElementRoot, target: CanvasRenderingContext2D, config: RenderConfig, time: number): boolean {
+    renderElement(
+        root: PerspectiveElementRoot,
+        target: CanvasRenderingContext2D,
+        config: RenderConfig,
+        time: number
+    ): boolean {
         if (this.disposed || !root.baseBounds || !root.warpMatrix) return false;
         const canvas = config.canvas;
         if (!canvas || canvas.width <= 0 || canvas.height <= 0) return false;
@@ -150,7 +162,10 @@ export class PerspectiveCompositor {
 
         const bucketTextureLimit = Math.floor(this.maxTextureSize / 64) * 64;
         if (bucketTextureLimit < 64) {
-            this.warnOnce('texture-limit', `Perspective compositor texture limit is too small (${this.maxTextureSize}px).`);
+            this.warnOnce(
+                'texture-limit',
+                `Perspective compositor texture limit is too small (${this.maxTextureSize}px).`
+            );
             return false;
         }
         const resolution = Math.min(
@@ -161,7 +176,10 @@ export class PerspectiveCompositor {
         const logicalWidth = Math.max(1, Math.ceil(sourceBounds.width * resolution));
         const logicalHeight = Math.max(1, Math.ceil(sourceBounds.height * resolution));
         if (bucket(logicalWidth) > this.maxTextureSize || bucket(logicalHeight) > this.maxTextureSize) {
-            this.warnOnce('texture-limit', `Perspective surface exceeds the GPU texture limit (${this.maxTextureSize}px).`);
+            this.warnOnce(
+                'texture-limit',
+                `Perspective surface exceeds the GPU texture limit (${this.maxTextureSize}px).`
+            );
             return false;
         }
         let surface: Surface | null = null;
@@ -174,7 +192,8 @@ export class PerspectiveCompositor {
             try {
                 surface.ctx.scale(resolution, resolution);
                 surface.ctx.translate(-sourceBounds.x, -sourceBounds.y);
-                for (const child of root.getChildren()) child.render(surface.ctx, { ...config, canvas: surface.canvas }, time);
+                for (const child of root.getChildren())
+                    child.render(surface.ctx, { ...config, canvas: surface.canvas }, time);
             } finally {
                 surface.ctx.restore();
             }
@@ -187,7 +206,10 @@ export class PerspectiveCompositor {
             }
             return ok;
         } catch (error) {
-            this.warnOnce('source-raster', `Perspective source raster failed: ${error instanceof Error ? error.message : String(error)}`);
+            this.warnOnce(
+                'source-raster',
+                `Perspective source raster failed: ${error instanceof Error ? error.message : String(error)}`
+            );
             return false;
         } finally {
             if (surface) this.releaseSurface(surface);
@@ -255,7 +277,10 @@ export class PerspectiveCompositor {
                     event.preventDefault();
                     this.contextLost = true;
                     this.diagnostics.add({ contextLossEvents: 1 });
-                    this.warnOnce('context-loss', 'Perspective WebGL context was lost; elements are temporarily unwarped.');
+                    this.warnOnce(
+                        'context-loss',
+                        'Perspective WebGL context was lost; elements are temporarily unwarped.'
+                    );
                 });
                 this.scratchCanvas.addEventListener('webglcontextrestored', () => {
                     this.contextLost = false;
@@ -269,7 +294,11 @@ export class PerspectiveCompositor {
                     this.pendingTimerQueries = [];
                 });
             }
-            const gl = this.scratchCanvas.getContext('webgl', { alpha: true, premultipliedAlpha: true, antialias: true });
+            const gl = this.scratchCanvas.getContext('webgl', {
+                alpha: true,
+                premultipliedAlpha: true,
+                antialias: true,
+            });
             if (!gl) throw new Error('WebGL is unavailable');
             this.gl = gl;
             this.maxTextureSize = Math.min(4096, Number(gl.getParameter(gl.MAX_TEXTURE_SIZE)) || 4096);
@@ -283,7 +312,8 @@ export class PerspectiveCompositor {
             gl.linkProgram(program);
             gl.deleteShader(vertex);
             gl.deleteShader(fragment);
-            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program) || 'Shader link failed');
+            if (!gl.getProgramParameter(program, gl.LINK_STATUS))
+                throw new Error(gl.getProgramInfoLog(program) || 'Shader link failed');
             const buffer = gl.createBuffer();
             const texture = gl.createTexture();
             if (!buffer || !texture) throw new Error('Could not allocate perspective GPU resources');
@@ -291,7 +321,11 @@ export class PerspectiveCompositor {
             this.buffer = buffer;
             this.texture = texture;
             gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+            gl.bufferData(
+                gl.ARRAY_BUFFER,
+                new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
+                gl.STATIC_DRAW
+            );
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -305,7 +339,10 @@ export class PerspectiveCompositor {
             gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1);
             return true;
         } catch (error) {
-            this.warnOnce('initialization', `Perspective compositor unavailable: ${error instanceof Error ? error.message : String(error)}`);
+            this.warnOnce(
+                'initialization',
+                `Perspective compositor unavailable: ${error instanceof Error ? error.message : String(error)}`
+            );
             return false;
         }
     }
@@ -369,7 +406,13 @@ export class PerspectiveCompositor {
             gl.uniformMatrix3fv(uniform('u_inverseWarp'), false, matrixForWebGL(inverseWarp));
             const base = root.baseBounds!;
             gl.uniform4f(uniform('u_baseBounds'), base.x, base.y, base.width, base.height);
-            gl.uniform4f(uniform('u_sourceBounds'), sourceBounds.x, sourceBounds.y, sourceBounds.width, sourceBounds.height);
+            gl.uniform4f(
+                uniform('u_sourceBounds'),
+                sourceBounds.x,
+                sourceBounds.y,
+                sourceBounds.width,
+                sourceBounds.height
+            );
             gl.uniform1f(uniform('u_resolution'), resolution);
             gl.uniform2f(uniform('u_textureSize'), surface.width, surface.height);
             gl.uniform2f(uniform('u_outputOrigin'), outputBounds.x, outputBounds.y);
@@ -410,7 +453,10 @@ export class PerspectiveCompositor {
             this.diagnostics.add({ canvasCompositeMs: now() - compositeStart });
             return true;
         } catch (error) {
-            this.warnOnce('submission', `Perspective rendering failed: ${error instanceof Error ? error.message : String(error)}`);
+            this.warnOnce(
+                'submission',
+                `Perspective rendering failed: ${error instanceof Error ? error.message : String(error)}`
+            );
             return false;
         }
     }
@@ -419,7 +465,10 @@ export class PerspectiveCompositor {
         if (this.warned.has(code)) return;
         this.warned.add(code);
         console.warn(`[PerspectiveWarp] ${message}`);
-        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('mvmnt-diagnostic', { detail: { source: 'perspective-warp', code, message } }));
+        if (typeof window !== 'undefined')
+            window.dispatchEvent(
+                new CustomEvent('mvmnt-diagnostic', { detail: { source: 'perspective-warp', code, message } })
+            );
     }
 
     private pollGpuTimers(): void {

@@ -47,7 +47,7 @@ export function getPrimaryAudioClip(track: AudioTrack): AudioClip | undefined {
 export function getAudioClipTimelineSegments(
     state: Pick<TimelineState, 'tracks' | 'audioCache'>,
     trackId: string,
-    timing: TimelineTimingContext,
+    timing: TimelineTimingContext
 ): AudioClipTimelineSegment[] {
     const track = state.tracks[trackId] as AudioTrack | undefined;
     if (!track || track.type !== 'audio') return [];
@@ -61,18 +61,20 @@ export function getAudioClipTimelineSegments(
             const startSeconds = ticksToSeconds(timing, bounds.startTick);
             const endSeconds = ticksToSeconds(timing, bounds.endTick);
             if (!Number.isFinite(startSeconds) || !Number.isFinite(endSeconds) || endSeconds <= startSeconds) return [];
-            return [{
-                trackId,
-                clip,
-                sourceId: clip.sourceId,
-                startTick: bounds.startTick,
-                endTick: bounds.endTick,
-                startSeconds,
-                endSeconds,
-                sourceStartSeconds: source.startSeconds,
-                sourceEndSeconds: source.endSeconds,
-                samplingIdentity: `${trackId}:${clip.id}:${clip.sourceId}:${clip.offsetTicks}:${source.startSeconds}:${source.endSeconds}`,
-            }];
+            return [
+                {
+                    trackId,
+                    clip,
+                    sourceId: clip.sourceId,
+                    startTick: bounds.startTick,
+                    endTick: bounds.endTick,
+                    startSeconds,
+                    endSeconds,
+                    sourceStartSeconds: source.startSeconds,
+                    sourceEndSeconds: source.endSeconds,
+                    samplingIdentity: `${trackId}:${clip.id}:${clip.sourceId}:${clip.offsetTicks}:${source.startSeconds}:${source.endSeconds}`,
+                },
+            ];
         })
         .sort((a, b) => a.startTick - b.startTick || a.clip.id.localeCompare(b.clip.id));
 }
@@ -82,7 +84,7 @@ export function resolveAudioClipAtTick(
     state: Pick<TimelineState, 'tracks' | 'audioCache' | 'timeline'>,
     trackId: string,
     tick: number,
-    timing: TimelineTimingContext,
+    timing: TimelineTimingContext
 ): (AudioClipTimelineSegment & { sourceSeconds: number }) | null {
     if (!Number.isFinite(tick)) return null;
     const segments = getAudioClipTimelineSegments(state, trackId, timing);
@@ -92,7 +94,7 @@ export function resolveAudioClipAtTick(
     const placementSeconds = ticksToSeconds(timing, segment.clip.offsetTicks);
     const sourceSeconds = Math.max(
         segment.sourceStartSeconds,
-        Math.min(segment.sourceEndSeconds, timelineSeconds - placementSeconds),
+        Math.min(segment.sourceEndSeconds, timelineSeconds - placementSeconds)
     );
     return { ...segment, sourceSeconds };
 }
@@ -103,16 +105,22 @@ export function getAudioClipSegmentsInSeconds(
     trackId: string,
     startSeconds: number,
     endSeconds: number,
-    timing: TimelineTimingContext,
+    timing: TimelineTimingContext
 ): AudioClipTimelineSegment[] {
     if (!Number.isFinite(startSeconds) || !Number.isFinite(endSeconds) || endSeconds <= startSeconds) return [];
     return getAudioClipTimelineSegments(state, trackId, timing).filter(
-        (segment) => segment.endSeconds > startSeconds && segment.startSeconds < endSeconds,
+        (segment) => segment.endSeconds > startSeconds && segment.startSeconds < endSeconds
     );
 }
 
 export function getAudioTrackSourceIds(track: AudioTrack): string[] {
-    return Array.from(new Set(getAudioClipsForTrack(track).filter((clip) => clip.enabled !== false).map((clip) => clip.sourceId)));
+    return Array.from(
+        new Set(
+            getAudioClipsForTrack(track)
+                .filter((clip) => clip.enabled !== false)
+                .map((clip) => clip.sourceId)
+        )
+    );
 }
 
 /** Source trims are media-time offsets, independent of tempo and clip placement. */
@@ -130,7 +138,7 @@ export function getAudioClipSourceBounds(cache: AudioCache, clip: AudioClip): Au
 export function getAudioClipTimelineBounds(
     cache: AudioCache,
     clip: AudioClip,
-    timing: TimelineTimingContext,
+    timing: TimelineTimingContext
 ): AudioClipBounds | null {
     const source = getAudioClipSourceBounds(cache, clip);
     if (!source) return null;
@@ -159,11 +167,7 @@ export function findReferencedAudioSourceIds(state: TimelineState): Set<string> 
  * timeline ticks from an offset does not produce a source-time trim point:
  * the same duration can occupy different tick widths at different positions.
  */
-function sourceSecondsAtTimelineTick(
-    clip: AudioClip,
-    timelineTick: number,
-    timing: TimelineTimingContext,
-): number {
+function sourceSecondsAtTimelineTick(clip: AudioClip, timelineTick: number, timing: TimelineTimingContext): number {
     return ticksToSeconds(timing, timelineTick) - ticksToSeconds(timing, clip.offsetTicks);
 }
 
@@ -171,7 +175,7 @@ function clipWithTimelineEnd(
     clip: AudioClip,
     timelineEndTick: number,
     audioCache: AudioCache,
-    timing: TimelineTimingContext,
+    timing: TimelineTimingContext
 ): AudioClip | null {
     const source = getAudioClipSourceBounds(audioCache, clip);
     const sourceEndSeconds = sourceSecondsAtTimelineTick(clip, timelineEndTick, timing);
@@ -186,7 +190,7 @@ function clipWithTimelineStart(
     clip: AudioClip,
     timelineStartTick: number,
     audioCache: AudioCache,
-    timing: TimelineTimingContext,
+    timing: TimelineTimingContext
 ): AudioClip | null {
     const source = getAudioClipSourceBounds(audioCache, clip);
     const sourceStartSeconds = sourceSecondsAtTimelineTick(clip, timelineStartTick, timing);
@@ -201,7 +205,7 @@ export function resolveAudioClipOverlapWithCache(
     track: AudioTrack,
     editedClip: AudioClip,
     audioCache: AudioCache,
-    timing: TimelineTimingContext,
+    timing: TimelineTimingContext
 ): AudioClip[] {
     const editedBounds = getAudioClipTimelineBounds(audioCache, editedClip, timing);
     if (!editedBounds) {
@@ -245,7 +249,7 @@ export function resolveAudioClipOverlapWithCache(
 export function enforceNonOverlappingAudioClips(
     track: AudioTrack,
     audioCache: AudioCache,
-    timing: TimelineTimingContext,
+    timing: TimelineTimingContext
 ): AudioClip[] {
     let clips: AudioClip[] = [];
     const sorted = getAudioClipsForTrack(track)
@@ -265,7 +269,9 @@ export function buildLightweightAudioCacheEntry(cache: AudioCacheEntry): AudioCa
     const { audioBuffer: _audioBuffer, ...rest } = cache;
     return {
         ...rest,
-        decodedState: cache.audioBuffer ? 'failed' : cache.decodedState ?? 'failed',
-        decodedFailureReason: cache.audioBuffer ? 'decoded buffer omitted from lightweight cache entry' : cache.decodedFailureReason,
+        decodedState: cache.audioBuffer ? 'failed' : (cache.decodedState ?? 'failed'),
+        decodedFailureReason: cache.audioBuffer
+            ? 'decoded buffer omitted from lightweight cache entry'
+            : cache.decodedFailureReason,
     };
 }

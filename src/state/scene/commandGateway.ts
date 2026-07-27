@@ -14,11 +14,7 @@ import {
 import { createSceneElementInputFromSchema } from './storeElementFactory';
 import { ensureMacroSync, getMacroSnapshot, replaceMacrosFromSnapshot } from './macroSyncService';
 import { emitSceneCommandTelemetry } from './sceneTelemetry';
-import type {
-    AutomationChannel,
-    AutomationKeyframe,
-    AutomationValueType,
-} from '@automation/types';
+import type { AutomationChannel, AutomationKeyframe, AutomationValueType } from '@automation/types';
 import { createChannel, insertKeyframeSorted, makeChannelId, removeKeyframeAtTick } from '@automation/types';
 import { AutomationCurve } from '@automation/automation-curve';
 import { useTimelineStore } from '@state/timelineStore';
@@ -141,12 +137,7 @@ export type SceneCommand =
           patch: Partial<
               Pick<
                   AutomationKeyframe,
-                  | 'value'
-                  | 'segmentInterpolation'
-                  | 'leftHandle'
-                  | 'rightHandle'
-                  | 'leftHandleType'
-                  | 'rightHandleType'
+                  'value' | 'segmentInterpolation' | 'leftHandle' | 'rightHandle' | 'leftHandleType' | 'rightHandleType'
               >
           >;
       }
@@ -284,7 +275,10 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
             if (patches.length === 0) return null;
             return {
                 redo: [cloneCommand(command)],
-                undo: patches.slice().reverse().flatMap((patch) => patch.undo),
+                undo: patches
+                    .slice()
+                    .reverse()
+                    .flatMap((patch) => patch.undo),
             };
         }
         case 'addElement': {
@@ -329,15 +323,13 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
                     createdAt: element.createdAt,
                     createdBy: element.createdBy,
                 },
-                ...channelsToRestore.map(
-                    (channel): SceneCommand => ({
-                        type: 'enablePropertyAutomation',
-                        elementId: channel.elementId,
-                        propertyKey: channel.propertyKey,
-                        valueType: channel.valueType,
-                        initialKeyframes: channel.keyframes.map((kf) => ({ ...kf })),
-                    })
-                ),
+                ...channelsToRestore.map((channel): SceneCommand => ({
+                    type: 'enablePropertyAutomation',
+                    elementId: channel.elementId,
+                    propertyKey: channel.propertyKey,
+                    valueType: channel.valueType,
+                    initialKeyframes: channel.keyframes.map((kf) => ({ ...kf })),
+                })),
             ];
 
             return {

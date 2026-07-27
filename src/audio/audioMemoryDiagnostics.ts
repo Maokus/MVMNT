@@ -198,9 +198,14 @@ export function summarizeAudioMemory(
         (sum, cache) => sum + estimateFeatureCacheBytes(cache),
         0
     );
-    const memory = typeof performance !== 'undefined' ? (performance as Performance & {
-        memory?: { usedJSHeapSize?: number; jsHeapSizeLimit?: number };
-    }).memory : undefined;
+    const memory =
+        typeof performance !== 'undefined'
+            ? (
+                  performance as Performance & {
+                      memory?: { usedJSHeapSize?: number; jsHeapSizeLimit?: number };
+                  }
+              ).memory
+            : undefined;
     return {
         sourceCount: Object.keys(audioCache ?? {}).length,
         decodedPcmBytes,

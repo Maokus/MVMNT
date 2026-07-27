@@ -85,7 +85,7 @@ describe('RenderModal export options behaviour', () => {
 
     it('defaults audio codec to aac when capabilities load', async () => {
         const { default: RenderModal } = await loadComponent();
-        render(<RenderModal onClose={() => { }} />);
+        render(<RenderModal onClose={() => {}} />);
 
         await selectVideoFormat();
 
@@ -100,7 +100,7 @@ describe('RenderModal export options behaviour', () => {
 
     it('prefetches MP3 encoder when user selects mp3', async () => {
         const { default: RenderModal } = await loadComponent();
-        render(<RenderModal onClose={() => { }} />);
+        render(<RenderModal onClose={() => {}} />);
 
         await selectVideoFormat();
 
@@ -114,7 +114,7 @@ describe('RenderModal export options behaviour', () => {
 
     it('allows manual codec overrides to persist', async () => {
         const { default: RenderModal } = await loadComponent();
-        render(<RenderModal onClose={() => { }} />);
+        render(<RenderModal onClose={() => {}} />);
 
         await selectVideoFormat();
 
@@ -134,7 +134,7 @@ describe('RenderModal export options behaviour', () => {
 
     it('switching to WebM format chooses vp9 and opus defaults', async () => {
         const { default: RenderModal } = await loadComponent();
-        render(<RenderModal onClose={() => { }} />);
+        render(<RenderModal onClose={() => {}} />);
 
         await selectVideoFormat();
         const containerSelect = await screen.findByLabelText('Container');
@@ -150,7 +150,7 @@ describe('RenderModal export options behaviour', () => {
 
     it('submits webm export with container and defaults', async () => {
         const { default: RenderModal } = await loadComponent();
-        render(<RenderModal onClose={() => { }} />);
+        render(<RenderModal onClose={() => {}} />);
 
         await selectVideoFormat();
         const containerSelect = await screen.findByLabelText('Container');
@@ -175,7 +175,7 @@ describe('RenderModal export options behaviour', () => {
 
     it('keeps only preset selection controls in the export presets menu', async () => {
         const { default: RenderModal } = await loadComponent();
-        render(<RenderModal onClose={() => { }} />);
+        render(<RenderModal onClose={() => {}} />);
         await waitFor(() => expect(screen.getByLabelText('Video Codec')).not.toBeDisabled());
 
         fireEvent.click(screen.getByRole('button', { name: 'Export presets' }));
@@ -188,7 +188,7 @@ describe('RenderModal export options behaviour', () => {
 
     it('updates the selected destination extension when the container changes', async () => {
         const { default: RenderModal } = await loadComponent();
-        render(<RenderModal onClose={() => { }} />);
+        render(<RenderModal onClose={() => {}} />);
 
         await act(async () => {
             fireEvent.click(screen.getByRole('button', { name: 'Choose…' }));

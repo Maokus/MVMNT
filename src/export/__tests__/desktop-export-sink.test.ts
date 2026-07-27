@@ -33,14 +33,17 @@ describe('desktop export sink', () => {
         const writeFrame = vi.fn().mockResolvedValue(undefined);
         (window as any).mvmntDesktop = { exports: { begin, writeFrame } };
 
-        await expect(beginDesktopExport({ kind: 'image-sequence', suggestedName: 'frames' }))
-            .resolves.toMatchObject({ status: 'ready' });
+        await expect(beginDesktopExport({ kind: 'image-sequence', suggestedName: 'frames' })).resolves.toMatchObject({
+            status: 'ready',
+        });
         await writeDesktopFrame('sequence-1', 'frame_000001.png', new Blob([new Uint8Array([1, 2])]));
 
-        expect(writeFrame).toHaveBeenCalledWith(expect.objectContaining({
-            sessionId: 'sequence-1',
-            filename: 'frame_000001.png',
-        }));
+        expect(writeFrame).toHaveBeenCalledWith(
+            expect.objectContaining({
+                sessionId: 'sequence-1',
+                filename: 'frame_000001.png',
+            })
+        );
     });
 
     it('keeps a failed completion abortable so temporary output can be removed', async () => {

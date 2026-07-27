@@ -19,7 +19,7 @@ interface PropertiesPanelProps {
     onConfigChange: (
         elementId: string,
         changes: { [key: string]: any },
-        options?: Omit<SceneCommandOptions, 'source'>,
+        options?: Omit<SceneCommandOptions, 'source'>
     ) => void;
     onExport: (exportSettings: any) => void;
     exportStatus: string;

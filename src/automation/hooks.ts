@@ -15,12 +15,7 @@ import { selectAutomatedElements } from './selectors';
 /** Returns the automation channel for an element property, or null if not automated. */
 export function useAutomationChannel(elementId: string, propertyKey: string): AutomationChannel | null {
     const channelId = makeChannelId(elementId, propertyKey);
-    return useSceneStore(
-        useCallback(
-            (state) => state.automation.channels[channelId] ?? null,
-            [channelId],
-        ),
-    );
+    return useSceneStore(useCallback((state) => state.automation.channels[channelId] ?? null, [channelId]));
 }
 
 /** Returns the keyframe at the given tick on a channel, or null. */
@@ -33,16 +28,14 @@ export function useKeyframeAtTick(channelId: string | null, tick: number): Autom
                 if (!channel) return null;
                 return findKeyframeAtTick(channel.keyframes, tick);
             },
-            [channelId, tick],
-        ),
+            [channelId, tick]
+        )
     );
 }
 
 /** Returns the current timeline tick (playhead position). */
 export function useCurrentTick(): number {
-    return useTimelineStore(
-        useCallback((state) => state.timeline.currentTick, []),
-    );
+    return useTimelineStore(useCallback((state) => state.timeline.currentTick, []));
 }
 
 /** Convenience: returns whether a given property is automated. */
@@ -65,8 +58,8 @@ export function useElementChannels(elementId: string): AutomationChannel[] {
                 channels.sort((a, b) => a.propertyKey.localeCompare(b.propertyKey));
                 return channels;
             },
-            [elementId],
-        ),
+            [elementId]
+        )
     );
 }
 
@@ -75,26 +68,20 @@ export function useAutomatedElementIds(): string[] {
     return useSceneStore(
         useCallback((state) => {
             return selectAutomatedElements(state).map((e) => e.elementId);
-        }, []),
+        }, [])
     );
 }
 
 /** Returns whether an element is expanded in the automation section. */
 export function useAutomationExpanded(elementId: string): boolean {
     return useSceneStore(
-        useCallback(
-            (state) => state.interaction.automationExpandedElements.includes(elementId),
-            [elementId],
-        ),
+        useCallback((state) => state.interaction.automationExpandedElements.includes(elementId), [elementId])
     );
 }
 
 /** Returns whether a channel's curve editor is expanded. */
 export function useCurveEditorExpanded(channelId: string): boolean {
     return useSceneStore(
-        useCallback(
-            (state) => state.interaction.automationExpandedCurves.includes(channelId),
-            [channelId],
-        ),
+        useCallback((state) => state.interaction.automationExpandedCurves.includes(channelId), [channelId])
     );
 }

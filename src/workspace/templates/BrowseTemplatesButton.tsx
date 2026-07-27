@@ -2,8 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { TemplateBrowserModal } from '../modals/TemplateBrowserModal';
 import type { TemplateDefinition } from './types';
 
-export interface BrowseTemplatesButtonProps
-    extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'> {
+export interface BrowseTemplatesButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'> {
     templates: TemplateDefinition[];
     onTemplateSelect: (template: TemplateDefinition) => Promise<boolean | void> | boolean | void;
     buttonText?: React.ReactNode;
@@ -47,18 +46,10 @@ export const BrowseTemplatesButton: React.FC<BrowseTemplatesButtonProps> = ({
 
     return (
         <>
-            <button
-                {...rest}
-                type={type ?? 'button'}
-                className={className}
-                disabled={isDisabled}
-                onClick={handleOpen}
-            >
+            <button {...rest} type={type ?? 'button'} className={className} disabled={isDisabled} onClick={handleOpen}>
                 {children ?? buttonText}
             </button>
-            {isOpen && (
-                <TemplateBrowserModal templates={templates} onClose={handleClose} onSelect={handleSelect} />
-            )}
+            {isOpen && <TemplateBrowserModal templates={templates} onClose={handleClose} onSelect={handleSelect} />}
         </>
     );
 };

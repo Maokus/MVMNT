@@ -4,7 +4,7 @@ import type { ExportFormat, VideoContainer } from './types';
 export function destinationExtension(
     format: ExportFormat,
     container: VideoContainer,
-    transparentBackground: boolean,
+    transparentBackground: boolean
 ): string {
     if (format !== 'video') return '';
     return transparentBackground || container === 'webm' ? '.webm' : '.mp4';
@@ -14,7 +14,7 @@ export function updateDestinationExtension(
     outputPath: string,
     format: ExportFormat,
     container: VideoContainer,
-    transparentBackground: boolean,
+    transparentBackground: boolean
 ): string {
     if (!outputPath) return outputPath;
     const stem = outputPath.replace(/\.(mp4|webm)$/i, '');
@@ -26,7 +26,7 @@ export function initialOutputPath(
     outputPath: string | undefined,
     sceneName: string,
     exportKind: ExportKind,
-    exportSettings: ExportSettings,
+    exportSettings: ExportSettings
 ): string {
     if (!outputPath) return '';
     const separator = Math.max(outputPath.lastIndexOf('/'), outputPath.lastIndexOf('\\'));

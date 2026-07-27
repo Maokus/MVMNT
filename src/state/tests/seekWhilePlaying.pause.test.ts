@@ -8,13 +8,13 @@ describe('seek while playing pauses', () => {
         const api = useTimelineStore.getState();
         api.setCurrentTick(0, 'user');
         api.play();
-        
+
         const beforeSeek = useTimelineStore.getState();
         expect(beforeSeek.transport.isPlaying).toBe(true);
-        
+
         // Seek to a different position
         api.seekTick(1000);
-        
+
         const afterSeek = useTimelineStore.getState();
         expect(afterSeek.transport.isPlaying).toBe(false);
         expect(afterSeek.timeline.currentTick).toBe(1000);
@@ -24,13 +24,13 @@ describe('seek while playing pauses', () => {
         const api = useTimelineStore.getState();
         api.setCurrentTick(0, 'user');
         api.pause();
-        
+
         const beforeSeek = useTimelineStore.getState();
         expect(beforeSeek.transport.isPlaying).toBe(false);
-        
+
         // Seek to a different position
         api.seekTick(1000);
-        
+
         const afterSeek = useTimelineStore.getState();
         expect(afterSeek.transport.isPlaying).toBe(false);
         expect(afterSeek.timeline.currentTick).toBe(1000);

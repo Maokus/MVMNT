@@ -111,7 +111,11 @@ export class VideoExporter {
         this.isExporting = true;
 
         // Alpha is supported by the WebM/VP9 pipeline, not MP4/H.264.
-        const effectiveContainer: 'mp4' | 'webm' = transparentBackground ? 'webm' : container === 'webm' ? 'webm' : 'mp4';
+        const effectiveContainer: 'mp4' | 'webm' = transparentBackground
+            ? 'webm'
+            : container === 'webm'
+              ? 'webm'
+              : 'mp4';
 
         const originalWidth = this.canvas.width;
         const originalHeight = this.canvas.height;
@@ -328,7 +332,6 @@ export class VideoExporter {
             this.isExporting = false;
         }
     }
-
 }
 
 declare global {

@@ -53,7 +53,9 @@ const HeaderRightControls: React.FC<{
     const pendingQuantizeLabel = formatQuantizeLabel(lastNonOffQuantizeRef.current, arbitrarySnapN);
     const snapSelectValue = (magnetActive ? quantize : lastNonOffQuantizeRef.current) as SnapQuantizeOption;
     const [arbitraryInput, setArbitraryInput] = useState(String(arbitrarySnapN));
-    useEffect(() => { setArbitraryInput(String(arbitrarySnapN)); }, [arbitrarySnapN]);
+    useEffect(() => {
+        setArbitraryInput(String(arbitrarySnapN));
+    }, [arbitrarySnapN]);
     const commitArbitraryInput = () => {
         const n = parseInt(arbitraryInput, 10);
         if (n >= 1 && n <= 512) setArbitrarySnapN(n);
@@ -74,8 +76,8 @@ const HeaderRightControls: React.FC<{
             if (!tm) return globalBpm;
             const sec = tm.ticksToSeconds(currentTick);
             const spb = tm.getSecondsPerBeat(sec);
-            if (spb > 0) return Math.round(60 / spb * 10) / 10;
-        } catch { }
+            if (spb > 0) return Math.round((60 / spb) * 10) / 10;
+        } catch {}
         return globalBpm;
     }, [tempoAutomationEnabled, currentTick, globalBpm]);
     const [menuOpen, setMenuOpen] = useState(false);
@@ -109,7 +111,9 @@ const HeaderRightControls: React.FC<{
         return Math.exp(logR);
     };
     const [zoomVal, setZoomVal] = useState<number>(() => sliderFromRange(range));
-    useEffect(() => { setZoomVal(sliderFromRange(range)); }, [range]);
+    useEffect(() => {
+        setZoomVal(sliderFromRange(range));
+    }, [range]);
 
     // Local editable buffers so typing isn't instantly overwritten by store updates
     const [localTempo, setLocalTempo] = useState<string>('');
@@ -118,17 +122,23 @@ const HeaderRightControls: React.FC<{
         const v = tempoAutomationEnabled ? displayBpm : globalBpm;
         setLocalTempo(String(Number.isFinite(v) ? v : 120));
     }, [globalBpm, tempoAutomationEnabled, displayBpm]);
-    useEffect(() => { setLocalBeatsPerBar(String(Number.isFinite(beatsPerBar) ? beatsPerBar : 4)); }, [beatsPerBar]);
+    useEffect(() => {
+        setLocalBeatsPerBar(String(Number.isFinite(beatsPerBar) ? beatsPerBar : 4));
+    }, [beatsPerBar]);
     const commitTempo = () => {
         const v = parseFloat(localTempo);
-        const value = Number.isFinite(v) && v > 0 ? v : (Number.isFinite(globalBpm) ? globalBpm : 120);
-        try { setGlobalBpm(value); } catch { }
+        const value = Number.isFinite(v) && v > 0 ? v : Number.isFinite(globalBpm) ? globalBpm : 120;
+        try {
+            setGlobalBpm(value);
+        } catch {}
         setLocalTempo(String(value));
     };
     const commitBeatsPerBar = () => {
         const v = parseInt(localBeatsPerBar);
-        const value = Number.isFinite(v) && v > 0 ? Math.floor(v) : (Number.isFinite(beatsPerBar) ? beatsPerBar : 4);
-        try { setBeatsPerBar(value); } catch { }
+        const value = Number.isFinite(v) && v > 0 ? Math.floor(v) : Number.isFinite(beatsPerBar) ? beatsPerBar : 4;
+        try {
+            setBeatsPerBar(value);
+        } catch {}
         setLocalBeatsPerBar(String(value));
     };
 
@@ -136,7 +146,14 @@ const HeaderRightControls: React.FC<{
         <div className="flex items-center gap-3 text-[12px] relative">
             {/* Inline tempo + meter controls (migrated from GlobalPropertiesPanel) */}
             <div className="flex items-center gap-2">
-                <label className="flex items-center gap-1 text-neutral-300" title={tempoAutomationEnabled ? 'Tempo is automated — edit keyframes in the tempo lane' : 'Global tempo (BPM)'}>
+                <label
+                    className="flex items-center gap-1 text-neutral-300"
+                    title={
+                        tempoAutomationEnabled
+                            ? 'Tempo is automated — edit keyframes in the tempo lane'
+                            : 'Global tempo (BPM)'
+                    }
+                >
                     <span>BPM</span>
                     <input
                         aria-label="Global tempo (BPM)"
@@ -148,7 +165,12 @@ const HeaderRightControls: React.FC<{
                         value={localTempo}
                         onChange={(e) => !tempoAutomationEnabled && setLocalTempo(e.target.value)}
                         onBlur={() => !tempoAutomationEnabled && commitTempo()}
-                        onKeyDown={(e) => { if (!tempoAutomationEnabled && e.key === 'Enter') { commitTempo(); (e.currentTarget as any).blur?.(); } }}
+                        onKeyDown={(e) => {
+                            if (!tempoAutomationEnabled && e.key === 'Enter') {
+                                commitTempo();
+                                (e.currentTarget as any).blur?.();
+                            }
+                        }}
                         disabled={tempoAutomationEnabled}
                     />
                 </label>
@@ -164,7 +186,12 @@ const HeaderRightControls: React.FC<{
                         value={localBeatsPerBar}
                         onChange={(e) => setLocalBeatsPerBar(e.target.value)}
                         onBlur={commitBeatsPerBar}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { commitBeatsPerBar(); (e.currentTarget as any).blur?.(); } }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                commitBeatsPerBar();
+                                (e.currentTarget as any).blur?.();
+                            }
+                        }}
                     />
                 </label>
             </div>
@@ -183,10 +210,11 @@ const HeaderRightControls: React.FC<{
                             : `Snapping off — click or press S to turn on (${pendingQuantizeLabel})`
                     }
                     onClick={() => setQuantize(magnetActive ? 'off' : lastNonOffQuantizeRef.current)}
-                    className={`px-2 py-1 flex items-center justify-center transition-colors ${magnetActive
-                        ? 'bg-blue-600/70 text-white'
-                        : 'bg-neutral-900/60 text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200'
-                        }`}
+                    className={`px-2 py-1 flex items-center justify-center transition-colors ${
+                        magnetActive
+                            ? 'bg-blue-600/70 text-white'
+                            : 'bg-neutral-900/60 text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200'
+                    }`}
                 >
                     <FaMagnet />
                 </button>
@@ -196,12 +224,13 @@ const HeaderRightControls: React.FC<{
                 <select
                     aria-label="Snap quantize"
                     disabled={adaptiveSnap}
-                    className={`bg-neutral-900/60 px-1 py-[3px] cursor-pointer focus:outline-none transition-colors border-0 ${adaptiveSnap
-                        ? 'text-neutral-600 cursor-not-allowed opacity-50'
-                        : magnetActive
-                            ? 'text-white'
-                            : 'text-neutral-400'
-                        }`}
+                    className={`bg-neutral-900/60 px-1 py-[3px] cursor-pointer focus:outline-none transition-colors border-0 ${
+                        adaptiveSnap
+                            ? 'text-neutral-600 cursor-not-allowed opacity-50'
+                            : magnetActive
+                              ? 'text-white'
+                              : 'text-neutral-400'
+                    }`}
                     value={snapSelectValue}
                     onChange={(e) => setQuantize(e.target.value as SnapQuantizeOption)}
                 >
@@ -216,7 +245,11 @@ const HeaderRightControls: React.FC<{
                     <>
                         <div className="w-px bg-neutral-700 self-stretch" />
                         <div className="flex items-center bg-neutral-900/60 px-1">
-                            <span className={`text-[10px] mr-0.5 ${magnetActive ? 'text-neutral-300' : 'text-neutral-500'}`}>1/</span>
+                            <span
+                                className={`text-[10px] mr-0.5 ${magnetActive ? 'text-neutral-300' : 'text-neutral-500'}`}
+                            >
+                                1/
+                            </span>
                             <input
                                 type="number"
                                 aria-label="Arbitrary snap denominator"
@@ -226,7 +259,12 @@ const HeaderRightControls: React.FC<{
                                 value={arbitraryInput}
                                 onChange={(e) => setArbitraryInput(e.target.value)}
                                 onBlur={commitArbitraryInput}
-                                onKeyDown={(e) => { if (e.key === 'Enter') { commitArbitraryInput(); (e.currentTarget as HTMLInputElement).blur(); } }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        commitArbitraryInput();
+                                        (e.currentTarget as HTMLInputElement).blur();
+                                    }
+                                }}
                                 className={`w-[36px] bg-transparent border-0 focus:outline-none text-center text-[11px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${magnetActive ? 'text-white' : 'text-neutral-400'}`}
                             />
                         </div>
@@ -236,13 +274,22 @@ const HeaderRightControls: React.FC<{
                 <div className="w-px bg-neutral-700 self-stretch" />
                 {/* Segment 3: Adaptive snap toggle */}
                 <button
-                    aria-label={adaptiveSnap ? 'Adaptive snapping: on — click to use fixed snap' : 'Adaptive snapping: off — click to enable zoom-aware snap'}
-                    title={adaptiveSnap ? 'Adaptive snapping on — snap denominator adjusts with zoom' : 'Adaptive snapping off — click to enable zoom-aware snapping'}
+                    aria-label={
+                        adaptiveSnap
+                            ? 'Adaptive snapping: on — click to use fixed snap'
+                            : 'Adaptive snapping: off — click to enable zoom-aware snap'
+                    }
+                    title={
+                        adaptiveSnap
+                            ? 'Adaptive snapping on — snap denominator adjusts with zoom'
+                            : 'Adaptive snapping off — click to enable zoom-aware snapping'
+                    }
                     onClick={() => setAdaptiveSnap(!adaptiveSnap)}
-                    className={`px-2 py-1 flex items-center justify-center transition-colors ${adaptiveSnap
-                        ? 'bg-blue-600/70 text-white'
-                        : 'bg-neutral-900/60 text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200'
-                        }`}
+                    className={`px-2 py-1 flex items-center justify-center transition-colors ${
+                        adaptiveSnap
+                            ? 'bg-blue-600/70 text-white'
+                            : 'bg-neutral-900/60 text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200'
+                    }`}
                 >
                     <FaMagic />
                 </button>
@@ -250,12 +297,17 @@ const HeaderRightControls: React.FC<{
             {/* Auto-follow playhead button */}
             <button
                 aria-label={follow ? 'Auto follow playhead: on' : 'Auto follow playhead: off'}
-                title={follow ? 'Auto follow playhead: on (click to disable)' : 'Auto follow playhead: off (click to enable)'}
+                title={
+                    follow
+                        ? 'Auto follow playhead: on (click to disable)'
+                        : 'Auto follow playhead: off (click to enable)'
+                }
                 onClick={() => setFollow && setFollow(!follow)}
-                className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors ${follow
-                    ? 'bg-blue-600/70 text-white border-blue-400/70'
-                    : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
-                    }`}
+                className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors ${
+                    follow
+                        ? 'bg-blue-600/70 text-white border-blue-400/70'
+                        : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
+                }`}
             >
                 <FaArrowRight />
             </button>
@@ -289,36 +341,54 @@ const HeaderRightControls: React.FC<{
                             {/* Zoom slider */}
                             <label className="text-neutral-300 flex items-center gap-2" title="Adjust timeline zoom">
                                 <span>Zoom</span>
-                                <input aria-label="Timeline zoom" className="flex-1" type="range" min={0} max={100} step={1} value={zoomVal} onChange={(e) => {
-                                    const v = parseInt(e.target.value, 10);
-                                    setZoomVal(v);
-                                    const newRange = rangeFromSlider(v);
-                                    const center = (view.startTick + view.endTick) / 2;
-                                    const newStart = Math.round(center - newRange / 2);
-                                    const newEnd = Math.round(newStart + newRange);
-                                    setTimelineViewTicks(newStart, newEnd);
-                                }} />
+                                <input
+                                    aria-label="Timeline zoom"
+                                    className="flex-1"
+                                    type="range"
+                                    min={0}
+                                    max={100}
+                                    step={1}
+                                    value={zoomVal}
+                                    onChange={(e) => {
+                                        const v = parseInt(e.target.value, 10);
+                                        setZoomVal(v);
+                                        const newRange = rangeFromSlider(v);
+                                        const center = (view.startTick + view.endTick) / 2;
+                                        const newStart = Math.round(center - newRange / 2);
+                                        const newEnd = Math.round(newStart + newRange);
+                                        setTimelineViewTicks(newStart, newEnd);
+                                    }}
+                                />
                             </label>
                             {/* View preset buttons */}
                             <div className="flex items-center gap-1" role="none">
                                 <button
                                     className="flex-1 px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60 flex items-center justify-center gap-1"
                                     title="Fit all content (Shift+1)"
-                                    onClick={() => { onFitAll?.(); setMenuOpen(false); }}
+                                    onClick={() => {
+                                        onFitAll?.();
+                                        setMenuOpen(false);
+                                    }}
                                 >
                                     <FaExpand className="text-neutral-300" />
                                 </button>
                                 <button
                                     className="flex-1 px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60 flex items-center justify-center gap-1"
                                     title="Zoom to selection (Shift+2)"
-                                    onClick={() => { onZoomToSelection?.(); setMenuOpen(false); }}
+                                    onClick={() => {
+                                        onZoomToSelection?.();
+                                        setMenuOpen(false);
+                                    }}
                                 >
                                     <FaObjectGroup className="text-neutral-300" />
                                 </button>
                                 <button
                                     className="flex-1 px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60 flex items-center justify-center gap-1"
                                     title="Center on playhead (F)"
-                                    onClick={() => { onCenterOnPlayhead?.(); setMenuOpen(false); }}
+                                    onClick={() => {
+                                        onCenterOnPlayhead?.();
+                                        setMenuOpen(false);
+                                    }}
                                 >
                                     <FaCrosshairs className="text-neutral-300" />
                                 </button>

@@ -42,7 +42,8 @@ export function migrateTimelineTrackMidiClipsV8(track: any): any {
         id: `${track.id}__clip`,
         type: 'midi',
         sourceId,
-        offsetTicks: typeof track.offsetTicks === 'number' && Number.isFinite(track.offsetTicks) ? track.offsetTicks : 0,
+        offsetTicks:
+            typeof track.offsetTicks === 'number' && Number.isFinite(track.offsetTicks) ? track.offsetTicks : 0,
         regionStartTick:
             typeof track.regionStartTick === 'number' && Number.isFinite(track.regionStartTick)
                 ? track.regionStartTick
@@ -59,7 +60,13 @@ export function migrateTimelineTrackMidiClipsV8(track: any): any {
 
 export function stripLegacyMidiPlacementFields(track: any): any {
     if (!track || typeof track !== 'object' || track.type !== 'midi') return track;
-    const { offsetTicks: _offsetTicks, regionStartTick: _regionStartTick, regionEndTick: _regionEndTick, midiSourceId: _midiSourceId, ...rest } = track;
+    const {
+        offsetTicks: _offsetTicks,
+        regionStartTick: _regionStartTick,
+        regionEndTick: _regionEndTick,
+        midiSourceId: _midiSourceId,
+        ...rest
+    } = track;
     return { ...rest, clips: Array.isArray(track.clips) ? track.clips : [] };
 }
 

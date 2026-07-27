@@ -1,13 +1,5 @@
 #!/usr/bin/env node
-import {
-    cpSync,
-    existsSync,
-    mkdirSync,
-    readFileSync,
-    readdirSync,
-    statSync,
-    writeFileSync,
-} from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import readline from 'node:readline/promises';
@@ -37,10 +29,16 @@ const discoveredTemplateNames = readdirSync(templatesDir, { withFileTypes: true 
 const missingDescriptors = discoveredTemplateNames.filter((name) => !templateCapabilities[name]);
 const missingTemplates = Object.keys(templateCapabilities).filter((name) => !discoveredTemplateNames.includes(name));
 if (missingDescriptors.length || missingTemplates.length) {
-    throw new Error([
-        missingDescriptors.length ? `Templates missing capability descriptors: ${missingDescriptors.join(', ')}` : '',
-        missingTemplates.length ? `Capability descriptors missing templates: ${missingTemplates.join(', ')}` : '',
-    ].filter(Boolean).join('. '));
+    throw new Error(
+        [
+            missingDescriptors.length
+                ? `Templates missing capability descriptors: ${missingDescriptors.join(', ')}`
+                : '',
+            missingTemplates.length ? `Capability descriptors missing templates: ${missingTemplates.join(', ')}` : '',
+        ]
+            .filter(Boolean)
+            .join('. ')
+    );
 }
 const templateNames = Object.keys(templateCapabilities).sort();
 
@@ -108,7 +106,9 @@ function parseArgs(args) {
         }
     }
     if (command === 'add' && (options.name || options.pluginName)) {
-        throw new Error('The add command reads plugin identity from plugin.json; use --element for the new element type.');
+        throw new Error(
+            'The add command reads plugin identity from plugin.json; use --element for the new element type.'
+        );
     }
     if (command === 'create' && options.element) {
         throw new Error('The create command derives its first element type from the final plugin-ID segment.');
@@ -129,7 +129,11 @@ function targetsSdk2(apiVersion) {
 }
 
 function toTitleCase(value) {
-    return value.split(/[-.]/).filter(Boolean).map((part) => part[0].toUpperCase() + part.slice(1)).join(' ');
+    return value
+        .split(/[-.]/)
+        .filter(Boolean)
+        .map((part) => part[0].toUpperCase() + part.slice(1))
+        .join(' ');
 }
 
 function escapeSingleQuoted(value) {
@@ -137,7 +141,10 @@ function escapeSingleQuoted(value) {
 }
 
 function replaceProjectTokens(source, values) {
-    return source.replace(/{{(PLUGIN_ID|PLUGIN_NAME|ELEMENT_TYPE|ELEMENT_NAME|ELEMENT_DESCRIPTION)}}/g, (_match, key) => values[key]);
+    return source.replace(
+        /{{(PLUGIN_ID|PLUGIN_NAME|ELEMENT_TYPE|ELEMENT_NAME|ELEMENT_DESCRIPTION)}}/g,
+        (_match, key) => values[key]
+    );
 }
 
 function renderElementSource(templateName, values) {
@@ -248,7 +255,8 @@ function createPlugin(options) {
     validateTemplate(options.template);
 
     const elementType = options.name.split('.').at(-1);
-    if (!validateElementType(elementType)) throw new Error('The final plugin-ID segment must be a valid kebab-case element type.');
+    if (!validateElementType(elementType))
+        throw new Error('The final plugin-ID segment must be a valid kebab-case element type.');
 
     const targetDir = resolve(options.dir ?? elementType);
     if (existsSync(targetDir)) throw new Error(`Refusing to overwrite existing directory: ${targetDir}`);
@@ -269,9 +277,15 @@ function createPlugin(options) {
     mkdirSync(resolve(targetDir, 'assets'));
     copyTemplateAssets(options.template, targetDir);
     writeFileSync(resolve(targetDir, 'plugin.json'), `${JSON.stringify(manifest, null, 2)}\n`);
-    writeFileSync(resolve(targetDir, 'package.json'), replaceProjectTokens(readFileSync(resolve(commonDir, 'package.json'), 'utf8'), values));
+    writeFileSync(
+        resolve(targetDir, 'package.json'),
+        replaceProjectTokens(readFileSync(resolve(commonDir, 'package.json'), 'utf8'), values)
+    );
     writeFileSync(resolve(targetDir, 'tsconfig.json'), readFileSync(resolve(commonDir, 'tsconfig.json'), 'utf8'));
-    writeFileSync(resolve(targetDir, 'README.md'), replaceProjectTokens(readFileSync(resolve(commonDir, 'README.md'), 'utf8'), values));
+    writeFileSync(
+        resolve(targetDir, 'README.md'),
+        replaceProjectTokens(readFileSync(resolve(commonDir, 'README.md'), 'utf8'), values)
+    );
     mkdirSync(resolve(targetDir, 'src'));
     writeFileSync(resolve(targetDir, 'src', `${elementType}.ts`), renderElementSource(options.template, values));
 
@@ -285,7 +299,9 @@ function createPlugin(options) {
 function addElement(options) {
     validateTemplate(options.template);
     if (!validateElementType(options.element)) {
-        throw new Error('Element type must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens.');
+        throw new Error(
+            'Element type must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens.'
+        );
     }
 
     const pluginDir = resolve(options.dir ?? '.');
@@ -297,8 +313,9 @@ function addElement(options) {
     const entry = `src/${options.element}.ts`;
     const elementPath = resolve(pluginDir, entry);
     if (existsSync(elementPath)) throw new Error(`Refusing to overwrite existing element file: ${elementPath}`);
-    const assetConflicts = templateAssetFiles(options.template)
-        .filter((asset) => existsSync(resolve(pluginDir, 'assets', asset)));
+    const assetConflicts = templateAssetFiles(options.template).filter((asset) =>
+        existsSync(resolve(pluginDir, 'assets', asset))
+    );
     if (assetConflicts.length) {
         throw new Error(`Refusing to overwrite existing template assets: ${assetConflicts.join(', ')}`);
     }
@@ -312,11 +329,14 @@ function addElement(options) {
     });
     const nextManifest = {
         ...manifest,
-        elements: [...manifest.elements, {
-            type: options.element,
-            entry,
-            capabilities: templateCapabilities[options.template],
-        }],
+        elements: [
+            ...manifest.elements,
+            {
+                type: options.element,
+                entry,
+                capabilities: templateCapabilities[options.template],
+            },
+        ],
     };
 
     mkdirSync(dirname(elementPath), { recursive: true });

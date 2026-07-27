@@ -17,7 +17,12 @@
 // @ts-ignore — gifuct-js lacks bundled types
 import { decompressFrames, parseGIF } from 'gifuct-js';
 import { type VisualResource, type VisualFrame, type VisualAnimation } from './visual-resource';
-import { type VisualSourceDescriptor, type ImageSource, type SparrowAnimationOverride, makeDescriptorKey } from './visual-source-descriptor';
+import {
+    type VisualSourceDescriptor,
+    type ImageSource,
+    type SparrowAnimationOverride,
+    makeDescriptorKey,
+} from './visual-source-descriptor';
 
 // ─── Source helpers ──────────────────────────────────────────────────────────
 

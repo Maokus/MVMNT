@@ -42,7 +42,13 @@ function state(): TimelineState {
                 notesRaw: [],
                 ccRaw: [],
                 ticksPerQuarter: CANONICAL_PPQ,
-                bounds: { minTick: 0, maxTick: CANONICAL_PPQ, minNote: 60, maxNote: 60, maxDurationTicks: CANONICAL_PPQ },
+                bounds: {
+                    minTick: 0,
+                    maxTick: CANONICAL_PPQ,
+                    minNote: 60,
+                    maxNote: 60,
+                    maxDurationTicks: CANONICAL_PPQ,
+                },
             },
         },
     } as unknown as TimelineState;
@@ -66,10 +72,7 @@ describe('midiClipClipboard', () => {
 
         expect(prepared?.createTracks).toEqual([]);
         expect(prepared?.clips.map((entry) => entry.trackId)).toEqual(['track2', 'track2']);
-        expect(prepared?.clips.map((entry) => entry.clip.offsetTicks)).toEqual([
-            CANONICAL_PPQ * 5,
-            CANONICAL_PPQ * 7,
-        ]);
+        expect(prepared?.clips.map((entry) => entry.clip.offsetTicks)).toEqual([CANONICAL_PPQ * 5, CANONICAL_PPQ * 7]);
     });
 
     it('prepares new destination MIDI tracks when the paste spans beyond existing tracks', () => {
@@ -93,12 +96,10 @@ describe('midiClipClipboard', () => {
             {
                 type: 'range',
                 range: { startTick: CANONICAL_PPQ, endTick: CANONICAL_PPQ * 2, trackIds: ['track1', 'track3'] },
-            },
+            }
         );
 
-        const prepared = copied
-            ? prepareMidiClipPaste(state(), copied, { trackId: 'track2', tick: 0 })
-            : null;
+        const prepared = copied ? prepareMidiClipPaste(state(), copied, { trackId: 'track2', tick: 0 }) : null;
 
         expect(prepared?.createTracks).toHaveLength(1);
         expect(prepared?.clips.map((entry) => entry.trackId)).toEqual(['track2', prepared?.createTracks[0].trackId]);
@@ -137,24 +138,46 @@ describe('midiClipClipboard', () => {
             timeline: {
                 globalBpm: 120,
                 beatsPerBar: 4,
-                masterTempoMap: [{ time: 0, bpm: 120 }, { time: 2, bpm: 60 }],
+                masterTempoMap: [
+                    { time: 0, bpm: 120 },
+                    { time: 2, bpm: 60 },
+                ],
             },
             tracks: {
                 audio: {
-                    id: 'audio', name: 'Audio', type: 'audio', enabled: true, mute: false, solo: false, gain: 1,
-                    clips: [{
-                        id: 'audioClip', type: 'audio', sourceId: 'audioSource', offsetTicks: 3 * CANONICAL_PPQ,
-                        sourceStartSeconds: 1, sourceEndSeconds: 3,
-                    }],
+                    id: 'audio',
+                    name: 'Audio',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    gain: 1,
+                    clips: [
+                        {
+                            id: 'audioClip',
+                            type: 'audio',
+                            sourceId: 'audioSource',
+                            offsetTicks: 3 * CANONICAL_PPQ,
+                            sourceStartSeconds: 1,
+                            sourceEndSeconds: 3,
+                        },
+                    ],
                 },
             },
             tracksOrder: ['audio'],
             audioCache: {
-                audioSource: { durationSeconds: 4, durationSamples: 192000, durationTicks: 7680, sampleRate: 48000, channels: 1 },
+                audioSource: {
+                    durationSeconds: 4,
+                    durationSamples: 192000,
+                    durationTicks: 7680,
+                    sampleRate: 48000,
+                    channels: 1,
+                },
             },
         } as unknown as TimelineState;
         const copied = copyTimelineSelectionToClipboard(audioState, {
-            type: 'clips', clips: [{ trackId: 'audio', clipId: 'audioClip', kind: 'audio' }],
+            type: 'clips',
+            clips: [{ trackId: 'audio', clipId: 'audioClip', kind: 'audio' }],
         });
         // Original audible end: base 1.5s + source end 3s = 4.5s => tick 6240.
         const prepared = copied ? prepareTimelineClipPaste(audioState, copied, { trackId: 'audio', tick: 6240 }) : null;
@@ -186,7 +209,8 @@ describe('midiClipClipboard', () => {
             tracksOrder: ['track1'],
         } as unknown as TimelineState;
         const copied = copyTimelineSelectionToClipboard(midiState, {
-            type: 'clips', clips: [{ trackId: 'track1', clipId: 'clip1', kind: 'midi' }],
+            type: 'clips',
+            clips: [{ trackId: 'track1', clipId: 'clip1', kind: 'midi' }],
         });
         const destination = copied ? getTimelineClipDuplicateDestination(midiState, copied) : null;
         const prepared = copied && destination ? prepareTimelineClipPaste(midiState, copied, destination) : null;

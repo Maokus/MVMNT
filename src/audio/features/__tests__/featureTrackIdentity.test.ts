@@ -16,8 +16,8 @@ const makeTrack = (key: string) =>
         startTimeSeconds: 0,
         data: new Float32Array(16),
         format: 'float32',
-        analysisProfileId: key.includes(':') ? key.split(':').at(-1) ?? null : null,
-    } as any);
+        analysisProfileId: key.includes(':') ? (key.split(':').at(-1) ?? null) : null,
+    }) as any;
 
 describe('resolveFeatureTrackFromCache', () => {
     const featureKey = 'spectrogram';

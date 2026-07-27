@@ -24,7 +24,10 @@ import { renderResourceManager } from '../render-resource-manager';
 export class CompositeLayer extends EmptyRenderObject {
     layerBlendMode: GlobalCompositeOperation;
 
-    constructor(layerBlendMode: GlobalCompositeOperation = 'source-over', options?: { layoutParticipation?: LayoutParticipation }) {
+    constructor(
+        layerBlendMode: GlobalCompositeOperation = 'source-over',
+        options?: { layoutParticipation?: LayoutParticipation }
+    ) {
         super();
         this.layerBlendMode = layerBlendMode;
         if (options?.layoutParticipation !== undefined) this.layoutParticipation = options.layoutParticipation;

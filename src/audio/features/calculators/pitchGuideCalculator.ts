@@ -11,11 +11,11 @@ const YIN_THRESHOLD = 0.12;
 // Wider limit: frames with bestCmnd below this are usable even if they miss the strict threshold
 const VOICED_CMND_LIMIT = 0.45;
 // Even wider limit: frames below this get a candidateF0 for visual use (not trusted pitch)
-const CANDIDATE_CMND_LIMIT = 0.70;
+const CANDIDATE_CMND_LIMIT = 0.7;
 // RMS below this → silence; do not report pitch regardless of CMND
 const SILENCE_RMS_THRESHOLD = 0.001;
 // Gap-filling parameters: fill short f0=0 gaps between nearby voiced frames
-const GAP_FILL_MAX_SEC = 0.150;
+const GAP_FILL_MAX_SEC = 0.15;
 const GAP_FILL_CONFIDENCE = 0.12;
 // Max pitch ratio between gap endpoints (~4 semitones); wider gaps are left unfilled
 const GAP_FILL_MAX_PITCH_RATIO = 1.26;
@@ -57,12 +57,7 @@ function preprocessWindow(samples: Float32Array, start: number, length: number):
     return buf;
 }
 
-function detectYin(
-    buf: Float32Array,
-    sampleRate: number,
-    minFrequency: number,
-    maxFrequency: number
-): YinResult {
+function detectYin(buf: Float32Array, sampleRate: number, minFrequency: number, maxFrequency: number): YinResult {
     const length = buf.length;
     if (length < 3) return NULL_YIN;
 
@@ -325,8 +320,7 @@ export function createPitchGuideCalculator({
                     continue;
                 }
                 const prevConf = frame > 0 ? data[(frame - 1) * CHANNEL_COUNT + CH_CONFIDENCE] : conf;
-                const nextConf =
-                    frame < frameCount - 1 ? data[(frame + 1) * CHANNEL_COUNT + CH_CONFIDENCE] : conf;
+                const nextConf = frame < frameCount - 1 ? data[(frame + 1) * CHANNEL_COUNT + CH_CONFIDENCE] : conf;
                 let smoothed = 0.25 * prevConf + 0.5 * conf + 0.25 * nextConf;
 
                 const f0 = data[frame * CHANNEL_COUNT + CH_F0];

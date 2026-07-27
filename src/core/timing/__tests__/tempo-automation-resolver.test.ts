@@ -30,11 +30,11 @@ describe('resolveTempoKeyframes', () => {
         // At 60bpm: 960 ticks = 1.0 sec
         const result = resolveTempoKeyframes(
             [
-                { tick: 1920, bpm: 60 },  // at 1.0 sec
-                { tick: 2880, bpm: 90 },  // 960 ticks at 60bpm = 1.0sec → at 2.0 sec
+                { tick: 1920, bpm: 60 }, // at 1.0 sec
+                { tick: 2880, bpm: 90 }, // 960 ticks at 60bpm = 1.0sec → at 2.0 sec
             ],
             120,
-            PPQ,
+            PPQ
         );
         expect(result).toHaveLength(3);
         expect(result[0]).toEqual({ time: 0, bpm: 120, curve: 'step' });
@@ -88,7 +88,7 @@ describe('resolveTempoKeyframes', () => {
                 { tick: 960, bpm: 120 },
             ],
             120,
-            PPQ,
+            PPQ
         );
         expect(result).toHaveLength(2);
         expect(result[0]).toEqual({ time: 0, bpm: 60, curve: 'step' });
@@ -98,9 +98,12 @@ describe('resolveTempoKeyframes', () => {
 
     it('all entries have curve: "step"', () => {
         const result = resolveTempoKeyframes(
-            [{ tick: 960, bpm: 80 }, { tick: 1920, bpm: 140 }],
+            [
+                { tick: 960, bpm: 80 },
+                { tick: 1920, bpm: 140 },
+            ],
             120,
-            PPQ,
+            PPQ
         );
         for (const entry of result) {
             expect(entry.curve).toBe('step');
@@ -110,9 +113,12 @@ describe('resolveTempoKeyframes', () => {
     it('handles negative tick deltas defensively (clamped to 0)', () => {
         // Unsorted input: second keyframe is before the first
         const result = resolveTempoKeyframes(
-            [{ tick: 1920, bpm: 100 }, { tick: 960, bpm: 80 }],
+            [
+                { tick: 1920, bpm: 100 },
+                { tick: 960, bpm: 80 },
+            ],
             120,
-            PPQ,
+            PPQ
         );
         // The second keyframe has a negative delta; the resolver clamps to 0 duration
         expect(result).toHaveLength(3);

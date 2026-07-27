@@ -23,7 +23,9 @@ export function useTimelinePointerControls() {
     const lanesScrollRef = useRef<HTMLDivElement | null>(null);
     const [rightPaneEl, setRightPaneEl] = useState<HTMLDivElement | null>(null);
 
-    const rightDragRef = useRef<{ active: boolean; startClientX: number; startView: { s: number; e: number } } | null>(null);
+    const rightDragRef = useRef<{ active: boolean; startClientX: number; startView: { s: number; e: number } } | null>(
+        null
+    );
     const spaceDownRef = useRef(false);
     const isPointerDownRef = useRef(false);
     const spaceDragRef = useRef<{ startClientX: number; startView: { s: number; e: number } } | null>(null);
@@ -36,7 +38,11 @@ export function useTimelinePointerControls() {
         // Middle button — drag to pan
         if (e.button === 1) {
             (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-            rightDragRef.current = { active: true, startClientX: e.clientX, startView: { s: view.startTick, e: view.endTick } };
+            rightDragRef.current = {
+                active: true,
+                startClientX: e.clientX,
+                startView: { s: view.startTick, e: view.endTick },
+            };
             e.preventDefault();
             return;
         }
@@ -112,11 +118,15 @@ export function useTimelinePointerControls() {
 
         if (rightDragRef.current?.active) {
             rightDragRef.current = null;
-            try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { }
+            try {
+                (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+            } catch {}
         }
         if (spaceDragRef.current) {
             spaceDragRef.current = null;
-            try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { }
+            try {
+                (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+            } catch {}
         }
         if (activePointersRef.current.size < 2) {
             pinchRef.current = null;
@@ -209,16 +219,18 @@ export function useTimelinePointerControls() {
         };
         el.addEventListener('scroll', handleScroll);
         return () => el.removeEventListener('scroll', handleScroll);
-    // rightPaneEl is the indirect trigger: its state update causes a re-render where
-    // lanesScrollRef.current is guaranteed to be populated.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // rightPaneEl is the indirect trigger: its state update causes a re-render where
+        // lanesScrollRef.current is guaranteed to be populated.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [rightPaneEl]);
 
     // Prevent Safari gesture zoom on the lanes container to avoid page zoom side-effects
     useEffect(() => {
         const el = lanesScrollRef.current;
         if (!el) return;
-        const prevent = (ev: Event) => { ev.preventDefault(); };
+        const prevent = (ev: Event) => {
+            ev.preventDefault();
+        };
         el.addEventListener('gesturestart', prevent as EventListener, { passive: false } as any);
         el.addEventListener('gesturechange', prevent as EventListener, { passive: false } as any);
         el.addEventListener('gestureend', prevent as EventListener, { passive: false } as any);
@@ -227,7 +239,7 @@ export function useTimelinePointerControls() {
             el.removeEventListener('gesturechange', prevent as EventListener);
             el.removeEventListener('gestureend', prevent as EventListener);
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     return {

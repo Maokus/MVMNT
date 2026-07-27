@@ -53,9 +53,7 @@ export class GlowLayer extends EmptyRenderObject {
         if (this.glowBlur <= 0 || this.glowOpacity <= 0) return;
 
         const mainCanvas = config.canvas;
-        const surface = mainCanvas
-            ? renderResourceManager.acquireScratch(mainCanvas.width, mainCanvas.height)
-            : null;
+        const surface = mainCanvas ? renderResourceManager.acquireScratch(mainCanvas.width, mainCanvas.height) : null;
 
         if (surface) {
             const offCtx = surface.context;

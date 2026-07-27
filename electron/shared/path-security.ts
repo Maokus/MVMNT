@@ -14,7 +14,10 @@ export function ensureProjectExtension(filePath: string): string {
 
 export function sanitizeSuggestedName(value: unknown): string {
     const raw = typeof value === 'string' ? value.trim() : '';
-    const cleaned = raw.replace(/[\\/:*?"<>|]/g, '_').replace(/\.+$/g, '').slice(0, 120);
+    const cleaned = raw
+        .replace(/[\\/:*?"<>|]/g, '_')
+        .replace(/\.+$/g, '')
+        .slice(0, 120);
     return ensureProjectExtension(cleaned || 'Untitled');
 }
 

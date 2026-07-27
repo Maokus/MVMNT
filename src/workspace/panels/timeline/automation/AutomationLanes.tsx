@@ -11,7 +11,12 @@ import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 import { useTickScale } from '../hooks/useTickScale';
 import { useSnapTicks } from '../hooks/useSnapTicks';
-import { useAutomatedElementIds, useElementChannels, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
+import {
+    useAutomatedElementIds,
+    useElementChannels,
+    useAutomationExpanded,
+    useCurveEditorExpanded,
+} from '@automation/hooks';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { copySelectedKeyframes, getKeyframeSelClipboard } from '@automation/clipboard';
 import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, AUTOMATION_SEARCH_HEIGHT } from '../constants';
@@ -60,19 +65,14 @@ const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ 
         useSceneStore.setState((state) => ({
             interaction: {
                 ...state.interaction,
-                automationExpandedCurves: state.interaction.automationExpandedCurves.filter(
-                    (id) => id !== channel.id,
-                ),
+                automationExpandedCurves: state.interaction.automationExpandedCurves.filter((id) => id !== channel.id),
             },
         }));
     }, [channel.id]);
 
     return (
         <div data-channel-id={channel.id}>
-            <div
-                className="relative border-b border-neutral-800/60"
-                style={{ height: AUTOMATION_ROW_HEIGHT }}
-            >
+            <div className="relative border-b border-neutral-800/60" style={{ height: AUTOMATION_ROW_HEIGHT }}>
                 <AutomationLaneRow channel={channel} width={width} />
             </div>
             {curveExpanded && (
@@ -109,160 +109,185 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
     }, []);
 
     // Selection state per tick: 'none' | 'partial' | 'full'
-    const getTickSelectionState = useCallback((tick: number): 'none' | 'partial' | 'full' => {
-        const channelsAtTick = channels.filter((ch) =>
-            ch.keyframes.some((kf) => Math.abs(kf.tick - tick) < 0.5),
-        );
-        if (channelsAtTick.length === 0) return 'none';
-        const selectedCount = channelsAtTick.filter((ch) =>
-            selectedKeyframes.some((k) => k.channelId === ch.id && Math.abs(k.tick - tick) < 0.5),
-        ).length;
-        if (selectedCount === 0) return 'none';
-        return selectedCount === channelsAtTick.length ? 'full' : 'partial';
-    }, [channels, selectedKeyframes]);
+    const getTickSelectionState = useCallback(
+        (tick: number): 'none' | 'partial' | 'full' => {
+            const channelsAtTick = channels.filter((ch) => ch.keyframes.some((kf) => Math.abs(kf.tick - tick) < 0.5));
+            if (channelsAtTick.length === 0) return 'none';
+            const selectedCount = channelsAtTick.filter((ch) =>
+                selectedKeyframes.some((k) => k.channelId === ch.id && Math.abs(k.tick - tick) < 0.5)
+            ).length;
+            if (selectedCount === 0) return 'none';
+            return selectedCount === channelsAtTick.length ? 'full' : 'partial';
+        },
+        [channels, selectedKeyframes]
+    );
 
-    const handleDiamondPointerDown = useCallback((e: React.PointerEvent<SVGElement>, tick: number) => {
-        if (e.button !== 0) return;
-        e.stopPropagation();
-        e.preventDefault();
+    const handleDiamondPointerDown = useCallback(
+        (e: React.PointerEvent<SVGElement>, tick: number) => {
+            if (e.button !== 0) return;
+            e.stopPropagation();
+            e.preventDefault();
 
-        const kfsAtTick = channels
-            .filter((ch) => ch.keyframes.some((kf) => Math.abs(kf.tick - tick) < 0.5))
-            .map((ch) => ({ channelId: ch.id, tick }));
+            const kfsAtTick = channels
+                .filter((ch) => ch.keyframes.some((kf) => Math.abs(kf.tick - tick) < 0.5))
+                .map((ch) => ({ channelId: ch.id, tick }));
 
-        const existing = useSelectionStore.getState().selectedKeyframes;
-        const allAtTickSelected = kfsAtTick.every((k) =>
-            existing.some((e) => e.channelId === k.channelId && Math.abs(e.tick - k.tick) < 0.5),
-        );
+            const existing = useSelectionStore.getState().selectedKeyframes;
+            const allAtTickSelected = kfsAtTick.every((k) =>
+                existing.some((e) => e.channelId === k.channelId && Math.abs(e.tick - k.tick) < 0.5)
+            );
 
-        let newSelected: Array<{ channelId: string; tick: number }>;
-        if (e.shiftKey) {
-            if (allAtTickSelected) {
-                newSelected = existing.filter(
-                    (e) => !kfsAtTick.some((k) => k.channelId === e.channelId && Math.abs(k.tick - e.tick) < 0.5),
-                );
+            let newSelected: Array<{ channelId: string; tick: number }>;
+            if (e.shiftKey) {
+                if (allAtTickSelected) {
+                    newSelected = existing.filter(
+                        (e) => !kfsAtTick.some((k) => k.channelId === e.channelId && Math.abs(k.tick - e.tick) < 0.5)
+                    );
+                } else {
+                    const toAdd = kfsAtTick.filter(
+                        (k) => !existing.some((e) => e.channelId === k.channelId && Math.abs(e.tick - k.tick) < 0.5)
+                    );
+                    newSelected = [...existing, ...toAdd];
+                }
+            } else if (allAtTickSelected) {
+                // Keep full selection intact for drag
+                newSelected = existing;
             } else {
-                const toAdd = kfsAtTick.filter(
-                    (k) => !existing.some((e) => e.channelId === k.channelId && Math.abs(e.tick - k.tick) < 0.5),
-                );
-                newSelected = [...existing, ...toAdd];
+                newSelected = kfsAtTick;
             }
-        } else if (allAtTickSelected) {
-            // Keep full selection intact for drag
-            newSelected = existing;
-        } else {
-            newSelected = kfsAtTick;
-        }
 
-        useSelectionStore.getState().selectKeyframes(newSelected);
+            useSelectionStore.getState().selectKeyframes(newSelected);
 
-        const rect = headerRef.current?.getBoundingClientRect();
-        const dotX = rect ? toX(tick, width) : 0;
-        const offsetX = rect ? (e.clientX - rect.left) - dotX : 0;
-        headerRef.current?.setPointerCapture(e.pointerId);
+            const rect = headerRef.current?.getBoundingClientRect();
+            const dotX = rect ? toX(tick, width) : 0;
+            const offsetX = rect ? e.clientX - rect.left - dotX : 0;
+            headerRef.current?.setPointerCapture(e.pointerId);
 
-        const moves: KfMove[] = newSelected.map((k) => ({
-            channelId: k.channelId,
-            baseTick: k.tick,
-            curTick: k.tick,
-        }));
+            const moves: KfMove[] = newSelected.map((k) => ({
+                channelId: k.channelId,
+                baseTick: k.tick,
+                curTick: k.tick,
+            }));
 
-        setDotDrag({ primaryBaseTick: tick, primaryCurTick: tick, sessionId: `${Date.now()}-${Math.random()}`, offsetX, moves });
-    }, [channels, toX, width, setDotDrag]);
+            setDotDrag({
+                primaryBaseTick: tick,
+                primaryCurTick: tick,
+                sessionId: `${Date.now()}-${Math.random()}`,
+                offsetX,
+                moves,
+            });
+        },
+        [channels, toX, width, setDotDrag]
+    );
 
     // Empty-space click in the SVG bubbles to the outer AutomationLanes cross-lane marquee.
     // Diamond pointer down stops propagation to initiate drag instead.
 
-    const handleHeaderPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-        if (e.buttons === 0) {
-            if (dotDragRef.current) setDotDrag(null);
-            return;
-        }
-
-        // --- diamond drag ---
-        const drag = dotDragRef.current;
-        if (!drag) return;
-        const rect = headerRef.current?.getBoundingClientRect();
-        if (!rect) return;
-
-        const pixelX = (e.clientX - rect.left) - drag.offsetX;
-        const candTick = toTick(pixelX, width);
-        const snapped = snapTick(candTick, e.ctrlKey || e.metaKey);
-        if (snapped === drag.primaryCurTick) return;
-
-        const currentChannelsData = useSceneStore.getState().automation.channels;
-        const dir = snapped > drag.primaryBaseTick ? 1 : -1;
-
-        const primaryMoves = drag.moves.filter((m) => Math.abs(m.baseTick - drag.primaryBaseTick) < 0.5);
-        const isAnyPrimaryOccupied = (t: number) =>
-            primaryMoves.some((m) => {
-                const chData = currentChannelsData[m.channelId];
-                return chData?.keyframes.some(
-                    (kf) => Math.abs(kf.tick - t) < 0.5 && Math.abs(kf.tick - m.curTick) >= 0.5,
-                );
-            });
-        let resolvedPrimaryTick = snapped;
-        if (isAnyPrimaryOccupied(resolvedPrimaryTick)) {
-            let candidate = resolvedPrimaryTick + dir;
-            while (candidate >= 0 && isAnyPrimaryOccupied(candidate)) candidate += dir;
-            resolvedPrimaryTick = Math.max(0, candidate);
-            if (isAnyPrimaryOccupied(resolvedPrimaryTick)) resolvedPrimaryTick = drag.primaryCurTick;
-        }
-        if (resolvedPrimaryTick === drag.primaryCurTick) return;
-
-        const delta = resolvedPrimaryTick - drag.primaryBaseTick;
-
-        const updatedMoves = drag.moves.map((move) => {
-            const rawTick = snapTick(Math.max(0, move.baseTick + delta), e.ctrlKey || e.metaKey);
-            const chData = currentChannelsData[move.channelId];
-            if (!chData) return move;
-
-            const isOccupied = (t: number) =>
-                chData.keyframes.some(
-                    (kf) => Math.abs(kf.tick - t) < 0.5 && Math.abs(kf.tick - move.curTick) >= 0.5,
-                );
-            let newTick = rawTick;
-            if (isOccupied(newTick)) {
-                let candidate = newTick + dir;
-                while (candidate >= 0 && isOccupied(candidate)) candidate += dir;
-                newTick = Math.max(0, candidate);
-                if (isOccupied(newTick)) newTick = move.curTick;
+    const handleHeaderPointerMove = useCallback(
+        (e: React.PointerEvent<HTMLDivElement>) => {
+            if (e.buttons === 0) {
+                if (dotDragRef.current) setDotDrag(null);
+                return;
             }
 
-            if (newTick !== move.curTick) {
-                dispatchSceneCommand(
-                    { type: 'moveKeyframe', channelId: move.channelId, fromTick: move.curTick, toTick: newTick },
-                    { source: 'track-lane-dot', mergeKey: `dot-move:${drag.sessionId}`, transient: true },
-                );
+            // --- diamond drag ---
+            const drag = dotDragRef.current;
+            if (!drag) return;
+            const rect = headerRef.current?.getBoundingClientRect();
+            if (!rect) return;
+
+            const pixelX = e.clientX - rect.left - drag.offsetX;
+            const candTick = toTick(pixelX, width);
+            const snapped = snapTick(candTick, e.ctrlKey || e.metaKey);
+            if (snapped === drag.primaryCurTick) return;
+
+            const currentChannelsData = useSceneStore.getState().automation.channels;
+            const dir = snapped > drag.primaryBaseTick ? 1 : -1;
+
+            const primaryMoves = drag.moves.filter((m) => Math.abs(m.baseTick - drag.primaryBaseTick) < 0.5);
+            const isAnyPrimaryOccupied = (t: number) =>
+                primaryMoves.some((m) => {
+                    const chData = currentChannelsData[m.channelId];
+                    return chData?.keyframes.some(
+                        (kf) => Math.abs(kf.tick - t) < 0.5 && Math.abs(kf.tick - m.curTick) >= 0.5
+                    );
+                });
+            let resolvedPrimaryTick = snapped;
+            if (isAnyPrimaryOccupied(resolvedPrimaryTick)) {
+                let candidate = resolvedPrimaryTick + dir;
+                while (candidate >= 0 && isAnyPrimaryOccupied(candidate)) candidate += dir;
+                resolvedPrimaryTick = Math.max(0, candidate);
+                if (isAnyPrimaryOccupied(resolvedPrimaryTick)) resolvedPrimaryTick = drag.primaryCurTick;
             }
-            return { ...move, curTick: newTick };
-        });
+            if (resolvedPrimaryTick === drag.primaryCurTick) return;
 
-        useSelectionStore.getState().selectKeyframes(
-            updatedMoves.map((m) => ({ channelId: m.channelId, tick: m.curTick })),
-        );
+            const delta = resolvedPrimaryTick - drag.primaryBaseTick;
 
-        setDotDrag({ ...drag, primaryCurTick: resolvedPrimaryTick, moves: updatedMoves });
-    }, [toTick, width, snapTick, setDotDrag]);
+            const updatedMoves = drag.moves.map((move) => {
+                const rawTick = snapTick(Math.max(0, move.baseTick + delta), e.ctrlKey || e.metaKey);
+                const chData = currentChannelsData[move.channelId];
+                if (!chData) return move;
 
-    const handleHeaderPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-        try { headerRef.current?.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+                const isOccupied = (t: number) =>
+                    chData.keyframes.some(
+                        (kf) => Math.abs(kf.tick - t) < 0.5 && Math.abs(kf.tick - move.curTick) >= 0.5
+                    );
+                let newTick = rawTick;
+                if (isOccupied(newTick)) {
+                    let candidate = newTick + dir;
+                    while (candidate >= 0 && isOccupied(candidate)) candidate += dir;
+                    newTick = Math.max(0, candidate);
+                    if (isOccupied(newTick)) newTick = move.curTick;
+                }
 
-        // --- diamond drag commit ---
-        const drag = dotDragRef.current;
-        if (!drag) return;
-        if (drag.primaryCurTick !== drag.primaryBaseTick) {
-            for (const move of drag.moves) {
-                if (move.curTick !== move.baseTick) {
+                if (newTick !== move.curTick) {
                     dispatchSceneCommand(
-                        { type: 'moveKeyframe', channelId: move.channelId, fromTick: move.curTick, toTick: move.curTick },
-                        { source: 'track-lane-dot', mergeKey: `dot-move:${drag.sessionId}`, transient: false },
+                        { type: 'moveKeyframe', channelId: move.channelId, fromTick: move.curTick, toTick: newTick },
+                        { source: 'track-lane-dot', mergeKey: `dot-move:${drag.sessionId}`, transient: true }
                     );
                 }
+                return { ...move, curTick: newTick };
+            });
+
+            useSelectionStore
+                .getState()
+                .selectKeyframes(updatedMoves.map((m) => ({ channelId: m.channelId, tick: m.curTick })));
+
+            setDotDrag({ ...drag, primaryCurTick: resolvedPrimaryTick, moves: updatedMoves });
+        },
+        [toTick, width, snapTick, setDotDrag]
+    );
+
+    const handleHeaderPointerUp = useCallback(
+        (e: React.PointerEvent<HTMLDivElement>) => {
+            try {
+                headerRef.current?.releasePointerCapture(e.pointerId);
+            } catch {
+                /* ignore */
             }
-        }
-        setDotDrag(null);
-    }, [setDotDrag]);
+
+            // --- diamond drag commit ---
+            const drag = dotDragRef.current;
+            if (!drag) return;
+            if (drag.primaryCurTick !== drag.primaryBaseTick) {
+                for (const move of drag.moves) {
+                    if (move.curTick !== move.baseTick) {
+                        dispatchSceneCommand(
+                            {
+                                type: 'moveKeyframe',
+                                channelId: move.channelId,
+                                fromTick: move.curTick,
+                                toTick: move.curTick,
+                            },
+                            { source: 'track-lane-dot', mergeKey: `dot-move:${drag.sessionId}`, transient: false }
+                        );
+                    }
+                }
+            }
+            setDotDrag(null);
+        },
+        [setDotDrag]
+    );
 
     if (!element || channels.length === 0) return null;
 
@@ -289,25 +314,26 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
                 style={{ height: AUTOMATION_HEADER_HEIGHT }}
                 onPointerMove={handleHeaderPointerMove}
                 onPointerUp={handleHeaderPointerUp}
-                onPointerCancel={() => { setDotDrag(null); }}
+                onPointerCancel={() => {
+                    setDotDrag(null);
+                }}
             >
-                <svg
-                    width={width}
-                    height={AUTOMATION_HEADER_HEIGHT}
-                    style={{ display: 'block', overflow: 'visible' }}
-                >
+                <svg width={width} height={AUTOMATION_HEADER_HEIGHT} style={{ display: 'block', overflow: 'visible' }}>
                     {kfTicks.map((tick) => {
                         const x = toX(tick, width);
                         if (x < -s || x > width + s) return null;
                         const selState = getTickSelectionState(tick);
-                        const isDragging = dotDrag !== null && Math.abs(tick - dotDrag.primaryCurTick) < 0.5
-                            && dotDrag.moves.some((m) => Math.abs(m.baseTick - tick) < 0.5);
+                        const isDragging =
+                            dotDrag !== null &&
+                            Math.abs(tick - dotDrag.primaryCurTick) < 0.5 &&
+                            dotDrag.moves.some((m) => Math.abs(m.baseTick - tick) < 0.5);
                         const fill =
-                            selState === 'full' ? '#ffffff' :
-                            selState === 'partial' ? 'rgba(255,255,255,0.45)' :
-                            'rgba(96,165,250,0.55)';
-                        const stroke =
-                            selState === 'none' ? 'rgba(96,165,250,0.5)' : '#60a5fa';
+                            selState === 'full'
+                                ? '#ffffff'
+                                : selState === 'partial'
+                                  ? 'rgba(255,255,255,0.45)'
+                                  : 'rgba(96,165,250,0.55)';
+                        const stroke = selState === 'none' ? 'rgba(96,165,250,0.5)' : '#60a5fa';
                         const strokeWidth = selState === 'none' ? 1 : 1.5;
                         const size = selState !== 'none' || isDragging ? s + 1 : s;
                         return (
@@ -338,9 +364,7 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
             </div>
 
             {/* Channel lane rows (when expanded) */}
-            {isExpanded && visibleChannels.map((ch) => (
-                <ChannelLane key={ch.id} channel={ch} width={width} />
-            ))}
+            {isExpanded && visibleChannels.map((ch) => <ChannelLane key={ch.id} channel={ch} width={width} />)}
         </>
     );
 };
@@ -362,18 +386,21 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
         _setSelBox(next);
     }, []);
 
-    const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-        if (e.button !== 0) return;
-        if (!containerRef.current) return;
-        const rect = containerRef.current.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        if (!e.shiftKey) {
-            useSelectionStore.getState().clearSelection('keyframes');
-        }
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-        setSelBox({ startX: x, startY: y, endX: x, endY: y, moved: false, shiftKey: e.shiftKey });
-    }, [setSelBox]);
+    const handlePointerDown = useCallback(
+        (e: React.PointerEvent<HTMLDivElement>) => {
+            if (e.button !== 0) return;
+            if (!containerRef.current) return;
+            const rect = containerRef.current.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            if (!e.shiftKey) {
+                useSelectionStore.getState().clearSelection('keyframes');
+            }
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+            setSelBox({ startX: x, startY: y, endX: x, endY: y, moved: false, shiftKey: e.shiftKey });
+        },
+        [setSelBox]
+    );
 
     const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
         const sb = selBoxRef.current;
@@ -381,81 +408,89 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
         const rect = containerRef.current.getBoundingClientRect();
         const endX = e.clientX - rect.left;
         const endY = e.clientY - rect.top;
-        const moved = sb.moved
-            || Math.abs(endX - sb.startX) > SEL_DRAG_THRESHOLD
-            || Math.abs(endY - sb.startY) > SEL_DRAG_THRESHOLD;
+        const moved =
+            sb.moved ||
+            Math.abs(endX - sb.startX) > SEL_DRAG_THRESHOLD ||
+            Math.abs(endY - sb.startY) > SEL_DRAG_THRESHOLD;
         const next = { ...sb, endX, endY, moved };
         selBoxRef.current = next;
         _setSelBox(next);
     }, []);
 
-    const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-        const sb = selBoxRef.current;
-        if (!sb) return;
-        try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-        if (sb.moved && containerRef.current) {
-            const containerRect = containerRef.current.getBoundingClientRect();
-            const minX = Math.min(sb.startX, sb.endX);
-            const maxX = Math.max(sb.startX, sb.endX);
-            const minAbsY = containerRect.top + Math.min(sb.startY, sb.endY);
-            const maxAbsY = containerRect.top + Math.max(sb.startY, sb.endY);
-            const minTick = toTick(minX, width);
-            const maxTick = toTick(maxX, width);
-            const channels = useSceneStore.getState().automation.channels;
-            const enclosed: Array<{ channelId: string; tick: number }> = [];
-            const addedKeys = new Set<string>();
-
-            const addKf = (channelId: string, tick: number) => {
-                const key = `${channelId}:${tick}`;
-                if (!addedKeys.has(key)) {
-                    addedKeys.add(key);
-                    enclosed.push({ channelId, tick });
-                }
-            };
-
-            // Individual channel lane rows
-            const laneEls = containerRef.current.querySelectorAll<HTMLElement>('[data-channel-id]');
-            for (const el of laneEls) {
-                const elRect = el.getBoundingClientRect();
-                if (elRect.bottom < minAbsY || elRect.top > maxAbsY) continue;
-                const channelId = el.dataset.channelId!;
-                const ch = channels[channelId];
-                if (!ch) continue;
-                for (const kf of ch.keyframes) {
-                    if (kf.tick >= minTick - 0.5 && kf.tick <= maxTick + 0.5) {
-                        addKf(channelId, kf.tick);
-                    }
-                }
+    const handlePointerUp = useCallback(
+        (e: React.PointerEvent<HTMLDivElement>) => {
+            const sb = selBoxRef.current;
+            if (!sb) return;
+            try {
+                (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+            } catch {
+                /* ignore */
             }
+            if (sb.moved && containerRef.current) {
+                const containerRect = containerRef.current.getBoundingClientRect();
+                const minX = Math.min(sb.startX, sb.endX);
+                const maxX = Math.max(sb.startX, sb.endX);
+                const minAbsY = containerRect.top + Math.min(sb.startY, sb.endY);
+                const maxAbsY = containerRect.top + Math.max(sb.startY, sb.endY);
+                const minTick = toTick(minX, width);
+                const maxTick = toTick(maxX, width);
+                const channels = useSceneStore.getState().automation.channels;
+                const enclosed: Array<{ channelId: string; tick: number }> = [];
+                const addedKeys = new Set<string>();
 
-            // Element header rows (diamond indicators) — include all channels for the element
-            const headerEls = containerRef.current.querySelectorAll<HTMLElement>('[data-element-id]');
-            for (const el of headerEls) {
-                const elRect = el.getBoundingClientRect();
-                if (elRect.bottom < minAbsY || elRect.top > maxAbsY) continue;
-                const elementId = el.dataset.elementId!;
-                for (const ch of Object.values(channels)) {
-                    if (ch.elementId !== elementId) continue;
+                const addKf = (channelId: string, tick: number) => {
+                    const key = `${channelId}:${tick}`;
+                    if (!addedKeys.has(key)) {
+                        addedKeys.add(key);
+                        enclosed.push({ channelId, tick });
+                    }
+                };
+
+                // Individual channel lane rows
+                const laneEls = containerRef.current.querySelectorAll<HTMLElement>('[data-channel-id]');
+                for (const el of laneEls) {
+                    const elRect = el.getBoundingClientRect();
+                    if (elRect.bottom < minAbsY || elRect.top > maxAbsY) continue;
+                    const channelId = el.dataset.channelId!;
+                    const ch = channels[channelId];
+                    if (!ch) continue;
                     for (const kf of ch.keyframes) {
                         if (kf.tick >= minTick - 0.5 && kf.tick <= maxTick + 0.5) {
-                            addKf(ch.id, kf.tick);
+                            addKf(channelId, kf.tick);
                         }
                     }
                 }
-            }
 
-            if (sb.shiftKey) {
-                const enclosedKeys = new Set(enclosed.map((k) => `${k.channelId}:${k.tick}`));
-                const others = useSelectionStore.getState().selectedKeyframes.filter(
-                    (k) => !enclosedKeys.has(`${k.channelId}:${k.tick}`),
-                );
-                useSelectionStore.getState().selectKeyframes([...others, ...enclosed]);
-            } else {
-                useSelectionStore.getState().selectKeyframes(enclosed);
+                // Element header rows (diamond indicators) — include all channels for the element
+                const headerEls = containerRef.current.querySelectorAll<HTMLElement>('[data-element-id]');
+                for (const el of headerEls) {
+                    const elRect = el.getBoundingClientRect();
+                    if (elRect.bottom < minAbsY || elRect.top > maxAbsY) continue;
+                    const elementId = el.dataset.elementId!;
+                    for (const ch of Object.values(channels)) {
+                        if (ch.elementId !== elementId) continue;
+                        for (const kf of ch.keyframes) {
+                            if (kf.tick >= minTick - 0.5 && kf.tick <= maxTick + 0.5) {
+                                addKf(ch.id, kf.tick);
+                            }
+                        }
+                    }
+                }
+
+                if (sb.shiftKey) {
+                    const enclosedKeys = new Set(enclosed.map((k) => `${k.channelId}:${k.tick}`));
+                    const others = useSelectionStore
+                        .getState()
+                        .selectedKeyframes.filter((k) => !enclosedKeys.has(`${k.channelId}:${k.tick}`));
+                    useSelectionStore.getState().selectKeyframes([...others, ...enclosed]);
+                } else {
+                    useSelectionStore.getState().selectKeyframes(enclosed);
+                }
             }
-        }
-        setSelBox(null);
-    }, [toTick, width, setSelBox]);
+            setSelBox(null);
+        },
+        [toTick, width, setSelBox]
+    );
 
     const handlePointerCancel = useCallback(() => {
         setSelBox(null);
@@ -473,8 +508,9 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
             // J = previous keyframe globally, K = next keyframe globally
             if (e.key === 'j' || e.key === 'k') {
                 const sceneState = useSceneStore.getState();
-                const allTicks = Object.values(sceneState.automation.channels)
-                    .flatMap((ch) => ch.keyframes.map((kf) => kf.tick));
+                const allTicks = Object.values(sceneState.automation.channels).flatMap((ch) =>
+                    ch.keyframes.map((kf) => kf.tick)
+                );
                 if (allTicks.length === 0) return;
                 const unique = [...new Set(allTicks)].sort((a, b) => a - b);
                 const currentTick = useTimelineStore.getState().timeline.currentTick;
@@ -511,9 +547,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
                 for (const [channelId, ticks] of byChannel) {
                     const ch = state.automation.channels[channelId];
                     if (!ch) continue;
-                    const kfs = ch.keyframes.filter((kf) =>
-                        ticks.some((t) => Math.abs(kf.tick - t) < 0.5),
-                    );
+                    const kfs = ch.keyframes.filter((kf) => ticks.some((t) => Math.abs(kf.tick - t) < 0.5));
                     if (kfs.length > 0) entries.push({ channelId, keyframes: kfs });
                 }
                 copySelectedKeyframes(entries);
@@ -543,7 +577,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
                     if (Math.abs(tick - maxTick) < 0.5) {
                         dispatchSceneCommand(
                             { type: 'moveKeyframe', channelId, fromTick: tick, toTick: tick - 1 },
-                            { source: 'automation-lane', mergeKey },
+                            { source: 'automation-lane', mergeKey }
                         );
                     }
                 }
@@ -557,7 +591,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
 
                     dispatchSceneCommand(
                         { type: 'addKeyframe', channelId, keyframe: { ...kf, tick: newTick } },
-                        { source: 'automation-lane', mergeKey },
+                        { source: 'automation-lane', mergeKey }
                     );
                     newSelected.push({ channelId, tick: newTick });
                 }
@@ -585,7 +619,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
                                 channelId: entry.channelId,
                                 keyframe: { ...kf, tick: newTick },
                             },
-                            { source: 'automation-lane', mergeKey: pasteKey },
+                            { source: 'automation-lane', mergeKey: pasteKey }
                         );
                     }
                 }
@@ -600,7 +634,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
             for (const kf of selected) {
                 dispatchSceneCommand(
                     { type: 'removeKeyframe', channelId: kf.channelId, tick: kf.tick },
-                    { source: 'automation-lane' },
+                    { source: 'automation-lane' }
                 );
             }
             useSelectionStore.getState().clearSelection('keyframes');
@@ -611,12 +645,15 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
 
     if (automatedIds.length === 0) return null;
 
-    const selBoxRect = selBox && selBox.moved ? {
-        x: Math.min(selBox.startX, selBox.endX),
-        y: Math.min(selBox.startY, selBox.endY),
-        width: Math.abs(selBox.endX - selBox.startX),
-        height: Math.abs(selBox.endY - selBox.startY),
-    } : null;
+    const selBoxRect =
+        selBox && selBox.moved
+            ? {
+                  x: Math.min(selBox.startX, selBox.endX),
+                  y: Math.min(selBox.startY, selBox.endY),
+                  width: Math.abs(selBox.endX - selBox.startX),
+                  height: Math.abs(selBox.endY - selBox.startY),
+              }
+            : null;
 
     return (
         <div
@@ -628,15 +665,9 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
             onPointerCancel={handlePointerCancel}
         >
             {/* Section header spacer (mirrors left-column "AUTOMATION" header) */}
-            <div
-                className="border-b border-neutral-800"
-                style={{ height: AUTOMATION_HEADER_HEIGHT }}
-            />
+            <div className="border-b border-neutral-800" style={{ height: AUTOMATION_HEADER_HEIGHT }} />
             {/* Search bar spacer (mirrors left-column search input row) */}
-            <div
-                className="border-b border-neutral-800"
-                style={{ height: AUTOMATION_SEARCH_HEIGHT }}
-            />
+            <div className="border-b border-neutral-800" style={{ height: AUTOMATION_SEARCH_HEIGHT }} />
 
             {/* Element lane groups */}
             {automatedIds.map((id) => (
@@ -647,7 +678,13 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
             {selBoxRect && (
                 <div
                     className="absolute bg-blue-400/10 border border-blue-400 pointer-events-none"
-                    style={{ left: selBoxRect.x, top: selBoxRect.y, width: selBoxRect.width, height: selBoxRect.height, zIndex: 10 }}
+                    style={{
+                        left: selBoxRect.x,
+                        top: selBoxRect.y,
+                        width: selBoxRect.width,
+                        height: selBoxRect.height,
+                        zIndex: 10,
+                    }}
                 />
             )}
         </div>

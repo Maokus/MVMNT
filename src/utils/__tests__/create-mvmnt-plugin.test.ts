@@ -31,22 +31,30 @@ describe('create-mvmnt-plugin CLI', () => {
         const cwd = temporaryDirectory();
         const pluginDir = join(cwd, 'visuals');
         const result = runCli(cwd, [
-            '--name', 'com.example.visuals',
-            '--plugin-name', 'Example Visuals',
-            '--element-name', 'Audio Pulse',
-            '--description', 'Responds to raw audio',
-            '--template', 'audio-reactive',
-            '--dir', pluginDir,
+            '--name',
+            'com.example.visuals',
+            '--plugin-name',
+            'Example Visuals',
+            '--element-name',
+            'Audio Pulse',
+            '--description',
+            'Responds to raw audio',
+            '--template',
+            'audio-reactive',
+            '--dir',
+            pluginDir,
         ]);
 
         expect(result.status, result.stderr).toBe(0);
         const manifest = JSON.parse(readFileSync(join(pluginDir, 'plugin.json'), 'utf8'));
         expect(manifest.name).toBe('Example Visuals');
-        expect(manifest.elements).toEqual([{
-            type: 'visuals',
-            entry: 'src/visuals.ts',
-            capabilities: { required: ['audio.raw.read'], optional: [] },
-        }]);
+        expect(manifest.elements).toEqual([
+            {
+                type: 'visuals',
+                entry: 'src/visuals.ts',
+                capabilities: { required: ['audio.raw.read'], optional: [] },
+            },
+        ]);
         const source = readFileSync(join(pluginDir, 'src/visuals.ts'), 'utf8');
         expect(source).toContain("type: 'visuals'");
         expect(source).toContain("metadata: { name: 'Audio Pulse'");
@@ -57,17 +65,24 @@ describe('create-mvmnt-plugin CLI', () => {
         const cwd = temporaryDirectory();
         const pluginDir = join(cwd, 'visuals');
         const createResult = runCli(cwd, [
-            '--name', 'com.example.visuals',
-            '--template', 'minimal',
-            '--dir', pluginDir,
+            '--name',
+            'com.example.visuals',
+            '--template',
+            'minimal',
+            '--dir',
+            pluginDir,
         ]);
         expect(createResult.status, createResult.stderr).toBe(0);
 
         const addResult = runCli(pluginDir, [
-            'add', 'note-viewer',
-            '--element-name', 'Note Viewer',
-            '--description', "Shows today's notes",
-            '--template', 'midi-notes',
+            'add',
+            'note-viewer',
+            '--element-name',
+            'Note Viewer',
+            '--description',
+            "Shows today's notes",
+            '--template',
+            'midi-notes',
         ]);
 
         expect(addResult.status, addResult.stderr).toBe(0);
@@ -88,9 +103,12 @@ describe('create-mvmnt-plugin CLI', () => {
         const cwd = temporaryDirectory();
         const pluginDir = join(cwd, 'visuals');
         const createResult = runCli(cwd, [
-            '--name', 'com.example.visuals',
-            '--template', 'minimal',
-            '--dir', pluginDir,
+            '--name',
+            'com.example.visuals',
+            '--template',
+            'minimal',
+            '--dir',
+            pluginDir,
         ]);
         expect(createResult.status, createResult.stderr).toBe(0);
         const manifestBefore = readFileSync(join(pluginDir, 'plugin.json'), 'utf8');

@@ -61,7 +61,7 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
     const updateExportSetting = (key: keyof ExportSettings, value: any) => {
         const newSettings = {
             ...exportSettings,
-            [key]: value
+            [key]: value,
         };
         onExportSettingsChange(newSettings);
     };
@@ -95,7 +95,6 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
 
     return (
         <div className="global-properties-panel">
-
             <div className="global-properties-content">
                 <div className="settings-grid">
                     {/* Global Macros Section */}

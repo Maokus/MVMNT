@@ -286,9 +286,7 @@ interface CachedDescriptorInfo {
 }
 
 function resolveChannelMetadata(
-    featureTrack:
-        | { channels?: number; channelLayout?: ChannelLayoutMeta | null }
-        | undefined,
+    featureTrack: { channels?: number; channelLayout?: ChannelLayoutMeta | null } | undefined,
     cache: AudioFeatureCache | undefined
 ): { channelCount: number | null; channelLayout: ChannelLayoutMeta | null } {
     if (!featureTrack) {
@@ -409,64 +407,64 @@ function computeCacheDiffs(
         // the concrete analysis requirements without requiring the element to
         // render or republish its intent.
         for (const audioSourceId of resolveAudioSourceIds(record.trackRef, timelineState)) {
-        const requestedAt = Date.parse(record.requestedAt) || Date.now();
-        const ensureGroup = (preferredProfileId: string | null) => {
-            const sanitizedPreferred = sanitizeProfileId(preferredProfileId);
-            const groupKey = makeGroupKey(audioSourceId, sanitizedPreferred);
-            let group = groups.get(groupKey);
-            if (!group) {
-                group = {
-                    audioSourceId,
-                    analysisProfileId: sanitizedPreferred ?? null,
-                    descriptors: new Map<string, DescriptorInfo>(),
-                    owners: new Map<string, Set<string>>(),
-                    requestedAt,
-                    trackRefs: new Set<string>(),
-                    descriptorProfiles: new Set<string | null>(),
-                };
-                groups.set(groupKey, group);
-            } else if (requestedAt < group.requestedAt) {
-                group.requestedAt = requestedAt;
+            const requestedAt = Date.parse(record.requestedAt) || Date.now();
+            const ensureGroup = (preferredProfileId: string | null) => {
+                const sanitizedPreferred = sanitizeProfileId(preferredProfileId);
+                const groupKey = makeGroupKey(audioSourceId, sanitizedPreferred);
+                let group = groups.get(groupKey);
+                if (!group) {
+                    group = {
+                        audioSourceId,
+                        analysisProfileId: sanitizedPreferred ?? null,
+                        descriptors: new Map<string, DescriptorInfo>(),
+                        owners: new Map<string, Set<string>>(),
+                        requestedAt,
+                        trackRefs: new Set<string>(),
+                        descriptorProfiles: new Set<string | null>(),
+                    };
+                    groups.set(groupKey, group);
+                } else if (requestedAt < group.requestedAt) {
+                    group.requestedAt = requestedAt;
+                }
+                group.trackRefs.add(record.trackRef);
+                group.descriptorProfiles.add(sanitizedPreferred ?? null);
+                return group;
+            };
+
+            const targetGroup = ensureGroup(record.analysisProfileId ?? null);
+
+            let profileSet = profilesBySource.get(audioSourceId);
+            if (!profileSet) {
+                profileSet = new Set<string>();
+                profilesBySource.set(audioSourceId, profileSet);
             }
-            group.trackRefs.add(record.trackRef);
-            group.descriptorProfiles.add(sanitizedPreferred ?? null);
-            return group;
-        };
+            profileSet.add(normalizeProfileKey(record.analysisProfileId));
 
-        const targetGroup = ensureGroup(record.analysisProfileId ?? null);
-
-        let profileSet = profilesBySource.get(audioSourceId);
-        if (!profileSet) {
-            profileSet = new Set<string>();
-            profilesBySource.set(audioSourceId, profileSet);
-        }
-        profileSet.add(normalizeProfileKey(record.analysisProfileId));
-
-        let requestSet = requestsBySource.get(audioSourceId);
-        if (!requestSet) {
-            requestSet = new Set<string>();
-            requestsBySource.set(audioSourceId, requestSet);
-        }
-
-        for (const info of Object.values(record.descriptors)) {
-            targetGroup.descriptors.set(info.requestKey, info);
-            targetGroup.descriptorProfiles.add(info.profileId ?? null);
-            let owners = targetGroup.owners.get(info.requestKey);
-            if (!owners) {
-                owners = new Set();
-                targetGroup.owners.set(info.requestKey, owners);
+            let requestSet = requestsBySource.get(audioSourceId);
+            if (!requestSet) {
+                requestSet = new Set<string>();
+                requestsBySource.set(audioSourceId, requestSet);
             }
-            owners.add(record.elementId);
-            requestSet.add(info.requestKey);
-            requiredRequestKeys.add(info.requestKey);
-            if (info.profileKey) {
-                profileSet.add(info.profileKey);
-            }
-        }
 
-        for (const requirement of record.requirementDiagnostics ?? []) {
-            requiredRequestKeys.add(requirement.requestKey);
-        }
+            for (const info of Object.values(record.descriptors)) {
+                targetGroup.descriptors.set(info.requestKey, info);
+                targetGroup.descriptorProfiles.add(info.profileId ?? null);
+                let owners = targetGroup.owners.get(info.requestKey);
+                if (!owners) {
+                    owners = new Set();
+                    targetGroup.owners.set(info.requestKey, owners);
+                }
+                owners.add(record.elementId);
+                requestSet.add(info.requestKey);
+                requiredRequestKeys.add(info.requestKey);
+                if (info.profileKey) {
+                    profileSet.add(info.profileKey);
+                }
+            }
+
+            for (const requirement of record.requirementDiagnostics ?? []) {
+                requiredRequestKeys.add(requirement.requestKey);
+            }
         }
     }
 
@@ -862,10 +860,12 @@ export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsSta
             const previousTrackRef =
                 previousPublishedTrack && previousPublishedTrack !== intent.trackRef
                     ? previousPublishedTrack
-                    : previousRecord?.previousTrackRef ?? null;
+                    : (previousRecord?.previousTrackRef ?? null);
             const trackHistory = buildTrackHistory(intent.trackRef, previousRecord?.trackHistory);
             const nextSources = { ...state.sourcesWithIntents };
-            const previousSources = new Set(previousRecord?.audioSourceIds ?? (previousRecord ? [previousRecord.audioSourceId] : []));
+            const previousSources = new Set(
+                previousRecord?.audioSourceIds ?? (previousRecord ? [previousRecord.audioSourceId] : [])
+            );
             const nextSourceSet = new Set(audioSourceIds);
             for (const sourceId of previousSources) {
                 if (nextSourceSet.has(sourceId)) continue;
@@ -1180,9 +1180,18 @@ function runJob(jobId: string): void {
                 .find((params) => params != null);
             if (calculators.length) {
                 if (profileParams) {
-                    timelineState.reanalyzeAudioFeatureCalculators(job.audioSourceId, calculators, job.analysisProfileId, profileParams);
+                    timelineState.reanalyzeAudioFeatureCalculators(
+                        job.audioSourceId,
+                        calculators,
+                        job.analysisProfileId,
+                        profileParams
+                    );
                 } else {
-                    timelineState.reanalyzeAudioFeatureCalculators(job.audioSourceId, calculators, job.analysisProfileId);
+                    timelineState.reanalyzeAudioFeatureCalculators(
+                        job.audioSourceId,
+                        calculators,
+                        job.analysisProfileId
+                    );
                 }
             } else {
                 if (profileParams) {

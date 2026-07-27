@@ -16,7 +16,13 @@ function cacheFor(bounds: { minTick: number; maxTick: number }): TimelineState['
         sourceA: {
             midiData: undefined as any,
             notesRaw: [
-                { note: 60, channel: 0, startTick: bounds.minTick, endTick: bounds.maxTick, durationTicks: bounds.maxTick - bounds.minTick },
+                {
+                    note: 60,
+                    channel: 0,
+                    startTick: bounds.minTick,
+                    endTick: bounds.maxTick,
+                    durationTicks: bounds.maxTick - bounds.minTick,
+                },
             ],
             ccRaw: [],
             ticksPerQuarter: 960,

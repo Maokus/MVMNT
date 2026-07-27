@@ -411,13 +411,17 @@ export class MIDIVisualizerCore {
                                 element: el,
                                 corners,
                                 baseBounds,
-                                isPerspective: container instanceof PerspectiveElementRoot && Boolean(container.warpMatrix),
+                                isPerspective:
+                                    container instanceof PerspectiveElementRoot && Boolean(container.warpMatrix),
                                 warp: container instanceof PerspectiveElementRoot ? container.perspectiveWarp : null,
                                 affineTransform:
                                     container instanceof PerspectiveElementRoot ? container.getAffineTransform() : null,
                                 projectedAnchor:
                                     container instanceof PerspectiveElementRoot
-                                        ? container.projectNormalizedPoint({ x: el.anchorX ?? 0.5, y: el.anchorY ?? 0.5 })
+                                        ? container.projectNormalizedPoint({
+                                              x: el.anchorX ?? 0.5,
+                                              y: el.anchorY ?? 0.5,
+                                          })
                                         : null,
                                 projectedHandlePoints:
                                     container instanceof PerspectiveElementRoot

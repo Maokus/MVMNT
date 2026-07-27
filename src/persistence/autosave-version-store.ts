@@ -70,7 +70,13 @@ async function transaction<T>(mode: IDBTransactionMode, action: (store: IDBObjec
 }
 
 function normalizeProjectId(name: string): string {
-    return name.trim().toLocaleLowerCase().replace(/\.mvt$/i, '').replace(/[^a-z0-9_.-]+/g, '-') || 'untitled';
+    return (
+        name
+            .trim()
+            .toLocaleLowerCase()
+            .replace(/\.mvt$/i, '')
+            .replace(/[^a-z0-9_.-]+/g, '-') || 'untitled'
+    );
 }
 
 function cloneRecord(record: AutosaveVersionRecord): AutosaveVersionRecord {
@@ -120,7 +126,13 @@ export const AutosaveVersionStore = {
         if (latest && latest.size === bytes.byteLength) {
             const current = new Uint8Array(latest.bytes);
             if (current.length === bytes.length && current.every((value, index) => value === bytes[index])) {
-                return { id: latest.id, projectId, documentName: latest.documentName, savedAt: latest.savedAt, size: latest.size };
+                return {
+                    id: latest.id,
+                    projectId,
+                    documentName: latest.documentName,
+                    savedAt: latest.savedAt,
+                    size: latest.size,
+                };
             }
         }
         const savedAt = Date.now();
@@ -133,7 +145,11 @@ export const AutosaveVersionStore = {
             bytes: bytes.slice().buffer,
         };
         if (!indexedDb()) memoryVersions.set(record.id, cloneRecord(record));
-        else await transaction('readwrite', async (store) => { store.put(record); return undefined; });
+        else
+            await transaction('readwrite', async (store) => {
+                store.put(record);
+                return undefined;
+            });
         await prune([...records, record]);
         return { id: record.id, projectId, documentName: record.documentName, savedAt, size: record.size };
     },
@@ -147,19 +163,31 @@ export const AutosaveVersionStore = {
     async load(id: string): Promise<Uint8Array | null> {
         let record: AutosaveVersionRecord | undefined;
         if (!indexedDb()) record = memoryVersions.get(id);
-        else record = await transaction('readonly', (store) => request(store.get(id) as IDBRequest<AutosaveVersionRecord | undefined>));
+        else
+            record = await transaction('readonly', (store) =>
+                request(store.get(id) as IDBRequest<AutosaveVersionRecord | undefined>)
+            );
         return record ? new Uint8Array(record.bytes.slice(0)) : null;
     },
 
     async remove(id: string): Promise<void> {
-        if (!indexedDb()) { memoryVersions.delete(id); return; }
-        await transaction('readwrite', async (store) => { store.delete(id); return undefined; });
+        if (!indexedDb()) {
+            memoryVersions.delete(id);
+            return;
+        }
+        await transaction('readwrite', async (store) => {
+            store.delete(id);
+            return undefined;
+        });
     },
 
     async clear(): Promise<void> {
         memoryVersions.clear();
         if (!indexedDb()) return;
-        await transaction('readwrite', async (store) => { store.clear(); return undefined; });
+        await transaction('readwrite', async (store) => {
+            store.clear();
+            return undefined;
+        });
     },
 
     async totalSize(): Promise<number> {

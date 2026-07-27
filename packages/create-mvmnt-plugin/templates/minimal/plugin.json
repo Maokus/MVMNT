@@ -1,14 +1,14 @@
 {
-  "id": "{{PLUGIN_ID}}",
-  "name": "{{PLUGIN_NAME}}",
-  "version": "0.1.0",
-  "apiVersion": "^2.0.0",
-  "description": "A custom MVMNT visual element.",
-  "elements": [
-    {
-      "type": "{{ELEMENT_TYPE}}",
-      "entry": "src/{{ELEMENT_TYPE}}.ts",
-      "capabilities": { "required": [], "optional": [] }
-    }
-  ]
+    "id": "{{PLUGIN_ID}}",
+    "name": "{{PLUGIN_NAME}}",
+    "version": "0.1.0",
+    "apiVersion": "^2.0.0",
+    "description": "A custom MVMNT visual element.",
+    "elements": [
+        {
+            "type": "{{ELEMENT_TYPE}}",
+            "entry": "src/{{ELEMENT_TYPE}}.ts",
+            "capabilities": { "required": [], "optional": [] }
+        }
+    ]
 }

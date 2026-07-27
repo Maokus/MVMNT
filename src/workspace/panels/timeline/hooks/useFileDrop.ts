@@ -71,10 +71,12 @@ export function useFileDrop({ importMidiFile, importAudioFile, importAudioFiles 
             }
             const ignored = unique.length - midiFiles.length - audioFiles.length;
             if (ignored > 0) {
-                alert(`Ignored ${ignored} file${ignored > 1 ? 's' : ''}. Only MIDI (.mid/.midi) and common audio formats are supported.`);
+                alert(
+                    `Ignored ${ignored} file${ignored > 1 ? 's' : ''}. Only MIDI (.mid/.midi) and common audio formats are supported.`
+                );
             }
         },
-        [importMidiFile, importAudioFile, importAudioFiles],
+        [importMidiFile, importAudioFile, importAudioFiles]
     );
 
     const onPanelDragEnter = useCallback<DragEventHandler<HTMLDivElement>>(
@@ -85,7 +87,7 @@ export function useFileDrop({ importMidiFile, importAudioFile, importAudioFiles 
             dragCounterRef.current += 1;
             setIsDragActive(true);
         },
-        [hasFiles],
+        [hasFiles]
     );
 
     const onPanelDragOver = useCallback<DragEventHandler<HTMLDivElement>>(
@@ -95,7 +97,7 @@ export function useFileDrop({ importMidiFile, importAudioFile, importAudioFiles 
             e.stopPropagation();
             e.dataTransfer.dropEffect = 'copy';
         },
-        [hasFiles, isDragActive],
+        [hasFiles, isDragActive]
     );
 
     const onPanelDragLeave = useCallback<DragEventHandler<HTMLDivElement>>(
@@ -108,7 +110,7 @@ export function useFileDrop({ importMidiFile, importAudioFile, importAudioFiles 
                 setIsDragActive(false);
             }
         },
-        [hasFiles],
+        [hasFiles]
     );
 
     const onPanelDrop = useCallback<DragEventHandler<HTMLDivElement>>(
@@ -123,7 +125,7 @@ export function useFileDrop({ importMidiFile, importAudioFile, importAudioFiles 
             if (!files.length) return;
             void handleDroppedFiles(files);
         },
-        [hasFiles, handleDroppedFiles],
+        [hasFiles, handleDroppedFiles]
     );
 
     const onPanelDropCapture = useCallback<DragEventHandler<HTMLDivElement>>(() => {

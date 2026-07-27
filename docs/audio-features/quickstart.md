@@ -66,7 +66,7 @@ const myCalculator: PluginAudioCalculator = {
             const end = Math.min(start + hopSize, channelData.length);
             let crossings = 0;
             for (let i = start + 1; i < end; i++) {
-                if ((channelData[i - 1]! >= 0) !== (channelData[i]! >= 0)) crossings++;
+                if (channelData[i - 1]! >= 0 !== channelData[i]! >= 0) crossings++;
             }
             rates[frame] = crossings / hopSize;
             ctx.reportProgress(frame + 1, ctx.frameCount);
@@ -89,7 +89,9 @@ export const element = definePluginElement({
         const requirements = context.audio!.requireFeatures([{ feature: 'zeroCrossing' }]);
         if (!requirements.ok) throw new Error(requirements.error.message);
     },
-    render() { return []; },
+    render() {
+        return [];
+    },
 });
 ```
 

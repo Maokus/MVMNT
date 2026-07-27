@@ -26,14 +26,16 @@ describe('readAudioFeatureMatrix', () => {
                     mute: false,
                     solo: false,
                     gain: 1,
-                    clips: [{
-                        id: 'clip',
-                        type: 'audio',
-                        sourceId,
-                        offsetTicks: 0,
-                        sourceStartSeconds: 0,
-                        sourceEndSeconds: 2,
-                    }],
+                    clips: [
+                        {
+                            id: 'clip',
+                            type: 'audio',
+                            sourceId,
+                            offsetTicks: 0,
+                            sourceStartSeconds: 0,
+                            sourceEndSeconds: 2,
+                        },
+                    ],
                 },
             },
             tracksOrder: [trackId],
@@ -129,7 +131,13 @@ describe('readAudioFeatureMatrix', () => {
                     hopSeconds: 1,
                     startTimeSeconds: 0,
                     frameCount: 2,
-                    analysisParams: { windowSize: 2, hopSize: 1, overlap: 1, sampleRate: 48_000, calculatorVersions: {} },
+                    analysisParams: {
+                        windowSize: 2,
+                        hopSize: 1,
+                        overlap: 1,
+                        sampleRate: 48_000,
+                        calculatorVersions: {},
+                    },
                     defaultAnalysisProfileId: profile,
                     featureTracks: {
                         [featureKey]: {

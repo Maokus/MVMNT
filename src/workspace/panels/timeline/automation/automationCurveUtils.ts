@@ -221,9 +221,8 @@ export function buildCurveSegments(
         const aVal = typeof a.value === 'number' ? (a.value as number) : a.value ? 1 : 0;
         const bVal = typeof b.value === 'number' ? (b.value as number) : b.value ? 1 : 0;
         // Boolean channels always render as constant (stepped) regardless of stored interpolation
-        const interp: SegmentInterpolation = channel.valueType === 'boolean'
-            ? { mode: 'constant', direction: 'auto' }
-            : a.segmentInterpolation;
+        const interp: SegmentInterpolation =
+            channel.valueType === 'boolean' ? { mode: 'constant', direction: 'auto' } : a.segmentInterpolation;
         const base = Math.max(4, Math.round(CURVE_SAMPLE_COUNT / Math.max(1, kfs.length - 1)));
         const isComplexMode = interp?.mode === 'elastic' || interp?.mode === 'bounce' || interp?.mode === 'back';
         const segSamples = isComplexMode ? Math.max(base, COMPLEX_MODE_MIN_SAMPLES) : base;
@@ -231,60 +230,60 @@ export function buildCurveSegments(
         const pts: string[] = [];
 
         if (interp.mode === 'constant') {
-                const xA = toX(a.tick, width);
-                const yA = valueToY(aVal);
-                const xB = toX(b.tick, width);
-                const yB = valueToY(bVal);
-                pts.push(`${xA.toFixed(1)},${yA.toFixed(1)}`);
-                pts.push(`${xB.toFixed(1)},${yA.toFixed(1)}`);
-                pts.push(`${xB.toFixed(1)},${yB.toFixed(1)}`);
-                result.push({ tick: a.tick, points: pts.join(' ') });
-                continue;
-            }
+            const xA = toX(a.tick, width);
+            const yA = valueToY(aVal);
+            const xB = toX(b.tick, width);
+            const yB = valueToY(bVal);
+            pts.push(`${xA.toFixed(1)},${yA.toFixed(1)}`);
+            pts.push(`${xB.toFixed(1)},${yA.toFixed(1)}`);
+            pts.push(`${xB.toFixed(1)},${yB.toFixed(1)}`);
+            result.push({ tick: a.tick, points: pts.join(' ') });
+            continue;
+        }
 
         if (interp.mode === 'bezier') {
-                const prevHandleType = a.rightHandleType ?? 'auto_clamped';
-                const nextHandleType = b.leftHandleType ?? 'auto_clamped';
-                let rHandle = a.rightHandle;
-                let lHandle = b.leftHandle;
+            const prevHandleType = a.rightHandleType ?? 'auto_clamped';
+            const nextHandleType = b.leftHandleType ?? 'auto_clamped';
+            let rHandle = a.rightHandle;
+            let lHandle = b.leftHandle;
 
-                if (!rHandle || prevHandleType === 'auto' || prevHandleType === 'auto_clamped') {
-                    const prevPrev = i > 0 ? kfs[i - 1] : null;
-                    const computed = computeAutoHandles(
-                        prevPrev,
-                        a,
-                        b,
-                        prevHandleType === 'auto' ? 'auto' : 'auto_clamped'
-                    );
-                    rHandle = computed.right;
-                } else if (prevHandleType === 'vector') {
-                    const span = b.tick - a.tick;
-                    rHandle = { dt: span / 3, dv: (bVal - aVal) / 3 };
-                }
-
-                if (!lHandle || nextHandleType === 'auto' || nextHandleType === 'auto_clamped') {
-                    const nextNext = i + 2 < kfs.length ? kfs[i + 2] : null;
-                    const computed = computeAutoHandles(
-                        a,
-                        b,
-                        nextNext,
-                        nextHandleType === 'auto' ? 'auto' : 'auto_clamped'
-                    );
-                    lHandle = computed.left;
-                } else if (nextHandleType === 'vector') {
-                    const span = b.tick - a.tick;
-                    lHandle = { dt: -span / 3, dv: -(bVal - aVal) / 3 };
-                }
-
-                for (let s = 0; s <= segSamples; s++) {
-                    const localT = s / segSamples;
-                    const val = evaluateSegmentBezier(localT, a.tick, aVal, rHandle, b.tick, bVal, lHandle);
-                    const tick = a.tick + (b.tick - a.tick) * localT;
-                    pts.push(`${toX(tick, width).toFixed(1)},${valueToY(val).toFixed(1)}`);
-                }
-                result.push({ tick: a.tick, points: pts.join(' ') });
-                continue;
+            if (!rHandle || prevHandleType === 'auto' || prevHandleType === 'auto_clamped') {
+                const prevPrev = i > 0 ? kfs[i - 1] : null;
+                const computed = computeAutoHandles(
+                    prevPrev,
+                    a,
+                    b,
+                    prevHandleType === 'auto' ? 'auto' : 'auto_clamped'
+                );
+                rHandle = computed.right;
+            } else if (prevHandleType === 'vector') {
+                const span = b.tick - a.tick;
+                rHandle = { dt: span / 3, dv: (bVal - aVal) / 3 };
             }
+
+            if (!lHandle || nextHandleType === 'auto' || nextHandleType === 'auto_clamped') {
+                const nextNext = i + 2 < kfs.length ? kfs[i + 2] : null;
+                const computed = computeAutoHandles(
+                    a,
+                    b,
+                    nextNext,
+                    nextHandleType === 'auto' ? 'auto' : 'auto_clamped'
+                );
+                lHandle = computed.left;
+            } else if (nextHandleType === 'vector') {
+                const span = b.tick - a.tick;
+                lHandle = { dt: -span / 3, dv: -(bVal - aVal) / 3 };
+            }
+
+            for (let s = 0; s <= segSamples; s++) {
+                const localT = s / segSamples;
+                const val = evaluateSegmentBezier(localT, a.tick, aVal, rHandle, b.tick, bVal, lHandle);
+                const tick = a.tick + (b.tick - a.tick) * localT;
+                pts.push(`${toX(tick, width).toFixed(1)},${valueToY(val).toFixed(1)}`);
+            }
+            result.push({ tick: a.tick, points: pts.join(' ') });
+            continue;
+        }
 
         // Semantic preset or linear
         const easingFn = resolveParametricEasing(interp.mode, interp.direction, interp.params);

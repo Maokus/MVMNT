@@ -67,7 +67,9 @@ describe('CacheDiagnosticsPopup', () => {
     });
 
     it('shows live calculation progress after calculation starts', () => {
-        const regenerateSpy = vi.spyOn(useAudioDiagnosticsStore.getState(), 'regenerateAll').mockImplementation(() => {});
+        const regenerateSpy = vi
+            .spyOn(useAudioDiagnosticsStore.getState(), 'regenerateAll')
+            .mockImplementation(() => {});
         act(() => {
             useTimelineStore.setState({
                 audioFeatureCacheStatus: {

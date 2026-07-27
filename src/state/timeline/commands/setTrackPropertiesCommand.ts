@@ -54,9 +54,10 @@ function buildPatch(track: TimelineTrackLike, patch: TrackPropertyPatch): TrackP
     }
 
     if (track.type === 'midi' && 'regionStartTick' in patch) {
-        const value = typeof patch.regionStartTick === 'number' && Number.isFinite(patch.regionStartTick)
-            ? patch.regionStartTick
-            : undefined;
+        const value =
+            typeof patch.regionStartTick === 'number' && Number.isFinite(patch.regionStartTick)
+                ? patch.regionStartTick
+                : undefined;
         if (value !== track.regionStartTick) {
             next.regionStartTick = value;
             changed = true;
@@ -64,9 +65,10 @@ function buildPatch(track: TimelineTrackLike, patch: TrackPropertyPatch): TrackP
     }
 
     if (track.type === 'midi' && 'regionEndTick' in patch) {
-        const value = typeof patch.regionEndTick === 'number' && Number.isFinite(patch.regionEndTick)
-            ? patch.regionEndTick
-            : undefined;
+        const value =
+            typeof patch.regionEndTick === 'number' && Number.isFinite(patch.regionEndTick)
+                ? patch.regionEndTick
+                : undefined;
         if (value !== track.regionEndTick) {
             next.regionEndTick = value;
             changed = true;
@@ -169,17 +171,16 @@ function buildPatchPayload(diffs: TrackDiff[]): TimelineCommandPatch {
 
 export function createSetTrackPropertiesCommand(
     payload: SetTrackPropertiesPayload,
-    metadataOverride?: TimelineCommand['metadata'],
+    metadataOverride?: TimelineCommand['metadata']
 ): TimelineCommand<void> {
     return {
         id: 'timeline.setTrackProperties',
         mode: 'serial',
-        metadata:
-            metadataOverride ?? {
-                commandId: 'timeline.setTrackProperties',
-                undoLabel: 'Update Track Properties',
-                telemetryEvent: 'timeline_set_track_properties',
-            },
+        metadata: metadataOverride ?? {
+            commandId: 'timeline.setTrackProperties',
+            undoLabel: 'Update Track Properties',
+            telemetryEvent: 'timeline_set_track_properties',
+        },
         async execute(context: TimelineCommandContext): Promise<TimelineCommandExecuteResult<void>> {
             const state = context.getState();
             const diffs = collectDiffs(state, payload);

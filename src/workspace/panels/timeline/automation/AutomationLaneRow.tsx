@@ -15,18 +15,11 @@
  *   diamond   → linear or sharp end of an easing curve
  *   square    → constant (stepped)
  *   hourglass → soft end of an easing curve
- *   circle    → bezier 
+ *   circle    → bezier
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-    useFloating,
-    autoUpdate,
-    flip,
-    shift,
-    offset,
-    FloatingPortal,
-} from '@floating-ui/react';
+import { useFloating, autoUpdate, flip, shift, offset, FloatingPortal } from '@floating-ui/react';
 import { useTickScale } from '../hooks/useTickScale';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneStore } from '@state/sceneStore';
@@ -68,7 +61,7 @@ const DYNAMIC_EASING_MODES = new Set(['back', 'bounce', 'elastic']);
 function getKfHalfShape(
     segInterp: SegmentInterpolation | undefined | null,
     handleType: HandleType | undefined,
-    side: 'left' | 'right',
+    side: 'left' | 'right'
 ): KfHalfShape {
     if (!segInterp) return 'diamond';
     const { mode } = segInterp;
@@ -97,31 +90,44 @@ function getKfHalfShape(
  * Traces the left half downward from (x,t) to (x,b), then the right half
  * upward back to (x,t), forming a single closed path.
  */
-function shapePath(
-    leftShape: KfHalfShape,
-    rightShape: KfHalfShape,
-    x: number,
-    cy: number,
-    size: number,
-): string {
-    const l = x - size, r = x + size, t = cy - size, b = cy + size;
+function shapePath(leftShape: KfHalfShape, rightShape: KfHalfShape, x: number, cy: number, size: number): string {
+    const l = x - size,
+        r = x + size,
+        t = cy - size,
+        b = cy + size;
 
     // Left half: segments from (x,t) down to (x,b)
     let leftSeg: string;
     switch (leftShape) {
-        case 'diamond': leftSeg = `L${l},${cy} L${x},${b}`; break;
-        case 'hourglass': leftSeg = `L${l},${t} L${x},${cy} L${l},${b} L${x},${b}`; break;
-        case 'square': leftSeg = `L${l},${t} L${l},${b} L${x},${b}`; break;
-        default: leftSeg = `A${size},${size} 0 0,0 ${x},${b}`; break; // circle: left semicircle (x,t)→(x,b)
+        case 'diamond':
+            leftSeg = `L${l},${cy} L${x},${b}`;
+            break;
+        case 'hourglass':
+            leftSeg = `L${l},${t} L${x},${cy} L${l},${b} L${x},${b}`;
+            break;
+        case 'square':
+            leftSeg = `L${l},${t} L${l},${b} L${x},${b}`;
+            break;
+        default:
+            leftSeg = `A${size},${size} 0 0,0 ${x},${b}`;
+            break; // circle: left semicircle (x,t)→(x,b)
     }
 
     // Right half: segments from (x,b) back up to (x,t)
     let rightSeg: string;
     switch (rightShape) {
-        case 'diamond': rightSeg = `L${r},${cy} L${x},${t}`; break;
-        case 'hourglass': rightSeg = `L${r},${b} L${x},${cy} L${r},${t} L${x},${t}`; break;
-        case 'square': rightSeg = `L${r},${b} L${r},${t} L${x},${t}`; break;
-        default: rightSeg = `A${size},${size} 0 0,0 ${x},${t}`; break; // circle: right semicircle (x,b)→(x,t)
+        case 'diamond':
+            rightSeg = `L${r},${cy} L${x},${t}`;
+            break;
+        case 'hourglass':
+            rightSeg = `L${r},${b} L${x},${cy} L${r},${t} L${x},${t}`;
+            break;
+        case 'square':
+            rightSeg = `L${r},${b} L${r},${t} L${x},${t}`;
+            break;
+        default:
+            rightSeg = `A${size},${size} 0 0,0 ${x},${t}`;
+            break; // circle: right semicircle (x,b)→(x,t)
     }
 
     return `M${x},${t} ${leftSeg} ${rightSeg} Z`;
@@ -164,13 +170,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     const ppq = CANONICAL_PPQ;
 
     const selectedKeyframes = useSelectionStore(
-        useCallback(
-            (s) =>
-                s.selectedKeyframes.filter(
-                    (k) => k.channelId === channel.id,
-                ),
-            [channel.id],
-        ),
+        useCallback((s) => s.selectedKeyframes.filter((k) => k.channelId === channel.id), [channel.id])
     );
 
     // -----------------------------------------------------------------------
@@ -195,16 +195,14 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     const toggleCurve = useCallback(() => {
         useSceneStore.setState((state) => {
             const list = state.interaction.automationExpandedCurves;
-            const next = curveExpanded
-                ? list.filter((id) => id !== channel.id)
-                : [...list, channel.id];
+            const next = curveExpanded ? list.filter((id) => id !== channel.id) : [...list, channel.id];
             return { interaction: { ...state.interaction, automationExpandedCurves: next } };
         });
     }, [channel.id, curveExpanded]);
 
     const isSelected = useCallback(
         (tick: number) => selectedKeyframes.some((k) => Math.abs(k.tick - tick) < 0.5),
-        [selectedKeyframes],
+        [selectedKeyframes]
     );
 
     // Set of selected keyframe ticks for this channel — a segment is highlighted when its outgoing kf is selected.
@@ -230,18 +228,24 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             const nextKf = i < kfs.length - 1 ? kfs[i + 1] : null;
 
             // Left half: shape determined by the PREVIOUS segment's interpolation
-            const leftShape: KfHalfShape = channel.valueType === 'string' || channel.valueType === 'boolean'
-                ? (prevKf ? 'square' : 'diamond')
-                : prevKf
-                    ? getKfHalfShape(prevKf.segmentInterpolation, kf.leftHandleType, 'left')
-                    : 'diamond';
+            const leftShape: KfHalfShape =
+                channel.valueType === 'string' || channel.valueType === 'boolean'
+                    ? prevKf
+                        ? 'square'
+                        : 'diamond'
+                    : prevKf
+                      ? getKfHalfShape(prevKf.segmentInterpolation, kf.leftHandleType, 'left')
+                      : 'diamond';
 
             // Right half: shape determined by THIS keyframe's outgoing segment
-            const rightShape: KfHalfShape = channel.valueType === 'string' || channel.valueType === 'boolean'
-                ? (nextKf ? 'square' : 'diamond')
-                : nextKf
-                    ? getKfHalfShape(kf.segmentInterpolation, kf.rightHandleType, 'right')
-                    : 'diamond';
+            const rightShape: KfHalfShape =
+                channel.valueType === 'string' || channel.valueType === 'boolean'
+                    ? nextKf
+                        ? 'square'
+                        : 'diamond'
+                    : nextKf
+                      ? getKfHalfShape(kf.segmentInterpolation, kf.rightHandleType, 'right')
+                      : 'diamond';
 
             diamonds.push({ kf, x, leftShape, rightShape });
 
@@ -273,14 +277,12 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             // does not disturb existing keyframe selection or activeTarget).
             useSelectionStore.getState().setSelectedElementIds([channel.elementId]);
             const clickedIsSelected = existing.some(
-                (k) => k.channelId === channel.id && Math.abs(k.tick - kf.tick) < 0.5,
+                (k) => k.channelId === channel.id && Math.abs(k.tick - kf.tick) < 0.5
             );
 
             if (e.shiftKey) {
                 // Toggle this kf in/out
-                const idx = existing.findIndex(
-                    (k) => k.channelId === channel.id && Math.abs(k.tick - kf.tick) < 0.5,
-                );
+                const idx = existing.findIndex((k) => k.channelId === channel.id && Math.abs(k.tick - kf.tick) < 0.5);
                 newSelected =
                     idx >= 0
                         ? existing.filter((_, i) => i !== idx)
@@ -297,10 +299,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
 
             // Build peers list (all selected kfs except this one)
             const peers: PeerKf[] = newSelected
-                .filter(
-                    (k) =>
-                        !(k.channelId === channel.id && Math.abs(k.tick - kf.tick) < 0.5),
-                )
+                .filter((k) => !(k.channelId === channel.id && Math.abs(k.tick - kf.tick) < 0.5))
                 .map((k) => ({ channelId: k.channelId, baseTick: k.tick, curTick: k.tick }));
 
             // Compute click offset from diamond centre (for delta-based dragging)
@@ -309,9 +308,15 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             const kfX = toX(kf.tick, width);
             const offsetX = svgX - kfX;
 
-            setDragging({ kfTick: kf.tick, baseTick: kf.tick, offsetX, peers, sessionId: `${Date.now()}-${Math.random()}` });
+            setDragging({
+                kfTick: kf.tick,
+                baseTick: kf.tick,
+                offsetX,
+                peers,
+                sessionId: `${Date.now()}-${Math.random()}`,
+            });
         },
-        [channel.id, channel.elementId, toX, width, setDragging],
+        [channel.id, channel.elementId, toX, width, setDragging]
     );
 
     // -----------------------------------------------------------------------
@@ -337,12 +342,10 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
 
                 // Collision avoidance: if the snapped destination is occupied by a different
                 // keyframe, bump by ±1 tick (direction of travel) until a free slot is found.
-                const currentKeyframes =
-                    useSceneStore.getState().automation.channels[channel.id]?.keyframes ?? [];
+                const currentKeyframes = useSceneStore.getState().automation.channels[channel.id]?.keyframes ?? [];
                 const isOccupiedByOther = (t: number) =>
                     currentKeyframes.some(
-                        (kf) => Math.abs(kf.tick - t) < 0.5
-                            && Math.abs(kf.tick - drag.kfTick) >= 0.5,
+                        (kf) => Math.abs(kf.tick - t) < 0.5 && Math.abs(kf.tick - drag.kfTick) >= 0.5
                     );
                 let resolvedSnap = snapped;
                 if (isOccupiedByOther(resolvedSnap)) {
@@ -372,29 +375,23 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                             source: 'automation-lane',
                             mergeKey: `kf-move:${drag.sessionId}`,
                             transient: true,
-                        },
+                        }
                     );
 
                     // Move peers by the same tick delta, with per-channel collision avoidance
                     const dir = delta > 0 ? 1 : -1;
                     const updatedPeers = drag.peers.map((peer) => {
-                        const rawPeerTick = snapTick(
-                            Math.max(0, peer.baseTick + delta),
-                            e.ctrlKey || e.metaKey,
-                        );
+                        const rawPeerTick = snapTick(Math.max(0, peer.baseTick + delta), e.ctrlKey || e.metaKey);
                         const peerChannelKfs =
                             useSceneStore.getState().automation.channels[peer.channelId]?.keyframes ?? [];
                         const isPeerOccupiedByOther = (t: number) =>
                             peerChannelKfs.some(
-                                (kf) =>
-                                    Math.abs(kf.tick - t) < 0.5 &&
-                                    Math.abs(kf.tick - peer.curTick) >= 0.5,
+                                (kf) => Math.abs(kf.tick - t) < 0.5 && Math.abs(kf.tick - peer.curTick) >= 0.5
                             );
                         let newPeerTick = rawPeerTick;
                         if (isPeerOccupiedByOther(newPeerTick)) {
                             let candidate = newPeerTick + dir;
-                            while (candidate >= 0 && isPeerOccupiedByOther(candidate))
-                                candidate += dir;
+                            while (candidate >= 0 && isPeerOccupiedByOther(candidate)) candidate += dir;
                             newPeerTick = Math.max(0, candidate);
                             // Same boundary guard as for the primary: if clamping still
                             // lands on an occupied slot, stay put instead of overwriting.
@@ -412,7 +409,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                                     source: 'automation-lane',
                                     mergeKey: `kf-move:${drag.sessionId}`,
                                     transient: true,
-                                },
+                                }
                             );
                         }
                         return { ...peer, curTick: newPeerTick };
@@ -431,7 +428,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             }
         },
         // Only stable values in deps — dynamic state accessed via refs
-        [channel.id, toTick, width, snapTick, setDragging],
+        [channel.id, toTick, width, snapTick, setDragging]
     );
 
     // -----------------------------------------------------------------------
@@ -444,7 +441,9 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 try {
                     // Release capture (may already be auto-released after pointerup)
                     svgRef.current?.releasePointerCapture(e.pointerId);
-                } catch { /* ignore */ }
+                } catch {
+                    /* ignore */
+                }
 
                 // Commit transient moves as permanent history entries
                 if (drag.kfTick !== drag.baseTick) {
@@ -459,7 +458,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                             source: 'automation-lane',
                             mergeKey: `kf-move:${drag.sessionId}`,
                             transient: false,
-                        },
+                        }
                     );
                 }
                 for (const peer of drag.peers) {
@@ -475,7 +474,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                                 source: 'automation-lane',
                                 mergeKey: `kf-move:${drag.sessionId}`,
                                 transient: false,
-                            },
+                            }
                         );
                     }
                 }
@@ -483,7 +482,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 return;
             }
         },
-        [channel.id, setDragging],
+        [channel.id, setDragging]
     );
 
     // Cancel acts like pointerup for cleanup purposes
@@ -491,7 +490,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
         (_e: React.PointerEvent<SVGSVGElement>) => {
             setDragging(null);
         },
-        [setDragging],
+        [setDragging]
     );
 
     // -----------------------------------------------------------------------
@@ -509,7 +508,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             // Select the element that owns this automation channel
             useSelectionStore.getState().selectElements([channel.elementId]);
         },
-        [channel.elementId],
+        [channel.elementId]
     );
 
     // -----------------------------------------------------------------------
@@ -520,7 +519,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             e.stopPropagation();
             toggleCurve();
         },
-        [toggleCurve],
+        [toggleCurve]
     );
 
     // -----------------------------------------------------------------------
@@ -563,7 +562,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             });
             setContextMenuOpen(true);
         },
-        [ctxRefs],
+        [ctxRefs]
     );
 
     useEffect(() => {
@@ -614,15 +613,13 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             const leftTick = kfs[idx].tick;
             const existing = useSelectionStore.getState().selectedKeyframes;
             const hasLeft = existing.some(
-                (keyframe) =>
-                    keyframe.channelId === channel.id &&
-                    Math.abs(keyframe.tick - leftTick) < 0.5,
+                (keyframe) => keyframe.channelId === channel.id && Math.abs(keyframe.tick - leftTick) < 0.5
             );
             if (e.shiftKey) {
                 // Shift+click: add left keyframe to existing selection
-                useSelectionStore.getState().selectKeyframes(
-                    hasLeft ? existing : [...existing, { channelId: channel.id, tick: leftTick }]
-                );
+                useSelectionStore
+                    .getState()
+                    .selectKeyframes(hasLeft ? existing : [...existing, { channelId: channel.id, tick: leftTick }]);
             } else if (hasLeft) {
                 // Clicking an already selected segment keeps its multi-selection,
                 // matching keyframe-diamond interaction behaviour.
@@ -632,7 +629,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 useSelectionStore.getState().selectKeyframes([{ channelId: channel.id, tick: leftTick }]);
             }
         },
-        [channel.id, channel.elementId, channel.keyframes],
+        [channel.id, channel.elementId, channel.keyframes]
     );
 
     const handleInterpolationSelect = useCallback(
@@ -644,24 +641,28 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             // keyframe selected after dragging, preventing the bulk update.
             const isPartOfSelection = allSelected.some(
                 (keyframe) =>
-                    keyframe.channelId === channel.id &&
-                    Math.abs(keyframe.tick - interpolationPicker.tick) < 0.5,
+                    keyframe.channelId === channel.id && Math.abs(keyframe.tick - interpolationPicker.tick) < 0.5
             );
             if (isPartOfSelection && allSelected.length > 1) {
                 for (const { channelId, tick } of allSelected) {
                     dispatchSceneCommand(
                         { type: 'updateKeyframe', channelId, tick, patch: { segmentInterpolation: interpolation } },
-                        { source: 'automation-lane' },
+                        { source: 'automation-lane' }
                     );
                 }
             } else {
                 dispatchSceneCommand(
-                    { type: 'updateKeyframe', channelId: channel.id, tick: interpolationPicker.tick, patch: { segmentInterpolation: interpolation } },
-                    { source: 'automation-lane' },
+                    {
+                        type: 'updateKeyframe',
+                        channelId: channel.id,
+                        tick: interpolationPicker.tick,
+                        patch: { segmentInterpolation: interpolation },
+                    },
+                    { source: 'automation-lane' }
                 );
             }
         },
-        [interpolationPicker, channel.id],
+        [interpolationPicker, channel.id]
     );
 
     const handleHandleTypeChange = useCallback(
@@ -670,20 +671,23 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             const patch = { leftHandleType: type, rightHandleType: type };
             const allSelected = useSelectionStore.getState().selectedKeyframes;
             const isPartOfSelection = allSelected.some(
-                (k) => k.channelId === channel.id && Math.abs(k.tick - interpolationPicker.tick) < 0.5,
+                (k) => k.channelId === channel.id && Math.abs(k.tick - interpolationPicker.tick) < 0.5
             );
             if (isPartOfSelection && allSelected.length > 1) {
                 for (const { channelId, tick } of allSelected) {
-                    dispatchSceneCommand({ type: 'updateKeyframe', channelId, tick, patch }, { source: 'automation-lane' });
+                    dispatchSceneCommand(
+                        { type: 'updateKeyframe', channelId, tick, patch },
+                        { source: 'automation-lane' }
+                    );
                 }
             } else {
                 dispatchSceneCommand(
                     { type: 'updateKeyframe', channelId: channel.id, tick: interpolationPicker.tick, patch },
-                    { source: 'automation-lane' },
+                    { source: 'automation-lane' }
                 );
             }
         },
-        [interpolationPicker, channel.id],
+        [interpolationPicker, channel.id]
     );
 
     const pickerCurrent = useMemo((): SegmentInterpolation => {
@@ -734,13 +738,19 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                             x2={seg.x2}
                             y2={cy}
                             stroke={
-                                selected && hovered ? 'rgba(255,255,255,0.95)' :
-                                    selected ? 'rgba(147,197,253,0.9)' :
-                                        hovered ? 'rgba(147,197,253,0.9)' :
-                                            'rgba(96,165,250,0.35)'
+                                selected && hovered
+                                    ? 'rgba(255,255,255,0.95)'
+                                    : selected
+                                      ? 'rgba(147,197,253,0.9)'
+                                      : hovered
+                                        ? 'rgba(147,197,253,0.9)'
+                                        : 'rgba(96,165,250,0.35)'
                             }
                             strokeWidth={selected || hovered ? 2 : 1}
-                            style={{ pointerEvents: 'none', filter: (selected || hovered) ? 'drop-shadow(0 0 3px rgba(147,197,253,0.7))' : undefined }}
+                            style={{
+                                pointerEvents: 'none',
+                                filter: selected || hovered ? 'drop-shadow(0 0 3px rgba(147,197,253,0.7))' : undefined,
+                            }}
                         />
                     );
                 })}
@@ -791,10 +801,11 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                                 e.stopPropagation();
                                 const kfIdx = channel.keyframes.findIndex((k) => Math.abs(k.tick - kf.tick) < 0.5);
                                 if (kfIdx < 0 || channel.keyframes.length < 2) return;
-                                const pickerTick = kfIdx < channel.keyframes.length - 1
-                                    ? kf.tick
-                                    : channel.keyframes[kfIdx - 1].tick;
-                                pickerRefs.setReference({ getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0) });
+                                const pickerTick =
+                                    kfIdx < channel.keyframes.length - 1 ? kf.tick : channel.keyframes[kfIdx - 1].tick;
+                                pickerRefs.setReference({
+                                    getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0),
+                                });
                                 setInterpolationPicker({ tick: pickerTick });
                             }}
                         >
@@ -806,13 +817,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                                 strokeLinejoin="round"
                             />
                             {atPlayhead && (
-                                <circle
-                                    cx={x}
-                                    cy={cy}
-                                    r={2.5}
-                                    fill="#f87171"
-                                    style={{ pointerEvents: 'none' }}
-                                />
+                                <circle cx={x} cy={cy} r={2.5} fill="#f87171" style={{ pointerEvents: 'none' }} />
                             )}
                             {/* Larger hit area */}
                             <rect
@@ -859,7 +864,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                                                 channelId: channel.id,
                                                 keyframes: clip.keyframes,
                                             },
-                                            { source: 'automation-lane' },
+                                            { source: 'automation-lane' }
                                         );
                                     }
                                     setContextMenuOpen(false);
@@ -879,7 +884,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                                         channelId: channel.id,
                                         keyframes: [],
                                     },
-                                    { source: 'automation-lane' },
+                                    { source: 'automation-lane' }
                                 );
                                 setContextMenuOpen(false);
                             }}
@@ -920,17 +925,12 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                             handleType={pickerHandleType}
                             onHandleTypeChange={handleHandleTypeChange}
                         />
-                        <button
-                            type="button"
-                            className="ae-easing-close"
-                            onClick={() => setInterpolationPicker(null)}
-                        >
+                        <button type="button" className="ae-easing-close" onClick={() => setInterpolationPicker(null)}>
                             Close
                         </button>
                     </div>
                 </FloatingPortal>
             )}
-
         </div>
     );
 };

@@ -16,10 +16,7 @@ type TransportSectionProps = {
 export const TransportSection: React.FC<TransportSectionProps> = ({ open, onToggle, transportState }) => (
     <Section title="Transport" open={open} onToggle={onToggle}>
         <div>
-            Mode:{' '}
-            <span style={{ color: '#4ade80' }}>
-                {transportState.mode ?? '—'}
-            </span>
+            Mode: <span style={{ color: '#4ade80' }}>{transportState.mode ?? '—'}</span>
         </div>
         <div>
             Source: <span>{transportState.source ?? '—'}</span>

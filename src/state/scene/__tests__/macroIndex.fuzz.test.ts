@@ -88,11 +88,13 @@ describe('sceneStore macro inverse index fuzz', () => {
             expect(actualKeys).toEqual(expectedKeys);
             for (const key of expectedKeys) {
                 const expectedAssignments = expected.get(key)!;
-                const actualAssignments = (actual[key] ?? []).slice().sort((a, b) =>
-                    a.elementId === b.elementId
-                        ? a.propertyPath.localeCompare(b.propertyPath)
-                        : a.elementId.localeCompare(b.elementId)
-                );
+                const actualAssignments = (actual[key] ?? [])
+                    .slice()
+                    .sort((a, b) =>
+                        a.elementId === b.elementId
+                            ? a.propertyPath.localeCompare(b.propertyPath)
+                            : a.elementId.localeCompare(b.elementId)
+                    );
                 expect(actualAssignments).toEqual(expectedAssignments);
             }
         }

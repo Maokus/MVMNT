@@ -38,7 +38,10 @@ const GridLines: React.FC<Props> = ({ width, height, startTick, endTick }) => {
         if (adaptiveSnap) {
             // Adaptive mode: multi-level hierarchical grid based on zoom
             const { showBeats, showEighths, showSixteenths } = getAdaptiveGridSubdivisions(
-                width, endTick - startTick, bpb, ppq
+                width,
+                endTick - startTick,
+                bpb,
+                ppq
             );
             for (let bar = firstBar; bar <= lastBar; bar++) {
                 for (let beat = 0; beat < bpb; beat++) {

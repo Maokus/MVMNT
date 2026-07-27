@@ -17,10 +17,7 @@ const AssetSelect: React.FC<Props> = ({ id, value, schema, disabled, title, onCh
     const allowedSet = allowedTypes?.length ? new Set(allowedTypes) : null;
 
     const { assets, assetsOrder } = useVisualAssetRegistryStore(
-        useCallback(
-            (state) => ({ assets: state.assets, assetsOrder: state.assetsOrder }),
-            []
-        )
+        useCallback((state) => ({ assets: state.assets, assetsOrder: state.assetsOrder }), [])
     );
 
     const filtered = assetsOrder
@@ -42,7 +39,11 @@ const AssetSelect: React.FC<Props> = ({ id, value, schema, disabled, title, onCh
             <option value="">Select Image…</option>
             {filtered.map((entry) => (
                 <option key={entry.id} value={entry.id}>
-                    {entry.type === 'gif' ? `GIF · ${entry.name}` : entry.type === 'sparrow' ? `Sparrow · ${entry.name}` : entry.name}
+                    {entry.type === 'gif'
+                        ? `GIF · ${entry.name}`
+                        : entry.type === 'sparrow'
+                          ? `Sparrow · ${entry.name}`
+                          : entry.name}
                 </option>
             ))}
         </select>

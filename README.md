@@ -38,21 +38,22 @@ Node version. MVMNT requires Node 22.12 or newer within the Node 22 release line
    then close and reopen Git Bash or PowerShell.
 2. Select the required Node version:
 
-   ```bash
-   nvm install 22.12.0
-   nvm use 22.12.0
-   node --version
-   ```
+    ```bash
+    nvm install 22.12.0
+    nvm use 22.12.0
+    node --version
+    ```
 
-   Confirm the final command reports `v22.12.0` or another `v22` version that is at least 22.12.
+    Confirm the final command reports `v22.12.0` or another `v22` version that is at least 22.12.
+
 3. From the MVMNT checkout, remove the dependencies that were installed under the old Node version
    and install them again. In Git Bash:
 
-   ```bash
-   rm -rf node_modules
-   npm install
-   npm run dev
-   ```
+    ```bash
+    rm -rf node_modules
+    npm install
+    npm run dev
+    ```
 
 Do not delete `package-lock.json`, and do not use Electron's suggested manual installer; reinstalling
 after switching Node installs the correct Electron binary.

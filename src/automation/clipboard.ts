@@ -44,9 +44,7 @@ export interface KeyframeSelectionClipboard {
 let keyframeSelClipboard: KeyframeSelectionClipboard | null = null;
 
 /** Copy a set of selected keyframes (grouped by channel) to the selection clipboard. */
-export function copySelectedKeyframes(
-    entries: Array<{ channelId: string; keyframes: AutomationKeyframe[] }>,
-): void {
+export function copySelectedKeyframes(entries: Array<{ channelId: string; keyframes: AutomationKeyframe[] }>): void {
     if (entries.length === 0) return;
     const allTicks = entries.flatMap((e) => e.keyframes.map((kf) => kf.tick));
     const minTick = Math.min(...allTicks);

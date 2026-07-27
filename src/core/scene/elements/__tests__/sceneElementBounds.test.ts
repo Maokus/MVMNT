@@ -31,8 +31,14 @@ describe('SceneElement bounds', () => {
         const ordinary = element.buildRenderObjects({}, 0)[0].getVisualBounds();
         enableFeatureForSession('elementPerspectiveWarp', true);
         const warped = new BoundsTestElement({
-            warpEnabled: true, offsetX: 500, offsetY: 300, anchorX: 0.5, anchorY: 0.5,
-        }).buildRenderObjects({}, 0)[0].getVisualBounds();
+            warpEnabled: true,
+            offsetX: 500,
+            offsetY: 300,
+            anchorX: 0.5,
+            anchorY: 0.5,
+        })
+            .buildRenderObjects({}, 0)[0]
+            .getVisualBounds();
         expect(warped).toEqual(ordinary);
     });
 

@@ -8,14 +8,20 @@ describe('export job store', () => {
     });
 
     it('tracks progress, cancellation, bounded logs, and terminal state', () => {
-        const job = createExportJob('video', 'Scene', {
-            width: 1920,
-            height: 1080,
-            fps: 30,
-            fullDuration: true,
-            startTime: 0,
-            endTime: 0,
-        }, 3, 2);
+        const job = createExportJob(
+            'video',
+            'Scene',
+            {
+                width: 1920,
+                height: 1080,
+                fps: 30,
+                fullDuration: true,
+                startTime: 0,
+                endTime: 0,
+            },
+            3,
+            2
+        );
         const store = useExportJobStore.getState();
         store.enqueue(job);
         store.update(job.id, { status: 'rendering', progress: 50 });

@@ -29,28 +29,23 @@ function buildPatch(previous: string[], next: string[]): TimelineCommandPatch {
         return { undo: [], redo: [] };
     }
     return {
-        redo: [
-            { action: 'timeline/SET_TRACK_ORDER', payload: { order: next } },
-        ],
-        undo: [
-            { action: 'timeline/SET_TRACK_ORDER', payload: { order: previous } },
-        ],
+        redo: [{ action: 'timeline/SET_TRACK_ORDER', payload: { order: next } }],
+        undo: [{ action: 'timeline/SET_TRACK_ORDER', payload: { order: previous } }],
     };
 }
 
 export function createReorderTracksCommand(
     payload: ReorderTracksPayload,
-    metadataOverride?: TimelineCommand['metadata'],
+    metadataOverride?: TimelineCommand['metadata']
 ): TimelineCommand<void> {
     return {
         id: 'timeline.reorderTracks',
         mode: 'serial',
-        metadata:
-            metadataOverride ?? {
-                commandId: 'timeline.reorderTracks',
-                undoLabel: 'Reorder Tracks',
-                telemetryEvent: 'timeline_reorder_tracks',
-            },
+        metadata: metadataOverride ?? {
+            commandId: 'timeline.reorderTracks',
+            undoLabel: 'Reorder Tracks',
+            telemetryEvent: 'timeline_reorder_tracks',
+        },
         async execute(context: TimelineCommandContext): Promise<TimelineCommandExecuteResult<void>> {
             const state = context.getState();
             const previous = state.tracksOrder;
@@ -58,7 +53,7 @@ export function createReorderTracksCommand(
             if (previous.length === next.length && previous.every((id, idx) => id === next[idx])) {
                 return { patches: { undo: [], redo: [] } };
             }
-            context.setState(() => ({ tracksOrder: next } as TimelineState));
+            context.setState(() => ({ tracksOrder: next }) as TimelineState);
             return { patches: buildPatch(previous, next) };
         },
         async undo(_context, patch) {

@@ -32,8 +32,8 @@ describe('tempo scaling (beats canonical)', () => {
             note.endBeat !== undefined
                 ? note.endBeat
                 : note.durationTicks !== undefined
-                ? (note.startTick + note.durationTicks) / CANONICAL_PPQ
-                : note.endTick / CANONICAL_PPQ;
+                  ? (note.startTick + note.durationTicks) / CANONICAL_PPQ
+                  : note.endTick / CANONICAL_PPQ;
         // Derive seconds from beats (120 bpm => 0.5s per beat)
         const beatsDur = endBeat - startBeat;
         const spb120 = 60 / 120;
@@ -47,8 +47,8 @@ describe('tempo scaling (beats canonical)', () => {
             noteAfter.endBeat !== undefined
                 ? noteAfter.endBeat
                 : noteAfter.durationTicks !== undefined
-                ? (noteAfter.startTick + noteAfter.durationTicks) / CANONICAL_PPQ
-                : noteAfter.endTick / CANONICAL_PPQ;
+                  ? (noteAfter.startTick + noteAfter.durationTicks) / CANONICAL_PPQ
+                  : noteAfter.endTick / CANONICAL_PPQ;
         const spb60 = 60 / 60; // 1s per beat
         expect(Math.round((endBeatAfter - startBeatAfter) * spb60)).toBe(4);
         // Beat distance constant

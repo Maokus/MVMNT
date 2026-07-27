@@ -246,7 +246,9 @@ export const element = definePluginElement({
         const requirements = context.audio!.requireFeatures([{ feature: 'peakHold' }]);
         if (!requirements.ok) throw new Error(requirements.error.message);
     },
-    render() { return []; },
+    render() {
+        return [];
+    },
 });
 ```
 
@@ -308,12 +310,16 @@ remain internal to the element and never appear in the property panel.
 import { definePluginElement } from '@mvmnt-app/plugin-sdk';
 
 export const audioSpectrum = definePluginElement({
-    type: 'audio-spectrum', metadata: { name: 'Audio Spectrum' }, schema: { tabs: [] },
+    type: 'audio-spectrum',
+    metadata: { name: 'Audio Spectrum' },
+    schema: { tabs: [] },
     capabilities: { required: ['audio.features.read'], optional: [] },
     featureRequirements: [{ feature: 'spectrogram' }],
     render(props, _state, time, context) {
         const frame = context.audio!.sampleFeature({
-            trackId: props.audioTrackId, feature: 'spectrogram', timeSeconds: time.seconds,
+            trackId: props.audioTrackId,
+            feature: 'spectrogram',
+            timeSeconds: time.seconds,
         });
         return frame.ok ? [] : [];
     },
@@ -456,16 +462,21 @@ Plans are created once per analysis pass and reused across all frames, avoiding 
 
 ```ts
 export const audioSpectrum = definePluginElement({
-    type: 'audio-spectrum', metadata: { name: 'Audio Spectrum' }, schema: { tabs: [] },
+    type: 'audio-spectrum',
+    metadata: { name: 'Audio Spectrum' },
+    schema: { tabs: [] },
     capabilities: { required: ['audio.features.read'], optional: [] },
     featureRequirements: [{ feature: 'spectrogram' }],
     render(props, _state, time, context) {
         const frame = context.audio!.sampleFeature({
-            trackId: props.audioTrackId, feature: 'spectrogram', timeSeconds: time.seconds,
+            trackId: props.audioTrackId,
+            feature: 'spectrogram',
+            timeSeconds: time.seconds,
         });
         if (!frame.ok || !Array.isArray(frame.value.value)) return [];
-        return frame.value.value.map((magnitude, index) =>
-            new Rectangle(index * 6, 0, 4, Math.max(0, magnitude + 80) * 2, { fillColor: '#00ffcc' })
+        return frame.value.value.map(
+            (magnitude, index) =>
+                new Rectangle(index * 6, 0, 4, Math.max(0, magnitude + 80) * 2, { fillColor: '#00ffcc' })
         );
     },
 });

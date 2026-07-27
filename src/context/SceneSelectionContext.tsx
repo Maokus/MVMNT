@@ -10,7 +10,13 @@ import {
 } from '@state/scene';
 import type { SceneCommand, SceneCommandOptions } from '@state/scene';
 import { shallow } from 'zustand/shallow';
-import { makeChannelId, findKeyframeAtTick, createKeyframe, DEFAULT_SEGMENT_INTERPOLATION, type AutomationValueType } from '@automation/types';
+import {
+    makeChannelId,
+    findKeyframeAtTick,
+    createKeyframe,
+    DEFAULT_SEGMENT_INTERPOLATION,
+    type AutomationValueType,
+} from '@automation/types';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 import { createDuplicateElementId } from './duplicateElementName';
@@ -43,7 +49,7 @@ interface SceneSelectionActions {
     updateElementConfig: (
         elementId: string,
         changes: { [key: string]: any },
-        options?: Omit<SceneCommandOptions, 'source'>,
+        options?: Omit<SceneCommandOptions, 'source'>
     ) => void;
     addElement: (elementType: string, initialConfig?: Record<string, unknown>) => void;
     incrementPropertyPanelRefresh: () => void;
@@ -55,7 +61,7 @@ interface SceneSelectionActions {
     dismissTrackInputPopup: () => void;
 }
 
-interface SceneSelectionContextType extends SceneSelectionState, SceneSelectionActions { }
+interface SceneSelectionContextType extends SceneSelectionState, SceneSelectionActions {}
 
 const SceneSelectionContext = createContext<SceneSelectionContextType | undefined>(undefined);
 
@@ -118,7 +124,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     const selectedRecord = useSceneElementRecord(selectedElementId);
     const selectedBindings = useSceneStore(
         useCallback(
-            (state) => (selectedElementId ? state.bindings.byElement[selectedElementId] ?? {} : {}),
+            (state) => (selectedElementId ? (state.bindings.byElement[selectedElementId] ?? {}) : {}),
             [selectedElementId]
         ),
         shallow
@@ -133,9 +139,10 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         };
     }, [selectedRecord, selectedBindings]);
 
-    const selectionSnapshotRef = useRef<{ elementId: string | null; bindings: ElementBindings }>(
-        { elementId: selectedElementId, bindings: selectedBindings }
-    );
+    const selectionSnapshotRef = useRef<{ elementId: string | null; bindings: ElementBindings }>({
+        elementId: selectedElementId,
+        bindings: selectedBindings,
+    });
 
     useEffect(() => {
         selectionSnapshotRef.current = {
@@ -273,7 +280,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                         {
                             source: 'SceneSelectionContext.updateElementConfig',
                             ...(options ?? {}),
-                        },
+                        }
                     );
                 } else if (autoKeying && !automationChannels[chId]) {
                     // Auto key ON + no channel yet: create automation channel with initial keyframe.
@@ -291,7 +298,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                             {
                                 source: 'SceneSelectionContext.updateElementConfig',
                                 ...(options ?? {}),
-                            },
+                            }
                         );
                     } else {
                         nonAutomatedChanges[key] = value;
@@ -311,7 +318,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                 const ok = runSceneCommand(
                     { type: 'updateElementConfig', elementId, patch: nonAutomatedChanges },
                     'SceneSelectionContext.updateElementConfig',
-                    options,
+                    options
                 );
                 if (!ok) return;
             }
@@ -367,8 +374,8 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
             const schema = sceneElementRegistry.getSchema(elementType) as any;
             if (schema) {
                 const trackInputs: TrackInputDef[] = [];
-                for (const group of (schema.tabs?.flatMap((t: any) => t.groups) ?? [])) {
-                    for (const propDef of (group.properties ?? [])) {
+                for (const group of schema.tabs?.flatMap((t: any) => t.groups) ?? []) {
+                    for (const propDef of group.properties ?? []) {
                         if (propDef.type === 'timelineTrackRef') {
                             trackInputs.push({
                                 key: propDef.key,
@@ -388,7 +395,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     );
 
     const incrementPropertyPanelRefresh = useCallback(() => {
-        setPropertyPanelRefresh(prev => prev + 1);
+        setPropertyPanelRefresh((prev) => prev + 1);
     }, []);
 
     // Actions migrated from hook
@@ -441,10 +448,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
 
     const deleteElement = useCallback(
         (elementId: string) => {
-            const ok = runSceneCommand(
-                { type: 'removeElement', elementId },
-                'SceneSelectionContext.deleteElement'
-            );
+            const ok = runSceneCommand({ type: 'removeElement', elementId }, 'SceneSelectionContext.deleteElement');
             if (!ok) return;
             if (selectedElementId === elementId) selectElement(null);
             if (visualizer?.invalidateRender) visualizer.invalidateRender();
@@ -529,11 +533,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         return () => window.removeEventListener('keydown', handleArrowKey, { capture: true } as any);
     }, [updateElementConfig]);
 
-    return (
-        <SceneSelectionContext.Provider value={contextValue}>
-            {children}
-        </SceneSelectionContext.Provider>
-    );
+    return <SceneSelectionContext.Provider value={contextValue}>{children}</SceneSelectionContext.Provider>;
 }
 
 export const useSceneSelection = () => {

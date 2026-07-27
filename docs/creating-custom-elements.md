@@ -8,6 +8,7 @@ Plugin-facing elements use SDK 2 definitions from `@mvmnt-app/plugin-sdk`. Start
 Runnable examples are maintained as build inputs rather than copied into this guide:
 
 Use an external plugin project with `npm run dev-plugin` to develop and hot-reload custom elements.
+
 - `fixtures/plugin-sdk-v2` proves the packed public package supports property schemas,
   timeline data, raw audio, feature audio, and bundled assets.
 

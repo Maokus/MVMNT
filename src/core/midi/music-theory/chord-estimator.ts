@@ -2,18 +2,7 @@ import { NoteEvent } from '@core/midi/note-event';
 import { detectMusicpy, type MusicpyChordResult, type DetectOptions } from './musicpy-detect';
 
 export type ChordQuality =
-    | 'maj'
-    | 'min'
-    | 'dim'
-    | 'aug'
-    | '7'
-    | 'maj7'
-    | 'min7'
-    | 'm7b5'
-    | 'dim7'
-    | 'sus2'
-    | 'sus4'
-    | 'ext'; // extended chords (9th, 11th, 13th etc.) — musicpy path only
+    'maj' | 'min' | 'dim' | 'aug' | '7' | 'maj7' | 'min7' | 'm7b5' | 'dim7' | 'sus2' | 'sus4' | 'ext'; // extended chords (9th, 11th, 13th etc.) — musicpy path only
 
 // Interval lookup table: sorted semitone intervals from root → chord quality.
 // Intervals are computed mod-12 (within one octave) and sorted ascending.

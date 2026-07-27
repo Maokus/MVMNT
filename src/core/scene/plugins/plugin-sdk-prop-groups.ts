@@ -87,7 +87,7 @@ export const propGroup = {
                               {
                                   description: 'Canvas composite blending operation.',
                               }
-                ),
+                          ),
                       ]
                     : []),
             ],
@@ -225,7 +225,16 @@ export const propGroup = {
                     visibleWhen: [{ key: 'showBackground', equals: true }],
                 }),
             ],
-            layout: [{ kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } }, { kind: 'property', propertyKey: 'backgroundOpacity' }, { kind: 'control', control: 'slider', bindings: { value: 'backgroundPaddingX' } }, { kind: 'property', propertyKey: 'backgroundPaddingX' }, { kind: 'control', control: 'slider', bindings: { value: 'backgroundPaddingY' } }, { kind: 'property', propertyKey: 'backgroundPaddingY' }, { kind: 'control', control: 'slider', bindings: { value: 'backgroundCornerRadius' } }, { kind: 'property', propertyKey: 'backgroundCornerRadius' }],
+            layout: [
+                { kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } },
+                { kind: 'property', propertyKey: 'backgroundOpacity' },
+                { kind: 'control', control: 'slider', bindings: { value: 'backgroundPaddingX' } },
+                { kind: 'property', propertyKey: 'backgroundPaddingX' },
+                { kind: 'control', control: 'slider', bindings: { value: 'backgroundPaddingY' } },
+                { kind: 'property', propertyKey: 'backgroundPaddingY' },
+                { kind: 'control', control: 'slider', bindings: { value: 'backgroundCornerRadius' } },
+                { kind: 'property', propertyKey: 'backgroundCornerRadius' },
+            ],
         };
     },
 

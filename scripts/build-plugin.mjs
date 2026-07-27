@@ -18,11 +18,7 @@ import { createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import * as fflate from 'fflate';
 import { BUILTIN_ELEMENT_TYPES } from './built-in-element-types.mjs';
-import {
-    PLUGIN_EXTERNALS,
-    validateElementImports,
-    validateManifestContract,
-} from './plugin-contract.mjs';
+import { PLUGIN_EXTERNALS, validateElementImports, validateManifestContract } from './plugin-contract.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

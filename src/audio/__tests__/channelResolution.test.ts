@@ -29,7 +29,7 @@ describe('resolveChannel', () => {
                     'channels' | 'channelLayout'
                 >,
                 cacheLayout: { aliases: ['Left', 'Right', 'Center'] },
-            }),
+            })
         ).toBe(2);
     });
 

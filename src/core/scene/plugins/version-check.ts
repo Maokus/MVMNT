@@ -42,10 +42,10 @@ export function satisfiesVersion(version: string, range: string): boolean {
 
     // Handle AND conditions (space-separated)
     const parts = range.trim().split(/\s+/);
-    
+
     if (parts.length === 1) {
         const part = parts[0];
-        
+
         // Caret range: ^1.0.0 means >=1.0.0 <2.0.0
         if (part.startsWith('^')) {
             const target = parseVersion(part.slice(1));
@@ -57,14 +57,14 @@ export function satisfiesVersion(version: string, range: string): boolean {
             // ^x.y.z means >=x.y.z <(x+1).0.0
             return ver.major === target.major && compareVersions(ver, target) >= 0;
         }
-        
+
         // Tilde range: ~1.0.0 means >=1.0.0 <1.1.0
         if (part.startsWith('~')) {
             const target = parseVersion(part.slice(1));
             if (!target) return false;
             return ver.major === target.major && ver.minor === target.minor && ver.patch >= target.patch;
         }
-        
+
         // Exact version
         if (!part.includes('>') && !part.includes('<')) {
             const target = parseVersion(part);
@@ -72,7 +72,7 @@ export function satisfiesVersion(version: string, range: string): boolean {
             return compareVersions(ver, target) === 0;
         }
     }
-    
+
     // Handle comparison operators
     return parts.every((part) => {
         if (part.startsWith('>=')) {

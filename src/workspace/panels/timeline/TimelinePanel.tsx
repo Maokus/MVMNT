@@ -38,20 +38,18 @@ const TimelinePanel: React.FC = () => {
 
     // Import modal prompt/resolve pattern
     const {
-        multiTrackPrompt, requestImportMode, resolveImportMode,
-        tempoImportPrompt, requestTempoImport, resolveTempoImport,
+        multiTrackPrompt,
+        requestImportMode,
+        resolveImportMode,
+        tempoImportPrompt,
+        requestTempoImport,
+        resolveTempoImport,
     } = useImportModals();
 
     // File import
     const { fileRef, importMidiFile, handleAddFile } = useMidiImport({ requestImportMode, requestTempoImport });
-    const {
-        audioFileRef,
-        importAudioFile,
-        importAudioFiles,
-        handleAddAudio,
-        audioImportProgress,
-        cancelAudioImport,
-    } = useAudioImport();
+    const { audioFileRef, importAudioFile, importAudioFiles, handleAddAudio, audioImportProgress, cancelAudioImport } =
+        useAudioImport();
 
     // Drag-and-drop overlay
     const { isDragActive, onPanelDragEnter, onPanelDragOver, onPanelDragLeave, onPanelDrop, onPanelDropCapture } =
@@ -77,7 +75,7 @@ const TimelinePanel: React.FC = () => {
             const map = state.timeline.masterTempoMap;
             const toSec = (tick: number) => beatsToSeconds(map, tick / CANONICAL_PPQ, spb);
             visualizer.setPlayRange?.(toSec(startTick), toSec(endTick));
-        } catch { }
+        } catch {}
     }, [visualizer]);
 
     // Suppress unused-variable warning; timeline subscription kept for reactivity
@@ -111,12 +109,15 @@ const TimelinePanel: React.FC = () => {
                     <div className="flex items-center justify-center justify-self-center">
                         <button
                             aria-label={autoKeying ? 'Disable auto-keying' : 'Enable auto-keying'}
-                            title={autoKeying ? 'Auto-keying: On (click to disable)' : 'Auto-keying: Off (click to enable)'}
+                            title={
+                                autoKeying ? 'Auto-keying: On (click to disable)' : 'Auto-keying: Off (click to enable)'
+                            }
                             onClick={() => setAutoKeying(!autoKeying)}
-                            className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors mr-2 ${autoKeying
-                                ? 'bg-red-600/70 text-white border-red-400/70'
-                                : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
-                                }`}
+                            className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors mr-2 ${
+                                autoKeying
+                                    ? 'bg-red-600/70 text-white border-red-400/70'
+                                    : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
+                            }`}
                         >
                             <FaCircle className="text-[12px]" />
                         </button>
@@ -139,7 +140,11 @@ const TimelinePanel: React.FC = () => {
                             <div className="h-full w-full overflow-y-auto overflow-x-hidden">
                                 <div className="flex min-h-full">
                                     <div className="tracklist-container relative z-10 w-60 shrink-0 border-r border-neutral-800 bg-neutral-900/40">
-                                        <TrackList trackIds={trackIds} activeTab={activeTab} setActiveTab={setActiveTab} />
+                                        <TrackList
+                                            trackIds={trackIds}
+                                            activeTab={activeTab}
+                                            setActiveTab={setActiveTab}
+                                        />
                                     </div>
                                     <div ref={(el) => setRightPaneEl(el)} className="flex flex-1 flex-col">
                                         <div className="sticky top-0 z-10">
@@ -199,7 +204,9 @@ const TimelinePanel: React.FC = () => {
                                             100,
                                             Math.max(
                                                 0,
-                                                (audioImportProgress.currentIndex / Math.max(1, audioImportProgress.total)) * 100
+                                                (audioImportProgress.currentIndex /
+                                                    Math.max(1, audioImportProgress.total)) *
+                                                    100
                                             )
                                         )}%`,
                                     }}

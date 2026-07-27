@@ -95,7 +95,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
             const t = (bpm - bpmMin) / bpmRange;
             return height - PADDING_Y - t * (height - 2 * PADDING_Y);
         },
-        [bpmMin, bpmRange, height],
+        [bpmMin, bpmRange, height]
     );
 
     const yToBpm = useCallback(
@@ -103,7 +103,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
             const t = (height - PADDING_Y - y) / (height - 2 * PADDING_Y);
             return bpmMin + t * bpmRange;
         },
-        [bpmMin, bpmRange, height],
+        [bpmMin, bpmRange, height]
     );
 
     // Build stepped curve path
@@ -145,9 +145,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
     // Get the keyframes to render (applying draft position if dragging)
     const renderKeyframes = useMemo((): TempoKeyframe[] => {
         if (!dragState || !draftPos) return keyframes;
-        return keyframes.map((kf, i) =>
-            i === dragState.kfIndex ? { tick: draftPos.tick, bpm: draftPos.bpm } : kf,
-        );
+        return keyframes.map((kf, i) => (i === dragState.kfIndex ? { tick: draftPos.tick, bpm: draftPos.bpm } : kf));
     }, [keyframes, dragState, draftPos]);
 
     // Double-click to add
@@ -162,7 +160,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
             const bpm = Math.max(1, Math.min(999, Math.round(yToBpm(localY))));
             addTempoKeyframe(tick, bpm);
         },
-        [toTick, width, yToBpm, addTempoKeyframe],
+        [toTick, width, yToBpm, addTempoKeyframe]
     );
 
     // Diamond pointer down (drag start)
@@ -185,7 +183,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
             });
             setDraftPos({ tick: kf.tick, bpm: kf.bpm });
         },
-        [keyframes],
+        [keyframes]
     );
 
     const handleKeyframeDoubleClick = useCallback((e: React.MouseEvent, tick: number) => {
@@ -206,7 +204,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
             let axis = dragState.axis;
             if (axis === 'none' && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
                 axis = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
-                setDragState((prev) => prev ? { ...prev, axis } : prev);
+                setDragState((prev) => (prev ? { ...prev, axis } : prev));
             }
 
             const rect = svgRef.current.getBoundingClientRect();
@@ -224,7 +222,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
 
             setDraftPos({ tick: newTick, bpm: newBpm });
         },
-        [dragState, toTick, width, yToBpm],
+        [dragState, toTick, width, yToBpm]
     );
 
     const handlePointerUp = useCallback(
@@ -253,7 +251,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
             setDragState(null);
             setDraftPos(null);
         },
-        [dragState, draftPos, keyframes, moveTempoKeyframe, updateTempoKeyframeBpm],
+        [dragState, draftPos, keyframes, moveTempoKeyframe, updateTempoKeyframeBpm]
     );
 
     // Context menu
@@ -265,7 +263,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
             setInterpNotAvailMenu({ tick });
             setSelectedTick(tick);
         },
-        [interpRefs],
+        [interpRefs]
     );
 
     const handleDeleteKeyframe = useCallback(() => {
@@ -284,12 +282,15 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
         setInterpNotAvailMenu(null);
     }, []);
 
-    const handleSvgContextMenu = useCallback((e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        interpRefs.setReference({ getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0) });
-        setInterpNotAvailMenu({});
-    }, [interpRefs]);
+    const handleSvgContextMenu = useCallback(
+        (e: React.MouseEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            interpRefs.setReference({ getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0) });
+            setInterpNotAvailMenu({});
+        },
+        [interpRefs]
+    );
 
     // Keyboard delete
     const handleKeyDown = useCallback(
@@ -301,7 +302,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                 setEditingTick(null);
             }
         },
-        [selectedTick, removeTempoKeyframe],
+        [selectedTick, removeTempoKeyframe]
     );
 
     // Global safety net: commit the drag if pointer is released outside the SVG/window
@@ -348,17 +349,21 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                 onContextMenu={handleSvgContextMenu}
                 onPointerMove={isDragging ? handlePointerMove : undefined}
                 onPointerUp={isDragging ? handlePointerUp : undefined}
-                onPointerCancel={isDragging ? () => { setDragState(null); setDraftPos(null); } : undefined}
+                onPointerCancel={
+                    isDragging
+                        ? () => {
+                              setDragState(null);
+                              setDraftPos(null);
+                          }
+                        : undefined
+                }
             >
                 {/* BPM gridlines */}
                 {gridLines.map((bpm) => {
                     const y = bpmToY(bpm);
                     return (
                         <g key={bpm}>
-                            <line
-                                x1={0} y1={y} x2={width} y2={y}
-                                stroke="rgba(255,255,255,0.06)" strokeWidth={1}
-                            />
+                            <line x1={0} y1={y} x2={width} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
                             <text x={4} y={y - 2} className="fill-neutral-600 text-[8px] select-none">
                                 {bpm}
                             </text>
@@ -393,7 +398,9 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                         onContextMenu={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            interpRefs.setReference({ getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0) });
+                            interpRefs.setReference({
+                                getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0),
+                            });
                             setInterpNotAvailMenu({});
                         }}
                     />
@@ -411,10 +418,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
 
                 {/* Fill under the curve */}
                 {curvePath && (
-                    <path
-                        d={`${curvePath} L ${width} ${height} L 0 ${height} Z`}
-                        fill="rgba(251,191,36,0.06)"
-                    />
+                    <path d={`${curvePath} L ${width} ${height} L 0 ${height} Z`} fill="rgba(251,191,36,0.06)" />
                 )}
 
                 {/* Keyframe diamonds */}

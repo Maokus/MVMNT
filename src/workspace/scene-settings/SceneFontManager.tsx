@@ -72,7 +72,10 @@ const SceneFontManager: React.FC = () => {
     const librarySearchRef = useRef<HTMLInputElement | null>(null);
 
     const customFonts = useMemo(
-        () => fontsState.order.map((fontId) => fontsState.assets[fontId]).filter((asset): asset is FontAsset => Boolean(asset)),
+        () =>
+            fontsState.order
+                .map((fontId) => fontsState.assets[fontId])
+                .filter((asset): asset is FontAsset => Boolean(asset)),
         [fontsState]
     );
 
@@ -115,9 +118,12 @@ const SceneFontManager: React.FC = () => {
         const timeout = window.setTimeout(() => controller.abort(), 3000);
         (async () => {
             try {
-                const resp = await fetch(`https://www.googleapis.com/webfonts/v1/webfonts?key=${apiKey}&sort=popularity`, {
-                    signal: controller.signal,
-                });
+                const resp = await fetch(
+                    `https://www.googleapis.com/webfonts/v1/webfonts?key=${apiKey}&sort=popularity`,
+                    {
+                        signal: controller.signal,
+                    }
+                );
                 if (!resp.ok) throw new Error(resp.statusText);
                 const data = await resp.json();
                 if (Array.isArray(data.items)) {
@@ -248,7 +254,9 @@ const SceneFontManager: React.FC = () => {
             const detail = (event as CustomEvent<{ category: string; file: File }>).detail;
             if (detail?.category !== 'font' || !detail.file) return;
             if (!ensureLicensingAcknowledged()) return;
-            void handleFileChange({ target: { files: [detail.file], value: '' } } as unknown as React.ChangeEvent<HTMLInputElement>);
+            void handleFileChange({
+                target: { files: [detail.file], value: '' },
+            } as unknown as React.ChangeEvent<HTMLInputElement>);
         };
         window.addEventListener('mvmnt-dropped-media', handleDesktopDrop);
         return () => window.removeEventListener('mvmnt-dropped-media', handleDesktopDrop);
@@ -379,7 +387,9 @@ const SceneFontManager: React.FC = () => {
                         {fetchError && <p className="mt-2 text-[11px] text-rose-400/80">API: {fetchError}</p>}
                         {recent.length > 0 && (
                             <div className="mt-3">
-                                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Recent</div>
+                                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                                    Recent
+                                </div>
                                 <div className="flex flex-wrap gap-1">
                                     {recent.map((family) => (
                                         <button
@@ -405,7 +415,8 @@ const SceneFontManager: React.FC = () => {
                         ) : (
                             <ul className="m-0 list-none space-y-1 p-0">
                                 {filteredFonts.map((family) => {
-                                    const isGoogleFont = GOOGLE_FONTS.includes(family) || remoteFontNames.includes(family);
+                                    const isGoogleFont =
+                                        GOOGLE_FONTS.includes(family) || remoteFontNames.includes(family);
                                     const isCustomFont = customFontLookup.has(family);
                                     return (
                                         <li key={family}>
@@ -434,7 +445,8 @@ const SceneFontManager: React.FC = () => {
                         )}
                     </div>
                     <p className="text-[11px] text-neutral-400">
-                        Use the font inputs on properties panels to assign a family. Uploaded fonts appear in those pickers automatically.
+                        Use the font inputs on properties panels to assign a family. Uploaded fonts appear in those
+                        pickers automatically.
                     </p>
                 </div>
             )}
@@ -445,7 +457,9 @@ const SceneFontManager: React.FC = () => {
                         <span>Uploaded fonts • {(fontsState.totalBytes / (1024 * 1024)).toFixed(1)} MB / 40 MB</span>
                     </div>
                     {customFonts.length === 0 ? (
-                        <p className="text-xs text-neutral-400">No uploaded fonts yet. Use the upload button to add one.</p>
+                        <p className="text-xs text-neutral-400">
+                            No uploaded fonts yet. Use the upload button to add one.
+                        </p>
                     ) : (
                         customFonts.map((asset) => (
                             <div key={asset.id} className="rounded border border-neutral-800 bg-neutral-950/70 p-3">
@@ -465,7 +479,9 @@ const SceneFontManager: React.FC = () => {
                                             type="button"
                                             onClick={() => handlePreviewCustomVariant(asset, variant)}
                                             className={`rounded border px-3 py-1 text-[12px] transition ${
-                                                preview?.family === asset.family && preview?.weight === variant.weight && (preview?.italic ? 'italic' : 'normal') === variant.style
+                                                preview?.family === asset.family &&
+                                                preview?.weight === variant.weight &&
+                                                (preview?.italic ? 'italic' : 'normal') === variant.style
                                                     ? 'border-sky-500 bg-sky-500/20 text-sky-100'
                                                     : 'border-neutral-700 bg-neutral-800/70 text-neutral-100 hover:border-sky-500 hover:bg-sky-500/20'
                                             }`}
@@ -487,13 +503,17 @@ const SceneFontManager: React.FC = () => {
                         Total storage {(fontsState.totalBytes / (1024 * 1024)).toFixed(1)} MB of 40 MB limit.
                     </p>
                     <p className="text-xs text-neutral-500">
-                        Ensure you have permission to distribute uploaded fonts. Deleting a font removes it from this scene only.
+                        Ensure you have permission to distribute uploaded fonts. Deleting a font removes it from this
+                        scene only.
                     </p>
                     {customFonts.length === 0 ? (
                         <p className="text-xs text-neutral-400">No custom fonts to manage.</p>
                     ) : (
                         customFonts.map((asset) => (
-                            <div key={asset.id} className="flex items-center justify-between rounded border border-neutral-800 bg-neutral-950/70 px-3 py-2">
+                            <div
+                                key={asset.id}
+                                className="flex items-center justify-between rounded border border-neutral-800 bg-neutral-950/70 px-3 py-2"
+                            >
                                 <div>
                                     <div className="text-sm font-semibold text-neutral-100">{asset.family}</div>
                                     <div className="text-[11px] text-neutral-500">{asset.originalFileName}</div>

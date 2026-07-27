@@ -100,9 +100,7 @@ export async function parseAndNormalize(input: File | MIDIData) {
     return buildNotesFromMIDI(input);
 }
 
-export function splitMidiDataByTracks(
-    midiData: MIDIData,
-): Array<{ data: MIDIData; track: MIDITrackDetails }> {
+export function splitMidiDataByTracks(midiData: MIDIData): Array<{ data: MIDIData; track: MIDITrackDetails }> {
     const trackDetails = midiData.trackDetails;
     if (!trackDetails || trackDetails.length === 0) {
         return [];

@@ -17,16 +17,50 @@ describe('clip-aware raw audio reads', () => {
             timeline: { globalBpm: 120, beatsPerBar: 4, masterTempoMap: undefined },
             tracks: {
                 clips: {
-                    id: 'clips', type: 'audio', name: 'Clips', enabled: true, mute: false, solo: false, gain: 1,
+                    id: 'clips',
+                    type: 'audio',
+                    name: 'Clips',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    gain: 1,
                     clips: [
-                        { id: 'a', type: 'audio', sourceId: 'a', offsetTicks: 0, sourceStartSeconds: 0, sourceEndSeconds: 1 },
-                        { id: 'b', type: 'audio', sourceId: 'b', offsetTicks: 3840, sourceStartSeconds: 0, sourceEndSeconds: 1 },
+                        {
+                            id: 'a',
+                            type: 'audio',
+                            sourceId: 'a',
+                            offsetTicks: 0,
+                            sourceStartSeconds: 0,
+                            sourceEndSeconds: 1,
+                        },
+                        {
+                            id: 'b',
+                            type: 'audio',
+                            sourceId: 'b',
+                            offsetTicks: 3840,
+                            sourceStartSeconds: 0,
+                            sourceEndSeconds: 1,
+                        },
                     ],
                 },
             },
             audioCache: {
-                a: { durationSeconds: 3, durationTicks: 5760, sampleRate: 8, channels: 1, durationSamples: 24, audioBuffer: buffer(0.5) },
-                b: { durationSeconds: 3, durationTicks: 5760, sampleRate: 8, channels: 1, durationSamples: 24, audioBuffer: buffer(-0.5) },
+                a: {
+                    durationSeconds: 3,
+                    durationTicks: 5760,
+                    sampleRate: 8,
+                    channels: 1,
+                    durationSamples: 24,
+                    audioBuffer: buffer(0.5),
+                },
+                b: {
+                    durationSeconds: 3,
+                    durationTicks: 5760,
+                    sampleRate: 8,
+                    channels: 1,
+                    durationSamples: 24,
+                    audioBuffer: buffer(-0.5),
+                },
             },
         } as any;
         const host = createPluginHostServices({ timelineStore: { getState: () => state } }).services;
@@ -47,8 +81,23 @@ describe('clip-aware raw audio reads', () => {
             timeline: { globalBpm: 120, beatsPerBar: 4, masterTempoMap: undefined },
             tracks: {
                 clips: {
-                    id: 'clips', type: 'audio', name: 'Clips', enabled: true, mute: false, solo: false, gain: 1,
-                    clips: [{ id: 'a', type: 'audio', sourceId: 'a', offsetTicks: 0, sourceStartSeconds: 0, sourceEndSeconds: 1 }],
+                    id: 'clips',
+                    type: 'audio',
+                    name: 'Clips',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    gain: 1,
+                    clips: [
+                        {
+                            id: 'a',
+                            type: 'audio',
+                            sourceId: 'a',
+                            offsetTicks: 0,
+                            sourceStartSeconds: 0,
+                            sourceEndSeconds: 1,
+                        },
+                    ],
                 },
             },
             audioCache: {
@@ -75,20 +124,34 @@ describe('clip-aware raw audio reads', () => {
             timeline: { globalBpm: 120, beatsPerBar: 4 },
             tracks: {
                 audio: {
-                    id: 'audio', type: 'audio', name: 'Audio', enabled: true, mute: false, solo: false, gain: 1,
+                    id: 'audio',
+                    type: 'audio',
+                    name: 'Audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    gain: 1,
                     clips: [{ id: 'clip', type: 'audio', sourceId: 'source', offsetTicks: 0 }],
                 },
             },
             audioCache: {
                 source: {
-                    audioBuffer: buffer(0.25, sampleRate), durationSeconds: 3,
-                    durationSamples: sampleRate * 3, sampleRate, channels: 1,
+                    audioBuffer: buffer(0.25, sampleRate),
+                    durationSeconds: 3,
+                    durationSamples: sampleRate * 3,
+                    sampleRate,
+                    channels: 1,
                 },
             },
         } as any;
         const host = createPluginHostServices({ timelineStore: { getState: () => state } }).services;
         let checks = 0;
-        const signal = { get aborted() { checks += 1; return checks > 3; } } as AbortSignal;
+        const signal = {
+            get aborted() {
+                checks += 1;
+                return checks > 3;
+            },
+        } as AbortSignal;
 
         expect(host.audio.getRawSamples({ trackId: 'audio', startSec: 0, endSec: 1, signal })).toBeNull();
         expect(checks).toBeGreaterThan(3);

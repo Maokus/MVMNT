@@ -6,28 +6,28 @@ import { useTimelineStore } from '@state/timelineStore';
 import TrackRowBlock from '../TrackRowBlock';
 
 class ResizeObserverStub {
-    observe() { }
-    disconnect() { }
+    observe() {}
+    disconnect() {}
 }
 
 describe('TrackRowBlock MIDI clips', () => {
     beforeEach(() => {
         (globalThis as any).ResizeObserver = ResizeObserverStub;
-        (HTMLElement.prototype as any).setPointerCapture = () => { };
-        (HTMLElement.prototype as any).releasePointerCapture = () => { };
+        (HTMLElement.prototype as any).setPointerCapture = () => {};
+        (HTMLElement.prototype as any).releasePointerCapture = () => {};
         (HTMLCanvasElement.prototype as any).getContext = () => ({
-            save: () => { },
-            restore: () => { },
-            scale: () => { },
-            clearRect: () => { },
-            fillRect: () => { },
-            setLineDash: () => { },
-            strokeRect: () => { },
-            beginPath: () => { },
-            rect: () => { },
-            roundRect: () => { },
-            fill: () => { },
-            stroke: () => { },
+            save: () => {},
+            restore: () => {},
+            scale: () => {},
+            clearRect: () => {},
+            fillRect: () => {},
+            setLineDash: () => {},
+            strokeRect: () => {},
+            beginPath: () => {},
+            rect: () => {},
+            roundRect: () => {},
+            fill: () => {},
+            stroke: () => {},
             fillStyle: '',
             strokeStyle: '',
             lineWidth: 1,
@@ -53,9 +53,7 @@ describe('TrackRowBlock MIDI clips', () => {
                 'src-a': {
                     midiData: {} as any,
                     ticksPerQuarter: 960,
-                    notesRaw: [
-                        { note: 60, channel: 0, startTick: 0, endTick: 240, durationTicks: 240, velocity: 100 },
-                    ],
+                    notesRaw: [{ note: 60, channel: 0, startTick: 0, endTick: 240, durationTicks: 240, velocity: 100 }],
                     ccRaw: [],
                     bounds: { minTick: 0, maxTick: 240, minNote: 60, maxNote: 60, maxDurationTicks: 240 },
                 },
@@ -78,7 +76,7 @@ describe('TrackRowBlock MIDI clips', () => {
 
     it('renders one MIDI block per visible clip', () => {
         const { container } = render(
-            <TrackRowBlock trackId="midi1" trackIndex={0} laneWidth={1000} laneHeight={60} onHoverSnapX={() => { }} />
+            <TrackRowBlock trackId="midi1" trackIndex={0} laneWidth={1000} laneHeight={60} onHoverSnapX={() => {}} />
         );
 
         expect(container.querySelectorAll('[data-clip="1"]')).toHaveLength(2);
@@ -86,7 +84,7 @@ describe('TrackRowBlock MIDI clips', () => {
 
     it('selects a clicked MIDI clip without selecting the track', () => {
         const { container } = render(
-            <TrackRowBlock trackId="midi1" trackIndex={0} laneWidth={1000} laneHeight={60} onHoverSnapX={() => { }} />
+            <TrackRowBlock trackId="midi1" trackIndex={0} laneWidth={1000} laneHeight={60} onHoverSnapX={() => {}} />
         );
 
         const firstClip = container.querySelector('[data-clip="1"]');
@@ -103,7 +101,7 @@ describe('TrackRowBlock MIDI clips', () => {
 
     it('prevents native browser drag behaviour on MIDI clips', () => {
         const { container } = render(
-            <TrackRowBlock trackId="midi1" trackIndex={0} laneWidth={1000} laneHeight={60} onHoverSnapX={() => { }} />
+            <TrackRowBlock trackId="midi1" trackIndex={0} laneWidth={1000} laneHeight={60} onHoverSnapX={() => {}} />
         );
 
         const firstClip = container.querySelector('[data-clip="1"]');

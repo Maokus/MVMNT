@@ -79,7 +79,8 @@ const MidiNotePreview: React.FC<MidiNotePreviewProps> = ({
             const searchStartTick = windowStart - maxDurationTicks;
             let startIdx = 0;
             if (bounds && notes.length > 32) {
-                let lo = 0, hi = notes.length;
+                let lo = 0,
+                    hi = notes.length;
                 while (lo < hi) {
                     const mid = (lo + hi) >>> 1;
                     if (notes[mid].startTick < searchStartTick) lo = mid + 1;
@@ -100,13 +101,20 @@ const MidiNotePreview: React.FC<MidiNotePreviewProps> = ({
                     if (n.note > maxPitch) maxPitch = n.note;
                 }
             }
-            if (minPitch > maxPitch) { minPitch = 60; maxPitch = 60; }
+            if (minPitch > maxPitch) {
+                minPitch = 60;
+                maxPitch = 60;
+            }
 
             const pitchRange = Math.max(0, maxPitch - minPitch);
             const usableHeight = Math.max(MIN_BAR_THICKNESS, height - 4);
-            const baseThickness = pitchRange === 0
-                ? Math.min(Math.max(usableHeight * 0.6, MIN_BAR_THICKNESS), usableHeight)
-                : Math.min(Math.max(usableHeight / Math.min(pitchRange + 1, 12), MIN_BAR_THICKNESS), usableHeight / 1.5);
+            const baseThickness =
+                pitchRange === 0
+                    ? Math.min(Math.max(usableHeight * 0.6, MIN_BAR_THICKNESS), usableHeight)
+                    : Math.min(
+                          Math.max(usableHeight / Math.min(pitchRange + 1, 12), MIN_BAR_THICKNESS),
+                          usableHeight / 1.5
+                      );
             const span = Math.max(usableHeight - baseThickness, 0);
             const yOffset = (height - usableHeight) / 2;
 
@@ -126,7 +134,7 @@ const MidiNotePreview: React.FC<MidiNotePreviewProps> = ({
                 const cs = Math.max(rawStart, windowStart) - windowStart;
                 const ce = Math.min(rawEnd, windowEnd) - windowStart;
                 const x = (cs / windowDuration) * width;
-                const w = Math.max((ce - cs) / windowDuration * width, MIN_NOTE_WIDTH_PX);
+                const w = Math.max(((ce - cs) / windowDuration) * width, MIN_NOTE_WIDTH_PX);
                 const topPx = Math.min(Math.max(2 + relPitch * span, 0), usableHeight - baseThickness) + yOffset;
 
                 ctx.fillStyle = `rgba(56, 189, 248, ${0.25 + normV * 0.55})`;

@@ -24,10 +24,7 @@ export function uint8ArrayToBase64(bytes: Uint8Array): string {
         const enc3 = isNaN(chr2) ? 64 : ((chr2 & 15) << 2) | (chr3 >> 6);
         const enc4 = isNaN(chr3) ? 64 : chr3 & 63;
         result +=
-            base64Chars.charAt(enc1) +
-            base64Chars.charAt(enc2) +
-            base64Chars.charAt(enc3) +
-            base64Chars.charAt(enc4);
+            base64Chars.charAt(enc1) + base64Chars.charAt(enc2) + base64Chars.charAt(enc3) + base64Chars.charAt(enc4);
     }
     return result;
 }

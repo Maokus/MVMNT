@@ -21,7 +21,7 @@ function clampBpm(bpm: number): number {
 export function resolveTempoKeyframes(
     keyframes: readonly TempoKeyframe[],
     globalBpm: number,
-    ppq: number,
+    ppq: number
 ): TempoMapEntry[] {
     const safePpq = ppq > 0 ? ppq : DEFAULT_PPQ;
     const safeGlobalBpm = clampBpm(globalBpm);

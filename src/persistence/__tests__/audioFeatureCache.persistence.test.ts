@@ -338,7 +338,9 @@ describe('audio feature cache persistence', () => {
         }));
         const exported = await exportZippedScene();
         const archive = unzipSync(exported.zip);
-        const payloadPath = Object.keys(archive).find((path) => path.startsWith('assets/audio-features/') && path.endsWith('.f32'));
+        const payloadPath = Object.keys(archive).find(
+            (path) => path.startsWith('assets/audio-features/') && path.endsWith('.f32')
+        );
         expect(payloadPath).toBeDefined();
         archive[payloadPath!] = archive[payloadPath!]!.slice(0, -4);
 

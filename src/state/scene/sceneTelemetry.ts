@@ -21,10 +21,7 @@ export function clearSceneCommandListeners(): void {
     listeners.clear();
 }
 
-export function emitSceneCommandTelemetry(
-    result: SceneCommandResult,
-    options: SceneCommandOptions | undefined,
-): void {
+export function emitSceneCommandTelemetry(result: SceneCommandResult, options: SceneCommandOptions | undefined): void {
     if (!listeners.size) return;
     const event: SceneCommandTelemetryEvent = {
         ...result,

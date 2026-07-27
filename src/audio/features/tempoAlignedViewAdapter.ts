@@ -348,7 +348,7 @@ function buildChannelMetadata(track: AudioFeatureTrack, cache: AudioFeatureCache
     const normalizedTrackLayout = trackLayout
         ? {
               ...trackLayout,
-              aliases: Array.isArray(trackLayout.aliases) ? [...trackLayout.aliases] : trackLayout.aliases ?? null,
+              aliases: Array.isArray(trackLayout.aliases) ? [...trackLayout.aliases] : (trackLayout.aliases ?? null),
           }
         : null;
     const fallbackFromCache = cacheAliases ? { aliases: [...cacheAliases] } : null;
@@ -651,16 +651,17 @@ function getClipAwareFrame(state: TimelineState, request: TempoAlignedFrameReque
     const interpolation = options.interpolation ?? DEFAULT_INTERPOLATION;
     const track = state.tracks[request.trackId] as AudioTrack | undefined;
     if (!track || track.type !== 'audio') {
-        return { sample: undefined, diagnostics: buildDiagnostics(request, undefined, false, interpolation, 0, 0, 'track-missing') };
+        return {
+            sample: undefined,
+            diagnostics: buildDiagnostics(request, undefined, false, interpolation, 0, 0, 'track-missing'),
+        };
     }
     const timing = createTimingContext(state.timeline, getSharedTimingManager().ticksPerQuarter);
     const segments = getAudioClipTimelineSegments(state, request.trackId, timing);
     const active = resolveAudioClipAtTick(state, request.trackId, request.tick, timing);
     // A gap is still a valid track read. Use the first available source only to
     // retain the feature's shape while returning a silent vector.
-    const candidateSourceIds = active
-        ? [active.sourceId]
-        : segments.map((segment) => segment.sourceId);
+    const candidateSourceIds = active ? [active.sourceId] : segments.map((segment) => segment.sourceId);
     let sourceId: string | undefined;
     let cache: AudioFeatureCache | undefined;
     let featureTrack: AudioFeatureTrack | undefined;
@@ -688,14 +689,18 @@ function getClipAwareFrame(state: TimelineState, request: TempoAlignedFrameReque
     const diagnosticsRequest = resolvedFeatureKey ? { ...request, featureKey: resolvedFeatureKey } : request;
     const hopSeconds = resolveHopSeconds(featureTrack, cache);
     if (hopSeconds <= 0) {
-        return { sample: undefined, diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, true, interpolation, 0, 0, 'invalid-hop') };
+        return {
+            sample: undefined,
+            diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, true, interpolation, 0, 0, 'invalid-hop'),
+        };
     }
     const channelMeta = buildChannelMetadata(featureTrack, cache);
     const tempoMapper = resolveTempoMapper(state);
     const hopTicks = resolveHopTicks(featureTrack, cache, tempoMapper);
     const mapperStart = nowNs();
     const startSeconds = resolveStartSeconds(featureTrack, cache);
-    const frameFloat = active && active.sourceId === sourceId ? (active.sourceSeconds - startSeconds) / hopSeconds : Number.NaN;
+    const frameFloat =
+        active && active.sourceId === sourceId ? (active.sourceSeconds - startSeconds) / hopSeconds : Number.NaN;
     const buildSilentSample = (fractionalIndex: number): TempoAlignedFrameSample => {
         const base = Number.isFinite(fractionalIndex) ? Math.floor(fractionalIndex) : 0;
         const silent = buildSilentVector(featureTrack!, options);
@@ -715,7 +720,15 @@ function getClipAwareFrame(state: TimelineState, request: TempoAlignedFrameReque
         const sample = buildSilentSample(frameFloat);
         return {
             sample,
-            diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, true, interpolation, nowNs() - mapperStart, 1, undefined),
+            diagnostics: buildDiagnostics(
+                diagnosticsRequest,
+                sourceId,
+                true,
+                interpolation,
+                nowNs() - mapperStart,
+                1,
+                undefined
+            ),
         };
     }
     const baseIndex = Math.floor(frameFloat);
@@ -736,7 +749,7 @@ function getClipAwareFrame(state: TimelineState, request: TempoAlignedFrameReque
             getVectorInfo(baseIndex - 1).flatValues,
             getVectorInfo(baseIndex + 1).flatValues,
             getVectorInfo(baseIndex + 2).flatValues,
-            frac,
+            frac
         );
     }
     const channelValues = splitValuesBySizes(values, baseInfo.channelSizes);
@@ -752,7 +765,15 @@ function getClipAwareFrame(state: TimelineState, request: TempoAlignedFrameReque
             format: featureTrack.format,
             frameLength: baseInfo.frameLength,
         },
-        diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, true, interpolation, nowNs() - mapperStart, 1, undefined),
+        diagnostics: buildDiagnostics(
+            diagnosticsRequest,
+            sourceId,
+            true,
+            interpolation,
+            nowNs() - mapperStart,
+            1,
+            undefined
+        ),
     };
 }
 
@@ -761,26 +782,45 @@ function getClipAwareRange(state: TimelineState, request: TempoAlignedRangeReque
     const interpolation = options.interpolation ?? DEFAULT_INTERPOLATION;
     const track = state.tracks[request.trackId] as AudioTrack | undefined;
     if (!track || track.type !== 'audio') {
-        return { range: undefined, diagnostics: buildDiagnostics(request, undefined, false, interpolation, 0, 0, 'track-missing') };
+        return {
+            range: undefined,
+            diagnostics: buildDiagnostics(request, undefined, false, interpolation, 0, 0, 'track-missing'),
+        };
     }
     const timing = createTimingContext(state.timeline, getSharedTimingManager().ticksPerQuarter);
     const segments = getAudioClipTimelineSegments(state, request.trackId, timing);
     const source = segments.find((segment) => {
         const cache = state.audioFeatureCaches[segment.sourceId];
-        return Boolean(resolveFeatureTrackFromCache(cache, request.featureKey, { analysisProfileId: request.analysisProfileId }).track);
+        return Boolean(
+            resolveFeatureTrackFromCache(cache, request.featureKey, { analysisProfileId: request.analysisProfileId })
+                .track
+        );
     });
     if (!source) {
         return {
             range: undefined,
-            diagnostics: buildDiagnostics(request, segments[0]?.sourceId, false, interpolation, 0, 0, segments.length ? 'feature-missing' : 'clip-missing'),
+            diagnostics: buildDiagnostics(
+                request,
+                segments[0]?.sourceId,
+                false,
+                interpolation,
+                0,
+                0,
+                segments.length ? 'feature-missing' : 'clip-missing'
+            ),
         };
     }
     const cache = state.audioFeatureCaches[source.sourceId]!;
-    const resolvedFeature = resolveFeatureTrackFromCache(cache, request.featureKey, { analysisProfileId: request.analysisProfileId });
+    const resolvedFeature = resolveFeatureTrackFromCache(cache, request.featureKey, {
+        analysisProfileId: request.analysisProfileId,
+    });
     const featureTrack = resolvedFeature.track!;
     const hopSeconds = resolveHopSeconds(featureTrack, cache);
     if (hopSeconds <= 0) {
-        return { range: undefined, diagnostics: buildDiagnostics(request, source.sourceId, true, interpolation, 0, 0, 'invalid-hop') };
+        return {
+            range: undefined,
+            diagnostics: buildDiagnostics(request, source.sourceId, true, interpolation, 0, 0, 'invalid-hop'),
+        };
     }
     const tempoMapper = resolveTempoMapper(state);
     const startSeconds = tempoMapper.ticksToSeconds(Math.min(request.startTick, request.endTick));
@@ -794,7 +834,10 @@ function getClipAwareRange(state: TimelineState, request: TempoAlignedRangeReque
         tick: tempoMapper.secondsToTicks(firstSeconds),
     }).sample;
     if (!firstFrame) {
-        return { range: undefined, diagnostics: buildDiagnostics(request, source.sourceId, false, interpolation, 0, 0, 'feature-missing') };
+        return {
+            range: undefined,
+            diagnostics: buildDiagnostics(request, source.sourceId, false, interpolation, 0, 0, 'feature-missing'),
+        };
     }
     const vectorWidth = firstFrame.values.length;
     const data = new Float32Array(frameCount * vectorWidth);

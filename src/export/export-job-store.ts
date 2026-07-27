@@ -68,14 +68,16 @@ function readPersistedJobs(): ExportJob[] {
     try {
         const value = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '') as PersistedExportJobs;
         if (value.version !== 1 || !Array.isArray(value.jobs)) return [];
-        return value.jobs.slice(0, 100).map((job) => terminal.has(job.status)
-            ? job
-            : {
-                ...job,
-                status: 'interrupted' as const,
-                finishedAt: new Date().toISOString(),
-                text: 'Interrupted when MVMNT last closed',
-            });
+        return value.jobs.slice(0, 100).map((job) =>
+            terminal.has(job.status)
+                ? job
+                : {
+                      ...job,
+                      status: 'interrupted' as const,
+                      finishedAt: new Date().toISOString(),
+                      text: 'Interrupted when MVMNT last closed',
+                  }
+        );
     } catch {
         return [];
     }
@@ -84,17 +86,24 @@ function readPersistedJobs(): ExportJob[] {
 export const useExportJobStore = create<ExportJobState>((set) => ({
     jobs: readPersistedJobs(),
     enqueue: (job) => set((state) => ({ jobs: [job, ...state.jobs].slice(0, 100) })),
-    update: (id, patch) => set((state) => ({
-        jobs: state.jobs.map((job) => job.id === id ? { ...job, ...patch } : job),
-    })),
-    log: (id, level, message) => set((state) => ({
-        jobs: state.jobs.map((job) => job.id === id
-            ? { ...job, logs: [...job.logs, { at: new Date().toISOString(), level, message }].slice(-200) }
-            : job),
-    })),
-    requestCancel: (id) => set((state) => ({
-        jobs: state.jobs.map((job) => job.id === id ? { ...job, cancelRequested: true, text: 'Cancelling…' } : job),
-    })),
+    update: (id, patch) =>
+        set((state) => ({
+            jobs: state.jobs.map((job) => (job.id === id ? { ...job, ...patch } : job)),
+        })),
+    log: (id, level, message) =>
+        set((state) => ({
+            jobs: state.jobs.map((job) =>
+                job.id === id
+                    ? { ...job, logs: [...job.logs, { at: new Date().toISOString(), level, message }].slice(-200) }
+                    : job
+            ),
+        })),
+    requestCancel: (id) =>
+        set((state) => ({
+            jobs: state.jobs.map((job) =>
+                job.id === id ? { ...job, cancelRequested: true, text: 'Cancelling…' } : job
+            ),
+        })),
     remove: (id) => set((state) => ({ jobs: state.jobs.filter((job) => job.id !== id) })),
     clearFinished: () => set((state) => ({ jobs: state.jobs.filter((job) => !terminal.has(job.status)) })),
 }));
@@ -116,7 +125,7 @@ export function createExportJob(
     settings: ExportSettings,
     sceneElementCount: number,
     trackCount: number,
-    id: string = crypto.randomUUID(),
+    id: string = crypto.randomUUID()
 ): ExportJob {
     const createdAt = new Date().toISOString();
     return {

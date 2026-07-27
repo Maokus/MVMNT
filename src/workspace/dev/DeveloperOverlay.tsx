@@ -3,10 +3,7 @@ import type { DebugSettings } from '@context/visualizer/types';
 import { getTransportCoordinator } from '@audio/transport-coordinator';
 import { registerSceneCommandListener } from '@state/scene';
 import { registerTimelineCommandListener } from '@state/timeline/timelineTelemetry';
-import {
-    AudioDiagnosticsSection,
-    AudioMemoryDiagnosticsSection,
-} from './AudioDiagnosticsSection';
+import { AudioDiagnosticsSection, AudioMemoryDiagnosticsSection } from './AudioDiagnosticsSection';
 import { TelemetrySection, type TelemetryEvent, type TelemetryMetrics } from './TelemetrySection';
 import { TransportSection } from './TransportSection';
 import { UndoSection } from './UndoSection';
@@ -226,20 +223,14 @@ export const DeveloperOverlay: React.FC = () => {
                 emptyLabel="No timeline commands yet."
             />
 
-            <AudioDiagnosticsSection
-                open={sectionsOpen.audio}
-                onToggle={() => toggleSection('audio')}
-            />
+            <AudioDiagnosticsSection open={sectionsOpen.audio} onToggle={() => toggleSection('audio')} />
 
             <AudioMemoryDiagnosticsSection
                 open={sectionsOpen.audioMemory}
                 onToggle={() => toggleSection('audioMemory')}
             />
 
-            <UndoSection
-                open={sectionsOpen.undo}
-                onToggle={() => toggleSection('undo')}
-            />
+            <UndoSection open={sectionsOpen.undo} onToggle={() => toggleSection('undo')} />
 
             <PerspectiveDiagnosticsSection
                 open={sectionsOpen.perspective}

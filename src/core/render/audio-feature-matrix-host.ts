@@ -25,8 +25,6 @@ export function getHostAudioFeatureMatrixRevision(
     );
 }
 
-export function readHostAudioFeatureMatrix(
-    request: AudioFeatureMatrixRequest
-): AudioFeatureMatrix | null {
+export function readHostAudioFeatureMatrix(request: AudioFeatureMatrixRequest): AudioFeatureMatrix | null {
     return readAudioFeatureMatrix(useTimelineStore.getState(), request);
 }

@@ -13,16 +13,8 @@ function sampleCubic(p0: Point, p1: Point, p2: Point, p3: Point, steps = 200): P
     for (let i = 0; i <= steps; i++) {
         const t = i / steps;
         const inv = 1 - t;
-        const x =
-            inv * inv * inv * p0.x +
-            3 * inv * inv * t * p1.x +
-            3 * inv * t * t * p2.x +
-            t * t * t * p3.x;
-        const y =
-            inv * inv * inv * p0.y +
-            3 * inv * inv * t * p1.y +
-            3 * inv * t * t * p2.y +
-            t * t * t * p3.y;
+        const x = inv * inv * inv * p0.x + 3 * inv * inv * t * p1.x + 3 * inv * t * t * p2.x + t * t * t * p3.x;
+        const y = inv * inv * inv * p0.y + 3 * inv * inv * t * p1.y + 3 * inv * t * t * p2.y + t * t * t * p3.y;
         pts.push({ x, y });
     }
     return pts;
@@ -51,13 +43,7 @@ describe('BezierPath render object', () => {
         path.bezierCurveTo(100, 150, -100, 150, 0, 0);
 
         const bounds = path.getVisualBounds();
-        const samples = sampleCubic(
-            { x: 0, y: 0 },
-            { x: 100, y: 150 },
-            { x: -100, y: 150 },
-            { x: 0, y: 0 },
-            400
-        );
+        const samples = sampleCubic({ x: 0, y: 0 }, { x: 100, y: 150 }, { x: -100, y: 150 }, { x: 0, y: 0 }, 400);
         const minX = Math.min(...samples.map((p) => p.x));
         const maxX = Math.max(...samples.map((p) => p.x));
         const minY = Math.min(...samples.map((p) => p.y));

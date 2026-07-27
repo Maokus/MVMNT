@@ -51,12 +51,29 @@ describe('Persistence', () => {
         useTimelineStore.setState({
             tracks: {
                 legacyAudio: {
-                    id: 'legacyAudio', name: 'Legacy Audio', type: 'audio', enabled: true, mute: false, solo: false, gain: 1,
-                    offsetTicks: 120, regionStartTick: 10, regionEndTick: 200, audioSourceId: 'source1',
-                    clips: [{
-                        id: 'clip1', type: 'audio', sourceId: 'source1', offsetTicks: 120,
-                        regionStartTick: 10, regionEndTick: 200, sourceStartSeconds: 0.1, sourceEndSeconds: 1,
-                    }],
+                    id: 'legacyAudio',
+                    name: 'Legacy Audio',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    gain: 1,
+                    offsetTicks: 120,
+                    regionStartTick: 10,
+                    regionEndTick: 200,
+                    audioSourceId: 'source1',
+                    clips: [
+                        {
+                            id: 'clip1',
+                            type: 'audio',
+                            sourceId: 'source1',
+                            offsetTicks: 120,
+                            regionStartTick: 10,
+                            regionEndTick: 200,
+                            sourceStartSeconds: 0.1,
+                            sourceEndSeconds: 1,
+                        },
+                    ],
                 } as any,
             },
             tracksOrder: ['legacyAudio'],

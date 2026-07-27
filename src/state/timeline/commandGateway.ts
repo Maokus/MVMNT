@@ -19,15 +19,15 @@ export interface TimelineCommandGatewayDependencies {
 export interface TimelineCommandGateway {
     dispatch<TResult = void>(
         command: TimelineCommand<TResult>,
-        options?: TimelineCommandDispatchOptions,
+        options?: TimelineCommandDispatchOptions
     ): Promise<TimelineCommandDispatchResult<TResult>>;
     dispatchById<TResult = void>(
         id: TimelineCommandId,
         payload: unknown,
-        options?: TimelineCommandDispatchOptions,
+        options?: TimelineCommandDispatchOptions
     ): Promise<TimelineCommandDispatchResult<TResult>>;
     dispatchDescriptor<TResult = void>(
-        descriptor: TimelineSerializedCommandDescriptor,
+        descriptor: TimelineSerializedCommandDescriptor
     ): Promise<TimelineCommandDispatchResult<TResult>>;
     getQueueDepth(): number;
     destroy(): void;
@@ -46,9 +46,7 @@ function defaultEmitWindowEvent(type: string, detail?: unknown) {
     }
 }
 
-export function createTimelineCommandGateway(
-    deps: TimelineCommandGatewayDependencies,
-): TimelineCommandGateway {
+export function createTimelineCommandGateway(deps: TimelineCommandGatewayDependencies): TimelineCommandGateway {
     let queue: Promise<unknown> = Promise.resolve();
     let queueDepth = 0;
     const emitWindowEvent = deps.emitWindowEvent ?? defaultEmitWindowEvent;
@@ -63,7 +61,7 @@ export function createTimelineCommandGateway(
 
     async function runCommand<TResult>(
         command: TimelineCommand<TResult>,
-        options?: TimelineCommandDispatchOptions,
+        options?: TimelineCommandDispatchOptions
     ): Promise<TimelineCommandDispatchResult<TResult>> {
         const context = buildContext();
         const start = now();
@@ -110,7 +108,7 @@ export function createTimelineCommandGateway(
 
     async function enqueue<TResult>(
         command: TimelineCommand<TResult>,
-        options?: TimelineCommandDispatchOptions,
+        options?: TimelineCommandDispatchOptions
     ): Promise<TimelineCommandDispatchResult<TResult>> {
         const mode = options?.mode ?? command.mode;
         if (mode === 'concurrent') {
@@ -141,20 +139,20 @@ export function createTimelineCommandGateway(
     return {
         async dispatch<TResult>(
             command: TimelineCommand<TResult>,
-            options?: TimelineCommandDispatchOptions,
+            options?: TimelineCommandDispatchOptions
         ): Promise<TimelineCommandDispatchResult<TResult>> {
             return enqueue(command, options);
         },
         async dispatchById<TResult>(
             id: TimelineCommandId,
             payload: unknown,
-            options?: TimelineCommandDispatchOptions,
+            options?: TimelineCommandDispatchOptions
         ): Promise<TimelineCommandDispatchResult<TResult>> {
             const command = createTimelineCommand(id, payload);
             return enqueue(command as TimelineCommand<TResult>, options);
         },
         async dispatchDescriptor<TResult>(
-            descriptor: TimelineSerializedCommandDescriptor,
+            descriptor: TimelineSerializedCommandDescriptor
         ): Promise<TimelineCommandDispatchResult<TResult>> {
             validateDescriptor(descriptor);
             const command = createTimelineCommand(descriptor.type, descriptor.payload);

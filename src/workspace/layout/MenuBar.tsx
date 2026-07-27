@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useScene } from '@context/SceneContext';
-import logo from '@assets/Logo_Transparent.png'
+import logo from '@assets/Logo_Transparent.png';
 import { FaSave, FaFileExport, FaFolderOpen, FaMagic, FaPen, FaEllipsisV, FaCog } from 'react-icons/fa';
 import SceneSettingsModal from '@workspace/modals/SceneSettingsModal';
 import { BrowseTemplatesButton } from '@workspace/templates/BrowseTemplatesButton';
@@ -14,7 +14,8 @@ interface MenuBarProps {
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
-    const { sceneName, renameScene, saveToLocal, saveAs, isDirty, loadScene, createNewDefaultScene, leaveWorkspace } = useScene();
+    const { sceneName, renameScene, saveToLocal, saveAs, isDirty, loadScene, createNewDefaultScene, leaveWorkspace } =
+        useScene();
     const navigate = useNavigate();
     const [isEditingName, setIsEditingName] = useState(false);
     // temporary local state while editing so user can clear the input fully
@@ -55,7 +56,12 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
 
             const target = event.target as HTMLElement | null;
             const tag = target?.tagName;
-            if (target?.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || target?.getAttribute('role') === 'textbox') {
+            if (
+                target?.isContentEditable ||
+                tag === 'INPUT' ||
+                tag === 'TEXTAREA' ||
+                target?.getAttribute('role') === 'textbox'
+            ) {
                 return;
             }
 
@@ -87,10 +93,22 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
         }
     };
 
-    const handleSave = () => { void saveToLocal(); setShowSceneMenu(false); };
-    const handleSaveAs = () => { void saveAs(); setShowSceneMenu(false); };
-    const handleLoad = () => { loadScene(); setShowSceneMenu(false); };
-    const handleNew = () => { createNewDefaultScene(); setShowSceneMenu(false); };
+    const handleSave = () => {
+        void saveToLocal();
+        setShowSceneMenu(false);
+    };
+    const handleSaveAs = () => {
+        void saveAs();
+        setShowSceneMenu(false);
+    };
+    const handleLoad = () => {
+        loadScene();
+        setShowSceneMenu(false);
+    };
+    const handleNew = () => {
+        createNewDefaultScene();
+        setShowSceneMenu(false);
+    };
     const handleGoHome = async (event: React.MouseEvent<HTMLAnchorElement>) => {
         event.preventDefault();
         if (await leaveWorkspace()) navigate('/');
@@ -108,8 +126,13 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                         <img width="50" src={logo} style={{ cursor: 'pointer' }} />
                     </Link>
                     <h3 style={{ marginRight: 0 }}>
-                        <Link to="/" onClick={handleGoHome} style={{ textDecoration: 'none', color: 'inherit' }} title="Go to Home">
-                            MVMNT v{((import.meta as any).env?.VITE_VERSION)} {isBetaMode ? '(beta)' : ''}
+                        <Link
+                            to="/"
+                            onClick={handleGoHome}
+                            style={{ textDecoration: 'none', color: 'inherit' }}
+                            title="Go to Home"
+                        >
+                            MVMNT v{(import.meta as any).env?.VITE_VERSION} {isBetaMode ? '(beta)' : ''}
                         </Link>
                     </h3>
                     <nav style={{ display: 'flex', gap: 10, fontSize: 12 }} aria-label="Utility navigation">
@@ -122,10 +145,12 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                                 color: '#cccccc',
                                 cursor: 'pointer',
                                 padding: '4px 6px',
-                                borderRadius: 4
+                                borderRadius: 4,
                             }}
                             title="Show onboarding / help"
-                        >help</button>
+                        >
+                            help
+                        </button>
                         <Link
                             to="/community"
                             onClick={handleGoCommunity}
@@ -137,10 +162,12 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                                 padding: '4px 6px',
                                 borderRadius: 4,
                                 textDecoration: 'none',
-                                fontSize: 12
+                                fontSize: 12,
                             }}
                             title="Browse community templates & plugins"
-                        >community</Link>
+                        >
+                            community
+                        </Link>
                     </nav>
                 </div>
 
@@ -165,15 +192,26 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                         ) : (
                             <span
                                 className="scene-name-display"
-                                onDoubleClick={() => { setTempSceneName(sceneName); setIsEditingName(true); }}
+                                onDoubleClick={() => {
+                                    setTempSceneName(sceneName);
+                                    setIsEditingName(true);
+                                }}
                             >
-                                {sceneName}{isDirty ? <span title="Unsaved changes" style={{ marginLeft: 2, opacity: 0.7 }}>*</span> : null}
+                                {sceneName}
+                                {isDirty ? (
+                                    <span title="Unsaved changes" style={{ marginLeft: 2, opacity: 0.7 }}>
+                                        *
+                                    </span>
+                                ) : null}
                             </span>
                         )}
 
                         <button
                             className="bg-transparent border-0 text-neutral-300 cursor-pointer p-1.5 rounded text-sm transition-colors flex items-center justify-center w-7 h-7 hover:bg-white/10 hover:text-white"
-                            onClick={() => { setShowSettingsModal(true); setShowSceneMenu(false); }}
+                            onClick={() => {
+                                setShowSettingsModal(true);
+                                setShowSceneMenu(false);
+                            }}
                             title="Scene settings"
                             aria-label="Scene settings"
                             type="button"
@@ -194,10 +232,34 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                                 <div
                                     className={`absolute top-full right-0 border rounded shadow-lg z-[1000] min-w-[180px] mt-1 [background-color:var(--twc-control)] [border-color:#525252] ${showSceneMenu ? 'block' : 'hidden'}`}
                                 >
-                                    <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleSave}><FaSave /> <span>Save</span><span className="ml-auto text-[11px] text-neutral-500">⌘S</span></div>
-                                    <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleSaveAs}><FaFileExport /> <span>Save As…</span><span className="ml-auto text-[11px] text-neutral-500">⌘⇧S</span></div>
-                                    <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleLoad}><FaFolderOpen /> <span>Load from File…</span><span className="ml-auto text-[11px] text-neutral-500">⌘O</span></div>
-                                    <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleNew}><FaMagic /> <span>New Blank Scene</span><span className="ml-auto text-[11px] text-neutral-500">⌘N</span></div>
+                                    <div
+                                        className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b"
+                                        onClick={handleSave}
+                                    >
+                                        <FaSave /> <span>Save</span>
+                                        <span className="ml-auto text-[11px] text-neutral-500">⌘S</span>
+                                    </div>
+                                    <div
+                                        className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b"
+                                        onClick={handleSaveAs}
+                                    >
+                                        <FaFileExport /> <span>Save As…</span>
+                                        <span className="ml-auto text-[11px] text-neutral-500">⌘⇧S</span>
+                                    </div>
+                                    <div
+                                        className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b"
+                                        onClick={handleLoad}
+                                    >
+                                        <FaFolderOpen /> <span>Load from File…</span>
+                                        <span className="ml-auto text-[11px] text-neutral-500">⌘O</span>
+                                    </div>
+                                    <div
+                                        className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b"
+                                        onClick={handleNew}
+                                    >
+                                        <FaMagic /> <span>New Blank Scene</span>
+                                        <span className="ml-auto text-[11px] text-neutral-500">⌘N</span>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -218,7 +280,9 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                             onClick={() => window.dispatchEvent(new CustomEvent('open-render-modal'))}
                             className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold shadow-sm inline-flex items-center justify-center bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-pink-400"
                             title="Render / Export Video"
-                        >Render</button>
+                        >
+                            Render
+                        </button>
                     </div>
                 </div>
             </div>

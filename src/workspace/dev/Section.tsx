@@ -48,13 +48,7 @@ export type CollapsibleCardProps = {
     subtitle?: string;
 };
 
-export const CollapsibleCard: React.FC<CollapsibleCardProps> = ({
-    title,
-    open,
-    onToggle,
-    subtitle,
-    children,
-}) => (
+export const CollapsibleCard: React.FC<CollapsibleCardProps> = ({ title, open, onToggle, subtitle, children }) => (
     <div
         style={{
             border: '1px solid rgba(148, 163, 184, 0.35)',

@@ -8,11 +8,7 @@ export interface TempoMapperConfig {
     tempoMap?: TempoMapEntry[] | null;
 }
 
-export type TempoMapperProfileEvent =
-    | 'seconds-to-ticks'
-    | 'ticks-to-seconds'
-    | 'seconds-batch'
-    | 'ticks-batch';
+export type TempoMapperProfileEvent = 'seconds-to-ticks' | 'ticks-to-seconds' | 'seconds-batch' | 'ticks-batch';
 
 export interface TempoMapperProfiler {
     record(event: TempoMapperProfileEvent, durationNanoseconds: number): void;
@@ -50,10 +46,7 @@ function resolveCurve(entry: TempoMapEntry | undefined): 'step' | 'linear' {
     return 'linear';
 }
 
-function normalizeTempoMap(
-    tempoMap: TempoMapEntry[] | null | undefined,
-    fallbackBpm: number,
-): TempoSegment[] {
+function normalizeTempoMap(tempoMap: TempoMapEntry[] | null | undefined, fallbackBpm: number): TempoSegment[] {
     const entries = Array.isArray(tempoMap)
         ? tempoMap
               .filter((e) => typeof e?.time === 'number' && e.time >= 0)
@@ -86,7 +79,8 @@ function normalizeTempoMap(
         const nextTime = next ? next.time : Number.POSITIVE_INFINITY;
         const curve = resolveCurve(entry);
         const secondsPerBeatStart = resolveTempo(entry, fallbackBpm) / 1_000_000;
-        const secondsPerBeatEnd = curve === 'linear' ? resolveTempo(next, fallbackBpm) / 1_000_000 : secondsPerBeatStart;
+        const secondsPerBeatEnd =
+            curve === 'linear' ? resolveTempo(next, fallbackBpm) / 1_000_000 : secondsPerBeatStart;
         const durationSeconds = Math.max(0, nextTime - entry.time);
         const ticksPerSecondStart = 1 / Math.max(1e-9, secondsPerBeatStart);
         const ticksPerSecondEnd = 1 / Math.max(1e-9, secondsPerBeatEnd);
@@ -94,7 +88,10 @@ function normalizeTempoMap(
         if (Number.isFinite(durationSeconds)) {
             if (curve === 'linear' && durationSeconds > 0 && Number.isFinite(nextTime)) {
                 const slope = (ticksPerSecondEnd - ticksPerSecondStart) / durationSeconds;
-                endTicks = cumulativeTicks + ticksPerSecondStart * durationSeconds + 0.5 * slope * durationSeconds * durationSeconds;
+                endTicks =
+                    cumulativeTicks +
+                    ticksPerSecondStart * durationSeconds +
+                    0.5 * slope * durationSeconds * durationSeconds;
             } else {
                 endTicks = cumulativeTicks + ticksPerSecondStart * durationSeconds;
             }

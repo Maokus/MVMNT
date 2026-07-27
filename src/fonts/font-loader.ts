@@ -17,9 +17,17 @@ function familyToURLParam(family: string): string {
 
 /** Fonts supplied by the operating system. They must never require a network request. */
 const SYSTEM_FONT_FAMILIES = new Set(
-    ['Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana', 'sans-serif', 'serif', 'monospace', 'system-ui'].map(
-        (family) => family.toLowerCase()
-    )
+    [
+        'Arial',
+        'Helvetica',
+        'Times New Roman',
+        'Georgia',
+        'Verdana',
+        'sans-serif',
+        'serif',
+        'monospace',
+        'system-ui',
+    ].map((family) => family.toLowerCase())
 );
 
 export function isSystemFontFamily(family: string): boolean {
@@ -154,7 +162,12 @@ export async function registerCustomFontVariant(options: RegisterCustomFontVaria
     try {
         window.dispatchEvent(
             new CustomEvent('font-loaded', {
-                detail: { family: asset.family, weights: [normalizedVariant.weight], source: 'custom', assetId: asset.id },
+                detail: {
+                    family: asset.family,
+                    weights: [normalizedVariant.weight],
+                    source: 'custom',
+                    assetId: asset.id,
+                },
             })
         );
     } catch {
@@ -266,7 +279,10 @@ export async function loadGoogleFontAsync(family: string, options: LoadFontOptio
     const loaded = loadedFamilies.get(normalizedFamily);
     if (loaded && weights.every((weight) => loaded.has(weight))) return true;
 
-    const requestKey = `${normalizedFamily}|${weights.slice().sort((a, b) => a - b).join(',')}|${Boolean(options.italics)}`;
+    const requestKey = `${normalizedFamily}|${weights
+        .slice()
+        .sort((a, b) => a - b)
+        .join(',')}|${Boolean(options.italics)}`;
     if ((unavailableGoogleLoads.get(requestKey) ?? 0) > Date.now()) return false;
     const pending = pendingGoogleLoads.get(requestKey);
     if (pending) return pending;
@@ -282,7 +298,8 @@ export async function loadGoogleFontAsync(family: string, options: LoadFontOptio
             return false;
         }
 
-        const fontFaceSet = typeof document !== 'undefined' ? (document as any).fonts as FontFaceSet | undefined : undefined;
+        const fontFaceSet =
+            typeof document !== 'undefined' ? ((document as any).fonts as FontFaceSet | undefined) : undefined;
         if (fontFaceSet) {
             await Promise.all(
                 weights.map(async (weight) => {
@@ -353,7 +370,12 @@ export function isFontLoaded(selection: string): boolean {
         if (!registry) return false;
         if (parsed.weight) {
             const weight = normalizeWeight(parsed.weight);
-            const key = variantKey({ weight: weight ?? 400, style: parsed.italic ? 'italic' : 'normal', id: '', sourceFormat: 'woff2' });
+            const key = variantKey({
+                weight: weight ?? 400,
+                style: parsed.italic ? 'italic' : 'normal',
+                id: '',
+                sourceFormat: 'woff2',
+            });
             return registry.has(key);
         }
         return registry.size > 0;

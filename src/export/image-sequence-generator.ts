@@ -94,7 +94,7 @@ export class ImageSequenceGenerator {
                 deterministicTiming,
                 transparent,
                 frameSink,
-                signal,
+                signal
             );
 
             onProgress(100, 'Image sequence ready');
@@ -122,7 +122,7 @@ export class ImageSequenceGenerator {
         deterministicTiming: boolean = true,
         transparent: boolean = false,
         frameSink: (filename: string, blob: Blob, frameNumber: number) => Promise<void>,
-        signal?: AbortSignal,
+        signal?: AbortSignal
     ): Promise<void> {
         const prePadding = 0; // padding removed
         const playRangeStart = (() => {

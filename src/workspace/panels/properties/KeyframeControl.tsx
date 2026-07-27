@@ -71,13 +71,9 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                 const valueType = resolveAutomationValueType(propertyType);
                 if (!valueType) return;
 
-                const segInterp = valueType === 'string'
-                    ? { mode: 'constant' as const, direction: 'auto' as const }
-                    : undefined;
-                const initialKeyframes = [
-                    createKeyframe(tick > 0 ? tick : 0, currentValue, segInterp),
-                ];
-
+                const segInterp =
+                    valueType === 'string' ? { mode: 'constant' as const, direction: 'auto' as const } : undefined;
+                const initialKeyframes = [createKeyframe(tick > 0 ? tick : 0, currentValue, segInterp)];
 
                 dispatchSceneCommand(
                     {
@@ -87,7 +83,7 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                         valueType,
                         initialKeyframes,
                     },
-                    { source: 'keyframe-control' },
+                    { source: 'keyframe-control' }
                 );
             } else if (hasKeyframeHere && !isDelinked) {
                 // Remove keyframe at current tick
@@ -97,7 +93,7 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                         channelId: channelId!,
                         tick,
                     },
-                    { source: 'keyframe-control' },
+                    { source: 'keyframe-control' }
                 );
             } else {
                 // Add keyframe at current tick with current value
@@ -105,9 +101,15 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                     {
                         type: 'addKeyframe',
                         channelId: channelId!,
-                        keyframe: createKeyframe(tick, currentValue, channel?.valueType === 'string' ? { mode: 'constant' as const, direction: 'auto' as const } : undefined),
+                        keyframe: createKeyframe(
+                            tick,
+                            currentValue,
+                            channel?.valueType === 'string'
+                                ? { mode: 'constant' as const, direction: 'auto' as const }
+                                : undefined
+                        ),
                     },
-                    { source: 'keyframe-control' },
+                    { source: 'keyframe-control' }
                 );
                 // If property was delinked (override shadowing automation), clear the override to relink
                 if (isDelinked) {
@@ -115,7 +117,7 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                 }
             }
         },
-        [isAutomated, hasKeyframeHere, channelId, tick, currentValue, elementId, propertyKey, propertyType, isDelinked],
+        [isAutomated, hasKeyframeHere, channelId, tick, currentValue, elementId, propertyKey, propertyType, isDelinked]
     );
 
     const handleContextMenu = useCallback(
@@ -132,19 +134,19 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                     elementId,
                     propertyKey,
                 },
-                { source: 'keyframe-control' },
+                { source: 'keyframe-control' }
             );
         },
-        [isAutomated, elementId, propertyKey],
+        [isAutomated, elementId, propertyKey]
     );
 
     const title = !isAutomated
         ? 'Enable automation'
         : hasKeyframeHere && !isDelinked
-            ? 'Remove keyframe at current tick'
-            : 'Add keyframe at current tick';
+          ? 'Remove keyframe at current tick'
+          : 'Add keyframe at current tick';
 
-    const stateClass = !isAutomated ? 'inactive' : (hasKeyframeHere && !isDelinked) ? 'active' : 'automated';
+    const stateClass = !isAutomated ? 'inactive' : hasKeyframeHere && !isDelinked ? 'active' : 'automated';
 
     return (
         <button

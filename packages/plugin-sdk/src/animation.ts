@@ -29,41 +29,58 @@ const bounceOut: EasingFn = (value) => {
 /** Canonical easing dictionary shared by the app and third-party plugins. */
 export const easings: Readonly<Record<string, EasingFn>> = Object.freeze({
     linear: (value: number) => value,
-    hold: (value: number) => value >= 1 ? 1 : 0,
+    hold: (value: number) => (value >= 1 ? 1 : 0),
     easeInQuad: (value: number) => value * value,
     easeOutQuad: (value: number) => 1 - (1 - value) * (1 - value),
-    easeInOutQuad: (value: number) => value < 0.5 ? 2 * value * value : 1 - pow(-2 * value + 2, 2) / 2,
+    easeInOutQuad: (value: number) => (value < 0.5 ? 2 * value * value : 1 - pow(-2 * value + 2, 2) / 2),
     easeInCubic: (value: number) => value * value * value,
     easeOutCubic: (value: number) => 1 - Math.pow(1 - value, 3),
-    easeInOutCubic: (value: number) => value < 0.5 ? 4 * value ** 3 : 1 - pow(-2 * value + 2, 3) / 2,
+    easeInOutCubic: (value: number) => (value < 0.5 ? 4 * value ** 3 : 1 - pow(-2 * value + 2, 3) / 2),
     easeInQuart: (value: number) => value ** 4,
     easeOutQuart: (value: number) => 1 - (1 - value) ** 4,
-    easeInOutQuart: (value: number) => value < 0.5 ? 8 * value ** 4 : 1 - pow(-2 * value + 2, 4) / 2,
+    easeInOutQuart: (value: number) => (value < 0.5 ? 8 * value ** 4 : 1 - pow(-2 * value + 2, 4) / 2),
     easeInQuint: (value: number) => value ** 5,
     easeOutQuint: (value: number) => 1 - (1 - value) ** 5,
-    easeInOutQuint: (value: number) => value < 0.5 ? 16 * value ** 5 : 1 - pow(-2 * value + 2, 5) / 2,
+    easeInOutQuint: (value: number) => (value < 0.5 ? 16 * value ** 5 : 1 - pow(-2 * value + 2, 5) / 2),
     easeInSine: (value: number) => 1 - cos((value * PI) / 2),
     easeOutSine: (value: number) => sin((value * PI) / 2),
     easeInOutSine: (value: number) => -(cos(PI * value) - 1) / 2,
-    easeInExpo: (value: number) => value === 0 ? 0 : pow(2, 10 * value - 10),
+    easeInExpo: (value: number) => (value === 0 ? 0 : pow(2, 10 * value - 10)),
     easeOutExpo: (value: number) => (value === 1 ? 1 : 1 - Math.pow(2, -10 * value)),
-    easeInOutExpo: (value: number) => value === 0 ? 0 : value === 1 ? 1 : value < 0.5 ? pow(2, 20 * value - 10) / 2 : (2 - pow(2, -20 * value + 10)) / 2,
+    easeInOutExpo: (value: number) =>
+        value === 0
+            ? 0
+            : value === 1
+              ? 1
+              : value < 0.5
+                ? pow(2, 20 * value - 10) / 2
+                : (2 - pow(2, -20 * value + 10)) / 2,
     easeInCirc: (value: number) => 1 - sqrt(1 - value ** 2),
     easeOutCirc: (value: number) => sqrt(1 - (value - 1) ** 2),
-    easeInOutCirc: (value: number) => value < 0.5 ? (1 - sqrt(1 - (2 * value) ** 2)) / 2 : (sqrt(1 - (-2 * value + 2) ** 2) + 1) / 2,
+    easeInOutCirc: (value: number) =>
+        value < 0.5 ? (1 - sqrt(1 - (2 * value) ** 2)) / 2 : (sqrt(1 - (-2 * value + 2) ** 2) + 1) / 2,
     easeInBack: (value: number) => c3 * value ** 3 - c1 * value ** 2,
     easeOutBack: (value: number) => 1 + c3 * (value - 1) ** 3 + c1 * (value - 1) ** 2,
-    easeInOutBack: (value: number) => value < 0.5
-        ? ((2 * value) ** 2 * ((c2 + 1) * 2 * value - c2)) / 2
-        : (((2 * value - 2) ** 2 * ((c2 + 1) * (value * 2 - 2) + c2)) + 2) / 2,
-    easeInElastic: (value: number) => value === 0 ? 0 : value === 1 ? 1 : -pow(2, 10 * value - 10) * sin((value * 10 - 10.75) * c4),
-    easeOutElastic: (value: number) => value === 0 ? 0 : value === 1 ? 1 : pow(2, -10 * value) * sin((value * 10 - 0.75) * c4) + 1,
-    easeInOutElastic: (value: number) => value === 0 ? 0 : value === 1 ? 1 : value < 0.5
-        ? -(pow(2, 20 * value - 10) * sin((20 * value - 11.125) * c5)) / 2
-        : (pow(2, -20 * value + 10) * sin((20 * value - 11.125) * c5)) / 2 + 1,
+    easeInOutBack: (value: number) =>
+        value < 0.5
+            ? ((2 * value) ** 2 * ((c2 + 1) * 2 * value - c2)) / 2
+            : ((2 * value - 2) ** 2 * ((c2 + 1) * (value * 2 - 2) + c2) + 2) / 2,
+    easeInElastic: (value: number) =>
+        value === 0 ? 0 : value === 1 ? 1 : -pow(2, 10 * value - 10) * sin((value * 10 - 10.75) * c4),
+    easeOutElastic: (value: number) =>
+        value === 0 ? 0 : value === 1 ? 1 : pow(2, -10 * value) * sin((value * 10 - 0.75) * c4) + 1,
+    easeInOutElastic: (value: number) =>
+        value === 0
+            ? 0
+            : value === 1
+              ? 1
+              : value < 0.5
+                ? -(pow(2, 20 * value - 10) * sin((20 * value - 11.125) * c5)) / 2
+                : (pow(2, -20 * value + 10) * sin((20 * value - 11.125) * c5)) / 2 + 1,
     easeInBounce: (value: number) => 1 - bounceOut(1 - value),
     easeOutBounce: bounceOut,
-    easeInOutBounce: (value: number) => value < 0.5 ? (1 - bounceOut(1 - 2 * value)) / 2 : (1 + bounceOut(2 * value - 1)) / 2,
+    easeInOutBounce: (value: number) =>
+        value < 0.5 ? (1 - bounceOut(1 - 2 * value)) / 2 : (1 + bounceOut(2 * value - 1)) / 2,
 });
 
 export interface FloatCurvePoint {

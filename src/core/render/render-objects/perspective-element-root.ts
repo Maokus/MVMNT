@@ -119,7 +119,7 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
                 { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
                 { x: bounds.x, y: bounds.y + bounds.height },
             ].map((point) => this.projectLocalPoint(point));
-            return points.some((point) => !point) ? null : points as PerspectivePoint[];
+            return points.some((point) => !point) ? null : (points as PerspectivePoint[]);
         };
         const drawPolygon = (points: PerspectivePoint[] | null, color: string, dash: number[]) => {
             if (!points) return;
@@ -203,5 +203,4 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
         this._worldCorners = corners;
         return getProjectedBounds(corners) ?? super._getSelfBounds();
     }
-
 }

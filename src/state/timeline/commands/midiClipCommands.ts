@@ -101,12 +101,11 @@ export function createAddMidiClipCommand(
     return {
         id: 'timeline.addMidiClip',
         mode: 'serial',
-        metadata:
-            metadataOverride ?? {
-                commandId: 'timeline.addMidiClip',
-                undoLabel: 'Add MIDI Clip',
-                telemetryEvent: 'timeline_add_midi_clip',
-            },
+        metadata: metadataOverride ?? {
+            commandId: 'timeline.addMidiClip',
+            undoLabel: 'Add MIDI Clip',
+            telemetryEvent: 'timeline_add_midi_clip',
+        },
         async execute(context): Promise<TimelineCommandExecuteResult<AddMidiClipResult>> {
             const track = getMidiTrack(context, payload.trackId);
             if (!track) throw new Error(`MIDI track not found: ${payload.trackId}`);
@@ -115,7 +114,11 @@ export function createAddMidiClipCommand(
                 throw new Error(`MIDI source not found: ${clip.sourceId}`);
             }
             const before = normalizeStoredClips(track, context);
-            const after = resolveMidiClipOverlapWithCache({ ...track, clips: before }, clip, context.getState().midiCache);
+            const after = resolveMidiClipOverlapWithCache(
+                { ...track, clips: before },
+                clip,
+                context.getState().midiCache
+            );
             const patch = buildUpdatePatch(payload.trackId, before, after);
             applyPatch(context, patch);
             return { patches: patch, result: { clipId: clip.id } };
@@ -136,12 +139,11 @@ export function createUpdateMidiClipsCommand(
     return {
         id: 'timeline.updateMidiClips',
         mode: 'serial',
-        metadata:
-            metadataOverride ?? {
-                commandId: 'timeline.updateMidiClips',
-                undoLabel: 'Update MIDI Clips',
-                telemetryEvent: 'timeline_update_midi_clips',
-            },
+        metadata: metadataOverride ?? {
+            commandId: 'timeline.updateMidiClips',
+            undoLabel: 'Update MIDI Clips',
+            telemetryEvent: 'timeline_update_midi_clips',
+        },
         async execute(context): Promise<TimelineCommandExecuteResult<void>> {
             const updatesByTrack = new Map<string, UpdateMidiClipsPayload['updates']>();
             for (const update of payload.updates ?? []) {
@@ -187,7 +189,11 @@ export function createUpdateMidiClipsCommand(
                     return (aBounds?.startTick ?? a.offsetTicks) - (bBounds?.startTick ?? b.offsetTicks);
                 });
                 for (const edited of editedClips) {
-                    next = resolveMidiClipOverlapWithCache({ ...track, clips: next }, edited, context.getState().midiCache);
+                    next = resolveMidiClipOverlapWithCache(
+                        { ...track, clips: next },
+                        edited,
+                        context.getState().midiCache
+                    );
                 }
                 redoUpdates.push({ trackId, clips: next });
                 undoUpdates.push({ trackId, clips: before });
@@ -239,12 +245,11 @@ export function createRemoveMidiClipsCommand(
     return {
         id: 'timeline.removeMidiClips',
         mode: 'serial',
-        metadata:
-            metadataOverride ?? {
-                commandId: 'timeline.removeMidiClips',
-                undoLabel: 'Remove MIDI Clips',
-                telemetryEvent: 'timeline_remove_midi_clips',
-            },
+        metadata: metadataOverride ?? {
+            commandId: 'timeline.removeMidiClips',
+            undoLabel: 'Remove MIDI Clips',
+            telemetryEvent: 'timeline_remove_midi_clips',
+        },
         async execute(context): Promise<TimelineCommandExecuteResult<void>> {
             const targetsByTrack = new Map<string, Set<string>>();
             for (const target of payload.clips ?? []) {
@@ -325,12 +330,11 @@ export function createMoveMidiClipsBetweenTracksCommand(
     return {
         id: 'timeline.moveMidiClipsBetweenTracks',
         mode: 'serial',
-        metadata:
-            metadataOverride ?? {
-                commandId: 'timeline.moveMidiClipsBetweenTracks',
-                undoLabel: (payload.moves?.length ?? 0) > 1 ? 'Move MIDI Clips' : 'Move MIDI Clip',
-                telemetryEvent: 'timeline_move_midi_clips_between_tracks',
-            },
+        metadata: metadataOverride ?? {
+            commandId: 'timeline.moveMidiClipsBetweenTracks',
+            undoLabel: (payload.moves?.length ?? 0) > 1 ? 'Move MIDI Clips' : 'Move MIDI Clip',
+            telemetryEvent: 'timeline_move_midi_clips_between_tracks',
+        },
         async execute(context): Promise<TimelineCommandExecuteResult<MoveMidiClipsBetweenTracksResult>> {
             const snapshot = context.getState();
             // Collect all affected track IDs
@@ -368,7 +372,7 @@ export function createMoveMidiClipsBetweenTracksCommand(
                 const resolved = resolveMidiClipOverlapWithCache(
                     { ...destTrack, clips: destClips },
                     movedClip,
-                    snapshot.midiCache,
+                    snapshot.midiCache
                 );
                 workingByTrack.set(move.destinationTrackId, resolved);
                 movedClipIds.push(clip.id);
@@ -404,11 +408,10 @@ export function createPasteMidiClipsCommand(
     return {
         id: 'timeline.pasteMidiClips',
         mode: 'serial',
-        metadata:
-            metadataOverride ?? {
-                commandId: 'timeline.pasteMidiClips',
-                undoLabel: 'Paste MIDI Clips',
-                telemetryEvent: 'timeline_paste_midi_clips',
+        metadata: metadataOverride ?? {
+            commandId: 'timeline.pasteMidiClips',
+            undoLabel: 'Paste MIDI Clips',
+            telemetryEvent: 'timeline_paste_midi_clips',
         },
         async execute(context): Promise<TimelineCommandExecuteResult<PasteMidiClipsResult>> {
             const snapshot = context.getState();
@@ -453,9 +456,10 @@ export function createPasteMidiClipsCommand(
             for (const [trackId, pastedClips] of clipsByTrack) {
                 const track = virtualTracks[trackId] as TimelineTrack | undefined;
                 if (!track || track.type !== 'midi') continue;
-                const before = trackId in snapshot.tracks
-                    ? normalizeStoredClips(snapshot.tracks[trackId] as TimelineTrack, context)
-                    : [];
+                const before =
+                    trackId in snapshot.tracks
+                        ? normalizeStoredClips(snapshot.tracks[trackId] as TimelineTrack, context)
+                        : [];
                 let next = before;
                 for (const clip of pastedClips.sort((a, b) => {
                     const aBounds = getMidiClipTimelineBounds(effectiveMidiCache, a);
@@ -506,7 +510,9 @@ export function createPasteMidiClipsCommand(
                 patches: patch,
                 result: {
                     clipIds,
-                    trackIds: [...new Set([...clipsByTrack.keys(), ...createdTrackPayloads.map((entry) => entry.track.id)])],
+                    trackIds: [
+                        ...new Set([...clipsByTrack.keys(), ...createdTrackPayloads.map((entry) => entry.track.id)]),
+                    ],
                 },
             };
         },

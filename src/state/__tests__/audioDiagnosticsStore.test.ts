@@ -156,7 +156,9 @@ describe('audio diagnostics store', () => {
         }));
 
         const descriptorKey = `${buildDescriptorMatchKey({ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' })}|profile:default`;
-        const missingSecond = useAudioDiagnosticsStore.getState().diffs.find((diff) => diff.audioSourceId === sourceTwo);
+        const missingSecond = useAudioDiagnosticsStore
+            .getState()
+            .diffs.find((diff) => diff.audioSourceId === sourceTwo);
         expect(missingSecond?.trackRefs).toContain(trackId);
         expect(missingSecond?.missing).toContain(descriptorKey);
 
@@ -169,7 +171,9 @@ describe('audio diagnostics store', () => {
             },
         }));
 
-        const resolvedSecond = useAudioDiagnosticsStore.getState().diffs.find((diff) => diff.audioSourceId === sourceTwo);
+        const resolvedSecond = useAudioDiagnosticsStore
+            .getState()
+            .diffs.find((diff) => diff.audioSourceId === sourceTwo);
         expect(resolvedSecond?.missing).not.toContain(descriptorKey);
         expect(resolvedSecond?.extraneous).not.toContain(descriptorKey);
     });

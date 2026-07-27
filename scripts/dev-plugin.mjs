@@ -51,7 +51,8 @@ function readManifest(pluginDir) {
     const errors = validateManifestContract(manifest, pluginDir);
     for (const element of manifest.elements ?? []) {
         const entryPath = path.join(pluginDir, element.entry ?? '');
-        if (fs.existsSync(entryPath)) errors.push(...validateElementImports(fs.readFileSync(entryPath, 'utf8'), element.type).errors);
+        if (fs.existsSync(entryPath))
+            errors.push(...validateElementImports(fs.readFileSync(entryPath, 'utf8'), element.type).errors);
     }
     if (errors.length) throw new Error(errors.join('\n  - '));
     return manifest;
@@ -88,12 +89,21 @@ const sseClients = new Set();
 let tempBuildCounter = 0;
 
 function statusFor(plugin) {
-    return { id: plugin.id, ready: plugin.currentBundle !== null, revision: plugin.revision, buildError: plugin.buildError };
+    return {
+        id: plugin.id,
+        ready: plugin.currentBundle !== null,
+        revision: plugin.revision,
+        buildError: plugin.buildError,
+    };
 }
 function broadcast(payload) {
     const message = `data: ${JSON.stringify(payload)}\n\n`;
     for (const client of sseClients) {
-        try { client.write(message); } catch { sseClients.delete(client); }
+        try {
+            client.write(message);
+        } catch {
+            sseClients.delete(client);
+        }
     }
 }
 function publishSnapshot(client) {
@@ -107,8 +117,15 @@ async function bundleElement(plugin, element, buildDir) {
     const outputFileName = element.entry.replace(/\.(ts|tsx|js|jsx)$/, '.js');
     const outputPath = path.join(buildDir, 'elements', outputFileName);
     await build({
-        entryPoints: [path.join(plugin.pluginDir, element.entry)], bundle: true, format: 'cjs', outfile: outputPath,
-        platform: 'browser', target: 'es2020', minify: false, sourcemap: false, external: [...PLUGIN_EXTERNALS],
+        entryPoints: [path.join(plugin.pluginDir, element.entry)],
+        bundle: true,
+        format: 'cjs',
+        outfile: outputPath,
+        platform: 'browser',
+        target: 'es2020',
+        minify: false,
+        sourcemap: false,
+        external: [...PLUGIN_EXTERNALS],
     });
     return outputFileName;
 }
@@ -117,8 +134,10 @@ function copyDirectory(source, destination) {
     for (const item of fs.readdirSync(source)) {
         const from = path.join(source, item);
         const to = path.join(destination, item);
-        if (fs.statSync(from).isDirectory()) { fs.mkdirSync(to, { recursive: true }); copyDirectory(from, to); }
-        else fs.copyFileSync(from, to);
+        if (fs.statSync(from).isDirectory()) {
+            fs.mkdirSync(to, { recursive: true });
+            copyDirectory(from, to);
+        } else fs.copyFileSync(from, to);
     }
 }
 
@@ -132,7 +151,10 @@ function packageBundle(manifest, buildDir) {
             else files[archivePath] = fs.readFileSync(fullPath);
         }
     };
-    for (const [directory, prefix] of [['elements', 'elements'], ['assets', 'assets']]) {
+    for (const [directory, prefix] of [
+        ['elements', 'elements'],
+        ['assets', 'assets'],
+    ]) {
         const source = path.join(buildDir, directory);
         if (fs.existsSync(source)) addDirectory(source, prefix);
     }
@@ -164,7 +186,9 @@ async function rebuildOnce(plugin) {
         plugin.currentBundle = packageBundle(bundledManifest, buildDir);
         plugin.revision += 1;
         plugin.buildError = undefined;
-        console.log(`[dev-plugin] Built ${plugin.id} r${plugin.revision} — ${(plugin.currentBundle.length / 1024).toFixed(1)} KB`);
+        console.log(
+            `[dev-plugin] Built ${plugin.id} r${plugin.revision} — ${(plugin.currentBundle.length / 1024).toFixed(1)} KB`
+        );
         emitUpsert(plugin);
     } catch (error) {
         plugin.buildError = error instanceof Error ? error.message : String(error);
@@ -175,9 +199,15 @@ async function rebuildOnce(plugin) {
 }
 
 async function rebuild(plugin) {
-    if (plugin.rebuilding) { plugin.rebuildPending = true; return; }
+    if (plugin.rebuilding) {
+        plugin.rebuildPending = true;
+        return;
+    }
     plugin.rebuilding = true;
-    do { plugin.rebuildPending = false; await rebuildOnce(plugin); } while (plugin.rebuildPending);
+    do {
+        plugin.rebuildPending = false;
+        await rebuildOnce(plugin);
+    } while (plugin.rebuildPending);
     plugin.rebuilding = false;
 }
 function scheduleRebuild(plugin) {
@@ -190,7 +220,12 @@ function startWatcher(plugin) {
             if (!filename) return;
             const normalized = filename.replaceAll('\\', '/');
             const parts = normalized.split('/');
-            if (parts.some((part) => ['node_modules', 'dist', '.build', '.git'].includes(part)) || parts.some((part) => part.startsWith('.')) || normalized.endsWith('~')) return;
+            if (
+                parts.some((part) => ['node_modules', 'dist', '.build', '.git'].includes(part)) ||
+                parts.some((part) => part.startsWith('.')) ||
+                normalized.endsWith('~')
+            )
+                return;
             scheduleRebuild(plugin);
         });
     } catch {
@@ -203,7 +238,11 @@ const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Methods', 'GET');
     const url = new URL(req.url, 'http://localhost');
     if (url.pathname === '/events') {
-        res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive' });
+        res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache, no-transform',
+            Connection: 'keep-alive',
+        });
         res.write('retry: 1000\n:connected\n\n');
         sseClients.add(res);
         publishSnapshot(res);
@@ -218,16 +257,25 @@ const server = http.createServer((req, res) => {
     const match = url.pathname.match(/^\/([^/]+)\.mvmnt-plugin$/);
     const plugin = match && plugins.get(decodeURIComponent(match[1]));
     if (plugin?.currentBundle) {
-        res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename="${plugin.id}.mvmnt-plugin"`, 'Cache-Control': 'no-store' });
+        res.writeHead(200, {
+            'Content-Type': 'application/octet-stream',
+            'Content-Disposition': `attachment; filename="${plugin.id}.mvmnt-plugin"`,
+            'Cache-Control': 'no-store',
+        });
         res.end(plugin.currentBundle);
         return;
     }
-    res.writeHead(404); res.end('Not found');
+    res.writeHead(404);
+    res.end('Not found');
 });
 
 const heartbeat = setInterval(() => {
     for (const client of sseClients) {
-        try { client.write(':heartbeat\n\n'); } catch { sseClients.delete(client); }
+        try {
+            client.write(':heartbeat\n\n');
+        } catch {
+            sseClients.delete(client);
+        }
     }
 }, HEARTBEAT_MS);
 
@@ -289,6 +337,10 @@ listenOnAvailablePort().catch((error) => {
     const portHint = portWasSpecified
         ? ' Choose another port and start Vite with the matching VITE_DEV_PLUGIN_PORT.'
         : ` Ports ${DEFAULT_PORT}-${DEFAULT_PORT + DEFAULT_PORT_RANGE_SIZE - 1} are all in use.`;
-    console.error(error.code === 'EADDRINUSE' ? `[dev-plugin] Port ${port} is already in use.${portHint}` : `[dev-plugin] Server error: ${error.message}`);
+    console.error(
+        error.code === 'EADDRINUSE'
+            ? `[dev-plugin] Port ${port} is already in use.${portHint}`
+            : `[dev-plugin] Server error: ${error.message}`
+    );
     process.exit(1);
 });

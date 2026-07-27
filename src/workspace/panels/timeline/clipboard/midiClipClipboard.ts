@@ -6,11 +6,7 @@ import {
     type MidiClip,
 } from '@state/timeline/midiClips';
 import type { AudioClip } from '@audio/audioTypes';
-import {
-    getAudioClipTimelineBounds,
-    getAudioClipsForTrack,
-    makeAudioClipId,
-} from '@state/timeline/audioClips';
+import { getAudioClipTimelineBounds, getAudioClipsForTrack, makeAudioClipId } from '@state/timeline/audioClips';
 import type { ClipTimelineSelection, TimelineClipRef } from '@state/selectionStore';
 import type { TimelineMidiCacheEntry } from '@state/timeline/patches';
 import type { AudioCacheEntry } from '@audio/audioTypes';
@@ -317,13 +313,11 @@ export function copyTimelineSelectionToClipboard(
  */
 export function getTimelineClipDuplicateDestination(
     state: TimelineState,
-    payload: TimelineClipClipboard,
+    payload: TimelineClipClipboard
 ): { tick: number; trackId: string } | null {
     if (!payload.clips.length) return null;
 
-    const trackId = state.tracksOrder.find((id) =>
-        payload.sourceTrackOrder.includes(id) && Boolean(state.tracks[id])
-    );
+    const trackId = state.tracksOrder.find((id) => payload.sourceTrackOrder.includes(id) && Boolean(state.tracks[id]));
     if (!trackId) return null;
 
     let maxEndTick = -Infinity;
@@ -333,9 +327,10 @@ export function getTimelineClipDuplicateDestination(
     for (const copiedClip of payload.clips) {
         const track = state.tracks[copiedClip.sourceTrackId];
         if (copiedClip.kind === 'midi') {
-            const clip = track?.type === 'midi'
-                ? getMidiClipsForTrack(track).find((entry) => entry.id === copiedClip.sourceClipId)
-                : undefined;
+            const clip =
+                track?.type === 'midi'
+                    ? getMidiClipsForTrack(track).find((entry) => entry.id === copiedClip.sourceClipId)
+                    : undefined;
             const bounds = clip ? getMidiClipTimelineBounds(state.midiCache, clip) : null;
             if (!bounds) continue;
             maxEndTick = Math.max(maxEndTick, bounds.endTick);
@@ -344,10 +339,13 @@ export function getTimelineClipDuplicateDestination(
         }
 
         midiOnly = false;
-        const clip = track?.type === 'audio'
-            ? getAudioClipsForTrack(track).find((entry) => entry.id === copiedClip.sourceClipId)
-            : undefined;
-        const bounds = clip ? getAudioClipTimelineBounds(state.audioCache, clip, createTimingContext(state.timeline)) : null;
+        const clip =
+            track?.type === 'audio'
+                ? getAudioClipsForTrack(track).find((entry) => entry.id === copiedClip.sourceClipId)
+                : undefined;
+        const bounds = clip
+            ? getAudioClipTimelineBounds(state.audioCache, clip, createTimingContext(state.timeline))
+            : null;
         if (bounds) maxEndTick = Math.max(maxEndTick, bounds.endTick);
     }
 
@@ -355,9 +353,10 @@ export function getTimelineClipDuplicateDestination(
 
     return {
         trackId,
-        tick: midiOnly && Number.isFinite(minMidiStartTick)
-            ? Math.max(0, Math.round(maxEndTick - (minMidiStartTick - payload.anchorTick)))
-            : Math.round(maxEndTick),
+        tick:
+            midiOnly && Number.isFinite(minMidiStartTick)
+                ? Math.max(0, Math.round(maxEndTick - (minMidiStartTick - payload.anchorTick)))
+                : Math.round(maxEndTick),
     };
 }
 
@@ -451,7 +450,12 @@ function buildTrackMap(params: {
         trackMap.set(sourceTrackId, trackId);
         createTracks.push({
             trackId,
-            name: sourceTrack?.type === kind ? `${sourceTrack.name} copy` : kind === 'midi' ? 'MIDI Track' : 'Audio Track',
+            name:
+                sourceTrack?.type === kind
+                    ? `${sourceTrack.name} copy`
+                    : kind === 'midi'
+                      ? 'MIDI Track'
+                      : 'Audio Track',
             index: baseOrderIndex + sourceIndex,
         });
     });
@@ -484,10 +488,10 @@ export function prepareTimelineClipPaste(
             .map((clip) => {
                 const source = getAudioClipSourceBounds(
                     { ...state.audioCache, ...Object.fromEntries(audioSources) },
-                    clip as unknown as AudioClip,
+                    clip as unknown as AudioClip
                 );
                 return ticksToSeconds(timing, clip.offsetTicks) + (source?.startSeconds ?? 0);
-            }),
+            })
     );
 
     const midiMap = payload.clips.some((clip) => clip.kind === 'midi')
@@ -525,11 +529,12 @@ export function prepareTimelineClipPaste(
             if (!targetTrackId || (!state.audioCache[clip.sourceId] && !audioSources.has(clip.sourceId))) return null;
             const sourceBounds = getAudioClipSourceBounds(
                 { ...state.audioCache, ...Object.fromEntries(audioSources) },
-                clip as unknown as AudioClip,
+                clip as unknown as AudioClip
             );
             const sourceStartSeconds = sourceBounds?.startSeconds ?? clip.sourceStartSeconds ?? 0;
             const originalVisualStartSeconds = ticksToSeconds(timing, clip.offsetTicks) + sourceStartSeconds;
-            const destinationVisualStartSeconds = ticksToSeconds(timing, destination.tick) +
+            const destinationVisualStartSeconds =
+                ticksToSeconds(timing, destination.tick) +
                 (Number.isFinite(audioAnchorStartSeconds) ? originalVisualStartSeconds - audioAnchorStartSeconds : 0);
             return {
                 trackId: targetTrackId,
@@ -537,7 +542,10 @@ export function prepareTimelineClipPaste(
                     id: makeAudioClipId(),
                     type: 'audio' as const,
                     sourceId: clip.sourceId,
-                    offsetTicks: Math.max(0, Math.round(secondsToTicks(timing, destinationVisualStartSeconds - sourceStartSeconds))),
+                    offsetTicks: Math.max(
+                        0,
+                        Math.round(secondsToTicks(timing, destinationVisualStartSeconds - sourceStartSeconds))
+                    ),
                     sourceStartSeconds: clip.sourceStartSeconds,
                     sourceEndSeconds: clip.sourceEndSeconds,
                     name: clip.name,

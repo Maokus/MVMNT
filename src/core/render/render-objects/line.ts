@@ -28,13 +28,7 @@ export class Line extends RenderObject {
     shadowOffsetX: number;
     shadowOffsetY: number;
 
-    constructor(
-        x1: number,
-        y1: number,
-        x2: number,
-        y2: number,
-        options: LineOptions = {}
-    ) {
+    constructor(x1: number, y1: number, x2: number, y2: number, options: LineOptions = {}) {
         super(x1, y1, 1, 1, 1, options);
         this.deltaX = x2 - x1;
         this.deltaY = y2 - y1;

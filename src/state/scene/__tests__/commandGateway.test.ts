@@ -74,7 +74,8 @@ describe('scene command gateway', () => {
         expect(result.patch?.redo[0]).toMatchObject({ type: 'batch' });
         expect(result.patch?.undo).toHaveLength(2);
         expect(useSceneStore.getState().bindings.byElement['batch-element']).toMatchObject({
-            offsetX: { type: 'constant', value: 12 }, offsetY: { type: 'constant', value: 24 },
+            offsetX: { type: 'constant', value: 12 },
+            offsetY: { type: 'constant', value: 24 },
         });
     });
 

@@ -103,8 +103,8 @@
             "createProjectAssetHandle",
             "loadBundledImage",
             "loadBundledSparrow",
-            "loadBundledGridAtlas"
-            ,"createGeneratedRaster"
+            "loadBundledGridAtlas",
+            "createGeneratedRaster"
         ],
         "api": ["SDK_VERSION", "PLUGIN_CAPABILITIES", "PluginContractError", "ok", "err"],
         "animation": ["clamp", "lerp", "invLerp", "remap", "easings", "FloatCurve"],
@@ -169,8 +169,8 @@
             "createProjectAssetHandle",
             "loadBundledImage",
             "loadBundledSparrow",
-            "loadBundledGridAtlas"
-            ,"createGeneratedRaster"
+            "loadBundledGridAtlas",
+            "createGeneratedRaster"
         ]
     }
 }

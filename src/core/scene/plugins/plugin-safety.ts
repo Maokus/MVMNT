@@ -1,6 +1,6 @@
 /**
  * Safety controls for plugin element rendering
- * 
+ *
  * Prevents:
  * - Excessive render object counts
  * - Runaway render loops (timeouts)
@@ -40,7 +40,7 @@ export function withRenderSafety<T>(
             timedOut = true;
             console.error(
                 `[PluginSafety] Render timeout for plugin '${context.pluginId}' element '${context.elementType}' ` +
-                `(exceeded ${config.maxRenderTimeMs}ms)`
+                    `(exceeded ${config.maxRenderTimeMs}ms)`
             );
         }, config.maxRenderTimeMs);
     }
@@ -53,12 +53,12 @@ export function withRenderSafety<T>(
         }
 
         const elapsed = performance.now() - startTime;
-        
+
         // Log warning if render took significant time (but didn't timeout)
         if (elapsed > config.maxRenderTimeMs * 0.8) {
             console.warn(
                 `[PluginSafety] Slow render for plugin '${context.pluginId}' element '${context.elementType}' ` +
-                `(${elapsed.toFixed(1)}ms)`
+                    `(${elapsed.toFixed(1)}ms)`
             );
         }
 
@@ -72,7 +72,7 @@ export function withRenderSafety<T>(
             `[PluginSafety] Render error for plugin '${context.pluginId}' element '${context.elementType}':`,
             error
         );
-        
+
         return null;
     }
 }
@@ -88,7 +88,7 @@ export function limitRenderObjects<T extends any[]>(
     if (objects.length > config.maxRenderObjectsPerElement) {
         console.warn(
             `[PluginSafety] Render object limit exceeded for plugin '${context.pluginId}' element '${context.elementType}' ` +
-            `(${objects.length} objects, limit is ${config.maxRenderObjectsPerElement}). Truncating.`
+                `(${objects.length} objects, limit is ${config.maxRenderObjectsPerElement}). Truncating.`
         );
         return objects.slice(0, config.maxRenderObjectsPerElement) as T;
     }
@@ -98,10 +98,7 @@ export function limitRenderObjects<T extends any[]>(
 /**
  * Check if a plugin element has the required capability
  */
-export function hasCapability(
-    capabilities: string[] | undefined,
-    required: string
-): boolean {
+export function hasCapability(capabilities: string[] | undefined, required: string): boolean {
     if (!capabilities) return false;
     return capabilities.includes(required);
 }
@@ -122,7 +119,7 @@ export function checkCapability(
     if (!hasCapability(capabilities, required)) {
         console.error(
             `[PluginSafety] Capability '${required}' required but not declared for plugin '${context.pluginId}' ` +
-            `element '${context.elementType}'`
+                `element '${context.elementType}'`
         );
         return false;
     }

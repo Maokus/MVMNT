@@ -44,9 +44,10 @@ export function createSpectrogramCalculator({
             const { windowSize, hopSize } = analysisParams;
             const derivedFftSize = Math.pow(2, Math.ceil(Math.log2(Math.max(32, windowSize))));
             const requestedFftSize = analysisParams.fftSize;
-            const fftSize = isPowerOfTwo(requestedFftSize ?? NaN) && requestedFftSize! >= windowSize
-                ? requestedFftSize!
-                : derivedFftSize;
+            const fftSize =
+                isPowerOfTwo(requestedFftSize ?? NaN) && requestedFftSize! >= windowSize
+                    ? requestedFftSize!
+                    : derivedFftSize;
             const binCount = Math.floor(fftSize / 2) + 1;
             const window = hannWindow(windowSize);
             const output = new Float32Array(frameCount * binCount);

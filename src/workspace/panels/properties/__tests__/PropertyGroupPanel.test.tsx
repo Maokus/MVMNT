@@ -4,7 +4,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import PropertyGroupPanel from '../PropertyGroupPanel';
 import type { PropertyDefinition, PropertyGroup } from '@core/types';
 
-const assignListenerMock = vi.fn(() => () => { });
+const assignListenerMock = vi.fn(() => () => {});
 
 vi.mock('@context/MacroContext', () => ({
     useMacros: () => ({
@@ -25,7 +25,7 @@ describe('PropertyGroupPanel', () => {
     beforeEach(() => {
         assignListenerMock.mockClear();
         consoleErrorSpy = vi.spyOn(console, 'error');
-        consoleErrorSpy.mockImplementation(() => { });
+        consoleErrorSpy.mockImplementation(() => {});
     });
 
     afterEach(() => {
@@ -56,7 +56,7 @@ describe('PropertyGroupPanel', () => {
                 onValueChange={vi.fn()}
                 onMacroAssignment={vi.fn()}
                 onCollapseToggle={vi.fn()}
-            />,
+            />
         );
 
         const alert = screen.getByRole('alert');
@@ -66,7 +66,7 @@ describe('PropertyGroupPanel', () => {
 
         expect(consoleErrorSpy).toHaveBeenCalledWith(
             '[PropertyGroupPanel] Unsupported property type encountered',
-            expect.objectContaining({ key: 'legacyDescriptor', type: 'audioFeatureDescriptor' }),
+            expect.objectContaining({ key: 'legacyDescriptor', type: 'audioFeatureDescriptor' })
         );
     });
 
@@ -76,16 +76,35 @@ describe('PropertyGroupPanel', () => {
             { key: 'y', label: 'Y', type: 'number', default: 0, min: -10, max: 10, step: 1 },
         ] as PropertyDefinition[];
         const group: PropertyGroup = {
-            id: 'position', label: 'Position', collapsed: false, properties,
+            id: 'position',
+            label: 'Position',
+            collapsed: false,
+            properties,
             layout: [
-                { kind: 'control', control: 'xy-pad', bindings: { x: 'x', y: 'y' }, options: { label: 'Position pad' } },
+                {
+                    kind: 'control',
+                    control: 'xy-pad',
+                    bindings: { x: 'x', y: 'y' },
+                    options: { label: 'Position pad' },
+                },
                 { kind: 'property', propertyKey: 'x' },
                 { kind: 'property', propertyKey: 'y' },
             ],
         };
 
-        render(<PropertyGroupPanel group={group} properties={properties} values={{ x: 2, y: 3 }} macroAssignments={{}}
-            elementId="test-element" onValueChange={vi.fn()} onValuesChange={vi.fn()} onMacroAssignment={vi.fn()} onCollapseToggle={vi.fn()} />);
+        render(
+            <PropertyGroupPanel
+                group={group}
+                properties={properties}
+                values={{ x: 2, y: 3 }}
+                macroAssignments={{}}
+                elementId="test-element"
+                onValueChange={vi.fn()}
+                onValuesChange={vi.fn()}
+                onMacroAssignment={vi.fn()}
+                onCollapseToggle={vi.fn()}
+            />
+        );
 
         expect(screen.getByRole('group', { name: 'Position pad' })).toBeInTheDocument();
         expect(screen.getAllByText('X')).toHaveLength(2);
@@ -97,15 +116,29 @@ describe('PropertyGroupPanel', () => {
             { key: 'strength', label: 'Strength', type: 'number', default: 50, min: 0, max: 100, step: 1 },
         ] as PropertyDefinition[];
         const group: PropertyGroup = {
-            id: 'perspective', label: 'Perspective', collapsed: false, properties,
+            id: 'perspective',
+            label: 'Perspective',
+            collapsed: false,
+            properties,
             layout: [
                 { kind: 'control', control: 'slider', bindings: { value: 'strength' } },
                 { kind: 'property', propertyKey: 'strength' },
             ],
         };
 
-        render(<PropertyGroupPanel group={group} properties={properties} values={{ strength: 50 }} macroAssignments={{}}
-            elementId="test-element" onValueChange={vi.fn()} onValuesChange={vi.fn()} onMacroAssignment={vi.fn()} onCollapseToggle={vi.fn()} />);
+        render(
+            <PropertyGroupPanel
+                group={group}
+                properties={properties}
+                values={{ strength: 50 }}
+                macroAssignments={{}}
+                elementId="test-element"
+                onValueChange={vi.fn()}
+                onValuesChange={vi.fn()}
+                onMacroAssignment={vi.fn()}
+                onCollapseToggle={vi.fn()}
+            />
+        );
 
         expect(screen.getByRole('group', { name: 'Strength' })).toBeInTheDocument();
         expect(document.querySelector('#config-strength')).toBeInstanceOf(HTMLInputElement);
@@ -115,12 +148,26 @@ describe('PropertyGroupPanel', () => {
     it('falls back to scalar rows when a layout control is unknown', () => {
         const properties = [{ key: 'x', label: 'X', type: 'number', default: 0 }] as PropertyDefinition[];
         const group: PropertyGroup = {
-            id: 'fallback', label: 'Fallback', collapsed: false, properties,
+            id: 'fallback',
+            label: 'Fallback',
+            collapsed: false,
+            properties,
             layout: [{ kind: 'control', control: 'future-control', bindings: { x: 'x' } }],
         };
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-        render(<PropertyGroupPanel group={group} properties={properties} values={{ x: 2 }} macroAssignments={{}}
-            elementId="test-element" onValueChange={vi.fn()} onValuesChange={vi.fn()} onMacroAssignment={vi.fn()} onCollapseToggle={vi.fn()} />);
+        render(
+            <PropertyGroupPanel
+                group={group}
+                properties={properties}
+                values={{ x: 2 }}
+                macroAssignments={{}}
+                elementId="test-element"
+                onValueChange={vi.fn()}
+                onValuesChange={vi.fn()}
+                onMacroAssignment={vi.fn()}
+                onCollapseToggle={vi.fn()}
+            />
+        );
         expect(screen.getAllByText('X')).toHaveLength(1);
         expect(warn).toHaveBeenCalledWith('[PropertyLayoutRenderer] Falling back to property rows', expect.any(Object));
         warn.mockRestore();
@@ -129,12 +176,34 @@ describe('PropertyGroupPanel', () => {
     it('shows layout sections as expandable children of the property group', () => {
         const properties = [{ key: 'x', label: 'X', type: 'number', default: 0 }] as PropertyDefinition[];
         const group: PropertyGroup = {
-            id: 'layout', label: 'Layout', collapsed: false, properties,
-            layout: [{ kind: 'section', id: 'position', label: 'Position', collapsed: false, children: [{ kind: 'property', propertyKey: 'x' }] }],
+            id: 'layout',
+            label: 'Layout',
+            collapsed: false,
+            properties,
+            layout: [
+                {
+                    kind: 'section',
+                    id: 'position',
+                    label: 'Position',
+                    collapsed: false,
+                    children: [{ kind: 'property', propertyKey: 'x' }],
+                },
+            ],
         };
 
-        render(<PropertyGroupPanel group={group} properties={properties} values={{ x: 2 }} macroAssignments={{}}
-            elementId="test-element" onValueChange={vi.fn()} onValuesChange={vi.fn()} onMacroAssignment={vi.fn()} onCollapseToggle={vi.fn()} />);
+        render(
+            <PropertyGroupPanel
+                group={group}
+                properties={properties}
+                values={{ x: 2 }}
+                macroAssignments={{}}
+                elementId="test-element"
+                onValueChange={vi.fn()}
+                onValuesChange={vi.fn()}
+                onMacroAssignment={vi.fn()}
+                onCollapseToggle={vi.fn()}
+            />
+        );
 
         const section = screen.getByRole('button', { name: 'Collapse Position section' });
         expect(section).toHaveAttribute('aria-expanded', 'true');
@@ -143,8 +212,10 @@ describe('PropertyGroupPanel', () => {
 
         fireEvent.click(section);
 
-        expect(screen.getByRole('button', { name: 'Expand Position section' })).toHaveAttribute('aria-expanded', 'false');
+        expect(screen.getByRole('button', { name: 'Expand Position section' })).toHaveAttribute(
+            'aria-expanded',
+            'false'
+        );
         expect(screen.queryByText('X')).not.toBeInTheDocument();
     });
-
 });

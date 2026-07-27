@@ -1,42 +1,86 @@
 {
-  "name": "@mvmnt-app/plugin-sdk",
-  "version": "2.1.0",
-  "description": "Public authoring SDK for MVMNT scene element plugins",
-  "license": "MIT",
-  "publishConfig": {
-    "access": "public"
-  },
-  "type": "module",
-  "sideEffects": false,
-  "files": [
-    "dist",
-    "sdk-manifest.json",
-    "README.md",
-    "CHANGELOG.md"
-  ],
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" },
-    "./api": { "types": "./dist/api.d.ts", "import": "./dist/api.js", "require": "./dist/api.cjs" },
-    "./animation": { "types": "./dist/animation.d.ts", "import": "./dist/animation.js", "require": "./dist/animation.cjs" },
-    "./audio": { "types": "./dist/audio.d.ts", "import": "./dist/audio.js", "require": "./dist/audio.cjs" },
-    "./render": { "types": "./dist/render.d.ts", "import": "./dist/render.js", "require": "./dist/render.cjs" },
-    "./scene": { "types": "./dist/scene.d.ts", "import": "./dist/scene.js", "require": "./dist/scene.cjs" },
-    "./safety": { "types": "./dist/safety.d.ts", "import": "./dist/safety.js", "require": "./dist/safety.cjs" },
-    "./timeline": { "types": "./dist/timeline.d.ts", "import": "./dist/timeline.js", "require": "./dist/timeline.cjs" },
-    "./timing": { "types": "./dist/timing.d.ts", "import": "./dist/timing.js", "require": "./dist/timing.cjs" },
-    "./utils": { "types": "./dist/utils.d.ts", "import": "./dist/utils.js", "require": "./dist/utils.cjs" },
-    "./visual-assets": { "types": "./dist/visual-assets.d.ts", "import": "./dist/visual-assets.js", "require": "./dist/visual-assets.cjs" },
-    "./manifest": "./sdk-manifest.json",
-    "./package.json": "./package.json"
-  },
-  "scripts": {
-    "build": "node scripts/build.mjs",
-    "prepack": "npm run build"
-  },
-  "devDependencies": {
-    "esbuild": "^0.21.5",
-    "typescript": "^5.9.3"
-  }
+    "name": "@mvmnt-app/plugin-sdk",
+    "version": "2.1.0",
+    "description": "Public authoring SDK for MVMNT scene element plugins",
+    "license": "MIT",
+    "publishConfig": {
+        "access": "public"
+    },
+    "type": "module",
+    "sideEffects": false,
+    "files": [
+        "dist",
+        "sdk-manifest.json",
+        "README.md",
+        "CHANGELOG.md"
+    ],
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "require": "./dist/index.cjs"
+        },
+        "./api": {
+            "types": "./dist/api.d.ts",
+            "import": "./dist/api.js",
+            "require": "./dist/api.cjs"
+        },
+        "./animation": {
+            "types": "./dist/animation.d.ts",
+            "import": "./dist/animation.js",
+            "require": "./dist/animation.cjs"
+        },
+        "./audio": {
+            "types": "./dist/audio.d.ts",
+            "import": "./dist/audio.js",
+            "require": "./dist/audio.cjs"
+        },
+        "./render": {
+            "types": "./dist/render.d.ts",
+            "import": "./dist/render.js",
+            "require": "./dist/render.cjs"
+        },
+        "./scene": {
+            "types": "./dist/scene.d.ts",
+            "import": "./dist/scene.js",
+            "require": "./dist/scene.cjs"
+        },
+        "./safety": {
+            "types": "./dist/safety.d.ts",
+            "import": "./dist/safety.js",
+            "require": "./dist/safety.cjs"
+        },
+        "./timeline": {
+            "types": "./dist/timeline.d.ts",
+            "import": "./dist/timeline.js",
+            "require": "./dist/timeline.cjs"
+        },
+        "./timing": {
+            "types": "./dist/timing.d.ts",
+            "import": "./dist/timing.js",
+            "require": "./dist/timing.cjs"
+        },
+        "./utils": {
+            "types": "./dist/utils.d.ts",
+            "import": "./dist/utils.js",
+            "require": "./dist/utils.cjs"
+        },
+        "./visual-assets": {
+            "types": "./dist/visual-assets.d.ts",
+            "import": "./dist/visual-assets.js",
+            "require": "./dist/visual-assets.cjs"
+        },
+        "./manifest": "./sdk-manifest.json",
+        "./package.json": "./package.json"
+    },
+    "scripts": {
+        "build": "node scripts/build.mjs",
+        "prepack": "npm run build"
+    },
+    "devDependencies": {
+        "esbuild": "^0.21.5",
+        "typescript": "^5.9.3"
+    }
 }

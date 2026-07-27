@@ -83,14 +83,13 @@ export function useMidiImport({ requestImportMode, requestTempoImport }: UseMidi
             for (let index = 0; index < splits.length; index++) {
                 const entry = splits[index];
                 const labelCandidate = entry.track.name?.trim();
-                const trackName = labelCandidate && labelCandidate.length
-                    ? labelCandidate
-                    : `${baseName} - Track ${index + 1}`;
+                const trackName =
+                    labelCandidate && labelCandidate.length ? labelCandidate : `${baseName} - Track ${index + 1}`;
                 await addMidiTrack({ name: trackName, midiData: entry.data });
             }
             return true;
         },
-        [addMidiTrack, requestImportMode, requestTempoImport],
+        [addMidiTrack, requestImportMode, requestTempoImport]
     );
 
     const handleAddFile = useCallback(
@@ -102,7 +101,7 @@ export function useMidiImport({ requestImportMode, requestTempoImport }: UseMidi
                 await importMidiFile(file);
             }
         },
-        [importMidiFile],
+        [importMidiFile]
     );
 
     return { fileRef, importMidiFile, handleAddFile };

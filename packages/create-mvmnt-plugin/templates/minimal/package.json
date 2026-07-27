@@ -1,15 +1,15 @@
 {
-  "name": "{{PLUGIN_ID}}",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@mvmnt-app/plugin-sdk": "^2.0.0"
-  },
-  "devDependencies": {
-    "typescript": "^5.9.3"
-  }
+    "name": "{{PLUGIN_ID}}",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@mvmnt-app/plugin-sdk": "^2.0.0"
+    },
+    "devDependencies": {
+        "typescript": "^5.9.3"
+    }
 }

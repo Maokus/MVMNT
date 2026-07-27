@@ -186,7 +186,9 @@ export function resolveFeatureContext(
     const state = useTimelineStore.getState();
     const entry = state.tracks[trackId] as TimelineTrackEntry | undefined;
     if (!entry || entry.type !== 'audio') return null;
-    const sourceIds = getAudioClipsForTrack(entry).filter((clip) => clip.enabled !== false).map((clip) => clip.sourceId);
+    const sourceIds = getAudioClipsForTrack(entry)
+        .filter((clip) => clip.enabled !== false)
+        .map((clip) => clip.sourceId);
     for (const sourceId of sourceIds) {
         const cache = state.audioFeatureCaches[sourceId];
         const { track: featureTrack } = resolveFeatureTrackFromCache(cache, featureKey, {
@@ -252,7 +254,10 @@ export function sampleFeatureFrame(
     const timing = createTimingContext(state.timeline, getSharedTimingManager().ticksPerQuarter);
     const tick = secondsToTicks(timing, Math.max(0, targetTime));
     const placementSignature = getAudioClipsForTrack(context.track)
-        .map((clip) => `${clip.id}:${clip.sourceId}:${clip.offsetTicks}:${clip.sourceStartSeconds ?? ''}:${clip.sourceEndSeconds ?? ''}:${clip.enabled !== false}`)
+        .map(
+            (clip) =>
+                `${clip.id}:${clip.sourceId}:${clip.offsetTicks}:${clip.sourceStartSeconds ?? ''}:${clip.sourceEndSeconds ?? ''}:${clip.enabled !== false}`
+        )
         .join(',');
     const cacheKey = buildSampleCacheKey(trackId, placementSignature, tick, descriptor, analysisProfileId);
     let trackCache = featureSampleCache.get(featureTrack);
@@ -281,8 +286,8 @@ export function sampleFeatureFrame(
                 samplingOptions?.interpolation === 'nearest'
                     ? 'hold'
                     : samplingOptions?.interpolation === 'cubic'
-                    ? 'spline'
-                    : samplingOptions?.interpolation,
+                      ? 'spline'
+                      : samplingOptions?.interpolation,
         },
     });
     if (diagnostics) {

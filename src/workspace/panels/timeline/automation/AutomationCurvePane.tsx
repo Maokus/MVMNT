@@ -14,14 +14,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-    useFloating,
-    autoUpdate,
-    flip,
-    shift,
-    offset,
-    FloatingPortal,
-} from '@floating-ui/react';
+import { useFloating, autoUpdate, flip, shift, offset, FloatingPortal } from '@floating-ui/react';
 import { useTickScale } from '../hooks/useTickScale';
 import { useCurveRange, useCurveRangeControls } from '../context/curveRangeContext';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
@@ -95,9 +88,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     }, [interpolationPicker]);
 
     // ── Property schema (step / min / max) ────────────────────────────────────
-    const elementType = useSceneStore(
-        useCallback((s) => s.elements[channel.elementId]?.type, [channel.elementId]),
-    );
+    const elementType = useSceneStore(useCallback((s) => s.elements[channel.elementId]?.type, [channel.elementId]));
     const { propertyStep, propertyMin, propertyMax } = useMemo(() => {
         if (!elementType) return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
         const schema = sceneElementRegistry.getSchema(elementType) as EnhancedConfigSchema | null;
@@ -120,7 +111,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     // Auto range from keyframe data
     const { minVal: autoMinVal, maxVal: autoMaxVal } = useMemo(
         () => computeAutoRange(channel, propertyMin, propertyMax),
-        [channel, propertyMin, propertyMax],
+        [channel, propertyMin, propertyMax]
     );
 
     // Target range: auto (with min span) or manual (with min span)
@@ -178,16 +169,13 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
 
     // ── Coordinate helpers ────────────────────────────────────────────────────
 
-    const valueToY = useCallback(
-        (val: number) => valueToYCoord(val, minVal, maxVal, height),
-        [minVal, maxVal, height],
-    );
+    const valueToY = useCallback((val: number) => valueToYCoord(val, minVal, maxVal, height), [minVal, maxVal, height]);
 
     // ── Derived rendering data ─────────────────────────────────────────────────
 
     const curveSegments = useMemo(
         () => buildCurveSegments(channel, toX, width, valueToY),
-        [channel, toX, width, valueToY],
+        [channel, toX, width, valueToY]
     );
 
     const controlPoints = useMemo(
@@ -202,34 +190,33 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                     segmentInterpolation: kf.segmentInterpolation,
                 };
             }),
-        [channel.keyframes, toX, width, valueToY],
+        [channel.keyframes, toX, width, valueToY]
     );
 
     const handleVisuals = useMemo(
         () => buildHandleVisuals(channel.keyframes, toX, width, valueToY),
-        [channel.keyframes, toX, width, valueToY],
+        [channel.keyframes, toX, width, valueToY]
     );
 
     // Grid ticks at "nice" round values derived from the current display range
     const gridTicks = useMemo(
-        () => channel.valueType === 'boolean'
-            ? [{ value: 0, label: '0' }, { value: 1, label: '1' }]
-            : generateYTicks(minVal, maxVal),
-        [channel.valueType, minVal, maxVal],
+        () =>
+            channel.valueType === 'boolean'
+                ? [
+                      { value: 0, label: '0' },
+                      { value: 1, label: '1' },
+                  ]
+                : generateYTicks(minVal, maxVal),
+        [channel.valueType, minVal, maxVal]
     );
 
     // ── Selection state ───────────────────────────────────────────────────────
 
     const selectedKeyframeTicks = useSelectionStore(
         useCallback(
-            (s) =>
-                new Set(
-                    s.selectedKeyframes
-                        .filter((k) => k.channelId === channel.id)
-                        .map((k) => k.tick),
-                ),
-            [channel.id],
-        ),
+            (s) => new Set(s.selectedKeyframes.filter((k) => k.channelId === channel.id).map((k) => k.tick)),
+            [channel.id]
+        )
     );
 
     // ── Drag handlers ─────────────────────────────────────────────────────────
@@ -308,9 +295,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             const leftTick = kfs[idx].tick;
             const existing = useSelectionStore.getState().selectedKeyframes;
             const hasLeft = existing.some(
-                (keyframe) =>
-                    keyframe.channelId === channel.id &&
-                    Math.abs(keyframe.tick - leftTick) < 0.5,
+                (keyframe) => keyframe.channelId === channel.id && Math.abs(keyframe.tick - leftTick) < 0.5
             );
             if (e.shiftKey) {
                 const toAdd = hasLeft ? [] : [{ channelId: channel.id, tick: leftTick }];
@@ -322,7 +307,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 useSelectionStore.getState().selectKeyframes([{ channelId: channel.id, tick: leftTick }]);
             }
         },
-        [channel.id],
+        [channel.id]
     );
 
     const handleInterpolationSelect = useCallback(
@@ -334,24 +319,28 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             // always triggers a bulk interpolation update, including after a drag.
             const isPartOfSelection = allSelected.some(
                 (keyframe) =>
-                    keyframe.channelId === channel.id &&
-                    Math.abs(keyframe.tick - interpolationPicker.tick) < 0.5,
+                    keyframe.channelId === channel.id && Math.abs(keyframe.tick - interpolationPicker.tick) < 0.5
             );
             if (isPartOfSelection && allSelected.length > 1) {
                 for (const { channelId, tick } of allSelected) {
                     dispatchSceneCommand(
                         { type: 'updateKeyframe', channelId, tick, patch: { segmentInterpolation: interpolation } },
-                        { source: 'curve-editor' },
+                        { source: 'curve-editor' }
                     );
                 }
             } else {
                 dispatchSceneCommand(
-                    { type: 'updateKeyframe', channelId: channel.id, tick: interpolationPicker.tick, patch: { segmentInterpolation: interpolation } },
-                    { source: 'curve-editor' },
+                    {
+                        type: 'updateKeyframe',
+                        channelId: channel.id,
+                        tick: interpolationPicker.tick,
+                        patch: { segmentInterpolation: interpolation },
+                    },
+                    { source: 'curve-editor' }
                 );
             }
         },
-        [interpolationPicker, channel.id],
+        [interpolationPicker, channel.id]
     );
 
     const handleHandleTypeChange = useCallback(
@@ -360,24 +349,23 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             const patch = { leftHandleType: type, rightHandleType: type };
             const allSelected = useSelectionStore.getState().selectedKeyframes;
             const isPartOfSelection = allSelected.some(
-                (k) =>
-                    k.channelId === channel.id && Math.abs(k.tick - interpolationPicker.tick) < 0.5,
+                (k) => k.channelId === channel.id && Math.abs(k.tick - interpolationPicker.tick) < 0.5
             );
             if (isPartOfSelection && allSelected.length > 1) {
                 for (const { channelId, tick } of allSelected) {
                     dispatchSceneCommand(
                         { type: 'updateKeyframe', channelId, tick, patch },
-                        { source: 'curve-editor' },
+                        { source: 'curve-editor' }
                     );
                 }
             } else {
                 dispatchSceneCommand(
                     { type: 'updateKeyframe', channelId: channel.id, tick: interpolationPicker.tick, patch },
-                    { source: 'curve-editor' },
+                    { source: 'curve-editor' }
                 );
             }
         },
-        [interpolationPicker, channel.id],
+        [interpolationPicker, channel.id]
     );
 
     const pickerCurrent = useMemo((): SegmentInterpolation => {
@@ -414,16 +402,8 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                     const y = valueToY(tick.value);
                     return (
                         <g key={tick.value}>
-                            <line
-                                x1={0} y1={y} x2={width} y2={y}
-                                stroke="rgba(255,255,255,0.06)"
-                                strokeWidth={1}
-                            />
-                            <text
-                                x={54} y={y - 2}
-                                fill="rgba(255,255,255,0.25)"
-                                fontSize={9}
-                            >
+                            <line x1={0} y1={y} x2={width} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
+                            <text x={54} y={y - 2} fill="rgba(255,255,255,0.25)" fontSize={9}>
                                 {tick.label}
                             </text>
                         </g>
@@ -484,20 +464,27 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                             {hv.showLeft && (
                                 <>
                                     <line
-                                        x1={hv.kfX} y1={hv.kfY} x2={hv.leftX} y2={hv.leftY}
+                                        x1={hv.kfX}
+                                        y1={hv.kfY}
+                                        x2={hv.leftX}
+                                        y2={hv.leftY}
                                         stroke={isHoverLeft ? 'rgba(250,204,21,0.9)' : 'rgba(250,204,21,0.5)'}
                                         strokeWidth={1}
                                         pointerEvents="none"
                                     />
                                     <circle
-                                        cx={hv.leftX} cy={hv.leftY} r={HANDLE_RADIUS}
-                                        fill={isHoverLeft ? '#fde047' : (hv.leftIsAuto ? 'transparent' : '#facc15')}
+                                        cx={hv.leftX}
+                                        cy={hv.leftY}
+                                        r={HANDLE_RADIUS}
+                                        fill={isHoverLeft ? '#fde047' : hv.leftIsAuto ? 'transparent' : '#facc15'}
                                         stroke={isHoverLeft ? '#fef08a' : '#facc15'}
                                         strokeWidth={isHoverLeft ? 2 : 1.5}
                                         pointerEvents="none"
                                     />
                                     <circle
-                                        cx={hv.leftX} cy={hv.leftY} r={HANDLE_HIT_RADIUS}
+                                        cx={hv.leftX}
+                                        cy={hv.leftY}
+                                        r={HANDLE_HIT_RADIUS}
                                         fill="transparent"
                                         style={{ cursor: 'grab' }}
                                         onPointerDown={(e) => handleHandleDown(e, hv.tick, 'left')}
@@ -509,20 +496,27 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                             {hv.showRight && (
                                 <>
                                     <line
-                                        x1={hv.kfX} y1={hv.kfY} x2={hv.rightX} y2={hv.rightY}
+                                        x1={hv.kfX}
+                                        y1={hv.kfY}
+                                        x2={hv.rightX}
+                                        y2={hv.rightY}
                                         stroke={isHoverRight ? 'rgba(250,204,21,0.9)' : 'rgba(250,204,21,0.5)'}
                                         strokeWidth={1}
                                         pointerEvents="none"
                                     />
                                     <circle
-                                        cx={hv.rightX} cy={hv.rightY} r={HANDLE_RADIUS}
-                                        fill={isHoverRight ? '#fde047' : (hv.rightIsAuto ? 'transparent' : '#facc15')}
+                                        cx={hv.rightX}
+                                        cy={hv.rightY}
+                                        r={HANDLE_RADIUS}
+                                        fill={isHoverRight ? '#fde047' : hv.rightIsAuto ? 'transparent' : '#facc15'}
                                         stroke={isHoverRight ? '#fef08a' : '#facc15'}
                                         strokeWidth={isHoverRight ? 2 : 1.5}
                                         pointerEvents="none"
                                     />
                                     <circle
-                                        cx={hv.rightX} cy={hv.rightY} r={HANDLE_HIT_RADIUS}
+                                        cx={hv.rightX}
+                                        cy={hv.rightY}
+                                        r={HANDLE_HIT_RADIUS}
                                         fill="transparent"
                                         style={{ cursor: 'grab' }}
                                         onPointerDown={(e) => handleHandleDown(e, hv.tick, 'right')}
@@ -549,22 +543,16 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                             strokeWidth={isSelected ? 2 : 1.5}
                             style={{
                                 cursor: 'grab',
-                                filter: isSelected
-                                    ? 'drop-shadow(0 0 3px rgba(147,197,253,0.7))'
-                                    : undefined,
+                                filter: isSelected ? 'drop-shadow(0 0 3px rgba(147,197,253,0.7))' : undefined,
                             }}
                             onPointerDown={(e) => handlePointDown(e, pt.tick, pt.value)}
                             onContextMenu={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                const kfIdx = channel.keyframes.findIndex(
-                                    (k) => Math.abs(k.tick - pt.tick) < 0.5,
-                                );
+                                const kfIdx = channel.keyframes.findIndex((k) => Math.abs(k.tick - pt.tick) < 0.5);
                                 if (kfIdx < 0 || channel.keyframes.length < 2) return;
                                 const pickerTick =
-                                    kfIdx < channel.keyframes.length - 1
-                                        ? pt.tick
-                                        : channel.keyframes[kfIdx - 1].tick;
+                                    kfIdx < channel.keyframes.length - 1 ? pt.tick : channel.keyframes[kfIdx - 1].tick;
                                 pickerRefs.setReference({
                                     getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0),
                                 });
@@ -601,11 +589,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                             handleType={pickerHandleType}
                             onHandleTypeChange={handleHandleTypeChange}
                         />
-                        <button
-                            type="button"
-                            className="ae-easing-close"
-                            onClick={() => setInterpolationPicker(null)}
-                        >
+                        <button type="button" className="ae-easing-close" onClick={() => setInterpolationPicker(null)}>
                             Close
                         </button>
                     </div>

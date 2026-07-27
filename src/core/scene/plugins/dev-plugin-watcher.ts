@@ -57,7 +57,9 @@ let connectionStatus: DevPluginConnectionStatus = {
     servers: [],
     scanning: false,
     continuousScanning: false,
-    portRange: configuredPort ? String(DEV_PLUGIN_SERVER_PORT) : `${DEV_PLUGIN_SERVER_PORT}-${DEV_PLUGIN_SERVER_PORT + DEFAULT_PORT_RANGE_SIZE - 1}`,
+    portRange: configuredPort
+        ? String(DEV_PLUGIN_SERVER_PORT)
+        : `${DEV_PLUGIN_SERVER_PORT}-${DEV_PLUGIN_SERVER_PORT + DEFAULT_PORT_RANGE_SIZE - 1}`,
 };
 
 function setConnectionStatus(status: DevPluginConnectionStatus): void {
@@ -71,17 +73,24 @@ export function getDevPluginConnectionStatus(): DevPluginConnectionStatus {
 }
 
 /** Subscribe to development plugin server connection status changes. */
-export function subscribeToDevPluginConnectionStatus(listener: (status: DevPluginConnectionStatus) => void): () => void {
+export function subscribeToDevPluginConnectionStatus(
+    listener: (status: DevPluginConnectionStatus) => void
+): () => void {
     connectionListeners.add(listener);
     return () => connectionListeners.delete(listener);
 }
 
 function serverUrls(): string[] {
-    const ports = configuredPort ? [DEV_PLUGIN_SERVER_PORT] : Array.from({ length: DEFAULT_PORT_RANGE_SIZE }, (_, index) => DEV_PLUGIN_SERVER_PORT + index);
+    const ports = configuredPort
+        ? [DEV_PLUGIN_SERVER_PORT]
+        : Array.from({ length: DEFAULT_PORT_RANGE_SIZE }, (_, index) => DEV_PLUGIN_SERVER_PORT + index);
     return ports.map((port) => `http://localhost:${port}`);
 }
 
-function buildConnectionStatus(state: DevPluginConnectionStatus['state'], overrides: Partial<DevPluginConnectionStatus> = {}): DevPluginConnectionStatus {
+function buildConnectionStatus(
+    state: DevPluginConnectionStatus['state'],
+    overrides: Partial<DevPluginConnectionStatus> = {}
+): DevPluginConnectionStatus {
     const servers = [...connectedServers]
         .sort()
         .map((serverUrl) => ({ serverUrl, port: Number(new URL(serverUrl).port) }));
@@ -97,7 +106,8 @@ function buildConnectionStatus(state: DevPluginConnectionStatus['state'], overri
 }
 
 function publishConnectionStatus(): void {
-    const state = connectedServers.size > 0 ? 'connected' : scanInProgress ? 'connecting' : scanCycle > 0 ? 'failed' : 'idle';
+    const state =
+        connectedServers.size > 0 ? 'connected' : scanInProgress ? 'connecting' : scanCycle > 0 ? 'failed' : 'idle';
     setConnectionStatus(buildConnectionStatus(state));
 }
 
@@ -118,53 +128,61 @@ async function removeDevelopmentPlugin(pluginId: string, serverUrl?: string): Pr
 
 async function reloadPlugin(pluginId: string, revision: number, serverUrl: string): Promise<void> {
     const prior = reloads.get(pluginId) ?? Promise.resolve();
-    const task = prior.then(async () => {
-        if ((revisionByPlugin.get(pluginId) ?? -1) > revision) return;
+    const task = prior
+        .then(async () => {
+            if ((revisionByPlugin.get(pluginId) ?? -1) > revision) return;
 
-        const existing = usePluginStore.getState().plugins[pluginId];
-        if (existing && existing.source !== 'development') {
-            console.error(
-                `[DevPluginWatcher] Refusing to replace installed plugin '${pluginId}'. Remove the installed plugin before serving a dev plugin with the same ID.`
-            );
-            return;
-        }
-
-        const currentServer = serverByPlugin.get(pluginId);
-        if (currentServer && currentServer !== serverUrl) {
-            console.error(`[DevPluginWatcher] Refusing duplicate development plugin '${pluginId}' from ${serverUrl}; it is already served by ${currentServer}.`);
-            return;
-        }
-
-        const response = await fetch(`${serverUrl}/${encodeURIComponent(pluginId)}.mvmnt-plugin`, { cache: 'no-store' });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const candidate = await response.arrayBuffer();
-        const fallback = lastKnownGoodBundle.get(pluginId);
-
-        if (isDevelopmentPlugin(pluginId)) {
-            await unloadPlugin(pluginId, { removePersisted: false });
-        }
-
-        const result = await loadPlugin(candidate, { persist: false, source: 'development' });
-        if (result.success) {
-            revisionByPlugin.set(pluginId, revision);
-            serverByPlugin.set(pluginId, serverUrl);
-            lastKnownGoodBundle.set(pluginId, candidate.slice(0));
-            console.log(`[DevPluginWatcher] Loaded '${pluginId}' (${result.registeredTypes?.length ?? 0} element(s)).`);
-            return;
-        }
-
-        console.error(`[DevPluginWatcher] Failed to load '${pluginId}':`, result.error);
-        if (fallback) {
-            const rollback = await loadPlugin(fallback, { persist: false, source: 'development' });
-            if (rollback.success) {
-                console.warn(`[DevPluginWatcher] Restored the previous working '${pluginId}' bundle.`);
+            const existing = usePluginStore.getState().plugins[pluginId];
+            if (existing && existing.source !== 'development') {
+                console.error(
+                    `[DevPluginWatcher] Refusing to replace installed plugin '${pluginId}'. Remove the installed plugin before serving a dev plugin with the same ID.`
+                );
                 return;
             }
-            console.error(`[DevPluginWatcher] Failed to restore '${pluginId}':`, rollback.error);
-        }
-    }).catch((error) => {
-        console.error(`[DevPluginWatcher] Error loading '${pluginId}':`, error);
-    });
+
+            const currentServer = serverByPlugin.get(pluginId);
+            if (currentServer && currentServer !== serverUrl) {
+                console.error(
+                    `[DevPluginWatcher] Refusing duplicate development plugin '${pluginId}' from ${serverUrl}; it is already served by ${currentServer}.`
+                );
+                return;
+            }
+
+            const response = await fetch(`${serverUrl}/${encodeURIComponent(pluginId)}.mvmnt-plugin`, {
+                cache: 'no-store',
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const candidate = await response.arrayBuffer();
+            const fallback = lastKnownGoodBundle.get(pluginId);
+
+            if (isDevelopmentPlugin(pluginId)) {
+                await unloadPlugin(pluginId, { removePersisted: false });
+            }
+
+            const result = await loadPlugin(candidate, { persist: false, source: 'development' });
+            if (result.success) {
+                revisionByPlugin.set(pluginId, revision);
+                serverByPlugin.set(pluginId, serverUrl);
+                lastKnownGoodBundle.set(pluginId, candidate.slice(0));
+                console.log(
+                    `[DevPluginWatcher] Loaded '${pluginId}' (${result.registeredTypes?.length ?? 0} element(s)).`
+                );
+                return;
+            }
+
+            console.error(`[DevPluginWatcher] Failed to load '${pluginId}':`, result.error);
+            if (fallback) {
+                const rollback = await loadPlugin(fallback, { persist: false, source: 'development' });
+                if (rollback.success) {
+                    console.warn(`[DevPluginWatcher] Restored the previous working '${pluginId}' bundle.`);
+                    return;
+                }
+                console.error(`[DevPluginWatcher] Failed to restore '${pluginId}':`, rollback.error);
+            }
+        })
+        .catch((error) => {
+            console.error(`[DevPluginWatcher] Error loading '${pluginId}':`, error);
+        });
     reloads.set(pluginId, task);
     try {
         await task;
@@ -230,7 +248,9 @@ async function scanForDevPluginServers(): Promise<void> {
     scanInProgress = true;
     scanCycle += 1;
     publishConnectionStatus();
-    console.info(`[DevPluginWatcher] Scanning development plugin ports ${connectionStatus.portRange} (cycle ${scanCycle}).`);
+    console.info(
+        `[DevPluginWatcher] Scanning development plugin ports ${connectionStatus.portRange} (cycle ${scanCycle}).`
+    );
 
     await Promise.all(serverUrls().map((serverUrl) => probeServer(serverUrl)));
 
@@ -246,7 +266,7 @@ async function probeServer(serverUrl: string): Promise<void> {
     try {
         const response = await fetch(`${serverUrl}/status`, { cache: 'no-store', signal: controller.signal });
         if (!response.ok) return;
-        const status = await response.json() as DevServerStatus;
+        const status = (await response.json()) as DevServerStatus;
         startServerWatcher(serverUrl);
         await reconcile(serverUrl, status);
     } catch {
@@ -267,7 +287,9 @@ function startServerWatcher(serverUrl: string): void {
         if (disconnectTimer) return;
         disconnectTimer = setTimeout(() => {
             disconnectTimer = undefined;
-            void Promise.all([...revisionByPlugin.keys()].map((pluginId) => removeDevelopmentPlugin(pluginId, serverUrl)));
+            void Promise.all(
+                [...revisionByPlugin.keys()].map((pluginId) => removeDevelopmentPlugin(pluginId, serverUrl))
+            );
         }, DISCONNECT_GRACE_MS);
     };
 
@@ -282,8 +304,14 @@ function startServerWatcher(serverUrl: string): void {
 
     eventSource.onmessage = (event) => {
         try {
-            const data = JSON.parse(event.data) as { type?: string; pluginId?: string; revision?: number; plugins?: DevPluginStatus[] };
-            if (data.type === 'snapshot' && data.plugins) void reconcile(serverUrl, { protocolVersion: 2, plugins: data.plugins });
+            const data = JSON.parse(event.data) as {
+                type?: string;
+                pluginId?: string;
+                revision?: number;
+                plugins?: DevPluginStatus[];
+            };
+            if (data.type === 'snapshot' && data.plugins)
+                void reconcile(serverUrl, { protocolVersion: 2, plugins: data.plugins });
             if (data.type === 'upsert' && data.pluginId && typeof data.revision === 'number') {
                 void reloadPlugin(data.pluginId, data.revision, serverUrl);
             }

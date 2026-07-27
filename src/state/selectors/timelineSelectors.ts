@@ -39,7 +39,11 @@ const clipIntersectsWindow = (s: TimelineState, clip: MidiClip, startSec: number
     const bounds = getMidiClipTimelineBounds(s.midiCache, clip);
     if (!bounds) return Boolean(s.midiCache[clip.sourceId]);
     const spbFallback = 60 / (s.timeline.globalBpm || 120);
-    const clipStartSec = convertBeatsToSeconds(s.timeline.masterTempoMap, bounds.startTick / CANONICAL_PPQ, spbFallback);
+    const clipStartSec = convertBeatsToSeconds(
+        s.timeline.masterTempoMap,
+        bounds.startTick / CANONICAL_PPQ,
+        spbFallback
+    );
     const clipEndSec = convertBeatsToSeconds(s.timeline.masterTempoMap, bounds.endTick / CANONICAL_PPQ, spbFallback);
     return clipEndSec > startSec && clipStartSec < endSec;
 };
@@ -95,7 +99,11 @@ export const selectNotesInWindow = (
             // Binary search for start index when cache is sorted (bounds present)
             let startIdx = 0;
             if (cache.bounds && notesRaw.length > 32) {
-                const localStartBeats = secondsToBeats(s.timeline.masterTempoMap, Math.max(0, localStartSec), spbFallback);
+                const localStartBeats = secondsToBeats(
+                    s.timeline.masterTempoMap,
+                    Math.max(0, localStartSec),
+                    spbFallback
+                );
                 const searchStartTick = Math.max(
                     0,
                     Math.round(localStartBeats * CANONICAL_PPQ) - cache.bounds.maxDurationTicks

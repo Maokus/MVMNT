@@ -10,10 +10,12 @@ export const MAX_RANGE = CANONICAL_PPQ * 60 * 10;
 export function isEditableTarget(el: Element | null): boolean {
     if (!el) return false;
     const tag = (el as HTMLElement).tagName;
-    return (el as HTMLElement).isContentEditable
-        || tag === 'INPUT'
-        || tag === 'TEXTAREA'
-        || (el as HTMLElement).getAttribute?.('role') === 'textbox';
+    return (
+        (el as HTMLElement).isContentEditable ||
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        (el as HTMLElement).getAttribute?.('role') === 'textbox'
+    );
 }
 
 /** Zoom the view around a pivot tick by `factor` (>1 = zoom out, <1 = zoom in). */

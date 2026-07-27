@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import type { AudioClip } from '@audio/audioTypes';
-import { getAudioClipSourceBounds, getAudioClipTimelineBounds, getAudioClipsForTrack } from '@state/timeline/audioClips';
+import {
+    getAudioClipSourceBounds,
+    getAudioClipTimelineBounds,
+    getAudioClipsForTrack,
+} from '@state/timeline/audioClips';
 import { createTimingContext, secondsToTicks, ticksToSeconds } from '@state/timelineTime';
 import { formatQuantizeShortLabel } from '@state/timeline/quantize';
 import { useSelectionStore } from '@state/selectionStore';
@@ -37,7 +41,15 @@ type ResizeStart = {
     alt: boolean;
 };
 
-const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip, laneWidth, laneHeight, onHoverSnapX }) => {
+const AudioClipBlock: React.FC<Props> = ({
+    trackId,
+    trackIndex,
+    rowHeight,
+    clip,
+    laneWidth,
+    laneHeight,
+    onHoverSnapX,
+}) => {
     const audioCacheEntry = useTimelineStore((s) => s.audioCache[clip.sourceId]);
     const timelineTiming = useTimelineStore((s) => s.timeline);
     const updateAudioClip = useTimelineStore((s) => s.updateAudioClip);
@@ -65,12 +77,13 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
     const activePointerIdRef = useRef<number | null>(null);
 
     const timelineBounds = useMemo(
-        () => getAudioClipTimelineBounds(
-            useTimelineStore.getState().audioCache,
-            clip,
-            createTimingContext(timelineTiming),
-        ),
-        [clip, audioCacheEntry, timelineTiming],
+        () =>
+            getAudioClipTimelineBounds(
+                useTimelineStore.getState().audioCache,
+                clip,
+                createTimingContext(timelineTiming)
+            ),
+        [clip, audioCacheEntry, timelineTiming]
     );
     if (!timelineBounds) return null;
     const timingContext = createTimingContext(timelineTiming);
@@ -78,9 +91,14 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
     if (!sourceBounds) return null;
 
     const offsetTick = dragTick ?? clip.offsetTicks;
-    const movedBounds = dragTick == null
-        ? timelineBounds
-        : getAudioClipTimelineBounds(useTimelineStore.getState().audioCache, { ...clip, offsetTicks: offsetTick }, timingContext);
+    const movedBounds =
+        dragTick == null
+            ? timelineBounds
+            : getAudioClipTimelineBounds(
+                  useTimelineStore.getState().audioCache,
+                  { ...clip, offsetTicks: offsetTick },
+                  timingContext
+              );
     if (!movedBounds) return null;
     const absStartTick = resizePreview?.start != null ? clip.offsetTicks + resizePreview.start : movedBounds.startTick;
     const absEndTick = resizePreview?.end != null ? clip.offsetTicks + resizePreview.end : movedBounds.endTick;
@@ -88,8 +106,16 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
     const localEndTick = absEndTick - offsetTick;
     const previewSourceBounds = resizePreview
         ? {
-              startSeconds: Math.max(0, ticksToSeconds(timingContext, clip.offsetTicks + resizePreview.start) - ticksToSeconds(timingContext, clip.offsetTicks)),
-              endSeconds: Math.max(0, ticksToSeconds(timingContext, clip.offsetTicks + resizePreview.end) - ticksToSeconds(timingContext, clip.offsetTicks)),
+              startSeconds: Math.max(
+                  0,
+                  ticksToSeconds(timingContext, clip.offsetTicks + resizePreview.start) -
+                      ticksToSeconds(timingContext, clip.offsetTicks)
+              ),
+              endSeconds: Math.max(
+                  0,
+                  ticksToSeconds(timingContext, clip.offsetTicks + resizePreview.end) -
+                      ticksToSeconds(timingContext, clip.offsetTicks)
+              ),
           }
         : sourceBounds;
     const leftX = toX(absStartTick, laneWidth);
@@ -118,11 +144,16 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
         return absStartTick < selectionEnd && absEndTick > selectionStart;
     }, [absEndTick, absStartTick, clipTimelineSelection, trackId, clip.id]);
 
-    const isCrossDragging = crossTrackDrag?.previews.some((p) => p.clipId === clip.id && p.sourceTrackId === trackId) ?? false;
+    const isCrossDragging =
+        crossTrackDrag?.previews.some((p) => p.clipId === clip.id && p.sourceTrackId === trackId) ?? false;
 
     const tooltip = useMemo(() => {
         const snapInfo = `Snap: ${formatQuantizeShortLabel(quantize)} (hold Alt to bypass)`;
-        const audioStatus = isAudioLoading ? '\nAudio is loading…' : audioLoadFailed ? '\nAudio could not be loaded yet' : '';
+        const audioStatus = isAudioLoading
+            ? '\nAudio is loading…'
+            : audioLoadFailed
+              ? '\nAudio could not be loaded yet'
+              : '';
         return `Clip: ${displayName}\n${snapInfo}\nOffset ${label}${audioStatus}`;
     }, [audioLoadFailed, displayName, isAudioLoading, label, quantize]);
 
@@ -132,11 +163,13 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
         const selectedRefs = getAudioClipsInTimelineSelection(state, currentSelection);
         const alreadySelected = selectedRefs.some((entry) => entry.trackId === trackId && entry.clipId === clip.id);
         if (e.shiftKey || e.metaKey || e.ctrlKey) {
-            const base: TimelineClipRef[] = currentSelection?.type === 'clips' ? [...currentSelection.clips] : selectedRefs;
+            const base: TimelineClipRef[] =
+                currentSelection?.type === 'clips' ? [...currentSelection.clips] : selectedRefs;
             const existingIndex = base.findIndex((c) => c.trackId === trackId && c.clipId === clip.id);
-            const next: TimelineClipRef[] = existingIndex >= 0
-                ? base.filter((_, i) => i !== existingIndex)
-                : [...base, { trackId, clipId: clip.id, kind: 'audio' }];
+            const next: TimelineClipRef[] =
+                existingIndex >= 0
+                    ? base.filter((_, i) => i !== existingIndex)
+                    : [...base, { trackId, clipId: clip.id, kind: 'audio' }];
             selectClipTimeline(next.length ? { type: 'clips', clips: next } : null);
             return next;
         }
@@ -168,9 +201,19 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
             if (preview && didMove) {
                 const timing = createTimingContext(useTimelineStore.getState().timeline);
                 const baseSeconds = ticksToSeconds(timing, clip.offsetTicks);
-                const sourceStartSeconds = Math.max(0, ticksToSeconds(timing, clip.offsetTicks + preview.start) - baseSeconds);
-                const sourceEndSeconds = Math.max(sourceStartSeconds, ticksToSeconds(timing, clip.offsetTicks + preview.end) - baseSeconds);
-                void updateAudioClip({ trackId, clipId: clip.id, patch: { sourceStartSeconds, sourceEndSeconds } }).then(() => {
+                const sourceStartSeconds = Math.max(
+                    0,
+                    ticksToSeconds(timing, clip.offsetTicks + preview.start) - baseSeconds
+                );
+                const sourceEndSeconds = Math.max(
+                    sourceStartSeconds,
+                    ticksToSeconds(timing, clip.offsetTicks + preview.end) - baseSeconds
+                );
+                void updateAudioClip({
+                    trackId,
+                    clipId: clip.id,
+                    patch: { sourceStartSeconds, sourceEndSeconds },
+                }).then(() => {
                     selectRefsAsClips([{ trackId, clipId: clip.id, kind: 'audio' }]);
                 });
             }
@@ -192,7 +235,9 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
                 newOffsetTicks: p.previewOffsetTicks,
             }));
             void moveAudioClipsBetweenTracks({ moves }).then(() => {
-                selectRefsAsClips(moves.map((m) => ({ trackId: m.destinationTrackId, clipId: m.clipId, kind: 'audio' })));
+                selectRefsAsClips(
+                    moves.map((m) => ({ trackId: m.destinationTrackId, clipId: m.clipId, kind: 'audio' }))
+                );
             });
             return;
         }
@@ -206,7 +251,13 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
                     offsetTicks: entry.offsetTicks + delta,
                 })),
             }).then(() => {
-                selectRefsAsClips(drag.groupBaseOffsets.map((entry) => ({ trackId: entry.trackId, clipId: entry.clipId, kind: 'audio' })));
+                selectRefsAsClips(
+                    drag.groupBaseOffsets.map((entry) => ({
+                        trackId: entry.trackId,
+                        clipId: entry.clipId,
+                        kind: 'audio',
+                    }))
+                );
             });
         } else {
             void updateAudioClip({ trackId, clipId: clip.id, patch: { offsetTicks: finalTick } }).then(() => {
@@ -245,7 +296,12 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
                 const targetClip = getAudioClipsForTrack(track).find((candidate) => candidate.id === entry.clipId);
                 const ti = storeState.tracksOrder.indexOf(entry.trackId);
                 return targetClip
-                    ? { trackId: entry.trackId, clipId: entry.clipId, offsetTicks: targetClip.offsetTicks, trackIndex: ti }
+                    ? {
+                          trackId: entry.trackId,
+                          clipId: entry.clipId,
+                          offsetTicks: targetClip.offsetTicks,
+                          trackIndex: ti,
+                      }
                     : null;
             })
             .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
@@ -271,7 +327,10 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
             const snappedAbs = snapTicks(candidateAbs, e.ctrlKey || e.metaKey || resize.alt, false);
             const nextLocal = Math.max(0, snappedAbs - clip.offsetTicks);
             if (resize.type === 'left') {
-                setResizePreview({ start: Math.max(0, Math.round(Math.min(nextLocal, localEndTick - 1))), end: localEndTick });
+                setResizePreview({
+                    start: Math.max(0, Math.round(Math.min(nextLocal, localEndTick - 1))),
+                    end: localEndTick,
+                });
             } else {
                 setResizePreview({ start: localStartTick, end: Math.round(Math.max(nextLocal, localStartTick + 1)) });
             }
@@ -288,7 +347,7 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
             timelineBounds.startTick + deltaTicks,
             e.ctrlKey || e.metaKey || drag.alt,
             false,
-            true,
+            true
         );
         const desiredBaseSeconds = ticksToSeconds(timingContext, desiredTrimmedStart) - sourceBounds.startSeconds;
         const snapped = Math.round(secondsToTicks(timingContext, Math.max(0, desiredBaseSeconds)));
@@ -308,11 +367,14 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
                     if (!targetId || !audioTrackIds.includes(targetId)) {
                         targetId = audioTrackIds.reduce((best, id) => {
                             const idx = tracksOrder.indexOf(id);
-                            return Math.abs(idx - newTrackIndex) < Math.abs(tracksOrder.indexOf(best) - newTrackIndex) ? id : best;
+                            return Math.abs(idx - newTrackIndex) < Math.abs(tracksOrder.indexOf(best) - newTrackIndex)
+                                ? id
+                                : best;
                         }, audioTrackIds[0] ?? entry.trackId);
                     }
                     const t = useTimelineStore.getState().tracks[entry.trackId];
-                    const c = t?.type === 'audio' ? getAudioClipsForTrack(t).find((cl) => cl.id === entry.clipId) : undefined;
+                    const c =
+                        t?.type === 'audio' ? getAudioClipsForTrack(t).find((cl) => cl.id === entry.clipId) : undefined;
                     return {
                         kind: 'audio' as const,
                         clipId: entry.clipId,
@@ -326,7 +388,8 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
                 })
                 .filter((p) => !!p.sourceId);
             if (previews.length) {
-                const primaryTarget = previews.find((p) => p.clipId === clip.id)?.targetTrackId ?? previews[0].targetTrackId;
+                const primaryTarget =
+                    previews.find((p) => p.clipId === clip.id)?.targetTrackId ?? previews[0].targetTrackId;
                 setCrossTrackDrag({ kind: 'audio', previews, targetTrackId: primaryTarget } as any);
             }
         } else if (crossTrackDrag) {
@@ -346,7 +409,13 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
         activePointerIdRef.current = e.pointerId;
         clipElRef.current?.setPointerCapture(e.pointerId);
         selectForPointer(e);
-        resizeRef.current = { type, startX: e.clientX, baseStart: localStartTick, baseEnd: localEndTick, alt: !!(e.ctrlKey || e.metaKey) };
+        resizeRef.current = {
+            type,
+            startX: e.clientX,
+            baseStart: localStartTick,
+            baseEnd: localEndTick,
+            alt: !!(e.ctrlKey || e.metaKey),
+        };
         setResizePreview({ start: localStartTick, end: localEndTick });
         setDidMove(false);
     };
@@ -355,7 +424,13 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
         <div
             className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none overflow-hidden transition-opacity ${isCrossDragging ? 'opacity-30 pointer-events-none' : ''} ${isSelected ? 'bg-emerald-500/65 border border-emerald-200/90' : 'bg-blue-500/40 border border-blue-400/60'}`}
             ref={clipElRef}
-            style={{ left: leftX, width: Math.max(8, widthPx), height: clipHeight, userSelect: 'none', touchAction: 'none' }}
+            style={{
+                left: leftX,
+                width: Math.max(8, widthPx),
+                height: clipHeight,
+                userSelect: 'none',
+                touchAction: 'none',
+            }}
             title={tooltip}
             draggable={false}
             onPointerDown={onPointerDown}
@@ -412,7 +487,11 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
                         onKeyDown={(event) => {
                             if (event.key === 'Enter') {
                                 const trimmed = nameValue.trim();
-                                void updateAudioClip({ trackId, clipId: clip.id, patch: { name: trimmed || undefined } });
+                                void updateAudioClip({
+                                    trackId,
+                                    clipId: clip.id,
+                                    patch: { name: trimmed || undefined },
+                                });
                                 setEditingName(false);
                             } else if (event.key === 'Escape') {
                                 setEditingName(false);
@@ -434,8 +513,16 @@ const AudioClipBlock: React.FC<Props> = ({ trackId, trackIndex, rowHeight, clip,
                 )}
                 <span className="shrink-0 opacity-80">{label}</span>
             </div>
-            <div className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize" onPointerDown={(event) => onResizeDown(event, 'left')} title="Resize start" />
-            <div className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize" onPointerDown={(event) => onResizeDown(event, 'right')} title="Resize end" />
+            <div
+                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize"
+                onPointerDown={(event) => onResizeDown(event, 'left')}
+                title="Resize start"
+            />
+            <div
+                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
+                onPointerDown={(event) => onResizeDown(event, 'right')}
+                title="Resize end"
+            />
         </div>
     );
 };

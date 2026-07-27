@@ -7,7 +7,12 @@
  * `getValue` is a fallback that evaluates at the current timeline tick.
  */
 
-import { PropertyBinding, registerKeyframeBindingFactory, type PropertyBindingContext, type PropertyBindingData } from './property-bindings';
+import {
+    PropertyBinding,
+    registerKeyframeBindingFactory,
+    type PropertyBindingContext,
+    type PropertyBindingData,
+} from './property-bindings';
 import { automationEvaluator } from '@automation/automation-evaluator';
 import { useTimelineStore } from '@state/timelineStore';
 import { getSharedTimingManager } from '@state/timelineStore';

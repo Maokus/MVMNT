@@ -66,7 +66,7 @@ function applyDecibel(_value: number, options: TransferFunctionOptions = {}): nu
 export function applyTransferFunction(
     value: number,
     type: TransferFunctionId,
-    options: TransferFunctionOptions = {},
+    options: TransferFunctionOptions = {}
 ): number {
     switch (type) {
         case 'log':
@@ -84,7 +84,7 @@ export function applyTransferFunction(
 export function applyTransferFunctionArray(
     values: readonly number[],
     type: TransferFunctionId,
-    options: TransferFunctionOptions = {},
+    options: TransferFunctionOptions = {}
 ): number[] {
     return values.map((value) => applyTransferFunction(value, type, options));
 }
@@ -112,9 +112,7 @@ export interface TransferFunctionPropertyConfig {
     };
 }
 
-export function createTransferFunctionProperties(
-    config: TransferFunctionPropertyConfig = {},
-): PropertyDefinition[] {
+export function createTransferFunctionProperties(config: TransferFunctionPropertyConfig = {}): PropertyDefinition[] {
     const {
         functionKey = 'transferFunction',
         exponentKey = 'transferExponent',
@@ -133,9 +131,9 @@ export function createTransferFunctionProperties(
         label,
         default: defaultFunction,
         description,
-        options: (
-            Object.entries(TRANSFER_FUNCTION_LABELS) as Array<[TransferFunctionId, string]>
-        ).map(([value, optionLabel]) => ({ value, label: optionLabel })),
+        options: (Object.entries(TRANSFER_FUNCTION_LABELS) as Array<[TransferFunctionId, string]>).map(
+            ([value, optionLabel]) => ({ value, label: optionLabel })
+        ),
     };
 
     const exponentProperty: PropertyDefinition = {

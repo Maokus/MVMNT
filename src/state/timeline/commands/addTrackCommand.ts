@@ -88,7 +88,13 @@ async function ingestMidiSource(
                 [trackId]: {
                     ...state.tracks[trackId],
                     midiSourceId: trackId,
-                    clips: [buildInitialMidiClip(trackId, state.tracks[trackId]?.name ?? 'MIDI Track', (state.tracks[trackId] as TimelineTrack)?.offsetTicks ?? 0)],
+                    clips: [
+                        buildInitialMidiClip(
+                            trackId,
+                            state.tracks[trackId]?.name ?? 'MIDI Track',
+                            (state.tracks[trackId] as TimelineTrack)?.offsetTicks ?? 0
+                        ),
+                    ],
                 } as TimelineTrack,
             },
         }));
@@ -105,7 +111,13 @@ async function ingestMidiSource(
                     [trackId]: {
                         ...state.tracks[trackId],
                         midiSourceId: trackId,
-                        clips: [buildInitialMidiClip(trackId, state.tracks[trackId]?.name ?? 'MIDI Track', (state.tracks[trackId] as TimelineTrack)?.offsetTicks ?? 0)],
+                        clips: [
+                            buildInitialMidiClip(
+                                trackId,
+                                state.tracks[trackId]?.name ?? 'MIDI Track',
+                                (state.tracks[trackId] as TimelineTrack)?.offsetTicks ?? 0
+                            ),
+                        ],
                     } as TimelineTrack,
                 },
             }));
@@ -123,12 +135,16 @@ interface PreparedAudioSource {
 const INLINE_ORIGINAL_FILE_LIMIT_BYTES = 16 * 1024 * 1024;
 const LARGE_UNDO_FEATURE_CACHE_BYTES = 32 * 1024 * 1024;
 
-function buildUndoAudioCacheEntry(cache: import('@audio/audioTypes').AudioCacheEntry): import('@audio/audioTypes').AudioCacheEntry {
+function buildUndoAudioCacheEntry(
+    cache: import('@audio/audioTypes').AudioCacheEntry
+): import('@audio/audioTypes').AudioCacheEntry {
     const { audioBuffer: _audioBuffer, ...rest } = cache;
     return {
         ...rest,
-        decodedState: cache.audioBuffer ? 'failed' : cache.decodedState ?? 'failed',
-        decodedFailureReason: cache.audioBuffer ? 'decoded buffer omitted from undo payload' : cache.decodedFailureReason,
+        decodedState: cache.audioBuffer ? 'failed' : (cache.decodedState ?? 'failed'),
+        decodedFailureReason: cache.audioBuffer
+            ? 'decoded buffer omitted from undo payload'
+            : cache.decodedFailureReason,
     };
 }
 
@@ -201,7 +217,9 @@ async function prepareAudioSource(payload: { buffer?: AudioBuffer; file?: File }
                     file: arrayBuffer.byteLength,
                     decodedPcm: decodedPcmBytes,
                     retainedAudio:
-                        decodedPcmBytes + (originalFile.bytes?.byteLength ?? (originalFile.storage === 'indexeddb' ? 0 : arrayBuffer.byteLength)),
+                        decodedPcmBytes +
+                        (originalFile.bytes?.byteLength ??
+                            (originalFile.storage === 'indexeddb' ? 0 : arrayBuffer.byteLength)),
                 },
                 durationMs: performance.now() - decodeStartedAt,
             });
@@ -214,7 +232,9 @@ async function prepareAudioSource(payload: { buffer?: AudioBuffer; file?: File }
                     file: arrayBuffer.byteLength,
                     decodedPcm: decodedPcmBytes,
                     retainedAudio:
-                        decodedPcmBytes + (originalFile.bytes?.byteLength ?? (originalFile.storage === 'indexeddb' ? 0 : arrayBuffer.byteLength)),
+                        decodedPcmBytes +
+                        (originalFile.bytes?.byteLength ??
+                            (originalFile.storage === 'indexeddb' ? 0 : arrayBuffer.byteLength)),
                 },
                 durationMs: performance.now() - startedAt,
             });

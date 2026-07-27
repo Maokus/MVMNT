@@ -46,24 +46,30 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             }
             // Avoid needless state updates (round to integer pixels for crispness)
             const next = { w: Math.floor(drawW), h: Math.floor(drawH) };
-            setDisplaySize(prev => (prev.w === next.w && prev.h === next.h ? prev : next));
+            setDisplaySize((prev) => (prev.w === next.w && prev.h === next.h ? prev : next));
         };
         compute();
         const ro = new ResizeObserver(() => compute());
         ro.observe(el);
         window.addEventListener('resize', compute);
-        return () => { ro.disconnect(); window.removeEventListener('resize', compute); };
+        return () => {
+            ro.disconnect();
+            window.removeEventListener('resize', compute);
+        };
     }, [width, height]);
 
     // Thin wrapper handlers delegating to extracted utilities
     const visualizerInstance = (ctx as any).visualizer;
-    const handlerDeps = useMemo(() => ({
-        canvasRef,
-        visualizer: visualizerInstance,
-        selectElement,
-        updateElementConfig,
-        incrementPropertyPanelRefresh
-    }), [canvasRef, visualizerInstance, selectElement, updateElementConfig, incrementPropertyPanelRefresh]);
+    const handlerDeps = useMemo(
+        () => ({
+            canvasRef,
+            visualizer: visualizerInstance,
+            selectElement,
+            updateElementConfig,
+            incrementPropertyPanelRefresh,
+        }),
+        [canvasRef, visualizerInstance, selectElement, updateElementConfig, incrementPropertyPanelRefresh]
+    );
 
     const depsRef = useRef(handlerDeps);
     depsRef.current = handlerDeps;
@@ -75,13 +81,16 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
         onCanvasMouseMove(event, depsRef.current);
     }, []);
 
-    const handleCanvasMouseUpWindow = useCallback((event: MouseEvent) => {
-        if (!draggingRef.current) return;
-        draggingRef.current = false;
-        onCanvasMouseUp(event, depsRef.current);
-        window.removeEventListener('mousemove', handleCanvasMouseMoveWindow);
-        window.removeEventListener('mouseup', handleCanvasMouseUpWindow);
-    }, [handleCanvasMouseMoveWindow]);
+    const handleCanvasMouseUpWindow = useCallback(
+        (event: MouseEvent) => {
+            if (!draggingRef.current) return;
+            draggingRef.current = false;
+            onCanvasMouseUp(event, depsRef.current);
+            window.removeEventListener('mousemove', handleCanvasMouseMoveWindow);
+            window.removeEventListener('mouseup', handleCanvasMouseUpWindow);
+        },
+        [handleCanvasMouseMoveWindow]
+    );
 
     useEffect(() => {
         return () => {
@@ -135,7 +144,13 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             img.onload = () => {
                 if (isObjectUrl) URL.revokeObjectURL(url);
                 if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-                    addElement('image', { imageSource: assetId, offsetX, offsetY, width: img.naturalWidth, height: img.naturalHeight });
+                    addElement('image', {
+                        imageSource: assetId,
+                        offsetX,
+                        offsetY,
+                        width: img.naturalWidth,
+                        height: img.naturalHeight,
+                    });
                 } else {
                     addElement('image', { imageSource: assetId, offsetX, offsetY });
                 }
@@ -154,7 +169,7 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
         <div className="preview-panel">
             <div className="canvas-container" ref={containerRef}>
                 <canvas
-                    id='canvas'
+                    id="canvas"
                     ref={canvasRef}
                     width={width}
                     height={height}
@@ -164,7 +179,7 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
                         height: `${displaySize.h}px`,
                         maxWidth: '100%',
                         maxHeight: '100%',
-                        pointerEvents: interactive ? 'auto' : 'none'
+                        pointerEvents: interactive ? 'auto' : 'none',
                     }}
                     onMouseDown={interactive ? handleCanvasMouseDown : undefined}
                     onMouseMove={interactive ? handleCanvasMouseMove : undefined}

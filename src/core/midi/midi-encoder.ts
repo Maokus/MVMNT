@@ -111,13 +111,22 @@ export function encodeMidiToBinary(midiData: MIDIData): Uint8Array {
     // File layout: MThd + MTrk
     const fileBytes: number[] = [
         // MThd
-        0x4d, 0x54, 0x68, 0x64,
+        0x4d,
+        0x54,
+        0x68,
+        0x64,
         ...uint32BE(6),
-        0x00, 0x00, // format 0
-        0x00, 0x01, // 1 track
-        (tpq >> 8) & 0xff, tpq & 0xff,
+        0x00,
+        0x00, // format 0
+        0x00,
+        0x01, // 1 track
+        (tpq >> 8) & 0xff,
+        tpq & 0xff,
         // MTrk
-        0x4d, 0x54, 0x72, 0x6b,
+        0x4d,
+        0x54,
+        0x72,
+        0x6b,
         ...uint32BE(trackBytes.length),
         ...trackBytes,
     ];
@@ -127,11 +136,5 @@ export function encodeMidiToBinary(midiData: MIDIData): Uint8Array {
 
 /** Returns true if the bytes look like a binary MIDI file (MThd header). */
 export function isMidiBinary(bytes: Uint8Array): boolean {
-    return (
-        bytes.length >= 4 &&
-        bytes[0] === 0x4d &&
-        bytes[1] === 0x54 &&
-        bytes[2] === 0x68 &&
-        bytes[3] === 0x64
-    );
+    return bytes.length >= 4 && bytes[0] === 0x4d && bytes[1] === 0x54 && bytes[2] === 0x68 && bytes[3] === 0x64;
 }

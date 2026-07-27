@@ -23,10 +23,12 @@ export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!controllerRef.current) {
             // timelineStore is imported; we just pass store reference (not used internally yet but future-proof)
             controllerRef.current = createPatchUndoController(useTimelineStore, { maxDepth: 50 });
-            try { console.debug('[Persistence] UndoProvider controller created (enabled=', enabled, ')'); } catch { }
+            try {
+                console.debug('[Persistence] UndoProvider controller created (enabled=', enabled, ')');
+            } catch {}
         }
         // Force a tick so consumers re-read canUndo/canRedo
-        const id = setInterval(() => forceTick(t => t + 1), 500); // lightweight polling to update buttons if added later
+        const id = setInterval(() => forceTick((t) => t + 1), 500); // lightweight polling to update buttons if added later
         return () => clearInterval(id);
     }, [enabled]);
 
@@ -40,14 +42,14 @@ export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     if (controllerRef.current?.canRedo()) {
                         e.preventDefault();
                         controllerRef.current.redo();
-                        forceTick(t => t + 1);
+                        forceTick((t) => t + 1);
                         window.dispatchEvent(new CustomEvent('mvmnt-undo-applied'));
                     }
                 } else {
                     if (controllerRef.current?.canUndo()) {
                         e.preventDefault();
                         controllerRef.current.undo();
-                        forceTick(t => t + 1);
+                        forceTick((t) => t + 1);
                         window.dispatchEvent(new CustomEvent('mvmnt-undo-applied'));
                     }
                 }
@@ -55,7 +57,7 @@ export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 if (controllerRef.current?.canRedo()) {
                     e.preventDefault();
                     controllerRef.current.redo();
-                    forceTick(t => t + 1);
+                    forceTick((t) => t + 1);
                     window.dispatchEvent(new CustomEvent('mvmnt-undo-applied'));
                 }
             }
@@ -64,14 +66,28 @@ export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return () => window.removeEventListener('keydown', handler);
     }, [enabled]);
 
-    const value: UndoContextValue = useMemo(() => ({
-        canUndo: !!controllerRef.current?.canUndo(),
-        canRedo: !!controllerRef.current?.canRedo(),
-        undo: () => { controllerRef.current?.undo(); forceTick(t => t + 1); window.dispatchEvent(new CustomEvent('mvmnt-undo-applied')); },
-        redo: () => { controllerRef.current?.redo(); forceTick(t => t + 1); window.dispatchEvent(new CustomEvent('mvmnt-undo-applied')); },
-        reset: () => { controllerRef.current?.reset(); forceTick(t => t + 1); },
-        enabled,
-    }), [enabled, forceTick]);
+    const value: UndoContextValue = useMemo(
+        () => ({
+            canUndo: !!controllerRef.current?.canUndo(),
+            canRedo: !!controllerRef.current?.canRedo(),
+            undo: () => {
+                controllerRef.current?.undo();
+                forceTick((t) => t + 1);
+                window.dispatchEvent(new CustomEvent('mvmnt-undo-applied'));
+            },
+            redo: () => {
+                controllerRef.current?.redo();
+                forceTick((t) => t + 1);
+                window.dispatchEvent(new CustomEvent('mvmnt-undo-applied'));
+            },
+            reset: () => {
+                controllerRef.current?.reset();
+                forceTick((t) => t + 1);
+            },
+            enabled,
+        }),
+        [enabled, forceTick]
+    );
 
     return <UndoContext.Provider value={value}>{children}</UndoContext.Provider>;
 };

@@ -35,14 +35,14 @@ function seedTrack() {
 function applyUndo(patches: any) {
     applyTimelinePatchActions(
         { getState: useTimelineStore.getState, setState: useTimelineStore.setState },
-        patches.undo,
+        patches.undo
     );
 }
 
 function applyRedo(patches: any) {
     applyTimelinePatchActions(
         { getState: useTimelineStore.getState, setState: useTimelineStore.setState },
-        patches.redo,
+        patches.redo
     );
 }
 

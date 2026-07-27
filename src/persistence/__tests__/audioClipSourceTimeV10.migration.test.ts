@@ -9,13 +9,27 @@ describe('audio clip source-time V10 migration', () => {
                 timeline: {
                     globalBpm: 120,
                     beatsPerBar: 4,
-                    masterTempoMap: [{ time: 0, bpm: 120 }, { time: 2, bpm: 60 }],
+                    masterTempoMap: [
+                        { time: 0, bpm: 120 },
+                        { time: 2, bpm: 60 },
+                    ],
                 },
                 audioCache: { source: { durationSeconds: 5, durationTicks: 0 } },
                 tracks: {
                     track: {
-                        id: 'track', type: 'audio', audioSourceId: 'source',
-                        clips: [{ id: 'clip', type: 'audio', sourceId: 'source', offsetTicks: 3 * 960, regionStartTick: 0, regionEndTick: 3 * 960 }],
+                        id: 'track',
+                        type: 'audio',
+                        audioSourceId: 'source',
+                        clips: [
+                            {
+                                id: 'clip',
+                                type: 'audio',
+                                sourceId: 'source',
+                                offsetTicks: 3 * 960,
+                                regionStartTick: 0,
+                                regionEndTick: 3 * 960,
+                            },
+                        ],
                     },
                 },
             },

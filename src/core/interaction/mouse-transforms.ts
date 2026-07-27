@@ -56,7 +56,8 @@ export function computeAnchorAdjustment(mouseX: number, mouseY: number, p: Ancho
     const inverse = invertAffineTransform(affineWithOrigin);
     const localPointer = inverse ? applyAffinePoint(inverse, { x: mouseX, y: mouseY }) : null;
     const inverseWarp = warpMatrix ? invertHomography(warpMatrix) : null;
-    const unwarpedPointer = inverseWarp && localPointer ? unwarpLocalPoint(inverseWarp, baseBounds, localPointer) : localPointer;
+    const unwarpedPointer =
+        inverseWarp && localPointer ? unwarpLocalPoint(inverseWarp, baseBounds, localPointer) : localPointer;
     const pointerLocal = unwarpedPointer ?? oldAnchorLocal;
     let anchorX = clamp01((pointerLocal.x - baseBounds.x) / (baseBounds.width || 1));
     let anchorY = clamp01((pointerLocal.y - baseBounds.y) / (baseBounds.height || 1));

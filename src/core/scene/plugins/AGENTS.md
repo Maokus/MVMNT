@@ -4,13 +4,13 @@ This directory implements host runtime adapters for the public `packages/plugin-
 
 ## Key Files
 
-| File                              | Role                                                                                                                  |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `sdk/render.ts`                   | Host render-object implementation injected for the public SDK render module. |
-| `host-api/plugin-api.ts`          | Defines `PLUGIN_CAPABILITIES`, private host service interfaces, and `createPluginHostServices()`.                    |
-| `plugin-safety.ts`                | `withRenderSafety`, `limitRenderObjects`, `checkCapability`, and related safety utilities.                            |
-| `plugin-loader.ts`                | Runtime plugin loader; emits warnings for legacy `@core/` requires.                                                   |
-| `version-check.ts`                | Semver compatibility check between plugin and host API versions.                                                      |
+| File                     | Role                                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------- |
+| `sdk/render.ts`          | Host render-object implementation injected for the public SDK render module.                      |
+| `host-api/plugin-api.ts` | Defines `PLUGIN_CAPABILITIES`, private host service interfaces, and `createPluginHostServices()`. |
+| `plugin-safety.ts`       | `withRenderSafety`, `limitRenderObjects`, `checkCapability`, and related safety utilities.        |
+| `plugin-loader.ts`       | Runtime plugin loader; emits warnings for legacy `@core/` requires.                               |
+| `version-check.ts`       | Semver compatibility check between plugin and host API versions.                                  |
 
 ## Capabilities
 

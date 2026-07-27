@@ -74,7 +74,7 @@ export function migrateDescriptorChannels(descriptor: unknown): MigratedDescript
 }
 
 export function buildChannelSelectorMap(
-    results: MigratedDescriptorChannelsResult[],
+    results: MigratedDescriptorChannelsResult[]
 ): Record<string, MigratedDescriptorChannelSelector> {
     const map: Record<string, MigratedDescriptorChannelSelector> = {};
     for (const entry of results) {

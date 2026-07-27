@@ -80,7 +80,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     const macrosSource = useMemo(() => macroList as any[], [macroList]);
     const macroLookup = useMemo(
         () => new Map((macrosSource as any[]).map((macro: any) => [macro.name, macro])),
-        [macrosSource],
+        [macrosSource]
     );
     const reportedUnsupportedTypesRef = useRef<Set<string>>(new Set());
 
@@ -113,7 +113,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                 }
             }
             return (macrosSource as any[]).filter(
-                (macro: any) => macro.type === targetFileType || macro.type === 'file',
+                (macro: any) => macro.type === targetFileType || macro.type === 'file'
             );
         }
         if (macroType === 'font') {
@@ -121,7 +121,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         }
         if (macroType === 'colorAlpha') {
             return (macrosSource as any[]).filter(
-                (macro: any) => macro.type === 'colorAlpha' || macro.type === 'color',
+                (macro: any) => macro.type === 'colorAlpha' || macro.type === 'color'
             );
         }
         if (macroType === 'assetRef') {
@@ -130,7 +130,10 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         return (macrosSource as any[]).filter((macro: any) => macro.type === macroType);
     };
 
-    const mapPropertyToMacroType = (prop: PropertyDefinition, currentValue: any): { type: string; options: any; value: any } => {
+    const mapPropertyToMacroType = (
+        prop: PropertyDefinition,
+        currentValue: any
+    ): { type: string; options: any; value: any } => {
         let macroType: string = prop.type;
         if (macroType === 'file') {
             if (prop.accept) {
@@ -249,12 +252,13 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
         const generateMacroName = () => {
             const baseSource = property.label || property.key || 'Macro';
-            const base = baseSource
-                .replace(/[^a-zA-Z0-9]+/g, ' ')
-                .trim()
-                .split(/\s+/)
-                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                .join('') || 'Macro';
+            const base =
+                baseSource
+                    .replace(/[^a-zA-Z0-9]+/g, ' ')
+                    .trim()
+                    .split(/\s+/)
+                    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                    .join('') || 'Macro';
             let candidate = base;
             let i = 1;
             while (macroLookup.has(candidate)) {
@@ -369,8 +373,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             return (
                 <div
                     key={property.key}
-                    className={`ae-property-row ae-property-row-error${nested ? ' ae-property-row-nested' : ''
-                        }`}
+                    className={`ae-property-row ae-property-row-error${nested ? ' ae-property-row-nested' : ''}`}
                 >
                     <div className="ae-property-label">
                         <span className="ae-property-name" title={property.description}>
@@ -393,8 +396,8 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         const schemaForInput = (() => {
             if (property.type === 'audioAnalysisProfile') {
                 const trackRef = property.trackPropertyKey
-                    ? values[property.trackPropertyKey] ?? null
-                    : values.audioTrackId ?? null;
+                    ? (values[property.trackPropertyKey] ?? null)
+                    : (values.audioTrackId ?? null);
                 return {
                     ...property,
                     trackId: trackRef,
@@ -430,19 +433,31 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                 style={
                     nested
                         ? {
-                            paddingLeft: '12px',
-                            borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
-                        }
+                              paddingLeft: '12px',
+                              borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
+                          }
                         : undefined
                 }
-                onMouseEnter={isAutomatableType(property.type) ? () => {
-                    hoveredPropertyRef.current = { elementId, propertyKey: property.key, propertyType: property.type };
-                } : undefined}
-                onMouseLeave={isAutomatableType(property.type) ? () => {
-                    if (hoveredPropertyRef.current?.propertyKey === property.key) {
-                        hoveredPropertyRef.current = null;
-                    }
-                } : undefined}
+                onMouseEnter={
+                    isAutomatableType(property.type)
+                        ? () => {
+                              hoveredPropertyRef.current = {
+                                  elementId,
+                                  propertyKey: property.key,
+                                  propertyType: property.type,
+                              };
+                          }
+                        : undefined
+                }
+                onMouseLeave={
+                    isAutomatableType(property.type)
+                        ? () => {
+                              if (hoveredPropertyRef.current?.propertyKey === property.key) {
+                                  hoveredPropertyRef.current = null;
+                              }
+                          }
+                        : undefined
+                }
             >
                 <div className="ae-property-label">
                     <span className="ae-property-name" title={property.description}>
@@ -489,19 +504,22 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
     const groupDescription = group.description?.trim() ?? '';
 
-    const propertyRows: React.ReactNode = useLayout && group.layout && onValuesChange ? (
-        <PropertyLayoutRenderer
-            nodes={group.layout}
-            properties={properties}
-            values={values}
-            renderProperty={(property, nested) => renderPropertyRow(property, { nested })}
-            isDisabled={(propertyKey) => {
-                const assigned = macroAssignments[propertyKey];
-                return Boolean(assigned && macroLookup.has(assigned));
-            }}
-            onPatch={(patch, gesture) => onValuesChange(patch, gesture ? { mergeSession: gesture } : undefined)}
-        />
-    ) : properties.map((property) => renderPropertyRow(property));
+    const propertyRows: React.ReactNode =
+        useLayout && group.layout && onValuesChange ? (
+            <PropertyLayoutRenderer
+                nodes={group.layout}
+                properties={properties}
+                values={values}
+                renderProperty={(property, nested) => renderPropertyRow(property, { nested })}
+                isDisabled={(propertyKey) => {
+                    const assigned = macroAssignments[propertyKey];
+                    return Boolean(assigned && macroLookup.has(assigned));
+                }}
+                onPatch={(patch, gesture) => onValuesChange(patch, gesture ? { mergeSession: gesture } : undefined)}
+            />
+        ) : (
+            properties.map((property) => renderPropertyRow(property))
+        );
 
     return (
         <div className="ae-property-group">
@@ -523,15 +541,14 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                 </div>
             </div>
 
-            {!group.collapsed && (
-                properties.length === 0 ? (
+            {!group.collapsed &&
+                (properties.length === 0 ? (
                     <div className="ae-property-list ae-property-list-empty">
                         <span className="ae-property-empty">No properties to display.</span>
                     </div>
                 ) : (
                     <div className="ae-property-list">{propertyRows}</div>
-                )
-            )}
+                ))}
         </div>
     );
 };

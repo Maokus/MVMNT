@@ -29,7 +29,8 @@ const SCALING_MODE_OPTIONS: Array<{ id: ResizeScalingMode; label: string; descri
     {
         id: 'reposition',
         label: 'Reposition',
-        description: 'Shift positions proportionally (corner-snap for static, proportional for animated), keep sizes unchanged',
+        description:
+            'Shift positions proportionally (corner-snap for static, proportional for animated), keep sizes unchanged',
     },
     {
         id: 'none',
@@ -64,11 +65,11 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
     const endTick = playbackRange?.endTick ?? view.endTick;
     const startBars = useMemo(() => {
         if (typeof startTick !== 'number') return 0;
-        return (startTick / CANONICAL_PPQ) / (beatsPerBar || 4);
+        return startTick / CANONICAL_PPQ / (beatsPerBar || 4);
     }, [startTick, beatsPerBar]);
     const endBars = useMemo(() => {
         if (typeof endTick !== 'number') return 0;
-        return (endTick / CANONICAL_PPQ) / (beatsPerBar || 4);
+        return endTick / CANONICAL_PPQ / (beatsPerBar || 4);
     }, [endTick, beatsPerBar]);
 
     const [localWidth, setLocalWidth] = useState<string>(() => String(exportSettings.width));
@@ -81,19 +82,38 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
     const [localSceneId, setLocalSceneId] = useState<string>(() => metadata.id);
     const [localDescription, setLocalDescription] = useState<string>(() => metadata.description ?? '');
     const [localAuthor, setLocalAuthor] = useState<string>(() => metadata.author ?? '');
-    const [devPluginConnection, setDevPluginConnection] = useState<DevPluginConnectionStatus>(getDevPluginConnectionStatus);
+    const [devPluginConnection, setDevPluginConnection] =
+        useState<DevPluginConnectionStatus>(getDevPluginConnectionStatus);
 
     useEffect(() => subscribeToDevPluginConnectionStatus(setDevPluginConnection), []);
 
-    useEffect(() => { setLocalWidth(String(exportSettings.width)); }, [exportSettings.width]);
-    useEffect(() => { setLocalHeight(String(exportSettings.height)); }, [exportSettings.height]);
-    useEffect(() => { setLocalFps(String(exportSettings.fps)); }, [exportSettings.fps]);
-    useEffect(() => { setLocalStartBars(String(Number.isFinite(startBars) ? startBars : 0)); }, [startBars]);
-    useEffect(() => { setLocalEndBars(String(Number.isFinite(endBars) ? endBars : 0)); }, [endBars]);
-    useEffect(() => { setLocalSceneName(metadata.name); }, [metadata.name]);
-    useEffect(() => { setLocalSceneId(metadata.id); }, [metadata.id]);
-    useEffect(() => { setLocalDescription(metadata.description ?? ''); }, [metadata.description]);
-    useEffect(() => { setLocalAuthor(metadata.author ?? ''); }, [metadata.author]);
+    useEffect(() => {
+        setLocalWidth(String(exportSettings.width));
+    }, [exportSettings.width]);
+    useEffect(() => {
+        setLocalHeight(String(exportSettings.height));
+    }, [exportSettings.height]);
+    useEffect(() => {
+        setLocalFps(String(exportSettings.fps));
+    }, [exportSettings.fps]);
+    useEffect(() => {
+        setLocalStartBars(String(Number.isFinite(startBars) ? startBars : 0));
+    }, [startBars]);
+    useEffect(() => {
+        setLocalEndBars(String(Number.isFinite(endBars) ? endBars : 0));
+    }, [endBars]);
+    useEffect(() => {
+        setLocalSceneName(metadata.name);
+    }, [metadata.name]);
+    useEffect(() => {
+        setLocalSceneId(metadata.id);
+    }, [metadata.id]);
+    useEffect(() => {
+        setLocalDescription(metadata.description ?? '');
+    }, [metadata.description]);
+    useEffect(() => {
+        setLocalAuthor(metadata.author ?? '');
+    }, [metadata.author]);
 
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
@@ -106,14 +126,13 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
     // Pending (normalised but not yet applied) dimensions
     const pendingWidth = useMemo(
         () => clampPositiveInt(parseInt(localWidth, 10), exportSettings.width),
-        [localWidth, exportSettings.width],
+        [localWidth, exportSettings.width]
     );
     const pendingHeight = useMemo(
         () => clampPositiveInt(parseInt(localHeight, 10), exportSettings.height),
-        [localHeight, exportSettings.height],
+        [localHeight, exportSettings.height]
     );
-    const hasResizeChanges =
-        pendingWidth !== exportSettings.width || pendingHeight !== exportSettings.height;
+    const hasResizeChanges = pendingWidth !== exportSettings.width || pendingHeight !== exportSettings.height;
 
     // Normalise width/height inputs on blur/Enter without committing the resize
     const normalizeWidth = () => setLocalWidth(String(pendingWidth));
@@ -128,7 +147,11 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
         if (newWidth === oldWidth && newHeight === oldHeight) return;
 
         const mergeKey = `resize-elements-${Date.now()}`;
-        const { bindings: { byElement }, order, automation } = useSceneStore.getState();
+        const {
+            bindings: { byElement },
+            order,
+            automation,
+        } = useSceneStore.getState();
         const wRatio = newWidth / oldWidth;
         const hRatio = newHeight / oldHeight;
         const dw = newWidth - oldWidth;
@@ -138,12 +161,12 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
             const refPoints =
                 scalingMode === 'reposition'
                     ? [
-                        { x: 0, y: 0, dx: 0, dy: 0 },
-                        { x: oldWidth, y: 0, dx: dw, dy: 0 },
-                        { x: 0, y: oldHeight, dx: 0, dy: dh },
-                        { x: oldWidth, y: oldHeight, dx: dw, dy: dh },
-                        { x: oldWidth / 2, y: oldHeight / 2, dx: dw / 2, dy: dh / 2 },
-                    ]
+                          { x: 0, y: 0, dx: 0, dy: 0 },
+                          { x: oldWidth, y: 0, dx: dw, dy: 0 },
+                          { x: 0, y: oldHeight, dx: 0, dy: dh },
+                          { x: oldWidth, y: oldHeight, dx: dw, dy: dh },
+                          { x: oldWidth / 2, y: oldHeight / 2, dx: dw / 2, dy: dh / 2 },
+                      ]
                     : null;
 
             for (const elementId of order) {
@@ -157,8 +180,10 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                     const oxB = elBindings['offsetX'];
                     const oyB = elBindings['offsetY'];
                     if (
-                        oxB?.type === 'constant' && typeof oxB.value === 'number' &&
-                        oyB?.type === 'constant' && typeof oyB.value === 'number'
+                        oxB?.type === 'constant' &&
+                        typeof oxB.value === 'number' &&
+                        oyB?.type === 'constant' &&
+                        typeof oyB.value === 'number'
                     ) {
                         const ox = oxB.value;
                         const oy = oyB.value;
@@ -167,7 +192,11 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                         let bestDy = 0;
                         for (const ref of refPoints!) {
                             const d = Math.hypot(ox - ref.x, oy - ref.y);
-                            if (d < minDist) { minDist = d; bestDx = ref.dx; bestDy = ref.dy; }
+                            if (d < minDist) {
+                                minDist = d;
+                                bestDx = ref.dx;
+                                bestDy = ref.dy;
+                            }
                         }
                         if (bestDx !== 0) patch['offsetX'] = ox + bestDx;
                         if (bestDy !== 0) patch['offsetY'] = oy + bestDy;
@@ -197,10 +226,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                 }
 
                 if (Object.keys(patch).length > 0) {
-                    dispatchSceneCommand(
-                        { type: 'updateElementConfig', elementId, patch },
-                        { mergeKey },
-                    );
+                    dispatchSceneCommand({ type: 'updateElementConfig', elementId, patch }, { mergeKey });
                 }
 
                 // ── Keyframe bindings ──────────────────────────────────────────────
@@ -213,14 +239,11 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                         { propKey: 'offsetX', ratio: wRatio },
                         { propKey: 'offsetY', ratio: hRatio },
                         { propKey: 'elementScaleX', ratio: wRatio },
-                        { propKey: 'elementScaleY', ratio: hRatio },
+                        { propKey: 'elementScaleY', ratio: hRatio }
                     );
                 } else {
                     // reposition: only shift positions, not sizes
-                    kfProps.push(
-                        { propKey: 'offsetX', ratio: wRatio },
-                        { propKey: 'offsetY', ratio: hRatio },
-                    );
+                    kfProps.push({ propKey: 'offsetX', ratio: wRatio }, { propKey: 'offsetY', ratio: hRatio });
                 }
 
                 for (const { propKey, ratio } of kfProps) {
@@ -234,7 +257,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                     }));
                     dispatchSceneCommand(
                         { type: 'batchUpdateKeyframes', channelId: channel.id, keyframes: newKeyframes },
-                        { mergeKey },
+                        { mergeKey }
                     );
                 }
             }
@@ -242,7 +265,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
 
         dispatchSceneCommand(
             { type: 'updateSceneSettings', patch: { width: newWidth, height: newHeight } },
-            { mergeKey },
+            { mergeKey }
         );
         setExportSettings((prev: any) => ({ ...prev, width: newWidth, height: newHeight }));
         setLocalWidth(String(newWidth));
@@ -314,7 +337,9 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
         }
     };
 
-    const [activeTab, setActiveTab] = useState<'general' | 'caches' | 'fonts' | 'debug' | 'metadata' | 'plugins'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'caches' | 'fonts' | 'debug' | 'metadata' | 'plugins'>(
+        'general'
+    );
 
     const tabs: Array<{ id: typeof activeTab; label: string }> = useMemo(
         () => [
@@ -325,7 +350,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
             { id: 'debug', label: 'Debug' },
             { id: 'metadata', label: 'Metadata' },
         ],
-        [],
+        []
     );
 
     return (
@@ -353,10 +378,11 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                             key={tab.id}
                             type="button"
                             onClick={() => setActiveTab(tab.id)}
-                            className={`rounded px-3 py-1 text-[12px] transition-colors ${activeTab === tab.id
-                                ? 'bg-sky-600/20 text-sky-200'
-                                : 'text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-100'
-                                }`}
+                            className={`rounded px-3 py-1 text-[12px] transition-colors ${
+                                activeTab === tab.id
+                                    ? 'bg-sky-600/20 text-sky-200'
+                                    : 'text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-100'
+                            }`}
                         >
                             {tab.label}
                         </button>
@@ -440,10 +466,11 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                     type="button"
                                     disabled={!hasResizeChanges}
                                     onClick={applyResize}
-                                    className={`rounded px-4 py-1.5 text-[12px] font-medium transition-colors ${hasResizeChanges
+                                    className={`rounded px-4 py-1.5 text-[12px] font-medium transition-colors ${
+                                        hasResizeChanges
                                             ? 'bg-sky-600 text-white hover:bg-sky-500'
                                             : 'cursor-not-allowed bg-neutral-700/50 text-neutral-500'
-                                        }`}
+                                    }`}
                                 >
                                     Apply Resize
                                 </button>
@@ -499,7 +526,8 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                         <div className="flex flex-col gap-3">
                             <h3 className="m-0 text-[13px] font-semibold text-white">Fonts</h3>
                             <p className="m-0 text-[12px] text-neutral-400">
-                                Upload custom fonts for this scene and manage the shared font library available to font pickers.
+                                Upload custom fonts for this scene and manage the shared font library available to font
+                                pickers.
                             </p>
                             <SceneFontManager />
                         </div>
@@ -512,7 +540,9 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                 <input
                                     type="checkbox"
                                     checked={!!debugSettings?.showAnchorPoints}
-                                    onChange={(e) => setDebugSettings((prev) => ({ ...prev, showAnchorPoints: e.target.checked }))}
+                                    onChange={(e) =>
+                                        setDebugSettings((prev) => ({ ...prev, showAnchorPoints: e.target.checked }))
+                                    }
                                 />
                                 Show Anchor Points
                             </label>
@@ -532,22 +562,37 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                             <div className="mt-2 rounded border border-neutral-700 bg-neutral-800/40 p-3">
                                 <div className="flex items-center justify-between gap-3">
                                     <div>
-                                        <h4 className="m-0 text-[12px] font-medium text-neutral-100">Development Plugin Server</h4>
+                                        <h4 className="m-0 text-[12px] font-medium text-neutral-100">
+                                            Development Plugin Server
+                                        </h4>
                                         <p className="m-0 mt-1 text-[11px] text-neutral-400">
-                                            {devPluginConnection.state === 'idle' && 'Not connected. Connect to enable development plugin hot reload.'}
-                                            {devPluginConnection.state === 'connecting' && `Scanning local ports ${devPluginConnection.portRange}…`}
-                                            {devPluginConnection.state === 'connected' && (devPluginConnection.scanning ? `Connected while scanning ports ${devPluginConnection.portRange}.` : 'Connected to a development plugin server.')}
-                                            {devPluginConnection.state === 'failed' && `No development plugin server responded on ports ${devPluginConnection.portRange}.`}
-                                            {devPluginConnection.state === 'unavailable' && 'Development plugin servers are available only while running MVMNT in development mode.'}
+                                            {devPluginConnection.state === 'idle' &&
+                                                'Not connected. Connect to enable development plugin hot reload.'}
+                                            {devPluginConnection.state === 'connecting' &&
+                                                `Scanning local ports ${devPluginConnection.portRange}…`}
+                                            {devPluginConnection.state === 'connected' &&
+                                                (devPluginConnection.scanning
+                                                    ? `Connected while scanning ports ${devPluginConnection.portRange}.`
+                                                    : 'Connected to a development plugin server.')}
+                                            {devPluginConnection.state === 'failed' &&
+                                                `No development plugin server responded on ports ${devPluginConnection.portRange}.`}
+                                            {devPluginConnection.state === 'unavailable' &&
+                                                'Development plugin servers are available only while running MVMNT in development mode.'}
                                         </p>
                                     </div>
                                     <button
                                         type="button"
                                         onClick={connectToDevPluginServer}
-                                        disabled={devPluginConnection.scanning || devPluginConnection.state === 'unavailable'}
+                                        disabled={
+                                            devPluginConnection.scanning || devPluginConnection.state === 'unavailable'
+                                        }
                                         className="shrink-0 rounded bg-sky-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-400"
                                     >
-                                        {devPluginConnection.scanning ? 'Scanning…' : devPluginConnection.servers.length > 0 ? 'Scan Again' : 'Scan'}
+                                        {devPluginConnection.scanning
+                                            ? 'Scanning…'
+                                            : devPluginConnection.servers.length > 0
+                                              ? 'Scan Again'
+                                              : 'Scan'}
                                     </button>
                                 </div>
                                 <div className="mt-3 border-t border-neutral-700 pt-3">
@@ -558,13 +603,17 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                                 type="checkbox"
                                                 checked={devPluginConnection.continuousScanning}
                                                 disabled={devPluginConnection.state === 'unavailable'}
-                                                onChange={(event) => setDevPluginServerContinuousScanning(event.target.checked)}
+                                                onChange={(event) =>
+                                                    setDevPluginServerContinuousScanning(event.target.checked)
+                                                }
                                             />
                                             Continue scanning
                                         </label>
                                     </div>
                                     {devPluginConnection.continuousScanning && (
-                                        <p className="m-0 mt-1 text-[11px] text-neutral-500">Checks once every few seconds for servers that start later.</p>
+                                        <p className="m-0 mt-1 text-[11px] text-neutral-500">
+                                            Checks once every few seconds for servers that start later.
+                                        </p>
                                     )}
                                     <div className="mt-2 rounded bg-neutral-950/40 px-2 py-1.5 text-[11px]">
                                         <div className="font-medium text-neutral-300">Connected servers</div>
@@ -649,11 +698,15 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                             <div className="grid grid-cols-1 gap-3 text-[11px] text-neutral-400 sm:grid-cols-2">
                                 <div>
                                     <span className="block uppercase tracking-wide text-neutral-500">Created</span>
-                                    <span className="block text-neutral-300">{formatTimestamp(metadata.createdAt)}</span>
+                                    <span className="block text-neutral-300">
+                                        {formatTimestamp(metadata.createdAt)}
+                                    </span>
                                 </div>
                                 <div>
                                     <span className="block uppercase tracking-wide text-neutral-500">Modified</span>
-                                    <span className="block text-neutral-300">{formatTimestamp(metadata.modifiedAt)}</span>
+                                    <span className="block text-neutral-300">
+                                        {formatTimestamp(metadata.modifiedAt)}
+                                    </span>
                                 </div>
                             </div>
                         </div>

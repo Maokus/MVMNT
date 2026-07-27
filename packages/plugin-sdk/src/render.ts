@@ -33,7 +33,14 @@ export declare abstract class RenderObject {
     blendMode: GlobalCompositeOperation | null;
     filter: string | null;
     readonly children: RenderObject[];
-    protected constructor(x?: number, y?: number, scaleX?: number, scaleY?: number, opacity?: number, options?: RenderObjectOptions);
+    protected constructor(
+        x?: number,
+        y?: number,
+        scaleX?: number,
+        scaleY?: number,
+        opacity?: number,
+        options?: RenderObjectOptions
+    );
     setOrigin(x: number, y: number): this;
     setOriginFraction(x: number, y: number): this;
     setOpacity(alpha: number): this;
@@ -55,12 +62,25 @@ export declare abstract class RenderObject {
 export declare abstract class BoxRenderObject extends RenderObject {
     width: number;
     height: number;
-    constructor(x: number, y: number, width: number, height: number, options?: Pick<RenderObjectOptions, 'layoutParticipation'>);
+    constructor(
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        options?: Pick<RenderObjectOptions, 'layoutParticipation'>
+    );
     setSize(width: number, height: number): this;
 }
 
 export declare class EmptyRenderObject extends RenderObject {
-    constructor(x?: number, y?: number, scaleX?: number, scaleY?: number, opacity?: number, options?: Pick<RenderObjectOptions, 'layoutParticipation'>);
+    constructor(
+        x?: number,
+        y?: number,
+        scaleX?: number,
+        scaleY?: number,
+        opacity?: number,
+        options?: Pick<RenderObjectOptions, 'layoutParticipation'>
+    );
 }
 
 export interface FillStyle {
@@ -221,9 +241,15 @@ export declare class ClipLayer extends EmptyRenderObject {
 }
 
 export type FramePlacementPreset =
-    | 'center' | 'top-left' | 'top-center' | 'top-right'
-    | 'center-left' | 'center-right'
-    | 'bottom-left' | 'bottom-center' | 'bottom-right';
+    | 'center'
+    | 'top-left'
+    | 'top-center'
+    | 'top-right'
+    | 'center-left'
+    | 'center-right'
+    | 'bottom-left'
+    | 'bottom-center'
+    | 'bottom-right';
 export interface FramePlacementCustom {
     readonly container: [number, number];
     readonly frame: [number, number];

@@ -87,11 +87,11 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
         set((state) => ({
             plugins: {
                 ...state.plugins,
-                    [manifest.id]: {
-                        manifest,
-                        enabled,
-                        source,
-                        loadedAt: Date.now(),
+                [manifest.id]: {
+                    manifest,
+                    enabled,
+                    source,
+                    loadedAt: Date.now(),
                 },
             },
         }));

@@ -27,13 +27,7 @@ export class Rectangle extends BoxRenderObject {
     shadowOffsetX: number;
     shadowOffsetY: number;
 
-    constructor(
-        x: number,
-        y: number,
-        width: number,
-        height: number,
-        options: RectangleOptions = {}
-    ) {
+    constructor(x: number, y: number, width: number, height: number, options: RectangleOptions = {}) {
         const maxPosition = 1_000_000;
         const maxSize = 1_000_000;
         const clampedX = Math.max(-maxPosition, Math.min(maxPosition, x));

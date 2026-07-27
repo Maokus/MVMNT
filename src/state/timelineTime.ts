@@ -75,11 +75,7 @@ export function ticksToBeats(context: TimelineTimingContext, ticks: number): num
  * With a tempo map the answer depends on the tempo(s) active during the
  * window [atTick, atTick + …].
  */
-export function secondsToTicksAt(
-    context: TimelineTimingContext,
-    durationSeconds: number,
-    atTick: number,
-): number {
+export function secondsToTicksAt(context: TimelineTimingContext, durationSeconds: number, atTick: number): number {
     const startSeconds = ticksToSeconds(context, atTick);
     const endSeconds = startSeconds + durationSeconds;
     const endTicks = secondsToTicks(context, endSeconds);
@@ -90,11 +86,7 @@ export function secondsToTicksAt(
  * Inverse of `secondsToTicksAt`: convert a tick span back to seconds
  * at a specific timeline position.
  */
-export function ticksToSecondsAt(
-    context: TimelineTimingContext,
-    durationTicks: number,
-    atTick: number,
-): number {
+export function ticksToSecondsAt(context: TimelineTimingContext, durationTicks: number, atTick: number): number {
     const startSeconds = ticksToSeconds(context, atTick);
     const endSeconds = ticksToSeconds(context, atTick + durationTicks);
     return endSeconds - startSeconds;

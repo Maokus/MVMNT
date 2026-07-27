@@ -48,9 +48,7 @@ describe('font-loader', () => {
             createdAt: now,
             updatedAt: now,
             licensingAcknowledged: true,
-            variants: [
-                { id: 'regular', weight: 400, style: 'normal', sourceFormat: 'ttf' },
-            ],
+            variants: [{ id: 'regular', weight: 400, style: 'normal', sourceFormat: 'ttf' }],
         };
     }
 

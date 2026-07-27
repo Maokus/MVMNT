@@ -81,9 +81,7 @@ interface AutomatableProperty {
     default?: unknown;
 }
 
-type ListItem =
-    | { kind: 'preset'; preset: ShortcutPreset }
-    | { kind: 'property'; prop: AutomatableProperty };
+type ListItem = { kind: 'preset'; preset: ShortcutPreset } | { kind: 'property'; prop: AutomatableProperty };
 
 interface InsertKeyframePopupProps {
     position: { x: number; y: number };
@@ -117,7 +115,13 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
         for (const group of schema.tabs.flatMap((t) => t.groups)) {
             for (const prop of group.properties) {
                 if (resolveAutomationValueType(prop.type)) {
-                    result.push({ key: prop.key, label: prop.label, groupLabel: group.label, type: prop.type, default: prop.default });
+                    result.push({
+                        key: prop.key,
+                        label: prop.label,
+                        groupLabel: group.label,
+                        type: prop.type,
+                        default: prop.default,
+                    });
                 }
             }
         }
@@ -128,7 +132,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
         const q = search.toLowerCase().trim();
 
         const matchingPresets = SHORTCUT_PRESETS.filter(
-            (p) => !q || p.label.toLowerCase().includes(q) || p.id.includes(q),
+            (p) => !q || p.label.toLowerCase().includes(q) || p.id.includes(q)
         );
 
         if (!q) {
@@ -142,7 +146,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
             (p) =>
                 p.label.toLowerCase().includes(q) ||
                 p.key.toLowerCase().includes(q) ||
-                p.groupLabel.toLowerCase().includes(q),
+                p.groupLabel.toLowerCase().includes(q)
         );
 
         // Tier 1: exact alias match (e.g. "x" → Offset X)
@@ -151,7 +155,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
 
         // Tier 2: exact label match (case-insensitive), excluding the alias target
         const exactLabelProps = allMatchingProps.filter(
-            (p) => p.label.toLowerCase() === q && p.key !== aliasedProp?.key,
+            (p) => p.label.toLowerCase() === q && p.key !== aliasedProp?.key
         );
 
         // Tier 4: loose matches — everything not already in tier 1 or 2
@@ -195,7 +199,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
             }
             return prop.default;
         },
-        [elementId, bindings, automationChannels, propertyOverrides, tick],
+        [elementId, bindings, automationChannels, propertyOverrides, tick]
     );
 
     const insertKeyframeForProp = useCallback(
@@ -214,11 +218,9 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                         elementId,
                         propertyKey: prop.key,
                         valueType,
-                        initialKeyframes: [
-                            createKeyframe(tick > 0 ? tick : 0, currentValue),
-                        ],
+                        initialKeyframes: [createKeyframe(tick > 0 ? tick : 0, currentValue)],
                     },
-                    cmdOptions,
+                    cmdOptions
                 );
             } else {
                 dispatchSceneCommand(
@@ -227,14 +229,14 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                         channelId,
                         keyframe: createKeyframe(tick, currentValue),
                     },
-                    cmdOptions,
+                    cmdOptions
                 );
                 if (propertyOverrides[channelId] !== undefined) {
                     useSceneStore.getState().clearPropertyOverride(channelId);
                 }
             }
         },
-        [elementId, tick, automationChannels, propertyOverrides, getCurrentValue],
+        [elementId, tick, automationChannels, propertyOverrides, getCurrentValue]
     );
 
     const handleSelect = useCallback(
@@ -242,7 +244,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
             insertKeyframeForProp(prop);
             onClose();
         },
-        [insertKeyframeForProp, onClose],
+        [insertKeyframeForProp, onClose]
     );
 
     const handleSelectPreset = useCallback(
@@ -256,7 +258,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
             }
             onClose();
         },
-        [allProperties, insertKeyframeForProp, onClose],
+        [allProperties, insertKeyframeForProp, onClose]
     );
 
     const handleKeyDown = useCallback(
@@ -278,7 +280,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                 onClose();
             }
         },
-        [filteredItems, activeIndex, handleSelect, handleSelectPreset, onClose],
+        [filteredItems, activeIndex, handleSelect, handleSelectPreset, onClose]
     );
 
     // Clamp position to stay within viewport
@@ -317,9 +319,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
 
                 <div ref={listRef} className="max-h-56 overflow-y-auto py-1">
                     {filteredItems.length === 0 ? (
-                        <div className="px-3 py-2 text-[12px] text-neutral-500 select-none">
-                            No matching properties
-                        </div>
+                        <div className="px-3 py-2 text-[12px] text-neutral-500 select-none">No matching properties</div>
                     ) : (
                         filteredItems.map((item, i) => {
                             const isActive = i === activeIndex;
@@ -362,8 +362,12 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                                         title={isAutomated ? 'Already automated' : 'Not yet automated'}
                                     />
                                     <span className="flex-1 min-w-0">
-                                        <span className="text-[13px] text-neutral-200 block truncate">{prop.label}</span>
-                                        <span className="text-[11px] text-neutral-500 block truncate">{prop.groupLabel}</span>
+                                        <span className="text-[13px] text-neutral-200 block truncate">
+                                            {prop.label}
+                                        </span>
+                                        <span className="text-[11px] text-neutral-500 block truncate">
+                                            {prop.groupLabel}
+                                        </span>
                                     </span>
                                 </button>
                             );

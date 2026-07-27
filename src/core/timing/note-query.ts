@@ -6,7 +6,12 @@ import type { TimelineState, TimelineTrack } from '@state/timelineStore';
 import type { TempoMapEntry } from './types';
 import { beatsToSeconds, secondsToBeats } from './tempo-utils';
 import { CANONICAL_PPQ } from './ppq';
-import { getMidiClipTimelineBounds, getMidiClipsForTrack, getPrimaryMidiClip, type MidiClip } from '@state/timeline/midiClips';
+import {
+    getMidiClipTimelineBounds,
+    getMidiClipsForTrack,
+    getPrimaryMidiClip,
+    type MidiClip,
+} from '@state/timeline/midiClips';
 
 export interface NoteQueryResult {
     trackId: string;
@@ -106,8 +111,16 @@ export function getNotesInWindow(
             if (clip.enabled === false) continue;
             const clipBounds = getMidiClipTimelineBounds(state.midiCache, clip);
             if (clipBounds) {
-                const clipStartSec = beatsToSeconds(state.timeline.masterTempoMap, clipBounds.startTick / CANONICAL_PPQ, spbFallback);
-                const clipEndSec = beatsToSeconds(state.timeline.masterTempoMap, clipBounds.endTick / CANONICAL_PPQ, spbFallback);
+                const clipStartSec = beatsToSeconds(
+                    state.timeline.masterTempoMap,
+                    clipBounds.startTick / CANONICAL_PPQ,
+                    spbFallback
+                );
+                const clipEndSec = beatsToSeconds(
+                    state.timeline.masterTempoMap,
+                    clipBounds.endTick / CANONICAL_PPQ,
+                    spbFallback
+                );
                 if (clipEndSec <= startSec || clipStartSec >= endSec) continue;
             }
             const cache = state.midiCache[clip.sourceId];
@@ -151,7 +164,10 @@ export function getNotesInWindow(
 
             for (let i = startIdx; i < notesRaw.length; i++) {
                 const n = notesRaw[i];
-                if (n.endTick <= (clip.regionStartTick ?? 0) || n.startTick >= (clip.regionEndTick ?? Number.POSITIVE_INFINITY)) {
+                if (
+                    n.endTick <= (clip.regionStartTick ?? 0) ||
+                    n.startTick >= (clip.regionEndTick ?? Number.POSITIVE_INFINITY)
+                ) {
                     continue;
                 }
                 let startBeats: number | undefined = n.startBeat;

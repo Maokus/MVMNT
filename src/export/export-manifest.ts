@@ -20,12 +20,10 @@ export function createExportManifest(
     job: ExportJob,
     applicationVersion: string,
     durationSeconds: number,
-    metrics: Record<string, number>,
+    metrics: Record<string, number>
 ): ExportManifest {
     const settings = job.snapshot.settings;
-    const exportDuration = settings.fullDuration
-        ? durationSeconds
-        : Math.max(0, settings.endTime - settings.startTime);
+    const exportDuration = settings.fullDuration ? durationSeconds : Math.max(0, settings.endTime - settings.startTime);
     return {
         schemaVersion: 1,
         application: 'MVMNT',
