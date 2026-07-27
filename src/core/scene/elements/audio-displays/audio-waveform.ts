@@ -487,7 +487,10 @@ export class AudioWaveformElement extends SceneElement {
                                 { description: 'Canvas composite blending operation.' }
                             ),
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'opacity' } }, { kind: 'property', propertyKey: 'opacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'opacity' } },
+                            { kind: 'property', propertyKey: 'opacity' },
+                        ],
                     },
                     {
                         id: 'secondaryColors',
@@ -520,7 +523,10 @@ export class AudioWaveformElement extends SceneElement {
                                 { description: 'Canvas composite blending operation.' }
                             ),
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'secondaryOpacity' } }, { kind: 'property', propertyKey: 'secondaryOpacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'secondaryOpacity' } },
+                            { kind: 'property', propertyKey: 'secondaryOpacity' },
+                        ],
                     },
                     {
                         id: 'background',
@@ -545,7 +551,10 @@ export class AudioWaveformElement extends SceneElement {
                                 runtime: { transform: asNumber, defaultValue: 0 },
                             },
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } }, { kind: 'property', propertyKey: 'backgroundOpacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } },
+                            { kind: 'property', propertyKey: 'backgroundOpacity' },
+                        ],
                     },
                 ]),
             ]
@@ -638,11 +647,11 @@ export class AudioWaveformElement extends SceneElement {
         }
         const leftRaw = leftResult.value;
         const rightResult = audio.getRawSamples({
-                trackId: props.audioTrackId,
-                startSeconds,
-                endSeconds,
-                channel: 'right',
-            });
+            trackId: props.audioTrackId,
+            startSeconds,
+            endSeconds,
+            channel: 'right',
+        });
         const rightRaw = rightResult.ok ? rightResult.value : leftRaw;
 
         const channels: Record<WaveformChannel, number[]> = {

@@ -80,7 +80,10 @@ export const timeDisplay = definePluginElement<Props, undefined>({
                             { key: 'backgroundPaddingY', label: 'Vertical Padding', type: 'number', default: 4 },
                             { key: 'backgroundCornerRadius', label: 'Corner Radius', type: 'number', default: 4 },
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } }, { kind: 'property', propertyKey: 'backgroundOpacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } },
+                            { kind: 'property', propertyKey: 'backgroundOpacity' },
+                        ],
                     },
                 ],
             },

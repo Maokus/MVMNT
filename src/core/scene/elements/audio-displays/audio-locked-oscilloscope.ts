@@ -6,7 +6,6 @@ import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-f
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/plugins/built-in-definition';
 
-
 const DEFAULT_LINE_COLOR = '#F472B6';
 const DEFAULT_BACKGROUND_COLOR = '#0F172A';
 
@@ -111,7 +110,10 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                             prop.boolean('disableConfidenceFade', 'Disable Confidence Fade', false),
                             prop.boolean('showInfo', 'Show Info', false),
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'confidenceThreshold' } }, { kind: 'property', propertyKey: 'confidenceThreshold' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'confidenceThreshold' } },
+                            { kind: 'property', propertyKey: 'confidenceThreshold' },
+                        ],
                     },
                 ]),
                 tab.appearance([
@@ -128,7 +130,10 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                                 step: 0.01,
                             }),
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } }, { kind: 'property', propertyKey: 'backgroundOpacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } },
+                            { kind: 'property', propertyKey: 'backgroundOpacity' },
+                        ],
                     },
                 ]),
             ]

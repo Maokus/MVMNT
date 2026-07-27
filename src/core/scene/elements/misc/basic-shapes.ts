@@ -50,13 +50,40 @@ export const basicShapes = definePluginElement<Props, undefined>({
                         label: 'Size',
                         collapsed: false,
                         properties: [
-                            number('rectWidth', 'Width (px)', 200, { min: 1, max: 4000, visibleWhen: [{ key: 'shapeType', equals: 'rectangle' }] }),
-                            number('rectHeight', 'Height (px)', 120, { min: 1, max: 4000, visibleWhen: [{ key: 'shapeType', equals: 'rectangle' }] }),
-                            number('cornerRadius', 'Corner Radius (px)', 0, { min: 0, visibleWhen: [{ key: 'shapeType', equals: 'rectangle' }] }),
-                            number('radius', 'Radius (px)', 100, { min: 1, visibleWhen: [{ key: 'shapeType', notEquals: 'rectangle' }, { key: 'shapeType', notEquals: 'line' }] }),
-                            number('startAngle', 'Start Angle (°)', 0, { visibleWhen: [{ key: 'shapeType', equals: 'circle' }] }),
-                            number('endAngle', 'End Angle (°)', 360, { visibleWhen: [{ key: 'shapeType', equals: 'circle' }] }),
-                            { key: 'anticlockwise', label: 'Anticlockwise', type: 'boolean', default: false, visibleWhen: [{ key: 'shapeType', equals: 'circle' }] },
+                            number('rectWidth', 'Width (px)', 200, {
+                                min: 1,
+                                max: 4000,
+                                visibleWhen: [{ key: 'shapeType', equals: 'rectangle' }],
+                            }),
+                            number('rectHeight', 'Height (px)', 120, {
+                                min: 1,
+                                max: 4000,
+                                visibleWhen: [{ key: 'shapeType', equals: 'rectangle' }],
+                            }),
+                            number('cornerRadius', 'Corner Radius (px)', 0, {
+                                min: 0,
+                                visibleWhen: [{ key: 'shapeType', equals: 'rectangle' }],
+                            }),
+                            number('radius', 'Radius (px)', 100, {
+                                min: 1,
+                                visibleWhen: [
+                                    { key: 'shapeType', notEquals: 'rectangle' },
+                                    { key: 'shapeType', notEquals: 'line' },
+                                ],
+                            }),
+                            number('startAngle', 'Start Angle (°)', 0, {
+                                visibleWhen: [{ key: 'shapeType', equals: 'circle' }],
+                            }),
+                            number('endAngle', 'End Angle (°)', 360, {
+                                visibleWhen: [{ key: 'shapeType', equals: 'circle' }],
+                            }),
+                            {
+                                key: 'anticlockwise',
+                                label: 'Anticlockwise',
+                                type: 'boolean',
+                                default: false,
+                                visibleWhen: [{ key: 'shapeType', equals: 'circle' }],
+                            },
                             {
                                 key: 'circleFillStyle',
                                 label: 'Fill Style',
@@ -68,10 +95,29 @@ export const basicShapes = definePluginElement<Props, undefined>({
                                 ],
                                 visibleWhen: [{ key: 'shapeType', equals: 'circle' }],
                             },
-                            number('sides', 'Sides', 3, { min: 3, max: 12, visibleWhen: [{ key: 'shapeType', equals: 'triangle' }] }),
-                            { key: 'star', label: 'Star', type: 'boolean', default: false, visibleWhen: [{ key: 'shapeType', equals: 'triangle' }] },
-                            number('innerRadius', 'Inner Radius (px)', 50, { min: 1, visibleWhen: [{ key: 'shapeType', equals: 'triangle' }, { key: 'star', truthy: true }] }),
-                            number('lineLength', 'Length (px)', 200, { min: 1, visibleWhen: [{ key: 'shapeType', equals: 'line' }] }),
+                            number('sides', 'Sides', 3, {
+                                min: 3,
+                                max: 12,
+                                visibleWhen: [{ key: 'shapeType', equals: 'triangle' }],
+                            }),
+                            {
+                                key: 'star',
+                                label: 'Star',
+                                type: 'boolean',
+                                default: false,
+                                visibleWhen: [{ key: 'shapeType', equals: 'triangle' }],
+                            },
+                            number('innerRadius', 'Inner Radius (px)', 50, {
+                                min: 1,
+                                visibleWhen: [
+                                    { key: 'shapeType', equals: 'triangle' },
+                                    { key: 'star', truthy: true },
+                                ],
+                            }),
+                            number('lineLength', 'Length (px)', 200, {
+                                min: 1,
+                                visibleWhen: [{ key: 'shapeType', equals: 'line' }],
+                            }),
                         ],
                     },
                 ],
@@ -107,7 +153,10 @@ export const basicShapes = definePluginElement<Props, undefined>({
                                 ],
                             },
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'opacity' } }, { kind: 'property', propertyKey: 'opacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'opacity' } },
+                            { kind: 'property', propertyKey: 'opacity' },
+                        ],
                     },
                     {
                         id: 'shapeStroke',
@@ -139,7 +188,10 @@ export const basicShapes = definePluginElement<Props, undefined>({
                             number('dashGap', 'Dash Gap (px)', 4, { min: 0 }),
                             number('dashOffset', 'Dash Offset (px)', 0),
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'strokeOpacity' } }, { kind: 'property', propertyKey: 'strokeOpacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'strokeOpacity' } },
+                            { kind: 'property', propertyKey: 'strokeOpacity' },
+                        ],
                     },
                     {
                         id: 'shadow',
@@ -218,7 +270,9 @@ export const basicShapes = definePluginElement<Props, undefined>({
                 const pointRadius = props.star && index % 2 ? Math.max(1, props.innerRadius) : radius;
                 points.push({ x: pointRadius * Math.cos(angle), y: pointRadius * Math.sin(angle) });
             }
-            shape = decorate(new Poly(points, { fillColor: fill, strokeColor: stroke, strokeWidth: props.strokeWidth }));
+            shape = decorate(
+                new Poly(points, { fillColor: fill, strokeColor: stroke, strokeWidth: props.strokeWidth })
+            );
         } else {
             width = Math.max(1, props.lineLength);
             shape = decorate(

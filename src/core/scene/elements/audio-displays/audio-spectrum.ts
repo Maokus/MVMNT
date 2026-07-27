@@ -272,7 +272,10 @@ export class AudioSpectrumElement extends SceneElement {
                             prop.color('backgroundColor', 'Background Color', DEFAULT_BACKGROUND_COLOR),
                             prop.number('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } }, { kind: 'property', propertyKey: 'backgroundOpacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } },
+                            { kind: 'property', propertyKey: 'backgroundOpacity' },
+                        ],
                     },
                 ]),
             ]
@@ -294,13 +297,11 @@ export class AudioSpectrumElement extends SceneElement {
 
         const pushMessage = (message: string) => {
             objects.push(
-                new Text(
-                    8,
-                    props.height / 2,
-                    message,
-                    '12px Inter, sans-serif',
-                    { color: '#94a3b8', align: 'left', baseline: 'middle' }
-                ).setLayoutParticipation('exclude')
+                new Text(8, props.height / 2, message, '12px Inter, sans-serif', {
+                    color: '#94a3b8',
+                    align: 'left',
+                    baseline: 'middle',
+                }).setLayoutParticipation('exclude')
             );
             return objects;
         };

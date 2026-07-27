@@ -2,10 +2,7 @@ import { BoxRenderObject } from '@core/render/render-objects/box';
 import type { RenderConfig, RenderObjectOptions } from '@core/render/render-objects/base';
 import { RenderResourceManager, renderResourceManager } from '@core/render/render-resource-manager';
 import { convertSpectrogramBins, type AudioSpectrumScale } from './audio-spectrum';
-import {
-    getHostAudioFeatureMatrixRevision,
-    readHostAudioFeatureMatrix,
-} from '@core/render/audio-feature-matrix-host';
+import { getHostAudioFeatureMatrixRevision, readHostAudioFeatureMatrix } from '@core/render/audio-feature-matrix-host';
 
 /**
  * Immutable, content-addressed spectrogram tiles.
@@ -21,10 +18,31 @@ export const SPECTROGRAM_COLOR_MAPS = ['viridis', 'magma', 'inferno', 'grayscale
 export type SpectrogramColorMap = (typeof SPECTROGRAM_COLOR_MAPS)[number];
 
 const COLOR_STOPS: Record<SpectrogramColorMap, readonly [number, number, number][]> = {
-    viridis: [[68, 1, 84], [59, 82, 139], [33, 145, 140], [94, 201, 98], [253, 231, 37]],
-    magma: [[0, 0, 4], [73, 15, 109], [182, 54, 121], [251, 136, 97], [252, 253, 191]],
-    inferno: [[0, 0, 4], [87, 15, 109], [187, 55, 84], [249, 142, 8], [252, 255, 164]],
-    grayscale: [[0, 0, 0], [255, 255, 255]],
+    viridis: [
+        [68, 1, 84],
+        [59, 82, 139],
+        [33, 145, 140],
+        [94, 201, 98],
+        [253, 231, 37],
+    ],
+    magma: [
+        [0, 0, 4],
+        [73, 15, 109],
+        [182, 54, 121],
+        [251, 136, 97],
+        [252, 253, 191],
+    ],
+    inferno: [
+        [0, 0, 4],
+        [87, 15, 109],
+        [187, 55, 84],
+        [249, 142, 8],
+        [252, 255, 164],
+    ],
+    grayscale: [
+        [0, 0, 0],
+        [255, 255, 255],
+    ],
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -32,10 +50,7 @@ function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));
 }
 
-function interpolateColor(
-    stops: readonly [number, number, number][],
-    amount: number
-): [number, number, number] {
+function interpolateColor(stops: readonly [number, number, number][], amount: number): [number, number, number] {
     const scaled = clamp(amount, 0, 1) * (stops.length - 1);
     const lower = Math.floor(scaled);
     const upper = Math.min(stops.length - 1, lower + 1);
@@ -101,10 +116,7 @@ export class SpectrogramTileCache {
     private readonly manager: RenderResourceManager;
     private readonly wrappers = new Map<string, SpectrogramTileResource>();
 
-    constructor(
-        maxBytes = SPECTROGRAM_TILE_CACHE_BYTES,
-        manager?: RenderResourceManager
-    ) {
+    constructor(maxBytes = SPECTROGRAM_TILE_CACHE_BYTES, manager?: RenderResourceManager) {
         this.manager = manager ?? new RenderResourceManager(maxBytes, maxBytes);
     }
 
@@ -158,11 +170,7 @@ export class SpectrogramTileRenderObject extends BoxRenderObject {
         super(x, y, width, height, options);
     }
 
-    protected override _renderSelf(
-        ctx: CanvasRenderingContext2D,
-        _config: RenderConfig,
-        _currentTime: number
-    ): void {
+    protected override _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _currentTime: number): void {
         const smoothing = ctx.imageSmoothingEnabled;
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(this.resource.drawable, 0, 0, this.width, this.height);
@@ -254,12 +262,7 @@ export function buildSpectrogramTileKey(revision: string, request: SpectrogramTi
 }
 
 export function getSpectrogramTile(request: SpectrogramTileRequest): SpectrogramTileResource | null {
-    const revision = getHostAudioFeatureMatrixRevision(
-        request.trackId,
-        'spectrogram',
-        request.analysisProfileId,
-        true
-    );
+    const revision = getHostAudioFeatureMatrixRevision(request.trackId, 'spectrogram', request.analysisProfileId, true);
     if (!revision) return null;
     const key = buildSpectrogramTileKey(revision, request);
     return spectrogramTileCache.getOrCreate(key, SPECTROGRAM_TILE_COLUMNS, request.rows, () => {

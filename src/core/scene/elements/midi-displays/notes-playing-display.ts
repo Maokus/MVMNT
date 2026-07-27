@@ -116,7 +116,12 @@ export const notesPlayingDisplay = definePluginElement<Props, undefined>({
                                 max: 1,
                             },
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'textOpacity' } }, { kind: 'property', propertyKey: 'textOpacity' }, { kind: 'control', control: 'slider', bindings: { value: 'gridFillOpacity' } }, { kind: 'property', propertyKey: 'gridFillOpacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'textOpacity' } },
+                            { kind: 'property', propertyKey: 'textOpacity' },
+                            { kind: 'control', control: 'slider', bindings: { value: 'gridFillOpacity' } },
+                            { kind: 'property', propertyKey: 'gridFillOpacity' },
+                        ],
                     },
                     {
                         id: 'typography',
@@ -158,7 +163,10 @@ export const notesPlayingDisplay = definePluginElement<Props, undefined>({
                             num('backgroundPaddingY', 'Vertical Padding', 4),
                             num('backgroundCornerRadius', 'Corner Radius', 4),
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } }, { kind: 'property', propertyKey: 'backgroundOpacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } },
+                            { kind: 'property', propertyKey: 'backgroundOpacity' },
+                        ],
                     },
                 ],
             },

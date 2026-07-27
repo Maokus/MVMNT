@@ -324,7 +324,10 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             prop.color('color', 'Text Color', '#ffffff'),
                             prop.number('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'opacity' } }, { kind: 'property', propertyKey: 'opacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'opacity' } },
+                            { kind: 'property', propertyKey: 'opacity' },
+                        ],
                     },
                     {
                         id: 'typography',
@@ -366,7 +369,10 @@ export class ChordEstimateDisplayElement extends SceneElement {
                                 visibleWhen: [{ key: 'showChroma', equals: true }],
                             }),
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'chromaOpacity' } }, { kind: 'property', propertyKey: 'chromaOpacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'chromaOpacity' } },
+                            { kind: 'property', propertyKey: 'chromaOpacity' },
+                        ],
                     },
                     propGroup.container(),
                 ]),

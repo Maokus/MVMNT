@@ -15,109 +15,87 @@ export class CytusishAnimation extends BaseNoteAnimation {
         const NUM_ARCS = 5;
         const LEN_ARCS = 0.4;
 
-        const randomFinalPos = af.lerp(-40,40,rng());
+        const randomFinalPos = af.lerp(-40, 40, rng());
 
         const initialAccentProgress = new af.FloatCurve([
-            [0,0,ef.linear],
-            [0.1,1,ef.linear],
-            [1,1,ef.linear]
+            [0, 0, ef.linear],
+            [0.1, 1, ef.linear],
+            [1, 1, ef.linear],
         ]).valAt(progress);
 
         const firstHalfProgress = new af.FloatCurve([
-            [0,0,ef.linear],
-            [0.6,1,ef.linear],
-            [1,1,ef.linear]
+            [0, 0, ef.linear],
+            [0.6, 1, ef.linear],
+            [1, 1, ef.linear],
         ]).valAt(progress);
 
         const secondHalfProgress = new af.FloatCurve([
-            [0,0,ef.linear],
-            [0.4,0,ef.linear],
-            [1,1,ef.linear]
+            [0, 0, ef.linear],
+            [0.4, 0, ef.linear],
+            [1, 1, ef.linear],
         ]).valAt(progress);
 
         let objects: RenderObject[] = [];
 
-        let outerCircle = new Arc(
-            0,
-            0, 
-            height,
-            { 
-                startAngle: 0,
-                endAngle: Math.PI * 2,
-                fillColor: "#0000", 
-                strokeColor: color, 
-                strokeWidth: 2
-            }
-        );
+        let outerCircle = new Arc(0, 0, height, {
+            startAngle: 0,
+            endAngle: Math.PI * 2,
+            fillColor: '#0000',
+            strokeColor: color,
+            strokeWidth: 2,
+        });
 
-
-        let shockCircle = new Arc(
-            0,
-            0, 
-            height + 4,
-            { 
-                startAngle: 0,
-                endAngle: Math.PI * 2,
-                fillColor: "#0000", 
-                strokeColor: color, 
-                strokeWidth: 4
-            }
-        );
+        let shockCircle = new Arc(0, 0, height + 4, {
+            startAngle: 0,
+            endAngle: Math.PI * 2,
+            fillColor: '#0000',
+            strokeColor: color,
+            strokeWidth: 4,
+        });
         shockCircle.opacity = 0;
 
-        let innerCircle = new Arc(
-            0,
-            0,
-            height * 0.6,
-            {
-                startAngle: 0,
-                endAngle: Math.PI * 2,
-                fillColor: color,
-                strokeColor: "#0000",
-            }
-        );
+        let innerCircle = new Arc(0, 0, height * 0.6, {
+            startAngle: 0,
+            endAngle: Math.PI * 2,
+            fillColor: color,
+            strokeColor: '#0000',
+        });
 
         let outerArcs = new EmptyRenderObject(0, 0).addChildren(
             Array.from({ length: NUM_ARCS }, (_, i) => {
                 const angle = (i / NUM_ARCS) * Math.PI * 2;
-                return new Arc(
-                    0,
-                    0,
-                    height * 1.2,
-                    {
-                        startAngle: angle,
-                        endAngle: angle + LEN_ARCS,
-                        fillColor: "#0000",
-                        strokeColor: color,
-                        strokeWidth: 2,
-                        layoutParticipation: 'exclude'
-                    }
-                );
+                return new Arc(0, 0, height * 1.2, {
+                    startAngle: angle,
+                    endAngle: angle + LEN_ARCS,
+                    fillColor: '#0000',
+                    strokeColor: color,
+                    strokeWidth: 2,
+                    layoutParticipation: 'exclude',
+                });
             })
         );
 
         let masterGroup = new EmptyRenderObject(x, cy).addChildren([outerCircle, innerCircle, outerArcs, shockCircle]);
 
-
-
         switch (phase) {
             case 'attack': {
-                objects.push(masterGroup);  
+                objects.push(masterGroup);
 
-                outerCircle.endAngle = ef.easeOutCubic(progress) * Math.PI * 2;       
+                outerCircle.endAngle = ef.easeOutCubic(progress) * Math.PI * 2;
 
                 innerCircle.radius = height * 0.6 * ef.easeOutCubic(progress);
 
-                outerArcs.rotation = outerArcs.rotation-Math.PI/4+ef.easeOutCubic(secondHalfProgress) * Math.PI /4;
+                outerArcs.rotation =
+                    outerArcs.rotation - Math.PI / 4 + (ef.easeOutCubic(secondHalfProgress) * Math.PI) / 4;
 
                 outerArcs.getChildren().map((child) => {
                     let arc: Arc = child as Arc;
                     arc.endAngle = ef.easeOutCubic(secondHalfProgress) * LEN_ARCS + arc.startAngle;
-                })
-                
+                });
+
                 break;
             }
-            case "decay": {
+            case 'decay': {
                 objects.push(masterGroup);
                 let p0 = ef.easeOutCubic(initialAccentProgress);
                 outerCircle.scaleX = 1 - 0.2 * p0;
@@ -127,7 +105,6 @@ export class CytusishAnimation extends BaseNoteAnimation {
                 outerArcs.scaleX = 1 + 0.2 * p0;
                 outerArcs.scaleY = 1 + 0.2 * p0;
 
-
                 let p1 = ef.easeOutCubic(firstHalfProgress);
 
                 outerCircle.scaleX += 0.3 * p1;
@@ -136,15 +113,14 @@ export class CytusishAnimation extends BaseNoteAnimation {
                 innerCircle.scaleY += 0.5 * p1;
                 outerArcs.scaleX += 0.3 * p1;
                 outerArcs.scaleY -= 0.9 * p1;
-                masterGroup.rotation = p1 * Math.PI /2;
-                shockCircle.opacity = af.lerp(1,0,p1);
+                masterGroup.rotation = (p1 * Math.PI) / 2;
+                shockCircle.opacity = af.lerp(1, 0, p1);
 
                 let p2 = ef.easeInCubic(secondHalfProgress);
 
-                outerCircle.y = height*3*p2;
-                innerCircle.y = randomFinalPos*p2;
-                outerArcs.y = height*3*p2;
-
+                outerCircle.y = height * 3 * p2;
+                innerCircle.y = randomFinalPos * p2;
+                outerArcs.y = height * 3 * p2;
 
                 outerCircle.opacity = 1 - secondHalfProgress;
                 innerCircle.opacity = 1 - secondHalfProgress;
@@ -156,13 +132,13 @@ export class CytusishAnimation extends BaseNoteAnimation {
                     let arc: Arc = child as Arc;
                     arc.startAngle = arc.startAngle + Math.PI * p3;
                     arc.endAngle = arc.endAngle + Math.PI * p3;
-                })
+                });
 
                 break;
             }
             case 'sustain':
                 break;
-            case 'release': 
+            case 'release':
                 break;
             default:
                 return [];

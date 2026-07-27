@@ -184,7 +184,10 @@ export class TimeUnitPianoRollElement extends SceneElement {
                                 visibleWhen: [{ key: 'showPlayhead', truthy: true }],
                             }),
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'playheadOpacity' } }, { kind: 'property', propertyKey: 'playheadOpacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'playheadOpacity' } },
+                            { kind: 'property', propertyKey: 'playheadOpacity' },
+                        ],
                     },
                 ]),
                 tab.custom('annotation', 'Annotation', [

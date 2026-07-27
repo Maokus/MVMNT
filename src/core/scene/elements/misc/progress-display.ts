@@ -87,7 +87,16 @@ export const progressDisplay = definePluginElement<Props, undefined>({
                                 max: 1,
                             },
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'barOpacity' } }, { kind: 'property', propertyKey: 'barOpacity' }, { kind: 'control', control: 'slider', bindings: { value: 'barBgOpacity' } }, { kind: 'property', propertyKey: 'barBgOpacity' }, { kind: 'control', control: 'slider', bindings: { value: 'borderOpacity' } }, { kind: 'property', propertyKey: 'borderOpacity' }, { kind: 'control', control: 'slider', bindings: { value: 'statsTextOpacity' } }, { kind: 'property', propertyKey: 'statsTextOpacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'barOpacity' } },
+                            { kind: 'property', propertyKey: 'barOpacity' },
+                            { kind: 'control', control: 'slider', bindings: { value: 'barBgOpacity' } },
+                            { kind: 'property', propertyKey: 'barBgOpacity' },
+                            { kind: 'control', control: 'slider', bindings: { value: 'borderOpacity' } },
+                            { kind: 'property', propertyKey: 'borderOpacity' },
+                            { kind: 'control', control: 'slider', bindings: { value: 'statsTextOpacity' } },
+                            { kind: 'property', propertyKey: 'statsTextOpacity' },
+                        ],
                     },
                     {
                         id: 'typography',

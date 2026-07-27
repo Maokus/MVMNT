@@ -42,9 +42,7 @@ function normalizeScale(value: unknown): AudioSpectrumScale {
 }
 
 function normalizeColorMap(value: unknown): SpectrogramColorMap {
-    return SPECTROGRAM_COLOR_MAPS.includes(value as SpectrogramColorMap)
-        ? (value as SpectrogramColorMap)
-        : 'viridis';
+    return SPECTROGRAM_COLOR_MAPS.includes(value as SpectrogramColorMap) ? (value as SpectrogramColorMap) : 'viridis';
 }
 
 function selectedPreset(value: unknown, options: readonly number[]): number | null {
@@ -99,14 +97,20 @@ export function getSpectrogramFrequencyPosition(
     return clamp((toScale(frequency) - toScale(safeMin)) / (toScale(safeMax) - toScale(safeMin)), 0, 1);
 }
 
-function addGuideLine(objects: RenderObject[], x1: number, y1: number, x2: number, y2: number, color: string, width: number): void {
+function addGuideLine(
+    objects: RenderObject[],
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    color: string,
+    width: number
+): void {
     objects.push(new Line(x1, y1, x2, y2, { color, lineWidth: width, layoutParticipation: 'exclude' }));
 }
 
 function formatFrequency(frequency: number): string {
-    return frequency >= 1000
-        ? `${Number((frequency / 1000).toFixed(2))} kHz`
-        : `${Math.round(frequency)} Hz`;
+    return frequency >= 1000 ? `${Number((frequency / 1000).toFixed(2))} kHz` : `${Math.round(frequency)} Hz`;
 }
 
 function formatNote(note: number): string {
@@ -129,16 +133,16 @@ function timingValue(result: unknown): number | null {
 }
 
 function beatsPerBar(result: unknown): number {
-    const value = result && typeof result === 'object' && (result as { ok?: unknown }).ok === true
-        ? (result as { value?: { numerator?: unknown } }).value
-        : result;
+    const value =
+        result && typeof result === 'object' && (result as { ok?: unknown }).ok === true
+            ? (result as { value?: { numerator?: unknown } }).value
+            : result;
     const numerator = value && typeof value === 'object' ? (value as { numerator?: unknown }).numerator : undefined;
-    return typeof numerator === 'number' && Number.isFinite(numerator) && numerator > 0
-        ? Math.round(numerator)
-        : 4;
+    return typeof numerator === 'number' && Number.isFinite(numerator) && numerator > 0 ? Math.round(numerator) : 4;
 }
 
-const positiveNumber = (fallback: number, min: number, max: number): PropertyTransform<number, SceneElementInterface> =>
+const positiveNumber =
+    (fallback: number, min: number, max: number): PropertyTransform<number, SceneElementInterface> =>
     (value, element) => {
         const numeric = asNumber(value, element);
         return numeric === undefined ? undefined : clamp(numeric, min, max);
@@ -150,98 +154,246 @@ export class AudioSpectrogramElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        return insertElementConfig(super.getConfigSchema(), {
-            name: 'Audio Spectrogram', description: 'Scrolling frequency heatmap for an audio track.', category: 'Audio Displays',
-        }, [
-            tab.content([
-                propGroup.audioSource(),
-                { id: 'analysis', label: 'Analysis', collapsed: true, properties: [
-                    prop.select('analysisWindowSize', 'Window Size', '', [{ value: '', label: 'Default (2048)' }, ...WINDOW_SIZE_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))], { description: 'How much audio is included in each slice. Larger windows show steadier, more detailed frequencies but blur rapid changes over time.' }),
-                    prop.select('analysisHopSize', 'Hop Size', '', [{ value: '', label: 'Default (512)' }, ...HOP_SIZE_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))], { description: 'How far the analysis moves before taking the next slice. Smaller hops make changes look smoother in time, but create more data and take longer to analyze.' }),
-                ] },
-                { id: 'spectrogram', label: 'Spectrogram', collapsed: false, properties: [
-                    prop.number('width', 'Width (px)', 800, { min: 1, step: 1 }),
-                    prop.number('height', 'Height (px)', 300, { min: 1, step: 1 }),
-                    { key: 'windowSeconds', type: 'number', label: 'Window (seconds)', default: 6, min: 0.1, max: 60, step: 0.1, runtime: { transform: positiveNumber(6, 0.1, 60), defaultValue: 6 } },
-                    { key: 'playheadPosition', type: 'number', label: 'Playhead Position', default: 0.5, min: 0, max: 1, step: 0.01, runtime: { transform: positiveNumber(0.5, 0, 1), defaultValue: 0.5 } },
-                    prop.boolean('seeFuture', 'See Future', false),
-                    prop.boolean('showPlayhead', 'Show Playhead', true),
-                    prop.color('playheadColor', 'Playhead Color', DEFAULT_PLAYHEAD_COLOR),
-                    { key: 'scale', type: 'select', label: 'Frequency Scale', default: 'log', options: [{ label: 'Linear', value: 'linear' }, { label: 'Logarithmic', value: 'log' }, { label: 'Mel', value: 'mel' }], runtime: { transform: (value) => normalizeScale(value), defaultValue: 'log' } },
-                    prop.number('minFrequency', 'Min Frequency (Hz)', 20, { min: 0, max: 48000, step: 1 }),
-                    prop.number('maxFrequency', 'Max Frequency (Hz)', 20000, { min: 1, max: 48000, step: 1 }),
-                    prop.number('minDecibels', 'Minimum Value', -80, { min: -120, max: 0, step: 1 }),
-                    prop.number('maxDecibels', 'Maximum Value', 0, { min: -120, max: 0, step: 1 }),
-                    prop.number('gain', 'Gain', 1, { min: 0, max: 10, step: 0.01 }),
-                    { key: 'colorMap', type: 'select', label: 'Color Map', default: 'viridis', options: SPECTROGRAM_COLOR_MAPS.map((value) => ({ label: value[0]!.toUpperCase() + value.slice(1), value })), runtime: { transform: (value) => normalizeColorMap(value), defaultValue: 'viridis' } },
-                ],
-                layout: [{ kind: 'control', control: 'slider', bindings: { value: 'playheadPosition' } }, { kind: 'property', propertyKey: 'playheadPosition' }] },
-                { id: 'guides', label: 'Guides', collapsed: true, properties: [
-                    prop.boolean('showFrequencyGuides', 'Show Frequency Lines', false),
-                    prop.number('frequencyGuideStep', 'Frequency Line Every (Hz)', 1000, { min: 1, max: 48000, step: 1 }),
-                    prop.boolean('showOctaveGuides', 'Show Octave Lines', false),
-                    prop.number('octaveGuideStep', 'Octave Line Every', 1, { min: 1, max: 8, step: 1 }),
-                    prop.number('octaveGuideStartNote', 'Octave Start Note (MIDI)', A4_MIDI_NOTE, { min: 0, max: 127, step: 1 }),
-                    prop.boolean('showNoteGuides', 'Show Note Lines', false),
-                    prop.number('noteGuideStep', 'Note Line Every (semitones)', 12, { min: 1, max: 48, step: 1 }),
-                    prop.number('noteGuideStartNote', 'Note Start Note (MIDI)', 0, { min: 0, max: 127, step: 1 }),
-                    prop.boolean('showBeatGuides', 'Show Beat Lines', false),
-                    prop.number('beatGuideStep', 'Beat Line Every', 1, { min: 0.25, max: 64, step: 0.25 }),
-                    prop.boolean('showBarGuides', 'Show Bar Lines', false),
-                    prop.color('barGuideColor', 'Bar Line Color', '#F8FAFC'),
-                    prop.boolean('showSecondGuides', 'Show Second Lines', false),
-                    prop.number('secondGuideStep', 'Second Line Every', 1, { min: 0.1, max: 60, step: 0.1 }),
-                    prop.color('guideColor', 'Guide Color', '#E2E8F0'),
-                    prop.number('guideOpacity', 'Guide Opacity', 0.35, { min: 0, max: 1, step: 0.01 }),
-                    prop.number('guideLineWidth', 'Guide Line Width', 1, { min: 0.5, max: 8, step: 0.5 }),
-                    prop.boolean('showGuideLabels', 'Show Guide Labels', true),
-                    prop.number('guideLabelSize', 'Guide Label Size (px)', 10, { min: 6, max: 32, step: 1 }),
-                ], layout: [
-                    { kind: 'section', id: 'frequency-guides', label: 'Frequency', collapsed: false, children: [
-                        { kind: 'property', propertyKey: 'showFrequencyGuides' },
-                        { kind: 'property', propertyKey: 'frequencyGuideStep' },
-                        { kind: 'property', propertyKey: 'showOctaveGuides' },
-                        { kind: 'property', propertyKey: 'octaveGuideStep' },
-                        { kind: 'property', propertyKey: 'octaveGuideStartNote' },
-                        { kind: 'property', propertyKey: 'showNoteGuides' },
-                        { kind: 'property', propertyKey: 'noteGuideStep' },
-                        { kind: 'property', propertyKey: 'noteGuideStartNote' },
-                    ] },
-                    { kind: 'section', id: 'time-guides', label: 'Time', collapsed: false, children: [
-                        { kind: 'property', propertyKey: 'showBeatGuides' },
-                        { kind: 'property', propertyKey: 'beatGuideStep' },
-                        { kind: 'property', propertyKey: 'showBarGuides' },
-                        { kind: 'property', propertyKey: 'barGuideColor' },
-                        { kind: 'property', propertyKey: 'showSecondGuides' },
-                        { kind: 'property', propertyKey: 'secondGuideStep' },
-                    ] },
-                    { kind: 'section', id: 'guide-appearance', label: 'Appearance & Labels', collapsed: true, children: [
-                        { kind: 'property', propertyKey: 'guideColor' },
-                        { kind: 'property', propertyKey: 'guideOpacity' },
-                        { kind: 'property', propertyKey: 'guideLineWidth' },
-                        { kind: 'property', propertyKey: 'showGuideLabels' },
-                        { kind: 'property', propertyKey: 'guideLabelSize' },
-                    ] },
-                ] },
-            ]),
-            tab.appearance([
-                propGroup.appearance({ blendMode: true }),
-                { id: 'background', label: 'Background', collapsed: true, properties: [
-                    prop.color('backgroundColor', 'Background Color', DEFAULT_BACKGROUND_COLOR),
-                    prop.number('backgroundOpacity', 'Background Opacity', 1, { min: 0, max: 1, step: 0.01 }),
-                ],
-                layout: [{ kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } }, { kind: 'property', propertyKey: 'backgroundOpacity' }] },
-            ]),
-        ]);
+        return insertElementConfig(
+            super.getConfigSchema(),
+            {
+                name: 'Audio Spectrogram',
+                description: 'Scrolling frequency heatmap for an audio track.',
+                category: 'Audio Displays',
+            },
+            [
+                tab.content([
+                    propGroup.audioSource(),
+                    {
+                        id: 'analysis',
+                        label: 'Analysis',
+                        collapsed: true,
+                        properties: [
+                            prop.select(
+                                'analysisWindowSize',
+                                'Window Size',
+                                '',
+                                [
+                                    { value: '', label: 'Default (2048)' },
+                                    ...WINDOW_SIZE_OPTIONS.map((value) => ({
+                                        value: String(value),
+                                        label: String(value),
+                                    })),
+                                ],
+                                {
+                                    description:
+                                        'How much audio is included in each slice. Larger windows show steadier, more detailed frequencies but blur rapid changes over time.',
+                                }
+                            ),
+                            prop.select(
+                                'analysisHopSize',
+                                'Hop Size',
+                                '',
+                                [
+                                    { value: '', label: 'Default (512)' },
+                                    ...HOP_SIZE_OPTIONS.map((value) => ({
+                                        value: String(value),
+                                        label: String(value),
+                                    })),
+                                ],
+                                {
+                                    description:
+                                        'How far the analysis moves before taking the next slice. Smaller hops make changes look smoother in time, but create more data and take longer to analyze.',
+                                }
+                            ),
+                        ],
+                    },
+                    {
+                        id: 'spectrogram',
+                        label: 'Spectrogram',
+                        collapsed: false,
+                        properties: [
+                            prop.number('width', 'Width (px)', 800, { min: 1, step: 1 }),
+                            prop.number('height', 'Height (px)', 300, { min: 1, step: 1 }),
+                            {
+                                key: 'windowSeconds',
+                                type: 'number',
+                                label: 'Window (seconds)',
+                                default: 6,
+                                min: 0.1,
+                                max: 60,
+                                step: 0.1,
+                                runtime: { transform: positiveNumber(6, 0.1, 60), defaultValue: 6 },
+                            },
+                            {
+                                key: 'playheadPosition',
+                                type: 'number',
+                                label: 'Playhead Position',
+                                default: 0.5,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                                runtime: { transform: positiveNumber(0.5, 0, 1), defaultValue: 0.5 },
+                            },
+                            prop.boolean('seeFuture', 'See Future', false),
+                            prop.boolean('showPlayhead', 'Show Playhead', true),
+                            prop.color('playheadColor', 'Playhead Color', DEFAULT_PLAYHEAD_COLOR),
+                            {
+                                key: 'scale',
+                                type: 'select',
+                                label: 'Frequency Scale',
+                                default: 'log',
+                                options: [
+                                    { label: 'Linear', value: 'linear' },
+                                    { label: 'Logarithmic', value: 'log' },
+                                    { label: 'Mel', value: 'mel' },
+                                ],
+                                runtime: { transform: (value) => normalizeScale(value), defaultValue: 'log' },
+                            },
+                            prop.number('minFrequency', 'Min Frequency (Hz)', 20, { min: 0, max: 48000, step: 1 }),
+                            prop.number('maxFrequency', 'Max Frequency (Hz)', 20000, { min: 1, max: 48000, step: 1 }),
+                            prop.number('minDecibels', 'Minimum Value', -80, { min: -120, max: 0, step: 1 }),
+                            prop.number('maxDecibels', 'Maximum Value', 0, { min: -120, max: 0, step: 1 }),
+                            prop.number('gain', 'Gain', 1, { min: 0, max: 10, step: 0.01 }),
+                            {
+                                key: 'colorMap',
+                                type: 'select',
+                                label: 'Color Map',
+                                default: 'viridis',
+                                options: SPECTROGRAM_COLOR_MAPS.map((value) => ({
+                                    label: value[0]!.toUpperCase() + value.slice(1),
+                                    value,
+                                })),
+                                runtime: { transform: (value) => normalizeColorMap(value), defaultValue: 'viridis' },
+                            },
+                        ],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'playheadPosition' } },
+                            { kind: 'property', propertyKey: 'playheadPosition' },
+                        ],
+                    },
+                    {
+                        id: 'guides',
+                        label: 'Guides',
+                        collapsed: true,
+                        properties: [
+                            prop.boolean('showFrequencyGuides', 'Show Frequency Lines', false),
+                            prop.number('frequencyGuideStep', 'Frequency Line Every (Hz)', 1000, {
+                                min: 1,
+                                max: 48000,
+                                step: 1,
+                            }),
+                            prop.boolean('showOctaveGuides', 'Show Octave Lines', false),
+                            prop.number('octaveGuideStep', 'Octave Line Every', 1, { min: 1, max: 8, step: 1 }),
+                            prop.number('octaveGuideStartNote', 'Octave Start Note (MIDI)', A4_MIDI_NOTE, {
+                                min: 0,
+                                max: 127,
+                                step: 1,
+                            }),
+                            prop.boolean('showNoteGuides', 'Show Note Lines', false),
+                            prop.number('noteGuideStep', 'Note Line Every (semitones)', 12, {
+                                min: 1,
+                                max: 48,
+                                step: 1,
+                            }),
+                            prop.number('noteGuideStartNote', 'Note Start Note (MIDI)', 0, {
+                                min: 0,
+                                max: 127,
+                                step: 1,
+                            }),
+                            prop.boolean('showBeatGuides', 'Show Beat Lines', false),
+                            prop.number('beatGuideStep', 'Beat Line Every', 1, { min: 0.25, max: 64, step: 0.25 }),
+                            prop.boolean('showBarGuides', 'Show Bar Lines', false),
+                            prop.color('barGuideColor', 'Bar Line Color', '#F8FAFC'),
+                            prop.boolean('showSecondGuides', 'Show Second Lines', false),
+                            prop.number('secondGuideStep', 'Second Line Every', 1, { min: 0.1, max: 60, step: 0.1 }),
+                            prop.color('guideColor', 'Guide Color', '#E2E8F0'),
+                            prop.number('guideOpacity', 'Guide Opacity', 0.35, { min: 0, max: 1, step: 0.01 }),
+                            prop.number('guideLineWidth', 'Guide Line Width', 1, { min: 0.5, max: 8, step: 0.5 }),
+                            prop.boolean('showGuideLabels', 'Show Guide Labels', true),
+                            prop.number('guideLabelSize', 'Guide Label Size (px)', 10, { min: 6, max: 32, step: 1 }),
+                        ],
+                        layout: [
+                            {
+                                kind: 'section',
+                                id: 'frequency-guides',
+                                label: 'Frequency',
+                                collapsed: false,
+                                children: [
+                                    { kind: 'property', propertyKey: 'showFrequencyGuides' },
+                                    { kind: 'property', propertyKey: 'frequencyGuideStep' },
+                                    { kind: 'property', propertyKey: 'showOctaveGuides' },
+                                    { kind: 'property', propertyKey: 'octaveGuideStep' },
+                                    { kind: 'property', propertyKey: 'octaveGuideStartNote' },
+                                    { kind: 'property', propertyKey: 'showNoteGuides' },
+                                    { kind: 'property', propertyKey: 'noteGuideStep' },
+                                    { kind: 'property', propertyKey: 'noteGuideStartNote' },
+                                ],
+                            },
+                            {
+                                kind: 'section',
+                                id: 'time-guides',
+                                label: 'Time',
+                                collapsed: false,
+                                children: [
+                                    { kind: 'property', propertyKey: 'showBeatGuides' },
+                                    { kind: 'property', propertyKey: 'beatGuideStep' },
+                                    { kind: 'property', propertyKey: 'showBarGuides' },
+                                    { kind: 'property', propertyKey: 'barGuideColor' },
+                                    { kind: 'property', propertyKey: 'showSecondGuides' },
+                                    { kind: 'property', propertyKey: 'secondGuideStep' },
+                                ],
+                            },
+                            {
+                                kind: 'section',
+                                id: 'guide-appearance',
+                                label: 'Appearance & Labels',
+                                collapsed: true,
+                                children: [
+                                    { kind: 'property', propertyKey: 'guideColor' },
+                                    { kind: 'property', propertyKey: 'guideOpacity' },
+                                    { kind: 'property', propertyKey: 'guideLineWidth' },
+                                    { kind: 'property', propertyKey: 'showGuideLabels' },
+                                    { kind: 'property', propertyKey: 'guideLabelSize' },
+                                ],
+                            },
+                        ],
+                    },
+                ]),
+                tab.appearance([
+                    propGroup.appearance({ blendMode: true }),
+                    {
+                        id: 'background',
+                        label: 'Background',
+                        collapsed: true,
+                        properties: [
+                            prop.color('backgroundColor', 'Background Color', DEFAULT_BACKGROUND_COLOR),
+                            prop.number('backgroundOpacity', 'Background Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                        ],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } },
+                            { kind: 'property', propertyKey: 'backgroundOpacity' },
+                        ],
+                    },
+                ]),
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
         const width = Math.max(1, props.width ?? 800);
         const height = Math.max(1, props.height ?? 300);
-        const objects: RenderObject[] = [new Rectangle(0, 0, width, height, { fillColor: applyOpacity(props.backgroundColor ?? DEFAULT_BACKGROUND_COLOR, props.backgroundOpacity ?? 1) })];
+        const objects: RenderObject[] = [
+            new Rectangle(0, 0, width, height, {
+                fillColor: applyOpacity(
+                    props.backgroundColor ?? DEFAULT_BACKGROUND_COLOR,
+                    props.backgroundOpacity ?? 1
+                ),
+            }),
+        ];
         const message = (text: string) => {
-            objects.push(new Text(8, height / 2, text, '12px Inter, sans-serif', { color: '#94a3b8', baseline: 'middle' }).setLayoutParticipation('exclude'));
+            objects.push(
+                new Text(8, height / 2, text, '12px Inter, sans-serif', {
+                    color: '#94a3b8',
+                    baseline: 'middle',
+                }).setLayoutParticipation('exclude')
+            );
             return objects;
         };
         if (!props.audioTrackId) return message('Select an audio track');
@@ -262,15 +414,10 @@ export class AudioSpectrogramElement extends SceneElement {
         const gain = clamp(props.gain ?? 1, 0, 10);
         const columnWidth = cols > 1 ? width / (cols - 1) : width;
         const lastVisibleSeconds = props.seeFuture === true ? endSeconds : targetTime;
-        const { firstTile, lastTile } = getSpectrogramTileRange(
-            startSeconds,
-            lastVisibleSeconds,
-            stepSeconds
-        );
+        const { firstTile, lastTile } = getSpectrogramTileRange(startSeconds, lastVisibleSeconds, stepSeconds);
         const clipWidth = props.seeFuture === true ? width : width * playheadPosition;
         const tiles = new ClipLayer(Math.max(0, clipWidth), height, { layoutParticipation: 'exclude' });
-        tiles.blendMode =
-            props.blendMode === 'source-over' ? null : props.blendMode as GlobalCompositeOperation;
+        tiles.blendMode = props.blendMode === 'source-over' ? null : (props.blendMode as GlobalCompositeOperation);
         let hasData = false;
         for (let tileIndex = firstTile; tileIndex <= lastTile; tileIndex += 1) {
             const resource = getSpectrogramTile({
@@ -292,14 +439,11 @@ export class AudioSpectrogramElement extends SceneElement {
             hasData = true;
             const tileStartSeconds = tileIndex * SPECTROGRAM_TILE_COLUMNS * stepSeconds;
             const x = ((tileStartSeconds - startSeconds) / stepSeconds) * columnWidth;
-            tiles.addChild(new SpectrogramTileRenderObject(
-                resource,
-                x,
-                0,
-                SPECTROGRAM_TILE_COLUMNS * columnWidth,
-                height,
-                { layoutParticipation: 'exclude' }
-            ));
+            tiles.addChild(
+                new SpectrogramTileRenderObject(resource, x, 0, SPECTROGRAM_TILE_COLUMNS * columnWidth, height, {
+                    layoutParticipation: 'exclude',
+                })
+            );
         }
         if (!hasData) return message('No spectrogram data');
         objects.push(tiles);
@@ -316,21 +460,29 @@ export class AudioSpectrogramElement extends SceneElement {
             addGuideLine(objects, 0, y, width, y, guideColor, guideWidth);
             if (showGuideLabels) {
                 const atTop = y < 12;
-                objects.push(new Text(4, atTop ? y + 2 : y - 2, label, guideLabelFont, {
-                    color: guideColor,
-                    baseline: atTop ? 'top' : 'bottom',
-                }).setLayoutParticipation('exclude'));
+                objects.push(
+                    new Text(4, atTop ? y + 2 : y - 2, label, guideLabelFont, {
+                        color: guideColor,
+                        baseline: atTop ? 'top' : 'bottom',
+                    }).setLayoutParticipation('exclude')
+                );
             }
         };
         if (props.showFrequencyGuides === true) {
             const step = clamp(props.frequencyGuideStep ?? 1000, 1, 48000);
-            for (let frequency = Math.ceil(minFrequency / step) * step, count = 0; frequency <= maxFrequency && count < MAX_GUIDE_LINES; frequency += step, count += 1) addFrequencyGuide(frequency, formatFrequency(frequency));
+            for (
+                let frequency = Math.ceil(minFrequency / step) * step, count = 0;
+                frequency <= maxFrequency && count < MAX_GUIDE_LINES;
+                frequency += step, count += 1
+            )
+                addFrequencyGuide(frequency, formatFrequency(frequency));
         }
         if (props.showOctaveGuides === true) {
             const step = Math.round(clamp(props.octaveGuideStep ?? 1, 1, 8));
             const startNote = Math.round(clamp(props.octaveGuideStartNote ?? A4_MIDI_NOTE, 0, 127));
             const noteStep = 12 * step;
-            const firstNote = startNote + Math.ceil((frequencyToMidiNote(minFrequency) - startNote) / noteStep) * noteStep;
+            const firstNote =
+                startNote + Math.ceil((frequencyToMidiNote(minFrequency) - startNote) / noteStep) * noteStep;
             for (let note = firstNote, count = 0; count < MAX_GUIDE_LINES; note += noteStep, count += 1) {
                 const frequency = A4_FREQUENCY * Math.pow(2, (note - A4_MIDI_NOTE) / 12);
                 if (frequency > maxFrequency) break;
@@ -352,16 +504,23 @@ export class AudioSpectrogramElement extends SceneElement {
             if (x >= 0 && x <= width) {
                 addGuideLine(objects, x, 0, x, height, color, guideWidth);
                 if (showGuideLabels) {
-                    objects.push(new Text(Math.min(width - 2, x + 3), 3, label, guideLabelFont, {
-                        color,
-                        baseline: 'top',
-                    }).setLayoutParticipation('exclude'));
+                    objects.push(
+                        new Text(Math.min(width - 2, x + 3), 3, label, guideLabelFont, {
+                            color,
+                            baseline: 'top',
+                        }).setLayoutParticipation('exclude')
+                    );
                 }
             }
         };
         if (props.showSecondGuides === true) {
             const step = clamp(props.secondGuideStep ?? 1, 0.1, 60);
-            for (let second = Math.ceil(startSeconds / step) * step, count = 0; second <= endSeconds + 1e-9 && count < MAX_GUIDE_LINES; second += step, count += 1) addTimeGuide(second, `${Number(second.toFixed(2))} s`);
+            for (
+                let second = Math.ceil(startSeconds / step) * step, count = 0;
+                second <= endSeconds + 1e-9 && count < MAX_GUIDE_LINES;
+                second += step, count += 1
+            )
+                addTimeGuide(second, `${Number(second.toFixed(2))} s`);
         }
         if (props.showBeatGuides === true || props.showBarGuides === true) {
             const beatStep = clamp(props.beatGuideStep ?? 1, 0.25, 64);
@@ -370,7 +529,11 @@ export class AudioSpectrogramElement extends SceneElement {
             if (firstBeat !== null && lastBeat !== null) {
                 const barSize = beatsPerBar(context.timing?.getTimeSignature());
                 if (props.showBeatGuides === true) {
-                    for (let beat = Math.ceil(firstBeat / beatStep) * beatStep, count = 0; beat <= lastBeat + 1e-9 && count < MAX_GUIDE_LINES; beat += beatStep, count += 1) {
+                    for (
+                        let beat = Math.ceil(firstBeat / beatStep) * beatStep, count = 0;
+                        beat <= lastBeat + 1e-9 && count < MAX_GUIDE_LINES;
+                        beat += beatStep, count += 1
+                    ) {
                         const isBarBoundary = Math.abs(beat / barSize - Math.round(beat / barSize)) < 1e-9;
                         if (props.showBarGuides === true && isBarBoundary) continue;
                         const seconds = timingValue(context.timing?.beatsToSeconds(beat));
@@ -379,8 +542,15 @@ export class AudioSpectrogramElement extends SceneElement {
                 }
                 if (props.showBarGuides === true) {
                     const firstBarBeat = Math.ceil(firstBeat / barSize) * barSize;
-                    const barColor = applyOpacity(props.barGuideColor ?? '#F8FAFC', clamp(props.guideOpacity ?? 0.35, 0, 1));
-                    for (let beat = firstBarBeat, count = 0; beat <= lastBeat + 1e-9 && count < MAX_GUIDE_LINES; beat += barSize, count += 1) {
+                    const barColor = applyOpacity(
+                        props.barGuideColor ?? '#F8FAFC',
+                        clamp(props.guideOpacity ?? 0.35, 0, 1)
+                    );
+                    for (
+                        let beat = firstBarBeat, count = 0;
+                        beat <= lastBeat + 1e-9 && count < MAX_GUIDE_LINES;
+                        beat += barSize, count += 1
+                    ) {
                         const seconds = timingValue(context.timing?.beatsToSeconds(beat));
                         if (seconds !== null) addTimeGuide(seconds, `Bar ${Math.floor(beat / barSize) + 1}`, barColor);
                     }
@@ -389,7 +559,11 @@ export class AudioSpectrogramElement extends SceneElement {
         }
         if (props.showPlayhead !== false) {
             const x = width * playheadPosition;
-            const line = new Line(x, 0, x, height, { color: applyOpacity(props.playheadColor ?? DEFAULT_PLAYHEAD_COLOR, props.opacity ?? 1), lineWidth: 1, layoutParticipation: 'exclude' });
+            const line = new Line(x, 0, x, height, {
+                color: applyOpacity(props.playheadColor ?? DEFAULT_PLAYHEAD_COLOR, props.opacity ?? 1),
+                lineWidth: 1,
+                layoutParticipation: 'exclude',
+            });
             objects.push(line);
         }
         return objects;
@@ -411,7 +585,11 @@ export class AudioSpectrogramElement extends SceneElement {
     }
 }
 
-export const audioSpectrogram = defineHostAdaptedBuiltIn({
-    type: 'audioSpectrogram', metadata: { name: 'Audio Spectrogram', description: 'Scrolling frequency heatmap', category: 'Audio Displays' },
-    capabilities: { required: ['audio.features.read'], optional: ['timing.conversion'] },
-}, AudioSpectrogramElement);
+export const audioSpectrogram = defineHostAdaptedBuiltIn(
+    {
+        type: 'audioSpectrogram',
+        metadata: { name: 'Audio Spectrogram', description: 'Scrolling frequency heatmap', category: 'Audio Displays' },
+        capabilities: { required: ['audio.features.read'], optional: ['timing.conversion'] },
+    },
+    AudioSpectrogramElement
+);

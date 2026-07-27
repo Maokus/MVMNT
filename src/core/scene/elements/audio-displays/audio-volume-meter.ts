@@ -132,7 +132,10 @@ export class AudioVolumeMeterElement extends SceneElement {
                             prop.color('backgroundColor', 'Background Color', DEFAULT_BACKGROUND_COLOR),
                             prop.number('backgroundOpacity', 'Background Opacity', 0, { min: 0, max: 1, step: 0.01 }),
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } }, { kind: 'property', propertyKey: 'backgroundOpacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } },
+                            { kind: 'property', propertyKey: 'backgroundOpacity' },
+                        ],
                     },
                 ]),
             ]
@@ -212,8 +215,18 @@ export class AudioVolumeMeterElement extends SceneElement {
                 readings = result.ok ? result.value : null;
             } else {
                 // Peak mode: get raw samples per channel and find max abs amplitude
-                const left = audio.getRawSamples({ trackId, startSeconds: startSec, endSeconds: endSec, channel: 'left' });
-                const right = audio.getRawSamples({ trackId, startSeconds: startSec, endSeconds: endSec, channel: 'right' });
+                const left = audio.getRawSamples({
+                    trackId,
+                    startSeconds: startSec,
+                    endSeconds: endSec,
+                    channel: 'left',
+                });
+                const right = audio.getRawSamples({
+                    trackId,
+                    startSeconds: startSec,
+                    endSeconds: endSec,
+                    channel: 'right',
+                });
                 const leftSamples = left.ok ? left.value : null;
                 const rightSamples = right.ok ? right.value : null;
                 if (leftSamples || rightSamples) {
@@ -492,7 +505,9 @@ export class AudioVolumeMeterElement extends SceneElement {
             if (isVertical) {
                 const lineY = height - refNorm * height;
                 objects.push(
-                    new Line(0, lineY, width, lineY, { color: lineColor, lineWidth: 1 }).setLayoutParticipation('exclude')
+                    new Line(0, lineY, width, lineY, { color: lineColor, lineWidth: 1 }).setLayoutParticipation(
+                        'exclude'
+                    )
                 );
                 objects.push(
                     new Text(width + 4, lineY, label, labelFont, {
@@ -503,7 +518,9 @@ export class AudioVolumeMeterElement extends SceneElement {
             } else {
                 const lineX = refNorm * width;
                 objects.push(
-                    new Line(lineX, 0, lineX, height, { color: lineColor, lineWidth: 1 }).setLayoutParticipation('exclude')
+                    new Line(lineX, 0, lineX, height, { color: lineColor, lineWidth: 1 }).setLayoutParticipation(
+                        'exclude'
+                    )
                 );
                 objects.push(
                     new Text(lineX, height + 4, label, labelFont, {

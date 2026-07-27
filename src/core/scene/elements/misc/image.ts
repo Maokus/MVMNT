@@ -95,7 +95,15 @@ export const image = definePluginElement<ImageProps, ImageState>({
                         label: 'Appearance',
                         collapsed: false,
                         properties: [
-                            { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 0.01 },
+                            {
+                                key: 'opacity',
+                                label: 'Opacity',
+                                type: 'number',
+                                default: 1,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                            },
                             {
                                 key: 'blendMode',
                                 label: 'Blend Mode',
@@ -108,7 +116,10 @@ export const image = definePluginElement<ImageProps, ImageState>({
                                 ],
                             },
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'opacity' } }, { kind: 'property', propertyKey: 'opacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'opacity' } },
+                            { kind: 'property', propertyKey: 'opacity' },
+                        ],
                     },
                     {
                         id: 'border',
@@ -136,7 +147,12 @@ export const image = definePluginElement<ImageProps, ImageState>({
                                 step: 1,
                             },
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'borderWidth' } }, { kind: 'property', propertyKey: 'borderWidth' }, { kind: 'control', control: 'slider', bindings: { value: 'cornerRadius' } }, { kind: 'property', propertyKey: 'cornerRadius' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'borderWidth' } },
+                            { kind: 'property', propertyKey: 'borderWidth' },
+                            { kind: 'control', control: 'slider', bindings: { value: 'cornerRadius' } },
+                            { kind: 'property', propertyKey: 'cornerRadius' },
+                        ],
                     },
                     {
                         id: 'shadow',

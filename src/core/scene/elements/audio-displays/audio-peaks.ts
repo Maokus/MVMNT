@@ -276,7 +276,10 @@ export class AudioPeaksElement extends SceneElement {
                             }),
                             prop.number('beatGridWidth', 'Line Width (px)', 1, { min: 0.5, max: 8, step: 0.5 }),
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'beatGridOpacity' } }, { kind: 'property', propertyKey: 'beatGridOpacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'beatGridOpacity' } },
+                            { kind: 'property', propertyKey: 'beatGridOpacity' },
+                        ],
                     },
                     {
                         id: 'primaryChannel',
@@ -341,7 +344,10 @@ export class AudioPeaksElement extends SceneElement {
                                 { description: 'Canvas composite blending operation.' }
                             ),
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'opacity' } }, { kind: 'property', propertyKey: 'opacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'opacity' } },
+                            { kind: 'property', propertyKey: 'opacity' },
+                        ],
                     },
                     {
                         id: 'secondaryColors',
@@ -374,7 +380,10 @@ export class AudioPeaksElement extends SceneElement {
                                 { description: 'Canvas composite blending operation.' }
                             ),
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'secondaryOpacity' } }, { kind: 'property', propertyKey: 'secondaryOpacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'secondaryOpacity' } },
+                            { kind: 'property', propertyKey: 'secondaryOpacity' },
+                        ],
                     },
                     {
                         id: 'background',
@@ -399,7 +408,10 @@ export class AudioPeaksElement extends SceneElement {
                                 runtime: { transform: asNumber, defaultValue: 0 },
                             },
                         ],
-                        layout: [{ kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } }, { kind: 'property', propertyKey: 'backgroundOpacity' }],
+                        layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } },
+                            { kind: 'property', propertyKey: 'backgroundOpacity' },
+                        ],
                     },
                 ]),
             ]
@@ -472,7 +484,7 @@ export class AudioPeaksElement extends SceneElement {
         const firstSampleIndex = firstBucketIndex * samplesPerBucket;
         const lastSampleIndex = (lastBucketIndex + 1) * samplesPerBucket - 1;
         const missingRanges: Array<{ start: number; end: number }> = [];
-        for (let index = firstSampleIndex; index <= lastSampleIndex; ) {
+        for (let index = firstSampleIndex; index <= lastSampleIndex;) {
             if (index * stepSec < 0) {
                 index += 1;
                 continue;
@@ -505,9 +517,7 @@ export class AudioPeaksElement extends SceneElement {
                     metadata: {
                         frame: {
                             channelValues,
-                            format: channelValues.some((channel) => channel.length > 1)
-                                ? 'waveform-minmax'
-                                : 'float32',
+                            format: channelValues.some((channel) => channel.length > 1) ? 'waveform-minmax' : 'float32',
                         },
                     },
                 });
