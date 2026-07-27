@@ -224,7 +224,8 @@ function createAnalysisParams(
     tempoMap: TempoMapEntry[] | undefined,
     calculators: AudioFeatureCalculator[],
     windowSize: number,
-    hopSize: number
+    hopSize: number,
+    fftSize?: number
 ): AudioFeatureAnalysisParams {
     const versions: Record<string, number> = {};
     for (const calc of calculators) {
@@ -237,6 +238,7 @@ function createAnalysisParams(
         sampleRate,
         tempoMapHash: computeTempoMapHash(tempoMap),
         calculatorVersions: versions,
+        ...(typeof fftSize === 'number' && Number.isFinite(fftSize) ? { fftSize } : {}),
     };
 }
 
@@ -605,6 +607,7 @@ export interface AnalyzeAudioFeatureOptions {
     tempoMap?: TempoMapEntry[];
     windowSize?: number;
     hopSize?: number;
+    fftSize?: number;
     calculators?: string[];
     onProgress?: (value: number, label?: string) => void;
     signal?: AbortSignal;
@@ -639,7 +642,8 @@ export async function analyzeAudioBufferFeatures(
         options.tempoMap,
         calculators,
         windowSize,
-        hopSize
+        hopSize,
+        options.fftSize
     );
     const requestedProfileId = sanitizeAnalysisProfileId(options.analysisProfileId) ?? DEFAULT_ANALYSIS_PROFILE_ID;
     const hopTicks = quantizeHopTicks({

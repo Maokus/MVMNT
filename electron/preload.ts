@@ -25,6 +25,8 @@ function subscribe<T>(channel: string, callback: (payload: T) => void): () => vo
 const api: MvmntDesktopApi = {
     documents: {
         open: () => ipcRenderer.invoke('documents:open'),
+        listRecent: () => ipcRenderer.invoke('documents:list-recent'),
+        openRecent: (index) => ipcRenderer.invoke('documents:open-recent', index),
         save: (request: DesktopSaveRequest) => ipcRenderer.invoke('documents:save', request),
         chooseSaveAs: (request: DesktopSaveAsSelectionRequest) => ipcRenderer.invoke('documents:choose-save-as', request),
         writeSaveAs: (request: DesktopWriteSaveAsRequest) => ipcRenderer.invoke('documents:write-save-as', request),

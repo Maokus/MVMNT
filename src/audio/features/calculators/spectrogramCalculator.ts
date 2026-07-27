@@ -11,6 +11,10 @@ const SPECTROGRAM_MIN_DECIBELS = -80;
 const SPECTROGRAM_MAX_DECIBELS = 0;
 const SPECTROGRAM_EPSILON = 1e-8;
 
+function isPowerOfTwo(value: number): boolean {
+    return Number.isInteger(value) && value >= 32 && (value & (value - 1)) === 0;
+}
+
 export interface SpectrogramCalculatorDependencies {
     createAnalysisYieldController: (signal?: AbortSignal) => () => Promise<void>;
     mixBufferToMono: (buffer: AudioBuffer, maybeYield?: () => Promise<void>) => Promise<Float32Array>;
@@ -38,7 +42,11 @@ export function createSpectrogramCalculator({
             const maybeYield = createAnalysisYieldController(signal);
             const mono = await mixBufferToMono(audioBuffer, maybeYield);
             const { windowSize, hopSize } = analysisParams;
-            const fftSize = Math.pow(2, Math.ceil(Math.log2(Math.max(32, windowSize))));
+            const derivedFftSize = Math.pow(2, Math.ceil(Math.log2(Math.max(32, windowSize))));
+            const requestedFftSize = analysisParams.fftSize;
+            const fftSize = isPowerOfTwo(requestedFftSize ?? NaN) && requestedFftSize! >= windowSize
+                ? requestedFftSize!
+                : derivedFftSize;
             const binCount = Math.floor(fftSize / 2) + 1;
             const window = hannWindow(windowSize);
             const output = new Float32Array(frameCount * binCount);

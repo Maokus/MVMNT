@@ -13,13 +13,15 @@ import { useTimelineStore } from '@state/timelineStore';
 export function getHostAudioFeatureMatrixRevision(
     trackId: string,
     featureKey: string,
-    analysisProfileId?: string | null
+    analysisProfileId?: string | null,
+    strictProfileMatching = false
 ): string | null {
     return getAudioFeatureMatrixRevision(
         useTimelineStore.getState(),
         trackId,
         featureKey,
-        analysisProfileId
+        analysisProfileId,
+        strictProfileMatching
     );
 }
 

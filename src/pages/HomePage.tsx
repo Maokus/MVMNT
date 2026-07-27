@@ -1,108 +1,169 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { FaFile, FaFolderOpen, FaRegClock, FaRegFile, FaWandMagicSparkles } from 'react-icons/fa6';
+import type { DesktopRecentDocument } from '../../electron/shared/desktop-api';
 import logo from '@assets/Logo_Transparent.png';
-import pfp from '@assets/Logo_Pfp_white.png';
-import './homepage.css';
-import { FaFileCirclePlus } from 'react-icons/fa6';
 import { stageDesktopProjectOpen } from '../desktop/pending-open';
+import { writeStoredImportPayload } from '@utils/importPayloadStorage';
+import { easyModeTemplates } from '@workspace/templates/easyModeTemplates';
+import type { TemplateDefinition } from '@workspace/templates/types';
+import './homepage.css';
 
-/**
- * Home / Landing page
- * - Large title (MVMNT)
- * - Load file button (imports scene)
- * - Template cards: Blank, Default, Debug
- * - Quick links (About, Changelog, Discord, GitHub)
- */
+const PENDING_DESKTOP_NAME_KEY = 'mvmnt.desktop.pending-open-name';
+
 const HomePage: React.FC = () => {
     const navigate = useNavigate();
+    const inputRef = useRef<HTMLInputElement>(null);
+    const [recentFiles, setRecentFiles] = useState<DesktopRecentDocument[]>([]);
+    const [isOpening, setIsOpening] = useState(false);
 
-    const handleOpenTemplate = (template: string) => {
-        navigate('/workspace', { state: { template } });
+    useEffect(() => {
+        const desktop = window.mvmntDesktop;
+        if (!desktop) return;
+        void desktop.documents.listRecent().then(setRecentFiles).catch(() => setRecentFiles([]));
+    }, []);
+
+    const openStagedProject = (bytes: Uint8Array, name: string) => {
+        writeStoredImportPayload(bytes);
+        sessionStorage.setItem(PENDING_DESKTOP_NAME_KEY, name);
+        navigate('/workspace', { state: { importScene: true } });
     };
 
-    const handleLoadFile = () => {
+    const handleNewDocument = async () => {
+        setIsOpening(true);
+        try {
+            await window.mvmntDesktop?.documents.clearActivePath();
+            navigate('/workspace', { state: { template: 'blank', desktopNew: true } });
+        } finally {
+            setIsOpening(false);
+        }
+    };
+
+    const handleOpen = async () => {
         const desktop = window.mvmntDesktop;
         if (!desktop) {
-            alert('MVMNT must be run through the desktop application.');
+            inputRef.current?.click();
             return;
         }
-        void desktop.documents.open().then((result) => {
-            if (stageDesktopProjectOpen(result)) {
-                navigate('/workspace', { state: { importScene: true } });
-            }
-        });
-    };
-
-    return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-800 text-neutral-200 px-6 py-10">
-            <div className="max-w-4xl w-full">
-                <div className="flex flex-col items-left mb-10">
-                    <p><span className="text-8xl font-extrabold tracking-tight text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.15)]">MVMNT</span><span>v{((import.meta as any).env?.VITE_VERSION)}</span></p>
-                    <p className="mt-4 text-neutral-400 text-lg max-w-2xl">Open-source, flexible MIDI visualization & rendering workspace.</p>
-                    <div className="mt-6 flex flex-wrap gap-4">
-                        <Link to="/workspace" className="tracking-[0.2rem] px-5 py-2.5 rounded text-sm font-medium transition bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-pink-400">
-                            ENTER
-                        </Link>
-
-                        <Link to="/about" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">About</Link>
-                        <Link to="/contribute" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">Contribute</Link>
-                        <Link to="/changelog" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">Changelog</Link>
-                        <Link to="/community" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">Community</Link>
-                    </div>
-                </div>
-            </div>
-            <DonationNotice />
-        </div>
-    );
-};
-interface TemplateCardProps { title: string; desc: string; onClick: () => void }
-const TemplateCard: React.FC<TemplateCardProps> = ({ title, desc, onClick, }) => (
-    <button
-        onClick={onClick}
-        className={[
-            'group relative flex flex-col items-start text-left p-2 pl-4 rounded-lg border transition focus:outline-none focus:ring-2',
-            'border-neutral-800 bg-neutral-900/60 hover:border-neutral-600 hover:bg-neutral-900 focus:ring-indigo-500',
-            'max-w-72'
-        ].join(' ')}
-    >
-        <p><FaFileCirclePlus className='inline' /> <span className="text-sm pl-2">{title}</span></p>
-    </button>
-);
-
-const DonationNotice: React.FC = () => {
-    const [dismissed, setDismissed] = React.useState<boolean>(() => {
+        setIsOpening(true);
         try {
-            return false;//localStorage.getItem('donationNoticeDismissed') === '1';
-        } catch {
-            return false;
+            const result = await desktop.documents.open();
+            if (stageDesktopProjectOpen(result)) navigate('/workspace', { state: { importScene: true } });
+        } finally {
+            setIsOpening(false);
         }
-    });
+    };
 
-    if (dismissed) return null;
+    const handleBrowserFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+        setIsOpening(true);
+        try {
+            openStagedProject(new Uint8Array(await file.arrayBuffer()), file.name);
+        } finally {
+            setIsOpening(false);
+        }
+    };
 
-    const handleDismiss = () => {
-        try { localStorage.setItem('donationNoticeDismissed', '1'); } catch { }
-        setDismissed(true);
+    const handleTemplate = async (template: TemplateDefinition) => {
+        setIsOpening(true);
+        try {
+            const artifact = await template.loadArtifact();
+            await window.mvmntDesktop?.documents.clearActivePath();
+            openStagedProject(artifact.data, `${template.name}.mvt`);
+        } catch (error) {
+            alert(`Could not open ${template.name}: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsOpening(false);
+        }
+    };
+
+    const handleRecent = async (index: number) => {
+        const desktop = window.mvmntDesktop;
+        if (!desktop) return;
+        setIsOpening(true);
+        try {
+            const result = await desktop.documents.openRecent(index);
+            if (stageDesktopProjectOpen(result)) navigate('/workspace', { state: { importScene: true } });
+            else setRecentFiles(await desktop.documents.listRecent());
+        } finally {
+            setIsOpening(false);
+        }
     };
 
     return (
-        <div className="fixed bottom-4 right-4 z-50 flex items-end gap-2">
-            <div className="relative">
-                <div className="bg-neutral-900/85 backdrop-blur-sm text-neutral-100 p-3 rounded-lg shadow-lg border border-neutral-800 max-w-xs">
-                    <div className="text-sm">
-                        <div className="font-medium">Welcome!!</div>
-                        <div className="text-neutral-300 mt-1">I develop and host this project at my own expense. If you enjoy the app, please consider donating!</div>
-                        <div className="mt-2 flex gap-2">
-                            <Link to="/contribute" className="px-2 py-1 text-xs bg-indigo-600 hover:bg-indigo-500 rounded">Donate</Link>
-                            <button onClick={handleDismiss} className="px-2 py-1 text-xs bg-neutral-800 hover:bg-neutral-700 rounded">Dismiss</button>
-                        </div>
-                    </div>
-                </div>
-                <div className="absolute -right-2 bottom-3 w-3 h-3 bg-neutral-900/85 border border-neutral-800 rotate-45" aria-hidden="true" />
-            </div>
+        <main className="start-center">
+            <input ref={inputRef} type="file" accept=".mvt,application/octet-stream" className="start-center__file-input" onChange={handleBrowserFile} />
+            <header className="start-center__topbar">
+                <Link to="/" className="start-center__brand" aria-label="MVMNT home">
+                    <img src={logo} alt="" />
+                    <span>MVMNT</span>
+                </Link>
+                <nav aria-label="MVMNT information">
+                    <Link to="/about">About</Link>
+                    <Link to="/community">Community</Link>
+                    <Link to="/changelog">Changelog</Link>
+                </nav>
+            </header>
 
-            <img src={pfp} alt="Maokus avatar" className="w-10 h-10 rounded-full border-2 border-neutral-800 object-cover" />
-        </div>
+            <section className="start-center__content" aria-labelledby="start-center-title">
+                <div className="start-center__intro">
+                    <p className="start-center__eyebrow">MIDI VISUALISATION STUDIO</p>
+                    <h1 id="start-center-title">Create something in motion.</h1>
+                    <p>Start with an empty document, open a saved MVMNT project, or use a ready-made scene as your canvas.</p>
+                </div>
+
+                <div className="start-center__primary-actions">
+                    <button type="button" className="start-center__new-button" onClick={() => void handleNewDocument()} disabled={isOpening}>
+                        <FaFile />
+                        <span><strong>New document</strong><small>Start with a blank scene</small></span>
+                    </button>
+                    <button type="button" className="start-center__open-button" onClick={() => void handleOpen()} disabled={isOpening}>
+                        <FaFolderOpen />
+                        <span><strong>Open</strong><small>Open an existing .mvt file</small></span>
+                    </button>
+                </div>
+
+                <div className="start-center__panels">
+                    <section className="start-center__panel start-center__templates" aria-labelledby="templates-title">
+                        <div className="start-center__section-heading">
+                            <FaWandMagicSparkles />
+                            <div><h2 id="templates-title">Templates</h2><p>Begin with a scene that is ready to customise.</p></div>
+                        </div>
+                        <div className="start-center__template-grid">
+                            {easyModeTemplates.map((template, index) => (
+                                <button type="button" key={template.id} className={`start-center__template start-center__template--${index % 5}`} onClick={() => void handleTemplate(template)} disabled={isOpening}>
+                                    <span className="start-center__template-art"><FaRegFile /></span>
+                                    <strong>{template.name}</strong>
+                                    <small>{template.description}</small>
+                                    {template.author ? <em>by {template.author}</em> : null}
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+
+                    <section className="start-center__panel start-center__recent" aria-labelledby="recent-title">
+                        <div className="start-center__section-heading">
+                            <FaRegClock />
+                            <div><h2 id="recent-title">Recent files</h2><p>Your five most recently opened projects.</p></div>
+                        </div>
+                        {recentFiles.length ? (
+                            <ol className="start-center__recent-list">
+                                {recentFiles.map((file, index) => (
+                                    <li key={`${file.displayName}-${file.openedAt}`}>
+                                        <button type="button" onClick={() => void handleRecent(index)} disabled={isOpening}>
+                                            <FaFile /><span>{file.displayName}</span>
+                                        </button>
+                                    </li>
+                                ))}
+                            </ol>
+                        ) : <p className="start-center__empty-recent">Files you open or save will appear here.</p>}
+                    </section>
+                </div>
+            </section>
+            {isOpening ? <div className="start-center__loading" role="status">Opening document…</div> : null}
+        </main>
     );
 };
 

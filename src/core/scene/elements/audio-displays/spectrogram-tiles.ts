@@ -172,6 +172,7 @@ export class SpectrogramTileRenderObject extends BoxRenderObject {
 
 export interface SpectrogramTileRequest {
     trackId: string;
+    analysisProfileId?: string | null;
     tileIndex: number;
     stepSeconds: number;
     rows: number;
@@ -213,6 +214,8 @@ function sampleSpectrogramTileFrames(
     const matrix = readHostAudioFeatureMatrix({
         trackId: request.trackId,
         featureKey: 'spectrogram',
+        analysisProfileId: request.analysisProfileId,
+        strictProfileMatching: true,
         startSeconds: firstColumn * request.stepSeconds,
         stepSeconds: request.stepSeconds,
         frameCount: SPECTROGRAM_TILE_COLUMNS,
@@ -235,6 +238,7 @@ export function buildSpectrogramTileKey(revision: string, request: SpectrogramTi
     return [
         revision,
         request.trackId,
+        request.analysisProfileId ?? 'default',
         request.tileIndex,
         stableNumber(request.stepSeconds),
         request.rows,
@@ -252,7 +256,9 @@ export function buildSpectrogramTileKey(revision: string, request: SpectrogramTi
 export function getSpectrogramTile(request: SpectrogramTileRequest): SpectrogramTileResource | null {
     const revision = getHostAudioFeatureMatrixRevision(
         request.trackId,
-        'spectrogram'
+        'spectrogram',
+        request.analysisProfileId,
+        true
     );
     if (!revision) return null;
     const key = buildSpectrogramTileKey(revision, request);

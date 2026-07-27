@@ -112,6 +112,22 @@ describe('audio feature analysis', () => {
         expect(Object.keys(cache.analysisProfiles ?? {})).toContain(requestedProfile);
     });
 
+    it('honors an explicit FFT size for spectrogram analysis', async () => {
+        const { cache } = await analyzeAudioBufferFeatures({
+            audioSourceId: 'fft-size-test',
+            audioBuffer: createSineBuffer(0.2),
+            globalBpm: 120,
+            beatsPerBar: 4,
+            windowSize: 1024,
+            hopSize: 256,
+            fftSize: 4096,
+        });
+        const spectrogram = cache.featureTracks[buildFeatureTrackKey('spectrogram', DEFAULT_ANALYSIS_PROFILE_ID)];
+        expect(spectrogram?.metadata?.fftSize).toBe(4096);
+        expect(spectrogram?.channels).toBe(2049);
+        expect(cache.analysisParams.fftSize).toBe(4096);
+    });
+
     it('scheduler resolves queued jobs and supports cancellation', async () => {
         const buffer = createSineBuffer(0.2);
         const progress: Array<{ value: number; label?: string }> = [];

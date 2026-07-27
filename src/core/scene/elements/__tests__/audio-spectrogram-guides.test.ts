@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AudioSpectrogramElement } from '@core/scene/elements/audio-displays/audio-spectrogram';
+import { AudioSpectrogramElement, resolveSpectrogramAnalysis } from '@core/scene/elements/audio-displays/audio-spectrogram';
 
 describe('audio spectrogram guide schema', () => {
     it('groups guide controls and exposes independent note origins', () => {
@@ -19,5 +19,39 @@ describe('audio spectrogram guide schema', () => {
             'showBarGuides',
             'barGuideColor',
         ]));
+    });
+});
+
+describe('audio spectrogram analysis settings', () => {
+    it('keeps legacy scenes on the default profile until an override is selected', () => {
+        const analysis = resolveSpectrogramAnalysis({});
+        expect(analysis.analysisProfileId).toBe('default');
+        expect(analysis.requirement.profileParams).toBeUndefined();
+    });
+
+    it('creates a stable derived profile and normalizes dependent analysis values', () => {
+        const analysis = resolveSpectrogramAnalysis({
+            analysisFftSize: '512',
+            analysisWindowSize: '2048',
+            analysisHopSize: '2048',
+        });
+        expect(analysis.analysisProfileId).toMatch(/^adhoc-/);
+        expect(analysis.requirement.profileParams).toEqual({
+            fftSize: 2048,
+            windowSize: 2048,
+            hopSize: 2048,
+        });
+    });
+
+    it('exposes curated controls in a dedicated analysis group', () => {
+        const analysis = AudioSpectrogramElement.getConfigSchema().tabs
+            .flatMap((tab) => tab.groups)
+            .find((group) => group.id === 'analysis');
+        expect(analysis?.properties.map((property) => property.key)).toEqual([
+            'analysisProfileId',
+            'analysisFftSize',
+            'analysisWindowSize',
+            'analysisHopSize',
+        ]);
     });
 });

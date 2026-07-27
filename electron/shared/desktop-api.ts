@@ -44,6 +44,12 @@ export interface DesktopDocumentState {
     displayName?: string;
 }
 
+/** A safe recent-project summary. Native paths never leave the main process. */
+export interface DesktopRecentDocument {
+    displayName: string;
+    openedAt: number;
+}
+
 export interface DesktopRenameRequest {
     /** A validated .mvt filename, never a path. */
     filename: string;
@@ -139,6 +145,8 @@ export type CloseRequestResult = 'saved' | 'discarded' | 'canceled' | 'error';
 export interface MvmntDesktopApi {
     documents: {
         open(): Promise<DesktopOpenResult>;
+        listRecent(): Promise<DesktopRecentDocument[]>;
+        openRecent(index: number): Promise<DesktopOpenResult>;
         save(request: DesktopSaveRequest): Promise<DesktopSaveResult>;
         chooseSaveAs(request: DesktopSaveAsSelectionRequest): Promise<DesktopSaveAsSelectionResult>;
         writeSaveAs(request: DesktopWriteSaveAsRequest): Promise<DesktopSaveResult>;

@@ -23,6 +23,8 @@ export interface AudioFeatureMatrixRequest {
     readonly frameCount: number;
     readonly interpolation?: 'linear' | 'nearest';
     readonly analysisProfileId?: string | null;
+    /** Do not substitute another cached profile when this variant is unavailable. */
+    readonly strictProfileMatching?: boolean;
 }
 
 export interface AudioFeatureMatrix {
@@ -92,7 +94,8 @@ export function getAudioFeatureMatrixRevision(
     state: TimelineState,
     trackId: string,
     featureKey: string,
-    analysisProfileId?: string | null
+    analysisProfileId?: string | null,
+    strictProfileMatching = false
 ): string | null {
     const timelineTrack = state.tracks[trackId] as AudioTrack | undefined;
     if (!timelineTrack || timelineTrack.type !== 'audio') return null;
@@ -101,6 +104,7 @@ export function getAudioFeatureMatrixRevision(
         if (clip.enabled === false) continue;
         const resolved = resolveFeatureTrackFromCache(state.audioFeatureCaches[clip.sourceId], featureKey, {
             analysisProfileId,
+            strictProfileMatching,
         });
         if (!resolved.track || !isPackedNumericTrack(resolved.track)) continue;
         identities.push(
@@ -154,6 +158,7 @@ export function readAudioFeatureMatrix(
         const cache = state.audioFeatureCaches[clip.sourceId];
         const resolved = resolveFeatureTrackFromCache(cache, request.featureKey, {
             analysisProfileId: request.analysisProfileId,
+            strictProfileMatching: request.strictProfileMatching,
         });
         if (!cache || !resolved.track || !isPackedNumericTrack(resolved.track)) continue;
         const track = resolved.track;

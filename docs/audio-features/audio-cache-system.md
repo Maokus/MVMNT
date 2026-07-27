@@ -157,6 +157,15 @@ analysis work even if they originate from different UI components, reducing dupl
 - **Format**: `float32` (frameCount × binCount)
 - **Metadata**: includes FFT size, sample rate, min/max decibels
 
+### Spectrogram element analysis controls
+
+The Audio Spectrogram inspector can select a base analysis profile and override its FFT size, window size, and hop size for that element. An override creates a deterministic derived profile, so matching elements reuse the same cached analysis while existing profile variants remain available for undo and other consumers.
+
+- Larger FFT and window sizes improve frequency detail but cost more CPU and memory.
+- Smaller hop sizes improve time detail but produce more frames and take longer to analyze.
+- FFT size is kept at least as large as the window, and hop size no larger than the window.
+- While a selected derived profile is being analyzed, the spectrogram waits for that profile rather than displaying data from a different cached profile.
+
 #### 2. RMS Calculator (`mvmnt.rms`)
 
 - Computes root-mean-square loudness per frame

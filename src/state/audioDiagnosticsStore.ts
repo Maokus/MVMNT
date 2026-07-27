@@ -1175,10 +1175,21 @@ function runJob(jobId: string): void {
             const timelineState = useTimelineStore.getState();
             const cache = timelineState.audioFeatureCaches[job.audioSourceId];
             const calculators = resolveCalculators(job, cache);
+            const profileParams = job.descriptors
+                .map((descriptorId) => job.descriptorDetails[descriptorId]?.descriptor.profileOverrides)
+                .find((params) => params != null);
             if (calculators.length) {
-                timelineState.reanalyzeAudioFeatureCalculators(job.audioSourceId, calculators, job.analysisProfileId);
+                if (profileParams) {
+                    timelineState.reanalyzeAudioFeatureCalculators(job.audioSourceId, calculators, job.analysisProfileId, profileParams);
+                } else {
+                    timelineState.reanalyzeAudioFeatureCalculators(job.audioSourceId, calculators, job.analysisProfileId);
+                }
             } else {
-                timelineState.restartAudioFeatureAnalysis(job.audioSourceId, job.analysisProfileId);
+                if (profileParams) {
+                    timelineState.restartAudioFeatureAnalysis(job.audioSourceId, job.analysisProfileId, profileParams);
+                } else {
+                    timelineState.restartAudioFeatureAnalysis(job.audioSourceId, job.analysisProfileId);
+                }
             }
         } catch (error) {
             status = 'failed';

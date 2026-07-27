@@ -5,6 +5,11 @@ import { applyOpacity } from '@utils/color';
 import { prop, insertElementConfig } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { propGroup, tab } from '@core/scene/plugins/plugin-sdk-prop-groups';
 import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/plugins/built-in-definition';
+import { getFeatureSubscriptionController } from '@audio/features/featureSubscriptionController';
+import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
+import { getBaseAnalysisProfile } from '@audio/features/analysisProfileRegistry';
+import type { AudioAnalysisProfileOverrides } from '@audio/features/audioFeatureTypes';
+import type { AudioFeatureRequirement } from '@audio/audioElementMetadata';
 import type { AudioSpectrumScale } from './audio-spectrum';
 import {
     getSpectrogramTile,
@@ -24,6 +29,9 @@ const MAX_GRID_ROWS = 256;
 const MAX_GUIDE_LINES = 256;
 const A4_FREQUENCY = 440;
 const A4_MIDI_NOTE = 69;
+const FFT_SIZE_OPTIONS = [512, 1024, 2048, 4096, 8192] as const;
+const WINDOW_SIZE_OPTIONS = [256, 512, 1024, 2048, 4096, 8192] as const;
+const HOP_SIZE_OPTIONS = [64, 128, 256, 512, 1024, 2048] as const;
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -38,6 +46,49 @@ function normalizeColorMap(value: unknown): SpectrogramColorMap {
     return SPECTROGRAM_COLOR_MAPS.includes(value as SpectrogramColorMap)
         ? (value as SpectrogramColorMap)
         : 'viridis';
+}
+
+function selectedPreset(value: unknown, options: readonly number[]): number | null {
+    const numeric = typeof value === 'number' ? value : Number(value);
+    return options.includes(numeric) ? numeric : null;
+}
+
+/** Resolves the element's profile settings once for analysis subscription and rendering. */
+export function resolveSpectrogramAnalysis(props: Record<string, unknown>): {
+    requirement: AudioFeatureRequirement;
+    analysisProfileId: string | null;
+} {
+    const requestedProfile = typeof props.analysisProfileId === 'string' && props.analysisProfileId.trim()
+        ? props.analysisProfileId.trim()
+        : null;
+    const selectedFftSize = selectedPreset(props.analysisFftSize, FFT_SIZE_OPTIONS);
+    const selectedWindowSize = selectedPreset(props.analysisWindowSize, WINDOW_SIZE_OPTIONS);
+    const selectedHopSize = selectedPreset(props.analysisHopSize, HOP_SIZE_OPTIONS);
+    const hasOverrides = selectedFftSize !== null || selectedWindowSize !== null || selectedHopSize !== null;
+    let profileParams: AudioAnalysisProfileOverrides | undefined;
+
+    if (hasOverrides) {
+        const base = getBaseAnalysisProfile(requestedProfile);
+        const windowSize = selectedWindowSize ?? base.windowSize;
+        const derivedFftSize = Math.pow(2, Math.ceil(Math.log2(Math.max(32, windowSize))));
+        const fftSize = Math.max(selectedFftSize ?? base.fftSize ?? derivedFftSize, windowSize);
+        const hopSize = Math.min(selectedHopSize ?? base.hopSize, windowSize);
+        profileParams = { windowSize, hopSize, fftSize };
+    }
+
+    const built = createFeatureDescriptor({
+        feature: 'spectrogram',
+        profile: requestedProfile,
+        profileParams,
+    });
+    return {
+        requirement: {
+            feature: 'spectrogram',
+            profile: requestedProfile ?? undefined,
+            profileParams,
+        },
+        analysisProfileId: built.descriptor.analysisProfileId ?? built.profile,
+    };
 }
 
 export function getSpectrogramFrequencyPosition(
@@ -112,6 +163,17 @@ export class AudioSpectrogramElement extends SceneElement {
         }, [
             tab.content([
                 propGroup.audioSource(),
+                { id: 'analysis', label: 'Analysis', collapsed: true, properties: [
+                    {
+                        key: 'analysisProfileId', type: 'audioAnalysisProfile', label: 'Base Profile', default: null,
+                        trackPropertyKey: 'audioTrackId',
+                        description: 'Optional base profile. The controls below create a cached variant for this spectrogram only.',
+                        runtime: { transform: (value) => typeof value === 'string' && value.trim() ? value.trim() : null, defaultValue: null },
+                    },
+                    prop.select('analysisFftSize', 'FFT Size', '', [{ value: '', label: 'Profile default' }, ...FFT_SIZE_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))], { description: 'Higher values provide finer frequency detail at a higher analysis cost.' }),
+                    prop.select('analysisWindowSize', 'Window Size', '', [{ value: '', label: 'Profile default' }, ...WINDOW_SIZE_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))], { description: 'Samples included in each analysis frame.' }),
+                    prop.select('analysisHopSize', 'Hop Size', '', [{ value: '', label: 'Profile default' }, ...HOP_SIZE_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))], { description: 'Samples between frames; smaller values improve time resolution and increase analysis work.' }),
+                ] },
                 { id: 'spectrogram', label: 'Spectrogram', collapsed: false, properties: [
                     prop.number('width', 'Width (px)', 800, { min: 1, step: 1 }),
                     prop.number('height', 'Height (px)', 300, { min: 1, step: 1 }),
@@ -198,6 +260,7 @@ export class AudioSpectrogramElement extends SceneElement {
             return objects;
         };
         if (!props.audioTrackId) return message('Select an audio track');
+        const analysis = resolveSpectrogramAnalysis(props);
         const context = getEnginePrivateContext(this);
         const audio = context.audio;
         if (!audio) return message('Audio not available');
@@ -227,6 +290,7 @@ export class AudioSpectrogramElement extends SceneElement {
         for (let tileIndex = firstTile; tileIndex <= lastTile; tileIndex += 1) {
             const resource = getSpectrogramTile({
                 trackId: props.audioTrackId,
+                analysisProfileId: analysis.analysisProfileId,
                 tileIndex,
                 stepSeconds,
                 rows,
@@ -345,9 +409,24 @@ export class AudioSpectrogramElement extends SceneElement {
         }
         return objects;
     }
+
+    protected override onPropertyChanged(key: string, oldValue: unknown, newValue: unknown): void {
+        super.onPropertyChanged(key, oldValue, newValue);
+        if (oldValue !== newValue && (key === 'analysisProfileId' || key === 'analysisFftSize' || key === 'analysisWindowSize' || key === 'analysisHopSize')) {
+            this._subscribeToRequiredFeatures();
+        }
+    }
+
+    protected override _subscribeToRequiredFeatures(): void {
+        const props = this.getSchemaProps();
+        const analysis = resolveSpectrogramAnalysis(props);
+        const controller = getFeatureSubscriptionController(this);
+        controller.setStaticRequirements([analysis.requirement]);
+        controller.updateTrack(typeof props.audioTrackId === 'string' ? props.audioTrackId : null);
+    }
 }
 
 export const audioSpectrogram = defineHostAdaptedBuiltIn({
     type: 'audioSpectrogram', metadata: { name: 'Audio Spectrogram', description: 'Scrolling frequency heatmap', category: 'Audio Displays' },
-    capabilities: { required: ['audio.features.read'], optional: ['timing.conversion'] }, featureRequirements: [{ feature: 'spectrogram' }],
+    capabilities: { required: ['audio.features.read'], optional: ['timing.conversion'] },
 }, AudioSpectrogramElement);

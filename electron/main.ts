@@ -24,6 +24,7 @@ import type {
     DesktopMenuCommand,
     DesktopOpenKind,
     DesktopOpenResult,
+    DesktopRecentDocument,
     DesktopRenameRequest,
     DesktopRenameResult,
     DesktopSaveRequest,
@@ -87,6 +88,10 @@ protocol.registerSchemesAsPrivileged([
 let mainWindow: BrowserWindow | null = null;
 let activeDocumentPath: string | null = null;
 let pendingOpenPath: string | null = null;
+interface RecentDocumentRecord extends DesktopRecentDocument {
+    path: string;
+}
+let recentDocuments: RecentDocumentRecord[] = [];
 let pendingSaveAs: { id: string; targetPath: string } | null = null;
 let documentDirty = false;
 let allowClose = false;
@@ -317,6 +322,67 @@ async function restoreDocumentState(): Promise<void> {
             activeDocumentPath = parsed.activeDocumentPath;
         }
     } catch {}
+}
+
+async function persistRecentDocuments(): Promise<void> {
+    const statePath = join(app.getPath('userData'), 'recent-documents.json');
+    await writeFile(statePath, JSON.stringify(recentDocuments), 'utf8').catch(() => undefined);
+}
+
+async function restoreRecentDocuments(): Promise<void> {
+    try {
+        const statePath = join(app.getPath('userData'), 'recent-documents.json');
+        const parsed = JSON.parse(await readFile(statePath, 'utf8')) as unknown;
+        if (!Array.isArray(parsed)) return;
+        recentDocuments = parsed.flatMap((entry): RecentDocumentRecord[] => {
+            if (!entry || typeof entry !== 'object') return [];
+            const value = entry as Partial<RecentDocumentRecord>;
+            if (typeof value.path !== 'string' || !value.path.toLowerCase().endsWith(PROJECT_EXTENSION)) return [];
+            return [{
+                path: value.path,
+                displayName: typeof value.displayName === 'string' ? value.displayName : basename(value.path),
+                openedAt: typeof value.openedAt === 'number' ? value.openedAt : 0,
+            }];
+        }).slice(0, 5);
+    } catch {}
+}
+
+function rememberRecentDocument(filePath: string): void {
+    if (!filePath.toLowerCase().endsWith(PROJECT_EXTENSION)) return;
+    recentDocuments = [
+        { path: filePath, displayName: basename(filePath), openedAt: Date.now() },
+        ...recentDocuments.filter((entry) => entry.path !== filePath),
+    ].slice(0, 5);
+    void persistRecentDocuments();
+}
+
+async function listRecentDocuments(): Promise<DesktopRecentDocument[]> {
+    const existing: RecentDocumentRecord[] = [];
+    for (const entry of recentDocuments) {
+        try {
+            await access(entry.path);
+            existing.push(entry);
+        } catch {}
+    }
+    if (existing.length !== recentDocuments.length) {
+        recentDocuments = existing;
+        await persistRecentDocuments();
+    }
+    return existing.map(({ displayName, openedAt }) => ({ displayName, openedAt }));
+}
+
+async function openRecentDocument(value: unknown): Promise<DesktopOpenResult> {
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value >= recentDocuments.length) {
+        return { canceled: true };
+    }
+    const record = recentDocuments[value];
+    try {
+        return await readOpenPath(record.path);
+    } catch {
+        recentDocuments = recentDocuments.filter((entry) => entry.path !== record.path);
+        await persistRecentDocuments();
+        return { canceled: true };
+    }
 }
 
 function openKindForPath(filePath: string): DesktopOpenKind {
@@ -847,6 +913,7 @@ async function saveDocument(value: unknown): Promise<DesktopSaveResult> {
         pendingOpenPath = null;
         documentDirty = false;
         app.addRecentDocument(activeDocumentPath);
+        rememberRecentDocument(activeDocumentPath);
         await persistDocumentState();
         updateWindowTitle();
         return { status: 'saved', displayName: basename(activeDocumentPath) };
@@ -869,6 +936,7 @@ async function writeSaveAs(value: unknown): Promise<DesktopSaveResult> {
         pendingOpenPath = null;
         documentDirty = false;
         app.addRecentDocument(targetPath);
+        rememberRecentDocument(targetPath);
         await persistDocumentState();
         updateWindowTitle();
         return { status: 'saved', displayName: basename(targetPath) };
@@ -935,6 +1003,8 @@ async function renameDocument(value: unknown): Promise<DesktopRenameResult> {
 
 function installIpcHandlers(): void {
     ipcMain.handle('documents:open', chooseOpenPath);
+    ipcMain.handle('documents:list-recent', listRecentDocuments);
+    ipcMain.handle('documents:open-recent', (_event, index) => openRecentDocument(index));
     ipcMain.handle('documents:save', (_event, request) => saveDocument(request));
     ipcMain.handle('documents:choose-save-as', (_event, request) => chooseSaveAs(request));
     ipcMain.handle('documents:write-save-as', (_event, request) => writeSaveAs(request));
@@ -947,6 +1017,7 @@ function installIpcHandlers(): void {
         pendingOpenPath = null;
         documentDirty = false;
         app.addRecentDocument(activeDocumentPath);
+        rememberRecentDocument(activeDocumentPath);
         await persistDocumentState();
         updateWindowTitle();
     });
@@ -1274,6 +1345,7 @@ if (!hasSingleInstanceLock) {
         configureSession();
         await cleanupInterruptedExports();
         await restoreDocumentState();
+        await restoreRecentDocuments();
         if (app.isPackaged) {
             app.setAsDefaultProtocolClient(APP_SCHEME);
             await updateWindowsFileAssociations(false).catch((error) => {

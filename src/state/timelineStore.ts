@@ -11,6 +11,7 @@ import type {
     AudioFeatureCacheStatus,
     AudioFeatureCacheStatusProgress,
     AudioFeatureCacheStatusState,
+    AudioAnalysisProfileOverrides,
 } from '@audio/features/audioFeatureTypes';
 import type { TempoAlignedAdapterDiagnostics } from '@audio/features/tempoAlignedViewAdapter';
 import {
@@ -253,8 +254,8 @@ export type TimelineState = {
         progress?: AudioFeatureCacheStatusProgress | null
     ) => void;
     stopAudioFeatureAnalysis: (id: string) => void;
-    restartAudioFeatureAnalysis: (id: string, analysisProfileId?: string | null) => void;
-    reanalyzeAudioFeatureCalculators: (id: string, calculatorIds: string[], analysisProfileId?: string | null) => void;
+    restartAudioFeatureAnalysis: (id: string, analysisProfileId?: string | null, profileParams?: AudioAnalysisProfileOverrides) => void;
+    reanalyzeAudioFeatureCalculators: (id: string, calculatorIds: string[], analysisProfileId?: string | null, profileParams?: AudioAnalysisProfileOverrides) => void;
     removeAudioFeatureTracks: (id: string, featureKeys: string[], analysisProfileId?: string | null) => void;
     clearAudioFeatureCache: (id: string) => void;
     clearAllTracks: () => void;
@@ -496,6 +497,7 @@ interface ScheduleAudioFeatureAnalysisOptions {
     statusMessage?: string;
     mergeWithExisting?: boolean;
     analysisProfileId?: string | null;
+    profileParams?: AudioAnalysisProfileOverrides;
 }
 
 function scheduleAudioFeatureAnalysis(
@@ -540,6 +542,9 @@ function scheduleAudioFeatureAnalysis(
         tempoMap: snapshot.timeline.masterTempoMap,
         calculators: options.calculators,
         analysisProfileId: options.analysisProfileId,
+        windowSize: options.profileParams?.windowSize,
+        hopSize: options.profileParams?.hopSize,
+        fftSize: options.profileParams?.fftSize ?? undefined,
         onProgress: (value, label) => {
             const clamped = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
             set((state: TimelineState) => ({
@@ -1545,13 +1550,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         });
     },
 
-    restartAudioFeatureAnalysis(id: string, analysisProfileId?: string | null) {
+    restartAudioFeatureAnalysis(id: string, analysisProfileId?: string | null, profileParams?: AudioAnalysisProfileOverrides) {
         const buffer = get().audioCache[id]?.audioBuffer;
         if (!buffer) {
             void rehydrateAudioSourceInternal(id, get, set).then((ready) => {
                 const nextBuffer = get().audioCache[id]?.audioBuffer;
                 if (ready && nextBuffer) {
-                    scheduleAudioFeatureAnalysis(id, nextBuffer, get, set, { analysisProfileId });
+                    scheduleAudioFeatureAnalysis(id, nextBuffer, get, set, { analysisProfileId, profileParams });
                     return;
                 }
                 set((s: TimelineState) => ({
@@ -1567,10 +1572,10 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             });
             return;
         }
-        scheduleAudioFeatureAnalysis(id, buffer, get, set, { analysisProfileId });
+        scheduleAudioFeatureAnalysis(id, buffer, get, set, { analysisProfileId, profileParams });
     },
 
-    reanalyzeAudioFeatureCalculators(id: string, calculatorIds: string[], analysisProfileId?: string | null) {
+    reanalyzeAudioFeatureCalculators(id: string, calculatorIds: string[], analysisProfileId?: string | null, profileParams?: AudioAnalysisProfileOverrides) {
         const unique = Array.from(new Set((calculatorIds || []).filter((entry): entry is string => !!entry)));
         if (!unique.length) {
             return;
@@ -1585,6 +1590,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                         statusMessage: unique.length === 1 ? 'reanalysing feature track' : 'reanalysing feature tracks',
                         mergeWithExisting: true,
                         analysisProfileId,
+                        profileParams,
                     });
                     return;
                 }
@@ -1607,6 +1613,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             statusMessage,
             mergeWithExisting: true,
             analysisProfileId,
+            profileParams,
         });
     },
 
