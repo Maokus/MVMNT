@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useScene } from '@context/SceneContext';
 import logo from '@assets/Logo_Transparent.png'
 import { FaSave, FaFileExport, FaFolderOpen, FaMagic, FaPen, FaEllipsisV, FaCog } from 'react-icons/fa';
@@ -14,7 +14,8 @@ interface MenuBarProps {
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
-    const { sceneName, renameScene, saveToLocal, saveAs, isDirty, loadScene, createNewDefaultScene } = useScene();
+    const { sceneName, renameScene, saveToLocal, saveAs, isDirty, loadScene, createNewDefaultScene, leaveWorkspace } = useScene();
+    const navigate = useNavigate();
     const [isEditingName, setIsEditingName] = useState(false);
     // temporary local state while editing so user can clear the input fully
     const [tempSceneName, setTempSceneName] = useState<string>(sceneName || '');
@@ -90,16 +91,24 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
     const handleSaveAs = () => { void saveAs(); setShowSceneMenu(false); };
     const handleLoad = () => { loadScene(); setShowSceneMenu(false); };
     const handleNew = () => { createNewDefaultScene(); setShowSceneMenu(false); };
+    const handleGoHome = async (event: React.MouseEvent<HTMLAnchorElement>) => {
+        event.preventDefault();
+        if (await leaveWorkspace()) navigate('/');
+    };
+    const handleGoCommunity = async (event: React.MouseEvent<HTMLAnchorElement>) => {
+        event.preventDefault();
+        if (await leaveWorkspace()) navigate('/community');
+    };
 
     return (
         <>
             <div className="menu-bar">
                 <div className="menu-section quick-actions" style={{ gap: 12 }}>
-                    <Link to="/" title="Go to Home" style={{ display: 'inline-flex' }}>
+                    <Link to="/" onClick={handleGoHome} title="Go to Home" style={{ display: 'inline-flex' }}>
                         <img width="50" src={logo} style={{ cursor: 'pointer' }} />
                     </Link>
                     <h3 style={{ marginRight: 0 }}>
-                        <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }} title="Go to Home">
+                        <Link to="/" onClick={handleGoHome} style={{ textDecoration: 'none', color: 'inherit' }} title="Go to Home">
                             MVMNT v{((import.meta as any).env?.VITE_VERSION)} {isBetaMode ? '(beta)' : ''}
                         </Link>
                     </h3>
@@ -119,6 +128,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                         >help</button>
                         <Link
                             to="/community"
+                            onClick={handleGoCommunity}
                             style={{
                                 background: 'none',
                                 border: 'none',

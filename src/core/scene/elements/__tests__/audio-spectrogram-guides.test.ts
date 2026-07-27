@@ -48,7 +48,6 @@ describe('audio spectrogram analysis settings', () => {
             .flatMap((tab) => tab.groups)
             .find((group) => group.id === 'analysis');
         expect(analysis?.properties.map((property) => property.key)).toEqual([
-            'analysisProfileId',
             'analysisFftSize',
             'analysisWindowSize',
             'analysisHopSize',

@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useCallback, useEffect, useState } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
 import { useVisualizer } from './VisualizerContext';
 import { useMenuBar } from '@context/useMenuBar';
 import { useSceneStore } from '@state/sceneStore';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { SaveSceneModal } from '@workspace/modals/SaveSceneModal';
 import { LocalSaveService } from '@persistence/local-save-service';
+import { LocalFileStore } from '@persistence/local-file-store';
 import { useDirtyTracking } from '@hooks/useDirtyTracking';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
 
@@ -29,6 +30,8 @@ interface SceneContextValue {
     loadScene: () => void;
     clearScene: () => void;
     createNewDefaultScene: () => void;
+    /** Resolve unsaved changes and close the active document before leaving the editor. */
+    leaveWorkspace: () => Promise<boolean>;
     refreshSceneUI: () => void;
 }
 
@@ -40,6 +43,8 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     const setSceneName = useSceneMetadataStore((state) => state.setName);
 
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+    const [isLeavePromptOpen, setIsLeavePromptOpen] = useState(false);
+    const leaveDecisionResolver = useRef<((decision: 'save' | 'discard') => void) | null>(null);
 
     const { isDirty, markClean, markDirty } = useDirtyTracking();
 
@@ -116,6 +121,33 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
 
     // Expose markClean so TemplateInitializer can call it after loading from IDB
     const markSaveClean = markClean;
+
+    const chooseLeaveDecision = useCallback((decision: 'save' | 'discard') => {
+        setIsLeavePromptOpen(false);
+        leaveDecisionResolver.current?.(decision);
+        leaveDecisionResolver.current = null;
+    }, []);
+
+    const leaveWorkspace = useCallback(async (): Promise<boolean> => {
+        if (isDirty) {
+            const decision = await new Promise<'save' | 'discard'>((resolve) => {
+                leaveDecisionResolver.current = resolve;
+                setIsLeavePromptOpen(true);
+            });
+            if (decision === 'save') {
+                const saved = await menuBarActions.saveProject(false);
+                if (!saved) return false;
+            }
+        }
+
+        // Returning home closes the editor document. Do not let recovery state
+        // silently reopen it the next time the workspace is entered.
+        await LocalFileStore.clear().catch(() => undefined);
+        await window.mvmntDesktop?.documents.clearActivePath();
+        localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
+        markClean();
+        return true;
+    }, [isDirty, markClean, menuBarActions]);
 
     // -------------------------------------------------------------------------
     // Export to file (download .mvt)
@@ -264,6 +296,7 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         loadScene,
         clearScene: menuBarActions.clearScene,
         createNewDefaultScene: menuBarActions.createNewDefaultScene,
+        leaveWorkspace,
         refreshSceneUI,
     };
 
@@ -276,6 +309,18 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
                     onCancel={closeExportModal}
                     onConfirm={handleConfirmExport}
                 />
+            )}
+            {isLeavePromptOpen && (
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="leave-workspace-title">
+                    <div className="w-full max-w-sm rounded-lg border border-neutral-700 bg-neutral-900 p-5 text-neutral-100 shadow-2xl">
+                        <h2 id="leave-workspace-title" className="text-base font-semibold">Save changes?</h2>
+                        <p className="mt-2 text-sm leading-6 text-neutral-400">Your current scene has unsaved changes. Save them before leaving the workspace?</p>
+                        <div className="mt-5 flex justify-end gap-3">
+                            <button type="button" onClick={() => chooseLeaveDecision('discard')} className="rounded bg-neutral-700 px-3 py-2 text-sm font-medium hover:bg-neutral-600">Discard</button>
+                            <button type="button" onClick={() => chooseLeaveDecision('save')} className="rounded bg-indigo-600 px-3 py-2 text-sm font-medium hover:bg-indigo-500">Save</button>
+                        </div>
+                    </div>
+                </div>
             )}
         </SceneContext.Provider>
     );

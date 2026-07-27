@@ -1,13 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FaFile, FaFolderOpen, FaRegClock, FaRegFile, FaWandMagicSparkles } from 'react-icons/fa6';
+import { FaFileCirclePlus, FaFolderOpen, FaRegClock } from 'react-icons/fa6';
 import type { DesktopRecentDocument } from '../../electron/shared/desktop-api';
-import logo from '@assets/Logo_Transparent.png';
+import pfp from '@assets/Logo_Pfp_white.png';
 import { stageDesktopProjectOpen } from '../desktop/pending-open';
 import { writeStoredImportPayload } from '@utils/importPayloadStorage';
 import { easyModeTemplates } from '@workspace/templates/easyModeTemplates';
 import type { TemplateDefinition } from '@workspace/templates/types';
-import './homepage.css';
 
 const PENDING_DESKTOP_NAME_KEY = 'mvmnt.desktop.pending-open-name';
 
@@ -23,10 +22,11 @@ const HomePage: React.FC = () => {
         void desktop.documents.listRecent().then(setRecentFiles).catch(() => setRecentFiles([]));
     }, []);
 
-    const openStagedProject = (bytes: Uint8Array, name: string) => {
+    const openStagedProject = (bytes: Uint8Array, name: string, options: { newDocument?: boolean } = {}) => {
         writeStoredImportPayload(bytes);
-        sessionStorage.setItem(PENDING_DESKTOP_NAME_KEY, name);
-        navigate('/workspace', { state: { importScene: true } });
+        if (options.newDocument) sessionStorage.removeItem(PENDING_DESKTOP_NAME_KEY);
+        else sessionStorage.setItem(PENDING_DESKTOP_NAME_KEY, name);
+        navigate('/workspace', { state: { importScene: true, newDocument: options.newDocument } });
     };
 
     const handleNewDocument = async () => {
@@ -71,7 +71,7 @@ const HomePage: React.FC = () => {
         try {
             const artifact = await template.loadArtifact();
             await window.mvmntDesktop?.documents.clearActivePath();
-            openStagedProject(artifact.data, `${template.name}.mvt`);
+            openStagedProject(artifact.data, `${template.name}.mvt`, { newDocument: true });
         } catch (error) {
             alert(`Could not open ${template.name}: ${error instanceof Error ? error.message : String(error)}`);
         } finally {
@@ -93,77 +93,78 @@ const HomePage: React.FC = () => {
     };
 
     return (
-        <main className="start-center">
-            <input ref={inputRef} type="file" accept=".mvt,application/octet-stream" className="start-center__file-input" onChange={handleBrowserFile} />
-            <header className="start-center__topbar">
-                <Link to="/" className="start-center__brand" aria-label="MVMNT home">
-                    <img src={logo} alt="" />
-                    <span>MVMNT</span>
-                </Link>
-                <nav aria-label="MVMNT information">
-                    <Link to="/about">About</Link>
-                    <Link to="/community">Community</Link>
-                    <Link to="/changelog">Changelog</Link>
-                </nav>
-            </header>
-
-            <section className="start-center__content" aria-labelledby="start-center-title">
-                <div className="start-center__intro">
-                    <p className="start-center__eyebrow">MIDI VISUALISATION STUDIO</p>
-                    <h1 id="start-center-title">Create something in motion.</h1>
-                    <p>Start with an empty document, open a saved MVMNT project, or use a ready-made scene as your canvas.</p>
+        <main className="min-h-screen bg-neutral-800 px-6 py-10 text-neutral-200">
+            <input ref={inputRef} type="file" accept=".mvt,application/octet-stream" className="hidden" onChange={handleBrowserFile} />
+            <div className="mx-auto w-full max-w-4xl">
+                <div className="mb-10">
+                    <p><span className="text-8xl font-extrabold tracking-tight text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.15)]">MVMNT</span><span>v{((import.meta as any).env?.VITE_VERSION)}</span></p>
+                    <p className="mt-4 max-w-2xl text-lg text-neutral-400">Open-source, flexible MIDI visualization & rendering workspace.</p>
+                    <div className="mt-6 flex flex-wrap gap-4">
+                        <button type="button" onClick={() => void handleNewDocument()} disabled={isOpening} className="rounded bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 px-5 py-2.5 text-sm font-medium tracking-[0.2rem] text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:ring-offset-1 disabled:opacity-60">
+                            NEW DOCUMENT
+                        </button>
+                        <button type="button" onClick={() => void handleOpen()} disabled={isOpening} className="flex items-center gap-2 rounded bg-neutral-700 px-5 py-2.5 text-sm font-medium transition hover:bg-neutral-600 disabled:opacity-60">
+                            <FaFolderOpen /> OPEN
+                        </button>
+                        <Link to="/about" className="rounded bg-neutral-800 px-5 py-2.5 text-sm font-medium hover:bg-neutral-700">About</Link>
+                        <Link to="/contribute" className="rounded bg-neutral-800 px-5 py-2.5 text-sm font-medium hover:bg-neutral-700">Contribute</Link>
+                        <Link to="/changelog" className="rounded bg-neutral-800 px-5 py-2.5 text-sm font-medium hover:bg-neutral-700">Changelog</Link>
+                        <Link to="/community" className="rounded bg-neutral-800 px-5 py-2.5 text-sm font-medium hover:bg-neutral-700">Community</Link>
+                    </div>
                 </div>
 
-                <div className="start-center__primary-actions">
-                    <button type="button" className="start-center__new-button" onClick={() => void handleNewDocument()} disabled={isOpening}>
-                        <FaFile />
-                        <span><strong>New document</strong><small>Start with a blank scene</small></span>
-                    </button>
-                    <button type="button" className="start-center__open-button" onClick={() => void handleOpen()} disabled={isOpening}>
-                        <FaFolderOpen />
-                        <span><strong>Open</strong><small>Open an existing .mvt file</small></span>
-                    </button>
-                </div>
-
-                <div className="start-center__panels">
-                    <section className="start-center__panel start-center__templates" aria-labelledby="templates-title">
-                        <div className="start-center__section-heading">
-                            <FaWandMagicSparkles />
-                            <div><h2 id="templates-title">Templates</h2><p>Begin with a scene that is ready to customise.</p></div>
-                        </div>
-                        <div className="start-center__template-grid">
-                            {easyModeTemplates.map((template, index) => (
-                                <button type="button" key={template.id} className={`start-center__template start-center__template--${index % 5}`} onClick={() => void handleTemplate(template)} disabled={isOpening}>
-                                    <span className="start-center__template-art"><FaRegFile /></span>
-                                    <strong>{template.name}</strong>
-                                    <small>{template.description}</small>
-                                    {template.author ? <em>by {template.author}</em> : null}
+                <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(14rem,1fr)]">
+                    <section aria-labelledby="templates-title">
+                        <h2 id="templates-title" className="mb-3 text-sm font-medium uppercase tracking-[0.16rem] text-neutral-400">Start from a template</h2>
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                            {easyModeTemplates.map((template) => (
+                                <button type="button" key={template.id} onClick={() => void handleTemplate(template)} disabled={isOpening} className="group flex min-h-32 flex-col items-start rounded-lg border border-neutral-700 bg-neutral-900/60 p-4 text-left transition hover:border-neutral-500 hover:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60">
+                                    <span className="mb-3 text-lg text-neutral-400 transition group-hover:text-white"><FaFileCirclePlus /></span>
+                                    <strong className="text-sm text-neutral-100">{template.name}</strong>
+                                    <small className="mt-1 text-xs leading-5 text-neutral-400">{template.description}</small>
+                                    {template.author ? <small className="mt-auto pt-2 text-xs text-neutral-500">by {template.author}</small> : null}
                                 </button>
                             ))}
                         </div>
                     </section>
 
-                    <section className="start-center__panel start-center__recent" aria-labelledby="recent-title">
-                        <div className="start-center__section-heading">
-                            <FaRegClock />
-                            <div><h2 id="recent-title">Recent files</h2><p>Your five most recently opened projects.</p></div>
+                    <section aria-labelledby="recent-title" className="rounded-lg border border-neutral-700 bg-neutral-900/60">
+                        <div className="border-b border-neutral-700 px-4 py-3">
+                            <h2 id="recent-title" className="flex items-center gap-2 text-sm font-medium text-neutral-200"><FaRegClock className="text-neutral-400" /> Recent files</h2>
+                            <p className="mt-1 text-xs text-neutral-500">Up to five recently opened projects.</p>
                         </div>
                         {recentFiles.length ? (
-                            <ol className="start-center__recent-list">
+                            <ol className="p-2">
                                 {recentFiles.map((file, index) => (
                                     <li key={`${file.displayName}-${file.openedAt}`}>
-                                        <button type="button" onClick={() => void handleRecent(index)} disabled={isOpening}>
-                                            <FaFile /><span>{file.displayName}</span>
-                                        </button>
+                                        <button type="button" onClick={() => void handleRecent(index)} disabled={isOpening} className="w-full truncate rounded px-3 py-2 text-left text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white disabled:opacity-60">{file.displayName}</button>
                                     </li>
                                 ))}
                             </ol>
-                        ) : <p className="start-center__empty-recent">Files you open or save will appear here.</p>}
+                        ) : <p className="p-4 text-sm text-neutral-500">Files you open or save will appear here.</p>}
                     </section>
                 </div>
-            </section>
-            {isOpening ? <div className="start-center__loading" role="status">Opening document…</div> : null}
+            </div>
+            {isOpening ? <div className="fixed bottom-4 right-4 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm shadow-lg" role="status">Opening document…</div> : null}
+            <DonationNotice />
         </main>
+    );
+};
+
+const DonationNotice: React.FC = () => {
+    const [dismissed, setDismissed] = useState(false);
+    if (dismissed) return null;
+
+    return (
+        <div className="fixed bottom-4 right-4 z-50 flex items-end gap-2">
+            <div className="relative">
+                <div className="max-w-xs rounded-lg border border-neutral-800 bg-neutral-900/85 p-3 text-neutral-100 shadow-lg backdrop-blur-sm">
+                    <div className="text-sm"><div className="font-medium">Welcome!!</div><div className="mt-1 text-neutral-300">I develop and host this project at my own expense. If you enjoy the app, please consider donating!</div><div className="mt-2 flex gap-2"><Link to="/contribute" className="rounded bg-indigo-600 px-2 py-1 text-xs hover:bg-indigo-500">Donate</Link><button onClick={() => setDismissed(true)} className="rounded bg-neutral-800 px-2 py-1 text-xs hover:bg-neutral-700">Dismiss</button></div></div>
+                </div>
+                <div className="absolute -right-2 bottom-3 h-3 w-3 rotate-45 border border-neutral-800 bg-neutral-900/85" aria-hidden="true" />
+            </div>
+            <img src={pfp} alt="Maokus avatar" className="h-10 w-10 rounded-full border-2 border-neutral-800 object-cover" />
+        </div>
     );
 };
 

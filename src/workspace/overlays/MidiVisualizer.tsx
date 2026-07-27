@@ -522,6 +522,7 @@ const TemplateInitializer: React.FC = () => {
         const hasInitializedScene = sceneStoreState?.runtimeMeta?.hasInitializedScene ?? false;
 
         const shouldImport = Boolean(state.importScene);
+        const isNewDocumentImport = Boolean(state.newDocument);
         const shouldLoadTemplate = Boolean(state.template);
         const shouldLoadDefault = !shouldImport && !shouldLoadTemplate && !hasScene && !hasInitializedScene;
         const shouldShowIndicator = shouldImport || shouldLoadTemplate || shouldLoadDefault;
@@ -603,7 +604,7 @@ const TemplateInitializer: React.FC = () => {
                                     setSceneName(importedName);
                                     sessionStorage.setItem('mvmnt.desktop.background-export.v1.imported', '1');
                                     window.dispatchEvent(new Event('mvmnt-project-imported'));
-                                } else if (pendingDesktopName && window.mvmntDesktop) {
+                                } else if (pendingDesktopName && window.mvmntDesktop && !isNewDocumentImport) {
                                     const fallbackName = pendingDesktopName.replace(/\.mvt$/i, '');
                                     // Desktop files use their filename as the canonical scene name.
                                     setSceneName(fallbackName || importedName);
@@ -650,8 +651,12 @@ const TemplateInitializer: React.FC = () => {
                     updateTemplateLoading({ progress: null, message: 'Loading template…', onAbort: null });
                     const tpl = state.template as string;
                     dispatchSceneCommand({ type: 'clearScene', clearMacros: true }, { source: 'TemplateInitializer.template' });
+                    try {
+                        useTimelineStore.getState().resetTimeline();
+                    } catch {}
                     switch (tpl) {
                         case 'blank':
+                            setSceneName(SceneNameGenerator.generate());
                             break;
                         case 'default':
                             await loadDefaultScene('MidiVisualizer.TemplateInitializer.default');

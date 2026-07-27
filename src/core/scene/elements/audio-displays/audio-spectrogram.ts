@@ -58,9 +58,6 @@ export function resolveSpectrogramAnalysis(props: Record<string, unknown>): {
     requirement: AudioFeatureRequirement;
     analysisProfileId: string | null;
 } {
-    const requestedProfile = typeof props.analysisProfileId === 'string' && props.analysisProfileId.trim()
-        ? props.analysisProfileId.trim()
-        : null;
     const selectedFftSize = selectedPreset(props.analysisFftSize, FFT_SIZE_OPTIONS);
     const selectedWindowSize = selectedPreset(props.analysisWindowSize, WINDOW_SIZE_OPTIONS);
     const selectedHopSize = selectedPreset(props.analysisHopSize, HOP_SIZE_OPTIONS);
@@ -68,7 +65,7 @@ export function resolveSpectrogramAnalysis(props: Record<string, unknown>): {
     let profileParams: AudioAnalysisProfileOverrides | undefined;
 
     if (hasOverrides) {
-        const base = getBaseAnalysisProfile(requestedProfile);
+        const base = getBaseAnalysisProfile(null);
         const windowSize = selectedWindowSize ?? base.windowSize;
         const derivedFftSize = Math.pow(2, Math.ceil(Math.log2(Math.max(32, windowSize))));
         const fftSize = Math.max(selectedFftSize ?? base.fftSize ?? derivedFftSize, windowSize);
@@ -78,13 +75,12 @@ export function resolveSpectrogramAnalysis(props: Record<string, unknown>): {
 
     const built = createFeatureDescriptor({
         feature: 'spectrogram',
-        profile: requestedProfile,
+        profile: null,
         profileParams,
     });
     return {
         requirement: {
             feature: 'spectrogram',
-            profile: requestedProfile ?? undefined,
             profileParams,
         },
         analysisProfileId: built.descriptor.analysisProfileId ?? built.profile,
@@ -164,15 +160,9 @@ export class AudioSpectrogramElement extends SceneElement {
             tab.content([
                 propGroup.audioSource(),
                 { id: 'analysis', label: 'Analysis', collapsed: true, properties: [
-                    {
-                        key: 'analysisProfileId', type: 'audioAnalysisProfile', label: 'Base Profile', default: null,
-                        trackPropertyKey: 'audioTrackId',
-                        description: 'Optional base profile. The controls below create a cached variant for this spectrogram only.',
-                        runtime: { transform: (value) => typeof value === 'string' && value.trim() ? value.trim() : null, defaultValue: null },
-                    },
-                    prop.select('analysisFftSize', 'FFT Size', '', [{ value: '', label: 'Profile default' }, ...FFT_SIZE_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))], { description: 'Higher values provide finer frequency detail at a higher analysis cost.' }),
-                    prop.select('analysisWindowSize', 'Window Size', '', [{ value: '', label: 'Profile default' }, ...WINDOW_SIZE_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))], { description: 'Samples included in each analysis frame.' }),
-                    prop.select('analysisHopSize', 'Hop Size', '', [{ value: '', label: 'Profile default' }, ...HOP_SIZE_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))], { description: 'Samples between frames; smaller values improve time resolution and increase analysis work.' }),
+                    prop.select('analysisFftSize', 'FFT Size', '', [{ value: '', label: 'Default (2048)' }, ...FFT_SIZE_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))], { description: 'How many frequency bands are measured in each slice. Larger values separate nearby pitches more clearly, but use more memory and analysis time.' }),
+                    prop.select('analysisWindowSize', 'Window Size', '', [{ value: '', label: 'Default (2048)' }, ...WINDOW_SIZE_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))], { description: 'How much audio is included in each slice. Larger windows show steadier, more detailed frequencies but blur rapid changes over time.' }),
+                    prop.select('analysisHopSize', 'Hop Size', '', [{ value: '', label: 'Default (512)' }, ...HOP_SIZE_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))], { description: 'How far the analysis moves before taking the next slice. Smaller hops make changes look smoother in time, but create more data and take longer to analyze.' }),
                 ] },
                 { id: 'spectrogram', label: 'Spectrogram', collapsed: false, properties: [
                     prop.number('width', 'Width (px)', 800, { min: 1, step: 1 }),
@@ -412,7 +402,7 @@ export class AudioSpectrogramElement extends SceneElement {
 
     protected override onPropertyChanged(key: string, oldValue: unknown, newValue: unknown): void {
         super.onPropertyChanged(key, oldValue, newValue);
-        if (oldValue !== newValue && (key === 'analysisProfileId' || key === 'analysisFftSize' || key === 'analysisWindowSize' || key === 'analysisHopSize')) {
+        if (oldValue !== newValue && (key === 'analysisFftSize' || key === 'analysisWindowSize' || key === 'analysisHopSize')) {
             this._subscribeToRequiredFeatures();
         }
     }

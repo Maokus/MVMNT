@@ -159,7 +159,7 @@ analysis work even if they originate from different UI components, reducing dupl
 
 ### Spectrogram element analysis controls
 
-The Audio Spectrogram inspector can select a base analysis profile and override its FFT size, window size, and hop size for that element. An override creates a deterministic derived profile, so matching elements reuse the same cached analysis while existing profile variants remain available for undo and other consumers.
+The Audio Spectrogram inspector exposes FFT size, window size, and hop size directly. Their combination creates a deterministic derived analysis profile, so matching elements reuse the same cached analysis while existing variants remain available for undo and other consumers.
 
 - Larger FFT and window sizes improve frequency detail but cost more CPU and memory.
 - Smaller hop sizes improve time detail but produce more frames and take longer to analyze.
