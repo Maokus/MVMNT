@@ -5,6 +5,7 @@ When setting up the environment, always run `npm install` (rather than `npm ci`)
 When you are finished, run all of the following commands to verify that all proposed changes are working correctly:
 
 ```
+npx prettier --write .
 npm run test
 npm run build
 npm run compile

@@ -609,13 +609,11 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 const job = pendingExportsRef.current.shift()!;
                 const latest = useExportJobStore.getState().jobs.find((item) => item.id === job.id);
                 if (latest?.cancelRequested) {
-                    useExportJobStore
-                        .getState()
-                        .update(job.id, {
-                            status: 'cancelled',
-                            text: 'Export cancelled',
-                            finishedAt: new Date().toISOString(),
-                        });
+                    useExportJobStore.getState().update(job.id, {
+                        status: 'cancelled',
+                        text: 'Export cancelled',
+                        finishedAt: new Date().toISOString(),
+                    });
                     continue;
                 }
                 await runExportJob(job);
