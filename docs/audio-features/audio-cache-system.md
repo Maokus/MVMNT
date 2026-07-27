@@ -159,11 +159,11 @@ analysis work even if they originate from different UI components, reducing dupl
 
 ### Spectrogram element analysis controls
 
-The Audio Spectrogram inspector exposes FFT size, window size, and hop size directly. Their combination creates a deterministic derived analysis profile, so matching elements reuse the same cached analysis while existing variants remain available for undo and other consumers.
+The Audio Spectrogram inspector exposes window size and hop size directly. Their combination creates a deterministic derived analysis profile, so matching elements reuse the same cached analysis while existing variants remain available for undo and other consumers.
 
-- Larger FFT and window sizes improve frequency detail but cost more CPU and memory.
+- Larger window sizes improve frequency detail but cost more CPU and memory.
 - Smaller hop sizes improve time detail but produce more frames and take longer to analyze.
-- FFT size is kept at least as large as the window, and hop size no larger than the window.
+- Hop size is kept no larger than the window.
 - While a selected derived profile is being analyzed, the spectrogram waits for that profile rather than displaying data from a different cached profile.
 
 #### 2. RMS Calculator (`mvmnt.rms`)

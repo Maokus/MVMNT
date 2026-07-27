@@ -44,7 +44,7 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
 
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [isLeavePromptOpen, setIsLeavePromptOpen] = useState(false);
-    const leaveDecisionResolver = useRef<((decision: 'save' | 'discard') => void) | null>(null);
+    const leaveDecisionResolver = useRef<((decision: 'save' | 'discard' | 'cancel') => void) | null>(null);
 
     const { isDirty, markClean, markDirty } = useDirtyTracking();
 
@@ -122,18 +122,30 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     // Expose markClean so TemplateInitializer can call it after loading from IDB
     const markSaveClean = markClean;
 
-    const chooseLeaveDecision = useCallback((decision: 'save' | 'discard') => {
+    const chooseLeaveDecision = useCallback((decision: 'save' | 'discard' | 'cancel') => {
         setIsLeavePromptOpen(false);
         leaveDecisionResolver.current?.(decision);
         leaveDecisionResolver.current = null;
     }, []);
 
+    useEffect(() => {
+        if (!isLeavePromptOpen) return;
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            chooseLeaveDecision('cancel');
+        };
+        window.addEventListener('keydown', handleKeyDown, { capture: true });
+        return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+    }, [chooseLeaveDecision, isLeavePromptOpen]);
+
     const leaveWorkspace = useCallback(async (): Promise<boolean> => {
         if (isDirty) {
-            const decision = await new Promise<'save' | 'discard'>((resolve) => {
+            const decision = await new Promise<'save' | 'discard' | 'cancel'>((resolve) => {
                 leaveDecisionResolver.current = resolve;
                 setIsLeavePromptOpen(true);
             });
+            if (decision === 'cancel') return false;
             if (decision === 'save') {
                 const saved = await menuBarActions.saveProject(false);
                 if (!saved) return false;
@@ -316,7 +328,8 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
                         <h2 id="leave-workspace-title" className="text-base font-semibold">Save changes?</h2>
                         <p className="mt-2 text-sm leading-6 text-neutral-400">Your current scene has unsaved changes. Save them before leaving the workspace?</p>
                         <div className="mt-5 flex justify-end gap-3">
-                            <button type="button" onClick={() => chooseLeaveDecision('discard')} className="rounded bg-neutral-700 px-3 py-2 text-sm font-medium hover:bg-neutral-600">Discard</button>
+                            <button type="button" onClick={() => chooseLeaveDecision('discard')} className="rounded bg-neutral-700 px-3 py-2 text-sm font-medium hover:bg-neutral-600">Don’t save</button>
+                            <button type="button" onClick={() => chooseLeaveDecision('cancel')} className="rounded bg-neutral-700 px-3 py-2 text-sm font-medium hover:bg-neutral-600">Cancel</button>
                             <button type="button" onClick={() => chooseLeaveDecision('save')} className="rounded bg-indigo-600 px-3 py-2 text-sm font-medium hover:bg-indigo-500">Save</button>
                         </div>
                     </div>

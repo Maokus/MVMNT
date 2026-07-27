@@ -29,15 +29,13 @@ describe('audio spectrogram analysis settings', () => {
         expect(analysis.requirement.profileParams).toBeUndefined();
     });
 
-    it('creates a stable derived profile and normalizes dependent analysis values', () => {
+    it('creates a stable derived profile from window and hop values', () => {
         const analysis = resolveSpectrogramAnalysis({
-            analysisFftSize: '512',
             analysisWindowSize: '2048',
             analysisHopSize: '2048',
         });
         expect(analysis.analysisProfileId).toMatch(/^adhoc-/);
         expect(analysis.requirement.profileParams).toEqual({
-            fftSize: 2048,
             windowSize: 2048,
             hopSize: 2048,
         });
@@ -48,7 +46,6 @@ describe('audio spectrogram analysis settings', () => {
             .flatMap((tab) => tab.groups)
             .find((group) => group.id === 'analysis');
         expect(analysis?.properties.map((property) => property.key)).toEqual([
-            'analysisFftSize',
             'analysisWindowSize',
             'analysisHopSize',
         ]);
