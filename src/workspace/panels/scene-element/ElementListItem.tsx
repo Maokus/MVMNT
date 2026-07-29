@@ -158,12 +158,12 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                         </>
                     )}
                 </div>
-                <span className="element-list-item__type" title={elementTypeName}>
-                    {elementTypeName}
-                </span>
             </div>
 
             <div className="element-list-item__actions">
+                <span className="element-list-item__type" title={elementTypeName}>
+                    {elementTypeName}
+                </span>
                 <button
                     className={`element-list-item__icon-button ${element.visible ? 'is-active' : ''}`}
                     onClick={(e) => handleControlClick(e, onToggleVisibility)}

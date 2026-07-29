@@ -388,6 +388,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                     className={`ae-property-row ae-property-row-error${nested ? ' ae-property-row-nested' : ''}`}
                 >
                     <div className="ae-property-label">
+                        <span className="ae-property-animation-slot" aria-hidden="true" />
                         <span className="ae-property-name" title={property.description}>
                             {property.label ?? property.key}
                         </span>
@@ -464,18 +465,20 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                 }
             >
                 <div className="ae-property-label">
+                    <span className="ae-property-animation-slot">
+                        {isAutomatableType(property.type) && (
+                            <KeyframeControl
+                                elementId={elementId}
+                                propertyKey={property.key}
+                                propertyType={property.type}
+                                currentValue={values[property.key]}
+                                isDelinked={isDelinked}
+                            />
+                        )}
+                    </span>
                     <span className="ae-property-name" title={property.description}>
                         {property.label}
                     </span>
-                    {isAutomatableType(property.type) && (
-                        <KeyframeControl
-                            elementId={elementId}
-                            propertyKey={property.key}
-                            propertyType={property.type}
-                            currentValue={values[property.key]}
-                            isDelinked={isDelinked}
-                        />
-                    )}
                 </div>
 
                 <div className="ae-property-controls">

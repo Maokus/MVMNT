@@ -85,9 +85,10 @@ const NumericControl: React.FC<PropertyControlProps & { ports: string[]; label: 
         session.current = null;
         lastPatch.current = {};
     };
+    const hasGroupLegend = ports.length > 1;
     return (
         <fieldset className="ae-property-control" aria-label={label}>
-            <legend>{label}</legend>
+            {hasGroupLegend && <legend>{label}</legend>}
             {ports.map((port) => {
                 const key = bindings[port];
                 const property = properties.get(key)!;

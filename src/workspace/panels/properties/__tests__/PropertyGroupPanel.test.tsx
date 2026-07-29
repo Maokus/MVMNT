@@ -183,6 +183,7 @@ describe('PropertyGroupPanel', () => {
         expect(slider).toHaveAttribute('max', '1');
         expect(slider).toHaveAttribute('step', '0.01');
         expect(slider.closest('.ae-layout-control')).toHaveClass('ae-layout-control--block');
+        expect(slider.closest('fieldset')?.querySelector('legend')).toBeNull();
     });
 
     it('hides layout controls and property rows when their bound property is not visible', () => {
@@ -251,7 +252,7 @@ describe('PropertyGroupPanel', () => {
         );
 
         expect(screen.getByRole('slider', { name: /Grid Opacity/ })).toBeInTheDocument();
-        expect(screen.getAllByText('Grid Opacity')).toHaveLength(3);
+        expect(screen.getAllByText('Grid Opacity')).toHaveLength(2);
     });
 
     it('falls back to scalar rows when a layout control is unknown', () => {
