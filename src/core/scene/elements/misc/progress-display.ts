@@ -58,7 +58,15 @@ export const progressDisplay = definePluginElement<Props, undefined>({
                         collapsed: true,
                         properties: [
                             { key: 'barColor', label: 'Bar Color', type: 'colorAlpha', default: '#CCCCCCFF' },
-                            { key: 'barOpacity', label: 'Bar Opacity', type: 'number', default: 1, min: 0, max: 1 },
+                            {
+                                key: 'barOpacity',
+                                label: 'Bar Opacity',
+                                type: 'number',
+                                default: 1,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                            },
                             { key: 'barBgColor', label: 'Background Color', type: 'colorAlpha', default: '#FFFFFFFF' },
                             {
                                 key: 'barBgOpacity',
@@ -67,6 +75,7 @@ export const progressDisplay = definePluginElement<Props, undefined>({
                                 default: 0.1,
                                 min: 0,
                                 max: 1,
+                                step: 0.01,
                             },
                             { key: 'borderColor', label: 'Border Color', type: 'colorAlpha', default: '#FFFFFFFF' },
                             {
@@ -76,6 +85,7 @@ export const progressDisplay = definePluginElement<Props, undefined>({
                                 default: 0.3,
                                 min: 0,
                                 max: 1,
+                                step: 0.01,
                             },
                             { key: 'statsTextColor', label: 'Stats Text', type: 'colorAlpha', default: '#CCCCCCFF' },
                             {
@@ -85,6 +95,7 @@ export const progressDisplay = definePluginElement<Props, undefined>({
                                 default: 1,
                                 min: 0,
                                 max: 1,
+                                step: 0.01,
                             },
                         ],
                         layout: [

@@ -42,6 +42,27 @@ const requireNumericPorts =
         return null;
     };
 
+/**
+ * Returns the display range for a numeric layout port. Single-value controls
+ * use `min`, `max`, and `step`; multi-value controls use port-prefixed names
+ * such as `xMin`, `xMax`, and `xStep`. Property metadata remains the fallback
+ * so layouts only need to specify values they deliberately override.
+ */
+const numericLayoutOption = (
+    options: Record<string, unknown> | undefined,
+    port: string,
+    name: 'min' | 'max' | 'step'
+): number | undefined => {
+    const optionName = port === 'value' ? name : `${port}${name[0].toUpperCase()}${name.slice(1)}`;
+    // `valueMin`/`valueMax` were accepted by the first layout implementation.
+    // Preserve them for existing schemas while standardizing single-value
+    // controls on the more ergonomic unprefixed names.
+    const value =
+        options?.[optionName] ??
+        (port === 'value' ? options?.[`value${name[0].toUpperCase()}${name.slice(1)}`] : undefined);
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+};
+
 const NumericControl: React.FC<PropertyControlProps & { ports: string[]; label: string }> = ({
     bindings,
     options,
@@ -69,15 +90,9 @@ const NumericControl: React.FC<PropertyControlProps & { ports: string[]; label: 
                 const key = bindings[port];
                 const property = properties.get(key)!;
                 const value = typeof values[key] === 'number' ? values[key] : Number(property.default ?? 0);
-                const min =
-                    typeof options?.[`${port}Min`] === 'number'
-                        ? (options[`${port}Min`] as number)
-                        : (property.min ?? 0);
-                const max =
-                    typeof options?.[`${port}Max`] === 'number'
-                        ? (options[`${port}Max`] as number)
-                        : (property.max ?? 100);
-                const step = property.step ?? 1;
+                const min = numericLayoutOption(options, port, 'min') ?? property.min ?? 0;
+                const max = numericLayoutOption(options, port, 'max') ?? property.max ?? 100;
+                const step = numericLayoutOption(options, port, 'step') ?? property.step ?? 1;
                 return (
                     <label key={port} className="ae-property-control-axis">
                         <span>{property.label}</span>

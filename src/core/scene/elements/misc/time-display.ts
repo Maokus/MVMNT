@@ -75,6 +75,7 @@ export const timeDisplay = definePluginElement<Props, undefined>({
                                 default: 0.8,
                                 min: 0,
                                 max: 1,
+                                step: 0.01,
                             },
                             { key: 'backgroundPaddingX', label: 'Horizontal Padding', type: 'number', default: 8 },
                             { key: 'backgroundPaddingY', label: 'Vertical Padding', type: 'number', default: 4 },

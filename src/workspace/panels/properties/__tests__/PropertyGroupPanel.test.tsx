@@ -145,6 +145,45 @@ describe('PropertyGroupPanel', () => {
         expect(screen.getByTitle('Enable automation')).toBeInTheDocument();
     });
 
+    it('uses slider layout range options while falling back to unspecified property metadata', () => {
+        const properties = [
+            { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 1 },
+        ] as PropertyDefinition[];
+        const group: PropertyGroup = {
+            id: 'appearance',
+            label: 'Appearance',
+            collapsed: false,
+            properties,
+            layout: [
+                {
+                    kind: 'control',
+                    control: 'slider',
+                    bindings: { value: 'opacity' },
+                    options: { step: 0.01 },
+                },
+            ],
+        };
+
+        render(
+            <PropertyGroupPanel
+                group={group}
+                properties={properties}
+                values={{ opacity: 0.5 }}
+                macroAssignments={{}}
+                elementId="test-element"
+                onValueChange={vi.fn()}
+                onValuesChange={vi.fn()}
+                onMacroAssignment={vi.fn()}
+                onCollapseToggle={vi.fn()}
+            />
+        );
+
+        const slider = screen.getByRole('slider');
+        expect(slider).toHaveAttribute('min', '0');
+        expect(slider).toHaveAttribute('max', '1');
+        expect(slider).toHaveAttribute('step', '0.01');
+    });
+
     it('falls back to scalar rows when a layout control is unknown', () => {
         const properties = [{ key: 'x', label: 'X', type: 'number', default: 0 }] as PropertyDefinition[];
         const group: PropertyGroup = {

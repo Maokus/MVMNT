@@ -122,7 +122,15 @@ export const ccMonitor = definePluginElement<Props, undefined>({
                         collapsed: false,
                         properties: [
                             { key: 'color', label: 'Color', type: 'colorAlpha', default: '#CCCCCCFF' },
-                            { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1 },
+                            {
+                                key: 'opacity',
+                                label: 'Opacity',
+                                type: 'number',
+                                default: 1,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                            },
                         ],
                         layout: [
                             { kind: 'control', control: 'slider', bindings: { value: 'opacity' } },

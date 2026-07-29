@@ -58,10 +58,21 @@ retain macro, keyframe, drag, and precise numeric-entry affordances:
 
 ```ts
 layout: [
-    { kind: 'control', control: 'slider', bindings: { value: 'opacity' } },
+    {
+        kind: 'control',
+        control: 'slider',
+        bindings: { value: 'opacity' },
+        options: { min: 0, max: 1, step: 0.01 },
+    },
     { kind: 'property', propertyKey: 'opacity' },
 ];
 ```
+
+Numeric controls can set their display range independently of the underlying
+property. `slider` uses `min`, `max`, and `step`; multi-value controls use the
+port-prefixed form, such as `xMin`, `xMax`, and `xStep`. Any omitted value
+falls back to that bound property's `min`, `max`, or `step` (and then the
+control's existing default).
 
 Unknown controls, missing ports, and incompatible bindings log a development
 warning and render their bound scalar rows instead. This keeps schemas editable
