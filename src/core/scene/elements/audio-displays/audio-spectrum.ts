@@ -182,14 +182,14 @@ export class AudioSpectrumElement extends SceneElement {
                                 type: 'number',
                                 label: 'Bars',
                                 default: 48,
-                                min: 4,
+                                min: 2,
                                 max: 256,
                                 step: 1,
                                 runtime: {
                                     transform: (value, element) => {
                                         const numeric = asNumber(value, element);
                                         if (numeric === undefined) return undefined;
-                                        return clamp(Math.floor(numeric), 4, 512);
+                                        return clamp(Math.floor(numeric), 2, 512);
                                     },
                                     defaultValue: 48,
                                 },
@@ -315,6 +315,7 @@ export class AudioSpectrumElement extends SceneElement {
             trackId: props.audioTrackId,
             feature: 'spectrogram',
             timeSeconds: targetTime,
+            smoothing: props.smoothing,
         });
         const sample = sampled?.ok ? sampled.value : null;
         const rawValues = Array.isArray(sample?.value) ? [...sample.value] : [];

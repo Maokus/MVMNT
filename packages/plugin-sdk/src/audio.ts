@@ -50,7 +50,13 @@ export interface AudioApi {
     requireFeatures(requirements: readonly AudioFeatureRequirement[]): Result<ScopedFeatureRequirements>;
     getChannelMetadata(trackId: string): Result<AudioChannelMetadata>;
     sampleFeature(
-        args: Readonly<{ trackId: string; feature: AudioFeatureInput; timeSeconds: number }>
+        args: Readonly<{
+            trackId: string;
+            feature: AudioFeatureInput;
+            timeSeconds: number;
+            /** Temporal averaging radius in feature hop-frames (0 disables smoothing). */
+            smoothing?: number;
+        }>
     ): Result<AudioFeatureFrame>;
     sampleFeatureRange(
         args: Readonly<{

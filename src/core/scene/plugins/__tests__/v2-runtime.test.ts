@@ -11,7 +11,7 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-function installHost() {
+function installHost(getFeatureData: (...args: any[]) => any = () => null) {
     const state = {
         timeline: { id: 'timeline', name: 'Timeline', currentTick: 0, globalBpm: 120, beatsPerBar: 4 },
         tracks: {},
@@ -25,13 +25,45 @@ function installHost() {
         selectTrackById: () => undefined,
         selectTracksByIds: () => [],
         selectMidiTracks: () => [],
-        getFeatureData: () => null,
+        getFeatureData,
         getFeatureDataRange: () => [],
     }).services;
     return host;
 }
 
 describe('SDK v2 runtime', () => {
+    it('forwards feature smoothing to the host sampling options', async () => {
+        const getFeatureData = vi.fn(() => null);
+        const host = installHost(getFeatureData);
+        let context!: CapabilityContext;
+        const definition = definePluginElement({
+            type: 'smoothing-test',
+            metadata: { name: 'Smoothing test' },
+            schema: { tabs: [] },
+            capabilities: { required: [PLUGIN_CAPABILITIES.audioFeaturesRead], optional: [] },
+            load(value) {
+                context = value;
+            },
+            render() {
+                return [];
+            },
+        });
+        const scope = createPluginDefinitionScope(definition, {
+            pluginId: 'test',
+            services: host,
+            synchronousInitialization: true,
+            loadAsset: async () => 'blob:test',
+            report: vi.fn(),
+        });
+
+        context.audio!.sampleFeature({ trackId: 'audio-track', feature: 'spectrogram', timeSeconds: 1, smoothing: 12 });
+
+        expect(getFeatureData).toHaveBeenCalledWith(expect.any(Object), 'audio-track', 'spectrogram', 1, {
+            smoothing: 12,
+        });
+        await scope.dispose();
+    });
+
     it('exposes namespaced generated rasters as opaque visual snapshots', async () => {
         class MockCanvas {
             readonly context = { putImageData: vi.fn() };

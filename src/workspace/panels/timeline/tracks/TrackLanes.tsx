@@ -310,7 +310,15 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
                     {trackIds.map((id, idx) => (
                         <div
                             key={id}
-                            className={`relative ${idx % 2 === 0 ? 'bg-neutral-800/15' : 'bg-neutral-800/5'}`}
+                            className={`relative ${
+                                midiTracks[id]?.type === 'audio'
+                                    ? idx % 2 === 0
+                                        ? 'bg-emerald-950/20'
+                                        : 'bg-emerald-950/10'
+                                    : idx % 2 === 0
+                                      ? 'bg-sky-950/20'
+                                      : 'bg-sky-950/10'
+                            }`}
                             style={{ height: rowHeight }}
                         >
                             <div className="absolute left-0 right-0 bottom-0 border-b border-neutral-800" />

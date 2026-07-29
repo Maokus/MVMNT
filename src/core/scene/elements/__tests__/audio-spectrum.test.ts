@@ -44,7 +44,7 @@ describe('audio-spectrum element', () => {
         vi.restoreAllMocks();
     });
 
-    it('renders the configured number of spectrum bars using sampled data', () => {
+    it('renders the configured number of spectrum bars, including the two-bar minimum', () => {
         const values = [-80, -60, -40, -20];
         vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(
             makeCapabilityContext(() => ({
@@ -69,7 +69,7 @@ describe('audio-spectrum element', () => {
 
         const element = new AudioSpectrumElement('spectrum', {
             audioTrackId: 'track-1',
-            barCount: 4,
+            barCount: 2,
             width: 200,
             height: 100,
             minDecibels: -80,
@@ -80,11 +80,11 @@ describe('audio-spectrum element', () => {
         const children = (container as any).children as Array<Rectangle | Text>;
         const rectangles = children.filter((child) => child instanceof Rectangle);
 
-        expect(rectangles).toHaveLength(5); // background + 4 bars
+        expect(rectangles).toHaveLength(3); // background + 2 bars
         const [background, ...bars] = rectangles;
         expect(background.width).toBeCloseTo(200);
         expect(background.height).toBeCloseTo(100);
-        expect(bars).toHaveLength(4);
+        expect(bars).toHaveLength(2);
         expect(bars.every((bar) => bar.height >= 0 && bar.height <= 100)).toBe(true);
     });
 
@@ -126,6 +126,7 @@ describe('audio-spectrum element', () => {
                 trackId: 'track-1',
                 feature: 'spectrogram',
                 timeSeconds: 2,
+                smoothing: 12,
             })
         );
     });

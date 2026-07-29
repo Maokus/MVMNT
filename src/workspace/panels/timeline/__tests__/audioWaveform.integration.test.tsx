@@ -63,6 +63,15 @@ describe('AudioWaveform integration in TrackLanes', () => {
                         solo: false,
                         gain: 1,
                     },
+                    midi1: {
+                        id: 'midi1',
+                        name: 'MIDI Track 1',
+                        type: 'midi',
+                        clips: [],
+                        enabled: true,
+                        mute: false,
+                        solo: false,
+                    },
                 },
                 audioCache: {
                     audio1: {
@@ -107,5 +116,12 @@ describe('AudioWaveform integration in TrackLanes', () => {
         const { container } = render(<TrackLanes trackIds={['audio1']} activeTab="clips" />);
         const canvas = container.querySelector('canvas[data-track="audio1"]');
         expect(canvas).toBeTruthy();
+    });
+
+    it('uses subtle type-specific background colors for audio and MIDI lanes', () => {
+        const { container } = render(<TrackLanes trackIds={['audio1', 'midi1']} activeTab="clips" />);
+
+        expect(container.getElementsByClassName('bg-emerald-950/20')).toHaveLength(1);
+        expect(container.getElementsByClassName('bg-sky-950/10')).toHaveLength(1);
     });
 });

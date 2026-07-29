@@ -313,7 +313,7 @@ function createContext(
                     })
                 );
             },
-            sampleFeature(args: { trackId: string; feature: any; timeSeconds: number }) {
+            sampleFeature(args: { trackId: string; feature: any; timeSeconds: number; smoothing?: number }) {
                 if (!granted(PLUGIN_CAPABILITIES.audioFeaturesRead))
                     return unavailable(PLUGIN_CAPABILITIES.audioFeaturesRead, 'audio.sampleFeature');
                 if (!Number.isFinite(args.timeSeconds))
@@ -322,6 +322,7 @@ function createContext(
                     trackId: args.trackId,
                     feature: args.feature,
                     time: args.timeSeconds,
+                    samplingOptions: args.smoothing === undefined ? undefined : { smoothing: args.smoothing },
                 });
                 if (frame == null)
                     return err(
