@@ -12,6 +12,8 @@ export interface PropertyControlProps {
 
 export interface PropertyControlRegistration {
     id: string;
+    /** Presentation only; serialized schemas continue to reference controls by ID. */
+    presentation: 'inline' | 'block';
     validate: (bindings: Record<string, string>, properties: Map<string, PropertyDefinition>) => string | null;
     component: React.ComponentType<PropertyControlProps>;
 }
@@ -161,11 +163,27 @@ const DerivedNumber: React.FC<PropertyControlProps> = ({
 };
 
 export const propertyControlRegistry = new PropertyControlRegistry();
-propertyControlRegistry.register({ id: 'slider', validate: requireNumericPorts(['value']), component: Slider });
-propertyControlRegistry.register({ id: 'xy-pad', validate: requireNumericPorts(['x', 'y']), component: XYPad });
-propertyControlRegistry.register({ id: 'point-grid', validate: requireNumericPorts(['x', 'y']), component: PointGrid });
+propertyControlRegistry.register({
+    id: 'slider',
+    presentation: 'block',
+    validate: requireNumericPorts(['value']),
+    component: Slider,
+});
+propertyControlRegistry.register({
+    id: 'xy-pad',
+    presentation: 'block',
+    validate: requireNumericPorts(['x', 'y']),
+    component: XYPad,
+});
+propertyControlRegistry.register({
+    id: 'point-grid',
+    presentation: 'block',
+    validate: requireNumericPorts(['x', 'y']),
+    component: PointGrid,
+});
 propertyControlRegistry.register({
     id: 'derived-number',
+    presentation: 'inline',
     validate: requireNumericPorts(['value']),
     component: DerivedNumber,
 });

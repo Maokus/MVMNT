@@ -1228,6 +1228,363 @@
     }
 }
 
+/* Compact animation-editor inspector refresh. Keep schema-driven controls inside
+ * the same visual grammar as scalar property rows. */
+@layer components {
+    .inspector-panel-header {
+        @apply relative flex shrink-0 items-center justify-between border-b px-3 py-1.5;
+        min-height: 30px;
+        background-color: var(--twc-menubar);
+        border-color: var(--twc-border);
+    }
+
+    .inspector-panel-header__title {
+        @apply m-0 text-[11px] font-semibold uppercase tracking-wide text-neutral-300;
+    }
+
+    .inspector-panel-header__add-button {
+        @apply inline-flex h-6 items-center justify-center rounded-sm border border-[#1177bb] bg-[#0e639c] px-2 text-[11px] font-medium text-white transition-colors hover:border-[#1890d4] hover:bg-[#1177bb];
+    }
+
+    .inspector-elements-scroll {
+        @apply flex-1 overflow-y-auto p-1.5 min-h-0;
+    }
+
+    .scene-editor {
+        @apply gap-0;
+    }
+
+    .element-list-item {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        min-height: 28px;
+        padding: 3px 4px 3px 7px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+        color: #d4d4d8;
+        cursor: pointer;
+        user-select: none;
+        touch-action: none;
+        transition:
+            background-color 120ms ease,
+            color 120ms ease;
+    }
+
+    .element-list-item--unselected:hover {
+        background-color: rgba(255, 255, 255, 0.06);
+    }
+
+    .element-list-item--selected {
+        background-color: #0e639c;
+        box-shadow: inset 2px 0 0 #5cc8ff;
+        color: #fff;
+    }
+
+    .element-list-item:focus-within {
+        outline: 1px solid color-mix(in srgb, var(--twc-accent) 80%, white);
+        outline-offset: -1px;
+    }
+
+    .element-list-item__identity,
+    .element-list-item__name-row {
+        @apply flex min-w-0 items-center;
+    }
+
+    .element-list-item__name-row {
+        gap: 5px;
+    }
+
+    .element-list-item__name {
+        @apply min-w-0 cursor-pointer truncate text-[12px] font-medium leading-5;
+    }
+
+    .element-list-item__type {
+        @apply ml-2 shrink-0 truncate text-[10px] text-neutral-400;
+        max-width: 34%;
+    }
+
+    .element-list-item--selected .element-list-item__type {
+        color: rgba(255, 255, 255, 0.78);
+    }
+
+    .element-list-item__rename-input {
+        @apply h-5 min-w-0 flex-1 rounded-sm border border-accent bg-[#1e1e1e] px-1.5 text-[12px] text-white outline-none ring-1 ring-accent/30;
+    }
+
+    .element-list-item__rename-button,
+    .element-list-item__icon-button {
+        @apply inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-transparent bg-transparent p-0 text-[10px] text-neutral-400 transition-colors hover:border-white/10 hover:bg-white/10 hover:text-white focus-visible:border-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-30;
+    }
+
+    .element-list-item__rename-button {
+        @apply h-4 w-4 opacity-0;
+    }
+
+    .element-list-item:hover .element-list-item__rename-button,
+    .element-list-item:focus-within .element-list-item__rename-button {
+        @apply opacity-100;
+    }
+
+    .element-list-item__actions,
+    .element-list-item__reorder-actions {
+        @apply flex items-center;
+        gap: 1px;
+    }
+
+    .element-list-item__actions {
+        opacity: 0.62;
+    }
+
+    .element-list-item:hover .element-list-item__actions,
+    .element-list-item:focus-within .element-list-item__actions,
+    .element-list-item--selected .element-list-item__actions {
+        opacity: 1;
+    }
+
+    .element-list-item__icon-button.is-active {
+        color: #e4e4e7;
+    }
+
+    .element-list-item__delete-button:hover {
+        @apply border-red-400/30 bg-red-500/15 text-red-200;
+    }
+
+    .element-properties-panel.ae-style {
+        background-color: var(--twc-panel);
+        font-size: 11px;
+        line-height: 1.2;
+    }
+
+    .ae-tab {
+        min-height: 26px;
+        padding: 4px 8px;
+    }
+
+    .ae-overflow-btn,
+    .ae-search-btn,
+    .ae-search-close {
+        width: 24px;
+        height: 24px;
+    }
+
+    .ae-search-bar {
+        padding: 4px 6px;
+    }
+
+    .ae-search-input {
+        height: 22px;
+        padding: 2px 6px;
+    }
+
+    .ae-property-group {
+        border-color: rgba(255, 255, 255, 0.07);
+    }
+
+    .ae-group-header {
+        min-height: 25px;
+        padding: 3px 7px;
+        gap: 4px;
+        background-color: #282829;
+    }
+
+    .ae-collapse-trigger {
+        width: 16px;
+        height: 16px;
+        margin-top: 0;
+        border: 0;
+        background: transparent;
+    }
+
+    .ae-group-label {
+        font-size: 10px;
+        letter-spacing: 0.055em;
+        text-transform: uppercase;
+        color: #c7c7cc;
+    }
+
+    .ae-property-row {
+        display: grid;
+        grid-template-columns: minmax(82px, 0.82fr) minmax(0, 1.18fr);
+        min-height: 26px;
+        gap: 8px;
+        padding: 3px 7px;
+        border-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .ae-property-row-nested {
+        padding-left: 18px;
+        box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .ae-property-label {
+        min-width: 0;
+    }
+
+    .ae-property-name {
+        max-width: none;
+        font-size: 11px;
+        color: #d4d4d8;
+    }
+
+    .ae-property-controls {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        min-width: 0;
+        gap: 4px;
+        justify-content: stretch;
+    }
+
+    .ae-property-input {
+        min-width: 0;
+        max-width: none;
+    }
+
+    .ae-style .ae-property-input input,
+    .ae-style .ae-property-input select,
+    .color-input-trigger {
+        height: 22px;
+        border-radius: 2px;
+    }
+
+    .ae-property-input .file-input-container {
+        flex-direction: row;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .ae-property-input .file-input-label {
+        height: 22px;
+        padding: 3px 6px;
+        border-radius: 2px;
+        font-size: 10px;
+        white-space: nowrap;
+    }
+
+    .ae-property-input .current-file {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .ae-property-input .file-preview {
+        display: none;
+    }
+
+    .ae-property-input > div:has(.ae-font-input) {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 76px;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .ae-property-input .ae-font-weight-input {
+        width: auto;
+    }
+
+    .ae-property-input .ae-font-input > button,
+    .ae-property-input .ae-font-weight-input > button {
+        min-height: 22px;
+        padding: 3px 6px;
+        border-radius: 2px;
+        font-size: 10px;
+        line-height: 1;
+    }
+
+    .ae-macro-trigger {
+        height: 20px;
+        min-width: 20px;
+        padding: 0 5px;
+    }
+
+    .ae-property-layout-section {
+        margin: 0;
+        border: 0;
+        border-left: 1px solid rgba(255, 255, 255, 0.11);
+        background: transparent;
+    }
+
+    .ae-property-layout-section-title {
+        min-height: 24px;
+        padding: 3px 7px;
+        border-bottom-color: rgba(255, 255, 255, 0.06);
+        background: #252526;
+        font-size: 10px;
+    }
+
+    .ae-layout-control {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .ae-layout-control--block {
+        padding: 3px 7px;
+    }
+
+    .ae-layout-control--inline {
+        padding: 0;
+    }
+
+    .ae-property-control {
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        gap: 2px;
+    }
+
+    .ae-property-control legend {
+        padding: 0;
+        font-size: 10px;
+        font-weight: 500;
+        color: #b8b8be;
+    }
+
+    .ae-property-control-axis {
+        grid-template-columns: minmax(58px, 0.8fr) minmax(54px, 1fr) 44px;
+        min-height: 20px;
+        gap: 6px;
+        font-size: 10px;
+    }
+
+    .ae-property-control-axis output {
+        font-size: 10px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .ae-property-layout-actions {
+        padding: 4px 7px;
+        border-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .ae-property-layout-actions button {
+        border-radius: 2px;
+        padding: 3px 6px;
+    }
+
+    .ae-property-error {
+        grid-column: 1 / -1;
+        border-radius: 2px;
+        padding: 4px 6px;
+    }
+
+    .ae-property-row-error {
+        display: block;
+    }
+
+    @media (max-width: 360px) {
+        .ae-property-row {
+            grid-template-columns: minmax(70px, 0.75fr) minmax(0, 1.25fr);
+            gap: 5px;
+            padding-inline: 5px;
+        }
+
+        .element-list-item__reorder-actions {
+            display: none;
+        }
+    }
+}
+
 @layer utilities {
     @keyframes fadeIn {
         from {

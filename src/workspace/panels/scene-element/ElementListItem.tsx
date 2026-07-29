@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { FaEye, FaEyeSlash, FaArrowUp, FaArrowDown, FaClone, FaTrash, FaPen } from 'react-icons/fa';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 
@@ -43,56 +43,10 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
     const [editValue, setEditValue] = useState(element.id);
     const inputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const idContainerRef = useRef<HTMLDivElement>(null);
-    const [maxIdLength, setMaxIdLength] = useState(18);
 
     // Get element type info
     const typeInfo = sceneElementRegistry.getElementTypeInfo().find((t: any) => t.type === element.type);
     const elementTypeName = typeInfo ? (typeInfo as any).name : element.type;
-
-    // Truncate text utility
-    const truncateText = (text: string, maxLength: number) => {
-        if (text.length <= maxLength) return text;
-        return text.substring(0, maxLength - 3) + '...';
-    };
-
-    const truncatedId = useMemo(() => truncateText(element.id, maxIdLength), [element.id, maxIdLength]);
-
-    useEffect(() => {
-        const idContainer = idContainerRef.current;
-        if (!idContainer || typeof ResizeObserver === 'undefined') {
-            return;
-        }
-
-        const averageCharacterWidth = 7;
-        const paddingAllowance = 16;
-
-        const updateMaxIdLength = () => {
-            const { width } = idContainer.getBoundingClientRect();
-            if (!width) {
-                return;
-            }
-
-            const computedLength = Math.max(
-                8,
-                Math.min(64, Math.floor((width - paddingAllowance) / averageCharacterWidth))
-            );
-
-            setMaxIdLength((current) => (current === computedLength ? current : computedLength));
-        };
-
-        updateMaxIdLength();
-
-        const observer = new ResizeObserver(() => {
-            updateMaxIdLength();
-        });
-
-        observer.observe(idContainer);
-
-        return () => {
-            observer.disconnect();
-        };
-    }, []);
 
     // Handle starting advanced mode
     const startEditing = (e: React.MouseEvent) => {
@@ -144,11 +98,9 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
         target instanceof Element &&
         Boolean(target.closest('button, input, textarea, select, a, [contenteditable="true"]'));
 
-    const baseItem =
-        'flex items-center justify-between px-3 py-0.5 mb-1 border rounded cursor-pointer transition select-none touch-none';
-    const unselected =
-        'bg-[color:var(--twc-control)] border-[color:var(--twc-control2)] hover:bg-[color:var(--twc-control2)] hover:border-neutral-500';
-    const selected = 'bg-[#0e639c] border-[#1177bb] text-white';
+    const baseItem = 'element-list-item';
+    const unselected = 'element-list-item--unselected';
+    const selected = 'element-list-item--selected';
     const draggingState = isDragging ? 'opacity-0' : '';
     return (
         <div
@@ -177,8 +129,8 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                 onPointerDragCancel();
             }}
         >
-            <div className="flex-1" ref={idContainerRef}>
-                <div className="flex items-center gap-1 mb-0.5">
+            <div className="element-list-item__identity">
+                <div className="element-list-item__name-row">
                     {isEditingId ? (
                         <input
                             ref={inputRef}
@@ -187,29 +139,16 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                             onChange={(e) => setEditValue(e.target.value)}
                             onBlur={() => finishEditing(true)}
                             onKeyDown={handleKeyDown}
-                            className="outline-none"
-                            style={{
-                                width: '100%',
-                                fontSize: '13px',
-                                padding: '2px 4px',
-                                border: '1px solid #0e639c',
-                                borderRadius: '2px',
-                                background: '#3c3c3c',
-                                color: '#ffffff',
-                            }}
+                            className="element-list-item__rename-input"
                             onClick={(e) => e.stopPropagation()}
                         />
                     ) : (
                         <>
-                            <span
-                                className="font-medium text-[13px] cursor-pointer"
-                                title={element.id}
-                                onDoubleClick={startEditing}
-                            >
-                                {truncatedId}
+                            <span className="element-list-item__name" title={element.id} onDoubleClick={startEditing}>
+                                {element.id}
                             </span>
                             <button
-                                className="bg-transparent border-0 text-[10px] px-0 py-0 opacity-60 cursor-pointer transition hover:opacity-100 flex items-center"
+                                className="element-list-item__rename-button"
                                 onClick={startEditing}
                                 title="Edit element ID"
                                 aria-label="Edit element ID"
@@ -219,12 +158,14 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                         </>
                     )}
                 </div>
-                <div className="text-[11px] opacity-70">{elementTypeName}</div>
+                <span className="element-list-item__type" title={elementTypeName}>
+                    {elementTypeName}
+                </span>
             </div>
 
-            <div className="flex gap-1">
+            <div className="element-list-item__actions">
                 <button
-                    className={`opacity-50 cursor-pointer bg-transparent border-0 text-xs transition hover:opacity-100 ${element.visible ? 'opacity-100' : ''} flex items-center`}
+                    className={`element-list-item__icon-button ${element.visible ? 'is-active' : ''}`}
                     onClick={(e) => handleControlClick(e, onToggleVisibility)}
                     title={`${element.visible ? 'Hide' : 'Show'} element`}
                     aria-label={`${element.visible ? 'Hide' : 'Show'} element`}
@@ -232,9 +173,9 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                     {element.visible ? <FaEye /> : <FaEyeSlash />}
                 </button>
 
-                <div className="flex gap-0.5">
+                <div className="element-list-item__reorder-actions">
                     <button
-                        className="w-5 h-5 p-0 flex items-center justify-center text-[10px] border-0 rounded cursor-pointer bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="element-list-item__icon-button"
                         onClick={(e) => handleControlClick(e, onMoveUp)}
                         title="Move up"
                         aria-label="Move up"
@@ -243,7 +184,7 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                         <FaArrowUp />
                     </button>
                     <button
-                        className="w-5 h-5 p-0 flex items-center justify-center text-[10px] border-0 rounded cursor-pointer bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="element-list-item__icon-button"
                         onClick={(e) => handleControlClick(e, onMoveDown)}
                         title="Move down"
                         aria-label="Move down"
@@ -253,7 +194,7 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                     </button>
                 </div>
                 <button
-                    className="px-1.5 py-0.5 text-[10px] border-0 rounded cursor-pointer bg-white/10 hover:bg-white/20 flex items-center"
+                    className="element-list-item__icon-button"
                     onClick={(e) => handleControlClick(e, onDuplicate)}
                     title="Duplicate element"
                     aria-label="Duplicate element"
@@ -261,7 +202,7 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                     <FaClone />
                 </button>
                 <button
-                    className="px-1.5 py-0.5 text-[10px] border-0 rounded cursor-pointer bg-white/10 hover:bg-white/20 flex items-center"
+                    className="element-list-item__icon-button element-list-item__delete-button"
                     onClick={(e) => handleControlClick(e, onDelete)}
                     title="Delete element"
                     aria-label="Delete element"

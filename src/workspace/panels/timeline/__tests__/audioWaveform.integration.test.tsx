@@ -20,15 +20,15 @@ global.ResizeObserver = RO;
 HTMLCanvasElement.prototype.getContext = function () {
     return {
         canvas: this,
-        clearRect: () => {},
-        fillRect: () => {},
-        beginPath: () => {},
-        moveTo: () => {},
-        lineTo: () => {},
-        stroke: () => {},
-        fillText: () => {},
-        scale: () => {},
-        strokeRect: () => {},
+        clearRect: () => { },
+        fillRect: () => { },
+        beginPath: () => { },
+        moveTo: () => { },
+        lineTo: () => { },
+        stroke: () => { },
+        fillText: () => { },
+        scale: () => { },
+        strokeRect: () => { },
         font: '',
         fillStyle: '',
         strokeStyle: '',
@@ -122,6 +122,6 @@ describe('AudioWaveform integration in TrackLanes', () => {
         const { container } = render(<TrackLanes trackIds={['audio1', 'midi1']} activeTab="clips" />);
 
         expect(container.getElementsByClassName('bg-emerald-950/20')).toHaveLength(1);
-        expect(container.getElementsByClassName('bg-sky-950/10')).toHaveLength(1);
+        expect(container.getElementsByClassName('bg-sky-950/15')).toHaveLength(1);
     });
 });

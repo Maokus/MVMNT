@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import ElementList from '../ElementList';
 
@@ -20,6 +20,28 @@ const pointerEvent = (type: string, clientY: number) => {
 };
 
 describe('ElementList', () => {
+    it('uses a compact layer-row treatment while retaining utility actions', () => {
+        (HTMLElement.prototype as any).scrollIntoView = vi.fn();
+        render(
+            <ElementList
+                elements={elements}
+                selectedElementId="second"
+                onElementSelect={vi.fn()}
+                onToggleVisibility={vi.fn()}
+                onMoveElement={vi.fn()}
+                onDuplicateElement={vi.fn()}
+                onDeleteElement={vi.fn()}
+                onUpdateElementId={vi.fn(() => true)}
+            />
+        );
+
+        const selectedRow = screen.getAllByText('second')[0].closest('.element-list-item');
+        expect(selectedRow).toHaveClass('element-list-item--selected');
+        expect(screen.getAllByTitle('Hide element')).toHaveLength(elements.length);
+        expect(screen.getAllByTitle('Duplicate element')).toHaveLength(elements.length);
+        expect(screen.getAllByTitle('Delete element')).toHaveLength(elements.length);
+    });
+
     it('reorders an element dropped over another list item', () => {
         const onMoveElement = vi.fn();
         const { container } = render(

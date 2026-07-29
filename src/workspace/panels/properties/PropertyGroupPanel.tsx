@@ -442,14 +442,6 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             <div
                 key={`${elementId}:${property.key}`}
                 className={`ae-property-row${nested ? ' ae-property-row-nested' : ''}${isDelinked ? ' ae-property-delinked' : ''}`}
-                style={
-                    nested
-                        ? {
-                              paddingLeft: '12px',
-                              borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
-                          }
-                        : undefined
-                }
                 onMouseEnter={
                     isAutomatableType(property.type)
                         ? () => {

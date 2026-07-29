@@ -182,6 +182,7 @@ describe('PropertyGroupPanel', () => {
         expect(slider).toHaveAttribute('min', '0');
         expect(slider).toHaveAttribute('max', '1');
         expect(slider).toHaveAttribute('step', '0.01');
+        expect(slider.closest('.ae-layout-control')).toHaveClass('ae-layout-control--block');
     });
 
     it('hides layout controls and property rows when their bound property is not visible', () => {

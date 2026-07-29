@@ -109,15 +109,19 @@ export const PropertyLayoutRenderer: React.FC<Props> = ({
             Object.values(node.bindings).forEach((key) => laidOut.add(key));
             const Control = registration!.component;
             result.push(
-                <Control
+                <div
                     key={`${node.control}:${Object.values(node.bindings).join(':')}`}
-                    bindings={node.bindings}
-                    options={node.options}
-                    properties={propertyMap}
-                    values={values}
-                    disabled={isDisabled}
-                    setMany={onPatch}
-                />
+                    className={`ae-layout-control ae-layout-control--${registration!.presentation}`}
+                >
+                    <Control
+                        bindings={node.bindings}
+                        options={node.options}
+                        properties={propertyMap}
+                        values={values}
+                        disabled={isDisabled}
+                        setMany={onPatch}
+                    />
+                </div>
             );
             return result;
         }, []);

@@ -259,8 +259,8 @@ const SidePanelsInternal: React.FC = () => {
                         : { gridRow: '1 / 2', gridColumn: '1 / 2' }
                 }
             >
-                <div className="border-b px-4 py-2 shrink-0 flex justify-between items-center relative bg-menubar border-border">
-                    <h3 className="text-[13px] font-semibold text-neutral-300 m-0">📚 Elements</h3>
+                <div className="inspector-panel-header">
+                    <h3 className="inspector-panel-header__title">Elements</h3>
                     <div className="relative">
                         <button
                             {...getAddElementReferenceProps({
@@ -269,7 +269,7 @@ const SidePanelsInternal: React.FC = () => {
                                 title: 'Add element',
                             })}
                             ref={addElementRefs.setReference}
-                            className="px-2 py-1 border rounded cursor-pointer text-[12px] font-medium transition inline-flex items-center justify-center bg-[#0e639c] border-[#1177bb] text-white hover:bg-[#1177bb] hover:border-[#1890d4] ml-auto"
+                            className="inspector-panel-header__add-button"
                         >
                             + Add
                         </button>
@@ -294,7 +294,7 @@ const SidePanelsInternal: React.FC = () => {
                         )}
                     </div>
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 min-h-0">
+                <div className="inspector-elements-scroll">
                     <SceneElementPanel />
                 </div>
             </div>
@@ -333,9 +333,9 @@ const SidePanelsInternal: React.FC = () => {
                         : { gridRow: '1 / 2', gridColumn: '3 / 4' }
                 }
             >
-                <div className="border-b px-4 py-2 shrink-0 flex justify-between items-center relative bg-menubar border-border">
-                    <h3 id="propertiesHeader" className="text-[13px] font-semibold text-neutral-300 m-0">
-                        ⚙️ Properties
+                <div className="inspector-panel-header">
+                    <h3 id="propertiesHeader" className="inspector-panel-header__title">
+                        Properties
                     </h3>
                 </div>
                 <div className="flex-1 overflow-y-auto p-0 space-y-4">

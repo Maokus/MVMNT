@@ -314,10 +314,10 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
                                 midiTracks[id]?.type === 'audio'
                                     ? idx % 2 === 0
                                         ? 'bg-emerald-950/20'
-                                        : 'bg-emerald-950/10'
+                                        : 'bg-emerald-950/15'
                                     : idx % 2 === 0
                                       ? 'bg-sky-950/20'
-                                      : 'bg-sky-950/10'
+                                      : 'bg-sky-950/15'
                             }`}
                             style={{ height: rowHeight }}
                         >
