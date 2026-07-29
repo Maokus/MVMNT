@@ -8,6 +8,18 @@ import KeyframeControl, { isAutomatableType } from './KeyframeControl';
 import { hoveredPropertyRef } from './hoveredPropertyRef';
 import { PropertyLayoutRenderer } from './PropertyLayoutRenderer';
 
+const propertyPassesVisibility = (property: PropertyDefinition, values: Record<string, unknown>) =>
+    !property.visibleWhen?.length ||
+    property.visibleWhen.every((rule) =>
+        'equals' in rule
+            ? values[rule.key] === rule.equals
+            : 'notEquals' in rule
+              ? values[rule.key] !== rule.notEquals
+              : 'truthy' in rule
+                ? Boolean(values[rule.key])
+                : !values[rule.key]
+    );
+
 type SupportedFormInputType =
     | 'text'
     | 'longString'
@@ -518,7 +530,9 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                 onPatch={(patch, gesture) => onValuesChange(patch, gesture ? { mergeSession: gesture } : undefined)}
             />
         ) : (
-            properties.map((property) => renderPropertyRow(property))
+            properties
+                .filter((property) => propertyPassesVisibility(property, values))
+                .map((property) => renderPropertyRow(property))
         );
 
     return (

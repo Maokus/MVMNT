@@ -57,17 +57,53 @@ export const notesPlayingDisplay = definePluginElement<Props, undefined>({
                                 ],
                             },
                             num('fadeOutDuration', 'Fade Out (s)', 0),
-                            num('lettersSpacing', 'Letters Spacing', 32),
-                            num('gridColumns', 'Columns', 12),
-                            num('gridRows', 'Rows', 12),
-                            num('gridRowNoteOffset', 'Row Note Offset', 12),
-                            num('gridStartNote', 'Start Note', -1),
-                            num('gridCellWidth', 'Cell Width', 65),
-                            num('gridCellHeight', 'Cell Height', 65),
-                            num('gridCellGap', 'Cell Gap', 4),
-                            num('gridCornerRadius', 'Corner Radius', 4),
-                            num('gridStrokeWidth', 'Stroke Width', 0),
-                            { key: 'gridStrokeColor', label: 'Stroke Color', type: 'colorAlpha', default: '#0F172AFF' },
+                            {
+                                ...num('lettersSpacing', 'Letters Spacing', 32),
+                                visibleWhen: [{ key: 'displayMode', equals: 'letters' }],
+                            },
+                            {
+                                ...num('gridColumns', 'Columns', 12),
+                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
+                            },
+                            {
+                                ...num('gridRows', 'Rows', 12),
+                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
+                            },
+                            {
+                                ...num('gridRowNoteOffset', 'Row Note Offset', 12),
+                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
+                            },
+                            {
+                                ...num('gridStartNote', 'Start Note', -1),
+                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
+                            },
+                            {
+                                ...num('gridCellWidth', 'Cell Width', 65),
+                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
+                            },
+                            {
+                                ...num('gridCellHeight', 'Cell Height', 65),
+                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
+                            },
+                            {
+                                ...num('gridCellGap', 'Cell Gap', 4),
+                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
+                            },
+                            {
+                                ...num('gridCornerRadius', 'Corner Radius', 4),
+                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
+                            },
+                            {
+                                ...num('gridStrokeWidth', 'Stroke Width', 0),
+                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
+                            },
+                            {
+                                key: 'gridStrokeColor',
+                                label: 'Stroke Color',
+                                type: 'colorAlpha',
+                                default: '#0F172AFF',
+                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
+                            },
                         ],
                     },
                     {
@@ -99,13 +135,28 @@ export const notesPlayingDisplay = definePluginElement<Props, undefined>({
                         label: 'Colors',
                         collapsed: false,
                         properties: [
-                            { key: 'textColor', label: 'Text Color', type: 'colorAlpha', default: '#CCCCCCFF' },
-                            { key: 'textOpacity', label: 'Text Opacity', type: 'number', default: 1, min: 0, max: 1 },
+                            {
+                                key: 'textColor',
+                                label: 'Text Color',
+                                type: 'colorAlpha',
+                                default: '#CCCCCCFF',
+                                visibleWhen: [{ key: 'displayMode', equals: 'letters' }],
+                            },
+                            {
+                                key: 'textOpacity',
+                                label: 'Text Opacity',
+                                type: 'number',
+                                default: 1,
+                                min: 0,
+                                max: 1,
+                                visibleWhen: [{ key: 'displayMode', equals: 'letters' }],
+                            },
                             {
                                 key: 'gridFillColor',
                                 label: 'Grid Fill Color',
                                 type: 'colorAlpha',
                                 default: '#EFEFEFFF',
+                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
                             },
                             {
                                 key: 'gridFillOpacity',
@@ -114,6 +165,7 @@ export const notesPlayingDisplay = definePluginElement<Props, undefined>({
                                 default: 1,
                                 min: 0,
                                 max: 1,
+                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
                             },
                         ],
                         layout: [

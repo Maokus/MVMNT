@@ -538,7 +538,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 <PropertyGroupPanel
                     key={group.id}
                     group={{ ...group, collapsed: groupCollapseState[group.id] ?? group.collapsed }}
-                    properties={properties}
+                    properties={searchActive ? properties : group.properties}
                     values={propertyValues}
                     macroAssignments={macroAssignments}
                     elementId={elementId}

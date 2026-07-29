@@ -44,6 +44,10 @@ layout: [
 - `actions` renders declarative buttons that submit a canonical property patch,
   such as a reset action.
 
+`visibleWhen` works on layout controls and sections, and is also respected for
+properties rendered through a layout. A control is hidden when any of its bound
+properties is hidden, keeping compound controls and their scalar rows aligned.
+
 Properties not explicitly represented by a layout remain visible as ordinary
 rows in schema order. A property may be deliberately repeated as both a
 compound control port and an exact scalar row.

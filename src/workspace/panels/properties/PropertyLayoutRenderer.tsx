@@ -64,7 +64,7 @@ export const PropertyLayoutRenderer: React.FC<Props> = ({
             if (!passes('visibleWhen' in node ? node.visibleWhen : undefined, values)) return result;
             if (node.kind === 'property') {
                 const property = propertyMap.get(node.propertyKey);
-                if (!property) return result;
+                if (!property || !passes(property.visibleWhen, values)) return result;
                 laidOut.add(property.key);
                 result.push(renderProperty(property, nested));
                 return result;
@@ -122,6 +122,8 @@ export const PropertyLayoutRenderer: React.FC<Props> = ({
             return result;
         }, []);
     const rendered = renderNodes(nodes);
-    for (const property of properties) if (!laidOut.has(property.key)) rendered.push(renderProperty(property));
+    for (const property of properties) {
+        if (!laidOut.has(property.key) && passes(property.visibleWhen, values)) rendered.push(renderProperty(property));
+    }
     return <>{rendered}</>;
 };

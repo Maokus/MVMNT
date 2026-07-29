@@ -184,6 +184,75 @@ describe('PropertyGroupPanel', () => {
         expect(slider).toHaveAttribute('step', '0.01');
     });
 
+    it('hides layout controls and property rows when their bound property is not visible', () => {
+        const properties = [
+            {
+                key: 'displayMode',
+                label: 'Display Mode',
+                type: 'select',
+                default: 'letters',
+                options: [
+                    { value: 'letters', label: 'Letters' },
+                    { value: 'grid', label: 'Grid' },
+                ],
+            },
+            {
+                key: 'gridOpacity',
+                label: 'Grid Opacity',
+                type: 'number',
+                default: 1,
+                min: 0,
+                max: 1,
+                step: 0.01,
+                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
+            },
+        ] as PropertyDefinition[];
+        const group: PropertyGroup = {
+            id: 'appearance',
+            label: 'Appearance',
+            collapsed: false,
+            properties,
+            layout: [
+                { kind: 'property', propertyKey: 'displayMode' },
+                { kind: 'control', control: 'slider', bindings: { value: 'gridOpacity' } },
+                { kind: 'property', propertyKey: 'gridOpacity' },
+            ],
+        };
+        const { rerender } = render(
+            <PropertyGroupPanel
+                group={group}
+                properties={properties}
+                values={{ displayMode: 'letters', gridOpacity: 1 }}
+                macroAssignments={{}}
+                elementId="test-element"
+                onValueChange={vi.fn()}
+                onValuesChange={vi.fn()}
+                onMacroAssignment={vi.fn()}
+                onCollapseToggle={vi.fn()}
+            />
+        );
+
+        expect(screen.queryByRole('slider', { name: 'Grid Opacity' })).not.toBeInTheDocument();
+        expect(screen.queryByText('Grid Opacity')).not.toBeInTheDocument();
+
+        rerender(
+            <PropertyGroupPanel
+                group={group}
+                properties={properties}
+                values={{ displayMode: 'grid', gridOpacity: 1 }}
+                macroAssignments={{}}
+                elementId="test-element"
+                onValueChange={vi.fn()}
+                onValuesChange={vi.fn()}
+                onMacroAssignment={vi.fn()}
+                onCollapseToggle={vi.fn()}
+            />
+        );
+
+        expect(screen.getByRole('slider', { name: /Grid Opacity/ })).toBeInTheDocument();
+        expect(screen.getAllByText('Grid Opacity')).toHaveLength(3);
+    });
+
     it('falls back to scalar rows when a layout control is unknown', () => {
         const properties = [{ key: 'x', label: 'X', type: 'number', default: 0 }] as PropertyDefinition[];
         const group: PropertyGroup = {
