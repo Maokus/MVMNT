@@ -532,15 +532,19 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
     return (
         <div className="ae-property-group">
-            <div className="ae-group-header">
-                <button
-                    type="button"
+            <button
+                type="button"
+                className="ae-group-header"
+                onClick={() => onCollapseToggle(group.id)}
+                aria-expanded={!group.collapsed}
+                aria-label={`${group.collapsed ? 'Expand' : 'Collapse'} ${group.label} group`}
+            >
+                <span
                     className={`ae-collapse-trigger ${group.collapsed ? 'collapsed' : 'expanded'}`}
-                    onClick={() => onCollapseToggle(group.id)}
-                    aria-label={group.collapsed ? 'Expand group' : 'Collapse group'}
+                    aria-hidden="true"
                 >
                     <span className={`ae-collapse-icon ${group.collapsed ? 'collapsed' : 'expanded'}`}>▼</span>
-                </button>
+                </span>
                 <div className="ae-group-meta">
                     <div className="ae-group-title-row">
                         <span className="ae-group-label" title={groupDescription || undefined}>
@@ -548,7 +552,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                         </span>
                     </div>
                 </div>
-            </div>
+            </button>
 
             {!group.collapsed &&
                 (properties.length === 0 ? (

@@ -32,7 +32,7 @@ const TrackList: React.FC<TrackListProps> = ({ trackIds, activeTab, setActiveTab
     const tabButton = (tab: 'clips' | 'automation', label: string) => (
         <button
             type="button"
-            className={`px-2 py-0.5 text-[10px] font-medium rounded ${
+            className={`timeline-track-tab ${
                 activeTab === tab
                     ? 'bg-blue-600/70 text-white'
                     : 'bg-neutral-800/60 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/60'
@@ -46,10 +46,7 @@ const TrackList: React.FC<TrackListProps> = ({ trackIds, activeTab, setActiveTab
     if (trackIds.length === 0 && activeTab === 'clips') {
         return (
             <div className="track-list space-y-0">
-                <div
-                    className="sticky top-0 z-10 bg-neutral-900/40 border-b border-neutral-800 flex items-center gap-1 px-2"
-                    style={{ height: RULER_HEIGHT }}
-                >
+                <div className="timeline-track-tabs" style={{ height: RULER_HEIGHT }}>
                     {tabButton('clips', 'Clips')}
                     {tabButton('automation', 'Automation')}
                 </div>
@@ -62,10 +59,7 @@ const TrackList: React.FC<TrackListProps> = ({ trackIds, activeTab, setActiveTab
     return (
         <div className="track-list space-y-0">
             {/* Tab buttons in the sticky ruler-height spacer */}
-            <div
-                className="sticky top-0 z-10 bg-neutral-900/40 border-b border-neutral-800 flex items-center gap-1 px-2"
-                style={{ height: RULER_HEIGHT }}
-            >
+            <div className="timeline-track-tabs" style={{ height: RULER_HEIGHT }}>
                 {tabButton('clips', 'Clips')}
                 {tabButton('automation', 'Automation')}
             </div>

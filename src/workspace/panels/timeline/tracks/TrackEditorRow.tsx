@@ -39,21 +39,17 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
 
     return (
         <div
-            className={`timeline-row flex h-full items-center justify-between gap-2 border-b px-2 ${isDragOver ? 'border-t-2 border-t-blue-400 border-b-neutral-800' : 'border-b-neutral-800'} ${selected ? 'bg-blue-700/25' : 'bg-neutral-900/40 hover:bg-neutral-800/40'}`}
+            className={`timeline-track-editor-row ${isDragOver ? 'is-drag-over' : ''} ${selected ? 'is-selected' : ''}`}
             onClick={() => selectTracks([trackId])}
             role="button"
             title={selected ? 'Selected' : 'Click to select'}
             style={{ height: rowHeight, minHeight: rowHeight, fontSize: baseFontSize }}
         >
             {/* Drag handle */}
-            <div
-                className="flex-shrink-0 text-neutral-500 hover:text-neutral-300 cursor-grab active:cursor-grabbing px-0.5"
-                title="Drag to reorder"
-                {...dragHandleProps}
-            >
+            <div className="timeline-track-editor-row__drag-handle" title="Drag to reorder" {...dragHandleProps}>
                 <FaGripVertical size={10} />
             </div>
-            <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="timeline-track-editor-row__name">
                 {/* Name — double-click to edit */}
                 {editingName ? (
                     <input
@@ -91,11 +87,13 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
                         {track.name}
                     </div>
                 )}
+            </div>
+            <div className="timeline-track-editor-row__controls">
                 {track.type === 'midi' && (
                     <button
                         type="button"
                         aria-label={midiPreviewEnabled ? 'Disable MIDI test sound' : 'Enable MIDI test sound'}
-                        className={`rounded border px-1 ${midiPreviewEnabled ? 'bg-cyan-700/40 border-cyan-400 text-cyan-100' : 'border-neutral-600 text-neutral-300 hover:bg-neutral-700/40'}`}
+                        className={`timeline-track-editor-row__button ${midiPreviewEnabled ? 'is-active is-previewing' : ''}`}
                         onClick={(e) => {
                             e.stopPropagation();
                             toggleMidiPreview(trackId);
@@ -111,7 +109,7 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <button
                             aria-label={track.mute ? 'Unmute track' : 'Mute track'}
-                            className={`rounded border px-1 ${track.mute ? 'bg-red-700/40 border-red-500 text-red-200' : 'border-neutral-600 text-neutral-200 hover:bg-neutral-700/40'}`}
+                            className={`timeline-track-editor-row__button ${track.mute ? 'is-active is-muted' : ''}`}
                             onClick={() => {
                                 void setTrackMute(trackId, !track.mute);
                             }}
@@ -122,7 +120,7 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
                         </button>
                         <button
                             aria-label={track.solo ? 'Unsolo track' : 'Solo track'}
-                            className={`rounded border px-1 ${track.solo ? 'bg-yellow-600/40 border-yellow-400 text-yellow-200' : 'border-neutral-600 text-neutral-200 hover:bg-neutral-700/40'}`}
+                            className={`timeline-track-editor-row__button ${track.solo ? 'is-active is-solo' : ''}`}
                             onClick={() => {
                                 void setTrackSolo(trackId, !track.solo);
                             }}
@@ -136,7 +134,7 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
                 {/* Gain (dB) text input for audio tracks. 0.0 dB => gain 1. */}
                 {track.type === 'audio' && (
                     <div
-                        className="flex items-center gap-1 ml-2 shrink min-w-0"
+                        className="timeline-track-editor-row__gain"
                         onClick={(e) => e.stopPropagation()}
                         title={`Gain ${(track as any).gain?.toFixed?.(3)} (linear)`}
                     >
@@ -187,7 +185,7 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
             </div>
             {/* Delete */}
             <button
-                className="flex items-center justify-center rounded border border-neutral-700 text-neutral-300 hover:border-red-500 hover:text-red-300"
+                className="timeline-track-editor-row__delete"
                 title="Delete track"
                 aria-label="Delete track"
                 onClick={(e) => {

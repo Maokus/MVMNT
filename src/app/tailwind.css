@@ -1382,9 +1382,18 @@
 
     .ae-group-header {
         min-height: 25px;
+        width: 100%;
         padding: 3px 7px;
         gap: 4px;
+        border: 0;
         background-color: #282829;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .ae-group-header:focus-visible {
+        outline: 1px solid var(--twc-accent);
+        outline-offset: -1px;
     }
 
     .ae-collapse-trigger {
@@ -1439,6 +1448,116 @@
 
     .ae-keyframe-toggle {
         margin-left: 0;
+    }
+
+    /* Clips-tab track controls use fixed utility columns so short row heights
+     * never collapse the track name into buttons or overlapping controls. */
+    .timeline-track-tabs {
+        @apply sticky top-0 z-10 flex items-center gap-1 border-b border-neutral-800 bg-neutral-900/70 px-2;
+    }
+
+    .timeline-track-tab {
+        @apply h-5 rounded-sm px-2 text-[10px] font-medium transition-colors;
+    }
+
+    .timeline-track-editor-row {
+        display: grid;
+        grid-template-columns: 14px minmax(0, 1fr) auto auto;
+        align-items: center;
+        gap: 5px;
+        min-width: 0;
+        padding: 0 6px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        background: rgba(23, 23, 23, 0.48);
+        color: #d4d4d8;
+        cursor: pointer;
+        transition:
+            background-color 120ms ease,
+            box-shadow 120ms ease;
+    }
+
+    .timeline-track-editor-row:hover {
+        background: rgba(255, 255, 255, 0.055);
+    }
+
+    .timeline-track-editor-row.is-selected {
+        background: rgba(14, 99, 156, 0.3);
+        box-shadow: inset 2px 0 0 #5cc8ff;
+    }
+
+    .timeline-track-editor-row.is-drag-over {
+        border-top: 2px solid #60a5fa;
+    }
+
+    .timeline-track-editor-row__drag-handle {
+        @apply flex h-5 w-[14px] items-center justify-center px-0 text-neutral-500 transition-colors hover:text-neutral-200;
+        cursor: grab;
+    }
+
+    .timeline-track-editor-row__drag-handle:active {
+        cursor: grabbing;
+    }
+
+    .timeline-track-editor-row__name {
+        @apply min-w-0 truncate text-neutral-200;
+    }
+
+    .timeline-track-editor-row__controls {
+        @apply flex min-w-0 items-center gap-1;
+    }
+
+    .timeline-track-editor-row__button,
+    .timeline-track-editor-row__delete {
+        @apply inline-flex min-w-5 items-center justify-center rounded-sm border border-neutral-700 bg-transparent px-1 text-neutral-300 transition-colors hover:border-neutral-500 hover:bg-white/10 hover:text-white focus-visible:border-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50;
+    }
+
+    .timeline-track-editor-row__button.is-previewing {
+        @apply border-cyan-400 bg-cyan-700/40 text-cyan-100;
+    }
+
+    .timeline-track-editor-row__button.is-muted {
+        @apply border-red-500 bg-red-700/40 text-red-200;
+    }
+
+    .timeline-track-editor-row__button.is-solo {
+        @apply border-yellow-400 bg-yellow-600/40 text-yellow-100;
+    }
+
+    .timeline-track-editor-row__gain {
+        @apply flex min-w-0 items-center gap-1 text-neutral-400;
+    }
+
+    .timeline-track-editor-row__gain input {
+        min-width: 32px;
+    }
+
+    .timeline-track-editor-row__delete:hover {
+        @apply border-red-500 bg-red-500/10 text-red-300;
+    }
+
+    .timeline-clip {
+        @apply cursor-grab select-none overflow-hidden rounded-sm px-1.5 py-0.5 text-[11px] text-white shadow-sm transition-[opacity,box-shadow,filter] active:cursor-grabbing;
+    }
+
+    .timeline-clip:hover {
+        filter: brightness(1.12);
+    }
+
+    .timeline-clip:focus-visible {
+        outline: 1px solid white;
+        outline-offset: 1px;
+    }
+
+    .timeline-clip--midi {
+        box-shadow:
+            inset 2px 0 0 rgba(191, 219, 254, 0.75),
+            0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
+    .timeline-clip--audio {
+        box-shadow:
+            inset 2px 0 0 rgba(167, 243, 208, 0.75),
+            0 1px 2px rgba(0, 0, 0, 0.3);
     }
 
     .ae-property-controls {

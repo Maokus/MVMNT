@@ -407,7 +407,7 @@ const MidiClipBlock: React.FC<Props> = ({
 
     return (
         <div
-            className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none overflow-hidden transition-opacity ${
+            className={`timeline-clip timeline-clip--midi absolute top-1/2 -translate-y-1/2 ${
                 isCrossDragging ? 'opacity-30 pointer-events-none' : ''
             } ${isSelected ? 'bg-sky-500/65 border border-sky-200/90' : 'bg-blue-500/40 border border-blue-400/60'}`}
             ref={clipElRef}

@@ -32,6 +32,34 @@ describe('PropertyGroupPanel', () => {
         consoleErrorSpy.mockRestore();
     });
 
+    it('toggles a property group when its full header is clicked', () => {
+        const onCollapseToggle = vi.fn();
+        const group: PropertyGroup = {
+            id: 'appearance',
+            label: 'Appearance',
+            collapsed: false,
+            properties: [],
+        };
+
+        render(
+            <PropertyGroupPanel
+                group={group}
+                properties={group.properties}
+                values={{}}
+                macroAssignments={{}}
+                elementId="test-element"
+                onValueChange={vi.fn()}
+                onMacroAssignment={vi.fn()}
+                onCollapseToggle={onCollapseToggle}
+            />
+        );
+
+        const header = screen.getByRole('button', { name: 'Collapse Appearance group' });
+        expect(header).toHaveAttribute('aria-expanded', 'true');
+        fireEvent.click(header);
+        expect(onCollapseToggle).toHaveBeenCalledWith('appearance');
+    });
+
     it('surfaces an error message when encountering an unsupported property type', () => {
         const unsupportedProperty = {
             key: 'legacyDescriptor',
