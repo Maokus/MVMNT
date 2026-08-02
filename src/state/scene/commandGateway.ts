@@ -22,6 +22,18 @@ import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 import type { NodeTransform, SceneGraphState } from '@state/scene-graph';
+import {
+    cloneSceneGraph,
+    cloneSubtrees,
+    groupSceneNodes,
+    removeSubtrees,
+    reorderSceneNodes,
+    subtreeNodeIds,
+    transformSceneNodes,
+    ungroupSceneNode,
+    type DuplicateMappings,
+    type Matrix2D,
+} from '@state/scene-graph';
 
 export type SceneCommand =
     | {
@@ -156,7 +168,14 @@ export type SceneCommand =
     | { type: 'replaceGraph'; graph: SceneGraphState; expectedRevision?: number }
     | { type: 'updateNodeTransform'; nodeId: string; transform: Partial<NodeTransform> }
     | { type: 'setNodeVisibility'; nodeId: string; visible: boolean }
-    | { type: 'setNodeLocked'; nodeId: string; locked: boolean };
+    | { type: 'setNodeLocked'; nodeId: string; locked: boolean }
+    | { type: 'setNodeName'; nodeId: string; name: string }
+    | { type: 'groupNodes'; nodeIds: string[]; groupId: string; name?: string }
+    | { type: 'ungroupNode'; nodeId: string }
+    | { type: 'deleteSubtrees'; nodeIds: string[] }
+    | { type: 'duplicateSubtrees'; nodeIds: string[]; mappings: DuplicateMappings }
+    | { type: 'reorderNodes'; parentId: string; nodeIds: string[]; targetIndex: number }
+    | { type: 'transformNodes'; nodeIds: string[]; worldDelta: Matrix2D };
 
 export interface SceneCommandResult {
     success: boolean;
@@ -638,7 +657,14 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
         case 'replaceGraph':
         case 'updateNodeTransform':
         case 'setNodeVisibility':
-        case 'setNodeLocked': {
+        case 'setNodeLocked':
+        case 'setNodeName':
+        case 'groupNodes':
+        case 'ungroupNode':
+        case 'deleteSubtrees':
+        case 'duplicateSubtrees':
+        case 'reorderNodes':
+        case 'transformNodes': {
             return {
                 redo: [cloneCommand(command)],
                 undo: [{ type: 'loadSerializedScene', payload: captureSceneSnapshot(state) }],
@@ -861,6 +887,53 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
         case 'setNodeLocked':
             store.setNodeLocked(command.nodeId, command.locked);
             break;
+        case 'setNodeName':
+            store.setNodeName(command.nodeId, command.name);
+            break;
+        case 'groupNodes':
+            store.replaceGraph(groupSceneNodes(store.graph, command.nodeIds, command.groupId, command.name));
+            break;
+        case 'ungroupNode':
+            store.replaceGraph(ungroupSceneNode(store.graph, command.nodeId));
+            break;
+        case 'reorderNodes':
+            store.replaceGraph(reorderSceneNodes(store.graph, command.parentId, command.nodeIds, command.targetIndex));
+            break;
+        case 'transformNodes':
+            store.replaceGraph(transformSceneNodes(store.graph, command.nodeIds, command.worldDelta));
+            break;
+        case 'deleteSubtrees': {
+            const graph = store.graph;
+            const removedIds = new Set(subtreeNodeIds(graph, command.nodeIds));
+            const elementIds = [...removedIds]
+                .map((id) => graph.nodesById[id])
+                .filter((node): node is Extract<typeof node, { kind: 'element' }> => node?.kind === 'element')
+                .map((node) => node.elementId);
+            const nextGraph = removeSubtrees(graph, command.nodeIds);
+            for (const elementId of elementIds) useSceneStore.getState().removeElement(elementId);
+            useSceneStore.getState().replaceGraph(nextGraph);
+            break;
+        }
+        case 'duplicateSubtrees': {
+            for (const [sourceElementId, newElementId] of Object.entries(command.mappings.elementIdMap)) {
+                useSceneStore.getState().duplicateElement(sourceElementId, newElementId);
+            }
+            const current = useSceneStore.getState();
+            const base = cloneSceneGraph(current.graph);
+            for (const newElementId of Object.values(command.mappings.elementIdMap)) {
+                const generatedNodeId = current.nodeIdByElementId[newElementId];
+                const generated = generatedNodeId ? base.nodesById[generatedNodeId] : undefined;
+                if (generated?.parentId) {
+                    const parent = base.nodesById[generated.parentId];
+                    if (parent && 'children' in parent) {
+                        parent.children = parent.children.filter((id) => id !== generatedNodeId);
+                    }
+                    delete base.nodesById[generatedNodeId];
+                }
+            }
+            current.replaceGraph(cloneSubtrees(base, command.nodeIds, command.mappings));
+            break;
+        }
         default:
             break;
     }
@@ -870,11 +943,24 @@ function now() {
     return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
 
+function requiresRollbackSnapshot(command: SceneCommand): boolean {
+    return [
+        'batch',
+        'replaceGraph',
+        'groupNodes',
+        'ungroupNode',
+        'deleteSubtrees',
+        'duplicateSubtrees',
+        'reorderNodes',
+        'transformNodes',
+    ].includes(command.type);
+}
+
 export function dispatchSceneCommand(command: SceneCommand, options?: SceneCommandOptions): SceneCommandResult {
     const start = now();
     ensureMacroSync();
     const store = useSceneStore.getState();
-    const snapshotBefore = command.type === 'batch' ? captureSceneSnapshot(store) : null;
+    const snapshotBefore = requiresRollbackSnapshot(command) ? captureSceneSnapshot(store) : null;
     const patch = buildSceneCommandPatch(store, command);
 
     let result: SceneCommandResult;
@@ -887,9 +973,9 @@ export function dispatchSceneCommand(command: SceneCommand, options?: SceneComma
             patch,
         };
     } catch (error) {
-        if (command.type === 'batch') {
+        if (snapshotBefore) {
             try {
-                if (snapshotBefore) useSceneStore.getState().importScene(snapshotBefore);
+                useSceneStore.getState().importScene(snapshotBefore);
             } catch {}
         }
         const err = error instanceof Error ? error : new Error(String(error));

@@ -20,6 +20,7 @@ import {
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 import { createDuplicateElementId } from './duplicateElementName';
+import { SCENE_ROOT_ID, createDuplicateMappings, normalizeNodeSelection, translationMatrix } from '@state/scene-graph';
 
 export interface TrackInputDef {
     key: string;
@@ -35,6 +36,9 @@ export interface TrackInputPopupData {
 
 interface SceneSelectionState {
     selectedElementId: string | null;
+    selectedNodeIds: string[];
+    activeNodeId: string | null;
+    editingContainerId: string;
     selectedElement: SelectedElementView | null;
     selectedElementSchema: any;
     propertyPanelRefresh: number; // increments to force property panel value refresh without full element identity change
@@ -45,6 +49,14 @@ interface SceneSelectionState {
 
 interface SceneSelectionActions {
     selectElement: (elementId: string | null) => void;
+    selectNode: (nodeId: string, options?: { toggle?: boolean; range?: boolean; siblingIds?: string[] }) => void;
+    groupSelectedNodes: () => void;
+    ungroupSelectedNodes: () => void;
+    duplicateSelectedNodes: () => void;
+    deleteSelectedNodes: () => void;
+    reorderSelectedNodes: (parentId: string, targetIndex: number) => void;
+    enterGroup: (nodeId: string) => void;
+    exitGroup: () => void;
     clearSelection: () => void;
     updateElementConfig: (
         elementId: string,
@@ -119,7 +131,12 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
 
     const storeSelection = useSceneSelectionStore();
     const storeElements = useSceneElements();
-    const selectedElementId = storeSelection.primaryId;
+    const graph = useSceneStore((state) => state.graph);
+    const elementIdByNodeId = useSceneStore((state) => state.elementIdByNodeId, shallow);
+    const selectedNodeIds = storeSelection.nodeIds;
+    const activeNodeId = storeSelection.activeNodeId;
+    const editingContainerId = storeSelection.editingContainerId ?? graph.rootId;
+    const selectedElementId = activeNodeId ? (elementIdByNodeId[activeNodeId] ?? null) : storeSelection.primaryId;
 
     const selectedRecord = useSceneElementRecord(selectedElementId);
     const selectedBindings = useSceneStore(
@@ -167,10 +184,43 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
 
     // (Moved below selectElement definition to avoid temporal dead zone)
 
+    const selectNode = useCallback(
+        (nodeId: string, options?: { toggle?: boolean; range?: boolean; siblingIds?: string[] }) => {
+            const state = useSceneStore.getState();
+            const normalized = normalizeNodeSelection(state.graph, [nodeId])[0];
+            if (!normalized) return;
+            const selection = useSelectionStore.getState();
+            if (options?.range && options.siblingIds) {
+                selection.selectSceneNodeRange(options.siblingIds, normalized, state.elementIdByNodeId);
+            } else if (options?.toggle) {
+                selection.toggleSceneNode(normalized, state.elementIdByNodeId[normalized]);
+            } else {
+                const elementId = state.elementIdByNodeId[normalized];
+                selection.selectSceneNodes([normalized], elementId ? [elementId] : [], normalized);
+            }
+        },
+        []
+    );
+
     const selectElement = useCallback((elementId: string | null) => {
-        const normalized = elementId ?? null;
-        useSelectionStore.getState().selectElements(normalized ? [normalized] : []);
+        if (!elementId) {
+            useSelectionStore.getState().selectSceneNodes([], [], null);
+            return;
+        }
+        const state = useSceneStore.getState();
+        let nodeId = state.nodeIdByElementId[elementId];
+        const scope = useSelectionStore.getState().editingContainerId ?? state.graph.rootId;
+        while (nodeId && state.graph.nodesById[nodeId]?.parentId !== scope) {
+            nodeId = state.graph.nodesById[nodeId]?.parentId ?? '';
+        }
+        if (!nodeId || nodeId === state.graph.rootId) return;
+        const selectedElement = state.elementIdByNodeId[nodeId];
+        useSelectionStore.getState().selectSceneNodes([nodeId], selectedElement ? [selectedElement] : [], nodeId);
     }, []);
+
+    useEffect(() => {
+        useSelectionStore.getState().reconcileSceneNodes(Object.keys(graph.nodesById), graph.rootId, elementIdByNodeId);
+    }, [graph, elementIdByNodeId]);
 
     useEffect(() => {
         if (selectedElement) {
@@ -218,11 +268,12 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         if (current !== selectedElementId) {
             visualizer.setInteractionState({ selectedElementId: selectedElementId || null });
         }
+        visualizer.setInteractionState({ selectedNodeIds });
         // When selection cleared, also clear dragging state if it references the previous element
         if (!selectedElementId && visualizer._interactionState?.draggingElementId) {
             visualizer.setInteractionState({ draggingElementId: null });
         }
-    }, [visualizer, selectedElementId]);
+    }, [visualizer, selectedElementId, selectedNodeIds]);
 
     const clearSelection = useCallback(() => {
         selectElement(null);
@@ -457,6 +508,106 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         [runSceneCommand, selectedElementId, selectElement, visualizer]
     );
 
+    const groupSelectedNodes = useCallback(() => {
+        const scene = useSceneStore.getState();
+        const nodeIds = normalizeNodeSelection(scene.graph, useSelectionStore.getState().selectedNodeIds);
+        if (!nodeIds.length) return;
+        let suffix = 1;
+        let groupId = `group:${suffix}`;
+        while (scene.graph.nodesById[groupId]) groupId = `group:${++suffix}`;
+        const ok = runSceneCommand(
+            { type: 'groupNodes', nodeIds, groupId, name: `Group ${suffix}` },
+            'SceneSelectionContext.groupNodes'
+        );
+        if (!ok) return;
+        useSelectionStore.getState().selectSceneNodes([groupId], [], groupId);
+        visualizer?.invalidateRender?.();
+    }, [runSceneCommand, visualizer]);
+
+    const ungroupSelectedNodes = useCallback(() => {
+        const scene = useSceneStore.getState();
+        const selected = normalizeNodeSelection(scene.graph, useSelectionStore.getState().selectedNodeIds);
+        const groupId =
+            selected.length === 1 && scene.graph.nodesById[selected[0]]?.kind === 'group' ? selected[0] : null;
+        if (!groupId) return;
+        const group = scene.graph.nodesById[groupId];
+        if (group.kind !== 'group') return;
+        const children = [...group.children];
+        const ok = runSceneCommand({ type: 'ungroupNode', nodeId: groupId }, 'SceneSelectionContext.ungroupNode');
+        if (!ok) return;
+        const current = useSceneStore.getState();
+        useSelectionStore
+            .getState()
+            .selectSceneNodes(
+                children,
+                children.map((id) => current.elementIdByNodeId[id]).filter(Boolean),
+                children.at(-1) ?? null
+            );
+        visualizer?.invalidateRender?.();
+    }, [runSceneCommand, visualizer]);
+
+    const duplicateSelectedNodes = useCallback(() => {
+        const scene = useSceneStore.getState();
+        const nodeIds = normalizeNodeSelection(scene.graph, useSelectionStore.getState().selectedNodeIds);
+        if (!nodeIds.length) return;
+        const mappings = createDuplicateMappings(scene.graph, Object.keys(scene.elements), nodeIds);
+        const ok = runSceneCommand(
+            { type: 'duplicateSubtrees', nodeIds, mappings },
+            'SceneSelectionContext.duplicateSubtrees'
+        );
+        if (!ok) return;
+        const created = nodeIds.map((id) => mappings.nodeIdMap[id]).filter(Boolean);
+        const current = useSceneStore.getState();
+        useSelectionStore
+            .getState()
+            .selectSceneNodes(
+                created,
+                created.map((id) => current.elementIdByNodeId[id]).filter(Boolean),
+                created.at(-1) ?? null
+            );
+        visualizer?.invalidateRender?.();
+    }, [runSceneCommand, visualizer]);
+
+    const deleteSelectedNodes = useCallback(() => {
+        const scene = useSceneStore.getState();
+        const nodeIds = normalizeNodeSelection(scene.graph, useSelectionStore.getState().selectedNodeIds);
+        if (!nodeIds.length) return;
+        const parentId = scene.graph.nodesById[nodeIds[0]]?.parentId ?? scene.graph.rootId;
+        const ok = runSceneCommand({ type: 'deleteSubtrees', nodeIds }, 'SceneSelectionContext.deleteSubtrees');
+        if (!ok) return;
+        useSelectionStore.getState().selectSceneNodes([], [], null);
+        useSelectionStore
+            .getState()
+            .setEditingContainerId(useSceneStore.getState().graph.nodesById[parentId] ? parentId : SCENE_ROOT_ID);
+        visualizer?.invalidateRender?.();
+    }, [runSceneCommand, visualizer]);
+
+    const reorderSelectedNodes = useCallback(
+        (parentId: string, targetIndex: number) => {
+            const nodeIds = useSelectionStore.getState().selectedNodeIds;
+            if (!nodeIds.length) return;
+            if (
+                runSceneCommand(
+                    { type: 'reorderNodes', parentId, nodeIds, targetIndex },
+                    'SceneSelectionContext.reorderNodes'
+                )
+            ) {
+                visualizer?.invalidateRender?.();
+            }
+        },
+        [runSceneCommand, visualizer]
+    );
+
+    const enterGroup = useCallback((nodeId: string) => {
+        if (useSceneStore.getState().graph.nodesById[nodeId]?.kind !== 'group') return;
+        useSelectionStore.getState().setEditingContainerId(nodeId);
+        useSelectionStore.getState().selectSceneNodes([], [], null);
+    }, []);
+
+    const exitGroup = useCallback(() => {
+        useSelectionStore.getState().setEditingContainerId(useSceneStore.getState().graph.rootId);
+    }, []);
+
     const updateElementId = useCallback(
         (oldId: string, newId: string): boolean => {
             const store = useSceneStore.getState();
@@ -486,6 +637,9 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
 
     const contextValue: SceneSelectionContextType = {
         selectedElementId,
+        selectedNodeIds,
+        activeNodeId,
+        editingContainerId,
         selectedElement,
         selectedElementSchema,
         propertyPanelRefresh,
@@ -493,6 +647,14 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         elements: storeElements,
         trackInputPopup,
         selectElement,
+        selectNode,
+        groupSelectedNodes,
+        ungroupSelectedNodes,
+        duplicateSelectedNodes,
+        deleteSelectedNodes,
+        reorderSelectedNodes,
+        enterGroup,
+        exitGroup,
         clearSelection,
         updateElementConfig,
         addElement,
@@ -507,10 +669,49 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
 
     useEffect(() => {
         const handleArrowKey = (event: KeyboardEvent) => {
-            if (event.metaKey || event.ctrlKey || event.altKey) return;
+            if (event.altKey || isEditableTarget(event.target)) return;
+            const selected = useSelectionStore.getState().selectedNodeIds;
+            if ((event.key === 'Backspace' || event.key === 'Delete') && selected.length) {
+                event.preventDefault();
+                deleteSelectedNodes();
+                return;
+            }
+            if (event.key === 'Enter' && selected.length === 1) {
+                const node = useSceneStore.getState().graph.nodesById[selected[0]];
+                if (node?.kind === 'group') {
+                    event.preventDefault();
+                    enterGroup(node.id);
+                }
+                return;
+            }
+            if (event.key === 'Escape' && useSelectionStore.getState().editingContainerId !== SCENE_ROOT_ID) {
+                event.preventDefault();
+                exitGroup();
+                return;
+            }
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'd' && selected.length) {
+                event.preventDefault();
+                duplicateSelectedNodes();
+                return;
+            }
+            if (event.metaKey || event.ctrlKey) return;
             const mapping = ARROW_KEY_TO_OFFSET[event.key as ArrowKey];
             if (!mapping) return;
-            if (isEditableTarget(event.target)) return;
+
+            const nodeIds = useSelectionStore.getState().selectedNodeIds;
+            if (nodeIds.length) {
+                event.preventDefault();
+                const amount = event.shiftKey ? 10 : 1;
+                const dx = event.key === 'ArrowLeft' ? -amount : event.key === 'ArrowRight' ? amount : 0;
+                const dy = event.key === 'ArrowUp' ? -amount : event.key === 'ArrowDown' ? amount : 0;
+                runSceneCommand(
+                    { type: 'transformNodes', nodeIds, worldDelta: translationMatrix(dx, dy) },
+                    'SceneSelectionContext.nudgeNodes',
+                    { mergeKey: `keyboard-node-nudge:${nodeIds.join(',')}` }
+                );
+                visualizer?.invalidateRender?.();
+                return;
+            }
 
             const { elementId, bindings } = selectionSnapshotRef.current;
             if (!elementId) return;
@@ -531,7 +732,15 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
 
         window.addEventListener('keydown', handleArrowKey, { capture: true });
         return () => window.removeEventListener('keydown', handleArrowKey, { capture: true } as any);
-    }, [updateElementConfig]);
+    }, [
+        deleteSelectedNodes,
+        duplicateSelectedNodes,
+        enterGroup,
+        exitGroup,
+        runSceneCommand,
+        updateElementConfig,
+        visualizer,
+    ]);
 
     return <SceneSelectionContext.Provider value={contextValue}>{children}</SceneSelectionContext.Provider>;
 }

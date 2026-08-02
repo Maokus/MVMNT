@@ -142,7 +142,7 @@ export function snapPoint(
     return { x, y, guides };
 }
 
-export function buildSnapTargets(visualizer: any, excludeId: string | null = null): SnapTarget[] {
+export function buildSnapTargets(visualizer: any, excludeId: string | string[] | null = null): SnapTarget[] {
     const time = visualizer?.getCurrentTime?.() ?? 0;
     const boundsList: any[] = visualizer?.getElementBoundsAtTime?.(time) ?? [];
     const width = visualizer?.canvas?.width ?? null;
@@ -150,7 +150,7 @@ export function buildSnapTargets(visualizer: any, excludeId: string | null = nul
     const targets: SnapTarget[] = [];
     for (const rec of boundsList) {
         if (!rec || !rec.bounds) continue;
-        if (excludeId && rec.id === excludeId) continue;
+        if (excludeId && (Array.isArray(excludeId) ? excludeId.includes(rec.id) : rec.id === excludeId)) continue;
         const b = rec.bounds as SnapBounds;
         const left = b.x;
         const right = b.x + b.width;

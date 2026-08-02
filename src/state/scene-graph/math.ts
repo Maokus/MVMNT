@@ -59,3 +59,21 @@ export function matricesEqual(left: Matrix2D, right: Matrix2D, epsilon = MATRIX_
 export function identityMatrix(): Matrix2D {
     return [...IDENTITY_MATRIX];
 }
+
+export function translationMatrix(x: number, y: number): Matrix2D {
+    return [1, 0, 0, 1, x, y];
+}
+
+export function rotationMatrix(radians: number): Matrix2D {
+    const cosine = Math.cos(radians);
+    const sine = Math.sin(radians);
+    return [cosine, sine, -sine, cosine, 0, 0];
+}
+
+export function scaleMatrix(scale: number): Matrix2D {
+    return [scale, 0, 0, scale, 0, 0];
+}
+
+export function matrixAroundPoint(matrix: Matrix2D, x: number, y: number): Matrix2D {
+    return multiplyMatrices(translationMatrix(x, y), multiplyMatrices(matrix, translationMatrix(-x, -y)));
+}

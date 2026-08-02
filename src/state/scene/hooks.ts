@@ -18,6 +18,10 @@ export interface SceneElementListItem {
 export interface SceneSelectionView {
     ids: string[];
     primaryId: string | null;
+    nodeIds: string[];
+    activeNodeId: string | null;
+    anchorNodeId: string | null;
+    editingContainerId: string | null;
     hasSelection: boolean;
 }
 
@@ -58,8 +62,12 @@ export function useSceneSelection(): SceneSelectionView {
         const ids = state.selectedElementIds;
         return {
             ids,
-            primaryId: ids[0] ?? null,
-            hasSelection: ids.length > 0,
+            primaryId: ids.at(-1) ?? null,
+            nodeIds: state.selectedNodeIds,
+            activeNodeId: state.activeNodeId,
+            anchorNodeId: state.anchorNodeId,
+            editingContainerId: state.editingContainerId,
+            hasSelection: state.selectedNodeIds.length > 0 || ids.length > 0,
         };
     }, shallow);
 }

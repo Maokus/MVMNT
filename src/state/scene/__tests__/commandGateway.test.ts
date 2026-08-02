@@ -210,6 +210,31 @@ describe('scene command gateway', () => {
         expect(useSceneStore.getState().macros.byId['macro.renamed']).toBeUndefined();
     });
 
+    it('groups and deletes a subtree atomically with an exact restore snapshot', () => {
+        dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'group-a' });
+        dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'group-b' });
+        const before = useSceneStore.getState();
+        const nodeIds = [before.nodeIdByElementId['group-a'], before.nodeIdByElementId['group-b']];
+        const group = dispatchSceneCommand({ type: 'groupNodes', nodeIds, groupId: 'group:test' });
+        expect(group.success).toBe(true);
+        expect(useSceneStore.getState().graph.nodesById['group:test']).toMatchObject({
+            kind: 'group',
+            children: nodeIds,
+        });
+
+        const removed = dispatchSceneCommand({ type: 'deleteSubtrees', nodeIds: ['group:test'] });
+        expect(removed.success).toBe(true);
+        expect(useSceneStore.getState().elements['group-a']).toBeUndefined();
+        expect(useSceneStore.getState().elements['group-b']).toBeUndefined();
+        expect(removed.patch?.undo).toHaveLength(1);
+
+        const restored = dispatchSceneCommand(removed.patch!.undo[0]);
+        expect(restored.success).toBe(true);
+        expect(useSceneStore.getState().graph.nodesById['group:test']).toMatchObject({ kind: 'group' });
+        expect(useSceneStore.getState().elements).toHaveProperty('group-a');
+        expect(useSceneStore.getState().elements).toHaveProperty('group-b');
+    });
+
     it.skip('hydrates default scene macros into the scene store', async () => {
         const loaded = await loadDefaultScene('commandGateway.test');
         expect(loaded).toBe(true);

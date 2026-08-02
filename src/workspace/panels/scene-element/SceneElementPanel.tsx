@@ -1,18 +1,9 @@
 import React from 'react';
-import ElementList from './ElementList';
+import SceneNodeTree from './SceneNodeTree';
 import { useSceneSelection as useSceneSelectionContext } from '@context/SceneSelectionContext';
 
 const SceneElementPanel: React.FC = () => {
-    const {
-        selectedElementId,
-        selectElement,
-        elements,
-        toggleElementVisibility,
-        moveElement,
-        duplicateElement,
-        deleteElement,
-        updateElementId,
-    } = useSceneSelectionContext();
+    const { selectElement, elements } = useSceneSelectionContext();
 
     return (
         <div className="scene-editor">
@@ -21,16 +12,7 @@ const SceneElementPanel: React.FC = () => {
                     {elements.length === 0 ? (
                         <div className="no-selection">No elements in scene</div>
                     ) : (
-                        <ElementList
-                            elements={elements}
-                            selectedElementId={selectedElementId}
-                            onElementSelect={selectElement}
-                            onToggleVisibility={toggleElementVisibility}
-                            onMoveElement={moveElement}
-                            onDuplicateElement={duplicateElement}
-                            onDeleteElement={deleteElement}
-                            onUpdateElementId={updateElementId}
-                        />
+                        <SceneNodeTree />
                     )}
                 </div>
                 {/* Clear selection when clicking empty space */}

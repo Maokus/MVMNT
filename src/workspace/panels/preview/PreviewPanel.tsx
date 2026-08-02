@@ -15,7 +15,8 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
     const ctx = useVisualizer();
     const { canvasRef, exportSettings } = ctx;
     const view = useTimelineStore((s) => s.timelineView);
-    const { selectElement, updateElementConfig, incrementPropertyPanelRefresh, addElement } = useSceneSelection();
+    const { selectElement, selectNode, updateElementConfig, incrementPropertyPanelRefresh, addElement } =
+        useSceneSelection();
     const width = exportSettings.width;
     const height = exportSettings.height;
     // Sizing state for display (CSS) size of canvas maintaining aspect ratio
@@ -65,10 +66,11 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             canvasRef,
             visualizer: visualizerInstance,
             selectElement,
+            selectNode,
             updateElementConfig,
             incrementPropertyPanelRefresh,
         }),
-        [canvasRef, visualizerInstance, selectElement, updateElementConfig, incrementPropertyPanelRefresh]
+        [canvasRef, visualizerInstance, selectElement, selectNode, updateElementConfig, incrementPropertyPanelRefresh]
     );
 
     const depsRef = useRef(handlerDeps);

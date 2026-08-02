@@ -15,8 +15,9 @@ IDs remain the ownership keys for plugin properties and automation; node IDs rem
 renamed.
 
 The graph validator checks the reserved root, parent/child reciprocity, element ownership, reachability, cycles,
-finite transforms, and the currently supported root-to-element hierarchy policy. Traversal and validation are
-iterative so imported documents cannot overflow the stack with deeply nested input.
+and finite transforms. The current product policy permits root elements and one level of root-owned groups whose
+children are elements. Traversal and validation are iterative so imported documents cannot overflow the stack with
+deeply nested input.
 
 ## Runtime resolution
 
@@ -35,9 +36,26 @@ their resolved ancestor affine matrix is supplied directly to the perspective ro
 
 ## Commands and compatibility
 
-Graph mutations use scene commands (`replaceGraph`, `updateNodeTransform`, `setNodeVisibility`, and
-`setNodeLocked`). Structural command undo records exact serialized snapshots. Batches are transactional: if one
-child command fails, the scene snapshot from before the batch is restored.
+Graph mutations use scene commands. Alongside local node edits, atomic structural commands group, ungroup,
+duplicate, delete, reorder, and world-transform node selections. Structural command undo records exact serialized
+snapshots. Batches are transactional: if one child command fails, the scene snapshot from before the batch is
+restored. Deleting a group cascades through its elements and element-owned automation; ungrouping is the operation
+that preserves children.
 
-The element list and selection APIs still expose element IDs. Canvas move, rotate, and scale gestures update the
-host node transform, while legacy/plugin properties remain available under the content-properties inspector.
+## Editor behavior
+
+Selection is node-based and transient. It tracks an active node, range anchor, expanded tree rows, and the group
+currently being edited; none are persisted. The hierarchy tree displays each canonical child list in reverse so
+the frontmost node appears first. Ctrl/Cmd toggles rows, Shift selects a displayed sibling range, and the canvas
+uses parent-first selection unless a group has been entered. Left-to-right marquees require containment;
+right-to-left marquees select intersections. Locked or hidden inherited state removes descendants from interaction
+without changing their local values.
+
+Canvas move, nudge, rotation, and uniform-scale gestures apply a world-space delta to the normalized node
+selection. The resolver supplies aggregate bounds and handles, including group bounds from visible descendant
+artwork. Selected subtrees are excluded from snapping. The host node inspector edits name, visibility, lock,
+translation, rotation, uniform scale, and pivot; mixed multi-selection values are explicit. Plugin properties are
+labelled as applying only to the active element.
+
+Grouping non-contiguous siblings retains their relative order but creates a contiguous paint block at the
+frontmost selected position, so their stacking relative to intervening unselected siblings can change.

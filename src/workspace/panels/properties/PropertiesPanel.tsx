@@ -33,22 +33,26 @@ interface PropertiesPanelProps {
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {
     const { element, schema, onConfigChange, refreshToken = 0 } = props;
-    const { visualizer } = useSceneSelection();
+    const { visualizer, selectedNodeIds } = useSceneSelection();
 
     // Show ElementPropertiesPanel when an element is selected, otherwise show GlobalPropertiesPanel
-    if (element && schema) {
+    if (selectedNodeIds.length) {
         return (
             <>
-                <NodeTransformPanel elementId={element.id} />
-                <div className="content-transform-label">Content properties (element/plugin)</div>
-                <ElementPropertiesPanel
-                    elementId={element.id}
-                    elementType={element.type}
-                    schema={schema}
-                    bindings={element.bindings}
-                    onConfigChange={onConfigChange}
-                    refreshToken={refreshToken}
-                />
+                <NodeTransformPanel />
+                {element && schema ? (
+                    <>
+                        <div className="content-transform-label">Content properties (active element only)</div>
+                        <ElementPropertiesPanel
+                            elementId={element.id}
+                            elementType={element.type}
+                            schema={schema}
+                            bindings={element.bindings}
+                            onConfigChange={onConfigChange}
+                            refreshToken={refreshToken}
+                        />
+                    </>
+                ) : null}
             </>
         );
     }

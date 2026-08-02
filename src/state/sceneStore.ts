@@ -346,6 +346,7 @@ export interface SceneStoreActions {
     updateNodeTransform: (nodeId: string, transform: Partial<NodeTransform>) => void;
     setNodeVisibility: (nodeId: string, visible: boolean) => void;
     setNodeLocked: (nodeId: string, locked: boolean) => void;
+    setNodeName: (nodeId: string, name: string) => void;
 }
 
 export interface SceneStoreState extends SceneStoreActions {
@@ -1959,6 +1960,18 @@ const createSceneStoreState = (
                         : state.interaction,
                 runtimeMeta: markDirty(state, 'setNodeLocked'),
             };
+        });
+    },
+
+    setNodeName: (nodeId, name) => {
+        set((state) => {
+            const current = state.graph.nodesById[nodeId];
+            const trimmed = name.trim();
+            if (!current || current.kind === 'root' || !trimmed || current.name === trimmed) return state;
+            const graph = cloneSceneGraph(state.graph);
+            graph.nodesById[nodeId] = { ...graph.nodesById[nodeId], name: trimmed } as typeof current;
+            graph.revision += 1;
+            return { ...state, ...graphIndexes(graph), runtimeMeta: markDirty(state, 'replaceGraph') };
         });
     },
 

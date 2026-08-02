@@ -22,6 +22,17 @@ import type { GeometryInfo } from '@math/transforms/types';
 import { useSceneStore } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
+import { useSelectionStore } from '@state/selectionStore';
+import { marqueeNodeIds } from '@state/scene';
+import {
+    cloneSceneGraph,
+    matrixAroundPoint,
+    rotationMatrix,
+    scaleMatrix,
+    subtreeNodeIds,
+    transformSceneNodes,
+    translationMatrix,
+} from '@state/scene-graph';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 
 // Types kept broad (any) to avoid tight coupling with visualizer internal shapes.
@@ -29,6 +40,7 @@ export interface InteractionDeps {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
     visualizer: any; // runtime visualizer instance
     selectElement: (id: string | null) => void;
+    selectNode?: (id: string, options?: { toggle?: boolean }) => void;
     updateElementConfig?: (id: string, cfg: any, options?: Omit<SceneCommandOptions, 'source'>) => void;
     incrementPropertyPanelRefresh: () => void;
 }
@@ -36,6 +48,13 @@ export interface InteractionDeps {
 type DragCommandOptionsBase = Omit<SceneCommandOptions, 'source' | 'transient'>;
 
 let dragSessionCounter = 0;
+
+function selectedSubtreeElementIds(): string[] {
+    const scene = useSceneStore.getState();
+    return subtreeNodeIds(scene.graph, useSelectionStore.getState().selectedNodeIds)
+        .map((nodeId) => scene.elementIdByNodeId[nodeId])
+        .filter(Boolean);
+}
 
 function ensureDragCommandOptions(meta: any, elementId: string): DragCommandOptionsBase {
     if (meta.dragCommandOptionsBase) {
@@ -51,6 +70,7 @@ function ensureDragCommandOptions(meta: any, elementId: string): DragCommandOpti
             if (other.command.type === 'updateNodeTransform') {
                 return useSceneStore.getState().nodeIdByElementId[elementId] === other.command.nodeId;
             }
+            if (other.command.type === 'replaceGraph') return true;
             if (other.command.type === 'addKeyframe') return other.command.channelId.startsWith(`${elementId}.`);
             return false;
         },
@@ -80,6 +100,15 @@ function applyNodeDragUpdate(meta: any, elementId: string, transform: Record<str
     meta.lastNodeTransform = { ...transform };
 }
 
+function applyGraphDragUpdate(meta: any, graph: ReturnType<typeof cloneSceneGraph>, transient = true) {
+    const baseOptions = ensureDragCommandOptions(meta, meta.dragElementId ?? meta.nodeIds[0]);
+    dispatchSceneCommand(
+        { type: 'replaceGraph', graph },
+        { source: 'canvas.aggregateTransform', ...baseOptions, transient }
+    );
+    meta.lastGraph = graph;
+}
+
 // ----- Helper functions -----
 
 function getWorldPoint(canvas: HTMLCanvasElement, clientX: number, clientY: number) {
@@ -88,8 +117,30 @@ function getWorldPoint(canvas: HTMLCanvasElement, clientX: number, clientY: numb
 
 function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
     const selectedId = vis._interactionState?.selectedElementId;
-    if (!selectedId) return;
-    vis.setInteractionState({ activeHandle: handleHit.id, draggingElementId: selectedId });
+    const nodeIds = useSelectionStore.getState().selectedNodeIds;
+    if (!selectedId && !nodeIds.length) return;
+    vis.setInteractionState({ activeHandle: handleHit.id, draggingElementId: selectedId ?? nodeIds[0] });
+    if (nodeIds.length) {
+        const selection = vis.getNodeSelectionAtTime?.(nodeIds, vis.getCurrentTime?.() ?? 0);
+        if (!selection) return;
+        const pivot = selection.pivot;
+        vis._dragMeta = {
+            mode: handleHit.type,
+            startX: x,
+            startY: y,
+            bounds: { ...selection.bounds },
+            pivot: { ...pivot },
+            startDistance: Math.hypot(x - pivot.x, y - pivot.y) || 1,
+            startAngle: Math.atan2(y - pivot.y, x - pivot.x),
+            nodeIds: [...nodeIds],
+            originalGraph: cloneSceneGraph(useSceneStore.getState().graph),
+            dragElementId: selectedId ?? nodeIds[0],
+            snapTargets: buildSnapTargets(vis, useSelectionStore.getState().selectedElementIds),
+            snapTolerance: DEFAULT_SNAP_TOLERANCE,
+        };
+        vis.setInteractionState({ snapGuides: [] });
+        return;
+    }
     const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
     const rec = boundsList.find((b: any) => b.id === selectedId);
     if (handleHit.type?.startsWith('warp-')) {
@@ -172,7 +223,10 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
         warp: rec?.warp ?? null,
         anchorWorld: rec?.projectedAnchor ?? null,
         dragElementId: selectedId,
-        snapTargets: buildSnapTargets(vis, selectedId),
+        snapTargets: buildSnapTargets(
+            vis,
+            selectedSubtreeElementIds().length ? selectedSubtreeElementIds() : selectedId
+        ),
         snapTolerance: DEFAULT_SNAP_TOLERANCE,
     };
     vis.setInteractionState({ snapGuides: [] });
@@ -180,8 +234,11 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
 
 function attemptHandleHit(vis: any, x: number, y: number): boolean {
     const selectedId = vis._interactionState?.selectedElementId || null;
-    if (!selectedId) return false;
-    const handles = vis.getSelectionHandlesAtTime?.(selectedId, vis.getCurrentTime?.() ?? 0) || [];
+    const nodeIds = useSelectionStore.getState().selectedNodeIds;
+    if (!selectedId && !nodeIds.length) return false;
+    const handles = nodeIds.length
+        ? vis.getSelectionHandlesForNodesAtTime?.(nodeIds, vis.getCurrentTime?.() ?? 0) || []
+        : vis.getSelectionHandlesAtTime?.(selectedId, vis.getCurrentTime?.() ?? 0) || [];
     const handleHit = findHandleUnderPoint(handles, x, y) as any;
     if (handleHit) {
         startHandleDrag(vis, handleHit, x, y);
@@ -190,15 +247,26 @@ function attemptHandleHit(vis: any, x: number, y: number): boolean {
     return false;
 }
 
-function performElementHitTest(vis: any, x: number, y: number, deps: InteractionDeps) {
+function performElementHitTest(vis: any, x: number, y: number, deps: InteractionDeps, toggle = false) {
     const { selectElement } = deps;
     const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
     const hit = elementHitTest(boundsList, x, y);
     if (hit) {
+        const scene = useSceneStore.getState();
+        const scope = useSelectionStore.getState().editingContainerId ?? scene.graph.rootId;
+        let ownerNodeId = hit.nodeId ?? scene.nodeIdByElementId[hit.id];
+        while (ownerNodeId && scene.graph.nodesById[ownerNodeId]?.parentId !== scope) {
+            ownerNodeId = scene.graph.nodesById[ownerNodeId]?.parentId ?? '';
+        }
+        const ownerRecord = vis.getResolvedSceneFrame?.(vis.getCurrentTime?.() ?? 0)?.byNodeId?.get(ownerNodeId);
+        if (!ownerNodeId || ownerRecord?.effectiveLocked) return false;
         const nodeTransform = hit.nodeId
             ? useSceneStore.getState().graph.nodesById[hit.nodeId]?.userNodeTransform
             : undefined;
-        selectElement(hit.id);
+        if (toggle && deps.selectNode) deps.selectNode(ownerNodeId, { toggle: true });
+        else selectElement(hit.id);
+        const nodeIds = useSelectionStore.getState().selectedNodeIds;
+        const selection = nodeIds.length ? vis.getNodeSelectionAtTime?.(nodeIds, vis.getCurrentTime?.() ?? 0) : null;
         vis.setInteractionState({ draggingElementId: hit.id, activeHandle: 'move', snapGuides: [] });
         vis._dragMeta = {
             mode: 'move',
@@ -209,15 +277,27 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
             origRotation: nodeTransform?.rotation ?? 0,
             origSkewX: hit.element?.elementSkewX || 0,
             origSkewY: hit.element?.elementSkewY || 0,
-            bounds: hit.bounds ? { ...hit.bounds } : null,
+            bounds: selection?.bounds ? { ...selection.bounds } : hit.bounds ? { ...hit.bounds } : null,
             corners: hit.corners || null,
-            snapTargets: buildSnapTargets(vis, hit.id),
+            snapTargets: buildSnapTargets(
+                vis,
+                selectedSubtreeElementIds().length ? selectedSubtreeElementIds() : hit.id
+            ),
             snapTolerance: DEFAULT_SNAP_TOLERANCE,
             dragElementId: hit.id,
+            ...(nodeIds.length
+                ? {
+                      nodeIds: [...nodeIds],
+                      originalGraph: cloneSceneGraph(useSceneStore.getState().graph),
+                      pivot: selection?.pivot,
+                  }
+                : {}),
         };
+        return true;
     } else {
         selectElement(null);
         vis.setInteractionState({ hoverElementId: null, draggingElementId: null, activeHandle: null, snapGuides: [] });
+        return false;
     }
 }
 
@@ -389,6 +469,54 @@ function processDrag(
     const meta = vis._dragMeta;
     const elId = vis._interactionState.draggingElementId;
     let guides: SnapGuide[] = [];
+    if (meta.nodeIds?.length && meta.originalGraph) {
+        if (meta.mode === 'move') {
+            let dx = x - meta.startX;
+            let dy = y - meta.startY;
+            const snapped = disableSnap
+                ? null
+                : snapTranslation(
+                      meta.bounds,
+                      dx,
+                      dy,
+                      meta.snapTargets ?? [],
+                      meta.snapTolerance ?? DEFAULT_SNAP_TOLERANCE
+                  );
+            if (snapped) {
+                dx = snapped.dx;
+                dy = snapped.dy;
+                guides = snapped.guides;
+            }
+            applyGraphDragUpdate(
+                meta,
+                transformSceneNodes(meta.originalGraph, meta.nodeIds, translationMatrix(dx, dy))
+            );
+        } else if (meta.mode?.startsWith('scale') && meta.pivot) {
+            const distance = Math.hypot(x - meta.pivot.x, y - meta.pivot.y);
+            const factor = Math.max(0.001, distance / (meta.startDistance || 1));
+            applyGraphDragUpdate(
+                meta,
+                transformSceneNodes(
+                    meta.originalGraph,
+                    meta.nodeIds,
+                    matrixAroundPoint(scaleMatrix(factor), meta.pivot.x, meta.pivot.y)
+                )
+            );
+        } else if (meta.mode === 'rotate' && meta.pivot) {
+            let delta = Math.atan2(y - meta.pivot.y, x - meta.pivot.x) - meta.startAngle;
+            if (shiftKey) delta = Math.round(delta / (Math.PI / 12)) * (Math.PI / 12);
+            applyGraphDragUpdate(
+                meta,
+                transformSceneNodes(
+                    meta.originalGraph,
+                    meta.nodeIds,
+                    matrixAroundPoint(rotationMatrix(delta), meta.pivot.x, meta.pivot.y)
+                )
+            );
+        }
+        vis.setInteractionState({ snapGuides: guides });
+        return true;
+    }
     switch (true) {
         case meta.mode === 'move':
             guides = updateMoveDrag(meta, vis, elId, x, y, shiftKey, disableSnap, deps);
@@ -447,6 +575,7 @@ function finalizeDrag(vis: any, deps: InteractionDeps) {
     if (draggingId && meta?.lastNodeTransform) {
         applyNodeDragUpdate(meta, draggingId, meta.lastNodeTransform, false);
     }
+    if (draggingId && meta?.lastGraph) applyGraphDragUpdate(meta, meta.lastGraph, false);
     if (draggingId) {
         vis.setInteractionState({ draggingElementId: null, activeHandle: null, snapGuides: [] });
         vis._dragMeta = null;
@@ -499,7 +628,11 @@ export function onCanvasMouseDown(e: CanvasMouseEvent, deps: InteractionDeps) {
     if (attemptHandleHit(vis, x, y)) return;
     // 2) Otherwise element hit test
     const beforeSelected = vis._interactionState?.selectedElementId || null;
-    performElementHitTest(vis, x, y, deps);
+    const hit = performElementHitTest(vis, x, y, deps, Boolean(e.metaKey || e.ctrlKey));
+    if (!hit) {
+        vis._marqueeMeta = { start: { x, y }, end: { x, y } };
+        vis.setInteractionState({ marqueeBounds: { x, y, width: 0, height: 0 } });
+    }
 
     const afterSelected = vis._interactionState?.selectedElementId || null;
 
@@ -570,6 +703,30 @@ export function onCanvasMouseMove(e: CanvasMouseEvent, deps: InteractionDeps) {
     const canvas = canvasRef.current;
     if (!canvas || !vis) return;
     const { x, y } = getWorldPoint(canvas, e.clientX, e.clientY);
+    if (vis._marqueeMeta) {
+        const meta = vis._marqueeMeta;
+        meta.end = { x, y };
+        const frame = vis.getResolvedSceneFrame?.(vis.getCurrentTime?.() ?? 0);
+        if (frame) {
+            const store = useSceneStore.getState();
+            const selection = useSelectionStore.getState();
+            const ids = marqueeNodeIds(frame, selection.editingContainerId ?? store.graph.rootId, meta.start, meta.end);
+            selection.selectSceneNodes(
+                ids,
+                ids.map((id) => store.elementIdByNodeId[id]).filter(Boolean),
+                ids.at(-1) ?? null
+            );
+        }
+        vis.setInteractionState({
+            marqueeBounds: {
+                x: Math.min(meta.start.x, x),
+                y: Math.min(meta.start.y, y),
+                width: Math.abs(x - meta.start.x),
+                height: Math.abs(y - meta.start.y),
+            },
+        });
+        return;
+    }
     const disableSnap = Boolean(e.metaKey || e.ctrlKey);
     if (processDrag(vis, x, y, e.shiftKey, e.altKey ?? false, disableSnap, deps)) return;
     updateHover(vis, x, y);
@@ -578,7 +735,10 @@ export function onCanvasMouseMove(e: CanvasMouseEvent, deps: InteractionDeps) {
 export function onCanvasMouseUp(_e: CanvasMouseEvent, deps: InteractionDeps) {
     const { visualizer: vis } = deps;
     if (!vis) return;
-    finalizeDrag(vis, deps);
+    if (vis._marqueeMeta) {
+        vis._marqueeMeta = null;
+        vis.setInteractionState({ marqueeBounds: null });
+    } else finalizeDrag(vis, deps);
 }
 
 export function onCanvasMouseLeave(_e: CanvasMouseEvent, deps: InteractionDeps) {

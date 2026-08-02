@@ -10,6 +10,7 @@ import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 import type { SnapGuide } from '@core/interaction/snapping';
 import { PerspectiveElementRoot } from '@core/render/render-objects';
 import { isFeatureEnabled } from '@utils/featureFlags';
+import { selectionGeometry } from '@state/scene/selectionGeometry';
 
 export class MIDIVisualizerCore {
     canvas: HTMLCanvasElement;
@@ -435,12 +436,35 @@ export class MIDIVisualizerCore {
             ];
         });
     }
+    getResolvedSceneFrame(targetTime = this.currentTime) {
+        return this.runtimeAdapter?.resolveFrame(this.getSceneConfig(), targetTime) ?? null;
+    }
+    getNodeSelectionAtTime(nodeIds: string[], targetTime = this.currentTime) {
+        const frame = this.getResolvedSceneFrame(targetTime);
+        return frame ? selectionGeometry(frame, nodeIds) : null;
+    }
     _renderInteractionOverlays(targetTime: number, config: any) {
         if (!this._interactionState) return;
-        const { hoverElementId, selectedElementId, draggingElementId, activeHandle, snapGuides } =
-            this._interactionState;
+        const {
+            hoverElementId,
+            selectedElementId,
+            selectedNodeIds,
+            draggingElementId,
+            activeHandle,
+            snapGuides,
+            marqueeBounds,
+        } = this._interactionState;
+        const nodeIds = Array.isArray(selectedNodeIds) ? selectedNodeIds : [];
         const guides = Array.isArray(snapGuides) ? (snapGuides as SnapGuide[]) : [];
-        if (!hoverElementId && !selectedElementId && !draggingElementId && guides.length === 0) return;
+        if (
+            !hoverElementId &&
+            !selectedElementId &&
+            !nodeIds.length &&
+            !draggingElementId &&
+            guides.length === 0 &&
+            !marqueeBounds
+        )
+            return;
         const ctx = this.ctx;
         ctx.save();
         const boundsList = this.getElementBoundsAtTime(targetTime);
@@ -497,16 +521,33 @@ export class MIDIVisualizerCore {
         }
         ctx.lineWidth = 2;
         ctx.setLineDash([6, 4]);
-        if (selectedElementId && selectedElementId !== draggingElementId) draw(selectedElementId, '#00FFFF');
+        if (marqueeBounds) {
+            ctx.fillStyle = 'rgba(17, 119, 187, 0.12)';
+            ctx.strokeStyle = '#1177bb';
+            ctx.fillRect(marqueeBounds.x, marqueeBounds.y, marqueeBounds.width, marqueeBounds.height);
+            ctx.strokeRect(marqueeBounds.x, marqueeBounds.y, marqueeBounds.width, marqueeBounds.height);
+        }
+        const nodeSelection = nodeIds.length ? this.getNodeSelectionAtTime(nodeIds, targetTime) : null;
+        if (nodeSelection) {
+            ctx.strokeStyle = '#00FFFF';
+            ctx.strokeRect(
+                nodeSelection.bounds.x,
+                nodeSelection.bounds.y,
+                nodeSelection.bounds.width,
+                nodeSelection.bounds.height
+            );
+        } else if (selectedElementId && selectedElementId !== draggingElementId) draw(selectedElementId, '#00FFFF');
         if (hoverElementId && hoverElementId !== draggingElementId && hoverElementId !== selectedElementId)
             draw(hoverElementId, '#FFFF00');
         if (draggingElementId) draw(draggingElementId, '#FF00FF');
-        if (selectedElementId) {
+        if (selectedElementId || nodeIds.length) {
             try {
-                const handles = this.getSelectionHandlesAtTime(selectedElementId, targetTime);
+                const handles = nodeIds.length
+                    ? this.getSelectionHandlesForNodesAtTime(nodeIds, targetTime)
+                    : this.getSelectionHandlesAtTime(selectedElementId, targetTime);
                 if (handles && handles.length) {
                     const rotHandle = handles.find((h: any) => h.type === 'rotate');
-                    const anchorHandle = handles.find((h: any) => h.type === 'anchor');
+                    const anchorHandle = handles.find((h: any) => h.type === 'anchor' || h.type === 'pivot');
                     if (rotHandle && anchorHandle) {
                         ctx.save();
                         ctx.setLineDash([]);
@@ -532,7 +573,7 @@ export class MIDIVisualizerCore {
                         } else if (h.type === 'rotate') {
                             fill = '#FFA500';
                             stroke = '#FFFFFF';
-                        } else if (h.type === 'anchor') {
+                        } else if (h.type === 'anchor' || h.type === 'pivot') {
                             fill = '#FFFF00';
                             stroke = '#333333';
                         }
@@ -657,6 +698,35 @@ export class MIDIVisualizerCore {
             r: rotateSize * 0.5,
         });
         return handles;
+    }
+    getSelectionHandlesForNodesAtTime(nodeIds: string[], targetTime = this.currentTime) {
+        const selection = this.getNodeSelectionAtTime(nodeIds, targetTime);
+        if (!selection) return [];
+        const { bounds: b, pivot } = selection;
+        const size = 16;
+        const points = [
+            ['scale-nw', b.x, b.y],
+            ['scale-ne', b.x + b.width, b.y],
+            ['scale-se', b.x + b.width, b.y + b.height],
+            ['scale-sw', b.x, b.y + b.height],
+            ['scale-n', b.x + b.width / 2, b.y],
+            ['scale-e', b.x + b.width, b.y + b.height / 2],
+            ['scale-s', b.x + b.width / 2, b.y + b.height],
+            ['scale-w', b.x, b.y + b.height / 2],
+        ] as const;
+        return [
+            ...points.map(([id, cx, cy]) => ({ id, type: id, cx, cy, size, shape: 'rect', r: size / 2 })),
+            {
+                id: 'rotate',
+                type: 'rotate',
+                cx: b.x + b.width / 2,
+                cy: b.y - 40,
+                size: 24,
+                shape: 'circle',
+                r: 12,
+            },
+            { id: 'pivot', type: 'pivot', cx: pivot.x, cy: pivot.y, size: 12, shape: 'circle', r: 6 },
+        ];
     }
     getModularRenderer() {
         return this.modularRenderer;

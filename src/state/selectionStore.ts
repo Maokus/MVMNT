@@ -32,6 +32,11 @@ export type SelectionTarget = 'none' | 'elements' | 'tracks' | 'keyframes' | 'cl
 
 interface SelectionState {
     selectedElementIds: string[];
+    selectedNodeIds: string[];
+    activeNodeId: string | null;
+    anchorNodeId: string | null;
+    editingContainerId: string | null;
+    expandedNodeIds: Record<string, boolean>;
     selectedTrackIds: string[];
     selectedKeyframes: SelectedKeyframe[];
     clipTimelineSelection: ClipTimelineSelection | null;
@@ -41,6 +46,12 @@ interface SelectionState {
 interface SelectionActions {
     /** Set elements as active selection domain. */
     selectElements(ids: string[]): void;
+    selectSceneNodes(nodeIds: string[], elementIds: string[], activeNodeId?: string | null): void;
+    toggleSceneNode(nodeId: string, elementId?: string): void;
+    selectSceneNodeRange(siblingIds: string[], targetNodeId: string, elementIdsByNodeId: Record<string, string>): void;
+    setEditingContainerId(nodeId: string | null): void;
+    toggleNodeExpanded(nodeId: string): void;
+    reconcileSceneNodes(validNodeIds: string[], rootId: string, elementIdsByNodeId: Record<string, string>): void;
     /** Set tracks as active selection domain. */
     selectTracks(ids: string[]): void;
     /** Set keyframes as active selection domain. */
@@ -93,6 +104,11 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
     (set, get) => ({
         // ── State ──────────────────────────────────────────────────────────────
         selectedElementIds: [],
+        selectedNodeIds: [],
+        activeNodeId: null,
+        anchorNodeId: null,
+        editingContainerId: null,
+        expandedNodeIds: {},
         selectedTrackIds: [],
         selectedKeyframes: [],
         clipTimelineSelection: null,
@@ -102,16 +118,100 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
         selectElements(ids) {
             set({
                 selectedElementIds: ids,
+                selectedNodeIds: [],
+                activeNodeId: null,
+                anchorNodeId: null,
                 selectedTrackIds: [],
                 selectedKeyframes: [],
                 clipTimelineSelection: null,
                 activeTarget: ids.length ? 'elements' : 'none',
             });
         },
+        selectSceneNodes(nodeIds, elementIds, activeNodeId) {
+            const uniqueNodes = [...new Set(nodeIds)];
+            const uniqueElements = [...new Set(elementIds)];
+            const active =
+                activeNodeId && uniqueNodes.includes(activeNodeId) ? activeNodeId : (uniqueNodes.at(-1) ?? null);
+            set({
+                selectedNodeIds: uniqueNodes,
+                selectedElementIds: uniqueElements,
+                activeNodeId: active,
+                anchorNodeId: active,
+                selectedTrackIds: [],
+                selectedKeyframes: [],
+                clipTimelineSelection: null,
+                activeTarget: uniqueNodes.length ? 'elements' : 'none',
+            });
+        },
+        toggleSceneNode(nodeId, elementId) {
+            const state = get();
+            const included = state.selectedNodeIds.includes(nodeId);
+            const selectedNodeIds = included
+                ? state.selectedNodeIds.filter((id) => id !== nodeId)
+                : [...state.selectedNodeIds, nodeId];
+            const selectedElementIds = elementId
+                ? included
+                    ? state.selectedElementIds.filter((id) => id !== elementId)
+                    : [...state.selectedElementIds, elementId]
+                : state.selectedElementIds;
+            set({
+                selectedNodeIds,
+                selectedElementIds,
+                activeNodeId: included ? (selectedNodeIds.at(-1) ?? null) : nodeId,
+                anchorNodeId: included ? state.anchorNodeId : nodeId,
+                activeTarget: selectedNodeIds.length ? 'elements' : 'none',
+            });
+        },
+        selectSceneNodeRange(siblingIds, targetNodeId, elementIdsByNodeId) {
+            const state = get();
+            const anchor =
+                state.anchorNodeId && siblingIds.includes(state.anchorNodeId) ? state.anchorNodeId : targetNodeId;
+            const start = siblingIds.indexOf(anchor);
+            const end = siblingIds.indexOf(targetNodeId);
+            if (start < 0 || end < 0) return;
+            const selectedNodeIds = siblingIds.slice(Math.min(start, end), Math.max(start, end) + 1);
+            set({
+                selectedNodeIds,
+                selectedElementIds: selectedNodeIds.map((id) => elementIdsByNodeId[id]).filter(Boolean),
+                activeNodeId: targetNodeId,
+                anchorNodeId: anchor,
+                activeTarget: 'elements',
+            });
+        },
+        setEditingContainerId(nodeId) {
+            set({ editingContainerId: nodeId });
+        },
+        toggleNodeExpanded(nodeId) {
+            set((state) => ({
+                expandedNodeIds: { ...state.expandedNodeIds, [nodeId]: state.expandedNodeIds[nodeId] === false },
+            }));
+        },
+        reconcileSceneNodes(validNodeIds, rootId, elementIdsByNodeId) {
+            const state = get();
+            const valid = new Set(validNodeIds);
+            const selectedNodeIds = state.selectedNodeIds.filter((id) => valid.has(id));
+            const activeNodeId =
+                state.activeNodeId && valid.has(state.activeNodeId)
+                    ? state.activeNodeId
+                    : (selectedNodeIds.at(-1) ?? null);
+            set({
+                selectedNodeIds,
+                selectedElementIds: selectedNodeIds.map((id) => elementIdsByNodeId[id]).filter(Boolean),
+                activeNodeId,
+                anchorNodeId: state.anchorNodeId && valid.has(state.anchorNodeId) ? state.anchorNodeId : activeNodeId,
+                editingContainerId:
+                    state.editingContainerId && valid.has(state.editingContainerId) ? state.editingContainerId : rootId,
+                activeTarget:
+                    state.activeTarget === 'elements' && !selectedNodeIds.length ? 'none' : state.activeTarget,
+            });
+        },
         selectTracks(ids) {
             set({
                 selectedTrackIds: ids,
                 selectedElementIds: [],
+                selectedNodeIds: [],
+                activeNodeId: null,
+                anchorNodeId: null,
                 selectedKeyframes: [],
                 clipTimelineSelection: null,
                 activeTarget: ids.length ? 'tracks' : 'none',
@@ -131,6 +231,9 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
             set({
                 clipTimelineSelection: selection,
                 selectedElementIds: [],
+                selectedNodeIds: [],
+                activeNodeId: null,
+                anchorNodeId: null,
                 selectedTrackIds: [],
                 selectedKeyframes: [],
                 activeTarget: selection ? 'clipTimeline' : 'none',
@@ -159,6 +262,9 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
             if (target === undefined) {
                 set({
                     selectedElementIds: [],
+                    selectedNodeIds: [],
+                    activeNodeId: null,
+                    anchorNodeId: null,
                     selectedTrackIds: [],
                     selectedKeyframes: [],
                     clipTimelineSelection: null,
@@ -168,7 +274,12 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
             }
             const { activeTarget } = get();
             const patch: Partial<SelectionState> = {};
-            if (target === 'elements') patch.selectedElementIds = [];
+            if (target === 'elements') {
+                patch.selectedElementIds = [];
+                patch.selectedNodeIds = [];
+                patch.activeNodeId = null;
+                patch.anchorNodeId = null;
+            }
             if (target === 'tracks') patch.selectedTrackIds = [];
             if (target === 'keyframes') patch.selectedKeyframes = [];
             if (target === 'clipTimeline') patch.clipTimelineSelection = null;

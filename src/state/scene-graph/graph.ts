@@ -244,11 +244,11 @@ export function validateSceneGraph(
                     if (
                         enforceInitialDepthPolicy &&
                         child &&
-                        ((entry.depth === 0 && child.kind === 'group') || entry.depth > 0)
+                        ((child.kind === 'group' && entry.depth > 0) || entry.depth > 1)
                     )
                         errors.push({
                             code: 'DEPTH_POLICY',
-                            message: 'Groups are not enabled in the initial graph policy.',
+                            message: 'Only one level of groups is supported.',
                             nodeId: childId,
                         });
                     stack.push({ id: childId, exit: false, depth: entry.depth + 1 });
