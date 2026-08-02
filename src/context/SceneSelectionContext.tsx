@@ -20,7 +20,13 @@ import {
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 import { createDuplicateElementId } from './duplicateElementName';
-import { SCENE_ROOT_ID, createDuplicateMappings, normalizeNodeSelection, translationMatrix } from '@state/scene-graph';
+import {
+    SCENE_ROOT_ID,
+    createDuplicateMappings,
+    isNodeEffectivelyLocked,
+    normalizeNodeSelection,
+    translationMatrix,
+} from '@state/scene-graph';
 
 export interface TrackInputDef {
     key: string;
@@ -55,6 +61,7 @@ interface SceneSelectionActions {
     duplicateSelectedNodes: () => void;
     deleteSelectedNodes: () => void;
     reorderSelectedNodes: (parentId: string, targetIndex: number) => void;
+    reparentSelectedNodes: (newParentId: string, targetIndex: number) => void;
     enterGroup: (nodeId: string) => void;
     exitGroup: () => void;
     clearSelection: () => void;
@@ -109,7 +116,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
     if (!tag) return false;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
     const role = element.getAttribute('role');
-    return role === 'textbox' || role === 'combobox';
+    return role === 'textbox' || role === 'combobox' || Boolean(element.closest('[role="tree"]'));
 }
 
 /** Infer AutomationValueType from a raw value for auto-key channel creation (canvas drag path). */
@@ -188,7 +195,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         (nodeId: string, options?: { toggle?: boolean; range?: boolean; siblingIds?: string[] }) => {
             const state = useSceneStore.getState();
             const normalized = normalizeNodeSelection(state.graph, [nodeId])[0];
-            if (!normalized) return;
+            if (!normalized || isNodeEffectivelyLocked(state.graph, normalized)) return;
             const selection = useSelectionStore.getState();
             if (options?.range && options.siblingIds) {
                 selection.selectSceneNodeRange(options.siblingIds, normalized, state.elementIdByNodeId);
@@ -219,7 +226,17 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     }, []);
 
     useEffect(() => {
-        useSelectionStore.getState().reconcileSceneNodes(Object.keys(graph.nodesById), graph.rootId, elementIdByNodeId);
+        const selection = useSelectionStore.getState();
+        selection.reconcileSceneNodes(Object.keys(graph.nodesById), graph.rootId, elementIdByNodeId);
+        const selected = useSelectionStore.getState().selectedNodeIds;
+        const unlocked = selected.filter((id) => !isNodeEffectivelyLocked(graph, id));
+        if (unlocked.length !== selected.length) {
+            selection.selectSceneNodes(
+                unlocked,
+                unlocked.map((id) => elementIdByNodeId[id]).filter(Boolean),
+                unlocked.at(-1) ?? null
+            );
+        }
     }, [graph, elementIdByNodeId]);
 
     useEffect(() => {
@@ -598,14 +615,38 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         [runSceneCommand, visualizer]
     );
 
+    const reparentSelectedNodes = useCallback(
+        (newParentId: string, targetIndex: number) => {
+            const nodeIds = normalizeNodeSelection(
+                useSceneStore.getState().graph,
+                useSelectionStore.getState().selectedNodeIds
+            );
+            if (!nodeIds.length) return;
+            if (
+                runSceneCommand(
+                    { type: 'reparentNodes', nodeIds, newParentId, targetIndex },
+                    'SceneSelectionContext.reparentNodes'
+                )
+            ) {
+                visualizer?.invalidateRender?.();
+            }
+        },
+        [runSceneCommand, visualizer]
+    );
+
     const enterGroup = useCallback((nodeId: string) => {
-        if (useSceneStore.getState().graph.nodesById[nodeId]?.kind !== 'group') return;
+        const graph = useSceneStore.getState().graph;
+        if (graph.nodesById[nodeId]?.kind !== 'group' || isNodeEffectivelyLocked(graph, nodeId)) return;
         useSelectionStore.getState().setEditingContainerId(nodeId);
         useSelectionStore.getState().selectSceneNodes([], [], null);
     }, []);
 
     const exitGroup = useCallback(() => {
-        useSelectionStore.getState().setEditingContainerId(useSceneStore.getState().graph.rootId);
+        const scene = useSceneStore.getState();
+        const current = useSelectionStore.getState().editingContainerId ?? scene.graph.rootId;
+        useSelectionStore
+            .getState()
+            .setEditingContainerId(scene.graph.nodesById[current]?.parentId ?? scene.graph.rootId);
     }, []);
 
     const updateElementId = useCallback(
@@ -653,6 +694,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         duplicateSelectedNodes,
         deleteSelectedNodes,
         reorderSelectedNodes,
+        reparentSelectedNodes,
         enterGroup,
         exitGroup,
         clearSelection,

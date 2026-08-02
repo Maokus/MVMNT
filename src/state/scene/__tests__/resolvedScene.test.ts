@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createFlatSceneGraph } from '@state/scene-graph';
+import { createFlatSceneGraph, groupSceneNodes } from '@state/scene-graph';
 import { resolveSceneFrame } from '@state/scene/resolvedScene';
+import { PerspectiveElementRoot } from '@core/render/render-objects/perspective-element-root';
 
 describe('resolved scene frame', () => {
     it('builds visible content once and applies node transforms to render and bounds', () => {
@@ -59,5 +60,39 @@ describe('resolved scene frame', () => {
         });
         expect(frame.byElementId.get('shape')).toMatchObject({ effectiveVisible: false, effectiveLocked: true });
         expect(buildRenderObjects).not.toHaveBeenCalled();
+    });
+
+    it('composes arbitrary-depth ancestry into perspective payloads and recursive bounds', () => {
+        let graph = createFlatSceneGraph(['perspective']);
+        graph = groupSceneNodes(graph, ['element:perspective'], 'group:inner');
+        graph = groupSceneNodes(graph, ['group:inner'], 'group:outer');
+        graph.nodesById['group:outer'].userNodeTransform.translationX = 10;
+        graph.nodesById['group:inner'].userNodeTransform.translationY = 20;
+        graph.nodesById['element:perspective'].userNodeTransform.translationX = 3;
+        const payload = new PerspectiveElementRoot(
+            'perspective',
+            {
+                topLeft: { x: 0, y: 0 },
+                topRight: { x: 1, y: 0 },
+                bottomRight: { x: 1, y: 1 },
+                bottomLeft: { x: 0, y: 1 },
+            },
+            5,
+            0
+        );
+        payload.baseBounds = { x: 0, y: 0, width: 100, height: 50 };
+        payload.visualBounds = { ...payload.baseBounds };
+        payload.setOriginFraction(0, 0);
+        const frame = resolveSceneFrame({
+            graph,
+            time: 0,
+            runtimeVersion: 1,
+            config: {},
+            getElement: () => ({ visible: true, buildRenderObjects: () => [payload] }) as any,
+        });
+        expect(payload.getAffineTransform()).toMatchObject({ e: 18, f: 20 });
+        expect(frame.byNodeId.get('group:outer')?.artworkBounds).toEqual(
+            frame.byNodeId.get('element:perspective')?.artworkBounds
+        );
     });
 });

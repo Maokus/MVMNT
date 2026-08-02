@@ -3,6 +3,7 @@ import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
 import { resetMacroStoreBinding, setMacroStoreBinding } from '@state/scene/macroSyncService';
 import { SceneRuntimeAdapter } from '@state/scene/runtimeAdapter';
+import { groupSceneNodes } from '@state/scene-graph';
 
 describe('SceneRuntimeAdapter', () => {
     let store: ReturnType<typeof createSceneStore>;
@@ -47,6 +48,18 @@ describe('SceneRuntimeAdapter', () => {
         expect(adapter.getElementVersion('title')).toBeGreaterThan(originalTitleVersion);
         expect(adapter.getElementVersion('background')).toBe(originalBackgroundVersion);
         expect(afterDiagnostics.version).toBeGreaterThan(beforeDiagnostics.version);
+    });
+
+    it('retains unrelated plugin instances when hierarchy changes', () => {
+        const before = new Map(adapter.getElements().map((element) => [element.id, element]));
+        const scene = store.getState();
+        const titleNode = scene.nodeIdByElementId.title;
+        let graph = groupSceneNodes(scene.graph, [titleNode], 'group:inner');
+        graph = groupSceneNodes(graph, ['group:inner'], 'group:outer');
+        store.getState().replaceGraph(graph);
+        const after = new Map(adapter.getElements().map((element) => [element.id, element]));
+        expect(after.get('title')).toBe(before.get('title'));
+        expect(after.get('background')).toBe(before.get('background'));
     });
 
     it('updates z-index bindings and cache versions when order changes', () => {

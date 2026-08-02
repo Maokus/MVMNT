@@ -1,4 +1,5 @@
 import { identityMatrix, invertMatrix, multiplyMatrices, nodeTransformToMatrix } from './math';
+import { buildSceneGraphNavigationIndex } from './graph';
 import { cloneSceneGraph, createNodeBase, type Matrix2D, type SceneGraphState, type SceneNode } from './types';
 
 export interface DuplicateMappings {
@@ -29,30 +30,35 @@ function worldMatrices(graph: SceneGraphState): Map<string, Matrix2D> {
 }
 
 export function subtreeNodeIds(graph: SceneGraphState, rootIds: readonly string[]): string[] {
+    const index = buildSceneGraphNavigationIndex(graph);
     const result: string[] = [];
     const seen = new Set<string>();
-    const stack = [...rootIds].reverse();
-    while (stack.length) {
-        const id = stack.pop()!;
-        if (seen.has(id)) continue;
-        seen.add(id);
-        const node = graph.nodesById[id];
-        if (!node) continue;
-        result.push(id);
-        if ('children' in node) {
-            for (let index = node.children.length - 1; index >= 0; index -= 1) stack.push(node.children[index]);
+    for (const rootId of rootIds) {
+        const record = index.byNodeId.get(rootId);
+        if (!record) continue;
+        for (const id of index.preorderNodeIds.slice(record.preorder, record.subtreeEnd)) {
+            if (!seen.has(id)) {
+                seen.add(id);
+                result.push(id);
+            }
         }
     }
     return result;
 }
 
 export function isNodeAncestor(graph: SceneGraphState, ancestorId: string, nodeId: string): boolean {
-    let current = graph.nodesById[nodeId];
-    const visited = new Set<string>();
-    while (current?.parentId && !visited.has(current.id)) {
-        if (current.parentId === ancestorId) return true;
-        visited.add(current.id);
-        current = graph.nodesById[current.parentId];
+    const index = buildSceneGraphNavigationIndex(graph);
+    const ancestor = index.byNodeId.get(ancestorId);
+    const node = index.byNodeId.get(nodeId);
+    return Boolean(ancestor && node && ancestor.preorder < node.preorder && node.preorder < ancestor.subtreeEnd);
+}
+
+export function isNodeEffectivelyLocked(graph: SceneGraphState, nodeId: string): boolean {
+    const index = buildSceneGraphNavigationIndex(graph);
+    let current = index.byNodeId.get(nodeId);
+    while (current) {
+        if (graph.nodesById[current.nodeId]?.localLocked) return true;
+        current = current.parentId ? index.byNodeId.get(current.parentId) : undefined;
     }
     return false;
 }
@@ -119,10 +125,8 @@ export function groupSceneNodes(
         throw new Error('Grouped nodes must be siblings');
     }
     const parent = graph.nodesById[parentId];
-    if (!parent || parent.kind !== 'root' || selected.some((id) => graph.nodesById[id]?.kind !== 'element')) {
-        throw new Error('Only root-level elements can be grouped');
-    }
-    if (parent.localLocked || selected.some((id) => graph.nodesById[id]?.localLocked)) {
+    if (!parent || !('children' in parent)) throw new Error('Group parent is invalid');
+    if (isNodeEffectivelyLocked(graph, parent.id) || selected.some((id) => isNodeEffectivelyLocked(graph, id))) {
         throw new Error('Locked nodes cannot be grouped');
     }
     const selectedSet = new Set(selected);
@@ -131,7 +135,7 @@ export function groupSceneNodes(
     const insertionIndex = frontmostIndex - ordered.filter((id) => parent.children.indexOf(id) < frontmostIndex).length;
     const next = cloneSceneGraph(graph);
     const nextParent = next.nodesById[parentId];
-    if (!nextParent || nextParent.kind !== 'root') throw new Error('Group parent is invalid');
+    if (!nextParent || !('children' in nextParent)) throw new Error('Group parent is invalid');
     nextParent.children = nextParent.children.filter((id) => !selectedSet.has(id));
     nextParent.children.splice(insertionIndex, 0, groupId);
     next.nodesById[groupId] = { ...createNodeBase(groupId, parentId, name), kind: 'group', children: ordered };
@@ -143,6 +147,7 @@ export function groupSceneNodes(
 export function ungroupSceneNode(graph: SceneGraphState, groupId: string): SceneGraphState {
     const group = graph.nodesById[groupId];
     if (!group || group.kind !== 'group' || !group.parentId) throw new Error('Node is not a group');
+    if (isNodeEffectivelyLocked(graph, groupId)) throw new Error('Locked groups cannot be ungrouped');
     const parent = graph.nodesById[group.parentId];
     if (!parent || !('children' in parent)) throw new Error('Group parent is invalid');
     const worlds = worldMatrices(graph);
@@ -181,6 +186,9 @@ export function reorderSceneNodes(
     if (!parent || !('children' in parent) || selected.some((id) => graph.nodesById[id]?.parentId !== parentId)) {
         throw new Error('Reordered nodes must be siblings');
     }
+    if (isNodeEffectivelyLocked(graph, parentId) || selected.some((id) => isNodeEffectivelyLocked(graph, id))) {
+        throw new Error('Locked nodes cannot be reordered');
+    }
     const selectedSet = new Set(selected);
     const moving = parent.children.filter((id) => selectedSet.has(id));
     const remaining = parent.children.filter((id) => !selectedSet.has(id));
@@ -193,12 +201,69 @@ export function reorderSceneNodes(
     return next;
 }
 
+/** Move one or more normalized subtrees into a container while preserving each root's world transform. */
+export function reparentSceneNodes(
+    graph: SceneGraphState,
+    nodeIds: readonly string[],
+    newParentId: string,
+    targetIndex: number
+): SceneGraphState {
+    const selected = normalizeNodeSelection(graph, nodeIds);
+    if (!selected.length) throw new Error('Select at least one node to move');
+    const newParent = graph.nodesById[newParentId];
+    if (!newParent || !('children' in newParent)) throw new Error('Drop target is not a container');
+    if (selected.includes(newParentId) || selected.some((id) => isNodeAncestor(graph, id, newParentId))) {
+        throw new Error('Cannot move a node into itself or its descendants');
+    }
+    if (isNodeEffectivelyLocked(graph, newParentId) || selected.some((id) => isNodeEffectivelyLocked(graph, id))) {
+        throw new Error('Locked nodes cannot be reparented');
+    }
+    const navigation = buildSceneGraphNavigationIndex(graph);
+    const ordered = [...selected].sort(
+        (left, right) =>
+            (navigation.byNodeId.get(left)?.preorder ?? Number.MAX_SAFE_INTEGER) -
+            (navigation.byNodeId.get(right)?.preorder ?? Number.MAX_SAFE_INTEGER)
+    );
+    const worlds = worldMatrices(graph);
+    const newParentWorld = worlds.get(newParentId);
+    if (!newParentWorld) throw new Error('Drop target could not be resolved');
+    const selectedSet = new Set(ordered);
+    const originalTargetIndex = Math.max(0, Math.min(newParent.children.length, Math.floor(targetIndex)));
+    const removedBeforeTarget = newParent.children
+        .slice(0, originalTargetIndex)
+        .filter((id) => selectedSet.has(id)).length;
+    const insertionIndex = originalTargetIndex - removedBeforeTarget;
+    const next = cloneSceneGraph(graph);
+    for (const node of Object.values(next.nodesById)) {
+        if ('children' in node) node.children = node.children.filter((id) => !selectedSet.has(id));
+    }
+    const target = next.nodesById[newParentId];
+    if (!target || !('children' in target)) throw new Error('Drop target changed');
+    target.children.splice(Math.max(0, Math.min(target.children.length, insertionIndex)), 0, ...ordered);
+    for (const id of ordered) {
+        const node = next.nodesById[id];
+        const world = worlds.get(id);
+        if (!node || !world) throw new Error(`Moved node '${id}' could not be resolved`);
+        node.parentId = newParentId;
+        node.parentCompensation = compensationForWorld(
+            newParentWorld,
+            world,
+            nodeTransformToMatrix(node.userNodeTransform)
+        );
+    }
+    next.revision += 1;
+    return next;
+}
+
 export function transformSceneNodes(
     graph: SceneGraphState,
     nodeIds: readonly string[],
     worldDelta: Matrix2D
 ): SceneGraphState {
     const selected = normalizeNodeSelection(graph, nodeIds);
+    if (selected.some((id) => isNodeEffectivelyLocked(graph, id))) {
+        throw new Error('Locked nodes cannot be transformed');
+    }
     const worlds = worldMatrices(graph);
     const next = cloneSceneGraph(graph);
     for (const id of selected) {

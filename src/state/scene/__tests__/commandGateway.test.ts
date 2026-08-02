@@ -235,6 +235,74 @@ describe('scene command gateway', () => {
         expect(useSceneStore.getState().elements).toHaveProperty('group-b');
     });
 
+    it('reparents nested subtrees as one undoable command', () => {
+        dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'move-a' });
+        dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'move-b' });
+        const initial = useSceneStore.getState();
+        const a = initial.nodeIdByElementId['move-a'];
+        const b = initial.nodeIdByElementId['move-b'];
+        dispatchSceneCommand({ type: 'groupNodes', nodeIds: [a], groupId: 'group:a' });
+        dispatchSceneCommand({ type: 'groupNodes', nodeIds: [b], groupId: 'group:b' });
+        const result = dispatchSceneCommand({
+            type: 'reparentNodes',
+            nodeIds: [a],
+            newParentId: 'group:b',
+            targetIndex: 0,
+        });
+        expect(result.success).toBe(true);
+        expect(result.patch?.undo).toHaveLength(1);
+        expect(useSceneStore.getState().graph.nodesById[a].parentId).toBe('group:b');
+        dispatchSceneCommand(result.patch!.undo[0]);
+        expect(useSceneStore.getState().graph.nodesById[a].parentId).toBe('group:a');
+
+        const beforeCycle = useSceneStore.getState().exportSceneDraft();
+        const cycle = dispatchSceneCommand({
+            type: 'reparentNodes',
+            nodeIds: ['group:b'],
+            newParentId: 'group:b',
+            targetIndex: 0,
+        });
+        expect(cycle.success).toBe(false);
+        expect(useSceneStore.getState().exportSceneDraft()).toEqual(beforeCycle);
+    });
+
+    it('duplicates a nested subtree with independent element and automation ownership', () => {
+        dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'original-a' });
+        dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'original-b' });
+        dispatchSceneCommand({
+            type: 'enablePropertyAutomation',
+            elementId: 'original-a',
+            propertyKey: 'offsetX',
+            valueType: 'number',
+            initialKeyframes: [{ tick: 0, value: 12, segmentInterpolation: { mode: 'linear', direction: 'auto' } }],
+        });
+        const scene = useSceneStore.getState();
+        const a = scene.nodeIdByElementId['original-a'];
+        const b = scene.nodeIdByElementId['original-b'];
+        dispatchSceneCommand({ type: 'groupNodes', nodeIds: [a], groupId: 'nested:inner' });
+        dispatchSceneCommand({ type: 'groupNodes', nodeIds: ['nested:inner', b], groupId: 'nested:outer' });
+        const result = dispatchSceneCommand({
+            type: 'duplicateSubtrees',
+            nodeIds: ['nested:outer'],
+            mappings: {
+                nodeIdMap: {
+                    'nested:outer': 'copy:outer',
+                    'nested:inner': 'copy:inner',
+                    [a]: 'copy:a',
+                    [b]: 'copy:b',
+                },
+                elementIdMap: { 'original-a': 'copy-a', 'original-b': 'copy-b' },
+            },
+        });
+        expect(result.success).toBe(true);
+        const copied = useSceneStore.getState();
+        expect(copied.graph.nodesById['copy:a']).toMatchObject({ parentId: 'copy:inner', elementId: 'copy-a' });
+        expect(copied.automation.channels['copy-a.offsetX']?.keyframes).toEqual(
+            copied.automation.channels['original-a.offsetX']?.keyframes
+        );
+        expect(copied.automation.channels['copy-a.offsetX']).not.toBe(copied.automation.channels['original-a.offsetX']);
+    });
+
     it.skip('hydrates default scene macros into the scene store', async () => {
         const loaded = await loadDefaultScene('commandGateway.test');
         expect(loaded).toBe(true);

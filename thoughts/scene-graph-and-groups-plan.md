@@ -1,6 +1,6 @@
 # Scene graph, multi-selection, groups, automation, and compositing plan
 
-Status: Phases 1 through 3 are implemented. Current behavior is documented in
+Status: Phases 1 through 4 are implemented. Current behavior is documented in
 [`docs/scene-graph.md`](../docs/scene-graph.md); later sections remain the proposed implementation sequence.
 
 This is an implementation plan, not documentation of existing behavior. It is grounded in the code at the

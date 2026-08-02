@@ -11,6 +11,35 @@ async function makeValidEnvelope(): Promise<any> {
 }
 
 describe('Persistence validation extended', () => {
+    it('accepts nested groups in schema v12 without persisting editor scope', async () => {
+        const env = await makeValidEnvelope();
+        const graph = env.scene.graph;
+        const root = graph.nodesById[graph.rootId];
+        const group = (id: string, parentId: string, children: string[]) => ({
+            id,
+            parentId,
+            name: id,
+            kind: 'group',
+            children,
+            localVisible: true,
+            localLocked: false,
+            parentCompensation: [1, 0, 0, 1, 0, 0],
+            userNodeTransform: {
+                translationX: 0,
+                translationY: 0,
+                rotation: 0,
+                uniformScale: 1,
+                pivotX: 0,
+                pivotY: 0,
+            },
+        });
+        graph.nodesById['group:outer'] = group('group:outer', root.id, ['group:inner']);
+        graph.nodesById['group:inner'] = group('group:inner', 'group:outer', []);
+        root.children.push('group:outer');
+        expect(validateSceneEnvelope(env).ok).toBe(true);
+        expect(env.scene).not.toHaveProperty('editingContainerId');
+    });
+
     it('detects missing metadata object', async () => {
         const env = await makeValidEnvelope();
         delete env.metadata;

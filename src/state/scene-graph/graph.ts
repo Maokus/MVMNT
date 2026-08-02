@@ -22,7 +22,7 @@ export type SceneGraphErrorCode =
     | 'CYCLE'
     | 'UNREACHABLE'
     | 'TRANSFORM_INVALID'
-    | 'DEPTH_POLICY';
+    | 'TRAVERSAL_BUDGET';
 
 export interface SceneGraphValidationError {
     code: SceneGraphErrorCode;
@@ -32,6 +32,67 @@ export interface SceneGraphValidationError {
 export interface SceneGraphValidationResult {
     ok: boolean;
     errors: SceneGraphValidationError[];
+}
+
+export const MAX_SCENE_GRAPH_TRAVERSAL = 100_000;
+
+export interface SceneGraphNavigationRecord {
+    nodeId: string;
+    parentId: string | null;
+    depth: number;
+    preorder: number;
+    subtreeEnd: number;
+}
+
+export interface SceneGraphNavigationIndex {
+    graphRevision: number;
+    preorderNodeIds: string[];
+    byNodeId: Map<string, SceneGraphNavigationRecord>;
+}
+
+const navigationIndexCache = new WeakMap<SceneGraphState, SceneGraphNavigationIndex>();
+
+/** Iterative ancestry/subtree index. Preorder intervals make ancestor checks O(1). */
+export function buildSceneGraphNavigationIndex(graph: SceneGraphState): SceneGraphNavigationIndex {
+    const cached = navigationIndexCache.get(graph);
+    if (cached?.graphRevision === graph.revision) return cached;
+    const preorderNodeIds: string[] = [];
+    const byNodeId = new Map<string, SceneGraphNavigationRecord>();
+    const root = graph.nodesById[graph.rootId];
+    if (root?.kind === 'root') {
+        const stack: Array<{ id: string; depth: number; exit: boolean }> = [{ id: root.id, depth: 0, exit: false }];
+        const visited = new Set<string>();
+        while (stack.length) {
+            const entry = stack.pop()!;
+            const node = graph.nodesById[entry.id];
+            if (!node) continue;
+            if (entry.exit) {
+                const record = byNodeId.get(entry.id);
+                if (record) record.subtreeEnd = preorderNodeIds.length;
+                continue;
+            }
+            if (visited.has(entry.id)) continue;
+            visited.add(entry.id);
+            const preorder = preorderNodeIds.length;
+            preorderNodeIds.push(entry.id);
+            byNodeId.set(entry.id, {
+                nodeId: entry.id,
+                parentId: node.parentId,
+                depth: entry.depth,
+                preorder,
+                subtreeEnd: preorder + 1,
+            });
+            stack.push({ ...entry, exit: true });
+            if ('children' in node) {
+                for (let index = node.children.length - 1; index >= 0; index -= 1) {
+                    stack.push({ id: node.children[index], depth: entry.depth + 1, exit: false });
+                }
+            }
+        }
+    }
+    const index = { graphRevision: graph.revision, preorderNodeIds, byNodeId };
+    navigationIndexCache.set(graph, index);
+    return index;
 }
 
 export function elementNodeId(elementId: string, occupied: ReadonlySet<string> = new Set()): SceneNodeId {
@@ -93,11 +154,7 @@ export function buildSceneGraphIndexes(graph: SceneGraphState) {
     return { nodeIdByElementId, elementIdByNodeId };
 }
 
-export function validateSceneGraph(
-    graph: SceneGraphState,
-    elementIds: Iterable<string>,
-    enforceInitialDepthPolicy = true
-): SceneGraphValidationResult {
+export function validateSceneGraph(graph: SceneGraphState, elementIds: Iterable<string>): SceneGraphValidationResult {
     const errors: SceneGraphValidationError[] = [];
     const expectedElements = new Set(elementIds);
     if (
@@ -223,9 +280,18 @@ export function validateSceneGraph(
 
     if (root?.kind === 'root') {
         const colors = new Map<string, 0 | 1 | 2>();
-        const stack: Array<{ id: string; exit: boolean; depth: number }> = [{ id: root.id, exit: false, depth: 0 }];
+        const stack: Array<{ id: string; exit: boolean }> = [{ id: root.id, exit: false }];
+        let traversalCount = 0;
         while (stack.length) {
             const entry = stack.pop()!;
+            traversalCount += 1;
+            if (traversalCount > MAX_SCENE_GRAPH_TRAVERSAL) {
+                errors.push({
+                    code: 'TRAVERSAL_BUDGET',
+                    message: `Scene graph exceeds the ${MAX_SCENE_GRAPH_TRAVERSAL}-step validation budget.`,
+                });
+                break;
+            }
             if (entry.exit) {
                 colors.set(entry.id, 2);
                 continue;
@@ -239,20 +305,7 @@ export function validateSceneGraph(
             stack.push({ ...entry, exit: true });
             const node = graph.nodesById[entry.id];
             if (node && 'children' in node && Array.isArray(node.children))
-                for (const childId of [...node.children].reverse()) {
-                    const child = graph.nodesById[childId];
-                    if (
-                        enforceInitialDepthPolicy &&
-                        child &&
-                        ((child.kind === 'group' && entry.depth > 0) || entry.depth > 1)
-                    )
-                        errors.push({
-                            code: 'DEPTH_POLICY',
-                            message: 'Only one level of groups is supported.',
-                            nodeId: childId,
-                        });
-                    stack.push({ id: childId, exit: false, depth: entry.depth + 1 });
-                }
+                for (const childId of [...node.children].reverse()) stack.push({ id: childId, exit: false });
         }
         for (const id of Object.keys(graph.nodesById))
             if (!colors.has(id))

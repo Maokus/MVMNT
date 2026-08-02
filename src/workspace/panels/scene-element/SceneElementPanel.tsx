@@ -1,5 +1,5 @@
 import React from 'react';
-import SceneNodeTree from './SceneNodeTree';
+import { SceneNodeTree } from './SceneNodeTree';
 import { useSceneSelection as useSceneSelectionContext } from '@context/SceneSelectionContext';
 
 const SceneElementPanel: React.FC = () => {

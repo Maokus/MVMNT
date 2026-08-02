@@ -27,6 +27,7 @@ import {
     cloneSubtrees,
     groupSceneNodes,
     removeSubtrees,
+    reparentSceneNodes,
     reorderSceneNodes,
     subtreeNodeIds,
     transformSceneNodes,
@@ -175,6 +176,7 @@ export type SceneCommand =
     | { type: 'deleteSubtrees'; nodeIds: string[] }
     | { type: 'duplicateSubtrees'; nodeIds: string[]; mappings: DuplicateMappings }
     | { type: 'reorderNodes'; parentId: string; nodeIds: string[]; targetIndex: number }
+    | { type: 'reparentNodes'; nodeIds: string[]; newParentId: string; targetIndex: number }
     | { type: 'transformNodes'; nodeIds: string[]; worldDelta: Matrix2D };
 
 export interface SceneCommandResult {
@@ -664,6 +666,7 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
         case 'deleteSubtrees':
         case 'duplicateSubtrees':
         case 'reorderNodes':
+        case 'reparentNodes':
         case 'transformNodes': {
             return {
                 redo: [cloneCommand(command)],
@@ -899,6 +902,11 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
         case 'reorderNodes':
             store.replaceGraph(reorderSceneNodes(store.graph, command.parentId, command.nodeIds, command.targetIndex));
             break;
+        case 'reparentNodes':
+            store.replaceGraph(
+                reparentSceneNodes(store.graph, command.nodeIds, command.newParentId, command.targetIndex)
+            );
+            break;
         case 'transformNodes':
             store.replaceGraph(transformSceneNodes(store.graph, command.nodeIds, command.worldDelta));
             break;
@@ -952,6 +960,7 @@ function requiresRollbackSnapshot(command: SceneCommand): boolean {
         'deleteSubtrees',
         'duplicateSubtrees',
         'reorderNodes',
+        'reparentNodes',
         'transformNodes',
     ].includes(command.type);
 }

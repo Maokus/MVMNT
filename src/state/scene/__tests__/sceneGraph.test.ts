@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
     SCENE_ROOT_ID,
+    MAX_SCENE_GRAPH_TRAVERSAL,
+    buildSceneGraphNavigationIndex,
     createFlatSceneGraph,
     createNodeBase,
     deriveElementOrder,
@@ -31,19 +33,19 @@ describe('scene graph substrate', () => {
             kind: 'group',
             children: ['group:a'],
         };
-        const result = validateSceneGraph(graph, ['one'], false);
+        const result = validateSceneGraph(graph, ['one']);
         expect(result.ok).toBe(false);
         expect(result.errors.map((error) => error.code)).toEqual(
             expect.arrayContaining(['CYCLE', 'UNREACHABLE', 'REFERENCE_NOT_RECIPROCAL'])
         );
     });
 
-    it('traverses a deep valid graph iteratively when the product depth gate is disabled', () => {
+    it('traverses, indexes, and validates a large deep graph iteratively', () => {
         const graph: SceneGraphState = createFlatSceneGraph([]);
         const root = graph.nodesById[SCENE_ROOT_ID];
         if (root.kind !== 'root') throw new Error('invalid fixture');
         let parentId = root.id;
-        for (let index = 0; index < 2000; index += 1) {
+        for (let index = 0; index < 20_000; index += 1) {
             const id = `group:${index}`;
             graph.nodesById[id] = { ...createNodeBase(id, parentId, id), kind: 'group', children: [] };
             const parent = graph.nodesById[parentId];
@@ -58,7 +60,23 @@ describe('scene graph substrate', () => {
         graph.nodesById[leaf.id] = leaf;
         const parent = graph.nodesById[parentId];
         if ('children' in parent) parent.children.push(leaf.id);
-        expect(validateSceneGraph(graph, ['leaf'], false).ok).toBe(true);
+        expect(validateSceneGraph(graph, ['leaf']).ok).toBe(true);
         expect(deriveElementOrder(graph)).toEqual(['leaf']);
+        expect(buildSceneGraphNavigationIndex(graph).preorderNodeIds).toHaveLength(20_002);
+    });
+
+    it('rejects hostile depth using a traversal budget rather than a product depth rule', () => {
+        const graph = createFlatSceneGraph([]);
+        let parentId = graph.rootId;
+        const nodeCount = Math.floor(MAX_SCENE_GRAPH_TRAVERSAL / 2) + 1;
+        for (let index = 0; index < nodeCount; index += 1) {
+            const id = `hostile:${index}`;
+            graph.nodesById[id] = { ...createNodeBase(id, parentId, id), kind: 'group', children: [] };
+            const parent = graph.nodesById[parentId];
+            if ('children' in parent) parent.children.push(id);
+            parentId = id;
+        }
+        const result = validateSceneGraph(graph, []);
+        expect(result.errors).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'TRAVERSAL_BUDGET' })]));
     });
 });

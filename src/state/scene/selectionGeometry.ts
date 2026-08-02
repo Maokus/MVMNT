@@ -78,15 +78,19 @@ export function marqueeNodeIds(
         height: Math.abs(end.y - start.y),
     };
     const containment = end.x >= start.x;
-    return frame.records
-        .filter(
-            (record) =>
-                record.node.parentId === editingContainerId &&
-                record.node.kind !== 'root' &&
-                record.effectiveVisible &&
-                !record.effectiveLocked &&
-                record.artworkBounds &&
-                (containment ? contains(marquee, record.artworkBounds) : intersects(marquee, record.artworkBounds))
+    const owners = new Map<string, ResolvedSceneRecord>();
+    const intersectingOwners = new Set<string>();
+    for (const leaf of frame.elements) {
+        if (!leaf.elementId || !leaf.effectiveVisible || leaf.effectiveLocked || !leaf.artworkBounds) continue;
+        const owner = selectableOwnerForElement(frame, leaf.elementId, editingContainerId);
+        if (!owner || owner.effectiveLocked || !owner.artworkBounds) continue;
+        owners.set(owner.node.id, owner);
+        if (intersects(marquee, leaf.artworkBounds)) intersectingOwners.add(owner.node.id);
+    }
+    return [...owners.values()]
+        .filter((owner) =>
+            containment ? contains(marquee, owner.artworkBounds!) : intersectingOwners.has(owner.node.id)
         )
+        .sort((left, right) => left.paintIndex - right.paintIndex)
         .map((record) => record.node.id);
 }

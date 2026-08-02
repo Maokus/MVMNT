@@ -123,8 +123,7 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
         } else {
             const validation = validateSceneGraph(
                 root.scene.graph as SceneGraphState,
-                Object.keys(root.scene.elements),
-                true
+                Object.keys(root.scene.elements)
             );
             for (const graphError of validation.errors) {
                 errors.push(
