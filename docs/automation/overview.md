@@ -142,7 +142,7 @@ valueType)` and use `channelIdForTarget()` or `channelForTarget()` for lookup. R
 
 **Undo coalescing:** Drag interactions must pass a `mergeKey` to `moveKeyframe` or `updateKeyframe` to avoid flooding the undo stack. Use the pattern `kf-drag:${channelId}:${sessionId}` where `sessionId` is a stable ID for the current pointer-down session.
 
-**Timeline state drift:** Automation UI state (`automationExpandedElements`, `automationExpandedCurves`, `automationSelectedKeyframes`) lives in `SceneInteractionState` in `sceneStore`, not in component state. Use `src/automation/selectors.ts` selectors to derive view models.
+**Timeline state drift:** Automation UI state (`automationExpandedOwners`, `automationExpandedCurves`, `automationSelectedKeyframes`) lives in `SceneInteractionState` in `sceneStore`, not in component state. Use `src/automation/selectors.ts` selectors to derive view models.
 
 ---
 

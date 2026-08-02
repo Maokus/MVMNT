@@ -1,11 +1,5 @@
-import type {
-    ElementBindings,
-    MacroBindingAssignment,
-    SceneElementRecord,
-    SceneSettingsState,
-    SceneStoreState,
-} from '../sceneStore';
-import { elementPropertyTarget, encodePropertyTarget, type PropertyTarget } from '@automation/types';
+import type { ElementBindings, SceneElementRecord, SceneSettingsState, SceneStoreState } from '../sceneStore';
+import { encodePropertyTarget, type PropertyTarget } from '@automation/types';
 import { deriveElementOrder } from '@state/scene-graph';
 
 export interface SceneElementView {
@@ -15,7 +9,7 @@ export interface SceneElementView {
     bindings: ElementBindings;
 }
 
-export interface MacroAssignmentView extends MacroBindingAssignment {
+export interface MacroAssignmentView {
     macroId: string;
     target: PropertyTarget;
 }
@@ -55,26 +49,12 @@ function bindingsFingerprint(bindings: ElementBindings): string {
 }
 
 function macroAssignmentsFingerprint(state: SceneStoreState): string {
-    const structured = state.bindings.byTargetMacro;
-    if (structured) {
-        return Object.entries(structured)
-            .flatMap(([macroId, assignments]) =>
-                assignments.map(({ target }) => `${macroId}:${encodePropertyTarget(target)}`)
-            )
-            .sort()
-            .join('|');
-    }
-    const byMacro = state.bindings.byMacro;
-    const slices = Object.entries(byMacro)
-        .map(([macroId, assignments]) => {
-            const key = assignments
-                .map((assignment) => `${assignment.elementId}:${assignment.propertyPath}`)
-                .sort()
-                .join(',');
-            return `${macroId}=>${key}`;
-        })
-        .sort();
-    return slices.join('|');
+    return Object.entries(state.bindings.byMacro)
+        .flatMap(([macroId, assignments]) =>
+            assignments.map(({ target }) => `${macroId}:${encodePropertyTarget(target)}`)
+        )
+        .sort()
+        .join('|');
 }
 
 export const selectOrderedElementIds = (state: SceneStoreState): string[] => deriveElementOrder(state.graph);
@@ -98,14 +78,11 @@ export const createSceneSelectors = (initialState?: SceneStoreState): SceneSelec
             bindings: initialState.bindings.byElement[id] ?? {},
         }));
         cachedAssignmentsSignature = macroAssignmentsFingerprint(initialState);
-        cachedAssignmentsResult = Object.entries(initialState.bindings.byTargetMacro ?? {}).flatMap(
-            ([macroId, assignments]) =>
-                assignments.map(({ target }) => ({
-                    macroId,
-                    target,
-                    elementId: target.owner.id,
-                    propertyPath: target.propertyPath,
-                }))
+        cachedAssignmentsResult = Object.entries(initialState.bindings.byMacro).flatMap(([macroId, assignments]) =>
+            assignments.map(({ target }) => ({
+                macroId,
+                target,
+            }))
         );
     }
 
@@ -133,29 +110,16 @@ export const createSceneSelectors = (initialState?: SceneStoreState): SceneSelec
         if (signature === cachedAssignmentsSignature) {
             return cachedAssignmentsResult;
         }
-        const structured =
-            state.bindings.byTargetMacro ??
-            Object.fromEntries(
-                Object.entries(state.bindings.byMacro).map(([macroId, assignments]) => [
-                    macroId,
-                    assignments.map((assignment) => ({
-                        target: elementPropertyTarget(assignment.elementId, assignment.propertyPath),
-                    })),
-                ])
-            );
-        const next = Object.entries(structured)
+        const next = Object.entries(state.bindings.byMacro)
             .flatMap(([macroId, assignments]) =>
                 assignments.map(({ target }) => ({
                     macroId,
                     target,
-                    elementId: target.owner.id,
-                    propertyPath: target.propertyPath,
                 }))
             )
             .sort((a, b) => {
                 if (a.macroId === b.macroId) {
-                    if (a.elementId === b.elementId) return a.propertyPath.localeCompare(b.propertyPath);
-                    return a.elementId.localeCompare(b.elementId);
+                    return encodePropertyTarget(a.target).localeCompare(encodePropertyTarget(b.target));
                 }
                 return a.macroId.localeCompare(b.macroId);
             });

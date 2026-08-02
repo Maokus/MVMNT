@@ -13,6 +13,7 @@ import {
     useMacroAssignments,
 } from '@state/scene';
 import { DocumentGateway } from '@persistence/document-gateway';
+import { elementPropertyTarget } from '@automation/types';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 
@@ -137,7 +138,7 @@ describe('store migration acceptance criteria', () => {
             const { result } = renderHook(() => useMacroAssignments());
             expect(result.current.some((entry) => entry.macroId === 'macro.color.primary')).toBe(true);
             const assignment = result.current.find((entry) => entry.macroId === 'macro.color.primary');
-            expect(assignment).toMatchObject({ elementId: 'title', propertyPath: 'color' });
+            expect(assignment).toMatchObject({ target: elementPropertyTarget('title', 'color') });
         });
     });
 
@@ -179,7 +180,7 @@ describe('store migration acceptance criteria', () => {
                 });
 
                 expect(store.getState().bindings.byMacro['macro.color.primary']).toEqual([
-                    { elementId: 'title', propertyPath: 'color' },
+                    { target: elementPropertyTarget('title', 'color') },
                 ]);
             } finally {
                 resetMacroStoreBinding();

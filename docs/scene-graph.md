@@ -47,6 +47,12 @@ group cascades through its elements and element-owned automation; ungrouping is 
 children. Reparenting through animated ancestry is rejected until explicit preservation and baking modes are
 implemented.
 
+Portable copy/paste and cross-document structure transfer use `SceneSubtreeBundle`. A bundle contains detached
+recursive nodes, their element records and node bindings, referenced macros, and referenced automation channels.
+Import allocates every node, element, macro, and channel ID before rewriting references, validates the complete graph,
+and attaches it through one rollback-safe scene command. Document-owned asset bytes, plugin packages, and timeline
+tracks are reported as dependencies; transferring those payloads is a separate document-level concern.
+
 ## Editor behavior
 
 Selection is node-based and transient. It tracks an active node, range anchor, expanded tree rows, and the group

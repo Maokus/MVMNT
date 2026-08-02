@@ -231,7 +231,7 @@ export function rebuildAutomationTargetIndex(channels: Record<string, Automation
     return result;
 }
 
-/** Compatibility migration for pre-v13 element-owned channels. */
+/** Persistence-boundary migration for pre-v13 element-owned channels. */
 export function migrateLegacyAutomationState(input: unknown): {
     state: AutomationState;
     channelIdMap: Record<string, string>;
@@ -282,6 +282,29 @@ export function migrateLegacyAutomationState(input: unknown): {
         state: { channels, channelIdByTarget: rebuildAutomationTargetIndex(channels) },
         channelIdMap,
     };
+}
+
+/** Clone the current structured automation contract used by runtime snapshots and undo. */
+export function cloneCurrentAutomationState(input: AutomationState | null | undefined): AutomationState {
+    if (!input) return createEmptyAutomationState();
+    const channels: Record<string, AutomationChannel> = {};
+    for (const [storedId, channel] of Object.entries(input.channels)) {
+        if (channel.id !== storedId) {
+            throw new Error(`Automation channel key '${storedId}' does not match channel id '${channel.id}'`);
+        }
+        if (!isPropertyTarget(channel.target)) {
+            throw new Error(`Automation channel '${storedId}' has an invalid structured target`);
+        }
+        channels[storedId] = {
+            ...channel,
+            target: {
+                owner: { ...channel.target.owner },
+                propertyPath: channel.target.propertyPath,
+            },
+            keyframes: channel.keyframes.map(cloneKeyframe),
+        };
+    }
+    return { channels, channelIdByTarget: rebuildAutomationTargetIndex(channels) };
 }
 
 /** Create a new, empty automation channel. */

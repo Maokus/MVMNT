@@ -11,20 +11,20 @@ interface AutomationStoreSlice {
     elements: Record<string, { id: string; type: string }>;
     graph: SceneGraphState;
     interaction: {
-        automationExpandedElements: string[];
+        automationExpandedOwners: string[];
         automationExpandedCurves: string[];
     };
 }
 
-export interface AutomatedElementView {
-    elementId: string;
-    elementType: string;
+export interface AutomatedOwnerView {
+    ownerId: string;
+    ownerType: string;
     ownerKind: 'element' | 'node';
     channels: AutomationChannel[];
 }
 
-/** Returns an ordered list of elements that have at least one automation channel. */
-export function selectAutomatedElements(state: AutomationStoreSlice): AutomatedElementView[] {
+/** Returns an ordered list of property owners that have at least one automation channel. */
+export function selectAutomatedOwners(state: AutomationStoreSlice): AutomatedOwnerView[] {
     const channelsByElement = new Map<string, AutomationChannel[]>();
 
     for (const channel of Object.values(state.automation.channels)) {
@@ -37,7 +37,7 @@ export function selectAutomatedElements(state: AutomationStoreSlice): AutomatedE
         }
     }
 
-    const result: AutomatedElementView[] = [];
+    const result: AutomatedOwnerView[] = [];
     for (const node of traverseSceneGraph(state.graph)) {
         if (node.kind !== 'element') continue;
         const elementId = node.elementId;
@@ -48,8 +48,8 @@ export function selectAutomatedElements(state: AutomationStoreSlice): AutomatedE
         // Sort channels by property key for stable ordering
         channels.sort((a, b) => a.target.propertyPath.localeCompare(b.target.propertyPath));
         result.push({
-            elementId,
-            elementType: element.type,
+            ownerId: elementId,
+            ownerType: element.type,
             ownerKind: 'element',
             channels,
         });
@@ -59,7 +59,7 @@ export function selectAutomatedElements(state: AutomationStoreSlice): AutomatedE
         const channels = channelsByElement.get(`node:${node.id}`);
         if (!channels?.length) continue;
         channels.sort((a, b) => a.target.propertyPath.localeCompare(b.target.propertyPath));
-        result.push({ elementId: node.id, elementType: '__host_node__', ownerKind: 'node', channels });
+        result.push({ ownerId: node.id, ownerType: '__host_node__', ownerKind: 'node', channels });
     }
 
     return result;
@@ -67,15 +67,15 @@ export function selectAutomatedElements(state: AutomationStoreSlice): AutomatedE
 
 /** Count the total visible automation rows (headers + expanded channel rows). */
 export function selectVisibleAutomationRowCount(state: AutomationStoreSlice): number {
-    const elements = selectAutomatedElements(state);
+    const elements = selectAutomatedOwners(state);
     if (elements.length === 0) return 0;
 
     let count = 0; // No section header row — we use a simple divider
-    const expanded = new Set(state.interaction.automationExpandedElements);
+    const expanded = new Set(state.interaction.automationExpandedOwners);
 
     for (const el of elements) {
         count += 1; // Element header row
-        if (expanded.has(el.elementId)) {
+        if (expanded.has(el.ownerId)) {
             count += el.channels.length; // Channel rows
             // Count expanded curve editors
             for (const ch of el.channels) {

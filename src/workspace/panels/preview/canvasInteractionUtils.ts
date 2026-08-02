@@ -135,7 +135,7 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
             nodeIds: [...nodeIds],
             originalGraph: cloneSceneGraph(useSceneStore.getState().graph),
             dragElementId: selectedId ?? nodeIds[0],
-            snapTargets: buildSnapTargets(vis, useSelectionStore.getState().selectedElementIds),
+            snapTargets: buildSnapTargets(vis, useSelectionStore.getState().getSelectedElementIds()),
             snapTolerance: DEFAULT_SNAP_TOLERANCE,
         };
         vis.setInteractionState({ snapGuides: [] });
@@ -708,14 +708,10 @@ export function onCanvasMouseMove(e: CanvasMouseEvent, deps: InteractionDeps) {
         meta.end = { x, y };
         const frame = vis.getResolvedSceneFrame?.(vis.getCurrentTime?.() ?? 0);
         if (frame) {
-            const store = useSceneStore.getState();
             const selection = useSelectionStore.getState();
+            const store = useSceneStore.getState();
             const ids = marqueeNodeIds(frame, selection.editingContainerId ?? store.graph.rootId, meta.start, meta.end);
-            selection.selectSceneNodes(
-                ids,
-                ids.map((id) => store.elementIdByNodeId[id]).filter(Boolean),
-                ids.at(-1) ?? null
-            );
+            selection.selectSceneNodes(ids, ids.at(-1) ?? null);
         }
         vis.setInteractionState({
             marqueeBounds: {

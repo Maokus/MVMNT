@@ -12,8 +12,8 @@ import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import {
-    useAutomatedElementIds,
-    useElementChannels,
+    useAutomatedOwnerIds,
+    useOwnerChannels,
     useAutomationExpanded,
     useCurveEditorExpanded,
 } from '@automation/hooks';
@@ -299,15 +299,15 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
 const ElementAutomationGroup: React.FC<{ elementId: string }> = ({ elementId }) => {
     const owner = useSceneStore(useCallback((s) => s.elements[elementId] ?? s.graph.nodesById[elementId], [elementId]));
     const expanded = useAutomationExpanded(elementId);
-    const channels = useElementChannels(elementId);
+    const channels = useOwnerChannels(elementId);
     const searchQuery = useSceneStore((s) => s.interaction.automationSearchQuery);
 
     const toggleExpanded = useCallback(() => {
         useSceneStore.setState((state) => {
-            const list = state.interaction.automationExpandedElements;
+            const list = state.interaction.automationExpandedOwners;
             const next = expanded ? list.filter((id) => id !== elementId) : [...list, elementId];
             return {
-                interaction: { ...state.interaction, automationExpandedElements: next },
+                interaction: { ...state.interaction, automationExpandedOwners: next },
             };
         });
     }, [elementId, expanded]);
@@ -347,7 +347,7 @@ const ElementAutomationGroup: React.FC<{ elementId: string }> = ({ elementId }) 
 
 /** Left-column labels for the automation section, rendered below track rows. */
 const AutomationTrackLabels: React.FC = () => {
-    const automatedIds = useAutomatedElementIds();
+    const automatedIds = useAutomatedOwnerIds();
     const searchQuery = useSceneStore((s) => s.interaction.automationSearchQuery);
 
     if (automatedIds.length === 0) return null;

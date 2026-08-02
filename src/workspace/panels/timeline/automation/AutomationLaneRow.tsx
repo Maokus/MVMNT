@@ -37,7 +37,7 @@ import { AUTOMATION_ROW_HEIGHT } from '../constants';
 
 function focusChannelOwner(channel: AutomationChannel) {
     if (channel.target.owner.kind === 'element') {
-        useSelectionStore.getState().setSelectedElementIds([channel.target.owner.id]);
+        useSelectionStore.getState().selectElements([channel.target.owner.id]);
     } else {
         useSelectionStore.getState().setSceneNodeInspectorContext(channel.target.owner.id);
     }

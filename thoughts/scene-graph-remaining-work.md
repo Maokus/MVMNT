@@ -3,19 +3,28 @@
 Status: post-cleanup follow-up, 2026-08-02. Phases 1–5 are implemented; Phase 6 and Phase 7 are intentionally excluded
 from the current pass.
 
+## Completed post-phase cleanup
+
+- Node IDs are the sole mutable scene selection. Element IDs are derived for inspector consumers, selections are
+  ancestry-normalized, and reconciliation can recover the nearest surviving ancestor.
+- Macro reverse lookup is one structured-target index. Automation UI state and selectors use owner/target names.
+- `SceneSubtreeBundle` exports detached recursive subtrees and imports them atomically with two-pass node, element,
+  macro, and channel ID remapping. Structured bindings and targets are rewritten, validation runs before attach, and
+  command undo restores the exact prior snapshot.
+- Runtime scene imports accept only structured automation. Pre-v13 automation decoding remains in the persistence
+  migration, not in the store's undo/import path.
+
 ## Remaining Phase 5 and cross-cutting work
 
-- Make node selection the sole mutable scene selection. Derive inspector element IDs instead of synchronizing
-  `selectedNodeIds` and `selectedElementIds`, and normalize ancestor/descendant selections at every entry point.
-- Consolidate macro reverse lookup into one structured-target index and remove compatibility element/path fields from
-  assignment views. Rename element-centric automation UI state and selectors to owner/target terminology.
-- Improve editor reconciliation with command hints, nearest surviving ancestor/sibling fallback, editing-scope
-  recovery, and consistent effective hidden/locked handling.
-- Add target-aware acceptance coverage for timeline focus, auto-key/overrides, rename/delete, mixed node/element
-  selection, duplication, and preview/export sampling of an animated group.
-- Implement portable `SceneSubtreeBundle` copy/paste and cross-document import with two-pass ID allocation/remapping,
-  detached validation, atomic attach, exact undo, and explicit plugin/asset/macro/track-reference policy.
-- Replace the synthetic v7 migration inputs with a golden fixture exported by 0.15.4 and verify visual order and timing.
+- Add explicit structural-command selection hints; finish consistent effective hidden/locked handling in every
+  inspector and timeline entry point. General reconciliation now falls back to a surviving sibling, ancestor, or root
+  editing scope.
+- Complete the target-aware acceptance matrix for timeline focus, auto-key/transient overrides, mixed-owner
+  selection, and preview/export parity for animated groups. Structural duplication, deletion, exact undo, selection
+  reconciliation, and portable import now have focused coverage.
+- Add document-level transfer for external asset bytes, plugin packages, and timeline-track references. The current
+  subtree bundle records those references as dependencies but deliberately does not copy document-owned payloads.
+- Replace synthetic v7 migration inputs with a golden fixture exported by 0.15.4 and verify visual order and timing.
 
 ## Deferred by request
 
@@ -23,5 +32,5 @@ from the current pass.
 - Phase 7: folders, masks, composites/effects, layout containers, components, typed multi-editing, and any hierarchy
   surface in the plugin API.
 
-Recommended next step: finish the single-authority selection and macro cleanup, then implement the portable subtree
-bundle. After those land, Phase 6 can start with the affine-policy decisions listed in the main plan.
+Recommended next step: obtain the 0.15.4 golden fixture, close the remaining target-aware editor/export acceptance
+matrix, and decide the cross-document policy for document-owned dependencies. Phase 6 can then start separately.

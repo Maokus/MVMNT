@@ -7,6 +7,7 @@ import { useSelectionStore } from '@state/selectionStore';
 import type { FontAsset } from '@state/scene/fonts';
 import { createSceneSelectors } from '@state/scene/selectors';
 import audioMacroFixture from '@persistence/__fixtures__/baseline/scene.audio-feature-macro.json';
+import { elementPropertyTarget } from '@automation/types';
 
 type Store = ReturnType<typeof createSceneStore>;
 
@@ -34,7 +35,7 @@ describe('sceneStore', () => {
         importFixture();
 
         expect(store.getState().bindings.byMacro['macro.color.primary']).toEqual([
-            { elementId: 'title', propertyPath: 'color' },
+            { target: elementPropertyTarget('title', 'color') },
         ]);
 
         store.getState().updateBindings('title', { color: { type: 'constant', value: '#ffffff' } });
@@ -44,7 +45,7 @@ describe('sceneStore', () => {
         store.getState().updateBindings('title', { color: { type: 'macro', macroId: 'macro.color.primary' } });
 
         expect(store.getState().bindings.byMacro['macro.color.primary']).toEqual([
-            { elementId: 'title', propertyPath: 'color' },
+            { target: elementPropertyTarget('title', 'color') },
         ]);
     });
 
@@ -56,8 +57,8 @@ describe('sceneStore', () => {
         const state = store.getState();
         expect(deriveElementOrder(state.graph)).toEqual(['title', 'titleCopy', 'background']);
         expect(state.bindings.byMacro['macro.color.primary']).toEqual([
-            { elementId: 'title', propertyPath: 'color' },
-            { elementId: 'titleCopy', propertyPath: 'color' },
+            { target: elementPropertyTarget('title', 'color') },
+            { target: elementPropertyTarget('titleCopy', 'color') },
         ]);
     });
 
@@ -122,13 +123,14 @@ describe('sceneStore', () => {
         importFixture();
 
         // Selection is now in selectionStore
-        useSelectionStore.getState().selectElements(['title', 'missing', 'title', 'background']);
-        // selectElements delegates to store's selectElements which doesn't validate against scene elements;
-        // validation of element existence happens at the sceneStore level when elements are removed.
-        // The test here just verifies the selectionStore holds the values passed.
-        // Note: the old sceneStore normalised away missing/duplicate IDs.
-        // New behaviour: caller is responsible; we verify selectElements sets what was given.
-        expect(useSelectionStore.getState().selectedElementIds).toEqual(['title', 'missing', 'title', 'background']);
+        const state = store.getState();
+        useSelectionStore
+            .getState()
+            .selectSceneNodes([state.nodeIdByElementId.title, state.nodeIdByElementId.background]);
+        expect(useSelectionStore.getState().selectedNodeIds).toEqual([
+            state.nodeIdByElementId.title,
+            state.nodeIdByElementId.background,
+        ]);
 
         store.getState().setInteractionState({ hoveredElementId: 'background' });
         expect(store.getState().interaction.hoveredElementId).toBe('background');
@@ -178,7 +180,9 @@ describe('sceneStore', () => {
             type: 'macro',
             macroId: 'macro.color.accent',
         });
-        expect(state.bindings.byMacro['macro.color.accent']).toEqual([{ elementId: 'title', propertyPath: 'color' }]);
+        expect(state.bindings.byMacro['macro.color.accent']).toEqual([
+            { target: elementPropertyTarget('title', 'color') },
+        ]);
     });
 
     it('keeps macro exportedAt stable across draft exports without mutations', () => {

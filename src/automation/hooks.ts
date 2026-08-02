@@ -10,7 +10,7 @@ import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { channelForTarget, elementPropertyTarget, encodePropertyTarget, findKeyframeAtTick } from './types';
 import type { AutomationChannel, AutomationKeyframe, PropertyTarget } from './types';
-import { selectAutomatedElements } from './selectors';
+import { selectAutomatedOwners } from './selectors';
 
 /** Returns the automation channel for an element property, or null if not automated. */
 export function useAutomationChannel(elementId: string, propertyKey: string): AutomationChannel | null {
@@ -56,7 +56,7 @@ export function useIsPropertyAutomated(elementId: string, propertyKey: string): 
 }
 
 /** Returns all automation channels for an element or node owner, sorted by property path. */
-export function useElementChannels(ownerId: string): AutomationChannel[] {
+export function useOwnerChannels(ownerId: string): AutomationChannel[] {
     return useSceneStore(
         useCallback(
             (state) => {
@@ -74,19 +74,19 @@ export function useElementChannels(ownerId: string): AutomationChannel[] {
     );
 }
 
-/** Returns element IDs that have at least one automation channel. */
-export function useAutomatedElementIds(): string[] {
+/** Returns owner IDs that have at least one automation channel. */
+export function useAutomatedOwnerIds(): string[] {
     return useSceneStore(
         useCallback((state) => {
-            return selectAutomatedElements(state).map((e) => e.elementId);
+            return selectAutomatedOwners(state).map((e) => e.ownerId);
         }, [])
     );
 }
 
-/** Returns whether an element is expanded in the automation section. */
-export function useAutomationExpanded(elementId: string): boolean {
+/** Returns whether an owner is expanded in the automation section. */
+export function useAutomationExpanded(ownerId: string): boolean {
     return useSceneStore(
-        useCallback((state) => state.interaction.automationExpandedElements.includes(elementId), [elementId])
+        useCallback((state) => state.interaction.automationExpandedOwners.includes(ownerId), [ownerId])
     );
 }
 

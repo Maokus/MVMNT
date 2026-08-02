@@ -3,6 +3,7 @@ import {
     dispatchSceneCommand,
     registerSceneCommandListener,
     clearSceneCommandListeners,
+    createSceneSubtreeBundle,
     type SceneCommandTelemetryEvent,
 } from '@state/scene';
 import { loadDefaultScene } from '@core/default-scene-loader';
@@ -337,6 +338,57 @@ describe('scene command gateway', () => {
         ).toBe(false);
 
         dispatchSceneCommand(deletion.patch!.undo[0]);
+        expect(useSceneStore.getState().exportSceneDraft()).toEqual(before);
+    });
+
+    it('imports a portable subtree atomically with remapped nodes, elements, macros, and channels', () => {
+        dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'portable-element' });
+        const elementNodeId = useSceneStore.getState().nodeIdByElementId['portable-element'];
+        dispatchSceneCommand({
+            type: 'groupNodes',
+            nodeIds: [elementNodeId],
+            groupId: 'portable-group',
+            name: 'Portable group',
+        });
+        dispatchSceneCommand({
+            type: 'createMacro',
+            macroId: 'portable-scale',
+            definition: { type: 'number', value: 2 },
+        });
+        dispatchSceneCommand({
+            type: 'updatePropertyTargetBinding',
+            target: nodePropertyTarget('portable-group', 'uniformScale'),
+            binding: { type: 'macro', macroId: 'portable-scale' },
+        });
+        dispatchSceneCommand({
+            type: 'enablePropertyAutomation',
+            target: nodePropertyTarget('portable-group', 'translationX'),
+            valueType: 'number',
+            initialKeyframes: [{ tick: 0, value: 40, segmentInterpolation: { mode: 'linear', direction: 'auto' } }],
+        });
+        const bundle = createSceneSubtreeBundle(useSceneStore.getState(), ['portable-group']);
+        const before = useSceneStore.getState().exportSceneDraft();
+
+        const imported = dispatchSceneCommand({ type: 'importSubtreeBundle', bundle });
+
+        expect(imported.success).toBe(true);
+        const state = useSceneStore.getState();
+        const copiedGroup = Object.values(state.graph.nodesById).find(
+            (node) => node.kind === 'group' && node.id !== 'portable-group' && node.name === 'Portable group'
+        );
+        expect(copiedGroup).toBeDefined();
+        expect(copiedGroup && 'children' in copiedGroup ? copiedGroup.children : []).toHaveLength(1);
+        const copiedBinding = state.nodeBindings[copiedGroup!.id];
+        expect(copiedBinding.uniformScale).toEqual({ type: 'macro', macroId: 'portable-scale copy 2' });
+        const copiedChannel = Object.values(state.automation.channels).find(
+            (channel) => channel.target.owner.kind === 'node' && channel.target.owner.id === copiedGroup!.id
+        );
+        expect(copiedChannel?.target.propertyPath).toBe('translationX');
+        expect(copiedChannel?.keyframes[0]?.value).toBe(40);
+        expect(state.macros.byId['portable-scale copy 2']?.value).toBe(2);
+        expect(Object.keys(state.elements)).toContain('portable-element copy 2');
+
+        dispatchSceneCommand(imported.patch!.undo[0]);
         expect(useSceneStore.getState().exportSceneDraft()).toEqual(before);
     });
 

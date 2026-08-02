@@ -12,8 +12,8 @@ import { useSelectionStore } from '@state/selectionStore';
 import { useTickScale } from '../hooks/useTickScale';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import {
-    useAutomatedElementIds,
-    useElementChannels,
+    useAutomatedOwnerIds,
+    useOwnerChannels,
     useAutomationExpanded,
     useCurveEditorExpanded,
 } from '@automation/hooks';
@@ -91,7 +91,7 @@ const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ 
 /** Lanes for a single element's automation channels. */
 const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = ({ elementId, width }) => {
     const expanded = useAutomationExpanded(elementId);
-    const channels = useElementChannels(elementId);
+    const channels = useOwnerChannels(elementId);
     const ownerExists = useSceneStore(
         useCallback((s) => Boolean(s.elements[elementId] || s.graph.nodesById[elementId]), [elementId])
     );
@@ -376,7 +376,7 @@ interface AutomationLanesProps {
 }
 
 const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
-    const automatedIds = useAutomatedElementIds();
+    const automatedIds = useAutomatedOwnerIds();
     const { toTick } = useTickScale();
 
     // Cross-lane box select

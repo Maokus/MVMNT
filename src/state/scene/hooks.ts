@@ -47,18 +47,25 @@ export function useSceneElements(): SceneElementListItem[] {
 }
 
 export function useSceneSelection(): SceneSelectionView {
-    return useSelectionStore((state) => {
-        const ids = state.selectedElementIds;
-        return {
-            ids,
-            primaryId: ids.at(-1) ?? null,
+    const selection = useSelectionStore(
+        (state) => ({
             nodeIds: state.selectedNodeIds,
             activeNodeId: state.activeNodeId,
             anchorNodeId: state.anchorNodeId,
             editingContainerId: state.editingContainerId,
-            hasSelection: state.selectedNodeIds.length > 0 || ids.length > 0,
+        }),
+        shallow
+    );
+    const elementIdByNodeId = useSceneStore((state) => state.elementIdByNodeId, shallow);
+    return useMemo(() => {
+        const ids = selection.nodeIds.map((id) => elementIdByNodeId[id]).filter(Boolean);
+        return {
+            ids,
+            primaryId: ids.at(-1) ?? null,
+            ...selection,
+            hasSelection: selection.nodeIds.length > 0,
         };
-    }, shallow);
+    }, [elementIdByNodeId, selection]);
 }
 
 export function useMacroAssignments() {

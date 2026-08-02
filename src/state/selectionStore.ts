@@ -1,11 +1,25 @@
 import { createWithEqualityFn } from 'zustand/traditional';
 import { shallow } from 'zustand/shallow';
 import type { PropertyTarget } from '@automation/types';
+import type { SceneGraphState, SceneNode } from '@state/scene-graph';
 
 let resolveChannelTarget: (channelId: string) => PropertyTarget | undefined = () => undefined;
+let resolveNodeIdForElement: (elementId: string) => string | undefined = () => undefined;
+let resolveElementIdForNode: (nodeId: string) => string | undefined = () => undefined;
+let resolveSceneGraph: () => SceneGraphState | undefined = () => undefined;
 
 export function setSelectionChannelTargetResolver(resolver: (channelId: string) => PropertyTarget | undefined): void {
     resolveChannelTarget = resolver;
+}
+
+export function setSelectionSceneResolvers(resolvers: {
+    nodeIdForElement: (elementId: string) => string | undefined;
+    elementIdForNode: (nodeId: string) => string | undefined;
+    graph: () => SceneGraphState;
+}): void {
+    resolveNodeIdForElement = resolvers.nodeIdForElement;
+    resolveElementIdForNode = resolvers.elementIdForNode;
+    resolveSceneGraph = resolvers.graph;
 }
 
 export interface SelectedKeyframe {
@@ -38,7 +52,6 @@ export type ClipTimelineSelection =
 export type SelectionTarget = 'none' | 'elements' | 'tracks' | 'keyframes' | 'clipTimeline';
 
 interface SelectionState {
-    selectedElementIds: string[];
     selectedNodeIds: string[];
     activeNodeId: string | null;
     anchorNodeId: string | null;
@@ -53,12 +66,12 @@ interface SelectionState {
 interface SelectionActions {
     /** Set elements as active selection domain. */
     selectElements(ids: string[]): void;
-    selectSceneNodes(nodeIds: string[], elementIds: string[], activeNodeId?: string | null): void;
-    toggleSceneNode(nodeId: string, elementId?: string): void;
-    selectSceneNodeRange(siblingIds: string[], targetNodeId: string, elementIdsByNodeId: Record<string, string>): void;
+    selectSceneNodes(nodeIds: string[], activeNodeId?: string | null): void;
+    toggleSceneNode(nodeId: string): void;
+    selectSceneNodeRange(siblingIds: string[], targetNodeId: string): void;
     setEditingContainerId(nodeId: string | null): void;
     toggleNodeExpanded(nodeId: string): void;
-    reconcileSceneNodes(validNodeIds: string[], rootId: string, elementIdsByNodeId: Record<string, string>): void;
+    reconcileSceneNodes(graph: SceneGraphState, previousGraph?: SceneGraphState): void;
     /** Set tracks as active selection domain. */
     selectTracks(ids: string[]): void;
     /** Set keyframes as active selection domain. */
@@ -67,7 +80,6 @@ interface SelectionActions {
     selectClipTimeline(selection: ClipTimelineSelection | null): void;
 
     /** Low-level setters — update array without changing activeTarget. */
-    setSelectedElementIds(ids: string[]): void;
     setSceneNodeInspectorContext(nodeId: string): void;
     setSelectedTrackIds(ids: string[]): void;
     setSelectedKeyframes(keys: SelectedKeyframe[]): void;
@@ -88,6 +100,7 @@ interface SelectionActions {
 
     // Derived selectors (callable from event handlers without hooks)
     getActiveCommandTarget(): SelectionTarget;
+    getSelectedElementIds(): string[];
     /** Returns the element IDs relevant for the inspector panel. */
     getInspectorContext(): { elementIds: string[] };
     /**
@@ -98,6 +111,66 @@ interface SelectionActions {
 }
 
 export type SelectionStoreState = SelectionState & SelectionActions;
+
+function elementIdsForNodes(nodeIds: readonly string[]): string[] {
+    return nodeIds.map(resolveElementIdForNode).filter((id): id is string => Boolean(id));
+}
+
+function normalizeNodeIds(nodeIds: readonly string[], graph: SceneGraphState): string[] {
+    const unique = [...new Set(nodeIds)].filter((id) => id !== graph.rootId && Boolean(graph.nodesById[id]));
+    const selected = new Set(unique);
+    return unique.filter((id) => {
+        let parentId = graph.nodesById[id]?.parentId;
+        while (parentId) {
+            if (selected.has(parentId)) return false;
+            parentId = graph.nodesById[parentId]?.parentId ?? null;
+        }
+        return true;
+    });
+}
+
+function normalizeAgainstCurrentGraph(nodeIds: readonly string[]): string[] {
+    const unique = [...new Set(nodeIds)];
+    const graph = resolveSceneGraph();
+    return graph && unique.some((id) => Boolean(graph.nodesById[id])) ? normalizeNodeIds(unique, graph) : unique;
+}
+
+function nearestSurvivingSelectionNode(
+    nodeId: string,
+    previousGraph: SceneGraphState,
+    graph: SceneGraphState
+): string | null {
+    const valid = new Set(Object.keys(graph.nodesById));
+    let cursor: string | null = nodeId;
+    while (cursor) {
+        const previousNode: SceneNode | undefined = previousGraph.nodesById[cursor];
+        const parentId: string | null = previousNode?.parentId ?? null;
+        if (!parentId) break;
+        const previousParent = previousGraph.nodesById[parentId];
+        if (previousParent && 'children' in previousParent) {
+            const index = previousParent.children.indexOf(cursor);
+            for (let distance = 1; distance < previousParent.children.length; distance += 1) {
+                const after = previousParent.children[index + distance];
+                if (after && valid.has(after)) return after;
+                const before = previousParent.children[index - distance];
+                if (before && valid.has(before)) return before;
+            }
+        }
+        if (parentId !== graph.rootId && valid.has(parentId)) return parentId;
+        cursor = parentId;
+    }
+    return null;
+}
+
+function nearestSurvivingContainer(nodeId: string, previousGraph: SceneGraphState, graph: SceneGraphState): string {
+    let cursor = previousGraph.nodesById[nodeId]?.parentId ?? null;
+    while (cursor) {
+        const candidate = graph.nodesById[cursor];
+        if (candidate && 'children' in candidate) return cursor;
+        cursor = previousGraph.nodesById[cursor]?.parentId ?? null;
+    }
+    return graph.rootId;
+}
 
 function deriveElementIdsFromKeyframes(keyframes: SelectedKeyframe[]): string[] {
     const ids = new Set<string>();
@@ -111,7 +184,6 @@ function deriveElementIdsFromKeyframes(keyframes: SelectedKeyframe[]): string[] 
 export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
     (set, get) => ({
         // ── State ──────────────────────────────────────────────────────────────
-        selectedElementIds: [],
         selectedNodeIds: [],
         activeNodeId: null,
         anchorNodeId: null,
@@ -124,25 +196,24 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
 
         // ── High-level domain selectors (set array + activeTarget atomically) ──
         selectElements(ids) {
+            const resolved = [...new Set(ids.map(resolveNodeIdForElement).filter(Boolean))] as string[];
+            const selectedNodeIds = normalizeAgainstCurrentGraph(resolved);
             set({
-                selectedElementIds: ids,
-                selectedNodeIds: [],
-                activeNodeId: null,
-                anchorNodeId: null,
+                selectedNodeIds,
+                activeNodeId: selectedNodeIds.at(-1) ?? null,
+                anchorNodeId: selectedNodeIds.at(-1) ?? null,
                 selectedTrackIds: [],
                 selectedKeyframes: [],
                 clipTimelineSelection: null,
-                activeTarget: ids.length ? 'elements' : 'none',
+                activeTarget: selectedNodeIds.length ? 'elements' : 'none',
             });
         },
-        selectSceneNodes(nodeIds, elementIds, activeNodeId) {
-            const uniqueNodes = [...new Set(nodeIds)];
-            const uniqueElements = [...new Set(elementIds)];
+        selectSceneNodes(nodeIds, activeNodeId) {
+            const uniqueNodes = normalizeAgainstCurrentGraph(nodeIds);
             const active =
                 activeNodeId && uniqueNodes.includes(activeNodeId) ? activeNodeId : (uniqueNodes.at(-1) ?? null);
             set({
                 selectedNodeIds: uniqueNodes,
-                selectedElementIds: uniqueElements,
                 activeNodeId: active,
                 anchorNodeId: active,
                 selectedTrackIds: [],
@@ -151,26 +222,25 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
                 activeTarget: uniqueNodes.length ? 'elements' : 'none',
             });
         },
-        toggleSceneNode(nodeId, elementId) {
+        toggleSceneNode(nodeId) {
             const state = get();
             const included = state.selectedNodeIds.includes(nodeId);
             const selectedNodeIds = included
                 ? state.selectedNodeIds.filter((id) => id !== nodeId)
                 : [...state.selectedNodeIds, nodeId];
-            const selectedElementIds = elementId
-                ? included
-                    ? state.selectedElementIds.filter((id) => id !== elementId)
-                    : [...state.selectedElementIds, elementId]
-                : state.selectedElementIds;
+            const normalized = normalizeAgainstCurrentGraph(selectedNodeIds);
+            const preferredActive = included ? normalized.at(-1) : nodeId;
             set({
-                selectedNodeIds,
-                selectedElementIds,
-                activeNodeId: included ? (selectedNodeIds.at(-1) ?? null) : nodeId,
+                selectedNodeIds: normalized,
+                activeNodeId:
+                    preferredActive && normalized.includes(preferredActive)
+                        ? preferredActive
+                        : (normalized.at(-1) ?? null),
                 anchorNodeId: included ? state.anchorNodeId : nodeId,
-                activeTarget: selectedNodeIds.length ? 'elements' : 'none',
+                activeTarget: normalized.length ? 'elements' : 'none',
             });
         },
-        selectSceneNodeRange(siblingIds, targetNodeId, elementIdsByNodeId) {
+        selectSceneNodeRange(siblingIds, targetNodeId) {
             const state = get();
             const anchor =
                 state.anchorNodeId && siblingIds.includes(state.anchorNodeId) ? state.anchorNodeId : targetNodeId;
@@ -178,9 +248,9 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
             const end = siblingIds.indexOf(targetNodeId);
             if (start < 0 || end < 0) return;
             const selectedNodeIds = siblingIds.slice(Math.min(start, end), Math.max(start, end) + 1);
+            const normalized = normalizeAgainstCurrentGraph(selectedNodeIds);
             set({
-                selectedNodeIds,
-                selectedElementIds: selectedNodeIds.map((id) => elementIdsByNodeId[id]).filter(Boolean),
+                selectedNodeIds: normalized,
                 activeNodeId: targetNodeId,
                 anchorNodeId: anchor,
                 activeTarget: 'elements',
@@ -194,21 +264,31 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
                 expandedNodeIds: { ...state.expandedNodeIds, [nodeId]: state.expandedNodeIds[nodeId] === false },
             }));
         },
-        reconcileSceneNodes(validNodeIds, rootId, elementIdsByNodeId) {
+        reconcileSceneNodes(graph, previousGraph) {
             const state = get();
-            const valid = new Set(validNodeIds);
-            const selectedNodeIds = state.selectedNodeIds.filter((id) => valid.has(id));
+            const valid = new Set(Object.keys(graph.nodesById));
+            let selectedNodeIds = normalizeNodeIds(
+                state.selectedNodeIds.filter((id) => valid.has(id)),
+                graph
+            );
+            if (!selectedNodeIds.length && previousGraph && state.activeNodeId) {
+                const fallback = nearestSurvivingSelectionNode(state.activeNodeId, previousGraph, graph);
+                if (fallback) selectedNodeIds = [fallback];
+            }
             const activeNodeId =
                 state.activeNodeId && valid.has(state.activeNodeId)
                     ? state.activeNodeId
                     : (selectedNodeIds.at(-1) ?? null);
             set({
                 selectedNodeIds,
-                selectedElementIds: selectedNodeIds.map((id) => elementIdsByNodeId[id]).filter(Boolean),
                 activeNodeId,
                 anchorNodeId: state.anchorNodeId && valid.has(state.anchorNodeId) ? state.anchorNodeId : activeNodeId,
                 editingContainerId:
-                    state.editingContainerId && valid.has(state.editingContainerId) ? state.editingContainerId : rootId,
+                    state.editingContainerId && valid.has(state.editingContainerId)
+                        ? state.editingContainerId
+                        : state.editingContainerId && previousGraph
+                          ? nearestSurvivingContainer(state.editingContainerId, previousGraph, graph)
+                          : graph.rootId,
                 activeTarget:
                     state.activeTarget === 'elements' && !selectedNodeIds.length ? 'none' : state.activeTarget,
             });
@@ -216,7 +296,6 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
         selectTracks(ids) {
             set({
                 selectedTrackIds: ids,
-                selectedElementIds: [],
                 selectedNodeIds: [],
                 activeNodeId: null,
                 anchorNodeId: null,
@@ -238,7 +317,6 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
         selectClipTimeline(selection) {
             set({
                 clipTimelineSelection: selection,
-                selectedElementIds: [],
                 selectedNodeIds: [],
                 activeNodeId: null,
                 anchorNodeId: null,
@@ -249,11 +327,8 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
         },
 
         // ── Low-level setters ───────────────────────────────────────────────
-        setSelectedElementIds(ids) {
-            set({ selectedElementIds: ids });
-        },
         setSceneNodeInspectorContext(nodeId) {
-            set({ selectedNodeIds: [nodeId], selectedElementIds: [], activeNodeId: nodeId, anchorNodeId: nodeId });
+            set({ selectedNodeIds: [nodeId], activeNodeId: nodeId, anchorNodeId: nodeId });
         },
         setSelectedTrackIds(ids) {
             set({ selectedTrackIds: ids });
@@ -272,7 +347,6 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
         clearSelection(target) {
             if (target === undefined) {
                 set({
-                    selectedElementIds: [],
                     selectedNodeIds: [],
                     activeNodeId: null,
                     anchorNodeId: null,
@@ -286,7 +360,6 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
             const { activeTarget } = get();
             const patch: Partial<SelectionState> = {};
             if (target === 'elements') {
-                patch.selectedElementIds = [];
                 patch.selectedNodeIds = [];
                 patch.activeNodeId = null;
                 patch.anchorNodeId = null;
@@ -300,20 +373,21 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
 
         // ── Housekeeping ────────────────────────────────────────────────────
         removeElementFromSelection(elementId) {
-            const { selectedElementIds, activeTarget } = get();
-            const next = selectedElementIds.filter((id) => id !== elementId);
-            set({
-                selectedElementIds: next,
-                activeTarget: activeTarget === 'elements' && !next.length ? 'none' : activeTarget,
-            });
+            const nodeId = resolveNodeIdForElement(elementId);
+            if (nodeId) {
+                const state = get();
+                const next = state.selectedNodeIds.filter((id) => id !== nodeId);
+                set({
+                    selectedNodeIds: next,
+                    activeTarget: state.activeTarget === 'elements' && !next.length ? 'none' : state.activeTarget,
+                });
+            }
             // Also remove any keyframes owned by this element's channels
             get().removeChannelsFromSelection(elementId);
         },
         renameElementInSelection(currentId, nextId) {
-            const { selectedElementIds } = get();
-            set({
-                selectedElementIds: selectedElementIds.map((id) => (id === currentId ? nextId : id)),
-            });
+            void currentId;
+            void nextId;
         },
         removeChannelsFromSelection(elementId) {
             const { selectedKeyframes, activeTarget } = get();
@@ -331,9 +405,12 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
         getActiveCommandTarget() {
             return get().activeTarget;
         },
+        getSelectedElementIds() {
+            return elementIdsForNodes(get().selectedNodeIds);
+        },
         getInspectorContext() {
-            const { activeTarget, selectedElementIds, selectedKeyframes } = get();
-            if (activeTarget === 'elements') return { elementIds: selectedElementIds };
+            const { activeTarget, selectedNodeIds, selectedKeyframes } = get();
+            if (activeTarget === 'elements') return { elementIds: elementIdsForNodes(selectedNodeIds) };
             if (activeTarget === 'keyframes') return { elementIds: deriveElementIdsFromKeyframes(selectedKeyframes) };
             return { elementIds: [] };
         },

@@ -187,7 +187,7 @@ export function useTimelineNavigation() {
                 case 'ArrowRight': {
                     if (e.defaultPrevented || e.ctrlKey || e.metaKey) break;
                     const sel = useSelectionStore.getState();
-                    if (sel.activeTarget === 'elements' && sel.selectedElementIds.length > 0) break;
+                    if (sel.activeTarget === 'elements' && sel.selectedNodeIds.length > 0) break;
                     const nudge = e.shiftKey ? CANONICAL_PPQ * (state.timeline.beatsPerBar || 4) : CANONICAL_PPQ;
                     const dir = e.key === 'ArrowLeft' ? -1 : 1;
                     const next = Math.max(0, state.timeline.currentTick + dir * nudge);

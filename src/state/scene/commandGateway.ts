@@ -44,6 +44,7 @@ import {
     type DuplicateMappings,
     type Matrix2D,
 } from '@state/scene-graph';
+import { buildSceneSubtreeImport, type SceneSubtreeBundle, type SceneSubtreeImportOptions } from './subtreeBundle';
 
 export type SceneCommand =
     | {
@@ -100,6 +101,7 @@ export type SceneCommand =
           type: 'loadSerializedScene';
           payload: SceneImportPayload;
       }
+    | ({ type: 'importSubtreeBundle'; bundle: SceneSubtreeBundle } & SceneSubtreeImportOptions)
     | {
           type: 'createMacro';
           macroId: string;
@@ -447,6 +449,12 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
                 ],
             };
         }
+        case 'importSubtreeBundle': {
+            return {
+                redo: [cloneCommand(command)],
+                undo: [{ type: 'loadSerializedScene', payload: captureSceneSnapshot(state) }],
+            };
+        }
         case 'createMacro': {
             if (state.macros.byId[command.macroId]) return null;
             return {
@@ -774,6 +782,14 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
         case 'loadSerializedScene':
             store.importScene(command.payload);
             break;
+        case 'importSubtreeBundle': {
+            const { payload } = buildSceneSubtreeImport(store, command.bundle, {
+                parentId: command.parentId,
+                targetIndex: command.targetIndex,
+            });
+            store.importScene(payload);
+            break;
+        }
         case 'createMacro':
             store.createMacro(command.macroId, command.definition);
             break;
@@ -1008,6 +1024,7 @@ function now() {
 function requiresRollbackSnapshot(command: SceneCommand): boolean {
     return [
         'batch',
+        'importSubtreeBundle',
         'replaceGraph',
         'groupNodes',
         'ungroupNode',

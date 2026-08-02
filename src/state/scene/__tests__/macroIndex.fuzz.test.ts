@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
 import { deriveElementOrder } from '@state/scene-graph';
+import { elementPropertyTarget, encodePropertyTarget } from '@automation/types';
 
 describe('sceneStore macro inverse index fuzz', () => {
     function createRng(seed: number) {
@@ -67,20 +68,18 @@ describe('sceneStore macro inverse index fuzz', () => {
             }
 
             const nextState = store.getState();
-            const expected = new Map<string, Array<{ elementId: string; propertyPath: string }>>();
+            const expected = new Map<string, string[]>();
             for (const [elementId, bindings] of Object.entries(nextState.bindings.byElement)) {
                 for (const [propertyPath, binding] of Object.entries(bindings)) {
                     if (binding.type !== 'macro') continue;
                     if (!expected.has(binding.macroId)) expected.set(binding.macroId, []);
-                    expected.get(binding.macroId)!.push({ elementId, propertyPath });
+                    expected
+                        .get(binding.macroId)!
+                        .push(encodePropertyTarget(elementPropertyTarget(elementId, propertyPath)));
                 }
             }
             for (const entries of expected.values()) {
-                entries.sort((a, b) =>
-                    a.elementId === b.elementId
-                        ? a.propertyPath.localeCompare(b.propertyPath)
-                        : a.elementId.localeCompare(b.elementId)
-                );
+                entries.sort();
             }
 
             const actual = nextState.bindings.byMacro;
@@ -89,13 +88,7 @@ describe('sceneStore macro inverse index fuzz', () => {
             expect(actualKeys).toEqual(expectedKeys);
             for (const key of expectedKeys) {
                 const expectedAssignments = expected.get(key)!;
-                const actualAssignments = (actual[key] ?? [])
-                    .slice()
-                    .sort((a, b) =>
-                        a.elementId === b.elementId
-                            ? a.propertyPath.localeCompare(b.propertyPath)
-                            : a.elementId.localeCompare(b.elementId)
-                    );
+                const actualAssignments = (actual[key] ?? []).map(({ target }) => encodePropertyTarget(target)).sort();
                 expect(actualAssignments).toEqual(expectedAssignments);
             }
         }

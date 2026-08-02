@@ -3,6 +3,12 @@
 Status: Phases 1 through 5 are implemented. Current behavior is documented in
 [`docs/scene-graph.md`](../docs/scene-graph.md); later sections remain the proposed implementation sequence.
 
+Post-phase cleanup has also removed flat runtime order and `zIndex`, made structured property targets and node-only
+selection authoritative, consolidated macro reverse indexing, and introduced atomic portable subtree bundles. The
+remaining non-Phase-6/7 work is tracked in
+[`scene-graph-remaining-work.md`](./scene-graph-remaining-work.md); compatibility decisions are recorded in
+[`pre-0.16-compatibility-cleanup.md`](./pre-0.16-compatibility-cleanup.md).
+
 This is an implementation plan, not documentation of existing behavior. It is grounded in the code at the
 revision above and should be re-audited if the affected areas move substantially. The plan deliberately keeps
 the host in control of hierarchy. Plugins continue to describe element content; they do not create or own scene

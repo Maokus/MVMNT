@@ -4,3 +4,4 @@ export * from './runtimeAdapter';
 export * from './selectionGeometry';
 export * from './sceneTelemetry';
 export * from './fonts';
+export * from './subtreeBundle';

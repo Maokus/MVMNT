@@ -141,6 +141,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     const storeSelection = useSceneSelectionStore();
     const storeElements = useSceneElements();
     const graph = useSceneStore((state) => state.graph);
+    const previousGraphRef = useRef(graph);
     const elementIdByNodeId = useSceneStore((state) => state.elementIdByNodeId, shallow);
     const selectedNodeIds = storeSelection.nodeIds;
     const activeNodeId = storeSelection.activeNodeId;
@@ -200,12 +201,11 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
             if (!normalized || isNodeEffectivelyLocked(state.graph, normalized)) return;
             const selection = useSelectionStore.getState();
             if (options?.range && options.siblingIds) {
-                selection.selectSceneNodeRange(options.siblingIds, normalized, state.elementIdByNodeId);
+                selection.selectSceneNodeRange(options.siblingIds, normalized);
             } else if (options?.toggle) {
-                selection.toggleSceneNode(normalized, state.elementIdByNodeId[normalized]);
+                selection.toggleSceneNode(normalized);
             } else {
-                const elementId = state.elementIdByNodeId[normalized];
-                selection.selectSceneNodes([normalized], elementId ? [elementId] : [], normalized);
+                selection.selectSceneNodes([normalized], normalized);
             }
         },
         []
@@ -213,7 +213,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
 
     const selectElement = useCallback((elementId: string | null) => {
         if (!elementId) {
-            useSelectionStore.getState().selectSceneNodes([], [], null);
+            useSelectionStore.getState().selectSceneNodes([], null);
             return;
         }
         const state = useSceneStore.getState();
@@ -223,23 +223,19 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
             nodeId = state.graph.nodesById[nodeId]?.parentId ?? '';
         }
         if (!nodeId || nodeId === state.graph.rootId) return;
-        const selectedElement = state.elementIdByNodeId[nodeId];
-        useSelectionStore.getState().selectSceneNodes([nodeId], selectedElement ? [selectedElement] : [], nodeId);
+        useSelectionStore.getState().selectSceneNodes([nodeId], nodeId);
     }, []);
 
     useEffect(() => {
         const selection = useSelectionStore.getState();
-        selection.reconcileSceneNodes(Object.keys(graph.nodesById), graph.rootId, elementIdByNodeId);
+        selection.reconcileSceneNodes(graph, previousGraphRef.current);
+        previousGraphRef.current = graph;
         const selected = useSelectionStore.getState().selectedNodeIds;
         const unlocked = selected.filter((id) => !isNodeEffectivelyLocked(graph, id));
         if (unlocked.length !== selected.length) {
-            selection.selectSceneNodes(
-                unlocked,
-                unlocked.map((id) => elementIdByNodeId[id]).filter(Boolean),
-                unlocked.at(-1) ?? null
-            );
+            selection.selectSceneNodes(unlocked, unlocked.at(-1) ?? null);
         }
-    }, [graph, elementIdByNodeId]);
+    }, [graph]);
 
     useEffect(() => {
         if (selectedElement) {
@@ -413,7 +409,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     const addElement = useCallback(
         (elementType: string, initialConfig?: Record<string, unknown>) => {
             const uniqueId = generateUniqueElementId(elementType);
-            const selectedId = useSelectionStore.getState().selectedElementIds[0] ?? null;
+            const selectedId = useSelectionStore.getState().getSelectedElementIds()[0] ?? null;
             const currentOrder = deriveElementOrder(useSceneStore.getState().graph);
             const selectedIndex = selectedId != null ? currentOrder.indexOf(selectedId) : -1;
             const targetIndex = selectedIndex >= 0 ? selectedIndex + 1 : undefined;
@@ -526,7 +522,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
             'SceneSelectionContext.groupNodes'
         );
         if (!ok) return;
-        useSelectionStore.getState().selectSceneNodes([groupId], [], groupId);
+        useSelectionStore.getState().selectSceneNodes([groupId], groupId);
         visualizer?.invalidateRender?.();
     }, [runSceneCommand, visualizer]);
 
@@ -542,13 +538,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         const ok = runSceneCommand({ type: 'ungroupNode', nodeId: groupId }, 'SceneSelectionContext.ungroupNode');
         if (!ok) return;
         const current = useSceneStore.getState();
-        useSelectionStore
-            .getState()
-            .selectSceneNodes(
-                children,
-                children.map((id) => current.elementIdByNodeId[id]).filter(Boolean),
-                children.at(-1) ?? null
-            );
+        useSelectionStore.getState().selectSceneNodes(children, children.at(-1) ?? null);
         visualizer?.invalidateRender?.();
     }, [runSceneCommand, visualizer]);
 
@@ -563,14 +553,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         );
         if (!ok) return;
         const created = nodeIds.map((id) => mappings.nodeIdMap[id]).filter(Boolean);
-        const current = useSceneStore.getState();
-        useSelectionStore
-            .getState()
-            .selectSceneNodes(
-                created,
-                created.map((id) => current.elementIdByNodeId[id]).filter(Boolean),
-                created.at(-1) ?? null
-            );
+        useSelectionStore.getState().selectSceneNodes(created, created.at(-1) ?? null);
         visualizer?.invalidateRender?.();
     }, [runSceneCommand, visualizer]);
 
@@ -581,7 +564,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         const parentId = scene.graph.nodesById[nodeIds[0]]?.parentId ?? scene.graph.rootId;
         const ok = runSceneCommand({ type: 'deleteSubtrees', nodeIds }, 'SceneSelectionContext.deleteSubtrees');
         if (!ok) return;
-        useSelectionStore.getState().selectSceneNodes([], [], null);
+        useSelectionStore.getState().selectSceneNodes([], null);
         useSelectionStore
             .getState()
             .setEditingContainerId(useSceneStore.getState().graph.nodesById[parentId] ? parentId : SCENE_ROOT_ID);
@@ -627,7 +610,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         const graph = useSceneStore.getState().graph;
         if (graph.nodesById[nodeId]?.kind !== 'group' || isNodeEffectivelyLocked(graph, nodeId)) return;
         useSelectionStore.getState().setEditingContainerId(nodeId);
-        useSelectionStore.getState().selectSceneNodes([], [], null);
+        useSelectionStore.getState().selectSceneNodes([], null);
     }, []);
 
     const exitGroup = useCallback(() => {

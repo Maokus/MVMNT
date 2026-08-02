@@ -13,9 +13,9 @@ import type {
 import {
     createEmptyAutomationState,
     cloneChannel,
+    cloneCurrentAutomationState,
     elementPropertyTarget,
     encodePropertyTarget,
-    migrateLegacyAutomationState,
     rebuildAutomationTargetIndex,
 } from '@automation/types';
 import { automationEvaluator } from '@automation/automation-evaluator';
@@ -33,8 +33,11 @@ import {
     stripDescriptorArraySmoothing,
     stripDescriptorSmoothing,
 } from '@persistence/migrations/removeSmoothingFromDescriptor';
-import { migrateSceneAudioSystemV5 } from '@persistence/migrations/audioSystemV5';
-import { setSelectionChannelTargetResolver, useSelectionStore } from '@state/selectionStore';
+import {
+    setSelectionChannelTargetResolver,
+    setSelectionSceneResolvers,
+    useSelectionStore,
+} from '@state/selectionStore';
 import {
     buildSceneGraphIndexes,
     cloneSceneGraph,
@@ -172,15 +175,10 @@ export function migrateLegacyAudioFeatureBinding(
     return { clearedKeys, replacements };
 }
 
-export interface MacroBindingAssignment {
-    elementId: string;
-    propertyPath: string;
-}
-
-export type MacroBindingsIndex = Record<string, MacroBindingAssignment[]>;
 export interface MacroTargetAssignment {
     target: PropertyTarget;
 }
+export type MacroBindingsIndex = Record<string, MacroTargetAssignment[]>;
 
 export interface SceneSettingsState {
     fps: number;
@@ -202,7 +200,7 @@ export interface SceneInteractionState {
     hoveredElementId: string | null;
     editingElementId: string | null;
     /** Element IDs expanded in the timeline automation section. */
-    automationExpandedElements: string[];
+    automationExpandedOwners: string[];
     /** Channel IDs with curve editor pane open. */
     automationExpandedCurves: string[];
     /** Current search query for filtering automation properties. */
@@ -256,7 +254,6 @@ export type SceneMutationSource =
 export interface SceneBindingsState {
     byElement: Record<string, ElementBindings>;
     byMacro: MacroBindingsIndex;
-    byTargetMacro?: Record<string, MacroTargetAssignment[]>;
 }
 
 export interface SceneFontsState {
@@ -299,7 +296,6 @@ export interface SceneMacroDefinition {
 
 export interface SceneImportPayload {
     elements?: SceneSerializedElement[] | Record<string, SceneSerializedElement>;
-    elementsOrder?: string[];
     graph?: SceneGraphState;
     sceneSettings?: Partial<SceneSettingsState> | null;
     macros?: SceneSerializedMacros | null;
@@ -396,7 +392,7 @@ function createInitialInteractionState(): SceneInteractionState {
     return {
         hoveredElementId: null,
         editingElementId: null,
-        automationExpandedElements: [],
+        automationExpandedOwners: [],
         automationExpandedCurves: [],
         automationSearchQuery: '',
         expandedPropertyGroups: {},
@@ -406,7 +402,7 @@ function createInitialInteractionState(): SceneInteractionState {
 }
 
 function createEmptyBindingsState(): SceneBindingsState {
-    return { byElement: {}, byMacro: {}, byTargetMacro: {} };
+    return { byElement: {}, byMacro: {} };
 }
 
 function cloneBinding(binding: BindingState): BindingState {
@@ -552,29 +548,11 @@ function normalizeFontAssetInput(input: FontAsset, existing?: FontAsset): FontAs
     });
 }
 
-function rebuildMacroIndex(byElement: Record<string, ElementBindings>): MacroBindingsIndex {
-    const byMacro: MacroBindingsIndex = {};
-    for (const [elementId, bindings] of Object.entries(byElement)) {
-        for (const [propertyPath, binding] of Object.entries(bindings)) {
-            if (binding.type !== 'macro') continue;
-            if (!byMacro[binding.macroId]) byMacro[binding.macroId] = [];
-            byMacro[binding.macroId].push({ elementId, propertyPath });
-        }
-    }
-    for (const assignments of Object.values(byMacro)) {
-        assignments.sort((a, b) => {
-            if (a.elementId === b.elementId) return a.propertyPath.localeCompare(b.propertyPath);
-            return a.elementId.localeCompare(b.elementId);
-        });
-    }
-    return byMacro;
-}
-
-function rebuildTargetMacroIndex(
+function rebuildMacroIndex(
     byElement: Record<string, ElementBindings>,
     byNode: Record<string, ElementBindings>
-): Record<string, MacroTargetAssignment[]> {
-    const result: Record<string, MacroTargetAssignment[]> = {};
+): MacroBindingsIndex {
+    const result: MacroBindingsIndex = {};
     const append = (macroId: string, target: PropertyTarget) => {
         (result[macroId] ??= []).push({ target });
     };
@@ -973,8 +951,7 @@ const createSceneStoreState = (
             const nextByElement = { ...state.bindings.byElement, [element.id]: initialBindings };
             const nextBindings: SceneBindingsState = {
                 byElement: nextByElement,
-                byMacro: rebuildMacroIndex(nextByElement),
-                byTargetMacro: rebuildTargetMacroIndex(nextByElement, state.nodeBindings),
+                byMacro: rebuildMacroIndex(nextByElement, state.nodeBindings),
             };
             const nextGraph = graphWithInsertedElement(state.graph, element.id, insertionIndex);
 
@@ -1039,8 +1016,7 @@ const createSceneStoreState = (
             const nextByElement = { ...state.bindings.byElement, [element.id]: clonedBindings };
             const nextBindings: SceneBindingsState = {
                 byElement: nextByElement,
-                byMacro: rebuildMacroIndex(nextByElement),
-                byTargetMacro: rebuildTargetMacroIndex(nextByElement, state.nodeBindings),
+                byMacro: rebuildMacroIndex(nextByElement, state.nodeBindings),
             };
             const nextGraph = graphWithInsertedElement(state.graph, element.id, boundedIndex);
 
@@ -1098,8 +1074,7 @@ const createSceneStoreState = (
             const { [elementId]: _removedBindings, ...remainingBindings } = state.bindings.byElement;
             const nextBindings: SceneBindingsState = {
                 byElement: remainingBindings,
-                byMacro: rebuildMacroIndex(remainingBindings),
-                byTargetMacro: rebuildTargetMacroIndex(remainingBindings, state.nodeBindings),
+                byMacro: rebuildMacroIndex(remainingBindings, state.nodeBindings),
             };
 
             // Remove automation channels for the deleted element
@@ -1161,8 +1136,7 @@ const createSceneStoreState = (
             const nextByElement = { ...remainingBindings, [nextId]: existingBindings };
             const nextBindings: SceneBindingsState = {
                 byElement: nextByElement,
-                byMacro: rebuildMacroIndex(nextByElement),
-                byTargetMacro: rebuildTargetMacroIndex(nextByElement, state.nodeBindings),
+                byMacro: rebuildMacroIndex(nextByElement, state.nodeBindings),
             };
 
             // Structured ownership changes transactionally; opaque channel IDs remain stable.
@@ -1349,8 +1323,7 @@ const createSceneStoreState = (
             const nextByElement = { ...state.bindings.byElement, [elementId]: nextBindingsForElement };
             const nextBindings: SceneBindingsState = {
                 byElement: nextByElement,
-                byMacro: rebuildMacroIndex(nextByElement),
-                byTargetMacro: rebuildTargetMacroIndex(nextByElement, state.nodeBindings),
+                byMacro: rebuildMacroIndex(nextByElement, state.nodeBindings),
             };
 
             if (nextAutomation !== state.automation) {
@@ -1391,7 +1364,7 @@ const createSceneStoreState = (
                 nodeBindings: { ...state.nodeBindings, [nodeId]: next },
                 bindings: {
                     ...state.bindings,
-                    byTargetMacro: rebuildTargetMacroIndex(state.bindings.byElement, {
+                    byMacro: rebuildMacroIndex(state.bindings.byElement, {
                         ...state.nodeBindings,
                         [nodeId]: next,
                     }),
@@ -1417,7 +1390,7 @@ const createSceneStoreState = (
                 nodeBindings,
                 bindings: {
                     ...state.bindings,
-                    byTargetMacro: rebuildTargetMacroIndex(state.bindings.byElement, nodeBindings),
+                    byMacro: rebuildMacroIndex(state.bindings.byElement, nodeBindings),
                 },
                 automation: { channels, channelIdByTarget: rebuildAutomationTargetIndex(channels) },
                 runtimeMeta: markDirty(state, 'updateAutomation'),
@@ -1568,8 +1541,7 @@ const createSceneStoreState = (
                 bindingsMutated || nodeBindingsMutated
                     ? {
                           byElement: nextByElement,
-                          byMacro: rebuildMacroIndex(nextByElement),
-                          byTargetMacro: rebuildTargetMacroIndex(nextByElement, nextNodeBindings),
+                          byMacro: rebuildMacroIndex(nextByElement, nextNodeBindings),
                       }
                     : state.bindings;
 
@@ -1620,22 +1592,23 @@ const createSceneStoreState = (
             const nextByElement: Record<string, ElementBindings> = { ...state.bindings.byElement };
             const mutatedIds = new Set<string>();
 
-            for (const assignment of assignments) {
-                const current = nextByElement[assignment.elementId];
+            for (const { target } of assignments) {
+                if (target.owner.kind !== 'element') continue;
+                const elementId = target.owner.id;
+                const current = nextByElement[elementId];
                 if (!current) continue;
-                if (!mutatedIds.has(assignment.elementId)) {
-                    nextByElement[assignment.elementId] = { ...current };
-                    mutatedIds.add(assignment.elementId);
+                if (!mutatedIds.has(elementId)) {
+                    nextByElement[elementId] = { ...current };
+                    mutatedIds.add(elementId);
                 }
-                const bindings = nextByElement[assignment.elementId];
-                const binding = bindings[assignment.propertyPath];
+                const bindings = nextByElement[elementId];
+                const binding = bindings[target.propertyPath];
                 if (binding && binding.type === 'macro' && binding.macroId === macroId) {
-                    bindings[assignment.propertyPath] = { type: 'constant', value: macro.value };
+                    bindings[target.propertyPath] = { type: 'constant', value: macro.value };
                 }
             }
             const nextNodeBindings = { ...state.nodeBindings };
-            const nodeAssignments = state.bindings.byTargetMacro?.[macroId] ?? [];
-            for (const { target } of nodeAssignments) {
+            for (const { target } of assignments) {
                 if (target.owner.kind !== 'node') continue;
                 const current = nextNodeBindings[target.owner.id];
                 const binding = current?.[target.propertyPath];
@@ -1648,8 +1621,7 @@ const createSceneStoreState = (
 
             const bindingsState: SceneBindingsState = {
                 byElement: mutatedIds.size ? nextByElement : state.bindings.byElement,
-                byMacro: rebuildMacroIndex(mutatedIds.size ? nextByElement : state.bindings.byElement),
-                byTargetMacro: rebuildTargetMacroIndex(
+                byMacro: rebuildMacroIndex(
                     mutatedIds.size ? nextByElement : state.bindings.byElement,
                     nextNodeBindings
                 ),
@@ -1775,22 +1747,18 @@ const createSceneStoreState = (
     },
 
     importScene: (payload) => {
-        const migratedPayload = migrateSceneAudioSystemV5(payload);
         set((state) => {
-            // Normalize elements: accept either V6 Record+order or plain array
+            // Runtime snapshots use graph order; persistence has already normalized released flat formats.
             let elements: SceneSerializedElement[];
-            const rawElements = migratedPayload.elements;
+            const rawElements = payload.elements;
             if (Array.isArray(rawElements)) {
                 elements = rawElements;
             } else if (rawElements && typeof rawElements === 'object') {
-                const order = (migratedPayload as any).elementsOrder as string[] | undefined;
-                if (Array.isArray(order)) {
-                    elements = order
-                        .map((id) => (rawElements as Record<string, SceneSerializedElement>)[id])
-                        .filter(Boolean);
-                } else {
-                    elements = Object.values(rawElements);
-                }
+                elements = payload.graph
+                    ? deriveElementOrder(payload.graph)
+                          .map((id) => (rawElements as Record<string, SceneSerializedElement>)[id])
+                          .filter(Boolean)
+                    : Object.values(rawElements);
             } else {
                 elements = [];
             }
@@ -1812,50 +1780,37 @@ const createSceneStoreState = (
                 delete nextByElement[el.id].zIndex;
             }
 
-            const incomingGraph = migratedPayload.graph ?? createFlatSceneGraph(nextOrder);
+            const incomingGraph = payload.graph ?? createFlatSceneGraph(nextOrder);
             const graphValidation = validateSceneGraph(incomingGraph, Object.keys(nextElements));
             if (!graphValidation.ok) {
                 throw new Error(`SceneStore.importScene: invalid scene graph (${graphValidation.errors[0]?.message})`);
             }
             const nextGraph = cloneSceneGraph(incomingGraph);
 
-            const migratedAutomation = migrateLegacyAutomationState(migratedPayload.automation);
-            for (const bindings of Object.values(nextByElement)) {
-                for (const binding of Object.values(bindings)) {
-                    if (binding.type === 'keyframes' && migratedAutomation.channelIdMap[binding.channelId]) {
-                        binding.channelId = migratedAutomation.channelIdMap[binding.channelId];
-                    }
-                }
-            }
+            const automation = cloneCurrentAutomationState(payload.automation);
             const nextNodeBindings: Record<string, ElementBindings> = {};
-            for (const [nodeId, bindings] of Object.entries(migratedPayload.nodeBindings ?? {})) {
+            for (const [nodeId, bindings] of Object.entries(payload.nodeBindings ?? {})) {
                 if (!nextGraph.nodesById[nodeId] || !bindings) continue;
                 nextNodeBindings[nodeId] = Object.fromEntries(
-                    Object.entries(bindings).map(([path, binding]) => [
-                        path,
-                        binding.type === 'keyframes' && migratedAutomation.channelIdMap[binding.channelId]
-                            ? { ...binding, channelId: migratedAutomation.channelIdMap[binding.channelId] }
-                            : cloneBinding(binding),
-                    ])
+                    Object.entries(bindings).map(([path, binding]) => [path, cloneBinding(binding)])
                 );
             }
 
             const nextBindings: SceneBindingsState = {
                 byElement: nextByElement,
-                byMacro: rebuildMacroIndex(nextByElement),
-                byTargetMacro: rebuildTargetMacroIndex(nextByElement, nextNodeBindings),
+                byMacro: rebuildMacroIndex(nextByElement, nextNodeBindings),
             };
 
             const nextSettings = {
                 ...DEFAULT_SCENE_SETTINGS,
-                ...(migratedPayload.sceneSettings ?? {}),
+                ...(payload.sceneSettings ?? {}),
             } satisfies SceneSettingsState;
 
             const importTimestamp = Date.now();
 
             const normalizedFontAssets: Record<string, FontAsset> = {};
-            if (migratedPayload.fontAssets) {
-                for (const [assetId, asset] of Object.entries(migratedPayload.fontAssets)) {
+            if (payload.fontAssets) {
+                for (const [assetId, asset] of Object.entries(payload.fontAssets)) {
                     if (!assetId || !asset) continue;
                     const id = typeof asset.id === 'string' ? asset.id : assetId;
                     normalizedFontAssets[id] = normalizeFontAssetInput({ ...asset, id } as FontAsset);
@@ -1863,8 +1818,8 @@ const createSceneStoreState = (
             }
             const fontOrder = Object.keys(normalizedFontAssets);
             const fontLicensingAcknowledgedAt =
-                typeof migratedPayload.fontLicensingAcknowledgedAt === 'number'
-                    ? migratedPayload.fontLicensingAcknowledgedAt
+                typeof payload.fontLicensingAcknowledgedAt === 'number'
+                    ? payload.fontLicensingAcknowledgedAt
                     : undefined;
 
             return {
@@ -1873,7 +1828,7 @@ const createSceneStoreState = (
                 elements: nextElements,
                 ...graphIndexes(nextGraph),
                 bindings: nextBindings,
-                macros: buildMacroState(migratedPayload.macros),
+                macros: buildMacroState(payload.macros),
                 fonts: {
                     assets: normalizedFontAssets,
                     order: fontOrder,
@@ -1881,7 +1836,7 @@ const createSceneStoreState = (
                     licensingAcknowledgedAt: fontLicensingAcknowledgedAt,
                 },
                 interaction: createInitialInteractionState(),
-                automation: migratedAutomation.state,
+                automation,
                 nodeBindings: nextNodeBindings,
                 runtimeMeta: {
                     ...state.runtimeMeta,
@@ -2225,6 +2180,11 @@ export const useSceneStore = createSceneStore();
 // resolve channels without relying on CommonJS require (which fails in Vite ESM).
 automationEvaluator.setChannelProvider((channelId) => useSceneStore.getState().automation.channels[channelId]);
 setSelectionChannelTargetResolver((channelId) => useSceneStore.getState().automation.channels[channelId]?.target);
+setSelectionSceneResolvers({
+    nodeIdForElement: (elementId) => useSceneStore.getState().nodeIdByElementId[elementId],
+    elementIdForNode: (nodeId) => useSceneStore.getState().elementIdByNodeId[nodeId],
+    graph: () => useSceneStore.getState().graph,
+});
 
 // Clear transient property overrides when the playhead moves so keyframed values
 // take over again (Blender-style delink: manually changed values persist only until scrub/play).

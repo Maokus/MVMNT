@@ -113,7 +113,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             list.push({
                 ownerLabel:
                     entry.target.owner.kind === 'node' ? `Host node ${entry.target.owner.id}` : entry.target.owner.id,
-                propertyPath: entry.propertyPath,
+                propertyPath: entry.target.propertyPath,
             });
             map.set(entry.macroId, list);
         }
