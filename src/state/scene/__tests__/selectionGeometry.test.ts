@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createFlatSceneGraph, groupSceneNodes } from '@state/scene-graph';
-import { marqueeNodeIds, selectableOwnerForElement } from '@state/scene/selectionGeometry';
+import { marqueeNodeIds, selectableOwnerForElement, selectionGeometry } from '@state/scene/selectionGeometry';
 import { resolveSceneFrame } from '@state/scene/resolvedScene';
 
 function frameFor(graph: ReturnType<typeof createFlatSceneGraph>, positions: Record<string, number>) {
@@ -38,6 +38,17 @@ describe('recursive scene selection geometry', () => {
         graph = groupSceneNodes(graph, ['element:a', 'element:b'], 'group:pair');
         const frame = frameFor(graph, { a: 0, b: 100 });
         expect(marqueeNodeIds(frame, graph.rootId, { x: 60, y: -2 }, { x: 40, y: 12 })).toEqual([]);
-        expect(marqueeNodeIds(frame, graph.rootId, { x: 15, y: -2 }, { x: -2, y: 12 })).toEqual(['group:pair']);
+        expect(marqueeNodeIds(frame, graph.rootId, { x: 15, y: -2 }, { x: -2, y: 12 })).toEqual(['element:a']);
+    });
+
+    it('returns an oriented box for one transformed node and an axis-aligned box for multiple nodes', () => {
+        const graph = createFlatSceneGraph(['a', 'b']);
+        graph.nodesById['element:a'].userNodeTransform.rotation = Math.PI / 4;
+        const frame = frameFor(graph, { a: 0, b: 100 });
+        const single = selectionGeometry(frame, ['element:a']);
+        expect(single?.corners).toHaveLength(4);
+        expect(single?.corners?.[0].y).not.toBeCloseTo(single?.corners?.[1].y ?? 0);
+        const multiple = selectionGeometry(frame, ['element:a', 'element:b']);
+        expect(multiple?.corners).toBeUndefined();
     });
 });

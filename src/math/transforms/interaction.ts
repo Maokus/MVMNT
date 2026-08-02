@@ -23,7 +23,7 @@ export function hitTestHandle(handle: any, x: number, y: number): boolean {
 // Prioritize anchor handle if overlapping; mirrors previous selection logic.
 export function findHandleUnderPoint(handles: any[], x: number, y: number) {
     // eslint-disable-line @typescript-eslint/no-explicit-any
-    const anchorHandle = handles.find((h) => h.type === 'anchor');
+    const anchorHandle = handles.find((h) => h.type === 'anchor' || h.type === 'pivot');
     if (anchorHandle && hitTestHandle(anchorHandle, x, y)) return anchorHandle;
     return handles.find((h) => hitTestHandle(h, x, y)) || null;
 }

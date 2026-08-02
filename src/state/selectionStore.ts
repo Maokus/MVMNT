@@ -57,6 +57,7 @@ interface SelectionState {
     anchorNodeId: string | null;
     editingContainerId: string | null;
     expandedNodeIds: Record<string, boolean>;
+    selectionPivot: { x: number; y: number } | null;
     selectedTrackIds: string[];
     selectedKeyframes: SelectedKeyframe[];
     clipTimelineSelection: ClipTimelineSelection | null;
@@ -71,6 +72,7 @@ interface SelectionActions {
     selectSceneNodeRange(siblingIds: string[], targetNodeId: string): void;
     setEditingContainerId(nodeId: string | null): void;
     toggleNodeExpanded(nodeId: string): void;
+    setSelectionPivot(pivot: { x: number; y: number } | null): void;
     reconcileSceneNodes(graph: SceneGraphState, previousGraph?: SceneGraphState): void;
     /** Set tracks as active selection domain. */
     selectTracks(ids: string[]): void;
@@ -189,6 +191,7 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
         anchorNodeId: null,
         editingContainerId: null,
         expandedNodeIds: {},
+        selectionPivot: null,
         selectedTrackIds: [],
         selectedKeyframes: [],
         clipTimelineSelection: null,
@@ -206,6 +209,7 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
                 selectedKeyframes: [],
                 clipTimelineSelection: null,
                 activeTarget: selectedNodeIds.length ? 'elements' : 'none',
+                selectionPivot: null,
             });
         },
         selectSceneNodes(nodeIds, activeNodeId) {
@@ -220,6 +224,7 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
                 selectedKeyframes: [],
                 clipTimelineSelection: null,
                 activeTarget: uniqueNodes.length ? 'elements' : 'none',
+                selectionPivot: null,
             });
         },
         toggleSceneNode(nodeId) {
@@ -238,6 +243,7 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
                         : (normalized.at(-1) ?? null),
                 anchorNodeId: included ? state.anchorNodeId : nodeId,
                 activeTarget: normalized.length ? 'elements' : 'none',
+                selectionPivot: null,
             });
         },
         selectSceneNodeRange(siblingIds, targetNodeId) {
@@ -254,6 +260,7 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
                 activeNodeId: targetNodeId,
                 anchorNodeId: anchor,
                 activeTarget: 'elements',
+                selectionPivot: null,
             });
         },
         setEditingContainerId(nodeId) {
@@ -263,6 +270,9 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
             set((state) => ({
                 expandedNodeIds: { ...state.expandedNodeIds, [nodeId]: state.expandedNodeIds[nodeId] === false },
             }));
+        },
+        setSelectionPivot(selectionPivot) {
+            set({ selectionPivot });
         },
         reconcileSceneNodes(graph, previousGraph) {
             const state = get();
@@ -302,6 +312,7 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
                 selectedKeyframes: [],
                 clipTimelineSelection: null,
                 activeTarget: ids.length ? 'tracks' : 'none',
+                selectionPivot: null,
             });
         },
         selectKeyframes(keys) {
@@ -323,12 +334,13 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
                 selectedTrackIds: [],
                 selectedKeyframes: [],
                 activeTarget: selection ? 'clipTimeline' : 'none',
+                selectionPivot: null,
             });
         },
 
         // ── Low-level setters ───────────────────────────────────────────────
         setSceneNodeInspectorContext(nodeId) {
-            set({ selectedNodeIds: [nodeId], activeNodeId: nodeId, anchorNodeId: nodeId });
+            set({ selectedNodeIds: [nodeId], activeNodeId: nodeId, anchorNodeId: nodeId, selectionPivot: null });
         },
         setSelectedTrackIds(ids) {
             set({ selectedTrackIds: ids });
@@ -354,6 +366,7 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
                     selectedKeyframes: [],
                     clipTimelineSelection: null,
                     activeTarget: 'none',
+                    selectionPivot: null,
                 });
                 return;
             }
@@ -363,6 +376,7 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
                 patch.selectedNodeIds = [];
                 patch.activeNodeId = null;
                 patch.anchorNodeId = null;
+                patch.selectionPivot = null;
             }
             if (target === 'tracks') patch.selectedTrackIds = [];
             if (target === 'keyframes') patch.selectedKeyframes = [];
@@ -380,6 +394,7 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
                 set({
                     selectedNodeIds: next,
                     activeTarget: state.activeTarget === 'elements' && !next.length ? 'none' : state.activeTarget,
+                    selectionPivot: null,
                 });
             }
             // Also remove any keyframes owned by this element's channels

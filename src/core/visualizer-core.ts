@@ -453,6 +453,7 @@ export class MIDIVisualizerCore {
             activeHandle,
             snapGuides,
             marqueeBounds,
+            selectionPivot,
         } = this._interactionState;
         const nodeIds = Array.isArray(selectedNodeIds) ? selectedNodeIds : [];
         const guides = Array.isArray(snapGuides) ? (snapGuides as SnapGuide[]) : [];
@@ -519,31 +520,67 @@ export class MIDIVisualizerCore {
             }
             ctx.restore();
         }
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6, 4]);
+        const rect = this.canvas.getBoundingClientRect();
+        const pixelScale = rect.width > 0 ? this.canvas.width / rect.width : 1;
+        ctx.lineWidth = Math.max(1, pixelScale);
+        ctx.setLineDash([]);
         if (marqueeBounds) {
             ctx.fillStyle = 'rgba(17, 119, 187, 0.12)';
-            ctx.strokeStyle = '#1177bb';
+            ctx.strokeStyle = '#5cc8ff';
+            if ((marqueeBounds as any).direction === 'intersection') ctx.setLineDash([5 * pixelScale, 3 * pixelScale]);
             ctx.fillRect(marqueeBounds.x, marqueeBounds.y, marqueeBounds.width, marqueeBounds.height);
             ctx.strokeRect(marqueeBounds.x, marqueeBounds.y, marqueeBounds.width, marqueeBounds.height);
+            ctx.setLineDash([]);
         }
         const nodeSelection = nodeIds.length ? this.getNodeSelectionAtTime(nodeIds, targetTime) : null;
         if (nodeSelection) {
-            ctx.strokeStyle = '#00FFFF';
-            ctx.strokeRect(
-                nodeSelection.bounds.x,
-                nodeSelection.bounds.y,
-                nodeSelection.bounds.width,
-                nodeSelection.bounds.height
-            );
-        } else if (selectedElementId && selectedElementId !== draggingElementId) draw(selectedElementId, '#00FFFF');
+            if (nodeIds.length > 1) {
+                ctx.save();
+                ctx.globalAlpha = 0.55;
+                ctx.strokeStyle = '#5cc8ff';
+                for (const record of nodeSelection.records) {
+                    if (!record.artworkBounds) continue;
+                    const hull = record.artworkHull;
+                    if (hull?.length) {
+                        ctx.beginPath();
+                        ctx.moveTo(hull[0].x, hull[0].y);
+                        for (let index = 1; index < hull.length; index += 1) ctx.lineTo(hull[index].x, hull[index].y);
+                        ctx.closePath();
+                        ctx.stroke();
+                    } else {
+                        ctx.strokeRect(
+                            record.artworkBounds.x,
+                            record.artworkBounds.y,
+                            record.artworkBounds.width,
+                            record.artworkBounds.height
+                        );
+                    }
+                }
+                ctx.restore();
+            }
+            ctx.strokeStyle = '#5cc8ff';
+            if (nodeSelection.corners?.length === 4) {
+                ctx.beginPath();
+                ctx.moveTo(nodeSelection.corners[0].x, nodeSelection.corners[0].y);
+                for (let index = 1; index < 4; index += 1)
+                    ctx.lineTo(nodeSelection.corners[index].x, nodeSelection.corners[index].y);
+                ctx.closePath();
+                ctx.stroke();
+            } else {
+                ctx.strokeRect(
+                    nodeSelection.bounds.x,
+                    nodeSelection.bounds.y,
+                    nodeSelection.bounds.width,
+                    nodeSelection.bounds.height
+                );
+            }
+        } else if (selectedElementId && selectedElementId !== draggingElementId) draw(selectedElementId, '#5cc8ff');
         if (hoverElementId && hoverElementId !== draggingElementId && hoverElementId !== selectedElementId)
-            draw(hoverElementId, '#FFFF00');
-        if (draggingElementId) draw(draggingElementId, '#FF00FF');
+            draw(hoverElementId, 'rgba(255,255,255,0.78)');
         if (selectedElementId || nodeIds.length) {
             try {
                 const handles = nodeIds.length
-                    ? this.getSelectionHandlesForNodesAtTime(nodeIds, targetTime)
+                    ? this.getSelectionHandlesForNodesAtTime(nodeIds, targetTime, selectionPivot)
                     : this.getSelectionHandlesAtTime(selectedElementId, targetTime);
                 if (handles && handles.length) {
                     const rotHandle = handles.find((h: any) => h.type === 'rotate');
@@ -551,8 +588,8 @@ export class MIDIVisualizerCore {
                     if (rotHandle && anchorHandle) {
                         ctx.save();
                         ctx.setLineDash([]);
-                        ctx.strokeStyle = '#FFA500';
-                        ctx.lineWidth = 1.5;
+                        ctx.strokeStyle = 'rgba(92,200,255,0.75)';
+                        ctx.lineWidth = Math.max(1, pixelScale);
                         ctx.beginPath();
                         ctx.moveTo(anchorHandle.cx, anchorHandle.cy - anchorHandle.size * 0.5);
                         ctx.lineTo(rotHandle.cx, rotHandle.cy);
@@ -562,22 +599,22 @@ export class MIDIVisualizerCore {
                     for (const h of handles) {
                         ctx.save();
                         ctx.setLineDash([]);
-                        let fill = '#222';
-                        let stroke = '#FFF';
+                        let fill = '#f8fafc';
+                        let stroke = '#0e639c';
                         if (h.type.startsWith('scale')) {
-                            fill = '#00AAFF';
-                            stroke = '#FFFFFF';
+                            fill = '#f8fafc';
+                            stroke = '#0e639c';
                         } else if (h.type.startsWith('warp')) {
                             fill = '#C084FC';
                             stroke = '#FFFFFF';
                         } else if (h.type === 'rotate') {
-                            fill = '#FFA500';
-                            stroke = '#FFFFFF';
+                            fill = '#252526';
+                            stroke = '#5cc8ff';
                         } else if (h.type === 'anchor' || h.type === 'pivot') {
-                            fill = '#FFFF00';
-                            stroke = '#333333';
+                            fill = '#f8fafc';
+                            stroke = '#0e639c';
                         }
-                        if (activeHandle === h.id) stroke = '#FF00FF';
+                        if (activeHandle === h.id) fill = '#5cc8ff';
                         ctx.strokeStyle = stroke;
                         ctx.fillStyle = fill;
                         if (h.shape === 'circle') {
@@ -608,7 +645,9 @@ export class MIDIVisualizerCore {
         const handles: any[] = [];
         // Standardized handle sizing (previously varied with element size causing inconsistency)
         // Slightly larger than prior default upper bound for better UX.
-        const size = 16; // px – uniform for all scale & anchor handles
+        const rect = this.canvas.getBoundingClientRect();
+        const pixelScale = rect.width > 0 ? this.canvas.width / rect.width : 1;
+        const size = 8 * pixelScale;
         const anchorX = element ? element.anchorX : 0.5;
         const anchorY = element ? element.anchorY : 0.5;
         let anchorPixelX = b.x + b.width * anchorX;
@@ -627,14 +666,6 @@ export class MIDIVisualizerCore {
             addHandle('scale-ne', 'scale-ne', oriented[1].x, oriented[1].y);
             addHandle('scale-se', 'scale-se', oriented[2].x, oriented[2].y);
             addHandle('scale-sw', 'scale-sw', oriented[3].x, oriented[3].y);
-            const mTop = record.projectedHandlePoints?.MTop ?? mid(oriented[0], oriented[1]);
-            const mRight = record.projectedHandlePoints?.MRight ?? mid(oriented[1], oriented[2]);
-            const mBottom = record.projectedHandlePoints?.MBottom ?? mid(oriented[2], oriented[3]);
-            const mLeft = record.projectedHandlePoints?.MLeft ?? mid(oriented[3], oriented[0]);
-            addHandle('scale-n', 'scale-n', mTop.x, mTop.y);
-            addHandle('scale-e', 'scale-e', mRight.x, mRight.y);
-            addHandle('scale-s', 'scale-s', mBottom.x, mBottom.y);
-            addHandle('scale-w', 'scale-w', mLeft.x, mLeft.y);
             const interp = (a: number, b: number, t: number) => a + (b - a) * t;
             const top = {
                 x: interp(oriented[0].x, oriented[1].x, anchorX),
@@ -654,16 +685,12 @@ export class MIDIVisualizerCore {
             addHandle('scale-ne', 'scale-ne', b.x + b.width, b.y);
             addHandle('scale-se', 'scale-se', b.x + b.width, b.y + b.height);
             addHandle('scale-sw', 'scale-sw', b.x, b.y + b.height);
-            addHandle('scale-n', 'scale-n', b.x + b.width / 2, b.y);
-            addHandle('scale-e', 'scale-e', b.x + b.width, b.y + b.height / 2);
-            addHandle('scale-s', 'scale-s', b.x + b.width / 2, b.y + b.height);
-            addHandle('scale-w', 'scale-w', b.x, b.y + b.height / 2);
         }
         addHandle('anchor', 'anchor', anchorPixelX, anchorPixelY, 'rect');
         let rotHandleX: number;
         let rotHandleY: number;
         // Fixed rotation handle distance for consistency (was dependent on element height)
-        const rotOffset = 40; // px
+        const rotOffset = 28 * pixelScale;
         if (oriented) {
             const topMid = { x: (oriented[0].x + oriented[1].x) / 2, y: (oriented[0].y + oriented[1].y) / 2 };
             const edgeVec = { x: oriented[1].x - oriented[0].x, y: oriented[1].y - oriented[0].y };
@@ -687,7 +714,7 @@ export class MIDIVisualizerCore {
             rotHandleY = rotBaseY - rotOffset;
         }
         // Rotation handle slightly larger circular target for easier grabbing
-        const rotateSize = 24; // diameter basis (rect 'size' kept for consistency, r overrides hit test circle)
+        const rotateSize = 12 * pixelScale;
         handles.push({
             id: 'rotate',
             type: 'rotate',
@@ -699,33 +726,62 @@ export class MIDIVisualizerCore {
         });
         return handles;
     }
-    getSelectionHandlesForNodesAtTime(nodeIds: string[], targetTime = this.currentTime) {
+    getSelectionHandlesForNodesAtTime(
+        nodeIds: string[],
+        targetTime = this.currentTime,
+        explicitPivot?: { x: number; y: number } | null
+    ) {
         const selection = this.getNodeSelectionAtTime(nodeIds, targetTime);
         if (!selection) return [];
-        const { bounds: b, pivot } = selection;
-        const size = 16;
-        const points = [
-            ['scale-nw', b.x, b.y],
-            ['scale-ne', b.x + b.width, b.y],
-            ['scale-se', b.x + b.width, b.y + b.height],
-            ['scale-sw', b.x, b.y + b.height],
-            ['scale-n', b.x + b.width / 2, b.y],
-            ['scale-e', b.x + b.width, b.y + b.height / 2],
-            ['scale-s', b.x + b.width / 2, b.y + b.height],
-            ['scale-w', b.x, b.y + b.height / 2],
-        ] as const;
+        const { bounds: b } = selection;
+        const pivot = explicitPivot ?? selection.pivot;
+        const rect = this.canvas.getBoundingClientRect();
+        const pixelScale = rect.width > 0 ? this.canvas.width / rect.width : 1;
+        const size = 8 * pixelScale;
+        const corners = selection.corners;
+        const points =
+            corners?.length === 4
+                ? [
+                      ['scale-nw', corners[0].x, corners[0].y],
+                      ['scale-ne', corners[1].x, corners[1].y],
+                      ['scale-se', corners[2].x, corners[2].y],
+                      ['scale-sw', corners[3].x, corners[3].y],
+                  ]
+                : [
+                      ['scale-nw', b.x, b.y],
+                      ['scale-ne', b.x + b.width, b.y],
+                      ['scale-se', b.x + b.width, b.y + b.height],
+                      ['scale-sw', b.x, b.y + b.height],
+                  ];
+        const topMid =
+            corners?.length === 4
+                ? { x: (corners[0].x + corners[1].x) / 2, y: (corners[0].y + corners[1].y) / 2 }
+                : { x: b.x + b.width / 2, y: b.y };
+        let rotatePoint = { x: topMid.x, y: topMid.y - 28 * pixelScale };
+        if (corners?.length === 4) {
+            const edge = { x: corners[1].x - corners[0].x, y: corners[1].y - corners[0].y };
+            const length = Math.hypot(edge.x, edge.y) || 1;
+            let normal = { x: -edge.y / length, y: edge.x / length };
+            if (normal.x * (pivot.x - topMid.x) + normal.y * (pivot.y - topMid.y) > 0) {
+                normal = { x: -normal.x, y: -normal.y };
+            }
+            rotatePoint = {
+                x: topMid.x + normal.x * 28 * pixelScale,
+                y: topMid.y + normal.y * 28 * pixelScale,
+            };
+        }
         return [
             ...points.map(([id, cx, cy]) => ({ id, type: id, cx, cy, size, shape: 'rect', r: size / 2 })),
             {
                 id: 'rotate',
                 type: 'rotate',
-                cx: b.x + b.width / 2,
-                cy: b.y - 40,
-                size: 24,
+                cx: rotatePoint.x,
+                cy: rotatePoint.y,
+                size: 12 * pixelScale,
                 shape: 'circle',
-                r: 12,
+                r: 6 * pixelScale,
             },
-            { id: 'pivot', type: 'pivot', cx: pivot.x, cy: pivot.y, size: 12, shape: 'circle', r: 6 },
+            { id: 'pivot', type: 'pivot', cx: pivot.x, cy: pivot.y, size, shape: 'circle', r: size / 2 },
         ];
     }
     getModularRenderer() {

@@ -1,9 +1,32 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import {
+    FaChevronDown,
+    FaChevronRight,
+    FaClone,
+    FaEye,
+    FaEyeSlash,
+    FaFolder,
+    FaLayerGroup,
+    FaLock,
+    FaObjectGroup,
+    FaObjectUngroup,
+    FaPen,
+    FaShapes,
+    FaTrash,
+    FaUnlock,
+} from 'react-icons/fa';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
 import { useSelectionStore } from '@state/selectionStore';
-import { isNodeEffectivelyLocked, type SceneGraphState, type SceneNode } from '@state/scene-graph';
+import {
+    isNodeAncestor,
+    isNodeEffectivelyLocked,
+    normalizeNodeSelection,
+    type SceneGraphState,
+    type SceneNode,
+} from '@state/scene-graph';
 
 export type DropPosition = 'before' | 'inside' | 'after';
 
@@ -18,15 +41,14 @@ export function resolveTreeDropTarget(
     if (!node.parentId) return null;
     const canonicalIndex = siblingIds.indexOf(node.id);
     if (canonicalIndex < 0) return null;
-    // The tree is front-to-back, while commands use canonical back-to-front indexes.
     return { parentId: node.parentId, targetIndex: canonicalIndex + (position === 'before' ? 1 : 0) };
 }
 
-function visibleRows(graph: SceneGraphState, containerId: string, expanded: Record<string, boolean>): string[] {
-    const container = graph.nodesById[containerId];
-    if (!container || !('children' in container)) return [];
+function visibleRows(graph: SceneGraphState, expanded: Record<string, boolean>): string[] {
+    const root = graph.nodesById[graph.rootId];
+    if (!root || !('children' in root)) return [];
     const result: string[] = [];
-    const stack = [...container.children];
+    const stack = [...root.children];
     while (stack.length) {
         const id = stack.pop()!;
         const node = graph.nodesById[id];
@@ -37,31 +59,73 @@ function visibleRows(graph: SceneGraphState, containerId: string, expanded: Reco
     return result;
 }
 
+function hasSelectedDescendant(graph: SceneGraphState, nodeId: string, selected: readonly string[]) {
+    return selected.some((id) => isNodeAncestor(graph, nodeId, id));
+}
+
 interface NodeRowProps {
     graph: SceneGraphState;
     node: SceneNode;
     siblingIds: string[];
     depth: number;
+    onRename: (nodeId: string) => void;
 }
 
-function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
+function NodeRow({ graph, node, siblingIds, depth, onRename }: NodeRowProps) {
     const selectedNodeIds = useSelectionStore((state) => state.selectedNodeIds);
+    const activeNodeId = useSelectionStore((state) => state.activeNodeId);
     const expandedNodeIds = useSelectionStore((state) => state.expandedNodeIds);
     const toggleNodeExpanded = useSelectionStore((state) => state.toggleNodeExpanded);
     const [dropPosition, setDropPosition] = useState<DropPosition | null>(null);
+    const [renameValue, setRenameValue] = useState<string | null>(null);
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+    const renameRef = useRef<HTMLInputElement>(null);
+    const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const {
         selectNode,
+        groupSelectedNodes,
+        ungroupSelectedNodes,
         duplicateSelectedNodes,
         deleteSelectedNodes,
-        reorderSelectedNodes,
         reparentSelectedNodes,
-        enterGroup,
     } = useSceneSelection();
     const expanded = node.kind === 'group' && expandedNodeIds[node.id] !== false;
     const selected = selectedNodeIds.includes(node.id);
+    const active = activeNodeId === node.id;
+    const descendantSelected = node.kind === 'group' && hasSelectedDescendant(graph, node.id, selectedNodeIds);
     const effectivelyLocked = isNodeEffectivelyLocked(graph, node.id);
-    const canonicalIndex = siblingIds.indexOf(node.id);
+    const inheritedLocked = effectivelyLocked && !node.localLocked;
+    const contextSelection = normalizeNodeSelection(graph, selectedNodeIds);
+    const contextCanGroup =
+        contextSelection.length >= 2 &&
+        new Set(contextSelection.map((id) => graph.nodesById[id]?.parentId)).size === 1 &&
+        contextSelection.every((id) => !isNodeEffectivelyLocked(graph, id));
 
+    useEffect(() => {
+        if (renameValue !== null) {
+            renameRef.current?.focus();
+            renameRef.current?.select();
+        }
+    }, [renameValue]);
+    useEffect(() => {
+        if (!contextMenu) return;
+        const close = () => setContextMenu(null);
+        window.addEventListener('pointerdown', close);
+        return () => window.removeEventListener('pointerdown', close);
+    }, [contextMenu]);
+    useEffect(
+        () => () => {
+            if (expandTimerRef.current) clearTimeout(expandTimerRef.current);
+        },
+        []
+    );
+
+    const commitRename = () => {
+        const name = renameValue?.trim();
+        setRenameValue(null);
+        if (!name || name === node.name) return;
+        dispatchSceneCommand({ type: 'setNodeName', nodeId: node.id, name }, { source: 'SceneNodeTree.rename' });
+    };
     const select = (event: React.MouseEvent) => {
         selectNode(node.id, {
             toggle: event.metaKey || event.ctrlKey,
@@ -79,115 +143,139 @@ function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
     };
     const updateDropPosition = (event: React.DragEvent) => {
         event.preventDefault();
+        const selectedRoots = normalizeNodeSelection(graph, useSelectionStore.getState().selectedNodeIds);
+        if (
+            effectivelyLocked ||
+            selectedRoots.includes(node.id) ||
+            selectedRoots.some((id) => isNodeAncestor(graph, id, node.id))
+        ) {
+            event.dataTransfer.dropEffect = 'none';
+            setDropPosition(null);
+            return;
+        }
         const rect = event.currentTarget.getBoundingClientRect();
         const ratio = (event.clientY - rect.top) / Math.max(rect.height, 1);
         setDropPosition(
             node.kind === 'group' && ratio > 0.25 && ratio < 0.75 ? 'inside' : ratio <= 0.5 ? 'before' : 'after'
         );
+        const scroll = event.currentTarget.closest('.inspector-elements-scroll');
+        if (scroll) {
+            const scrollRect = scroll.getBoundingClientRect();
+            if (event.clientY < scrollRect.top + 24) scroll.scrollTop -= 8;
+            if (event.clientY > scrollRect.bottom - 24) scroll.scrollTop += 8;
+        }
+        if (node.kind === 'group' && !expanded && ratio > 0.25 && ratio < 0.75 && !expandTimerRef.current) {
+            expandTimerRef.current = setTimeout(() => {
+                toggleNodeExpanded(node.id);
+                expandTimerRef.current = null;
+            }, 600);
+        }
     };
     const drop = (event: React.DragEvent) => {
         event.preventDefault();
         event.stopPropagation();
         const target = dropPosition ? resolveTreeDropTarget(node, siblingIds, dropPosition) : null;
         if (target) reparentSelectedNodes(target.parentId, target.targetIndex);
+        if (expandTimerRef.current) clearTimeout(expandTimerRef.current);
+        expandTimerRef.current = null;
         setDropPosition(null);
     };
 
     return (
         <>
             <div
-                className={`scene-node-row flex items-center gap-1 rounded px-1 py-1 ${selected ? 'bg-[#1177bb] text-white' : ''} ${dropPosition ? `drop-${dropPosition}` : ''}`}
-                style={{
-                    paddingLeft: `${depth * 14 + 4}px`,
-                    borderTop: dropPosition === 'before' ? '2px solid #1177bb' : undefined,
-                    borderBottom: dropPosition === 'after' ? '2px solid #1177bb' : undefined,
-                    outline: dropPosition === 'inside' ? '2px solid #1177bb' : undefined,
-                }}
+                className={`scene-node-row${selected ? ' is-selected' : ''}${active ? ' is-active' : ''}${descendantSelected ? ' has-selected-descendant' : ''}${dropPosition ? ` drop-${dropPosition}` : ''}`}
+                style={{ paddingLeft: `${depth * 14 + 5}px` }}
                 role="treeitem"
-                tabIndex={selected ? 0 : -1}
+                tabIndex={active ? 0 : -1}
                 aria-selected={selected}
                 aria-expanded={node.kind === 'group' ? expanded : undefined}
-                draggable={!effectivelyLocked}
+                draggable={!effectivelyLocked && renameValue === null}
                 onClick={select}
-                onDoubleClick={() => node.kind === 'group' && enterGroup(node.id)}
+                onDoubleClick={(event) => {
+                    if ((event.target as Element).closest('button')) return;
+                    setRenameValue(node.name);
+                    onRename(node.id);
+                }}
+                onContextMenu={(event) => {
+                    event.preventDefault();
+                    if (!selected) selectNode(node.id);
+                    setContextMenu({ x: event.clientX, y: event.clientY });
+                }}
                 onDragStart={(event) => {
                     if (!selected) selectNode(node.id);
                     event.dataTransfer.effectAllowed = 'move';
                     event.dataTransfer.setData('application/x-mvmnt-scene-nodes', node.id);
                 }}
                 onDragOver={updateDropPosition}
-                onDragLeave={() => setDropPosition(null)}
+                onDragLeave={() => {
+                    setDropPosition(null);
+                    if (expandTimerRef.current) clearTimeout(expandTimerRef.current);
+                    expandTimerRef.current = null;
+                }}
                 onDrop={drop}
             >
                 {node.kind === 'group' ? (
                     <button
+                        className="scene-node-disclosure"
                         aria-label={expanded ? 'Collapse group' : 'Expand group'}
                         onClick={(event) => {
                             event.stopPropagation();
                             toggleNodeExpanded(node.id);
                         }}
                     >
-                        {expanded ? '▾' : '▸'}
+                        {expanded ? <FaChevronDown /> : <FaChevronRight />}
                     </button>
                 ) : (
-                    <span className="w-4" />
+                    <span className="scene-node-disclosure" aria-hidden="true" />
                 )}
-                <span className="min-w-0 flex-1 truncate" title={node.name}>
-                    {node.kind === 'group' ? 'Group: ' : ''}
-                    {node.name}
+                <span className="scene-node-kind" aria-hidden="true">
+                    {node.kind === 'group' ? <FaFolder /> : <FaShapes />}
                 </span>
+                {renameValue !== null ? (
+                    <input
+                        ref={renameRef}
+                        className="scene-node-rename"
+                        value={renameValue}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={(event) => setRenameValue(event.target.value)}
+                        onBlur={commitRename}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter') event.currentTarget.blur();
+                            if (event.key === 'Escape') {
+                                setRenameValue(null);
+                                event.stopPropagation();
+                            }
+                        }}
+                    />
+                ) : (
+                    <span className="scene-node-name" title={node.name}>
+                        {node.name}
+                    </span>
+                )}
+                <span className="scene-node-type">{node.kind === 'group' ? 'Group' : 'Element'}</span>
                 <button
-                    aria-label="Toggle visibility"
-                    onClick={(event) => (event.stopPropagation(), command('visible'))}
-                >
-                    {node.localVisible ? '◉' : '○'}
-                </button>
-                <button aria-label="Toggle lock" onClick={(event) => (event.stopPropagation(), command('locked'))}>
-                    {node.localLocked ? '🔒' : '🔓'}
-                </button>
-                <button
-                    aria-label="Move toward front"
-                    disabled={effectivelyLocked || canonicalIndex === siblingIds.length - 1}
+                    className={`scene-node-action${node.localVisible ? ' is-on' : ''}`}
+                    aria-label={node.localVisible ? `Hide ${node.name}` : `Show ${node.name}`}
+                    title={node.localVisible ? 'Hide' : 'Show'}
                     onClick={(event) => {
                         event.stopPropagation();
-                        selectNode(node.id);
-                        reorderSelectedNodes(node.parentId!, canonicalIndex + 2);
+                        command('visible');
                     }}
                 >
-                    ↑
+                    {node.localVisible ? <FaEye /> : <FaEyeSlash />}
                 </button>
                 <button
-                    aria-label="Move toward back"
-                    disabled={effectivelyLocked || canonicalIndex === 0}
+                    className={`scene-node-action${node.localLocked ? ' is-on' : ''}`}
+                    aria-label={node.localLocked ? `Unlock ${node.name}` : `Lock ${node.name}`}
+                    title={inheritedLocked ? 'Locked by parent' : node.localLocked ? 'Unlock' : 'Lock'}
+                    disabled={inheritedLocked}
                     onClick={(event) => {
                         event.stopPropagation();
-                        selectNode(node.id);
-                        reorderSelectedNodes(node.parentId!, canonicalIndex - 1);
+                        command('locked');
                     }}
                 >
-                    ↓
-                </button>
-                <button
-                    aria-label="Duplicate node"
-                    disabled={effectivelyLocked}
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        if (!selected) selectNode(node.id);
-                        duplicateSelectedNodes();
-                    }}
-                >
-                    ⧉
-                </button>
-                <button
-                    aria-label="Delete node"
-                    disabled={effectivelyLocked}
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        if (!selected) selectNode(node.id);
-                        deleteSelectedNodes();
-                    }}
-                >
-                    ×
+                    {effectivelyLocked ? <FaLock /> : <FaUnlock />}
                 </button>
             </div>
             {node.kind === 'group' && expanded
@@ -200,8 +288,60 @@ function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
                               node={graph.nodesById[childId]}
                               siblingIds={node.children}
                               depth={depth + 1}
+                              onRename={onRename}
                           />
                       ))
+                : null}
+            {contextMenu
+                ? createPortal(
+                      <div
+                          className="scene-node-context-menu"
+                          role="menu"
+                          style={{ left: contextMenu.x, top: contextMenu.y }}
+                          onPointerDown={(event) => event.stopPropagation()}
+                      >
+                          <button
+                              role="menuitem"
+                              onClick={() => {
+                                  setRenameValue(node.name);
+                                  setContextMenu(null);
+                              }}
+                          >
+                              <FaPen /> Rename
+                          </button>
+                          {selectedNodeIds.length >= 2 ? (
+                              <button
+                                  role="menuitem"
+                                  disabled={!contextCanGroup}
+                                  onClick={() => (groupSelectedNodes(), setContextMenu(null))}
+                              >
+                                  <FaObjectGroup /> Group selection
+                              </button>
+                          ) : null}
+                          {node.kind === 'group' ? (
+                              <button role="menuitem" onClick={() => (ungroupSelectedNodes(), setContextMenu(null))}>
+                                  <FaObjectUngroup /> Ungroup
+                              </button>
+                          ) : null}
+                          <button
+                              role="menuitem"
+                              disabled={effectivelyLocked}
+                              onClick={() => (duplicateSelectedNodes(), setContextMenu(null))}
+                          >
+                              <FaClone /> Duplicate
+                          </button>
+                          <div className="scene-node-context-divider" />
+                          <button
+                              role="menuitem"
+                              className="is-danger"
+                              disabled={effectivelyLocked}
+                              onClick={() => (deleteSelectedNodes(), setContextMenu(null))}
+                          >
+                              <FaTrash /> Delete
+                          </button>
+                      </div>,
+                      document.body
+                  )
                 : null}
         </>
     );
@@ -209,98 +349,114 @@ function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
 
 export function SceneNodeTree() {
     const graph = useSceneStore((state) => state.graph);
+    const selectedNodeIds = useSelectionStore((state) => state.selectedNodeIds);
+    const activeNodeId = useSelectionStore((state) => state.activeNodeId);
     const expandedNodeIds = useSelectionStore((state) => state.expandedNodeIds);
-    const setEditingContainerId = useSelectionStore((state) => state.setEditingContainerId);
-    const {
-        groupSelectedNodes,
-        ungroupSelectedNodes,
-        enterGroup,
-        exitGroup,
-        editingContainerId,
-        activeNodeId,
-        selectNode,
-    } = useSceneSelection();
-    const editing = graph.nodesById[editingContainerId];
-    const rows = useMemo(() => (editing && 'children' in editing ? [...editing.children].reverse() : []), [editing]);
-    const visible = useMemo(
-        () => visibleRows(graph, editingContainerId, expandedNodeIds),
-        [graph, editingContainerId, expandedNodeIds]
-    );
-    const breadcrumbs = useMemo(() => {
-        const ids: string[] = [];
-        let id: string | null = editingContainerId;
-        while (id) {
-            ids.push(id);
-            id = graph.nodesById[id]?.parentId ?? null;
-        }
-        return ids.reverse();
-    }, [editingContainerId, graph]);
+    const { groupSelectedNodes, ungroupSelectedNodes, duplicateSelectedNodes, deleteSelectedNodes, selectNode } =
+        useSceneSelection();
+    const rows = useMemo(() => {
+        const root = graph.nodesById[graph.rootId];
+        return root && 'children' in root ? [...root.children].reverse() : [];
+    }, [graph]);
+    const visible = useMemo(() => visibleRows(graph, expandedNodeIds), [graph, expandedNodeIds]);
+    const normalized = normalizeNodeSelection(graph, selectedNodeIds);
+    const parents = new Set(normalized.map((id) => graph.nodesById[id]?.parentId));
+    const canGroup =
+        normalized.length >= 2 && parents.size === 1 && normalized.every((id) => !isNodeEffectivelyLocked(graph, id));
+    const canUngroup =
+        normalized.length === 1 &&
+        graph.nodesById[normalized[0]]?.kind === 'group' &&
+        !isNodeEffectivelyLocked(graph, normalized[0]);
+    const canEdit = normalized.length > 0 && normalized.every((id) => !isNodeEffectivelyLocked(graph, id));
 
+    const focusActive = () =>
+        requestAnimationFrame(() => document.querySelector<HTMLElement>('.scene-node-row.is-active')?.focus());
     const navigate = (event: React.KeyboardEvent) => {
         if (!activeNodeId) return;
         const index = visible.indexOf(activeNodeId);
+        const active = graph.nodesById[activeNodeId];
         let target: string | undefined;
         if (event.key === 'ArrowUp') target = visible[index - 1];
         if (event.key === 'ArrowDown') target = visible[index + 1];
         if (event.key === 'Home') target = visible[0];
         if (event.key === 'End') target = visible.at(-1);
-        const active = graph.nodesById[activeNodeId];
         if (event.key === 'ArrowRight' && active?.kind === 'group') {
             if (expandedNodeIds[active.id] === false) useSelectionStore.getState().toggleNodeExpanded(active.id);
-            else enterGroup(active.id);
-            event.preventDefault();
-            return;
+            else target = [...active.children].reverse()[0];
         }
         if (event.key === 'ArrowLeft') {
             if (active?.kind === 'group' && expandedNodeIds[active.id] !== false) {
                 useSelectionStore.getState().toggleNodeExpanded(active.id);
-            } else if (active?.parentId && active.parentId !== editingContainerId) {
-                selectNode(active.parentId);
-            } else if (editingContainerId !== graph.rootId) {
-                exitGroup();
+                event.preventDefault();
+                return;
             }
+            if (active?.parentId && active.parentId !== graph.rootId) target = active.parentId;
+        }
+        if (event.key === ' ' && activeNodeId) {
             event.preventDefault();
+            selectNode(activeNodeId, { toggle: event.metaKey || event.ctrlKey });
+            return;
+        }
+        if (event.key === 'F2' && activeNodeId) {
+            event.preventDefault();
+            document
+                .querySelector<HTMLElement>(`.scene-node-row.is-active`)
+                ?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
             return;
         }
         if (target) {
             event.preventDefault();
             selectNode(target);
-            requestAnimationFrame(() =>
-                document.querySelector<HTMLElement>(`[role="treeitem"][aria-selected="true"]`)?.focus()
-            );
+            focusActive();
         }
     };
 
     return (
         <div className="scene-node-tree" role="tree" aria-label="Scene hierarchy" onKeyDown={navigate}>
-            <div className="mb-2 flex flex-wrap gap-1">
-                <button onClick={groupSelectedNodes}>Group</button>
-                <button onClick={ungroupSelectedNodes}>Ungroup</button>
-                <button disabled={!activeNodeId} onClick={() => activeNodeId && enterGroup(activeNodeId)}>
-                    Enter
+            <div className="scene-node-toolbar" role="toolbar" aria-label="Scene hierarchy actions">
+                <span className="scene-node-selection-count">
+                    {selectedNodeIds.length ? `${selectedNodeIds.length} selected` : 'No selection'}
+                </span>
+                <button
+                    disabled={!canGroup}
+                    onClick={groupSelectedNodes}
+                    title={canGroup ? 'Group selected siblings (Ctrl/Cmd+G)' : 'Select two or more unlocked siblings'}
+                    aria-label="Group selected nodes"
+                >
+                    <FaObjectGroup />
                 </button>
-                <button disabled={editingContainerId === graph.rootId} onClick={exitGroup}>
-                    Exit
+                <button
+                    disabled={!canUngroup}
+                    onClick={ungroupSelectedNodes}
+                    title="Ungroup selected group (Ctrl/Cmd+Shift+G)"
+                    aria-label="Ungroup selected group"
+                >
+                    <FaObjectUngroup />
+                </button>
+                <button disabled={!canEdit} onClick={duplicateSelectedNodes} title="Duplicate" aria-label="Duplicate">
+                    <FaClone />
+                </button>
+                <button
+                    className="is-danger"
+                    disabled={!canEdit}
+                    onClick={deleteSelectedNodes}
+                    title="Delete"
+                    aria-label="Delete"
+                >
+                    <FaTrash />
                 </button>
             </div>
-            <nav className="mb-2 flex flex-wrap gap-1 text-xs" aria-label="Scene group path">
-                {breadcrumbs.map((id, index) => (
-                    <React.Fragment key={id}>
-                        {index ? <span>/</span> : null}
-                        <button onClick={() => setEditingContainerId(id)}>{graph.nodesById[id]?.name ?? id}</button>
-                    </React.Fragment>
-                ))}
-            </nav>
-            <p className="mb-2 text-xs opacity-70">
-                Frontmost nodes are shown first. Drag before, inside, or after a row to move subtrees.
-            </p>
+            <div className="scene-node-column-hint" aria-hidden="true">
+                <FaLayerGroup /> <span>Front</span>
+            </div>
             {rows.map((nodeId) => (
                 <NodeRow
                     key={nodeId}
                     graph={graph}
                     node={graph.nodesById[nodeId]}
-                    siblingIds={(editing as any).children}
+                    siblingIds={(graph.nodesById[graph.rootId] as Extract<SceneNode, { kind: 'root' }>).children}
                     depth={0}
+                    onRename={() => undefined}
                 />
             ))}
         </div>

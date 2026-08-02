@@ -21,12 +21,19 @@ import {
 import type { GeometryInfo } from '@math/transforms/types';
 import { useSceneStore } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
+import type { SceneCommand } from '@state/scene';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { useSelectionStore } from '@state/selectionStore';
 import { marqueeNodeIds } from '@state/scene';
+import { createKeyframe, nodePropertyTarget } from '@automation/types';
+import { useTimelineStore } from '@state/timelineStore';
 import {
     cloneSceneGraph,
+    applyMatrixToPoint,
+    invertMatrix,
+    matrixToNodeTransform,
     matrixAroundPoint,
+    nodeTransformToMatrix,
     rotationMatrix,
     scaleMatrix,
     subtreeNodeIds,
@@ -66,6 +73,7 @@ function ensureDragCommandOptions(meta: any, elementId: string): DragCommandOpti
     const base: DragCommandOptionsBase = {
         mergeKey: `${mode}:${sessionId}`,
         canMergeWith: (other) => {
+            if (other.command.type === 'batch') return true;
             if (other.command.type === 'updateElementConfig') return other.command.elementId === elementId;
             if (other.command.type === 'updateNodeTransform') {
                 return useSceneStore.getState().nodeIdByElementId[elementId] === other.command.nodeId;
@@ -102,10 +110,50 @@ function applyNodeDragUpdate(meta: any, elementId: string, transform: Record<str
 
 function applyGraphDragUpdate(meta: any, graph: ReturnType<typeof cloneSceneGraph>, transient = true) {
     const baseOptions = ensureDragCommandOptions(meta, meta.dragElementId ?? meta.nodeIds[0]);
-    dispatchSceneCommand(
-        { type: 'replaceGraph', graph },
-        { source: 'canvas.aggregateTransform', ...baseOptions, transient }
-    );
+    const store = useSceneStore.getState();
+    const comparisonGraph = transient ? store.graph : (meta.originalGraph ?? store.graph);
+    const tick = useTimelineStore.getState().timeline.currentTick;
+    const autoKeying = useTimelineStore.getState().transport.autoKeying;
+    const commands: SceneCommand[] = [];
+    for (const nodeId of meta.nodeIds as string[]) {
+        const previous = comparisonGraph.nodesById[nodeId]?.userNodeTransform;
+        const next = graph.nodesById[nodeId]?.userNodeTransform;
+        if (!previous || !next) continue;
+        const staticPatch: Record<string, number> = {};
+        for (const path of Object.keys(next) as Array<keyof typeof next>) {
+            if (Object.is(previous[path], next[path])) continue;
+            const binding = store.nodeBindings[nodeId]?.[path];
+            if (binding?.type === 'keyframes') {
+                if (autoKeying) {
+                    commands.push({
+                        type: 'addKeyframe',
+                        channelId: binding.channelId,
+                        keyframe: createKeyframe(tick, next[path]),
+                    });
+                } else {
+                    store.setPropertyOverride(binding.channelId, next[path]);
+                }
+            } else if (binding) {
+                commands.push({
+                    type: 'updatePropertyTargetBinding',
+                    target: nodePropertyTarget(nodeId, path),
+                    binding: { type: 'constant', value: next[path] },
+                });
+            } else {
+                staticPatch[path] = next[path];
+            }
+        }
+        if (Object.keys(staticPatch).length) {
+            commands.push({ type: 'updateNodeTransform', nodeId, transform: staticPatch });
+        }
+    }
+    if (commands.length) {
+        dispatchSceneCommand(commands.length === 1 ? commands[0] : { type: 'batch', commands }, {
+            source: 'canvas.aggregateTransform',
+            ...baseOptions,
+            transient,
+        });
+    }
     meta.lastGraph = graph;
 }
 
@@ -123,17 +171,36 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
     if (nodeIds.length) {
         const selection = vis.getNodeSelectionAtTime?.(nodeIds, vis.getCurrentTime?.() ?? 0);
         if (!selection) return;
-        const pivot = selection.pivot;
+        const pivot = useSelectionStore.getState().selectionPivot ?? selection.pivot;
+        const b = selection.bounds;
+        const corners = selection.corners;
+        const oppositeByHandle: Record<string, { x: number; y: number }> =
+            corners?.length === 4
+                ? {
+                      'scale-nw': corners[2],
+                      'scale-ne': corners[3],
+                      'scale-se': corners[0],
+                      'scale-sw': corners[1],
+                  }
+                : {
+                      'scale-nw': { x: b.x + b.width, y: b.y + b.height },
+                      'scale-ne': { x: b.x, y: b.y + b.height },
+                      'scale-se': { x: b.x, y: b.y },
+                      'scale-sw': { x: b.x + b.width, y: b.y },
+                  };
+        const scaleOrigin = oppositeByHandle[handleHit.type] ?? pivot;
         vis._dragMeta = {
             mode: handleHit.type,
             startX: x,
             startY: y,
             bounds: { ...selection.bounds },
             pivot: { ...pivot },
-            startDistance: Math.hypot(x - pivot.x, y - pivot.y) || 1,
+            startDistance: Math.hypot(x - scaleOrigin.x, y - scaleOrigin.y) || 1,
             startAngle: Math.atan2(y - pivot.y, x - pivot.x),
+            scaleOrigin,
             nodeIds: [...nodeIds],
             originalGraph: cloneSceneGraph(useSceneStore.getState().graph),
+            pivotRecord: nodeIds.length === 1 ? selection.records?.[0] : null,
             dragElementId: selectedId ?? nodeIds[0],
             snapTargets: buildSnapTargets(vis, useSelectionStore.getState().getSelectedElementIds()),
             snapTolerance: DEFAULT_SNAP_TOLERANCE,
@@ -237,7 +304,11 @@ function attemptHandleHit(vis: any, x: number, y: number): boolean {
     const nodeIds = useSelectionStore.getState().selectedNodeIds;
     if (!selectedId && !nodeIds.length) return false;
     const handles = nodeIds.length
-        ? vis.getSelectionHandlesForNodesAtTime?.(nodeIds, vis.getCurrentTime?.() ?? 0) || []
+        ? vis.getSelectionHandlesForNodesAtTime?.(
+              nodeIds,
+              vis.getCurrentTime?.() ?? 0,
+              useSelectionStore.getState().selectionPivot
+          ) || []
         : vis.getSelectionHandlesAtTime?.(selectedId, vis.getCurrentTime?.() ?? 0) || [];
     const handleHit = findHandleUnderPoint(handles, x, y) as any;
     if (handleHit) {
@@ -253,11 +324,7 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
     const hit = elementHitTest(boundsList, x, y);
     if (hit) {
         const scene = useSceneStore.getState();
-        const scope = useSelectionStore.getState().editingContainerId ?? scene.graph.rootId;
-        let ownerNodeId = hit.nodeId ?? scene.nodeIdByElementId[hit.id];
-        while (ownerNodeId && scene.graph.nodesById[ownerNodeId]?.parentId !== scope) {
-            ownerNodeId = scene.graph.nodesById[ownerNodeId]?.parentId ?? '';
-        }
+        const ownerNodeId = hit.nodeId ?? scene.nodeIdByElementId[hit.id];
         const ownerRecord = vis.getResolvedSceneFrame?.(vis.getCurrentTime?.() ?? 0)?.byNodeId?.get(ownerNodeId);
         if (!ownerNodeId || ownerRecord?.effectiveLocked) return false;
         const nodeTransform = hit.nodeId
@@ -492,14 +559,16 @@ function processDrag(
                 transformSceneNodes(meta.originalGraph, meta.nodeIds, translationMatrix(dx, dy))
             );
         } else if (meta.mode?.startsWith('scale') && meta.pivot) {
-            const distance = Math.hypot(x - meta.pivot.x, y - meta.pivot.y);
-            const factor = Math.max(0.001, distance / (meta.startDistance || 1));
+            const origin = altKey ? meta.pivot : (meta.scaleOrigin ?? meta.pivot);
+            const startDistance = Math.hypot(meta.startX - origin.x, meta.startY - origin.y) || 1;
+            const distance = Math.hypot(x - origin.x, y - origin.y);
+            const factor = Math.max(0.001, distance / startDistance);
             applyGraphDragUpdate(
                 meta,
                 transformSceneNodes(
                     meta.originalGraph,
                     meta.nodeIds,
-                    matrixAroundPoint(scaleMatrix(factor), meta.pivot.x, meta.pivot.y)
+                    matrixAroundPoint(scaleMatrix(factor), origin.x, origin.y)
                 )
             );
         } else if (meta.mode === 'rotate' && meta.pivot) {
@@ -513,6 +582,26 @@ function processDrag(
                     matrixAroundPoint(rotationMatrix(delta), meta.pivot.x, meta.pivot.y)
                 )
             );
+        } else if (meta.mode === 'pivot') {
+            if (meta.nodeIds.length === 1 && meta.pivotRecord) {
+                const record = meta.pivotRecord;
+                const inverse = invertMatrix(record.nodeWorldTransform);
+                const originalNode = meta.originalGraph.nodesById[meta.nodeIds[0]];
+                if (inverse && originalNode) {
+                    const beforeUser = nodeTransformToMatrix(originalNode.userNodeTransform);
+                    const nextPivot = applyMatrixToPoint(inverse, { x, y });
+                    const nextTransform = matrixToNodeTransform(beforeUser, nextPivot.x, nextPivot.y);
+                    if (nextTransform) {
+                        const nextGraph = cloneSceneGraph(meta.originalGraph);
+                        nextGraph.nodesById[meta.nodeIds[0]].userNodeTransform = nextTransform;
+                        nextGraph.revision += 1;
+                        applyGraphDragUpdate(meta, nextGraph);
+                    }
+                }
+            } else {
+                useSelectionStore.getState().setSelectionPivot({ x, y });
+                vis.setInteractionState({ selectionPivot: { x, y } });
+            }
         }
         vis.setInteractionState({ snapGuides: guides });
         return true;
@@ -540,10 +629,27 @@ function processDrag(
 
 function updateHover(vis: any, x: number, y: number) {
     const selectedId = vis._interactionState?.selectedElementId || null;
-    if (selectedId) {
-        const handles = vis.getSelectionHandlesAtTime?.(selectedId, vis.getCurrentTime?.() ?? 0) || [];
+    const nodeIds = useSelectionStore.getState().selectedNodeIds;
+    if (selectedId || nodeIds.length) {
+        const handles = nodeIds.length
+            ? vis.getSelectionHandlesForNodesAtTime?.(
+                  nodeIds,
+                  vis.getCurrentTime?.() ?? 0,
+                  useSelectionStore.getState().selectionPivot
+              ) || []
+            : vis.getSelectionHandlesAtTime?.(selectedId, vis.getCurrentTime?.() ?? 0) || [];
         const handleHover = findHandleUnderPoint(handles, x, y) as any;
         if (handleHover) {
+            const cursors: Record<string, string> = {
+                'scale-nw': 'nwse-resize',
+                'scale-se': 'nwse-resize',
+                'scale-ne': 'nesw-resize',
+                'scale-sw': 'nesw-resize',
+                rotate: 'crosshair',
+                pivot: 'crosshair',
+                anchor: 'crosshair',
+            };
+            if (vis.canvas) vis.canvas.style.cursor = cursors[handleHover.type] ?? 'move';
             if (vis._interactionState.activeHandle !== handleHover.id)
                 vis.setInteractionState({ activeHandle: handleHover.id });
             return; // don't update element hover while over handle
@@ -553,6 +659,7 @@ function updateHover(vis: any, x: number, y: number) {
     }
     const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
     const hoverId = elementHoverId(boundsList, x, y);
+    if (vis.canvas) vis.canvas.style.cursor = hoverId ? 'move' : 'default';
     if (hoverId !== vis._interactionState?.hoverElementId) vis.setInteractionState({ hoverElementId: hoverId });
 }
 
@@ -719,6 +826,7 @@ export function onCanvasMouseMove(e: CanvasMouseEvent, deps: InteractionDeps) {
                 y: Math.min(meta.start.y, y),
                 width: Math.abs(x - meta.start.x),
                 height: Math.abs(y - meta.start.y),
+                direction: x >= meta.start.x ? 'containment' : 'intersection',
             },
         });
         return;

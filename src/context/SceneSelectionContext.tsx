@@ -25,6 +25,7 @@ import { createDuplicateElementId } from './duplicateElementName';
 import {
     SCENE_ROOT_ID,
     createDuplicateMappings,
+    isNodeAncestor,
     isNodeEffectivelyLocked,
     normalizeNodeSelection,
     translationMatrix,
@@ -145,6 +146,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     const elementIdByNodeId = useSceneStore((state) => state.elementIdByNodeId, shallow);
     const selectedNodeIds = storeSelection.nodeIds;
     const activeNodeId = storeSelection.activeNodeId;
+    const selectionPivot = useSelectionStore((state) => state.selectionPivot);
     const editingContainerId = storeSelection.editingContainerId ?? graph.rootId;
     const selectedElementId = activeNodeId ? (elementIdByNodeId[activeNodeId] ?? null) : storeSelection.primaryId;
 
@@ -203,7 +205,18 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
             if (options?.range && options.siblingIds) {
                 selection.selectSceneNodeRange(options.siblingIds, normalized);
             } else if (options?.toggle) {
-                selection.toggleSceneNode(normalized);
+                const current = selection.selectedNodeIds;
+                const conflicting = current.filter(
+                    (id) =>
+                        id !== normalized &&
+                        (isNodeAncestor(state.graph, id, normalized) || isNodeAncestor(state.graph, normalized, id))
+                );
+                if (conflicting.length) {
+                    const next = current.filter((id) => !conflicting.includes(id) && id !== normalized);
+                    selection.selectSceneNodes([...next, normalized], normalized);
+                } else {
+                    selection.toggleSceneNode(normalized);
+                }
             } else {
                 selection.selectSceneNodes([normalized], normalized);
             }
@@ -217,11 +230,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
             return;
         }
         const state = useSceneStore.getState();
-        let nodeId = state.nodeIdByElementId[elementId];
-        const scope = useSelectionStore.getState().editingContainerId ?? state.graph.rootId;
-        while (nodeId && state.graph.nodesById[nodeId]?.parentId !== scope) {
-            nodeId = state.graph.nodesById[nodeId]?.parentId ?? '';
-        }
+        const nodeId = state.nodeIdByElementId[elementId];
         if (!nodeId || nodeId === state.graph.rootId) return;
         useSelectionStore.getState().selectSceneNodes([nodeId], nodeId);
     }, []);
@@ -283,12 +292,12 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         if (current !== selectedElementId) {
             visualizer.setInteractionState({ selectedElementId: selectedElementId || null });
         }
-        visualizer.setInteractionState({ selectedNodeIds });
+        visualizer.setInteractionState({ selectedNodeIds, selectionPivot });
         // When selection cleared, also clear dragging state if it references the previous element
         if (!selectedElementId && visualizer._interactionState?.draggingElementId) {
             visualizer.setInteractionState({ draggingElementId: null });
         }
-    }, [visualizer, selectedElementId, selectedNodeIds]);
+    }, [visualizer, selectedElementId, selectedNodeIds, selectionPivot]);
 
     const clearSelection = useCallback(() => {
         selectElement(null);
@@ -690,17 +699,15 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                 deleteSelectedNodes();
                 return;
             }
-            if (event.key === 'Enter' && selected.length === 1) {
-                const node = useSceneStore.getState().graph.nodesById[selected[0]];
-                if (node?.kind === 'group') {
-                    event.preventDefault();
-                    enterGroup(node.id);
-                }
+            if (event.key === 'Escape' && selected.length) {
+                event.preventDefault();
+                useSelectionStore.getState().selectSceneNodes([], null);
                 return;
             }
-            if (event.key === 'Escape' && useSelectionStore.getState().editingContainerId !== SCENE_ROOT_ID) {
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'g' && selected.length) {
                 event.preventDefault();
-                exitGroup();
+                if (event.shiftKey) ungroupSelectedNodes();
+                else groupSelectedNodes();
                 return;
             }
             if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'd' && selected.length) {
@@ -749,9 +756,9 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     }, [
         deleteSelectedNodes,
         duplicateSelectedNodes,
-        enterGroup,
-        exitGroup,
+        groupSelectedNodes,
         runSceneCommand,
+        ungroupSelectedNodes,
         updateElementConfig,
         visualizer,
     ]);

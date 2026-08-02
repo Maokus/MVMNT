@@ -1,10 +1,12 @@
 import type { ResolvedSceneFrame, ResolvedSceneRecord } from './resolvedScene';
+import { applyMatrixToPoint, invertMatrix } from '@state/scene-graph';
 
 export interface SelectionGeometry {
     records: ResolvedSceneRecord[];
     bounds: { x: number; y: number; width: number; height: number };
     hull: Array<{ x: number; y: number }>;
     pivot: { x: number; y: number };
+    corners?: Array<{ x: number; y: number }>;
 }
 
 export function selectableOwnerForElement(
@@ -32,11 +34,34 @@ export function selectionGeometry(frame: ResolvedSceneFrame, nodeIds: readonly s
     const right = Math.max(...records.map((record) => record.artworkBounds!.x + record.artworkBounds!.width));
     const bottom = Math.max(...records.map((record) => record.artworkBounds!.y + record.artworkBounds!.height));
     const bounds = { x: left, y: top, width: right - left, height: bottom - top };
+    let corners: Array<{ x: number; y: number }> | undefined;
+    let pivot = { x: left + bounds.width / 2, y: top + bounds.height / 2 };
+    if (records.length === 1 && records[0].artworkHull?.length) {
+        const inverse = invertMatrix(records[0].nodeWorldTransform);
+        if (inverse) {
+            const localHull = records[0].artworkHull.map((point) => applyMatrixToPoint(inverse, point));
+            const localLeft = Math.min(...localHull.map((point) => point.x));
+            const localTop = Math.min(...localHull.map((point) => point.y));
+            const localRight = Math.max(...localHull.map((point) => point.x));
+            const localBottom = Math.max(...localHull.map((point) => point.y));
+            corners = [
+                { x: localLeft, y: localTop },
+                { x: localRight, y: localTop },
+                { x: localRight, y: localBottom },
+                { x: localLeft, y: localBottom },
+            ].map((point) => applyMatrixToPoint(records[0].nodeWorldTransform, point));
+            pivot = applyMatrixToPoint(records[0].nodeWorldTransform, {
+                x: records[0].node.userNodeTransform.pivotX,
+                y: records[0].node.userNodeTransform.pivotY,
+            });
+        }
+    }
     return {
         records,
         bounds,
         hull: records.flatMap((record) => record.artworkHull ?? []),
-        pivot: { x: left + bounds.width / 2, y: top + bounds.height / 2 },
+        pivot,
+        corners,
     };
 }
 
@@ -67,7 +92,7 @@ function contains(
 /** Left-to-right marquee contains; right-to-left marquee intersects. */
 export function marqueeNodeIds(
     frame: ResolvedSceneFrame,
-    editingContainerId: string,
+    _editingContainerId: string,
     start: { x: number; y: number },
     end: { x: number; y: number }
 ): string[] {
@@ -78,18 +103,14 @@ export function marqueeNodeIds(
         height: Math.abs(end.y - start.y),
     };
     const containment = end.x >= start.x;
-    const owners = new Map<string, ResolvedSceneRecord>();
-    const intersectingOwners = new Set<string>();
+    const leaves = new Map<string, ResolvedSceneRecord>();
     for (const leaf of frame.elements) {
         if (!leaf.elementId || !leaf.effectiveVisible || leaf.effectiveLocked || !leaf.artworkBounds) continue;
-        const owner = selectableOwnerForElement(frame, leaf.elementId, editingContainerId);
-        if (!owner || owner.effectiveLocked || !owner.artworkBounds) continue;
-        owners.set(owner.node.id, owner);
-        if (intersects(marquee, leaf.artworkBounds)) intersectingOwners.add(owner.node.id);
+        leaves.set(leaf.node.id, leaf);
     }
-    return [...owners.values()]
-        .filter((owner) =>
-            containment ? contains(marquee, owner.artworkBounds!) : intersectingOwners.has(owner.node.id)
+    return [...leaves.values()]
+        .filter((leaf) =>
+            containment ? contains(marquee, leaf.artworkBounds!) : intersects(marquee, leaf.artworkBounds!)
         )
         .sort((left, right) => left.paintIndex - right.paintIndex)
         .map((record) => record.node.id);

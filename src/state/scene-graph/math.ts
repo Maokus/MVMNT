@@ -37,6 +37,22 @@ export function nodeTransformToMatrix(transform: NodeTransform): Matrix2D {
     ];
 }
 
+/** Decompose a non-reflecting similarity matrix while retaining the authored pivot. */
+export function matrixToNodeTransform(matrix: Matrix2D, pivotX: number, pivotY: number): NodeTransform | null {
+    const [a, b, c, d, e, f] = matrix;
+    const uniformScale = Math.hypot(a, b);
+    if (!Number.isFinite(uniformScale) || uniformScale <= MATRIX_EPSILON) return null;
+    const rotation = Math.atan2(b, a);
+    const cosine = Math.cos(rotation) * uniformScale;
+    const sine = Math.sin(rotation) * uniformScale;
+    const tolerance = Math.max(1, uniformScale) * 1e-7;
+    if (Math.abs(c + sine) > tolerance || Math.abs(d - cosine) > tolerance) return null;
+    const translationX = e - pivotX + cosine * pivotX - sine * pivotY;
+    const translationY = f - pivotY + sine * pivotX + cosine * pivotY;
+    const transform = { translationX, translationY, rotation, uniformScale, pivotX, pivotY };
+    return Object.values(transform).every(Number.isFinite) ? transform : null;
+}
+
 export function applyMatrixToPoint(matrix: Matrix2D, point: { x: number; y: number }) {
     return {
         x: matrix[0] * point.x + matrix[2] * point.y + matrix[4],

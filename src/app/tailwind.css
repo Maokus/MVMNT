@@ -1349,6 +1349,258 @@
         @apply border-red-400/30 bg-red-500/15 text-red-200;
     }
 
+    .scene-node-tree {
+        @apply min-w-0 select-none text-[11px] text-neutral-300;
+    }
+
+    .scene-node-toolbar {
+        @apply sticky top-0 z-10 flex h-7 items-center gap-0.5 border-b border-white/[0.07] bg-[#252526] px-1;
+    }
+
+    .scene-node-selection-count {
+        @apply min-w-0 flex-1 truncate px-1 text-[10px] text-neutral-500;
+    }
+
+    .scene-node-toolbar button,
+    .scene-node-action,
+    .scene-node-disclosure {
+        @apply inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-transparent bg-transparent p-0 text-[10px] text-neutral-400 transition-colors hover:border-white/10 hover:bg-white/10 hover:text-white focus-visible:border-accent focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-25;
+    }
+
+    .scene-node-toolbar button.is-danger:hover {
+        @apply border-red-400/30 bg-red-500/15 text-red-200;
+    }
+
+    .scene-node-column-hint {
+        @apply flex h-5 items-center gap-1 border-b border-white/[0.05] px-2 text-[9px] uppercase tracking-wider text-neutral-600;
+    }
+
+    .scene-node-row {
+        position: relative;
+        display: grid;
+        grid-template-columns: 16px 16px minmax(0, 1fr) auto 20px 20px;
+        align-items: center;
+        min-height: 28px;
+        padding-top: 2px;
+        padding-right: 3px;
+        padding-bottom: 2px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+        color: #d4d4d8;
+        cursor: default;
+        transition:
+            background-color 100ms ease,
+            color 100ms ease;
+    }
+
+    .scene-node-row:hover {
+        background-color: rgba(255, 255, 255, 0.055);
+    }
+
+    .scene-node-row.is-selected {
+        background-color: #0e639c;
+        color: white;
+    }
+
+    .scene-node-row.is-active {
+        box-shadow: inset 2px 0 0 #5cc8ff;
+    }
+
+    .scene-node-row:focus-visible {
+        outline: 1px solid #5cc8ff;
+        outline-offset: -1px;
+    }
+
+    .scene-node-row.has-selected-descendant:not(.is-selected)::after {
+        content: '';
+        position: absolute;
+        left: 2px;
+        top: 8px;
+        width: 3px;
+        height: 12px;
+        border-radius: 2px;
+        background: #5cc8ff;
+        opacity: 0.75;
+    }
+
+    .scene-node-row.drop-before::before,
+    .scene-node-row.drop-after::before {
+        content: '';
+        position: absolute;
+        z-index: 2;
+        right: 3px;
+        left: 3px;
+        height: 2px;
+        border-radius: 2px;
+        background: #5cc8ff;
+        box-shadow: 0 0 4px rgba(92, 200, 255, 0.65);
+    }
+
+    .scene-node-row.drop-before::before {
+        top: -1px;
+    }
+
+    .scene-node-row.drop-after::before {
+        bottom: -1px;
+    }
+
+    .scene-node-row.drop-inside {
+        outline: 1px solid #5cc8ff;
+        outline-offset: -2px;
+        background-color: rgba(14, 99, 156, 0.35);
+    }
+
+    .scene-node-disclosure {
+        @apply text-[8px];
+    }
+
+    .scene-node-kind {
+        @apply inline-flex h-4 w-4 items-center justify-center text-[10px] text-neutral-500;
+    }
+
+    .scene-node-row.is-selected .scene-node-kind,
+    .scene-node-row.is-selected .scene-node-type,
+    .scene-node-row.is-selected .scene-node-action {
+        color: rgba(255, 255, 255, 0.78);
+    }
+
+    .scene-node-name {
+        @apply min-w-0 truncate px-0.5 text-[11px] font-medium;
+    }
+
+    .scene-node-type {
+        @apply max-w-[58px] truncate px-1 text-[9px] text-neutral-500;
+    }
+
+    .scene-node-rename {
+        @apply h-5 min-w-0 rounded-sm border border-[#5cc8ff] bg-[#1e1e1e] px-1 text-[11px] text-white outline-none ring-1 ring-[#5cc8ff]/30;
+    }
+
+    .scene-node-action {
+        opacity: 0.62;
+    }
+
+    .scene-node-action.is-on,
+    .scene-node-row:hover .scene-node-action,
+    .scene-node-row.is-selected .scene-node-action,
+    .scene-node-row:focus-within .scene-node-action {
+        opacity: 1;
+    }
+
+    .scene-node-context-menu {
+        @apply fixed z-[1200] flex min-w-[150px] flex-col rounded-sm border border-[#4a4a4a] bg-[#252526] py-1 text-[11px] shadow-xl;
+    }
+
+    .scene-node-context-menu button {
+        @apply flex h-7 items-center gap-2 bg-transparent px-2.5 text-left text-neutral-300 hover:bg-[#0e639c] hover:text-white disabled:pointer-events-none disabled:opacity-30;
+    }
+
+    .scene-node-context-menu button svg {
+        @apply w-3 text-[10px];
+    }
+
+    .scene-node-context-menu button.is-danger:hover {
+        @apply bg-red-500/20 text-red-200;
+    }
+
+    .scene-node-context-divider {
+        @apply my-1 border-t border-white/10;
+    }
+
+    .node-properties-shell,
+    .node-transform-inspector {
+        @apply min-w-0 bg-[#252526] text-[11px] text-neutral-300;
+    }
+
+    .node-inspector-tabs {
+        @apply sticky top-0 z-10;
+    }
+
+    .node-inspector-tabs .ae-tab {
+        @apply flex-1 text-center;
+    }
+
+    .node-transform-identity {
+        @apply flex min-h-9 items-center justify-between gap-2 border-b border-white/[0.07] bg-[#2b2b2c] px-2 py-1;
+    }
+
+    .node-transform-identity > span {
+        @apply min-w-0 truncate text-[11px] font-medium text-neutral-200;
+    }
+
+    .node-transform-identity > input {
+        @apply h-6 min-w-0 flex-1 rounded-sm border border-transparent bg-transparent px-1 text-[11px] font-medium text-neutral-200 outline-none hover:border-white/10 hover:bg-black/10 focus:border-accent focus:bg-[#1e1e1e];
+    }
+
+    .node-transform-identity small {
+        @apply shrink-0 text-[9px] uppercase tracking-wide text-neutral-500;
+    }
+
+    .node-transform-empty-geometry {
+        @apply border-b border-white/[0.07] px-3 py-4 text-[10px] leading-relaxed text-neutral-500;
+    }
+
+    .node-transform-section-header {
+        min-height: 24px;
+        cursor: default;
+    }
+
+    .node-transform-row {
+        grid-template-columns: minmax(78px, 0.8fr) minmax(0, 1.2fr);
+    }
+
+    .node-transform-row .ae-property-label {
+        grid-template-columns: 28px minmax(0, 1fr);
+    }
+
+    .node-transform-binding-controls {
+        @apply flex items-center gap-px;
+    }
+
+    .node-transform-binding-controls select {
+        @apply h-[14px] w-[14px] cursor-pointer appearance-none rounded-sm border border-transparent bg-transparent p-0 text-center text-[8px] text-neutral-600 outline-none hover:border-white/10 hover:text-neutral-300 focus:border-accent;
+    }
+
+    .node-transform-binding-controls select.is-active {
+        @apply border-accent/50 text-sky-400;
+    }
+
+    .node-transform-value {
+        @apply flex min-w-0 items-center;
+    }
+
+    .node-transform-value > input,
+    .node-transform-value > output {
+        @apply h-5 min-w-0 flex-1 rounded-sm border border-[#464647] bg-[#343435] px-1.5 text-right font-mono text-[10px] text-neutral-100 outline-none;
+    }
+
+    .node-transform-value > input:hover {
+        @apply border-neutral-500;
+    }
+
+    .node-transform-value > input:focus {
+        @apply border-accent ring-1 ring-accent/30;
+    }
+
+    .node-transform-value > output {
+        @apply inline-flex items-center justify-end border-transparent bg-transparent text-neutral-400;
+    }
+
+    .node-transform-mixed {
+        @apply italic placeholder:text-neutral-500;
+    }
+
+    .node-transform-suffix {
+        @apply -ml-5 w-5 pr-1 text-right text-[9px] text-neutral-500 pointer-events-none;
+    }
+
+    .node-state-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .node-state-row input[type='checkbox'] {
+        accent-color: var(--twc-accent);
+    }
+
     .element-properties-panel.ae-style {
         background-color: var(--twc-panel);
         font-size: 11px;

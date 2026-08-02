@@ -22,6 +22,15 @@ describe('scene-node selection', () => {
         });
     });
 
+    it('resets the transient aggregate pivot whenever selection membership changes', () => {
+        const selection = useSelectionStore.getState();
+        selection.selectSceneNodes(['a', 'b'], 'b');
+        selection.setSelectionPivot({ x: 120, y: 80 });
+        expect(useSelectionStore.getState().selectionPivot).toEqual({ x: 120, y: 80 });
+        useSelectionStore.getState().toggleSceneNode('c');
+        expect(useSelectionStore.getState().selectionPivot).toBeNull();
+    });
+
     it('drops stale nodes and resets an invalid editing scope to root', () => {
         const selection = useSelectionStore.getState();
         const graph = createFlatSceneGraph(['new']);

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import ElementPropertiesPanel from './ElementPropertiesPanel';
 import GlobalPropertiesPanel from './GlobalPropertiesPanel';
 import { useSceneSelection } from '@context/SceneSelectionContext';
@@ -34,26 +34,46 @@ interface PropertiesPanelProps {
 const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {
     const { element, schema, onConfigChange, refreshToken = 0 } = props;
     const { visualizer, selectedNodeIds } = useSceneSelection();
+    const [inspectorTab, setInspectorTab] = useState<'transform' | 'content'>('transform');
+
+    useEffect(() => setInspectorTab('transform'), [selectedNodeIds.join(',')]);
 
     // Show ElementPropertiesPanel when an element is selected, otherwise show GlobalPropertiesPanel
     if (selectedNodeIds.length) {
         return (
-            <>
-                <NodeTransformPanel />
+            <div className="node-properties-shell">
                 {element && schema ? (
-                    <>
-                        <div className="content-transform-label">Content properties (active element only)</div>
-                        <ElementPropertiesPanel
-                            elementId={element.id}
-                            elementType={element.type}
-                            schema={schema}
-                            bindings={element.bindings}
-                            onConfigChange={onConfigChange}
-                            refreshToken={refreshToken}
-                        />
-                    </>
+                    <div className="ae-tab-strip node-inspector-tabs" role="tablist" aria-label="Inspector layer">
+                        <button
+                            className={`ae-tab${inspectorTab === 'transform' ? ' ae-tab--active' : ''}`}
+                            role="tab"
+                            aria-selected={inspectorTab === 'transform'}
+                            onClick={() => setInspectorTab('transform')}
+                        >
+                            Transform
+                        </button>
+                        <button
+                            className={`ae-tab${inspectorTab === 'content' ? ' ae-tab--active' : ''}`}
+                            role="tab"
+                            aria-selected={inspectorTab === 'content'}
+                            onClick={() => setInspectorTab('content')}
+                        >
+                            Content
+                        </button>
+                    </div>
                 ) : null}
-            </>
+                {inspectorTab === 'transform' || !element || !schema ? <NodeTransformPanel /> : null}
+                {inspectorTab === 'content' && element && schema ? (
+                    <ElementPropertiesPanel
+                        elementId={element.id}
+                        elementType={element.type}
+                        schema={schema}
+                        bindings={element.bindings}
+                        onConfigChange={onConfigChange}
+                        refreshToken={refreshToken}
+                    />
+                ) : null}
+            </div>
         );
     }
 

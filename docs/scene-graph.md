@@ -55,22 +55,23 @@ tracks are reported as dependencies; transferring those payloads is a separate d
 
 ## Editor behavior
 
-Selection is node-based and transient. It tracks an active node, range anchor, expanded tree rows, and the group
-currently being edited; none are persisted. The recursive hierarchy tree displays each canonical child list in
+Selection is node-based and transient. It tracks an active node, range anchor, expanded tree rows, and an optional
+multi-selection pivot; none are persisted. The recursive hierarchy tree displays each canonical child list in
 reverse so the frontmost node appears first. Ctrl/Cmd toggles rows, Shift selects only within a displayed sibling
-list, and keyboard navigation follows visible tree rows. Breadcrumbs scope editing at any depth. Drag targets move
-whole subtrees before, inside, or after another row; self and descendant targets are invalid. The canvas uses
-parent-first selection unless a group has been entered, where only that container's direct children become
-selectable. Left-to-right marquees require containment; right-to-left marquees select intersections against actual
-descendant artwork rather than empty space inside aggregate group bounds. Locked inherited state removes
-descendants from interaction without changing their local values.
+list, and keyboard navigation follows visible tree rows. Drag targets move whole subtrees before, inside, or after
+another row; self and descendant targets are invalid. Canvas hit testing and marquees always select the deepest
+visible element node. Groups are selected explicitly from the hierarchy and retain canvas handles until a new
+canvas target is chosen. Left-to-right marquees require containment, while right-to-left marquees select
+intersections. Locked inherited state removes descendants from interaction without changing their local values.
 
 Canvas move, nudge, rotation, and uniform-scale gestures apply a world-space delta to the normalized node
-selection. The resolver supplies aggregate bounds and handles, including group bounds from visible descendant
-artwork. Selected subtrees are excluded from snapping. The host node inspector edits name, visibility, lock,
-translation, rotation, uniform scale, and pivot; transform and visibility fields expose keyframe and macro controls
-for a single active node. Mixed multi-selection values are explicit. Plugin properties are labelled as applying only
-to the active element.
+selection, then solve that delta back into authored node transforms. Parent compensation remains structural
+bookkeeping used only to preserve appearance during hierarchy changes. The resolver supplies oriented single-node
+bounds and world-axis-aligned aggregate bounds. Four corner handles expose uniform scaling; rotation and pivot use
+dedicated handles. Selected subtrees are excluded from snapping. The inspector separates host transforms and
+plugin content into tabs for a single element. Multi-selection position uses the aggregate world-space center,
+while rotation and scale are relative edits around a transient selection pivot. Single-node transform and
+visibility fields expose keyframe and macro controls.
 
 Grouping non-contiguous siblings retains their relative order but creates a contiguous paint block at the
 frontmost selected position, so their stacking relative to intervening unselected siblings can change.

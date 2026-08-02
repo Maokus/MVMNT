@@ -6,6 +6,7 @@ import {
     createFlatSceneGraph,
     groupSceneNodes,
     multiplyMatrices,
+    matrixToNodeTransform,
     nodeTransformToMatrix,
     normalizeNodeSelection,
     reparentSceneNodes,
@@ -18,6 +19,21 @@ import {
 import { buildSceneStructureIndex } from '@state/scene/resolvedScene';
 
 describe('recursive scene graph operations', () => {
+    it('round-trips authored similarity transforms while changing the pivot', () => {
+        const transform = {
+            translationX: 12,
+            translationY: -8,
+            rotation: 0.42,
+            uniformScale: 1.75,
+            pivotX: 20,
+            pivotY: 30,
+        };
+        const matrix = nodeTransformToMatrix(transform);
+        const repivoted = matrixToNodeTransform(matrix, 80, -15);
+        expect(repivoted).not.toBeNull();
+        nodeTransformToMatrix(repivoted!).forEach((value, index) => expect(value).toBeCloseTo(matrix[index], 10));
+    });
+
     it('groups non-contiguous siblings at the frontmost selected position without reversing paint order', () => {
         const graph = createFlatSceneGraph(['a', 'b', 'c', 'd']);
         const grouped = groupSceneNodes(graph, ['element:a', 'element:c'], 'group:1');
@@ -44,8 +60,27 @@ describe('recursive scene graph operations', () => {
         const graph = groupSceneNodes(createFlatSceneGraph(['a']), ['element:a'], 'group:1');
         expect(normalizeNodeSelection(graph, ['group:1', 'element:a'])).toEqual(['group:1']);
         const moved = transformSceneNodes(graph, ['group:1', 'element:a'], translationMatrix(9, 4));
-        expect(moved.nodesById['group:1'].parentCompensation).toEqual([1, 0, 0, 1, 9, 4]);
+        expect(moved.nodesById['group:1'].parentCompensation).toEqual([1, 0, 0, 1, 0, 0]);
+        expect(moved.nodesById['group:1'].userNodeTransform.translationX).toBeCloseTo(9);
+        expect(moved.nodesById['group:1'].userNodeTransform.translationY).toBeCloseTo(4);
         expect(moved.nodesById['element:a'].parentCompensation).toEqual([1, 0, 0, 1, 0, 0]);
+    });
+
+    it('keeps structural compensation unchanged when transforming a reparented node', () => {
+        let graph = createFlatSceneGraph(['a', 'b']);
+        graph = groupSceneNodes(graph, ['element:a'], 'group:left');
+        graph = groupSceneNodes(graph, ['element:b'], 'group:right');
+        graph.nodesById['group:left'].userNodeTransform.rotation = 0.2;
+        graph.nodesById['group:right'].userNodeTransform.rotation = -0.35;
+        graph.nodesById['group:right'].userNodeTransform.uniformScale = 1.4;
+        graph = reparentSceneNodes(graph, ['element:a'], 'group:right', 0);
+        const beforeCompensation = [...graph.nodesById['element:a'].parentCompensation];
+        const beforeWorld = buildSceneStructureIndex(graph).byNodeId.get('element:a')!.nodeWorldTransform;
+        const moved = transformSceneNodes(graph, ['element:a'], translationMatrix(11, -6));
+        const afterWorld = buildSceneStructureIndex(moved).byNodeId.get('element:a')!.nodeWorldTransform;
+        expect(moved.nodesById['element:a'].parentCompensation).toEqual(beforeCompensation);
+        expect(afterWorld[4]).toBeCloseTo(beforeWorld[4] + 11, 10);
+        expect(afterWorld[5]).toBeCloseTo(beforeWorld[5] - 6, 10);
     });
 
     it('indexes arbitrary-depth ancestry and preserves world transforms across parents', () => {

@@ -1,4 +1,4 @@
-import { identityMatrix, invertMatrix, multiplyMatrices, nodeTransformToMatrix } from './math';
+import { identityMatrix, invertMatrix, matrixToNodeTransform, multiplyMatrices, nodeTransformToMatrix } from './math';
 import { buildSceneGraphNavigationIndex } from './graph';
 import { cloneSceneGraph, createNodeBase, type Matrix2D, type SceneGraphState, type SceneNode } from './types';
 
@@ -271,12 +271,19 @@ export function transformSceneNodes(
         const currentWorld = worlds.get(id);
         const parentWorld = node?.parentId ? worlds.get(node.parentId) : undefined;
         if (!currentWorld || !node || !parentWorld) continue;
+        const inverseParent = invertMatrix(parentWorld);
+        const inverseCompensation = invertMatrix(node.parentCompensation);
+        if (!inverseParent || !inverseCompensation) throw new Error('Cannot transform through a singular hierarchy');
         const nextWorld = multiplyMatrices(worldDelta, currentWorld);
-        node.parentCompensation = compensationForWorld(
-            parentWorld,
-            nextWorld,
-            nodeTransformToMatrix(node.userNodeTransform)
+        const nextLocal = multiplyMatrices(inverseParent, nextWorld);
+        const nextUserMatrix = multiplyMatrices(inverseCompensation, nextLocal);
+        const nextTransform = matrixToNodeTransform(
+            nextUserMatrix,
+            node.userNodeTransform.pivotX,
+            node.userNodeTransform.pivotY
         );
+        if (!nextTransform) throw new Error('World transform cannot be represented by the node transform');
+        node.userNodeTransform = nextTransform;
     }
     next.revision += 1;
     return next;
