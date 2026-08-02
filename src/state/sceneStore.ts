@@ -3,8 +3,21 @@ import { createWithEqualityFn } from 'zustand/traditional';
 import type { Macro } from '@state/scene/macros';
 import type { PropertyBindingData } from '@bindings/property-bindings';
 import type { FontAsset } from '@state/scene/fonts';
-import type { AutomationState, AutomationChannel, AutomationKeyframe, KeyframesBindingState } from '@automation/types';
-import { createEmptyAutomationState, cloneChannel, makeChannelId } from '@automation/types';
+import type {
+    AutomationState,
+    AutomationChannel,
+    AutomationKeyframe,
+    KeyframesBindingState,
+    PropertyTarget,
+} from '@automation/types';
+import {
+    createEmptyAutomationState,
+    cloneChannel,
+    elementPropertyTarget,
+    encodePropertyTarget,
+    migrateLegacyAutomationState,
+    rebuildAutomationTargetIndex,
+} from '@automation/types';
 import { automationEvaluator } from '@automation/automation-evaluator';
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
@@ -165,6 +178,9 @@ export interface MacroBindingAssignment {
 }
 
 export type MacroBindingsIndex = Record<string, MacroBindingAssignment[]>;
+export interface MacroTargetAssignment {
+    target: PropertyTarget;
+}
 
 export interface SceneSettingsState {
     fps: number;
@@ -246,6 +262,7 @@ export type SceneMutationSource =
 export interface SceneBindingsState {
     byElement: Record<string, ElementBindings>;
     byMacro: MacroBindingsIndex;
+    byTargetMacro?: Record<string, MacroTargetAssignment[]>;
 }
 
 export interface SceneFontsState {
@@ -265,6 +282,7 @@ export interface SceneStoreComputedExport {
     fontAssets?: Record<string, FontAsset>;
     fontLicensingAcknowledgedAt?: number;
     automation?: AutomationState;
+    nodeBindings?: Record<string, ElementBindings>;
 }
 
 export interface SceneSerializedElement {
@@ -295,6 +313,7 @@ export interface SceneImportPayload {
     fontAssets?: Record<string, FontAsset> | null;
     fontLicensingAcknowledgedAt?: number | null;
     automation?: AutomationState | null;
+    nodeBindings?: Record<string, ElementBindings> | null;
 }
 
 export interface SceneElementInput {
@@ -316,6 +335,8 @@ export interface SceneStoreActions {
     updateElementId: (currentId: string, nextId: string) => void;
     updateSettings: (patch: Partial<SceneSettingsState>) => void;
     updateBindings: (elementId: string, patch: ElementBindingsPatch) => void;
+    updateNodeBindings: (nodeId: string, patch: ElementBindingsPatch) => void;
+    removeNodeBindings: (nodeIds: string[]) => void;
     createMacro: (macroId: string, definition: SceneMacroDefinition) => void;
     updateMacroValue: (macroId: string, value: unknown) => void;
     renameMacro: (currentId: string, nextId: string) => void;
@@ -362,6 +383,8 @@ export interface SceneStoreState extends SceneStoreActions {
     interaction: SceneInteractionState;
     runtimeMeta: SceneRuntimeMeta;
     automation: AutomationState;
+    /** Host node-property bindings keyed by stable node ID. */
+    nodeBindings: Record<string, ElementBindings>;
     /** Transient per-channel value overrides. Populated when auto key is off and user changes
      *  a keyframed property. Cleared when the playhead moves. Does not affect saved state. */
     propertyOverrides: Record<string, unknown>;
@@ -392,7 +415,7 @@ function createInitialInteractionState(): SceneInteractionState {
 }
 
 function createEmptyBindingsState(): SceneBindingsState {
-    return { byElement: {}, byMacro: {} };
+    return { byElement: {}, byMacro: {}, byTargetMacro: {} };
 }
 
 function cloneBinding(binding: BindingState): BindingState {
@@ -553,6 +576,33 @@ function rebuildMacroIndex(byElement: Record<string, ElementBindings>): MacroBin
         });
     }
     return byMacro;
+}
+
+function rebuildTargetMacroIndex(
+    byElement: Record<string, ElementBindings>,
+    byNode: Record<string, ElementBindings>
+): Record<string, MacroTargetAssignment[]> {
+    const result: Record<string, MacroTargetAssignment[]> = {};
+    const append = (macroId: string, target: PropertyTarget) => {
+        (result[macroId] ??= []).push({ target });
+    };
+    for (const [elementId, bindings] of Object.entries(byElement)) {
+        for (const [propertyPath, binding] of Object.entries(bindings)) {
+            if (binding.type === 'macro') append(binding.macroId, elementPropertyTarget(elementId, propertyPath));
+        }
+    }
+    for (const [nodeId, bindings] of Object.entries(byNode)) {
+        for (const [propertyPath, binding] of Object.entries(bindings)) {
+            if (binding.type === 'macro')
+                append(binding.macroId, { owner: { kind: 'node', id: nodeId }, propertyPath });
+        }
+    }
+    for (const assignments of Object.values(result)) {
+        assignments.sort((left, right) =>
+            encodePropertyTarget(left.target).localeCompare(encodePropertyTarget(right.target))
+        );
+    }
+    return result;
 }
 
 function bindingEquals(a: BindingState, b: BindingState): boolean {
@@ -935,6 +985,7 @@ const createSceneStoreState = (
     interaction: createInitialInteractionState(),
     runtimeMeta: createRuntimeMeta(),
     automation: createEmptyAutomationState(),
+    nodeBindings: {},
     propertyOverrides: {},
 
     addElement: (input) => {
@@ -960,6 +1011,7 @@ const createSceneStoreState = (
             const nextBindings: SceneBindingsState = {
                 byElement: nextByElement,
                 byMacro: rebuildMacroIndex(nextByElement),
+                byTargetMacro: rebuildTargetMacroIndex(nextByElement, state.nodeBindings),
             };
             const nextGraph = graphWithInsertedElement(state.graph, element.id, insertionIndex);
 
@@ -1057,26 +1109,35 @@ const createSceneStoreState = (
             const nextBindings: SceneBindingsState = {
                 byElement: nextByElement,
                 byMacro: rebuildMacroIndex(nextByElement),
+                byTargetMacro: rebuildTargetMacroIndex(nextByElement, state.nodeBindings),
             };
             const nextGraph = graphWithInsertedElement(state.graph, element.id, boundedIndex);
 
             // Clone automation channels for the duplicated element
             const nextAutomation = { ...state.automation, channels: { ...state.automation.channels } };
+            const clonedChannelIds: Record<string, string> = {};
+            const occupiedChannelIds = new Set(Object.keys(nextAutomation.channels));
             for (const channel of Object.values(state.automation.channels)) {
-                if (channel.elementId === sourceId) {
-                    const cloned = cloneChannel(channel, newId);
+                if (channel.target.owner.kind === 'element' && channel.target.owner.id === sourceId) {
+                    const cloned = cloneChannel(
+                        channel,
+                        elementPropertyTarget(newId, channel.target.propertyPath),
+                        occupiedChannelIds
+                    );
+                    occupiedChannelIds.add(cloned.id);
                     nextAutomation.channels[cloned.id] = cloned;
+                    clonedChannelIds[channel.id] = cloned.id;
                 }
             }
 
             // Update keyframes binding channelId references to point to the cloned channels
             for (const [key, binding] of Object.entries(clonedBindings)) {
                 if (binding.type === 'keyframes') {
-                    const oldChannelId = makeChannelId(sourceId, key);
-                    if (binding.channelId === oldChannelId) {
+                    const clonedChannelId = clonedChannelIds[binding.channelId];
+                    if (clonedChannelId) {
                         clonedBindings[key] = {
                             type: 'keyframes',
-                            channelId: makeChannelId(newId, key),
+                            channelId: clonedChannelId,
                         };
                     }
                 }
@@ -1087,7 +1148,10 @@ const createSceneStoreState = (
                 elements: nextElements,
                 ...graphIndexes(nextGraph),
                 bindings: nextBindings,
-                automation: nextAutomation,
+                automation: {
+                    ...nextAutomation,
+                    channelIdByTarget: rebuildAutomationTargetIndex(nextAutomation.channels),
+                },
                 runtimeMeta: markDirty(state, 'duplicateElement'),
             };
         });
@@ -1103,12 +1167,13 @@ const createSceneStoreState = (
             const nextBindings: SceneBindingsState = {
                 byElement: remainingBindings,
                 byMacro: rebuildMacroIndex(remainingBindings),
+                byTargetMacro: rebuildTargetMacroIndex(remainingBindings, state.nodeBindings),
             };
 
             // Remove automation channels for the deleted element
             const nextChannels = { ...state.automation.channels };
             for (const [channelId, channel] of Object.entries(nextChannels)) {
-                if (channel.elementId === elementId) {
+                if (channel.target.owner.kind === 'element' && channel.target.owner.id === elementId) {
                     delete nextChannels[channelId];
                 }
             }
@@ -1127,7 +1192,7 @@ const createSceneStoreState = (
                 elements: remaining,
                 ...graphIndexes(nextGraph),
                 bindings: nextBindings,
-                automation: { channels: nextChannels },
+                automation: { channels: nextChannels, channelIdByTarget: rebuildAutomationTargetIndex(nextChannels) },
                 interaction: {
                     ...state.interaction,
                     hoveredElementId:
@@ -1167,30 +1232,19 @@ const createSceneStoreState = (
             const nextBindings: SceneBindingsState = {
                 byElement: nextByElement,
                 byMacro: rebuildMacroIndex(nextByElement),
+                byTargetMacro: rebuildTargetMacroIndex(nextByElement, state.nodeBindings),
             };
 
-            // Rename automation channels for the element
+            // Structured ownership changes transactionally; opaque channel IDs remain stable.
             const nextChannels = { ...state.automation.channels };
             for (const [channelId, channel] of Object.entries(state.automation.channels)) {
-                if (channel.elementId === currentId) {
-                    delete nextChannels[channelId];
-                    const renamed = cloneChannel(channel, nextId);
-                    nextChannels[renamed.id] = renamed;
-                }
-            }
-            // Also update any keyframes bindings that reference the old channel IDs
-            const renamedElementBindings = nextByElement[nextId];
-            if (renamedElementBindings) {
-                for (const [key, binding] of Object.entries(renamedElementBindings)) {
-                    if (binding.type === 'keyframes') {
-                        const oldChannelId = makeChannelId(currentId, key);
-                        if (binding.channelId === oldChannelId) {
-                            renamedElementBindings[key] = {
-                                type: 'keyframes',
-                                channelId: makeChannelId(nextId, key),
-                            };
-                        }
-                    }
+                if (channel.target.owner.kind === 'element' && channel.target.owner.id === currentId) {
+                    nextChannels[channelId] = {
+                        ...channel,
+                        target: elementPropertyTarget(nextId, channel.target.propertyPath),
+                        elementId: nextId,
+                        propertyKey: channel.target.propertyPath,
+                    };
                 }
             }
 
@@ -1215,7 +1269,7 @@ const createSceneStoreState = (
                 elements: nextElements,
                 ...graphIndexes(nextGraph),
                 bindings: nextBindings,
-                automation: { channels: nextChannels },
+                automation: { channels: nextChannels, channelIdByTarget: rebuildAutomationTargetIndex(nextChannels) },
                 interaction: nextInteraction,
                 runtimeMeta: markDirty(state, 'updateElementId'),
             };
@@ -1382,18 +1436,82 @@ const createSceneStoreState = (
             const nextBindings: SceneBindingsState = {
                 byElement: nextByElement,
                 byMacro: rebuildMacroIndex(nextByElement),
+                byTargetMacro: rebuildTargetMacroIndex(nextByElement, state.nodeBindings),
             };
 
             const nextGraph =
                 zIndexChanged && !ordersEqual(reordered, state.order)
                     ? graphWithElementOrder(state.graph, reordered)
                     : state.graph;
+            if (nextAutomation !== state.automation) {
+                nextAutomation.channelIdByTarget = rebuildAutomationTargetIndex(nextAutomation.channels);
+            }
             return {
                 ...state,
                 ...(nextGraph === state.graph ? {} : graphIndexes(nextGraph)),
                 bindings: nextBindings,
                 automation: nextAutomation,
                 runtimeMeta: markDirty(state, 'updateBindings'),
+            };
+        });
+    },
+
+    updateNodeBindings: (nodeId, patch) => {
+        set((state) => {
+            if (!state.graph.nodesById[nodeId] || nodeId === state.graph.rootId) {
+                throw new Error(`SceneStore.updateNodeBindings: node '${nodeId}' not found`);
+            }
+            const current = state.nodeBindings[nodeId] ?? {};
+            const next = { ...current };
+            let automation = state.automation;
+            for (const [path, binding] of Object.entries(patch)) {
+                const previous = current[path];
+                if (binding == null) delete next[path];
+                else next[path] = cloneBinding(binding);
+                if (previous?.type === 'keyframes' && binding?.type !== 'keyframes') {
+                    const channels = { ...automation.channels };
+                    delete channels[previous.channelId];
+                    automation = {
+                        channels,
+                        channelIdByTarget: rebuildAutomationTargetIndex(channels),
+                    };
+                }
+            }
+            return {
+                ...state,
+                nodeBindings: { ...state.nodeBindings, [nodeId]: next },
+                bindings: {
+                    ...state.bindings,
+                    byTargetMacro: rebuildTargetMacroIndex(state.bindings.byElement, {
+                        ...state.nodeBindings,
+                        [nodeId]: next,
+                    }),
+                },
+                automation,
+                runtimeMeta: markDirty(state, 'updateAutomation'),
+            };
+        });
+    },
+
+    removeNodeBindings: (nodeIds) => {
+        set((state) => {
+            const removed = new Set(nodeIds);
+            const nodeBindings = { ...state.nodeBindings };
+            for (const id of removed) delete nodeBindings[id];
+            const channels = Object.fromEntries(
+                Object.entries(state.automation.channels).filter(
+                    ([, channel]) => !(channel.target.owner.kind === 'node' && removed.has(channel.target.owner.id))
+                )
+            );
+            return {
+                ...state,
+                nodeBindings,
+                bindings: {
+                    ...state.bindings,
+                    byTargetMacro: rebuildTargetMacroIndex(state.bindings.byElement, nodeBindings),
+                },
+                automation: { channels, channelIdByTarget: rebuildAutomationTargetIndex(channels) },
+                runtimeMeta: markDirty(state, 'updateAutomation'),
             };
         });
     },
@@ -1523,19 +1641,35 @@ const createSceneStoreState = (
             const nextByElement = bindingsMutated
                 ? { ...state.bindings.byElement, ...mutatedBindings }
                 : state.bindings.byElement;
+            const nextNodeBindings = { ...state.nodeBindings };
+            let nodeBindingsMutated = false;
+            for (const [nodeId, bindings] of Object.entries(state.nodeBindings)) {
+                for (const [property, binding] of Object.entries(bindings)) {
+                    if (binding.type === 'macro' && binding.macroId === currentId) {
+                        if (!nodeBindingsMutated || nextNodeBindings[nodeId] === bindings) {
+                            nextNodeBindings[nodeId] = { ...bindings };
+                        }
+                        nextNodeBindings[nodeId][property] = { type: 'macro', macroId: trimmed };
+                        nodeBindingsMutated = true;
+                    }
+                }
+            }
 
-            const nextBindings: SceneBindingsState = bindingsMutated
-                ? {
-                      byElement: nextByElement,
-                      byMacro: rebuildMacroIndex(nextByElement),
-                  }
-                : state.bindings;
+            const nextBindings: SceneBindingsState =
+                bindingsMutated || nodeBindingsMutated
+                    ? {
+                          byElement: nextByElement,
+                          byMacro: rebuildMacroIndex(nextByElement),
+                          byTargetMacro: rebuildTargetMacroIndex(nextByElement, nextNodeBindings),
+                      }
+                    : state.bindings;
 
             const nextExportedAt = typeof state.macros.exportedAt === 'number' ? state.macros.exportedAt : now;
 
             return {
                 ...state,
                 bindings: nextBindings,
+                nodeBindings: nextNodeBindings,
                 macros: {
                     byId: nextById,
                     allIds: nextAllIds,
@@ -1590,16 +1724,27 @@ const createSceneStoreState = (
                     bindings[assignment.propertyPath] = { type: 'constant', value: macro.value };
                 }
             }
+            const nextNodeBindings = { ...state.nodeBindings };
+            const nodeAssignments = state.bindings.byTargetMacro?.[macroId] ?? [];
+            for (const { target } of nodeAssignments) {
+                if (target.owner.kind !== 'node') continue;
+                const current = nextNodeBindings[target.owner.id];
+                const binding = current?.[target.propertyPath];
+                if (!current || binding?.type !== 'macro' || binding.macroId !== macroId) continue;
+                nextNodeBindings[target.owner.id] = {
+                    ...current,
+                    [target.propertyPath]: { type: 'constant', value: macro.value },
+                };
+            }
 
-            const bindingsState: SceneBindingsState = mutatedIds.size
-                ? {
-                      byElement: nextByElement,
-                      byMacro: rebuildMacroIndex(nextByElement),
-                  }
-                : {
-                      byElement: state.bindings.byElement,
-                      byMacro: rebuildMacroIndex(state.bindings.byElement),
-                  };
+            const bindingsState: SceneBindingsState = {
+                byElement: mutatedIds.size ? nextByElement : state.bindings.byElement,
+                byMacro: rebuildMacroIndex(mutatedIds.size ? nextByElement : state.bindings.byElement),
+                byTargetMacro: rebuildTargetMacroIndex(
+                    mutatedIds.size ? nextByElement : state.bindings.byElement,
+                    nextNodeBindings
+                ),
+            };
 
             const { [macroId]: _removed, ...remainingMacros } = state.macros.byId;
             const nextAllIds = state.macros.allIds.filter((id) => id !== macroId);
@@ -1613,6 +1758,7 @@ const createSceneStoreState = (
             return {
                 ...state,
                 bindings: bindingsState,
+                nodeBindings: nextNodeBindings,
                 macros: {
                     byId: remainingMacros,
                     allIds: nextAllIds,
@@ -1714,6 +1860,7 @@ const createSceneStoreState = (
             fonts: { assets: {}, order: [], totalBytes: 0, licensingAcknowledgedAt: undefined },
             interaction: createInitialInteractionState(),
             automation: createEmptyAutomationState(),
+            nodeBindings: {},
             runtimeMeta: markDirty(state, 'clearScene'),
         }));
     },
@@ -1763,9 +1910,31 @@ const createSceneStoreState = (
             const nextGraph = cloneSceneGraph(incomingGraph);
             const derivedOrder = deriveElementOrder(nextGraph);
 
+            const migratedAutomation = migrateLegacyAutomationState(migratedPayload.automation);
+            for (const bindings of Object.values(nextByElement)) {
+                for (const binding of Object.values(bindings)) {
+                    if (binding.type === 'keyframes' && migratedAutomation.channelIdMap[binding.channelId]) {
+                        binding.channelId = migratedAutomation.channelIdMap[binding.channelId];
+                    }
+                }
+            }
+            const nextNodeBindings: Record<string, ElementBindings> = {};
+            for (const [nodeId, bindings] of Object.entries(migratedPayload.nodeBindings ?? {})) {
+                if (!nextGraph.nodesById[nodeId] || !bindings) continue;
+                nextNodeBindings[nodeId] = Object.fromEntries(
+                    Object.entries(bindings).map(([path, binding]) => [
+                        path,
+                        binding.type === 'keyframes' && migratedAutomation.channelIdMap[binding.channelId]
+                            ? { ...binding, channelId: migratedAutomation.channelIdMap[binding.channelId] }
+                            : cloneBinding(binding),
+                    ])
+                );
+            }
+
             const nextBindings: SceneBindingsState = {
                 byElement: nextByElement,
                 byMacro: rebuildMacroIndex(nextByElement),
+                byTargetMacro: rebuildTargetMacroIndex(nextByElement, nextNodeBindings),
             };
 
             const nextSettings = {
@@ -1803,7 +1972,8 @@ const createSceneStoreState = (
                     licensingAcknowledgedAt: fontLicensingAcknowledgedAt,
                 },
                 interaction: createInitialInteractionState(),
-                automation: migratedPayload.automation ?? createEmptyAutomationState(),
+                automation: migratedAutomation.state,
+                nodeBindings: nextNodeBindings,
                 runtimeMeta: {
                     ...state.runtimeMeta,
                     persistentDirty: false,
@@ -1859,10 +2029,32 @@ const createSceneStoreState = (
                           channels: Object.fromEntries(
                               Object.entries(state.automation.channels).map(([channelId, channel]) => [
                                   channelId,
-                                  cloneChannel(channel),
+                                  {
+                                      id: channel.id,
+                                      target: {
+                                          owner: { ...channel.target.owner },
+                                          propertyPath: channel.target.propertyPath,
+                                      },
+                                      keyframes: channel.keyframes.map((keyframe) => ({
+                                          ...keyframe,
+                                          segmentInterpolation: { ...keyframe.segmentInterpolation },
+                                      })),
+                                      valueType: channel.valueType,
+                                  },
                               ])
                           ),
+                          channelIdByTarget: rebuildAutomationTargetIndex(state.automation.channels),
                       },
+                  }
+                : {}),
+            ...(Object.keys(state.nodeBindings).length
+                ? {
+                      nodeBindings: Object.fromEntries(
+                          Object.entries(state.nodeBindings).map(([nodeId, bindings]) => [
+                              nodeId,
+                              cloneBindingsMap(bindings),
+                          ])
+                      ),
                   }
                 : {}),
         };
@@ -2064,6 +2256,10 @@ const createSceneStoreState = (
             ...state,
             automation: {
                 channels: { ...state.automation.channels, [channel.id]: channel },
+                channelIdByTarget: {
+                    ...state.automation.channelIdByTarget,
+                    [encodePropertyTarget(channel.target)]: channel.id,
+                },
             },
             runtimeMeta: markDirty(state, 'updateAutomation'),
         }));
@@ -2075,7 +2271,7 @@ const createSceneStoreState = (
             const { [channelId]: _removed, ...remaining } = state.automation.channels;
             return {
                 ...state,
-                automation: { channels: remaining },
+                automation: { channels: remaining, channelIdByTarget: rebuildAutomationTargetIndex(remaining) },
                 runtimeMeta: markDirty(state, 'updateAutomation'),
             };
         });
@@ -2093,6 +2289,7 @@ const createSceneStoreState = (
                         ...state.automation.channels,
                         [channelId]: { ...channel, keyframes },
                     },
+                    channelIdByTarget: state.automation.channelIdByTarget,
                 },
                 runtimeMeta: markDirty(state, 'updateAutomation'),
             };

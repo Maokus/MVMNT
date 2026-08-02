@@ -11,7 +11,8 @@ import {
 import type { SceneCommand, SceneCommandOptions } from '@state/scene';
 import { shallow } from 'zustand/shallow';
 import {
-    makeChannelId,
+    channelForTarget,
+    elementPropertyTarget,
     findKeyframeAtTick,
     createKeyframe,
     DEFAULT_SEGMENT_INTERPOLATION,
@@ -317,18 +318,19 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
 
             // For each property being changed, check if it has automation AND autoKeying is on.
             // If so, dispatch addKeyframe instead of overwriting the binding.
-            const automationChannels = useSceneStore.getState().automation.channels;
+            const automation = useSceneStore.getState().automation;
             const currentTick = useTimelineStore.getState().timeline.currentTick;
             const autoKeying = useTimelineStore.getState().transport.autoKeying;
             const automatedKeys: string[] = [];
             const nonAutomatedChanges: Record<string, any> = {};
 
             for (const [key, value] of Object.entries(changes)) {
-                const chId = makeChannelId(elementId, key);
-                if (autoKeying && automationChannels[chId]) {
+                const target = elementPropertyTarget(elementId, key);
+                const channel = channelForTarget(automation, target);
+                const chId = channel?.id;
+                if (autoKeying && channel && chId) {
                     // Auto key ON + channel already exists: add a keyframe at current tick.
                     automatedKeys.push(key);
-                    const channel = automationChannels[chId];
                     const existingKf = findKeyframeAtTick(channel.keyframes, currentTick);
                     const segmentInterpolation = existingKf?.segmentInterpolation ?? DEFAULT_SEGMENT_INTERPOLATION;
                     const leftHandleType = existingKf?.leftHandleType ?? ('auto_clamped' as const);
@@ -350,7 +352,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                             ...(options ?? {}),
                         }
                     );
-                } else if (autoKeying && !automationChannels[chId]) {
+                } else if (autoKeying && !channel) {
                     // Auto key ON + no channel yet: create automation channel with initial keyframe.
                     const valueType = inferValueTypeForAutoKey(value);
                     if (valueType) {
@@ -371,7 +373,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                     } else {
                         nonAutomatedChanges[key] = value;
                     }
-                } else if (!autoKeying && automationChannels[chId]) {
+                } else if (!autoKeying && channel && chId) {
                     // Auto key OFF + channel exists: temporarily delink (Blender-style).
                     // Store an override so the new value shows immediately, but the keyframed
                     // binding is untouched — scrubbing the playhead clears the override.

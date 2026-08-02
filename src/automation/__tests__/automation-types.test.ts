@@ -32,7 +32,8 @@ describe('automation/types utilities', () => {
     describe('createChannel', () => {
         it('creates an empty channel with defaults', () => {
             const ch = createChannel('el1', 'x', 'number');
-            expect(ch.id).toBe('el1.x');
+            expect(ch.id).toMatch(/^channel:/);
+            expect(ch.target).toEqual({ owner: { kind: 'element', id: 'el1' }, propertyPath: 'x' });
             expect(ch.elementId).toBe('el1');
             expect(ch.propertyKey).toBe('x');
             expect(ch.keyframes).toEqual([]);
@@ -93,7 +94,7 @@ describe('automation/types utilities', () => {
             const ch = createChannel('el1', 'x', 'number');
             ch.keyframes.push(kf(0, 10));
             const cloned = cloneChannel(ch);
-            expect(cloned.id).toBe(ch.id);
+            expect(cloned.id).not.toBe(ch.id);
             expect(cloned.keyframes).toEqual(ch.keyframes);
             expect(cloned.keyframes).not.toBe(ch.keyframes);
         });
@@ -101,8 +102,9 @@ describe('automation/types utilities', () => {
         it('reassigns to new element ID', () => {
             const ch = createChannel('el1', 'x', 'number');
             const cloned = cloneChannel(ch, 'el2');
-            expect(cloned.id).toBe('el2.x');
+            expect(cloned.id).toMatch(/^channel:/);
             expect(cloned.elementId).toBe('el2');
+            expect(cloned.target.owner.id).toBe('el2');
         });
     });
 

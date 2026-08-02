@@ -3,7 +3,7 @@ import InsertKeyframePopup from '@workspace/panels/properties/InsertKeyframePopu
 import TrackInputAssignPopup from '@workspace/components/TrackInputAssignPopup';
 import { hoveredPropertyRef } from '@workspace/panels/properties/hoveredPropertyRef';
 import { resolveAutomationValueType } from '@workspace/panels/properties/KeyframeControl';
-import { makeChannelId } from '@automation/types';
+import { channelForTarget, elementPropertyTarget } from '@automation/types';
 import { automationEvaluator } from '@automation/automation-evaluator';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneSelection } from '@context/SceneSelectionContext';
@@ -119,16 +119,19 @@ const InsertKeyframeController: React.FC = () => {
                 const { propertyKey, propertyType } = hovered;
                 const valueType = resolveAutomationValueType(propertyType);
                 if (valueType) {
-                    const channelId = makeChannelId(selectedElement.id, propertyKey);
+                    const channelId = channelForTarget(
+                        useSceneStore.getState().automation,
+                        elementPropertyTarget(selectedElement.id, propertyKey)
+                    )?.id;
                     const sceneState = useSceneStore.getState();
                     const tick = useTimelineStore.getState().timeline.currentTick;
-                    const isAutomated = !!sceneState.automation.channels[channelId];
+                    const isAutomated = !!channelId;
 
                     let currentValue: unknown;
                     if (isAutomated) {
-                        const override = sceneState.propertyOverrides[channelId];
+                        const override = sceneState.propertyOverrides[channelId!];
                         currentValue =
-                            override !== undefined ? override : automationEvaluator.evaluate(channelId, tick);
+                            override !== undefined ? override : automationEvaluator.evaluate(channelId!, tick);
                     } else {
                         const binding = selectedElement.bindings[propertyKey];
                         currentValue = binding?.type === 'constant' ? (binding as any).value : undefined;

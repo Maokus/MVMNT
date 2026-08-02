@@ -195,16 +195,13 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
 };
 
 /** Channel row label with curve toggle and remove button. */
-const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: string }> = ({
-    channelId,
-    elementId,
-    propertyKey,
-}) => {
+const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
     const curveExpanded = useCurveEditorExpanded(channelId);
     const channel = useSceneStore(useCallback((s) => s.automation.channels[channelId], [channelId]));
     const currentTick = useTimelineStore((s) => s.timeline.currentTick);
     const seekTick = useTimelineStore((s) => s.seekTick);
     const curveHeight = useCurveHeight(channelId);
+    const propertyPath = channel?.target.propertyPath ?? '';
 
     const toggleCurve = useCallback(() => {
         useSceneStore.setState((state) => {
@@ -237,7 +234,7 @@ const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: 
                 style={{ height: AUTOMATION_ROW_HEIGHT }}
                 onDoubleClick={toggleCurve}
             >
-                <span className="text-[11px] truncate">{propertyKey}</span>
+                <span className="text-[11px] truncate">{propertyPath}</span>
                 <div className="flex items-center gap-1">
                     <button
                         className="flex items-center justify-center w-4 h-4 rounded text-neutral-500 hover:text-neutral-200 hover:bg-neutral-700/50"
@@ -277,13 +274,12 @@ const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: 
                     )}
                     <button
                         className="flex items-center justify-center w-4 h-4 rounded text-neutral-500 hover:text-red-400 hover:bg-red-900/30"
-                        title={`Remove automation: ${propertyKey}`}
+                        title={`Remove automation: ${propertyPath}`}
                         onClick={(e) => {
                             e.stopPropagation();
                             dispatchSceneCommand({
                                 type: 'disablePropertyAutomation',
-                                elementId,
-                                propertyKey,
+                                target: channel?.target,
                             });
                         }}
                     >
@@ -301,7 +297,7 @@ const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: 
 
 /** A single element's automation label group. */
 const ElementAutomationGroup: React.FC<{ elementId: string }> = ({ elementId }) => {
-    const element = useSceneStore(useCallback((s) => s.elements[elementId], [elementId]));
+    const owner = useSceneStore(useCallback((s) => s.elements[elementId] ?? s.graph.nodesById[elementId], [elementId]));
     const expanded = useAutomationExpanded(elementId);
     const channels = useElementChannels(elementId);
     const searchQuery = useSceneStore((s) => s.interaction.automationSearchQuery);
@@ -316,11 +312,11 @@ const ElementAutomationGroup: React.FC<{ elementId: string }> = ({ elementId }) 
         });
     }, [elementId, expanded]);
 
-    if (!element || channels.length === 0) return null;
+    if (!owner || channels.length === 0) return null;
 
     const lowerQuery = searchQuery.toLowerCase().trim();
     const visibleChannels = lowerQuery
-        ? channels.filter((ch) => ch.propertyKey.toLowerCase().includes(lowerQuery))
+        ? channels.filter((ch) => ch.target.propertyPath.toLowerCase().includes(lowerQuery))
         : channels;
 
     if (lowerQuery && visibleChannels.length === 0) return null;
@@ -337,15 +333,14 @@ const ElementAutomationGroup: React.FC<{ elementId: string }> = ({ elementId }) 
                 title={isExpanded ? 'Collapse automation channels' : 'Expand automation channels'}
             >
                 {isExpanded ? <FaChevronDown className="text-[9px]" /> : <FaChevronRight className="text-[9px]" />}
-                <span className="text-[11px] font-medium truncate">{elementId}</span>
+                <span className="text-[11px] font-medium truncate">
+                    {'name' in owner ? `${owner.name} · Host node` : elementId}
+                </span>
                 <span className="text-[10px] text-neutral-500 truncate">({visibleChannels.length})</span>
             </div>
 
             {/* Channel rows (when expanded) */}
-            {isExpanded &&
-                visibleChannels.map((ch) => (
-                    <ChannelRow key={ch.id} channelId={ch.id} elementId={ch.elementId} propertyKey={ch.propertyKey} />
-                ))}
+            {isExpanded && visibleChannels.map((ch) => <ChannelRow key={ch.id} channelId={ch.id} />)}
         </>
     );
 };

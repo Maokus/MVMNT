@@ -8,14 +8,25 @@
 import { useCallback, useMemo } from 'react';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
-import { makeChannelId, findKeyframeAtTick } from './types';
-import type { AutomationChannel, AutomationKeyframe } from './types';
+import { channelForTarget, elementPropertyTarget, encodePropertyTarget, findKeyframeAtTick } from './types';
+import type { AutomationChannel, AutomationKeyframe, PropertyTarget } from './types';
 import { selectAutomatedElements } from './selectors';
 
 /** Returns the automation channel for an element property, or null if not automated. */
 export function useAutomationChannel(elementId: string, propertyKey: string): AutomationChannel | null {
-    const channelId = makeChannelId(elementId, propertyKey);
-    return useSceneStore(useCallback((state) => state.automation.channels[channelId] ?? null, [channelId]));
+    return useAutomationTargetChannel(elementPropertyTarget(elementId, propertyKey));
+}
+
+export function useAutomationTargetChannel(target: PropertyTarget): AutomationChannel | null {
+    const targetKey = encodePropertyTarget(target);
+    return useSceneStore(
+        useCallback(
+            (state) => channelForTarget(state.automation, target) ?? null,
+            // targetKey is the stable semantic dependency; callers may create a target inline.
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+            [targetKey]
+        )
+    );
 }
 
 /** Returns the keyframe at the given tick on a channel, or null. */
@@ -44,21 +55,21 @@ export function useIsPropertyAutomated(elementId: string, propertyKey: string): 
     return channel !== null;
 }
 
-/** Returns all automation channels for an element, sorted by property key. */
-export function useElementChannels(elementId: string): AutomationChannel[] {
+/** Returns all automation channels for an element or node owner, sorted by property path. */
+export function useElementChannels(ownerId: string): AutomationChannel[] {
     return useSceneStore(
         useCallback(
             (state) => {
                 const channels: AutomationChannel[] = [];
                 for (const channel of Object.values(state.automation.channels)) {
-                    if (channel.elementId === elementId) {
+                    if (channel.target.owner.id === ownerId) {
                         channels.push(channel);
                     }
                 }
-                channels.sort((a, b) => a.propertyKey.localeCompare(b.propertyKey));
+                channels.sort((a, b) => a.target.propertyPath.localeCompare(b.target.propertyPath));
                 return channels;
             },
-            [elementId]
+            [ownerId]
         )
     );
 }

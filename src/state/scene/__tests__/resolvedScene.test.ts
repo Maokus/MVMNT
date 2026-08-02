@@ -95,4 +95,32 @@ describe('resolved scene frame', () => {
             frame.byNodeId.get('element:perspective')?.artworkBounds
         );
     });
+
+    it('evaluates animated parent properties before descendant world geometry', () => {
+        let graph = createFlatSceneGraph(['shape']);
+        graph = groupSceneNodes(graph, ['element:shape'], 'group:animated');
+        const element = {
+            id: 'shape',
+            visible: true,
+            buildRenderObjects: () => [
+                { render: vi.fn(), getVisualBounds: () => ({ x: 0, y: 0, width: 10, height: 10 }) },
+            ],
+        } as any;
+        const frameAt = (translationX: number) =>
+            resolveSceneFrame({
+                graph,
+                time: translationX,
+                runtimeVersion: 1,
+                config: {},
+                getElement: () => element,
+                evaluateNode: (node) =>
+                    node.id === 'group:animated'
+                        ? { ...node, userNodeTransform: { ...node.userNodeTransform, translationX } }
+                        : node,
+            });
+
+        expect(frameAt(0).byElementId.get('shape')?.artworkBounds?.x).toBe(0);
+        expect(frameAt(75).byElementId.get('shape')?.artworkBounds?.x).toBe(75);
+        expect(frameAt(75).byNodeId.get('group:animated')?.artworkBounds?.x).toBe(75);
+    });
 });

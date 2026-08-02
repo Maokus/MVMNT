@@ -8,7 +8,7 @@ import type { ElementBindings } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
 import type { FormInputChange } from '@workspace/forms/inputs/FormInput';
 import { useCurrentTick } from '@automation/hooks';
-import { makeChannelId, findKeyframeAtTick, createKeyframe } from '@automation/types';
+import { channelForTarget, elementPropertyTarget, findKeyframeAtTick, createKeyframe } from '@automation/types';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
@@ -129,7 +129,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 group.properties.forEach((property) => {
                     const binding = bindingsMemo[property.key];
                     if (binding?.type === 'keyframes') {
-                        const chId = makeChannelId(elementId, property.key);
+                        const chId = binding.channelId;
                         if (propertyOverrides[chId] !== undefined) {
                             keys.add(property.key);
                         }
@@ -180,7 +180,11 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                         // Evaluate automation at current tick for display.
                         // Check transient override first (set when auto key is off and user manually
                         // changes a keyframed property — clears automatically on scrub/play).
-                        const chId = makeChannelId(elementId, property.key);
+                        const chId = binding.channelId;
+                        if (!chId) {
+                            nextValues[property.key] = property.default ?? null;
+                            return;
+                        }
                         const override = propertyOverrides[chId];
                         if (override !== undefined) {
                             nextValues[property.key] = override;
@@ -308,14 +312,14 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 for (const [key, value] of Object.entries(patch)) {
                     const valueType = resolveAutomationValueType(propertyTypeMap.get(key) ?? '');
                     if (!valueType) continue;
-                    const channelId = makeChannelId(elementId, key);
+                    const target = elementPropertyTarget(elementId, key);
+                    const channelId = channelForTarget({ channels: existingChannels }, target)?.id;
                     commands.push(
-                        existingChannels[channelId]
+                        channelId
                             ? { type: 'addKeyframe', channelId, keyframe: createKeyframe(currentTick, value) }
                             : {
                                   type: 'enablePropertyAutomation',
-                                  elementId,
-                                  propertyKey: key,
+                                  target,
                                   valueType,
                                   initialKeyframes: [createKeyframe(currentTick, value)],
                               }

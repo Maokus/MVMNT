@@ -175,6 +175,7 @@ export function resolveSceneFrame(options: {
     config: any;
     getElement: (elementId: string) => SceneElement | undefined;
     structure?: SceneStructureIndex;
+    evaluateNode?: (node: SceneNode) => SceneNode;
 }): ResolvedSceneFrame {
     const { graph, time, runtimeVersion, config, getElement } = options;
     const records: ResolvedSceneRecord[] = [];
@@ -185,13 +186,27 @@ export function resolveSceneFrame(options: {
     const structure =
         options.structure?.graphRevision === graph.revision ? options.structure : buildSceneStructureIndex(graph);
     for (const entry of structure.records) {
+        const node = options.evaluateNode?.(entry.node) ?? entry.node;
+        const parentRecord = node.parentId ? byNodeId.get(node.parentId) : undefined;
+        const parentWorldTransform = parentRecord?.nodeWorldTransform ?? identityMatrix();
+        const nodeWorldTransform = multiplyMatrices(
+            parentWorldTransform,
+            multiplyMatrices(node.parentCompensation, nodeTransformToMatrix(node.userNodeTransform))
+        );
+        const effectiveVisible = (parentRecord?.effectiveVisible ?? true) && node.localVisible;
+        const effectiveLocked = (parentRecord?.effectiveLocked ?? false) || node.localLocked;
         const record: ResolvedSceneRecord = {
             ...entry,
+            node,
+            parentWorldTransform,
+            nodeWorldTransform,
+            effectiveVisible,
+            effectiveLocked,
             renderObjects: [],
         };
-        if (entry.node.kind === 'element') {
-            record.elementId = entry.node.elementId;
-            record.element = getElement(entry.node.elementId);
+        if (node.kind === 'element') {
+            record.elementId = node.elementId;
+            record.element = getElement(node.elementId);
             if (record.effectiveVisible && record.element?.visible) {
                 const content = record.element.buildRenderObjects(config, time) ?? [];
                 record.renderObjects = content.map((payload: any) =>
@@ -201,7 +216,7 @@ export function resolveSceneFrame(options: {
                 Object.assign(record, boundsAndHull(record.renderObjects[0]));
             }
             elements.push(record);
-            byElementId.set(entry.node.elementId, record);
+            byElementId.set(node.elementId, record);
         }
         records.push(record);
         byNodeId.set(entry.node.id, record);

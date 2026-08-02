@@ -3,7 +3,7 @@ import { exportScene, importScene } from '@persistence/index';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneStore } from '@state/sceneStore';
 import { dispatchSceneCommand } from '@state/scene';
-import { createKeyframe, makeChannelId } from '@automation/types';
+import { createKeyframe } from '@automation/types';
 
 describe('Scene element + macro persistence', () => {
     beforeEach(() => {
@@ -112,9 +112,10 @@ describe('Scene element + macro persistence', () => {
             valueType: 'number',
             initialKeyframes: [createKeyframe(0, 0)],
         });
+        const channelId = useSceneStore.getState().bindings.byElement.el1.offsetX;
         dispatchSceneCommand({
             type: 'addKeyframe',
-            channelId: makeChannelId('el1', 'offsetX'),
+            channelId: channelId.type === 'keyframes' ? channelId.channelId : '',
             keyframe: createKeyframe(120, 100),
         });
 
@@ -122,6 +123,9 @@ describe('Scene element + macro persistence', () => {
         expect(res.ok).toBe(true);
         if (!res.ok) throw new Error('Expected packaged export for automation regression test');
 
-        expect(res.envelope.scene.automation?.channels['el1.offsetX']?.keyframes).toHaveLength(2);
+        const channel = Object.values(res.envelope.scene.automation?.channels ?? {}).find(
+            (entry: any) => entry.target.owner.id === 'el1' && entry.target.propertyPath === 'offsetX'
+        ) as any;
+        expect(channel?.keyframes).toHaveLength(2);
     });
 });

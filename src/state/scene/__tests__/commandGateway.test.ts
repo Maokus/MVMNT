@@ -8,6 +8,7 @@ import {
 import { loadDefaultScene } from '@core/default-scene-loader';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
+import { nodePropertyTarget } from '@automation/types';
 
 function resetState() {
     useSceneStore.getState().clearScene();
@@ -297,10 +298,46 @@ describe('scene command gateway', () => {
         expect(result.success).toBe(true);
         const copied = useSceneStore.getState();
         expect(copied.graph.nodesById['copy:a']).toMatchObject({ parentId: 'copy:inner', elementId: 'copy-a' });
-        expect(copied.automation.channels['copy-a.offsetX']?.keyframes).toEqual(
-            copied.automation.channels['original-a.offsetX']?.keyframes
+        const originalChannel = Object.values(copied.automation.channels).find(
+            (channel) => channel.target.owner.id === 'original-a' && channel.target.propertyPath === 'offsetX'
         );
-        expect(copied.automation.channels['copy-a.offsetX']).not.toBe(copied.automation.channels['original-a.offsetX']);
+        const copiedChannel = Object.values(copied.automation.channels).find(
+            (channel) => channel.target.owner.id === 'copy-a' && channel.target.propertyPath === 'offsetX'
+        );
+        expect(copiedChannel?.keyframes).toEqual(originalChannel?.keyframes);
+        expect(copiedChannel).not.toBe(originalChannel);
+        expect(copiedChannel?.id).not.toBe(originalChannel?.id);
+    });
+
+    it('cleans up structured node targets with a subtree and restores them exactly on undo', () => {
+        dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'child' });
+        const childNode = useSceneStore.getState().nodeIdByElementId.child;
+        dispatchSceneCommand({ type: 'groupNodes', nodeIds: [childNode], groupId: 'group:animated' });
+        dispatchSceneCommand({
+            type: 'enablePropertyAutomation',
+            target: nodePropertyTarget('group:animated', 'translationX'),
+            valueType: 'number',
+            initialKeyframes: [{ tick: 0, value: 25, segmentInterpolation: { mode: 'linear', direction: 'auto' } }],
+        });
+        dispatchSceneCommand({ type: 'createMacro', macroId: 'group-scale', definition: { type: 'number', value: 2 } });
+        dispatchSceneCommand({
+            type: 'updatePropertyTargetBinding',
+            target: nodePropertyTarget('group:animated', 'uniformScale'),
+            binding: { type: 'macro', macroId: 'group-scale' },
+        });
+        const before = useSceneStore.getState().exportSceneDraft();
+
+        const deletion = dispatchSceneCommand({ type: 'deleteSubtrees', nodeIds: ['group:animated'] });
+        expect(deletion.success).toBe(true);
+        expect(useSceneStore.getState().nodeBindings['group:animated']).toBeUndefined();
+        expect(
+            Object.values(useSceneStore.getState().automation.channels).some(
+                (channel) => channel.target.owner.kind === 'node' && channel.target.owner.id === 'group:animated'
+            )
+        ).toBe(false);
+
+        dispatchSceneCommand(deletion.patch!.undo[0]);
+        expect(useSceneStore.getState().exportSceneDraft()).toEqual(before);
     });
 
     it.skip('hydrates default scene macros into the scene store', async () => {

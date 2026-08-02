@@ -5,6 +5,7 @@ import type { AutomationChannel, AutomationKeyframe, SegmentInterpolation } from
 function makeChannel(keyframes: AutomationKeyframe[], opts: Partial<AutomationChannel> = {}): AutomationChannel {
     return {
         id: 'test.prop',
+        target: { owner: { kind: 'element', id: 'test' }, propertyPath: 'prop' },
         elementId: 'test',
         propertyKey: 'prop',
         keyframes,

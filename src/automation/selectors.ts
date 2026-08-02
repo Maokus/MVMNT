@@ -3,12 +3,14 @@
  */
 
 import type { AutomationChannel } from './types';
+import { traverseSceneGraph, type SceneGraphState } from '@state/scene-graph';
 
 /** Minimal store shape needed by these selectors (avoids importing the full store type). */
 interface AutomationStoreSlice {
     automation: { channels: Record<string, AutomationChannel> };
     elements: Record<string, { id: string; type: string }>;
     order: string[];
+    graph: SceneGraphState;
     interaction: {
         automationExpandedElements: string[];
         automationExpandedCurves: string[];
@@ -18,6 +20,7 @@ interface AutomationStoreSlice {
 export interface AutomatedElementView {
     elementId: string;
     elementType: string;
+    ownerKind: 'element' | 'node';
     channels: AutomationChannel[];
 }
 
@@ -26,27 +29,36 @@ export function selectAutomatedElements(state: AutomationStoreSlice): AutomatedE
     const channelsByElement = new Map<string, AutomationChannel[]>();
 
     for (const channel of Object.values(state.automation.channels)) {
-        const existing = channelsByElement.get(channel.elementId);
+        const ownerKey = `${channel.target.owner.kind}:${channel.target.owner.id}`;
+        const existing = channelsByElement.get(ownerKey);
         if (existing) {
             existing.push(channel);
         } else {
-            channelsByElement.set(channel.elementId, [channel]);
+            channelsByElement.set(ownerKey, [channel]);
         }
     }
 
     const result: AutomatedElementView[] = [];
     for (const elementId of state.order) {
-        const channels = channelsByElement.get(elementId);
+        const channels = channelsByElement.get(`element:${elementId}`);
         if (!channels || channels.length === 0) continue;
         const element = state.elements[elementId];
         if (!element) continue;
         // Sort channels by property key for stable ordering
-        channels.sort((a, b) => a.propertyKey.localeCompare(b.propertyKey));
+        channels.sort((a, b) => a.target.propertyPath.localeCompare(b.target.propertyPath));
         result.push({
             elementId,
             elementType: element.type,
+            ownerKind: 'element',
             channels,
         });
+    }
+    for (const node of traverseSceneGraph(state.graph)) {
+        if (node.kind === 'root') continue;
+        const channels = channelsByElement.get(`node:${node.id}`);
+        if (!channels?.length) continue;
+        channels.sort((a, b) => a.target.propertyPath.localeCompare(b.target.propertyPath));
+        result.push({ elementId: node.id, elementType: '__host_node__', ownerKind: 'node', channels });
     }
 
     return result;

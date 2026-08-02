@@ -1,5 +1,6 @@
 import { validateSceneEnvelope } from './validate';
 import { migrateSceneGraphV12 } from './migrations/sceneGraphV12';
+import { migrateAutomationTargetsV13 } from './migrations/automationTargetsV13';
 import { DocumentGateway } from './document-gateway';
 import type { SceneExportEnvelope, ScenePluginDependency } from './export';
 import { isMidiBinary } from '@core/midi/midi-encoder';
@@ -1018,9 +1019,11 @@ export async function importScene(
     options.onProgress?.(0.35, 'Validating scene…');
     await prepareTextBoundsMigrationFonts(envelope, fontPayloads);
     throwIfAborted(options.signal);
-    const migratedEnvelope = migrateSceneGraphV12(
-        migrateSceneTextBoundsV11(
-            migrateSceneAudioClipSourceTimeV10(migrateSceneMidiClipsV8(migrateSceneRotationUnitsV7(envelope)))
+    const migratedEnvelope = migrateAutomationTargetsV13(
+        migrateSceneGraphV12(
+            migrateSceneTextBoundsV11(
+                migrateSceneAudioClipSourceTimeV10(migrateSceneMidiClipsV8(migrateSceneRotationUnitsV7(envelope)))
+            )
         )
     );
     const validation = validateSceneEnvelope(migratedEnvelope);
@@ -1115,7 +1118,8 @@ export async function importScene(
             migratedEnvelope.schemaVersion === 9 ||
             migratedEnvelope.schemaVersion === 10 ||
             migratedEnvelope.schemaVersion === 11 ||
-            migratedEnvelope.schemaVersion === 12) &&
+            migratedEnvelope.schemaVersion === 12 ||
+            migratedEnvelope.schemaVersion === 13) &&
         migratedEnvelope.assets
     ) {
         options.onProgress?.(0.82, 'Restoring audio assets…');

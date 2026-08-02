@@ -8,15 +8,16 @@
  */
 
 import React, { useCallback } from 'react';
-import { useCurrentTick, useAutomationChannel, useKeyframeAtTick } from '@automation/hooks';
+import { useCurrentTick, useAutomationTargetChannel, useKeyframeAtTick } from '@automation/hooks';
 import { dispatchSceneCommand, type SceneCommandOptions } from '@state/scene/commandGateway';
-import { makeChannelId, createKeyframe } from '@automation/types';
-import type { AutomationValueType } from '@automation/types';
+import { createKeyframe, elementPropertyTarget } from '@automation/types';
+import type { AutomationValueType, PropertyTarget } from '@automation/types';
 import { useSceneStore } from '@state/sceneStore';
 
 interface KeyframeControlProps {
-    elementId: string;
-    propertyKey: string;
+    target?: PropertyTarget;
+    elementId?: string;
+    propertyKey?: string;
     propertyType: string;
     currentValue: unknown;
     isDelinked?: boolean;
@@ -50,12 +51,14 @@ export function isAutomatableType(propertyType: string): boolean {
 const KeyframeControl: React.FC<KeyframeControlProps> = ({
     elementId,
     propertyKey,
+    target: explicitTarget,
     propertyType,
     currentValue,
     isDelinked = false,
 }) => {
+    const target = explicitTarget ?? elementPropertyTarget(elementId!, propertyKey!);
     const tick = useCurrentTick();
-    const channel = useAutomationChannel(elementId, propertyKey);
+    const channel = useAutomationTargetChannel(target);
     const channelId = channel?.id ?? null;
     const keyframeAtTick = useKeyframeAtTick(channelId, tick);
 
@@ -78,8 +81,7 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                 dispatchSceneCommand(
                     {
                         type: 'enablePropertyAutomation',
-                        elementId,
-                        propertyKey,
+                        target,
                         valueType,
                         initialKeyframes,
                     },
@@ -113,11 +115,11 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                 );
                 // If property was delinked (override shadowing automation), clear the override to relink
                 if (isDelinked) {
-                    useSceneStore.getState().clearPropertyOverride(makeChannelId(elementId, propertyKey));
+                    useSceneStore.getState().clearPropertyOverride(channelId!);
                 }
             }
         },
-        [isAutomated, hasKeyframeHere, channelId, tick, currentValue, elementId, propertyKey, propertyType, isDelinked]
+        [isAutomated, hasKeyframeHere, channelId, tick, currentValue, target, propertyType, isDelinked]
     );
 
     const handleContextMenu = useCallback(
@@ -131,13 +133,12 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
             dispatchSceneCommand(
                 {
                     type: 'disablePropertyAutomation',
-                    elementId,
-                    propertyKey,
+                    target,
                 },
                 { source: 'keyframe-control' }
             );
         },
-        [isAutomated, elementId, propertyKey]
+        [isAutomated, target]
     );
 
     const title = !isAutomated

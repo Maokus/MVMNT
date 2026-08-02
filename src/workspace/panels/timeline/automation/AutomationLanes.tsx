@@ -92,7 +92,9 @@ const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ 
 const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = ({ elementId, width }) => {
     const expanded = useAutomationExpanded(elementId);
     const channels = useElementChannels(elementId);
-    const element = useSceneStore(useCallback((s) => s.elements[elementId], [elementId]));
+    const ownerExists = useSceneStore(
+        useCallback((s) => Boolean(s.elements[elementId] || s.graph.nodesById[elementId]), [elementId])
+    );
     const searchQuery = useSceneStore((s) => s.interaction.automationSearchQuery);
     const { toX, toTick } = useTickScale();
     const snapTick = useSnapTicks();
@@ -289,11 +291,11 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
         [setDotDrag]
     );
 
-    if (!element || channels.length === 0) return null;
+    if (!ownerExists || channels.length === 0) return null;
 
     const lowerQuery = searchQuery.toLowerCase().trim();
     const visibleChannels = lowerQuery
-        ? channels.filter((ch) => ch.propertyKey.toLowerCase().includes(lowerQuery))
+        ? channels.filter((ch) => ch.target.propertyPath.toLowerCase().includes(lowerQuery))
         : channels;
 
     if (lowerQuery && visibleChannels.length === 0) return null;
@@ -468,7 +470,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
                     if (elRect.bottom < minAbsY || elRect.top > maxAbsY) continue;
                     const elementId = el.dataset.elementId!;
                     for (const ch of Object.values(channels)) {
-                        if (ch.elementId !== elementId) continue;
+                        if (ch.target.owner.id !== elementId) continue;
                         for (const kf of ch.keyframes) {
                             if (kf.tick >= minTick - 0.5 && kf.tick <= maxTick + 0.5) {
                                 addKf(ch.id, kf.tick);

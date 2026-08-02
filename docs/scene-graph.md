@@ -5,14 +5,14 @@ continue to own only the content described by their element properties.
 
 ## Document model
 
-Schema v12 stores `scene.elements` and `scene.graph`. The graph contains a reserved synthetic root and one stable
+Schema v13 stores `scene.elements` and `scene.graph`. The graph contains a reserved synthetic root and one stable
 element node for every element record. Child order is canonical back-to-front paint order. `elementsOrder` is an
-internal compatibility projection derived by depth-first traversal and is not written to v12 scene files.
+internal compatibility projection derived by depth-first traversal and is not written to current scene files.
 
 Each node stores local visibility and lock flags, an exact six-value affine `parentCompensation` matrix, and an
 editable host transform containing translation, clockwise rotation in radians, uniform scale, and pivot. Element
-IDs remain the ownership keys for plugin properties and automation; node IDs remain stable when an element is
-renamed.
+Element IDs remain the ownership keys for plugin properties, while automation and macros use structured targets
+that distinguish element content from host nodes. Node IDs remain stable when an element is renamed.
 
 The graph validator checks the reserved root, parent/child reciprocity, element ownership, reachability, cycles,
 and finite transforms. Groups may contain elements or other groups to arbitrary useful depth. Traversal,
@@ -24,6 +24,8 @@ without imposing a product nesting limit.
 `SceneRuntimeAdapter.resolveFrame()` is the shared frame source for rendering and editor geometry. It caches a
 static `SceneStructureIndex` by graph revision, evaluates each visible element once per frame, and returns paint
 records, inherited flags, world transforms, render payloads, bounds, and hulls indexed by node and element ID.
+Host-node bindings are evaluated parent-first before world matrices are composed, so animated group transforms and
+visibility flow through ordinary descendant resolution without invalidating the structural index.
 
 The affine transform order is:
 
@@ -42,7 +44,8 @@ matrices before editing the graph and write exact compensation in the destinatio
 selected subtree are rejected before mutation. Structural command undo records exact serialized snapshots. Batches
 are transactional: if one child command fails, the scene snapshot from before the batch is restored. Deleting a
 group cascades through its elements and element-owned automation; ungrouping is the operation that preserves
-children.
+children. Reparenting through animated ancestry is rejected until explicit preservation and baking modes are
+implemented.
 
 ## Editor behavior
 
@@ -59,8 +62,9 @@ descendants from interaction without changing their local values.
 Canvas move, nudge, rotation, and uniform-scale gestures apply a world-space delta to the normalized node
 selection. The resolver supplies aggregate bounds and handles, including group bounds from visible descendant
 artwork. Selected subtrees are excluded from snapping. The host node inspector edits name, visibility, lock,
-translation, rotation, uniform scale, and pivot; mixed multi-selection values are explicit. Plugin properties are
-labelled as applying only to the active element.
+translation, rotation, uniform scale, and pivot; transform and visibility fields expose keyframe and macro controls
+for a single active node. Mixed multi-selection values are explicit. Plugin properties are labelled as applying only
+to the active element.
 
 Grouping non-contiguous siblings retains their relative order but creates a contiguous paint block at the
 frontmost selected position, so their stacking relative to intervening unselected siblings can change.

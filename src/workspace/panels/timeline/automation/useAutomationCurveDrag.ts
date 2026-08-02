@@ -13,6 +13,14 @@ import { buildHandlePatch, yCoordToValue } from './automationCurveUtils';
 import type { AutomationChannel, HandleType } from '@automation/types';
 import { computeAutoHandles } from '@automation/interpolation-defaults';
 
+function focusChannelOwner(channel: AutomationChannel) {
+    if (channel.target.owner.kind === 'element') {
+        useSelectionStore.getState().selectElements([channel.target.owner.id]);
+    } else {
+        useSelectionStore.getState().setSceneNodeInspectorContext(channel.target.owner.id);
+    }
+}
+
 interface UseDragOptions {
     channel: AutomationChannel;
     width: number;
@@ -89,7 +97,7 @@ export function useAutomationCurveDrag({
             e.stopPropagation();
             e.preventDefault();
             (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
-            useSelectionStore.getState().selectElements([channel.elementId]);
+            focusChannelOwner(channel);
 
             const existing = useSelectionStore.getState().selectedKeyframes;
             const clickedIsSelected = existing.some((k) => k.channelId === channel.id && Math.abs(k.tick - tick) < 0.5);
@@ -115,7 +123,7 @@ export function useAutomationCurveDrag({
                 frozenMaxVal: maxVal,
             });
         },
-        [minVal, maxVal, channel.elementId, channel.id]
+        [minVal, maxVal, channel]
     );
 
     // ── Bezier handle drag ───────────────────────────────────────────────────

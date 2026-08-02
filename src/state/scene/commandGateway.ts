@@ -14,8 +14,16 @@ import {
 import { createSceneElementInputFromSchema } from './storeElementFactory';
 import { ensureMacroSync, getMacroSnapshot, replaceMacrosFromSnapshot } from './macroSyncService';
 import { emitSceneCommandTelemetry } from './sceneTelemetry';
-import type { AutomationKeyframe, AutomationValueType } from '@automation/types';
-import { createChannel, insertKeyframeSorted, makeChannelId, removeKeyframeAtTick } from '@automation/types';
+import type { AutomationKeyframe, AutomationValueType, PropertyTarget } from '@automation/types';
+import {
+    channelIdForTarget,
+    cloneChannel,
+    createChannel,
+    elementPropertyTarget,
+    insertKeyframeSorted,
+    nodePropertyTarget,
+    removeKeyframeAtTick,
+} from '@automation/types';
 import { AutomationCurve } from '@automation/automation-curve';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
@@ -120,19 +128,23 @@ export type SceneCommand =
       }
     | {
           type: 'enablePropertyAutomation';
-          elementId: string;
-          propertyKey: string;
+          target?: PropertyTarget;
+          /** Compatibility adapter for element property callers. */
+          elementId?: string;
+          propertyKey?: string;
           valueType: AutomationValueType;
           /** Optional initial keyframes (e.g. current value at tick 0). */
           initialKeyframes?: AutomationKeyframe[];
       }
     | {
           type: 'disablePropertyAutomation';
-          elementId: string;
-          propertyKey: string;
+          target?: PropertyTarget;
+          elementId?: string;
+          propertyKey?: string;
           /** Fallback constant value to revert to. */
           fallbackValue?: unknown;
       }
+    | { type: 'updatePropertyTargetBinding'; target: PropertyTarget; binding: BindingState | null }
     | {
           type: 'addKeyframe';
           channelId: string;
@@ -185,6 +197,39 @@ export interface SceneCommandResult {
     command: SceneCommand;
     error?: Error;
     patch?: SceneCommandPatch | null;
+}
+
+function propertyCommandTarget(command: {
+    target?: PropertyTarget;
+    elementId?: string;
+    propertyKey?: string;
+}): PropertyTarget {
+    if (command.target) return command.target;
+    if (command.elementId && command.propertyKey) return elementPropertyTarget(command.elementId, command.propertyKey);
+    throw new Error('Property command requires a structured target');
+}
+
+function targetBinding(state: SceneStoreState, target: PropertyTarget): BindingState | undefined {
+    return target.owner.kind === 'element'
+        ? state.bindings.byElement[target.owner.id]?.[target.propertyPath]
+        : state.nodeBindings[target.owner.id]?.[target.propertyPath];
+}
+
+function updateTargetBinding(store: SceneStoreState, target: PropertyTarget, binding: BindingState | null): void {
+    if (target.owner.kind === 'element') {
+        store.updateBindings(target.owner.id, { [target.propertyPath]: binding });
+    } else {
+        store.updateNodeBindings(target.owner.id, { [target.propertyPath]: binding });
+    }
+}
+
+function staticNodeProperty(state: SceneStoreState, target: PropertyTarget): unknown {
+    if (target.owner.kind !== 'node') return undefined;
+    const node = state.graph.nodesById[target.owner.id];
+    if (!node) return undefined;
+    if (target.propertyPath === 'localVisible') return node.localVisible;
+    if (target.propertyPath === 'localLocked') return node.localLocked;
+    return node.userNodeTransform[target.propertyPath as keyof NodeTransform];
 }
 
 export interface SceneCommandMergeContext extends SceneCommandResult {
@@ -279,6 +324,8 @@ function captureSceneSnapshot(state: SceneStoreState): SceneImportPayload {
         graph: draft.graph,
         sceneSettings: draft.sceneSettings,
         macros: draft.macros ?? null,
+        automation: draft.automation ?? null,
+        nodeBindings: draft.nodeBindings ?? null,
     };
 }
 
@@ -495,51 +542,28 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
             };
         }
         case 'enablePropertyAutomation': {
-            const channelId = makeChannelId(command.elementId, command.propertyKey);
-            // Already automated? No-op.
-            if (state.automation.channels[channelId]) return null;
-            // Capture current binding so undo can restore it
-            const currentBinding = state.bindings.byElement[command.elementId]?.[command.propertyKey];
-            const fallbackValue =
-                currentBinding && currentBinding.type === 'constant' ? currentBinding.value : undefined;
-            const undoCommands: SceneCommand[] = [
-                {
-                    type: 'disablePropertyAutomation',
-                    elementId: command.elementId,
-                    propertyKey: command.propertyKey,
-                    fallbackValue,
-                },
-            ];
-            // If the property was macro-bound, restore the macro binding after disabling automation
-            if (currentBinding && currentBinding.type === 'macro') {
-                undoCommands.push({
-                    type: 'updateElementConfig',
-                    elementId: command.elementId,
-                    patch: { [command.propertyKey]: { type: 'macro', macroId: currentBinding.macroId } },
-                });
-            }
+            const target = propertyCommandTarget(command);
+            if (channelIdForTarget(state.automation, target)) return null;
             return {
                 redo: [cloneCommand(command)],
-                undo: undoCommands,
+                undo: [{ type: 'loadSerializedScene', payload: captureSceneSnapshot(state) }],
             };
         }
         case 'disablePropertyAutomation': {
-            const channelId = makeChannelId(command.elementId, command.propertyKey);
-            const channel = state.automation.channels[channelId];
+            const target = propertyCommandTarget(command);
+            const channelId = channelIdForTarget(state.automation, target);
+            const channel = channelId ? state.automation.channels[channelId] : undefined;
             if (!channel) return null;
             return {
                 redo: [cloneCommand(command)],
-                undo: [
-                    {
-                        type: 'enablePropertyAutomation',
-                        elementId: command.elementId,
-                        propertyKey: command.propertyKey,
-                        valueType: channel.valueType,
-                        initialKeyframes: channel.keyframes.map((kf) => ({ ...kf })),
-                    },
-                ],
+                undo: [{ type: 'loadSerializedScene', payload: captureSceneSnapshot(state) }],
             };
         }
+        case 'updatePropertyTargetBinding':
+            return {
+                redo: [cloneCommand(command)],
+                undo: [{ type: 'loadSerializedScene', payload: captureSceneSnapshot(state) }],
+            };
         case 'addKeyframe': {
             const channel = state.automation.channels[command.channelId];
             if (!channel) return null;
@@ -582,8 +606,7 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
                     undo: [
                         {
                             type: 'enablePropertyAutomation',
-                            elementId: channel.elementId,
-                            propertyKey: channel.propertyKey,
+                            target: channel.target,
                             valueType: channel.valueType,
                             initialKeyframes: [{ ...existing }],
                         },
@@ -785,20 +808,25 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
             replaceMacrosFromSnapshot(command.payload);
             break;
         case 'enablePropertyAutomation': {
-            const channelId = makeChannelId(command.elementId, command.propertyKey);
-            const channel = createChannel(command.elementId, command.propertyKey, command.valueType);
+            const target = propertyCommandTarget(command);
+            if (channelIdForTarget(store.automation, target)) break;
+            const channel = createChannel(
+                target,
+                command.valueType,
+                undefined,
+                new Set(Object.keys(store.automation.channels))
+            );
             if (command.initialKeyframes?.length) {
                 channel.keyframes = [...command.initialKeyframes];
             }
             store.setAutomationChannel(channel);
-            // Switch binding to keyframes
-            store.updateBindings(command.elementId, {
-                [command.propertyKey]: { type: 'keyframes', channelId },
-            });
+            updateTargetBinding(useSceneStore.getState(), target, { type: 'keyframes', channelId: channel.id });
             break;
         }
         case 'disablePropertyAutomation': {
-            const channelId = makeChannelId(command.elementId, command.propertyKey);
+            const target = propertyCommandTarget(command);
+            const channelId = channelIdForTarget(store.automation, target);
+            if (!channelId) break;
             // Resolve fallback: explicit value, or evaluate channel at current tick, or 0
             let fallback: unknown = command.fallbackValue;
             if (fallback === undefined) {
@@ -813,15 +841,23 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
                         fallback = channel.keyframes[0].value;
                     }
                 } else {
-                    fallback = 0;
+                    const binding = targetBinding(store, target);
+                    fallback =
+                        binding?.type === 'constant'
+                            ? binding.value
+                            : binding?.type === 'macro'
+                              ? store.macros.byId[binding.macroId]?.value
+                              : staticNodeProperty(store, target);
+                    if (fallback === undefined) fallback = 0;
                 }
             }
             store.removeAutomationChannel(channelId);
-            store.updateBindings(command.elementId, {
-                [command.propertyKey]: { type: 'constant', value: fallback },
-            });
+            updateTargetBinding(useSceneStore.getState(), target, { type: 'constant', value: fallback });
             break;
         }
+        case 'updatePropertyTargetBinding':
+            updateTargetBinding(store, command.target, command.binding);
+            break;
         case 'addKeyframe': {
             const channel = store.automation.channels[command.channelId];
             if (!channel) break;
@@ -838,9 +874,7 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
                 const removed = channel.keyframes.find((kf) => Math.abs(kf.tick - command.tick) < 0.5);
                 const fallback: unknown = removed?.value ?? 0;
                 store.removeAutomationChannel(command.channelId);
-                store.updateBindings(channel.elementId, {
-                    [channel.propertyKey]: { type: 'constant', value: fallback },
-                });
+                updateTargetBinding(useSceneStore.getState(), channel.target, { type: 'constant', value: fallback });
             } else {
                 store.updateAutomationKeyframes(command.channelId, nextKeyframes);
             }
@@ -898,11 +932,30 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
             break;
         case 'ungroupNode':
             store.replaceGraph(ungroupSceneNode(store.graph, command.nodeId));
+            useSceneStore.getState().removeNodeBindings([command.nodeId]);
             break;
         case 'reorderNodes':
             store.replaceGraph(reorderSceneNodes(store.graph, command.parentId, command.nodeIds, command.targetIndex));
             break;
         case 'reparentNodes':
+            {
+                const affectedAncestors = new Set<string>(command.nodeIds);
+                for (const start of [...command.nodeIds, command.newParentId]) {
+                    let id: string | null = start;
+                    while (id) {
+                        affectedAncestors.add(id);
+                        id = store.graph.nodesById[id]?.parentId ?? null;
+                    }
+                }
+                if (
+                    Object.values(store.automation.channels).some(
+                        (channel) =>
+                            channel.target.owner.kind === 'node' && affectedAncestors.has(channel.target.owner.id)
+                    )
+                ) {
+                    throw new Error('Animated hierarchy cannot be reparented without an explicit preservation mode');
+                }
+            }
             store.replaceGraph(
                 reparentSceneNodes(store.graph, command.nodeIds, command.newParentId, command.targetIndex)
             );
@@ -918,6 +971,7 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
                 .filter((node): node is Extract<typeof node, { kind: 'element' }> => node?.kind === 'element')
                 .map((node) => node.elementId);
             const nextGraph = removeSubtrees(graph, command.nodeIds);
+            useSceneStore.getState().removeNodeBindings([...removedIds]);
             for (const elementId of elementIds) useSceneStore.getState().removeElement(elementId);
             useSceneStore.getState().replaceGraph(nextGraph);
             break;
@@ -940,6 +994,26 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
                 }
             }
             current.replaceGraph(cloneSubtrees(base, command.nodeIds, command.mappings));
+            const afterGraph = useSceneStore.getState();
+            const occupied = new Set(Object.keys(afterGraph.automation.channels));
+            for (const [sourceNodeId, clonedNodeId] of Object.entries(command.mappings.nodeIdMap)) {
+                const sourceBindings = store.nodeBindings[sourceNodeId];
+                if (!sourceBindings) continue;
+                const clonedBindings: ElementBindings = {};
+                for (const [path, binding] of Object.entries(sourceBindings)) {
+                    if (binding.type !== 'keyframes') {
+                        clonedBindings[path] = { ...binding };
+                        continue;
+                    }
+                    const sourceChannel = store.automation.channels[binding.channelId];
+                    if (!sourceChannel) continue;
+                    const clonedChannel = cloneChannel(sourceChannel, nodePropertyTarget(clonedNodeId, path), occupied);
+                    occupied.add(clonedChannel.id);
+                    useSceneStore.getState().setAutomationChannel(clonedChannel);
+                    clonedBindings[path] = { type: 'keyframes', channelId: clonedChannel.id };
+                }
+                useSceneStore.getState().updateNodeBindings(clonedNodeId, clonedBindings);
+            }
             break;
         }
         default:
@@ -962,6 +1036,9 @@ function requiresRollbackSnapshot(command: SceneCommand): boolean {
         'reorderNodes',
         'reparentNodes',
         'transformNodes',
+        'enablePropertyAutomation',
+        'disablePropertyAutomation',
+        'updatePropertyTargetBinding',
     ].includes(command.type);
 }
 

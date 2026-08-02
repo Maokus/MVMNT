@@ -14,6 +14,7 @@ function makeChannel(
     const parts = id.split('.');
     return {
         id,
+        target: { owner: { kind: 'element', id: parts[0] }, propertyPath: parts.slice(1).join('.') },
         elementId: parts[0],
         propertyKey: parts.slice(1).join('.'),
         keyframes,

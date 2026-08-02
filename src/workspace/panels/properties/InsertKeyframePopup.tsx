@@ -17,7 +17,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FloatingPortal } from '@floating-ui/react';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
-import { makeChannelId, createKeyframe } from '@automation/types';
+import { channelForTarget, createKeyframe, elementPropertyTarget } from '@automation/types';
 import { automationEvaluator } from '@automation/automation-evaluator';
 import { useCurrentTick } from '@automation/hooks';
 import { useSceneStore } from '@state/sceneStore';
@@ -186,8 +186,11 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
 
     const getCurrentValue = useCallback(
         (prop: AutomatableProperty): unknown => {
-            const channelId = makeChannelId(elementId, prop.key);
-            const isAutomated = !!automationChannels[channelId];
+            const channelId = channelForTarget(
+                { channels: automationChannels },
+                elementPropertyTarget(elementId, prop.key)
+            )?.id;
+            const isAutomated = !!channelId;
             if (isAutomated) {
                 const override = propertyOverrides[channelId];
                 if (override !== undefined) return override;
@@ -204,8 +207,9 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
 
     const insertKeyframeForProp = useCallback(
         (prop: AutomatableProperty, mergeKey?: string) => {
-            const channelId = makeChannelId(elementId, prop.key);
-            const isAutomated = !!automationChannels[channelId];
+            const target = elementPropertyTarget(elementId, prop.key);
+            const channelId = channelForTarget({ channels: automationChannels }, target)?.id;
+            const isAutomated = !!channelId;
             const currentValue = getCurrentValue(prop);
             const cmdOptions = { source: 'insert-keyframe-popup', mergeKey };
 
@@ -215,8 +219,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                 dispatchSceneCommand(
                     {
                         type: 'enablePropertyAutomation',
-                        elementId,
-                        propertyKey: prop.key,
+                        target,
                         valueType,
                         initialKeyframes: [createKeyframe(tick > 0 ? tick : 0, currentValue)],
                     },
@@ -348,7 +351,10 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                             }
 
                             const { prop } = item;
-                            const isAutomated = !!automationChannels[makeChannelId(elementId, prop.key)];
+                            const isAutomated = !!channelForTarget(
+                                { channels: automationChannels },
+                                elementPropertyTarget(elementId, prop.key)
+                            );
                             return (
                                 <button
                                     key={prop.key}

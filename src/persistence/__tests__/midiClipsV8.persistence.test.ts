@@ -93,7 +93,7 @@ describe('MIDI clips schema V8 persistence', () => {
         if (!exported.ok) throw new Error('Expected packaged export');
         const exportedTrack = exported.envelope.timeline.tracks.track1;
 
-        expect(exported.envelope.schemaVersion).toBe(12);
+        expect(exported.envelope.schemaVersion).toBe(13);
         expect(exportedTrack.clips).toHaveLength(2);
         expect(exportedTrack.offsetTicks).toBeUndefined();
         expect(exportedTrack.midiSourceId).toBeUndefined();

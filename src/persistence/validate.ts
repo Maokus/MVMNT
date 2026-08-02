@@ -10,7 +10,7 @@
 
 import { validateSceneGraph, type SceneGraphState } from '@state/scene-graph';
 
-export const CURRENT_SCHEMA_VERSION = 12;
+export const CURRENT_SCHEMA_VERSION = 13;
 
 /**
  * Maps schema version to the minimum app version required to open files at that version.
@@ -29,6 +29,7 @@ export const SCHEMA_TO_MIN_APP_VERSION: Record<number, string> = {
     10: '0.16.0',
     11: '0.16.0',
     12: '0.17.0',
+    13: '0.17.0',
 };
 
 export type ValidationErrorCode =
@@ -113,7 +114,7 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
     }
     if (!root.scene || typeof root.scene !== 'object') {
         errors.push(err('ERR_SCENE_MISSING', 'Missing scene object', 'scene'));
-    } else if (schemaVersion === 12) {
+    } else if (schemaVersion === 12 || schemaVersion === 13) {
         if (
             typeof root.scene.elements !== 'object' ||
             root.scene.elements === null ||
@@ -135,7 +136,7 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
             errors.push(
                 err(
                     'ERR_SCENE_ELEMENTS_ORDER_TYPE',
-                    'scene.elementsOrder is not allowed in schema v12',
+                    'scene.elementsOrder is not allowed in schema v12+',
                     'scene.elementsOrder'
                 )
             );
@@ -307,7 +308,8 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
         schemaVersion === 9 ||
         schemaVersion === 10 ||
         schemaVersion === 11 ||
-        schemaVersion === 12
+        schemaVersion === 12 ||
+        schemaVersion === 13
     ) {
         if (!root.assets || typeof root.assets !== 'object') {
             errors.push(err('ERR_ASSETS_MISSING', 'Missing assets block', 'assets'));

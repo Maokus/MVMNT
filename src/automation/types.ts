@@ -100,14 +100,58 @@ export interface AutomationKeyframe {
 /** The JS value type stored in keyframes — drives evaluation strategy. */
 export type AutomationValueType = 'number' | 'color' | 'boolean' | 'string';
 
-/** One automation channel: a single animated property on a single element. */
+export interface PropertyTarget {
+    owner: { kind: 'node' | 'element'; id: string };
+    propertyPath: string;
+}
+
+export function elementPropertyTarget(elementId: string, propertyPath: string): PropertyTarget {
+    return { owner: { kind: 'element', id: elementId }, propertyPath };
+}
+
+export function nodePropertyTarget(nodeId: string, propertyPath: string): PropertyTarget {
+    return { owner: { kind: 'node', id: nodeId }, propertyPath };
+}
+
+export function isPropertyTarget(value: unknown): value is PropertyTarget {
+    if (!value || typeof value !== 'object') return false;
+    const target = value as any;
+    return (
+        target.owner &&
+        (target.owner.kind === 'node' || target.owner.kind === 'element') &&
+        typeof target.owner.id === 'string' &&
+        typeof target.propertyPath === 'string'
+    );
+}
+
+/** Collision-free internal lookup key. Ownership is always read from the target itself. */
+export function encodePropertyTarget(target: PropertyTarget): string {
+    const { kind, id } = target.owner;
+    return `${kind.length}:${kind}${id.length}:${id}${target.propertyPath.length}:${target.propertyPath}`;
+}
+
+let channelSequence = 0;
+
+export function createOpaqueChannelId(occupied: ReadonlySet<string> = new Set()): string {
+    let id: string;
+    do {
+        id =
+            typeof globalThis.crypto?.randomUUID === 'function'
+                ? `channel:${globalThis.crypto.randomUUID()}`
+                : `channel:${Date.now().toString(36)}:${(++channelSequence).toString(36)}`;
+    } while (occupied.has(id));
+    return id;
+}
+
+/** One automation channel: a single animated property with structured ownership. */
 export interface AutomationChannel {
-    /** Canonical ID: `${elementId}.${propertyKey}`. */
+    /** Independent opaque identity; it never encodes property ownership. */
     id: string;
-    /** The element this channel belongs to. */
-    elementId: string;
-    /** The property key being automated. */
-    propertyKey: string;
+    target: PropertyTarget;
+    /** @deprecated Read target.owner instead. Accepted only by compatibility inputs. */
+    elementId?: string;
+    /** @deprecated Read target.propertyPath instead. Accepted only by compatibility inputs. */
+    propertyKey?: string;
     /** Keyframes sorted ascending by tick. */
     keyframes: AutomationKeyframe[];
     /** The value type — determines evaluation strategy. */
@@ -121,6 +165,7 @@ export interface AutomationChannel {
 /** Automation state stored inside the scene store. */
 export interface AutomationState {
     channels: Record<string, AutomationChannel>;
+    channelIdByTarget?: Record<string, string>;
 }
 
 /** Binding state variant for a keyframe-automated property. */
@@ -163,7 +208,7 @@ export function cloneKeyframe(kf: AutomationKeyframe): AutomationKeyframe {
     return clone;
 }
 
-/** Build the canonical channel ID for an element + property pair. */
+/** Legacy v12 channel ID helper. New channels never use this identity scheme. */
 export function makeChannelId(elementId: string, propertyKey: string): string {
     return `${elementId}.${propertyKey}`;
 }
@@ -180,19 +225,103 @@ export function parseChannelId(channelId: string): { elementId: string; property
 
 /** Create an empty automation state. */
 export function createEmptyAutomationState(): AutomationState {
-    return { channels: {} };
+    return { channels: {}, channelIdByTarget: {} };
+}
+
+export function channelIdForTarget(state: AutomationState, target: PropertyTarget): string | undefined {
+    return (
+        state.channelIdByTarget?.[encodePropertyTarget(target)] ??
+        Object.values(state.channels).find(
+            (channel) => encodePropertyTarget(channel.target) === encodePropertyTarget(target)
+        )?.id
+    );
+}
+
+export function channelForTarget(state: AutomationState, target: PropertyTarget): AutomationChannel | undefined {
+    const id = channelIdForTarget(state, target);
+    return id ? state.channels[id] : undefined;
+}
+
+export function rebuildAutomationTargetIndex(channels: Record<string, AutomationChannel>): Record<string, string> {
+    const result: Record<string, string> = {};
+    for (const channel of Object.values(channels)) {
+        if (channel.target) result[encodePropertyTarget(channel.target)] = channel.id;
+    }
+    return result;
+}
+
+/** Compatibility migration for pre-v13 element-owned channels. */
+export function migrateLegacyAutomationState(input: unknown): {
+    state: AutomationState;
+    channelIdMap: Record<string, string>;
+} {
+    const rawChannels =
+        input && typeof input === 'object' && 'channels' in input && (input as any).channels
+            ? ((input as any).channels as Record<string, any>)
+            : {};
+    const channels: Record<string, AutomationChannel> = {};
+    const channelIdMap: Record<string, string> = {};
+    const reservedIds = new Set(
+        Object.values(rawChannels)
+            .filter((raw: any) => isPropertyTarget(raw?.target) && typeof raw?.id === 'string')
+            .map((raw: any) => raw.id as string)
+    );
+    const occupied = new Set<string>();
+    let migratedSequence = 0;
+    for (const [storedId, raw] of Object.entries(rawChannels)) {
+        if (!raw || typeof raw !== 'object') continue;
+        let target: PropertyTarget | null = isPropertyTarget(raw.target) ? raw.target : null;
+        if (!target && typeof raw.elementId === 'string' && typeof raw.propertyKey === 'string') {
+            target = elementPropertyTarget(raw.elementId, raw.propertyKey);
+        }
+        if (!target) {
+            const legacy = parseChannelId(storedId);
+            if (legacy) target = elementPropertyTarget(legacy.elementId, legacy.propertyKey);
+        }
+        if (!target) continue;
+        const alreadyOpaque = isPropertyTarget(raw.target) && typeof raw.id === 'string';
+        const preserveId = alreadyOpaque && !occupied.has(raw.id);
+        let id = preserveId ? raw.id : `channel:migrated:${++migratedSequence}`;
+        while (occupied.has(id) || (!preserveId && reservedIds.has(id))) {
+            id = `channel:migrated:${++migratedSequence}`;
+        }
+        occupied.add(id);
+        channelIdMap[storedId] = id;
+        if (typeof raw.id === 'string') channelIdMap[raw.id] = id;
+        channels[id] = {
+            id,
+            target: { owner: { ...target.owner }, propertyPath: target.propertyPath },
+            keyframes: Array.isArray(raw.keyframes) ? raw.keyframes.map(cloneKeyframe) : [],
+            valueType: raw.valueType,
+        };
+    }
+    return {
+        state: { channels, channelIdByTarget: rebuildAutomationTargetIndex(channels) },
+        channelIdMap,
+    };
 }
 
 /** Create a new, empty automation channel. */
 export function createChannel(
-    elementId: string,
-    propertyKey: string,
-    valueType: AutomationValueType
+    targetOrElementId: PropertyTarget | string,
+    propertyPathOrValueType: string,
+    maybeValueType?: AutomationValueType,
+    occupied: ReadonlySet<string> = new Set()
 ): AutomationChannel {
+    const target =
+        typeof targetOrElementId === 'string'
+            ? elementPropertyTarget(targetOrElementId, propertyPathOrValueType)
+            : targetOrElementId;
+    const valueType = (
+        typeof targetOrElementId === 'string' ? maybeValueType : propertyPathOrValueType
+    ) as AutomationValueType;
     return {
-        id: makeChannelId(elementId, propertyKey),
-        elementId,
-        propertyKey,
+        id: createOpaqueChannelId(occupied),
+        target: {
+            owner: { ...target.owner },
+            propertyPath: target.propertyPath,
+        },
+        ...(target.owner.kind === 'element' ? { elementId: target.owner.id, propertyKey: target.propertyPath } : {}),
         keyframes: [],
         valueType,
     };
@@ -259,12 +388,21 @@ export function removeKeyframeAtTick(
  * Clone a channel, optionally reassigning it to a new element.
  * Returns a new channel object with a fresh keyframes array.
  */
-export function cloneChannel(channel: AutomationChannel, newElementId?: string): AutomationChannel {
-    const elementId = newElementId ?? channel.elementId;
+export function cloneChannel(
+    channel: AutomationChannel,
+    newTargetOrElementId: PropertyTarget | string = channel.target,
+    occupied: ReadonlySet<string> = new Set()
+): AutomationChannel {
+    const newTarget =
+        typeof newTargetOrElementId === 'string'
+            ? elementPropertyTarget(newTargetOrElementId, channel.target.propertyPath)
+            : newTargetOrElementId;
     return {
-        id: makeChannelId(elementId, channel.propertyKey),
-        elementId,
-        propertyKey: channel.propertyKey,
+        id: createOpaqueChannelId(occupied),
+        target: { owner: { ...newTarget.owner }, propertyPath: newTarget.propertyPath },
+        ...(newTarget.owner.kind === 'element'
+            ? { elementId: newTarget.owner.id, propertyKey: newTarget.propertyPath }
+            : {}),
         keyframes: channel.keyframes.map(cloneKeyframe),
         valueType: channel.valueType,
     };

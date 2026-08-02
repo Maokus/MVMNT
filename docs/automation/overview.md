@@ -1,6 +1,7 @@
 # Automation System
 
-The automation system adds a third property binding type — `'keyframes'` — that lets users animate any numeric, color, or boolean element property over time. Phases 1–7 are complete as of schema version 5.
+The automation system adds a third property binding type — `'keyframes'` — for numeric, color, boolean, and string
+properties. Schema v13 makes both plugin element properties and host scene-node properties first-class targets.
 
 ---
 
@@ -26,12 +27,13 @@ interface AutomationKeyframe {
 }
 
 interface AutomationChannel {
-    id: string; // `${elementId}.${propertyKey}`
-    elementId: string;
-    propertyKey: string;
+    id: string; // opaque identity; never encodes ownership
+    target: {
+        owner: { kind: 'element' | 'node'; id: string };
+        propertyPath: string;
+    };
     keyframes: AutomationKeyframe[]; // sorted ascending by tick
-    interpolation: 'linear' | 'stepped' | 'eased';
-    valueType: 'number' | 'color' | 'boolean';
+    valueType: 'number' | 'color' | 'boolean' | 'string';
 }
 
 interface AutomationState {
@@ -44,7 +46,9 @@ interface KeyframesBindingState {
 }
 ```
 
-Channel IDs are generated via `makeChannelId(elementId, propertyKey)` and parsed back with `parseChannelId`. Factory helpers (`createChannel`, `insertKeyframeSorted`, `cloneChannel`) enforce invariants.
+Ownership is always read from `target`. A canonical target encoder is used only for reverse-index keys. New channels
+receive opaque IDs; legacy concatenated IDs are parsed only by the v13 migration. Factory helpers (`createChannel`,
+`insertKeyframeSorted`, `cloneChannel`) enforce invariants.
 
 ### Curve Evaluation (`src/automation/`)
 
@@ -75,15 +79,16 @@ Easing functions come from `src/math/animation/easing.ts` (30+ presets) referenc
 
 ### Scene Commands (`src/state/scene/commandGateway.ts`)
 
-| Command                     | Purpose                                                                             |
-| --------------------------- | ----------------------------------------------------------------------------------- |
-| `enablePropertyAutomation`  | Create channel, set binding to `'keyframes'`, optionally seed with initial keyframe |
-| `disablePropertyAutomation` | Remove channel, revert to constant at current tick value                            |
-| `addKeyframe`               | Insert/replace keyframe at a tick                                                   |
-| `removeKeyframe`            | Remove keyframe at a tick                                                           |
-| `updateKeyframe`            | Patch value or easingId at a tick                                                   |
-| `moveKeyframe`              | Change a keyframe's tick position                                                   |
-| `batchUpdateKeyframes`      | Replace all keyframes in a channel (bulk ops)                                       |
+| Command                       | Purpose                                                                             |
+| ----------------------------- | ----------------------------------------------------------------------------------- |
+| `enablePropertyAutomation`    | Create channel, set binding to `'keyframes'`, optionally seed with initial keyframe |
+| `disablePropertyAutomation`   | Remove channel, revert to constant at current tick value                            |
+| `addKeyframe`                 | Insert/replace keyframe at a tick                                                   |
+| `removeKeyframe`              | Remove keyframe at a tick                                                           |
+| `updateKeyframe`              | Patch value or easingId at a tick                                                   |
+| `moveKeyframe`                | Change a keyframe's tick position                                                   |
+| `batchUpdateKeyframes`        | Replace all keyframes in a channel (bulk ops)                                       |
+| `updatePropertyTargetBinding` | Assign a constant or macro to an element-or-node target                             |
 
 All commands have undo inverses in `buildSceneCommandPatch()`. Drag operations use merge keys (`kf-drag:${channelId}:${sessionId}`) to collapse continuous drags into a single undo entry.
 
@@ -97,11 +102,14 @@ All commands have undo inverses in `buildSceneCommandPatch()`. Drag operations u
 
 Click adds/removes a keyframe at the current tick. Right-click opens a context menu (add/remove, remove all, easing picker, navigate prev/next).
 
-`ElementPropertiesPanel.tsx` routes property edits through `addKeyframe` when the property is automated, instead of `updateElementConfig`.
+`ElementPropertiesPanel.tsx` adapts plugin fields to element targets. The host node inspector uses the same generic
+control for group transforms and visibility. Timeline labels distinguish host-node animation from plugin content.
 
 ### Persistence
 
-Automation channels are serialized under the `automation` key in the scene envelope. Schema version bumped from 4 → 5. Old scenes load with empty automation state. New scenes in old versions silently ignore `'keyframes'` bindings (properties fall back to schema defaults).
+Automation channels are serialized under `scene.automation`, and host bindings under `scene.nodeBindings`. The v13
+migration gives every legacy element channel an opaque ID, writes its structured target, and rewrites keyframe
+bindings. Exports never emit legacy ownership fields or ownership-encoded IDs.
 
 ---
 

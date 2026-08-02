@@ -158,6 +158,11 @@ export interface SceneExportEnvelopeV12 extends Omit<SceneExportEnvelopeV6, 'sch
     };
 }
 
+export interface SceneExportEnvelopeV13 extends Omit<SceneExportEnvelopeV12, 'schemaVersion' | 'scene'> {
+    schemaVersion: 13;
+    scene: SceneExportEnvelopeV12['scene'] & { nodeBindings?: any };
+}
+
 export type SceneExportEnvelope =
     | SceneExportEnvelopeV2
     | SceneExportEnvelopeV4
@@ -168,7 +173,8 @@ export type SceneExportEnvelope =
     | SceneExportEnvelopeV9
     | SceneExportEnvelopeV10
     | SceneExportEnvelopeV11
-    | SceneExportEnvelopeV12;
+    | SceneExportEnvelopeV12
+    | SceneExportEnvelopeV13;
 
 interface AudioFeatureCacheAssetReference {
     assetId: string;
@@ -191,7 +197,7 @@ interface ExportResultBase {
 export interface ExportSceneResultZip extends ExportResultBase {
     ok: true;
     mode: 'zip-package';
-    envelope: SceneExportEnvelopeV12;
+    envelope: SceneExportEnvelopeV13;
     zip: Uint8Array<ArrayBuffer>;
     blob?: Blob;
 }
@@ -866,7 +872,7 @@ export async function exportScene(
         }
     }
 
-    const envelope: SceneExportEnvelopeV12 = {
+    const envelope: SceneExportEnvelopeV13 = {
         schemaVersion: CURRENT_SCHEMA_VERSION,
         format: 'mvmnt.scene',
         metadata,
@@ -879,6 +885,7 @@ export async function exportScene(
             fontAssets: doc.scene?.fontAssets,
             fontLicensingAcknowledgedAt: doc.scene?.fontLicensingAcknowledgedAt,
             automation: doc.scene?.automation,
+            nodeBindings: doc.scene?.nodeBindings,
         },
         timeline: {
             timeline: doc.timeline,

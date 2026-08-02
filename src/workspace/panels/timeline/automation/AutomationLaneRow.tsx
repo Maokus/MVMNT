@@ -35,6 +35,14 @@ import { DEFAULT_SEGMENT_INTERPOLATION } from '@automation/interpolation-default
 import InterpolationPicker from './InterpolationPicker';
 import { AUTOMATION_ROW_HEIGHT } from '../constants';
 
+function focusChannelOwner(channel: AutomationChannel) {
+    if (channel.target.owner.kind === 'element') {
+        useSelectionStore.getState().setSelectedElementIds([channel.target.owner.id]);
+    } else {
+        useSelectionStore.getState().setSceneNodeInspectorContext(channel.target.owner.id);
+    }
+}
+
 interface AutomationLaneRowProps {
     channel: AutomationChannel;
     width: number;
@@ -275,7 +283,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
 
             // Set inspector context to the element owning this channel (low-level setter,
             // does not disturb existing keyframe selection or activeTarget).
-            useSelectionStore.getState().setSelectedElementIds([channel.elementId]);
+            focusChannelOwner(channel);
             const clickedIsSelected = existing.some(
                 (k) => k.channelId === channel.id && Math.abs(k.tick - kf.tick) < 0.5
             );
@@ -316,7 +324,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 sessionId: `${Date.now()}-${Math.random()}`,
             });
         },
-        [channel.id, channel.elementId, toX, width, setDragging]
+        [channel, toX, width, setDragging]
     );
 
     // -----------------------------------------------------------------------
@@ -506,9 +514,9 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             if (target.closest('[data-seg]')) return;
 
             // Select the element that owns this automation channel
-            useSelectionStore.getState().selectElements([channel.elementId]);
+            focusChannelOwner(channel);
         },
-        [channel.elementId]
+        [channel]
     );
 
     // -----------------------------------------------------------------------
@@ -606,7 +614,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             // Keep the active keyframe selection intact. selectElements clears
             // selected keyframes, which meant opening interpolation controls from
             // a selected segment discarded the rest of a multi-selection.
-            useSelectionStore.getState().setSelectedElementIds([channel.elementId]);
+            focusChannelOwner(channel);
             const kfs = channel.keyframes;
             const idx = kfs.findIndex((kf) => Math.abs(kf.tick - tick) < 0.5);
             if (idx < 0 || idx >= kfs.length - 1) return;
@@ -629,7 +637,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 useSelectionStore.getState().selectKeyframes([{ channelId: channel.id, tick: leftTick }]);
             }
         },
-        [channel.id, channel.elementId, channel.keyframes]
+        [channel]
     );
 
     const handleInterpolationSelect = useCallback(
@@ -897,8 +905,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                             onClick={() => {
                                 dispatchSceneCommand({
                                     type: 'disablePropertyAutomation',
-                                    elementId: channel.elementId,
-                                    propertyKey: channel.propertyKey,
+                                    target: channel.target,
                                 });
                                 setContextMenuOpen(false);
                             }}

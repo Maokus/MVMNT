@@ -61,6 +61,7 @@ interface SelectionActions {
 
     /** Low-level setters — update array without changing activeTarget. */
     setSelectedElementIds(ids: string[]): void;
+    setSceneNodeInspectorContext(nodeId: string): void;
     setSelectedTrackIds(ids: string[]): void;
     setSelectedKeyframes(keys: SelectedKeyframe[]): void;
     setClipTimelineSelection(selection: ClipTimelineSelection | null): void;
@@ -243,6 +244,9 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
         // ── Low-level setters ───────────────────────────────────────────────
         setSelectedElementIds(ids) {
             set({ selectedElementIds: ids });
+        },
+        setSceneNodeInspectorContext(nodeId) {
+            set({ selectedNodeIds: [nodeId], selectedElementIds: [], activeNodeId: nodeId, anchorNodeId: nodeId });
         },
         setSelectedTrackIds(ids) {
             set({ selectedTrackIds: ids });

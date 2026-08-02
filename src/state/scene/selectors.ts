@@ -5,6 +5,7 @@ import type {
     SceneSettingsState,
     SceneStoreState,
 } from '../sceneStore';
+import { elementPropertyTarget, encodePropertyTarget, type PropertyTarget } from '@automation/types';
 
 export interface SceneElementView {
     id: string;
@@ -15,6 +16,7 @@ export interface SceneElementView {
 
 export interface MacroAssignmentView extends MacroBindingAssignment {
     macroId: string;
+    target: PropertyTarget;
 }
 
 export interface SceneSelectors {
@@ -51,7 +53,17 @@ function bindingsFingerprint(bindings: ElementBindings): string {
     return pairs.join('|');
 }
 
-function macroAssignmentsFingerprint(byMacro: SceneStoreState['bindings']['byMacro']): string {
+function macroAssignmentsFingerprint(state: SceneStoreState): string {
+    const structured = state.bindings.byTargetMacro;
+    if (structured) {
+        return Object.entries(structured)
+            .flatMap(([macroId, assignments]) =>
+                assignments.map(({ target }) => `${macroId}:${encodePropertyTarget(target)}`)
+            )
+            .sort()
+            .join('|');
+    }
+    const byMacro = state.bindings.byMacro;
     const slices = Object.entries(byMacro)
         .map(([macroId, assignments]) => {
             const key = assignments
@@ -83,9 +95,15 @@ export const createSceneSelectors = (initialState?: SceneStoreState): SceneSelec
             index,
             bindings: initialState.bindings.byElement[id] ?? {},
         }));
-        cachedAssignmentsSignature = macroAssignmentsFingerprint(initialState.bindings.byMacro);
-        cachedAssignmentsResult = Object.entries(initialState.bindings.byMacro).flatMap(([macroId, assignments]) =>
-            assignments.map((assignment) => ({ macroId, ...assignment }))
+        cachedAssignmentsSignature = macroAssignmentsFingerprint(initialState);
+        cachedAssignmentsResult = Object.entries(initialState.bindings.byTargetMacro ?? {}).flatMap(
+            ([macroId, assignments]) =>
+                assignments.map(({ target }) => ({
+                    macroId,
+                    target,
+                    elementId: target.owner.id,
+                    propertyPath: target.propertyPath,
+                }))
         );
     }
 
@@ -110,12 +128,29 @@ export const createSceneSelectors = (initialState?: SceneStoreState): SceneSelec
     };
 
     const selectMacroAssignments = (state: SceneStoreState): MacroAssignmentView[] => {
-        const signature = macroAssignmentsFingerprint(state.bindings.byMacro);
+        const signature = macroAssignmentsFingerprint(state);
         if (signature === cachedAssignmentsSignature) {
             return cachedAssignmentsResult;
         }
-        const next = Object.entries(state.bindings.byMacro)
-            .flatMap(([macroId, assignments]) => assignments.map((assignment) => ({ macroId, ...assignment })))
+        const structured =
+            state.bindings.byTargetMacro ??
+            Object.fromEntries(
+                Object.entries(state.bindings.byMacro).map(([macroId, assignments]) => [
+                    macroId,
+                    assignments.map((assignment) => ({
+                        target: elementPropertyTarget(assignment.elementId, assignment.propertyPath),
+                    })),
+                ])
+            );
+        const next = Object.entries(structured)
+            .flatMap(([macroId, assignments]) =>
+                assignments.map(({ target }) => ({
+                    macroId,
+                    target,
+                    elementId: target.owner.id,
+                    propertyPath: target.propertyPath,
+                }))
+            )
             .sort((a, b) => {
                 if (a.macroId === b.macroId) {
                     if (a.elementId === b.elementId) return a.propertyPath.localeCompare(b.propertyPath);

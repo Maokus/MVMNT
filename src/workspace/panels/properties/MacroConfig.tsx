@@ -40,7 +40,7 @@ interface Macro {
 }
 
 interface MacroAssignment {
-    elementId: string;
+    ownerLabel: string;
     propertyPath: string;
 }
 
@@ -110,7 +110,11 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
         const map = new Map<string, MacroAssignment[]>();
         for (const entry of storeAssignments) {
             const list = map.get(entry.macroId) ?? [];
-            list.push({ elementId: entry.elementId, propertyPath: entry.propertyPath });
+            list.push({
+                ownerLabel:
+                    entry.target.owner.kind === 'node' ? `Host node ${entry.target.owner.id}` : entry.target.owner.id,
+                propertyPath: entry.propertyPath,
+            });
             map.set(entry.macroId, list);
         }
         return map;
@@ -392,7 +396,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             );
         } else {
             const assignmentsList = assignments
-                .map((a: MacroAssignment) => `• ${a.elementId}.${a.propertyPath}`)
+                .map((a: MacroAssignment) => `• ${a.ownerLabel} · ${a.propertyPath}`)
                 .join('\n');
             alert(`Macro "${macroName}" is assigned to:\n\n${assignmentsList}`);
         }
@@ -729,7 +733,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                     {assignments.length > 0 ? (
                         <small>
                             {assignments.length} assignment(s):{' '}
-                            {assignments.map((a: MacroAssignment) => `${a.elementId}.${a.propertyPath}`).join(', ')}
+                            {assignments.map((a: MacroAssignment) => `${a.ownerLabel} · ${a.propertyPath}`).join(', ')}
                         </small>
                     ) : (
                         <small>No assignments</small>

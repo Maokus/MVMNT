@@ -88,13 +88,17 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     }, [interpolationPicker]);
 
     // ── Property schema (step / min / max) ────────────────────────────────────
-    const elementType = useSceneStore(useCallback((s) => s.elements[channel.elementId]?.type, [channel.elementId]));
+    const owner = channel.target.owner;
+    const propertyPath = channel.target.propertyPath;
+    const elementType = useSceneStore(
+        useCallback((s) => (owner.kind === 'element' ? s.elements[owner.id]?.type : undefined), [owner])
+    );
     const { propertyStep, propertyMin, propertyMax } = useMemo(() => {
         if (!elementType) return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
         const schema = sceneElementRegistry.getSchema(elementType) as EnhancedConfigSchema | null;
         if (!schema?.tabs) return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
         for (const group of schema.tabs.flatMap((t) => t.groups)) {
-            const prop = group.properties?.find((p) => p.key === channel.propertyKey);
+            const prop = group.properties?.find((p) => p.key === propertyPath);
             if (prop) {
                 return {
                     propertyStep: prop.step !== undefined && prop.step > 0 ? prop.step : undefined,
@@ -104,7 +108,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             }
         }
         return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
-    }, [elementType, channel.propertyKey]);
+    }, [elementType, propertyPath]);
 
     // ── Displayed value range (smoothly animated) ─────────────────────────────
 

@@ -70,6 +70,7 @@ export interface PersistentDocumentV1 {
         fontAssets?: any;
         fontLicensingAcknowledgedAt?: number;
         automation?: any;
+        nodeBindings?: any;
     };
     metadata?: Partial<SceneMetadataState>;
 }
@@ -100,6 +101,7 @@ export const DocumentGateway = {
         let fontAssets: any = undefined;
         let fontLicensingAcknowledgedAt: number | undefined;
         let automation: any = undefined;
+        let nodeBindings: any = undefined;
         let elementWarnings: string[] | undefined;
 
         try {
@@ -127,6 +129,7 @@ export const DocumentGateway = {
             if (snapshot.automation) {
                 automation = snapshot.automation;
             }
+            if (snapshot.nodeBindings) nodeBindings = snapshot.nodeBindings;
         } catch {}
 
         const hasMacros = !!macros && !!macros.macros && Object.keys(macros.macros).length > 0;
@@ -164,6 +167,7 @@ export const DocumentGateway = {
                 fontAssets,
                 fontLicensingAcknowledgedAt,
                 automation,
+                nodeBindings,
             },
             metadata,
         };
@@ -260,6 +264,7 @@ export const DocumentGateway = {
             fontAssets: doc.scene?.fontAssets,
             fontLicensingAcknowledgedAt: doc.scene?.fontLicensingAcknowledgedAt,
             automation: doc.scene?.automation,
+            nodeBindings: doc.scene?.nodeBindings,
         };
 
         const sceneData = migrateSceneAudioSystemV5(rawSceneData);
