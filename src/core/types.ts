@@ -183,8 +183,6 @@ export interface BaseSceneElementConfig {
     visible?: boolean;
 
     // Global transform properties
-    offsetX?: number;
-    offsetY?: number;
     globalScaleX?: number;
     globalScaleY?: number;
     globalRotation?: number;
@@ -375,11 +373,8 @@ export interface SceneElementInterface {
     visible: boolean;
 
     // Element transform properties
-    offsetX: number;
-    offsetY: number;
     elementScaleX: number;
     elementScaleY: number;
-    elementRotation: number;
     elementSkewX: number;
     elementSkewY: number;
 
@@ -391,14 +386,9 @@ export interface SceneElementInterface {
     setVisible(visible: boolean): this;
 
     // Element transform methods
-    setOffsetX(offsetX: number): this;
-    setOffsetY(offsetY: number): this;
-    setOffset(offsetX: number, offsetY: number): this;
     setElementScaleX(scaleX: number): this;
     setElementScaleY(scaleY: number): this;
     setElementScale(scaleX: number, scaleY?: number): this;
-    setElementRotation(rotation: number): this;
-    setElementRotationRadians(rotation: number): this;
     setElementSkewX(skewX: number): this;
     setElementSkewY(skewY: number): this;
     setElementSkew(skewX: number, skewY: number): this;

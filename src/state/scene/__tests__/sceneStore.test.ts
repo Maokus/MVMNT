@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
-import { deriveElementOrder } from '@state/scene-graph';
+import { createFlatSceneGraph, deriveElementOrder } from '@state/scene-graph';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 import type { FontAsset } from '@state/scene/fonts';
@@ -29,6 +29,35 @@ describe('sceneStore', () => {
         expect(exported.sceneSettings).toEqual(fixture.sceneSettings);
         expect(exported.elements).toEqual(fixture.elements);
         expect(exported.macros).toEqual(fixture.macros);
+    });
+
+    it('migrates imported element offsets into host node position', () => {
+        store.getState().importScene({
+            elements: {
+                legacy: {
+                    id: 'legacy',
+                    type: 'textOverlay',
+                    properties: {
+                        offsetX: { type: 'constant', value: 320 },
+                        offsetY: { type: 'constant', value: 180 },
+                        elementRotation: { type: 'constant', value: 90 },
+                        anchorX: { type: 'constant', value: 0 },
+                        anchorY: { type: 'constant', value: 0 },
+                    },
+                },
+            },
+            graph: createFlatSceneGraph(['legacy']),
+        });
+
+        const state = store.getState();
+        const node = state.graph.nodesById[state.nodeIdByElementId.legacy];
+        expect(node.userNodeTransform).toMatchObject({ translationX: 320, translationY: 180 });
+        expect(node.userNodeTransform.rotation).toBeCloseTo(Math.PI / 2);
+        expect(state.bindings.byElement.legacy.offsetX).toBeUndefined();
+        expect(state.bindings.byElement.legacy.offsetY).toBeUndefined();
+        expect(state.bindings.byElement.legacy.elementRotation).toBeUndefined();
+        expect(state.bindings.byElement.legacy.anchorX).toBeUndefined();
+        expect(state.bindings.byElement.legacy.anchorY).toBeUndefined();
     });
 
     it('maintains macro assignment index when bindings change', () => {

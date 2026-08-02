@@ -16,6 +16,7 @@ import {
     cloneCurrentAutomationState,
     elementPropertyTarget,
     encodePropertyTarget,
+    nodePropertyTarget,
     rebuildAutomationTargetIndex,
 } from '@automation/types';
 import { automationEvaluator } from '@automation/automation-evaluator';
@@ -45,6 +46,7 @@ import {
     createNodeBase,
     deriveElementOrder,
     elementNodeId,
+    nodeTransformToMatrix,
     validateSceneGraph,
     type NodeTransform,
     type SceneGraphState,
@@ -416,6 +418,12 @@ function cloneBinding(binding: BindingState): BindingState {
         return { type: 'keyframes', channelId: binding.channelId };
     }
     throw new Error(`Unsupported binding type: ${(binding as { type?: string }).type ?? 'unknown'}`);
+}
+
+function readBindingNumber(binding: BindingState | undefined): number | null {
+    if (!binding || binding.type !== 'constant') return null;
+    const value = typeof binding.value === 'number' ? binding.value : Number(binding.value);
+    return Number.isFinite(value) ? value : null;
 }
 
 function hasAudioFeatureDescriptors(binding: ConstantBindingState): boolean {
@@ -1795,6 +1803,81 @@ const createSceneStoreState = (
                     Object.entries(bindings).map(([path, binding]) => [path, cloneBinding(binding)])
                 );
             }
+
+            // Offset bindings predate host-owned node position. Move them at the store boundary so
+            // imported scenes retain their appearance without reintroducing the retired properties
+            // into runtime elements or future exports.
+            const importedIndexes = buildSceneGraphIndexes(nextGraph);
+            for (const elementId of nextOrder) {
+                const bindings = nextByElement[elementId];
+                const nodeId = importedIndexes.nodeIdByElementId[elementId];
+                const node = nodeId ? nextGraph.nodesById[nodeId] : undefined;
+                if (!bindings || !node || node.kind !== 'element') continue;
+                const offsetX = bindings.offsetX;
+                const offsetY = bindings.offsetY;
+                delete bindings.offsetX;
+                delete bindings.offsetY;
+                const elementRotation = bindings.elementRotation;
+                delete bindings.elementRotation;
+                delete bindings.anchorX;
+                delete bindings.anchorY;
+
+                if (offsetX || offsetY) {
+                    const matrix = nodeTransformToMatrix(node.userNodeTransform);
+                    const constantX = readBindingNumber(offsetX) ?? 0;
+                    const constantY = readBindingNumber(offsetY) ?? 0;
+                    node.userNodeTransform.translationX += matrix[0] * constantX + matrix[2] * constantY;
+                    node.userNodeTransform.translationY += matrix[1] * constantX + matrix[3] * constantY;
+
+                    const canMoveDynamicBindings =
+                        Math.abs(matrix[0] - 1) < 1e-8 &&
+                        Math.abs(matrix[1]) < 1e-8 &&
+                        Math.abs(matrix[2]) < 1e-8 &&
+                        Math.abs(matrix[3] - 1) < 1e-8;
+                    if (canMoveDynamicBindings) {
+                        const nodeBindings = (nextNodeBindings[nodeId] ??= {});
+                        for (const [path, binding] of [
+                            ['translationX', offsetX],
+                            ['translationY', offsetY],
+                        ] as const) {
+                            if (!binding || binding.type === 'constant' || nodeBindings[path]) continue;
+                            nodeBindings[path] = cloneBinding(binding);
+                            if (binding.type === 'keyframes') {
+                                const channel = automation.channels[binding.channelId];
+                                if (channel) {
+                                    automation.channels[binding.channelId] = {
+                                        ...channel,
+                                        target: nodePropertyTarget(nodeId, path),
+                                    };
+                                }
+                            }
+                        }
+                    }
+                }
+
+                const rotationDegrees = readBindingNumber(elementRotation);
+                if (rotationDegrees != null) {
+                    node.userNodeTransform.rotation += (rotationDegrees * Math.PI) / 180;
+                } else if (elementRotation?.type === 'keyframes') {
+                    const channel = automation.channels[elementRotation.channelId];
+                    const nodeBindings = (nextNodeBindings[nodeId] ??= {});
+                    if (channel && !nodeBindings.rotation) {
+                        nodeBindings.rotation = cloneBinding(elementRotation);
+                        automation.channels[elementRotation.channelId] = {
+                            ...channel,
+                            target: nodePropertyTarget(nodeId, 'rotation'),
+                            keyframes: channel.keyframes.map((keyframe) => ({
+                                ...keyframe,
+                                value:
+                                    typeof keyframe.value === 'number'
+                                        ? (keyframe.value * Math.PI) / 180
+                                        : keyframe.value,
+                            })),
+                        };
+                    }
+                }
+            }
+            automation.channelIdByTarget = rebuildAutomationTargetIndex(automation.channels);
 
             const nextBindings: SceneBindingsState = {
                 byElement: nextByElement,

@@ -42,6 +42,28 @@ describe('scene command gateway', () => {
         const store = useSceneStore.getState();
         expect(deriveElementOrder(store.graph)).toEqual(['element-1']);
         expect(store.bindings.byElement['element-1'].text).toEqual({ type: 'constant', value: 'Hello' });
+        const node = store.graph.nodesById[store.nodeIdByElementId['element-1']];
+        expect(node.userNodeTransform).toMatchObject({
+            translationX: store.settings.width / 2,
+            translationY: store.settings.height / 2,
+        });
+        expect(store.bindings.byElement['element-1'].offsetX).toBeUndefined();
+        expect(store.bindings.byElement['element-1'].offsetY).toBeUndefined();
+    });
+
+    it('maps explicit legacy spawn coordinates into the host node transform', () => {
+        dispatchSceneCommand({
+            type: 'addElement',
+            elementType: 'image',
+            elementId: 'positioned-image',
+            config: { offsetX: 125, offsetY: 240 },
+        });
+
+        const state = useSceneStore.getState();
+        const node = state.graph.nodesById[state.nodeIdByElementId['positioned-image']];
+        expect(node.userNodeTransform).toMatchObject({ translationX: 125, translationY: 240 });
+        expect(state.bindings.byElement['positioned-image'].offsetX).toBeUndefined();
+        expect(state.bindings.byElement['positioned-image'].offsetY).toBeUndefined();
     });
 
     it('updates element configuration and keeps parity with store', () => {

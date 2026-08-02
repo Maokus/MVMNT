@@ -7,6 +7,7 @@ import {
     createHomography,
     getProjectedBounds,
     isIdentityPerspectiveWarp,
+    invertAffineTransform,
     projectPerspectivePoint,
     validatePerspectiveWarp,
     warpLocalPoint,
@@ -27,6 +28,10 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
     private _warpInvalidReason?: string;
     private _isPerspectiveEdgeOn: boolean;
     private _resolvedAncestorTransform: Matrix2D = [1, 0, 0, 1, 0, 0];
+    private _cameraProjection: PerspectiveCameraProjection | null = null;
+    private _cameraViewport: PerspectiveViewport | null = null;
+    private _linkCameraPivotToNode = false;
+    private _resolvedNodePivot: PerspectivePoint | null = null;
 
     constructor(
         elementId: string | null,
@@ -59,9 +64,41 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
         return this._isPerspectiveEdgeOn;
     }
 
-    configureCamera(projection: PerspectiveCameraProjection, viewport: PerspectiveViewport): void {
-        if (!this.baseBounds) return;
-        const result = createPerspectiveCameraWarp(this.baseBounds, this.getAffineTransform(), viewport, projection);
+    configureCamera(
+        projection: PerspectiveCameraProjection,
+        viewport: PerspectiveViewport,
+        linkPivotToNode = false
+    ): void {
+        this._cameraProjection = { ...projection };
+        this._cameraViewport = { ...viewport };
+        this._linkCameraPivotToNode = linkPivotToNode;
+        this._recomputeCameraWarp();
+    }
+
+    private _recomputeCameraWarp(): void {
+        const projection = this._cameraProjection;
+        const viewport = this._cameraViewport;
+        if (!projection || !viewport || !this.baseBounds) return;
+        let resolvedProjection = projection;
+        if (this._linkCameraPivotToNode && this._resolvedNodePivot) {
+            this._resolveOriginFractions();
+            const local = this._getWorldTransformMatrix();
+            const inverseLocal = invertAffineTransform(local);
+            if (inverseLocal) {
+                const localPivot = applyAffinePoint(inverseLocal, this._resolvedNodePivot);
+                resolvedProjection = {
+                    ...projection,
+                    pivotX: (localPivot.x - this.baseBounds.x) / this.baseBounds.width,
+                    pivotY: (localPivot.y - this.baseBounds.y) / this.baseBounds.height,
+                };
+            }
+        }
+        const result = createPerspectiveCameraWarp(
+            this.baseBounds,
+            this.getAffineTransform(),
+            viewport,
+            resolvedProjection
+        );
         this._perspectiveWarp = result.warp;
         this._isPerspectiveEdgeOn = result.kind === 'edge-on';
         this._warpInvalidReason = result.kind === 'invalid' ? result.reason : undefined;
@@ -88,6 +125,13 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
 
     setResolvedAncestorTransform(matrix: Matrix2D): void {
         this._resolvedAncestorTransform = [...matrix];
+        this._recomputeCameraWarp();
+    }
+
+    setResolvedNodeTransform(matrix: Matrix2D, pivot: PerspectivePoint): void {
+        this._resolvedAncestorTransform = [...matrix];
+        this._resolvedNodePivot = { ...pivot };
+        this._recomputeCameraWarp();
     }
 
     getProjectedCorners(): PerspectivePoint[] | null {

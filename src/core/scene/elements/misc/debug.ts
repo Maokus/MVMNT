@@ -10,7 +10,7 @@ export const debug = definePluginElement<Props, undefined>({
     type: 'debug',
     metadata: { name: 'Debug', description: 'Debugging information display', category: 'Misc' },
     schema: {
-        defaultConfig: { offsetX: 750, offsetY: 750, anchorX: 0, anchorY: 0 },
+        defaultConfig: {},
         tabs: [
             {
                 id: 'properties',

@@ -33,8 +33,12 @@ The affine transform order is:
 parent world × parent compensation × host node transform × element content transform
 ```
 
-The existing plugin/content transform remains intact. Perspective elements stay top-level compositor payloads;
-their resolved ancestor affine matrix is supplied directly to the perspective root.
+Element position, rotation, and pivot are owned exclusively by the host node; retired `offsetX`, `offsetY`,
+`elementRotation`, `anchorX`, and `anchorY` values are removed from the element property surface. Element content
+uses a fixed centered origin. Non-uniform scale and skew remain inside the element payload because host nodes expose
+uniform scale and no skew.
+Perspective elements stay top-level compositor payloads; their resolved node and ancestor affine matrix, plus the
+authored node pivot, are supplied directly to the perspective root.
 
 ## Commands and compatibility
 
@@ -68,8 +72,8 @@ Canvas move, nudge, rotation, and uniform-scale gestures apply a world-space del
 selection, then solve that delta back into authored node transforms. Parent compensation remains structural
 bookkeeping used only to preserve appearance during hierarchy changes. The resolver supplies oriented single-node
 bounds and world-axis-aligned aggregate bounds. Four corner handles expose uniform scaling; rotation and pivot use
-dedicated handles. Selected subtrees are excluded from snapping. The inspector separates host transforms and
-plugin content into tabs for a single element. Multi-selection position uses the aggregate world-space center,
+dedicated handles. Selected subtrees are excluded from snapping. For a single element, the inspector presents the
+host transform as a peer tab alongside the element's content tabs. Multi-selection position uses the aggregate world-space center,
 while rotation and scale are relative edits around a transient selection pivot. Single-node transform and
 visibility fields expose keyframe and macro controls.
 

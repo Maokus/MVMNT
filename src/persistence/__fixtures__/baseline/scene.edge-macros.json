@@ -6,10 +6,6 @@
             "properties": {
                 "visible": { "type": "constant", "value": true },
                 "elementOpacity": { "type": "constant", "value": 1 },
-                "offsetX": { "type": "constant", "value": 0 },
-                "offsetY": { "type": "constant", "value": 0 },
-                "anchorX": { "type": "constant", "value": 0.5 },
-                "anchorY": { "type": "constant", "value": 0.5 },
                 "backgroundColor": { "type": "constant", "value": "#000000" },
                 "backgroundCornerRadius": { "type": "constant", "value": 4 },
                 "backgroundOpacity": { "type": "constant", "value": 0.8 },
@@ -18,7 +14,6 @@
                 "blendMode": { "type": "constant", "value": "source-over" },
                 "elementScaleX": { "type": "constant", "value": 1 },
                 "elementScaleY": { "type": "constant", "value": 1 },
-                "elementRotation": { "type": "constant", "value": 0 },
                 "elementSkewX": { "type": "constant", "value": 0 },
                 "elementSkewY": { "type": "constant", "value": 0 },
                 "text": { "type": "constant", "value": "Baseline Scene" },
@@ -40,13 +35,8 @@
             "properties": {
                 "visible": { "type": "constant", "value": true },
                 "elementOpacity": { "type": "constant", "value": 1 },
-                "offsetX": { "type": "constant", "value": 0 },
-                "offsetY": { "type": "constant", "value": 0 },
-                "anchorX": { "type": "constant", "value": 0 },
-                "anchorY": { "type": "constant", "value": 0 },
                 "elementScaleX": { "type": "constant", "value": 1 },
                 "elementScaleY": { "type": "constant", "value": 1 },
-                "elementRotation": { "type": "constant", "value": 0 },
                 "elementSkewX": { "type": "constant", "value": 0 },
                 "elementSkewY": { "type": "constant", "value": 0 },
                 "backgroundColor": { "type": "macro", "macroId": "macro.color.background" },
@@ -57,7 +47,7 @@
     },
     "graph": {
         "rootId": "__mvmnt_scene_root__",
-        "revision": 2,
+        "revision": 3,
         "nodesById": {
             "__mvmnt_scene_root__": {
                 "id": "__mvmnt_scene_root__",
@@ -103,8 +93,8 @@
                 "localLocked": false,
                 "parentCompensation": [1, 0, 0, 1, 0, 0],
                 "userNodeTransform": {
-                    "translationX": 0,
-                    "translationY": 0,
+                    "translationX": 750,
+                    "translationY": 750,
                     "rotation": 0,
                     "uniformScale": 1,
                     "pivotX": 0,

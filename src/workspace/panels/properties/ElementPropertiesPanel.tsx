@@ -14,6 +14,9 @@ import { useTimelineStore } from '@state/timelineStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { automationEvaluator } from '@automation/automation-evaluator';
 import { resolveAutomationValueType } from './KeyframeControl';
+import { NodeTransformPanel } from './NodeTransformPanel';
+
+const NODE_TRANSFORM_TAB_ID = '__node-transform';
 
 interface ElementPropertiesPanelProps {
     elementId: string;
@@ -26,6 +29,7 @@ interface ElementPropertiesPanelProps {
         options?: Omit<SceneCommandOptions, 'source'>
     ) => void;
     refreshToken?: number;
+    includeNodeTransforms?: boolean;
 }
 
 interface PropertyValues {
@@ -43,6 +47,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     bindings,
     onConfigChange,
     refreshToken = 0,
+    includeNodeTransforms = false,
 }) => {
     const [enhancedSchema, setEnhancedSchema] = useState<EnhancedConfigSchema | null>(
         () => (schema as EnhancedConfigSchema) ?? null
@@ -62,10 +67,16 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         // Read the old element's active tab ID directly from the store (activeTabId is not yet
         // initialized at this point — it's a useMemo declared further down).
         const oldTabId = useSceneStore.getState().interaction.activePropertyTab[lastRenderedElementId];
-        const prevTabLabel = enhancedSchema?.tabs.find((t) => t.id === oldTabId)?.label;
+        const prevTabLabel =
+            oldTabId === NODE_TRANSFORM_TAB_ID
+                ? 'Transform'
+                : enhancedSchema?.tabs.find((t) => t.id === oldTabId)?.label;
         if (prevTabLabel && schema) {
             const newTabs = (schema as EnhancedConfigSchema).tabs ?? [];
-            const matchingTab = newTabs.find((t) => t.label === prevTabLabel);
+            const matchingTab =
+                includeNodeTransforms && prevTabLabel === 'Transform'
+                    ? { id: NODE_TRANSFORM_TAB_ID }
+                    : newTabs.find((t) => t.label === prevTabLabel);
             if (matchingTab) {
                 useSceneStore.getState().setActivePropertyTab(elementId, matchingTab.id);
             }
@@ -110,13 +121,21 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         return map;
     }, [enhancedSchema]);
 
+    const inspectorTabs = useMemo(
+        () => [
+            ...(includeNodeTransforms ? [{ id: NODE_TRANSFORM_TAB_ID, label: 'Transform', groups: [] }] : []),
+            ...(enhancedSchema?.tabs ?? []),
+        ],
+        [enhancedSchema, includeNodeTransforms]
+    );
+
     const activeTabId = useMemo(() => {
         if (!enhancedSchema) return '';
-        if (storedActiveTabId && enhancedSchema.tabs.some((t) => t.id === storedActiveTabId)) {
+        if (storedActiveTabId && inspectorTabs.some((t) => t.id === storedActiveTabId)) {
             return storedActiveTabId;
         }
-        return enhancedSchema.tabs[0]?.id ?? '';
-    }, [storedActiveTabId, enhancedSchema]);
+        return inspectorTabs[0]?.id ?? '';
+    }, [storedActiveTabId, enhancedSchema, inspectorTabs]);
 
     const bindingsMemo = useMemo(() => ({ ...(bindings ?? {}) }), [bindings, refreshToken]);
 
@@ -532,28 +551,30 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 </div>
             )}
             <PropertyTabStrip
-                tabs={enhancedSchema.tabs}
+                tabs={inspectorTabs}
                 activeTabId={activeTabId}
                 onTabChange={(tabId) => setActivePropertyTab(elementId, tabId)}
-                overflowActions={overflowActions}
-                onSearch={openSearch}
+                overflowActions={activeTabId === NODE_TRANSFORM_TAB_ID ? undefined : overflowActions}
+                onSearch={activeTabId === NODE_TRANSFORM_TAB_ID ? undefined : openSearch}
             />
-            {filteredGroups.map(({ group, properties }) => (
-                <PropertyGroupPanel
-                    key={group.id}
-                    group={{ ...group, collapsed: groupCollapseState[group.id] ?? group.collapsed }}
-                    properties={searchActive ? properties : group.properties}
-                    values={propertyValues}
-                    macroAssignments={macroAssignments}
-                    elementId={elementId}
-                    delinkedKeys={delinkedKeys}
-                    onValueChange={handleValueChange}
-                    onValuesChange={handleValuesChange}
-                    onMacroAssignment={handleMacroAssignment}
-                    onCollapseToggle={handleCollapseToggle}
-                    useLayout={!searchActive}
-                />
-            ))}
+            {activeTabId === NODE_TRANSFORM_TAB_ID ? <NodeTransformPanel /> : null}
+            {activeTabId !== NODE_TRANSFORM_TAB_ID &&
+                filteredGroups.map(({ group, properties }) => (
+                    <PropertyGroupPanel
+                        key={group.id}
+                        group={{ ...group, collapsed: groupCollapseState[group.id] ?? group.collapsed }}
+                        properties={searchActive ? properties : group.properties}
+                        values={propertyValues}
+                        macroAssignments={macroAssignments}
+                        elementId={elementId}
+                        delinkedKeys={delinkedKeys}
+                        onValueChange={handleValueChange}
+                        onValuesChange={handleValuesChange}
+                        onMacroAssignment={handleMacroAssignment}
+                        onCollapseToggle={handleCollapseToggle}
+                        useLayout={!searchActive}
+                    />
+                ))}
             {searchActive && searchTerm.trim() && filteredGroups.length === 0 && (
                 <div className="ae-empty-search">No matching properties.</div>
             )}

@@ -700,28 +700,38 @@ function readConstantNumber(binding: BindingState | undefined): number | null {
     return Number.isFinite(value) ? value : null;
 }
 
-function maybeCenterAxis(
+function extractNodeAxis(
     axis: 'X' | 'Y',
     options: {
         config?: Record<string, unknown>;
         bindings: ElementBindings;
         sceneSize: number | undefined;
     }
-): void {
+): { value: number; binding?: BindingState } {
     const { config = {}, bindings, sceneSize } = options;
-    if (!Number.isFinite(sceneSize) || sceneSize == null) return;
+    const fallback = Number.isFinite(sceneSize) && sceneSize != null ? sceneSize / 2 : 0;
     const offsetKey = `offset${axis}` as const;
     const anchorKey = `anchor${axis}` as const;
-    if (Object.prototype.hasOwnProperty.call(config, offsetKey)) return;
-    const offsetBinding = bindings[offsetKey];
-    if (offsetBinding?.type === 'macro') return;
-    const currentOffset = readConstantNumber(offsetBinding) ?? 0;
-    if (currentOffset !== 0) return;
+    const configuredOffset = config[offsetKey];
+    const offsetBinding =
+        configuredOffset &&
+        typeof configuredOffset === 'object' &&
+        ['constant', 'macro', 'keyframes'].includes((configuredOffset as BindingState).type)
+            ? (configuredOffset as BindingState)
+            : bindings[offsetKey];
+    delete bindings[offsetKey];
+    if (offsetBinding && offsetBinding.type !== 'constant') {
+        return { value: 0, binding: offsetBinding };
+    }
+    const rawConfiguredOffset = typeof configuredOffset === 'number' ? configuredOffset : undefined;
+    const currentOffset = rawConfiguredOffset ?? readConstantNumber(offsetBinding) ?? 0;
+    if (Object.prototype.hasOwnProperty.call(config, offsetKey) || currentOffset !== 0) {
+        return { value: currentOffset };
+    }
     const anchorBinding = bindings[anchorKey];
     const anchor = readConstantNumber(anchorBinding);
     const anchorValue = anchor == null ? 0.5 : anchor;
-    if (Math.abs(anchorValue - 0.5) > 1e-4) return;
-    bindings[offsetKey] = { type: 'constant', value: sceneSize / 2 };
+    return { value: Math.abs(anchorValue - 0.5) <= 1e-4 ? fallback : 0 };
 }
 
 function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
@@ -740,9 +750,20 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
             });
             const bindings = { ...(input.bindings ?? {}) } as ElementBindings;
             const settings = store.settings;
-            maybeCenterAxis('X', { config: command.config, bindings, sceneSize: settings.width });
-            maybeCenterAxis('Y', { config: command.config, bindings, sceneSize: settings.height });
+            const x = extractNodeAxis('X', { config: command.config, bindings, sceneSize: settings.width });
+            const y = extractNodeAxis('Y', { config: command.config, bindings, sceneSize: settings.height });
             store.addElement({ ...input, bindings });
+            const current = useSceneStore.getState();
+            const nodeId = current.nodeIdByElementId[command.elementId];
+            if (nodeId) {
+                if (x.value !== 0 || y.value !== 0) {
+                    current.updateNodeTransform(nodeId, { translationX: x.value, translationY: y.value });
+                }
+                const nodeBindingPatch: ElementBindingsPatch = {};
+                if (x.binding) nodeBindingPatch.translationX = x.binding;
+                if (y.binding) nodeBindingPatch.translationY = y.binding;
+                if (Object.keys(nodeBindingPatch).length) current.updateNodeBindings(nodeId, nodeBindingPatch);
+            }
             break;
         }
         case 'removeElement':

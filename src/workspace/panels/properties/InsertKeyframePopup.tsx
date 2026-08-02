@@ -31,14 +31,9 @@ import type { EnhancedConfigSchema } from '@core/types';
 
 /** Maps a shortcut alias to the property key it should promote to first result. */
 const PROPERTY_ALIASES: Record<string, string> = {
-    x: 'offsetX',
-    y: 'offsetY',
     sx: 'elementScaleX',
     sy: 'elementScaleY',
-    r: 'elementRotation',
     t: 'elementOpacity',
-    ax: 'anchorX',
-    ay: 'anchorY',
 };
 
 type ShortcutPreset = {
@@ -49,18 +44,6 @@ type ShortcutPreset = {
 };
 
 const SHORTCUT_PRESETS: ShortcutPreset[] = [
-    {
-        id: 'all-transforms',
-        label: 'All Transforms',
-        description: 'Offset X/Y · Scale X/Y · Rotation · Anchor X/Y',
-        propertyKeys: ['offsetX', 'offsetY', 'elementScaleX', 'elementScaleY', 'elementRotation', 'anchorX', 'anchorY'],
-    },
-    {
-        id: 'offsets',
-        label: 'Offsets',
-        description: 'Offset X · Offset Y',
-        propertyKeys: ['offsetX', 'offsetY'],
-    },
     {
         id: 'scales',
         label: 'Scales',

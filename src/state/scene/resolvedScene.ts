@@ -9,6 +9,7 @@ import {
     type Matrix2D,
     type SceneGraphState,
     type SceneNode,
+    type NodeTransform,
 } from '@state/scene-graph';
 
 export interface SceneStructureRecord {
@@ -93,9 +94,12 @@ class AffineRenderPayload {
     }
 }
 
-function transformedPayload(source: any, matrix: Matrix2D): any {
+function transformedPayload(source: any, matrix: Matrix2D, nodeTransform: NodeTransform): any {
     if (source instanceof PerspectiveElementRoot) {
-        source.setResolvedAncestorTransform(matrix);
+        source.setResolvedNodeTransform(matrix, {
+            x: nodeTransform.pivotX,
+            y: nodeTransform.pivotY,
+        });
         return source;
     }
     if (matricesEqual(matrix, identityMatrix())) return source;
@@ -210,7 +214,7 @@ export function resolveSceneFrame(options: {
             if (record.effectiveVisible && record.element?.visible) {
                 const content = record.element.buildRenderObjects(config, time) ?? [];
                 record.renderObjects = content.map((payload: any) =>
-                    transformedPayload(payload, record.nodeWorldTransform)
+                    transformedPayload(payload, record.nodeWorldTransform, node.userNodeTransform)
                 );
                 renderObjects.push(...record.renderObjects);
                 Object.assign(record, boundsAndHull(record.renderObjects[0]));

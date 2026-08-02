@@ -143,9 +143,6 @@ function getSchemaIndex(ctor: any): Map<string, PropertyDefinition> {
 const hasOwn = (object: unknown, key: PropertyKey): boolean =>
     typeof object === 'object' && object !== null ? Object.prototype.hasOwnProperty.call(object, key) : false;
 
-const degreesToRadians = (degrees: number): number => (degrees * Math.PI) / 180;
-const radiansToDegrees = (radians: number): number => (radians * 180) / Math.PI;
-
 export class SceneElement implements SceneElementInterface {
     public type: string;
     public id: string | null;
@@ -411,15 +408,10 @@ export class SceneElement implements SceneElementInterface {
 
         // Set default bindings for base properties
         this.bindings.set('visible', new ConstantBinding(true));
-        this.bindings.set('offsetX', new ConstantBinding(0));
-        this.bindings.set('offsetY', new ConstantBinding(0));
         this.bindings.set('elementScaleX', new ConstantBinding(1));
         this.bindings.set('elementScaleY', new ConstantBinding(1));
-        this.bindings.set('elementRotation', new ConstantBinding(0));
         this.bindings.set('elementSkewX', new ConstantBinding(0));
         this.bindings.set('elementSkewY', new ConstantBinding(0));
-        this.bindings.set('anchorX', new ConstantBinding(0.5));
-        this.bindings.set('anchorY', new ConstantBinding(0.5));
         this.bindings.set('elementOpacity', new ConstantBinding(1));
         for (const [key, value] of Object.entries(PERSPECTIVE_WARP_BINDING_DEFAULTS)) {
             this.bindings.set(key, new ConstantBinding(value));
@@ -670,32 +662,17 @@ export class SceneElement implements SceneElementInterface {
     get visible(): boolean {
         return this.getProperty('visible');
     }
-    get offsetX(): number {
-        return this.getProperty('offsetX');
-    }
-    get offsetY(): number {
-        return this.getProperty('offsetY');
-    }
     get elementScaleX(): number {
         return this.getProperty('elementScaleX');
     }
     get elementScaleY(): number {
         return this.getProperty('elementScaleY');
     }
-    get elementRotation(): number {
-        return this.getProperty('elementRotation');
-    }
     get elementSkewX(): number {
         return this.getProperty('elementSkewX');
     }
     get elementSkewY(): number {
         return this.getProperty('elementSkewY');
-    }
-    get anchorX(): number {
-        return this.getProperty('anchorX');
-    }
-    get anchorY(): number {
-        return this.getProperty('anchorY');
     }
     get elementOpacity(): number {
         return this.getProperty('elementOpacity');
@@ -711,13 +688,12 @@ export class SceneElement implements SceneElementInterface {
     }
 
     get perspectiveProjection(): PerspectiveCameraProjection {
-        const pivotLinked = this.getProperty<boolean>('perspectivePivotLinked');
         return {
             rotationX: this.getProperty('perspectiveRotationX'),
             rotationY: this.getProperty('perspectiveRotationY'),
             strength: this.getProperty('perspectiveStrength'),
-            pivotX: pivotLinked ? this.anchorX : this.getProperty('perspectivePivotX'),
-            pivotY: pivotLinked ? this.anchorY : this.getProperty('perspectivePivotY'),
+            pivotX: this.getProperty('perspectivePivotX'),
+            pivotY: this.getProperty('perspectivePivotY'),
             vanishingPointX: this.getProperty('perspectiveVanishingPointX'),
             vanishingPointY: this.getProperty('perspectiveVanishingPointY'),
         };
@@ -788,26 +764,17 @@ export class SceneElement implements SceneElementInterface {
             ? new PerspectiveElementRoot(
                   this.id,
                   { ...IDENTITY_PERSPECTIVE_WARP },
-                  this.offsetX,
-                  this.offsetY,
+                  0,
+                  0,
                   this.elementScaleX,
                   this.elementScaleY,
                   this.elementOpacity
               )
-            : new EmptyRenderObject(
-                  this.offsetX,
-                  this.offsetY,
-                  this.elementScaleX,
-                  this.elementScaleY,
-                  this.elementOpacity
-              );
-        const elementRotationRadians = degreesToRadians(this.elementRotation);
-
+            : new EmptyRenderObject(0, 0, this.elementScaleX, this.elementScaleY, this.elementOpacity);
         containerObject
-            .setRotation(elementRotationRadians)
             .setSkew(this.elementSkewX, this.elementSkewY)
             .setVisible(this.visible)
-            .setOriginFraction(this.anchorX, this.anchorY);
+            .setOriginFraction(0.5, 0.5);
 
         // Add all child render objects to the container
         for (const childObj of childRenderObjects) {
@@ -823,17 +790,21 @@ export class SceneElement implements SceneElementInterface {
         if (containerObject instanceof PerspectiveElementRoot) {
             containerObject.visualBounds = { ...visualBounds };
             const viewport = config?.canvas;
-            containerObject.configureCamera(this.perspectiveProjection, {
-                width: viewport?.width ?? layoutBounds.width,
-                height: viewport?.height ?? layoutBounds.height,
-            });
+            containerObject.configureCamera(
+                this.perspectiveProjection,
+                {
+                    width: viewport?.width ?? layoutBounds.width,
+                    height: viewport?.height ?? layoutBounds.height,
+                },
+                this.getProperty<boolean>('perspectivePivotLinked')
+            );
         }
         (containerObject as any).elementTransform = {
-            offsetX: this.offsetX,
-            offsetY: this.offsetY,
+            offsetX: 0,
+            offsetY: 0,
             scaleX: this.elementScaleX,
             scaleY: this.elementScaleY,
-            rotation: elementRotationRadians,
+            rotation: 0,
             skewX: this.elementSkewX,
             skewY: this.elementSkewY,
         };
@@ -843,7 +814,7 @@ export class SceneElement implements SceneElementInterface {
 
         // Add anchor point visualization if enabled
         if (config.showAnchorPoints) {
-            containerObject.setAnchorVisualizationData(layoutBounds, visualBounds, this.anchorX, this.anchorY);
+            containerObject.setAnchorVisualizationData(layoutBounds, visualBounds, 0.5, 0.5);
         }
 
         return [containerObject];
@@ -999,23 +970,10 @@ export class SceneElement implements SceneElementInterface {
                         },
                         {
                             id: 'basicTransform',
-                            label: 'Position, Rotation & Scale',
+                            label: 'Content Scale',
                             collapsed: false,
-                            description:
-                                'Set the element position and size adjustments relative to its default layout.',
+                            description: 'Adjust content transforms not represented by the host node.',
                             properties: [
-                                prop.number('offsetX', 'Offset X (px)', 0, {
-                                    step: 1,
-                                    description: 'Horizontal position offset in pixels.',
-                                }),
-                                prop.number('offsetY', 'Offset Y (px)', 0, {
-                                    step: 1,
-                                    description: 'Vertical position offset in pixels.',
-                                }),
-                                prop.number('elementRotation', 'Rotation (°)', 0, {
-                                    step: 1,
-                                    description: 'Element rotation in degrees.',
-                                }),
                                 prop.number('elementScaleX', 'Scale X (multiplier)', 1, {
                                     step: 0.01,
                                     description: 'Horizontal scaling factor.',
@@ -1028,22 +986,10 @@ export class SceneElement implements SceneElementInterface {
                         },
                         {
                             id: 'advancedAnchor',
-                            label: 'Anchor & Skew',
+                            label: 'Skew',
                             collapsed: true,
                             description: 'Advanced pivot, rotation, and skew controls.',
                             properties: [
-                                prop.number('anchorX', 'Anchor X (0–1)', 0.5, {
-                                    min: 0,
-                                    max: 1,
-                                    step: 0.01,
-                                    description: 'Horizontal anchor point (0 = left, 1 = right).',
-                                }),
-                                prop.number('anchorY', 'Anchor Y (0–1)', 0.5, {
-                                    min: 0,
-                                    max: 1,
-                                    step: 0.01,
-                                    description: 'Vertical anchor point (0 = top, 1 = bottom).',
-                                }),
                                 prop.number('elementSkewX', 'Skew X', 0, {
                                     step: 0.01,
                                     description: 'Horizontal skew in radians.',
@@ -1084,9 +1030,9 @@ export class SceneElement implements SceneElementInterface {
                                     visibleWhen: [{ key: 'warpEnabled', equals: true }],
                                     description: 'Perspective convergence (0 = orthographic, 100 = strongest).',
                                 }),
-                                prop.boolean('perspectivePivotLinked', 'Use Element Anchor', true, {
+                                prop.boolean('perspectivePivotLinked', 'Use Node Pivot', true, {
                                     visibleWhen: [{ key: 'warpEnabled', equals: true }],
-                                    description: 'Use the element anchor as the 3D rotation pivot.',
+                                    description: 'Use the host node pivot as the 3D rotation pivot.',
                                 }),
                                 prop.number('perspectivePivotX', '3D Pivot X', 0.5, {
                                     min: 0,
@@ -1255,6 +1201,16 @@ export class SceneElement implements SceneElementInterface {
     protected _applyConfig(config: { [key: string]: any }): void {
         for (const [key, value] of Object.entries(config)) {
             if (key === 'id' || key === 'type') continue;
+            // Position belongs to the host scene node. Ignore legacy element offsets so
+            // they cannot silently re-enter the element binding/serialization surface.
+            if (
+                key === 'offsetX' ||
+                key === 'offsetY' ||
+                key === 'elementRotation' ||
+                key === 'anchorX' ||
+                key === 'anchorY'
+            )
+                continue;
 
             let oldValue: unknown = undefined;
             const hadBinding = this.bindings.has(key);
@@ -1347,22 +1303,6 @@ export class SceneElement implements SceneElementInterface {
         return this;
     }
 
-    setOffsetX(offsetX: number): this {
-        this.setProperty('offsetX', offsetX);
-        return this;
-    }
-
-    setOffsetY(offsetY: number): this {
-        this.setProperty('offsetY', offsetY);
-        return this;
-    }
-
-    setOffset(offsetX: number, offsetY: number): this {
-        this.setProperty('offsetX', offsetX);
-        this.setProperty('offsetY', offsetY);
-        return this;
-    }
-
     setElementScaleX(scaleX: number): this {
         this.setProperty('elementScaleX', scaleX);
         return this;
@@ -1376,32 +1316,6 @@ export class SceneElement implements SceneElementInterface {
     setElementScale(scaleX: number, scaleY: number = scaleX): this {
         this.setProperty('elementScaleX', scaleX);
         this.setProperty('elementScaleY', scaleY);
-        return this;
-    }
-
-    setElementRotation(rotation: number): this {
-        this.setProperty('elementRotation', rotation);
-        return this;
-    }
-
-    setElementRotationRadians(rotation: number): this {
-        this.setProperty('elementRotation', radiansToDegrees(rotation));
-        return this;
-    }
-
-    setAnchorX(anchorX: number): this {
-        this.setProperty('anchorX', Math.max(0, Math.min(1, anchorX)));
-        return this;
-    }
-
-    setAnchorY(anchorY: number): this {
-        this.setProperty('anchorY', Math.max(0, Math.min(1, anchorY)));
-        return this;
-    }
-
-    setAnchor(anchorX: number, anchorY: number): this {
-        this.setAnchorX(anchorX);
-        this.setAnchorY(anchorY);
         return this;
     }
 

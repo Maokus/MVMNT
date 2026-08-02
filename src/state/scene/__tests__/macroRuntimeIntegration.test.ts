@@ -14,7 +14,7 @@ describe('macro runtime integration', () => {
         resetState();
     });
 
-    it('propagates macro value changes to instantiated scene elements', () => {
+    it('propagates migrated position macros through host node transforms', () => {
         const macroId = 'macro.test.offset';
 
         dispatchSceneCommand({
@@ -39,15 +39,13 @@ describe('macro runtime integration', () => {
         });
 
         const adapter = new SceneRuntimeAdapter();
-        const elementBefore = adapter.getElements().find((el) => el.id === 'text-1');
-        expect(elementBefore).toBeDefined();
-        expect(elementBefore?.offsetX).toBeCloseTo(12);
+        const nodeId = useSceneStore.getState().nodeIdByElementId['text-1'];
+        expect(adapter.resolveFrame({}, 0).byNodeId.get(nodeId)?.nodeWorldTransform[4]).toBeCloseTo(12);
 
         dispatchSceneCommand({ type: 'updateMacroValue', macroId, value: 48 });
 
-        const elementAfter = adapter.getElements().find((el) => el.id === 'text-1');
         expect(observedEvents).toContain('macroValueChanged');
-        expect(elementAfter?.offsetX).toBeCloseTo(48);
+        expect(adapter.resolveFrame({}, 0).byNodeId.get(nodeId)?.nodeWorldTransform[4]).toBeCloseTo(48);
         expect(useSceneStore.getState().macros.byId[macroId]?.value).toBe(48);
 
         adapter.dispose();

@@ -96,6 +96,54 @@ describe('resolved scene frame', () => {
         );
     });
 
+    it('recomputes perspective camera geometry after applying node transforms', () => {
+        const graph = createFlatSceneGraph(['perspective']);
+        const node = graph.nodesById['element:perspective'];
+        node.userNodeTransform.translationX = 180;
+        node.userNodeTransform.translationY = 70;
+        node.userNodeTransform.rotation = 0.25;
+        node.userNodeTransform.uniformScale = 1.4;
+        node.userNodeTransform.pivotX = 50;
+        node.userNodeTransform.pivotY = 25;
+        const payload = new PerspectiveElementRoot('perspective', {
+            topLeft: { x: 0, y: 0 },
+            topRight: { x: 1, y: 0 },
+            bottomRight: { x: 1, y: 1 },
+            bottomLeft: { x: 0, y: 1 },
+        });
+        payload.baseBounds = { x: 0, y: 0, width: 100, height: 50 };
+        payload.visualBounds = { ...payload.baseBounds };
+        payload.configureCamera(
+            {
+                rotationX: 18,
+                rotationY: -24,
+                strength: 65,
+                pivotX: 0.5,
+                pivotY: 0.5,
+                vanishingPointX: 0.5,
+                vanishingPointY: 0.5,
+            },
+            { width: 800, height: 450 },
+            true
+        );
+        const before = payload.perspectiveWarp;
+
+        resolveSceneFrame({
+            graph,
+            time: 0,
+            runtimeVersion: 1,
+            config: {},
+            getElement: () => ({ visible: true, buildRenderObjects: () => [payload] }) as any,
+        });
+
+        expect(payload.perspectiveWarp).not.toEqual(before);
+        expect(payload.getAffineTransform()).toMatchObject({
+            e: expect.any(Number),
+            f: expect.any(Number),
+        });
+        expect(payload.getProjectedCorners()).not.toBeNull();
+    });
+
     it('evaluates animated parent properties before descendant world geometry', () => {
         let graph = createFlatSceneGraph(['shape']);
         graph = groupSceneNodes(graph, ['element:shape'], 'group:animated');

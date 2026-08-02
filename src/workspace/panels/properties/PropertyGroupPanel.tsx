@@ -7,6 +7,7 @@ import { FaLink } from 'react-icons/fa';
 import KeyframeControl, { isAutomatableType } from './KeyframeControl';
 import { hoveredPropertyRef } from './hoveredPropertyRef';
 import { PropertyLayoutRenderer } from './PropertyLayoutRenderer';
+import { PropertyControlRow } from './PropertyControlRow';
 
 const propertyPassesVisibility = (property: PropertyDefinition, values: Record<string, unknown>) =>
     !property.visibleWhen?.length ||
@@ -440,9 +441,12 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         const isDelinked = delinkedKeys?.has(property.key) ?? false;
 
         return (
-            <div
+            <PropertyControlRow
                 key={`${elementId}:${property.key}`}
-                className={`ae-property-row${nested ? ' ae-property-row-nested' : ''}${isDelinked ? ' ae-property-delinked' : ''}`}
+                label={property.label}
+                description={property.description}
+                nested={nested}
+                delinked={isDelinked}
                 onMouseEnter={
                     isAutomatableType(property.type)
                         ? () => {
@@ -463,26 +467,19 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                           }
                         : undefined
                 }
-            >
-                <div className="ae-property-label">
-                    <span className="ae-property-animation-slot">
-                        {isAutomatableType(property.type) && (
-                            <KeyframeControl
-                                elementId={elementId}
-                                propertyKey={property.key}
-                                propertyType={property.type}
-                                currentValue={values[property.key]}
-                                isDelinked={isDelinked}
-                            />
-                        )}
-                    </span>
-                    <span className="ae-property-name" title={property.description}>
-                        {property.label}
-                    </span>
-                </div>
-
-                <div className="ae-property-controls">
-                    {canAssignMacro(property.type) && (
+                animationControl={
+                    isAutomatableType(property.type) ? (
+                        <KeyframeControl
+                            elementId={elementId}
+                            propertyKey={property.key}
+                            propertyType={property.type}
+                            currentValue={values[property.key]}
+                            isDelinked={isDelinked}
+                        />
+                    ) : null
+                }
+                macroControl={
+                    canAssignMacro(property.type) ? (
                         <MacroAssignmentControl
                             propertyKey={property.key}
                             property={property}
@@ -492,20 +489,19 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                             macros={getMacroOptions(property.type, property)}
                             onAssign={(macroName) => onMacroAssignment(property.key, macroName)}
                         />
-                    )}
-                    <div className="ae-property-input">
-                        <FormInput
-                            id={commonProps.id}
-                            type={inputType}
-                            value={commonProps.value}
-                            schema={commonProps.schema}
-                            disabled={commonProps.disabled}
-                            title={commonProps.title}
-                            onChange={commonProps.onChange}
-                        />
-                    </div>
-                </div>
-            </div>
+                    ) : null
+                }
+            >
+                <FormInput
+                    id={commonProps.id}
+                    type={inputType}
+                    value={commonProps.value}
+                    schema={commonProps.schema}
+                    disabled={commonProps.disabled}
+                    title={commonProps.title}
+                    onChange={commonProps.onChange}
+                />
+            </PropertyControlRow>
         );
     };
 

@@ -90,20 +90,21 @@ describe('patch-based undo controller', () => {
             elementId: 'drag-target',
             config: { offsetX: { type: 'constant', value: 0 }, offsetY: { type: 'constant', value: 0 } },
         });
+        const nodeId = useSceneStore.getState().nodeIdByElementId['drag-target'];
 
         const mergeKey = 'move:test-drag';
         const baseOptions = {
             source: 'test.drag',
             mergeKey,
             canMergeWith: (other: any) =>
-                other.command.type === 'updateElementConfig' && other.command.elementId === 'drag-target',
+                other.command.type === 'updateNodeTransform' && other.command.nodeId === nodeId,
         };
 
         dispatchSceneCommand(
             {
-                type: 'updateElementConfig',
-                elementId: 'drag-target',
-                patch: { offsetX: { type: 'constant', value: 10 } },
+                type: 'updateNodeTransform',
+                nodeId,
+                transform: { translationX: 10 },
             },
             { ...baseOptions, transient: true }
         );
@@ -114,9 +115,9 @@ describe('patch-based undo controller', () => {
 
         dispatchSceneCommand(
             {
-                type: 'updateElementConfig',
-                elementId: 'drag-target',
-                patch: { offsetX: { type: 'constant', value: 18 } },
+                type: 'updateNodeTransform',
+                nodeId,
+                transform: { translationX: 18 },
             },
             { ...baseOptions, transient: true }
         );
@@ -128,9 +129,9 @@ describe('patch-based undo controller', () => {
         // Finalize drag with identical state; should flip transient to false without adding a new entry
         dispatchSceneCommand(
             {
-                type: 'updateElementConfig',
-                elementId: 'drag-target',
-                patch: { offsetX: { type: 'constant', value: 18 } },
+                type: 'updateNodeTransform',
+                nodeId,
+                transform: { translationX: 18 },
             },
             { ...baseOptions, transient: false }
         );
@@ -140,12 +141,12 @@ describe('patch-based undo controller', () => {
         expect(finalized?.entries[1].transient).toBe(false);
 
         controller?.undo();
-        const afterUndo = useSceneStore.getState().bindings.byElement['drag-target'];
-        expect(afterUndo.offsetX).toEqual({ type: 'constant', value: 0 });
+        const afterUndo = useSceneStore.getState().graph.nodesById[nodeId].userNodeTransform;
+        expect(afterUndo.translationX).toBe(0);
 
         controller?.redo();
-        const afterRedo = useSceneStore.getState().bindings.byElement['drag-target'];
-        expect(afterRedo.offsetX).toEqual({ type: 'constant', value: 18 });
+        const afterRedo = useSceneStore.getState().graph.nodesById[nodeId].userNodeTransform;
+        expect(afterRedo.translationX).toBe(18);
     });
 
     it('batches property drag updates from number inputs into a single undo entry', () => {
@@ -153,21 +154,21 @@ describe('patch-based undo controller', () => {
             type: 'addElement',
             elementType: 'textOverlay',
             elementId: 'prop-drag-target',
-            config: { offsetX: { type: 'constant', value: 5 } },
+            config: { fontSize: { type: 'constant', value: 5 } },
         });
 
         const sessionId = 'session-1';
-        const mergeKey = `property-drag:prop-drag-target:offsetX:${sessionId}`;
+        const mergeKey = `property-drag:prop-drag-target:fontSize:${sessionId}`;
         const mergeGuard = (other: any) =>
             other.command.type === 'updateElementConfig' &&
             other.command.elementId === 'prop-drag-target' &&
-            Object.prototype.hasOwnProperty.call(other.command.patch ?? {}, 'offsetX');
+            Object.prototype.hasOwnProperty.call(other.command.patch ?? {}, 'fontSize');
 
         dispatchSceneCommand(
             {
                 type: 'updateElementConfig',
                 elementId: 'prop-drag-target',
-                patch: { offsetX: { type: 'constant', value: 9 } },
+                patch: { fontSize: { type: 'constant', value: 9 } },
             },
             { mergeKey, transient: true, canMergeWith: mergeGuard }
         );
@@ -176,7 +177,7 @@ describe('patch-based undo controller', () => {
             {
                 type: 'updateElementConfig',
                 elementId: 'prop-drag-target',
-                patch: { offsetX: { type: 'constant', value: 12 } },
+                patch: { fontSize: { type: 'constant', value: 12 } },
             },
             { mergeKey, transient: true, canMergeWith: mergeGuard }
         );
@@ -185,7 +186,7 @@ describe('patch-based undo controller', () => {
             {
                 type: 'updateElementConfig',
                 elementId: 'prop-drag-target',
-                patch: { offsetX: { type: 'constant', value: 12 } },
+                patch: { fontSize: { type: 'constant', value: 12 } },
             },
             { mergeKey, transient: false, canMergeWith: mergeGuard }
         );
@@ -196,10 +197,10 @@ describe('patch-based undo controller', () => {
 
         controller?.undo();
         const undoBindings = useSceneStore.getState().bindings.byElement['prop-drag-target'];
-        expect(undoBindings.offsetX).toEqual({ type: 'constant', value: 5 });
+        expect(undoBindings.fontSize).toEqual({ type: 'constant', value: 5 });
 
         controller?.redo();
         const redoBindings = useSceneStore.getState().bindings.byElement['prop-drag-target'];
-        expect(redoBindings.offsetX).toEqual({ type: 'constant', value: 12 });
+        expect(redoBindings.fontSize).toEqual({ type: 'constant', value: 12 });
     });
 });

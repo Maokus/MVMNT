@@ -120,6 +120,17 @@ afterEach(() => {
 });
 
 describe('SceneElement perspective property schema', () => {
+    it('leaves authored rotation and pivot to the host node schema', () => {
+        const keys = SceneElement.getConfigSchema().tabs.flatMap((tab) =>
+            tab.groups.flatMap((group) => group.properties.map((property) => property.key))
+        );
+        expect(keys).not.toContain('offsetX');
+        expect(keys).not.toContain('offsetY');
+        expect(keys).not.toContain('elementRotation');
+        expect(keys).not.toContain('anchorX');
+        expect(keys).not.toContain('anchorY');
+    });
+
     it('exposes the enable toggle and conditionally visible X/Y rotation inputs', () => {
         const elementTab = SceneElement.getConfigSchema().tabs.find((tab) => tab.id === 'element');
         const perspectiveGroup = elementTab?.groups.find((group) => group.id === 'perspective');

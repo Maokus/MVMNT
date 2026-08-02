@@ -64,38 +64,26 @@ describe('SceneElement bounds', () => {
         expect(root.visible).toBe(true);
     });
 
-    it('does not union transformed wrapper bounds with untransformed child bounds', () => {
-        const element = new BoundsTestElement({
-            offsetX: 500,
-            offsetY: 300,
-            anchorX: 0.5,
-            anchorY: 0.5,
-        });
+    it('keeps position out of the element wrapper so the host node can own it', () => {
+        const element = new BoundsTestElement({ offsetX: 500, offsetY: 300, anchorX: 0.5, anchorY: 0.5 });
 
         const [container] = element.buildRenderObjects({}, 0);
         const bounds = container.getVisualBounds();
 
-        expect(bounds).toEqual({ x: 400, y: 250, width: 200, height: 100 });
+        expect(bounds).toEqual({ x: -100, y: -50, width: 200, height: 100 });
+        expect(element.getBinding('offsetX')).toBeUndefined();
+        expect(element.getBinding('offsetY')).toBeUndefined();
     });
 
-    it('stores element rotation in degrees and renders in radians', () => {
-        const element = new BoundsTestElement({
-            elementRotation: 90,
-        });
-
+    it('keeps rotation and anchor out of element bindings and uses a centered content origin', () => {
+        const element = new BoundsTestElement({ elementRotation: 90, anchorX: 0, anchorY: 0 });
         const [container] = element.buildRenderObjects({}, 0);
 
-        expect(element.elementRotation).toBe(90);
-        expect(container.rotation).toBeCloseTo(Math.PI / 2);
-        expect((container as any).elementTransform.rotation).toBeCloseTo(Math.PI / 2);
-    });
-
-    it('keeps radians setter compatibility by converting to degrees', () => {
-        const element = new BoundsTestElement();
-
-        element.setElementRotationRadians(Math.PI);
-
-        expect(element.elementRotation).toBeCloseTo(180);
+        expect(element.getBinding('elementRotation')).toBeUndefined();
+        expect(element.getBinding('anchorX')).toBeUndefined();
+        expect(element.getBinding('anchorY')).toBeUndefined();
+        expect(container.rotation).toBe(0);
+        expect(container.getVisualBounds()).toEqual({ x: -100, y: -50, width: 200, height: 100 });
     });
 });
 

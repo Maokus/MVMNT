@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { FaLink } from 'react-icons/fa';
 import { nodePropertyTarget, createKeyframe } from '@automation/types';
 import { automationEvaluator } from '@automation/automation-evaluator';
 import { useSceneSelection } from '@context/SceneSelectionContext';
@@ -19,6 +20,7 @@ import {
 import { HOST_NODE_PROPERTY_SCHEMA } from '@state/scene/nodePropertySchema';
 import { useTimelineStore } from '@state/timelineStore';
 import KeyframeControl from './KeyframeControl';
+import { PropertyControlRow } from './PropertyControlRow';
 
 const fields = HOST_NODE_PROPERTY_SCHEMA.filter(
     (field): field is (typeof HOST_NODE_PROPERTY_SCHEMA)[number] & { path: keyof NodeTransform } =>
@@ -39,45 +41,144 @@ interface TransformRowProps {
     mixed?: boolean;
     onChange?: (value: number, change?: FormInputChange) => void;
     automation?: React.ReactNode;
+    macro?: React.ReactNode;
 }
 
-function TransformRow({ label, id, value, schema, suffix, readOnly, mixed, onChange, automation }: TransformRowProps) {
+function TransformRow({
+    label,
+    id,
+    value,
+    schema,
+    suffix,
+    readOnly,
+    mixed,
+    onChange,
+    automation,
+    macro,
+}: TransformRowProps) {
     return (
-        <div className="ae-property-row node-transform-row">
-            <div className="ae-property-label">
-                <span className="ae-property-animation-slot">{automation}</span>
-                <span className="ae-property-name">{label}</span>
-            </div>
-            <div className="node-transform-value">
-                {readOnly ? (
-                    <output>{Number.isFinite(value) ? Number(value.toFixed(2)) : '—'}</output>
-                ) : mixed ? (
-                    <input className="node-transform-mixed" value="" placeholder="Mixed" readOnly />
-                ) : (
-                    <FormInput
-                        id={id}
-                        type="number"
-                        value={value}
-                        schema={schema ?? { step: 1 }}
-                        onChange={(change) => {
-                            const next = Number(valueOf(change));
-                            if (Number.isFinite(next)) onChange?.(next, change as FormInputChange);
-                        }}
-                    />
-                )}
-                {suffix ? <span className="node-transform-suffix">{suffix}</span> : null}
-            </div>
+        <PropertyControlRow
+            label={suffix ? `${label} (${suffix})` : label}
+            animationControl={automation}
+            macroControl={macro}
+        >
+            {mixed ? (
+                <input className="node-transform-mixed" value="" placeholder="Mixed" readOnly />
+            ) : (
+                <FormInput
+                    id={id}
+                    type="number"
+                    value={Number.isFinite(value) ? Number(value.toFixed(4)) : 0}
+                    schema={schema ?? { step: 1 }}
+                    disabled={readOnly}
+                    onChange={(change) => {
+                        const next = Number(valueOf(change));
+                        if (Number.isFinite(next)) onChange?.(next, change as FormInputChange);
+                    }}
+                />
+            )}
+        </PropertyControlRow>
+    );
+}
+
+function NodeMacroControl({
+    path,
+    bindingMacroId,
+    macros,
+    options,
+    onAssign,
+}: {
+    path: string;
+    bindingMacroId?: string;
+    macros: ReturnType<typeof useSceneStore.getState>['macros'];
+    options: string[];
+    onAssign: (macroId: string) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const rootRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (!open) return;
+        const close = (event: MouseEvent) => {
+            if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+        };
+        document.addEventListener('mousedown', close);
+        return () => document.removeEventListener('mousedown', close);
+    }, [open]);
+    return (
+        <div ref={rootRef} className="ae-macro-assignment">
+            <button
+                type="button"
+                className={`ae-macro-trigger${bindingMacroId ? ' assigned' : ''}`}
+                title={
+                    bindingMacroId ? `Macro: ${macros.byId[bindingMacroId]?.name ?? bindingMacroId}` : 'Assign macro'
+                }
+                aria-label={`${path} macro`}
+                onClick={() => setOpen((value) => !value)}
+            >
+                <span className="ae-macro-label-text">
+                    {bindingMacroId ? `🎵 ${macros.byId[bindingMacroId]?.name ?? bindingMacroId}` : <FaLink />}
+                </span>
+                {(options.length > 0 || bindingMacroId) && <span className="ae-macro-caret">▼</span>}
+            </button>
+            {open ? (
+                <div className="ae-macro-menu">
+                    <div className="ae-macro-options">
+                        {options.map((id) => (
+                            <button
+                                key={id}
+                                type="button"
+                                className="ae-macro-option"
+                                onClick={() => {
+                                    onAssign(id);
+                                    setOpen(false);
+                                }}
+                            >
+                                {macros.byId[id]?.name ?? id}
+                            </button>
+                        ))}
+                        {bindingMacroId ? (
+                            <>
+                                <div className="ae-macro-divider" />
+                                <button
+                                    type="button"
+                                    className="ae-macro-option danger"
+                                    onClick={() => {
+                                        onAssign('');
+                                        setOpen(false);
+                                    }}
+                                >
+                                    Remove Macro
+                                </button>
+                            </>
+                        ) : null}
+                    </div>
+                </div>
+            ) : null}
         </div>
     );
 }
 
 function TransformSection({ title, children }: { title: string; children: React.ReactNode }) {
+    const [collapsed, setCollapsed] = useState(false);
     return (
         <section className="ae-property-group">
-            <div className="ae-group-header node-transform-section-header">
-                <span className="ae-group-label">{title}</span>
-            </div>
-            <div className="ae-property-list">{children}</div>
+            <button
+                type="button"
+                className="ae-group-header"
+                onClick={() => setCollapsed((value) => !value)}
+                aria-expanded={!collapsed}
+                aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${title} group`}
+            >
+                <span className={`ae-collapse-trigger ${collapsed ? 'collapsed' : 'expanded'}`} aria-hidden="true">
+                    <span className={`ae-collapse-icon ${collapsed ? 'collapsed' : 'expanded'}`}>▼</span>
+                </span>
+                <div className="ae-group-meta">
+                    <div className="ae-group-title-row">
+                        <span className="ae-group-label">{title}</span>
+                    </div>
+                </div>
+            </button>
+            {!collapsed ? <div className="ae-property-list">{children}</div> : null}
         </section>
     );
 }
@@ -101,11 +202,14 @@ export function NodeTransformPanel() {
 
     const singleNode = nodes.length === 1 ? nodes[0] : null;
     const pivot = selectionPivot ?? geometry?.pivot ?? { x: 0, y: 0 };
-    const dispatchForAll = (commands: SceneCommand[], mergeKey?: string) =>
-        dispatchSceneCommand(commands.length === 1 ? commands[0] : { type: 'batch', commands }, {
+    const dispatchForAll = (commands: SceneCommand[], mergeKey?: string, change?: FormInputChange) => {
+        const session = change?.meta?.mergeSession;
+        return dispatchSceneCommand(commands.length === 1 ? commands[0] : { type: 'batch', commands }, {
             source: 'NodeTransformPanel',
-            mergeKey,
+            mergeKey: session && mergeKey ? `${mergeKey}:${session.id}` : mergeKey,
+            transient: session ? !session.finalize : undefined,
         });
+    };
     const common = <T,>(read: (node: (typeof nodes)[number]) => T): T | undefined => {
         const first = read(nodes[0]);
         return nodes.every((node) => Object.is(read(node), first)) ? first : undefined;
@@ -122,13 +226,18 @@ export function NodeTransformPanel() {
             fallback
         );
     };
-    const updateAnimatedValue = (nodeId: string, path: string, value: unknown) => {
+    const updateAnimatedValue = (nodeId: string, path: string, value: unknown, change?: FormInputChange) => {
+        const session = change?.meta?.mergeSession;
         const binding = useSceneStore.getState().nodeBindings[nodeId]?.[path];
         if (binding?.type === 'keyframes') {
             if (autoKeying) {
                 dispatchSceneCommand(
                     { type: 'addKeyframe', channelId: binding.channelId, keyframe: createKeyframe(tick, value) },
-                    { source: 'NodeTransformPanel', mergeKey: `node-keyframe:${nodeId}:${path}` }
+                    {
+                        source: 'NodeTransformPanel',
+                        mergeKey: `node-keyframe:${nodeId}:${path}${session ? `:${session.id}` : ''}`,
+                        transient: session ? !session.finalize : undefined,
+                    }
                 );
             } else {
                 useSceneStore.getState().setPropertyOverride(binding.channelId, value);
@@ -142,22 +251,36 @@ export function NodeTransformPanel() {
                     target: nodePropertyTarget(nodeId, path),
                     binding: { type: 'constant', value },
                 },
-                { source: 'NodeTransformPanel', mergeKey: `node-binding:${nodeId}:${path}` }
+                {
+                    source: 'NodeTransformPanel',
+                    mergeKey: `node-binding:${nodeId}:${path}${session ? `:${session.id}` : ''}`,
+                    transient: session ? !session.finalize : undefined,
+                }
             );
             return true;
         }
         return false;
     };
     const macroOptions = (type: 'number' | 'boolean') => macros.allIds.filter((id) => macros.byId[id]?.type === type);
-    const applyWorldDelta = (matrix: ReturnType<typeof translationMatrix>, mergeKey: string) =>
-        dispatchSceneCommand(
+    const applyWorldDelta = (
+        matrix: ReturnType<typeof translationMatrix>,
+        mergeKey: string,
+        change?: FormInputChange
+    ) => {
+        const session = change?.meta?.mergeSession;
+        return dispatchSceneCommand(
             { type: 'transformNodes', nodeIds, worldDelta: matrix },
-            { source: 'NodeTransformPanel.aggregate', mergeKey }
+            {
+                source: 'NodeTransformPanel.aggregate',
+                mergeKey: session ? `${mergeKey}:${session.id}` : mergeKey,
+                transient: session ? !session.finalize : undefined,
+            }
         );
+    };
 
     if (!singleNode && !geometry) {
         return (
-            <div className="node-transform-inspector">
+            <div className="node-transform-inspector ae-style">
                 <div className="node-transform-identity">
                     <span>{nodes.length} nodes selected</span>
                     <small>No visible bounds</small>
@@ -172,7 +295,7 @@ export function NodeTransformPanel() {
 
     if (!singleNode && geometry) {
         return (
-            <div className="node-transform-inspector">
+            <div className="node-transform-inspector ae-style">
                 <div className="node-transform-identity">
                     <span>{nodes.length} nodes selected</span>
                     <small>World selection</small>
@@ -182,10 +305,11 @@ export function NodeTransformPanel() {
                         label="X"
                         id="node-selection-x"
                         value={geometry.pivot.x}
-                        onChange={(next) =>
+                        onChange={(next, change) =>
                             applyWorldDelta(
                                 translationMatrix(next - geometry.pivot.x, 0),
-                                `selection-x:${nodeIds.join(',')}`
+                                `selection-x:${nodeIds.join(',')}`,
+                                change
                             )
                         }
                     />
@@ -193,10 +317,11 @@ export function NodeTransformPanel() {
                         label="Y"
                         id="node-selection-y"
                         value={geometry.pivot.y}
-                        onChange={(next) =>
+                        onChange={(next, change) =>
                             applyWorldDelta(
                                 translationMatrix(0, next - geometry.pivot.y),
-                                `selection-y:${nodeIds.join(',')}`
+                                `selection-y:${nodeIds.join(',')}`,
+                                change
                             )
                         }
                     />
@@ -210,10 +335,11 @@ export function NodeTransformPanel() {
                         id="node-selection-rotation"
                         value={0}
                         suffix="°"
-                        onChange={(degrees) =>
+                        onChange={(degrees, change) =>
                             applyWorldDelta(
                                 matrixAroundPoint(rotationMatrix((degrees * Math.PI) / 180), pivot.x, pivot.y),
-                                `selection-rotation:${nodeIds.join(',')}`
+                                `selection-rotation:${nodeIds.join(',')}`,
+                                change
                             )
                         }
                     />
@@ -224,10 +350,11 @@ export function NodeTransformPanel() {
                         value={100}
                         suffix="%"
                         schema={{ step: 1, min: 0.1 }}
-                        onChange={(percent) =>
+                        onChange={(percent, change) =>
                             applyWorldDelta(
                                 matrixAroundPoint(scaleMatrix(Math.max(0.001, percent / 100)), pivot.x, pivot.y),
-                                `selection-scale:${nodeIds.join(',')}`
+                                `selection-scale:${nodeIds.join(',')}`,
+                                change
                             )
                         }
                     />
@@ -252,7 +379,7 @@ export function NodeTransformPanel() {
     }
 
     return (
-        <div className="node-transform-inspector">
+        <div className="node-transform-inspector ae-style">
             <div className="node-transform-identity">
                 <input
                     aria-label="Node name"
@@ -270,65 +397,71 @@ export function NodeTransformPanel() {
                 const raw = Number(valueFor(path, nodes[0].userNodeTransform[path]));
                 return index === 0 ? (
                     <TransformSection key="position" title="Position">
-                        <SingleField path="translationX" raw={raw} />
-                        <SingleField
-                            path="translationY"
-                            raw={Number(valueFor('translationY', nodes[0].userNodeTransform.translationY))}
-                        />
+                        {renderSingleField('translationX', raw)}
+                        {renderSingleField(
+                            'translationY',
+                            Number(valueFor('translationY', nodes[0].userNodeTransform.translationY))
+                        )}
                     </TransformSection>
                 ) : null;
             })}
             <TransformSection title="Rotation & Scale">
-                <SingleField path="rotation" raw={Number(valueFor('rotation', nodes[0].userNodeTransform.rotation))} />
-                <SingleField
-                    path="uniformScale"
-                    raw={Number(valueFor('uniformScale', nodes[0].userNodeTransform.uniformScale))}
-                />
+                {renderSingleField('rotation', Number(valueFor('rotation', nodes[0].userNodeTransform.rotation)))}
+                {renderSingleField(
+                    'uniformScale',
+                    Number(valueFor('uniformScale', nodes[0].userNodeTransform.uniformScale))
+                )}
             </TransformSection>
             <TransformSection title="Pivot">
-                <SingleField path="pivotX" raw={Number(valueFor('pivotX', nodes[0].userNodeTransform.pivotX))} />
-                <SingleField path="pivotY" raw={Number(valueFor('pivotY', nodes[0].userNodeTransform.pivotY))} />
+                {renderSingleField('pivotX', Number(valueFor('pivotX', nodes[0].userNodeTransform.pivotX)))}
+                {renderSingleField('pivotY', Number(valueFor('pivotY', nodes[0].userNodeTransform.pivotY)))}
             </TransformSection>
             <TransformSection title="Node State">
-                <label className="ae-property-row node-state-row">
-                    <span className="ae-property-label">
-                        <span className="ae-property-animation-slot">
-                            <BindingControls
-                                path="localVisible"
-                                raw={Boolean(valueFor('localVisible', nodes[0].localVisible))}
-                                type="boolean"
-                            />
-                        </span>
-                        <span className="ae-property-name">Visible</span>
-                    </span>
-                    <input
-                        type="checkbox"
-                        checked={Boolean(valueFor('localVisible', nodes[0].localVisible))}
-                        onChange={(event) => {
-                            if (updateAnimatedValue(nodes[0].id, 'localVisible', event.target.checked)) return;
-                            dispatchForAll([
-                                { type: 'setNodeVisibility', nodeId: nodes[0].id, visible: event.target.checked },
-                            ]);
+                <PropertyControlRow
+                    label="Visible"
+                    animationControl={
+                        <BindingControls
+                            path="localVisible"
+                            raw={Boolean(valueFor('localVisible', nodes[0].localVisible))}
+                            type="boolean"
+                        />
+                    }
+                    macroControl={macroControlFor(
+                        'localVisible',
+                        Boolean(valueFor('localVisible', nodes[0].localVisible)),
+                        'boolean'
+                    )}
+                >
+                    <FormInput
+                        id={`node-${nodes[0].id}-visible`}
+                        type="boolean"
+                        value={Boolean(valueFor('localVisible', nodes[0].localVisible))}
+                        schema={{}}
+                        onChange={(value) => {
+                            const visible = Boolean(valueOf(value));
+                            if (updateAnimatedValue(nodes[0].id, 'localVisible', visible)) return;
+                            dispatchForAll([{ type: 'setNodeVisibility', nodeId: nodes[0].id, visible }]);
                         }}
                     />
-                </label>
-                <label className="ae-property-row node-state-row">
-                    <span className="ae-property-name">Locked</span>
-                    <input
-                        type="checkbox"
-                        checked={nodes[0].localLocked}
-                        onChange={(event) =>
+                </PropertyControlRow>
+                <PropertyControlRow label="Locked">
+                    <FormInput
+                        id={`node-${nodes[0].id}-locked`}
+                        type="boolean"
+                        value={nodes[0].localLocked}
+                        schema={{}}
+                        onChange={(value) =>
                             dispatchForAll([
-                                { type: 'setNodeLocked', nodeId: nodes[0].id, locked: event.target.checked },
+                                { type: 'setNodeLocked', nodeId: nodes[0].id, locked: Boolean(valueOf(value)) },
                             ])
                         }
                     />
-                </label>
+                </PropertyControlRow>
             </TransformSection>
         </div>
     );
 
-    function SingleField({ path, raw }: { path: keyof NodeTransform; raw: number }) {
+    function renderSingleField(path: keyof NodeTransform, raw: number) {
         const field = fields.find((candidate) => candidate.path === path)!;
         const display = field.degrees ? (raw * 180) / Math.PI : path === 'uniformScale' ? raw * 100 : raw;
         return (
@@ -342,7 +475,8 @@ export function NodeTransformPanel() {
                     ...(path === 'uniformScale' ? { min: 0.1 } : {}),
                 }}
                 automation={<BindingControls path={path} raw={raw} type="number" />}
-                onChange={(displayValue) => {
+                macro={macroControlFor(path, raw, 'number')}
+                onChange={(displayValue, change) => {
                     const next = field.degrees
                         ? (displayValue * Math.PI) / 180
                         : path === 'uniformScale'
@@ -364,15 +498,17 @@ export function NodeTransformPanel() {
                         if (preserved) {
                             dispatchForAll(
                                 [{ type: 'updateNodeTransform', nodeId: nodes[0].id, transform: preserved }],
-                                `node-transform:${nodes[0].id}:pivot`
+                                `node-transform:${nodes[0].id}:pivot`,
+                                change
                             );
                             return;
                         }
                     }
-                    if (updateAnimatedValue(nodes[0].id, path, next)) return;
+                    if (updateAnimatedValue(nodes[0].id, path, next, change)) return;
                     dispatchForAll(
                         [{ type: 'updateNodeTransform', nodeId: nodes[0].id, transform: { [path]: next } }],
-                        `node-transform:${nodes[0].id}:${path}`
+                        `node-transform:${nodes[0].id}:${path}`,
+                        change
                     );
                 }}
             />
@@ -388,44 +524,34 @@ export function NodeTransformPanel() {
         raw: number | boolean;
         type: 'number' | 'boolean';
     }) {
+        return (
+            <KeyframeControl target={nodePropertyTarget(nodes[0].id, path)} propertyType={type} currentValue={raw} />
+        );
+    }
+
+    function macroControlFor(
+        path: keyof NodeTransform | 'localVisible',
+        raw: number | boolean,
+        type: 'number' | 'boolean'
+    ) {
         const binding = nodeBindings[nodes[0].id]?.[path];
         return (
-            <span className="node-transform-binding-controls">
-                <KeyframeControl
-                    target={nodePropertyTarget(nodes[0].id, path)}
-                    propertyType={type}
-                    currentValue={raw}
-                />
-                <select
-                    className={binding?.type === 'macro' ? 'is-active' : ''}
-                    aria-label={`${path} macro`}
-                    title={
-                        binding?.type === 'macro'
-                            ? `Macro: ${macros.byId[binding.macroId]?.name ?? binding.macroId}`
-                            : 'Assign macro'
-                    }
-                    value={binding?.type === 'macro' ? binding.macroId : ''}
-                    onChange={(event) =>
-                        dispatchSceneCommand(
-                            {
-                                type: 'updatePropertyTargetBinding',
-                                target: nodePropertyTarget(nodes[0].id, path),
-                                binding: event.target.value
-                                    ? { type: 'macro', macroId: event.target.value }
-                                    : { type: 'constant', value: raw },
-                            },
-                            { source: 'NodeTransformPanel.macro' }
-                        )
-                    }
-                >
-                    <option value="">M</option>
-                    {macroOptions(type).map((id) => (
-                        <option key={id} value={id}>
-                            {macros.byId[id]?.name ?? id}
-                        </option>
-                    ))}
-                </select>
-            </span>
+            <NodeMacroControl
+                path={path}
+                bindingMacroId={binding?.type === 'macro' ? binding.macroId : undefined}
+                macros={macros}
+                options={macroOptions(type)}
+                onAssign={(macroId) =>
+                    dispatchSceneCommand(
+                        {
+                            type: 'updatePropertyTargetBinding',
+                            target: nodePropertyTarget(nodes[0].id, path),
+                            binding: macroId ? { type: 'macro', macroId } : { type: 'constant', value: raw },
+                        },
+                        { source: 'NodeTransformPanel.macro' }
+                    )
+                }
+            />
         );
     }
 }
@@ -444,8 +570,7 @@ function NodeStateRows({
             {(['localVisible', 'localLocked'] as const).map((key) => {
                 const value = common((node) => node[key]);
                 return (
-                    <label className="ae-property-row node-state-row" key={key}>
-                        <span className="ae-property-name">{key === 'localVisible' ? 'Visible' : 'Locked'}</span>
+                    <PropertyControlRow key={key} label={key === 'localVisible' ? 'Visible' : 'Locked'}>
                         <input
                             type="checkbox"
                             checked={value ?? false}
@@ -466,7 +591,7 @@ function NodeStateRows({
                                 )
                             }
                         />
-                    </label>
+                    </PropertyControlRow>
                 );
             })}
         </TransformSection>
