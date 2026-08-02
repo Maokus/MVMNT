@@ -85,9 +85,12 @@ search always uses ordinary matching rows rather than layout controls.
 
 ## Editing semantics
 
-All layout controls submit canonical property patches through the element
-property panel. The panel updates the visible values together and preserves the
-existing macro-disabled state.
+All layout controls submit canonical property patches through the shared
+property edit coordinator. The panel updates the visible values together and
+preserves the existing macro-disabled state. Host-node fields, plugin fields,
+canvas transforms, and compound controls therefore share the same auto-key,
+binding, gesture merge, batch, and undo rules even though host and plugin values
+remain in separate authored stores.
 
 With auto-key enabled, every automatable property in a compound patch is
 enabled or keyed together. Multi-property automation uses the scene command

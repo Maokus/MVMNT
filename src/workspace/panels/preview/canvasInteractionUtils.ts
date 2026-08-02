@@ -121,26 +121,32 @@ function applyGraphDragUpdate(meta: any, graph: ReturnType<typeof cloneSceneGrap
         if (!previous || !next) continue;
         const staticPatch: Record<string, number> = {};
         for (const path of Object.keys(next) as Array<keyof typeof next>) {
-            if (Object.is(previous[path], next[path])) continue;
+            const nextValue = next[path];
+            if (typeof nextValue !== 'number' || !Number.isFinite(nextValue) || Object.is(previous[path], nextValue)) {
+                continue;
+            }
             const binding = store.nodeBindings[nodeId]?.[path];
             if (binding?.type === 'keyframes') {
-                if (autoKeying) {
-                    commands.push({
-                        type: 'addKeyframe',
-                        channelId: binding.channelId,
-                        keyframe: createKeyframe(tick, next[path]),
-                    });
-                } else {
-                    store.setPropertyOverride(binding.channelId, next[path]);
-                }
+                commands.push({
+                    type: 'addKeyframe',
+                    channelId: binding.channelId,
+                    keyframe: createKeyframe(tick, nextValue),
+                });
             } else if (binding) {
                 commands.push({
                     type: 'updatePropertyTargetBinding',
                     target: nodePropertyTarget(nodeId, path),
-                    binding: { type: 'constant', value: next[path] },
+                    binding: { type: 'constant', value: nextValue },
+                });
+            } else if (autoKeying) {
+                commands.push({
+                    type: 'enablePropertyAutomation',
+                    target: nodePropertyTarget(nodeId, path),
+                    valueType: 'number',
+                    initialKeyframes: [createKeyframe(tick, nextValue)],
                 });
             } else {
-                staticPatch[path] = next[path];
+                staticPatch[path] = nextValue;
             }
         }
         if (Object.keys(staticPatch).length) {
@@ -268,12 +274,12 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
         origContentOffsetY: el?.getProperty('offsetY') ?? 0,
         origWidth: rec?.bounds?.width ?? 0,
         origHeight: rec?.bounds?.height ?? 0,
-        origScaleX: nodeTransform?.uniformScale ?? 1,
-        origScaleY: nodeTransform?.uniformScale ?? 1,
+        origScaleX: nodeTransform?.scaleX ?? 1,
+        origScaleY: nodeTransform?.scaleY ?? 1,
         origRotation: nodeTransform?.rotation ?? 0,
         origContentRotation: ((el?.getProperty('elementRotation') ?? 0) * Math.PI) / 180,
-        origContentScaleX: el?.getProperty('elementScaleX') ?? el?.getProperty('globalScaleX') ?? 1,
-        origContentScaleY: el?.getProperty('elementScaleY') ?? el?.getProperty('globalScaleY') ?? 1,
+        origContentScaleX: 1,
+        origContentScaleY: 1,
         origSkewX: el?.getProperty('elementSkewX') ?? 0,
         origSkewY: el?.getProperty('elementSkewY') ?? 0,
         origAnchorX: el?.getProperty('anchorX') ?? 0.5,
@@ -450,12 +456,9 @@ function updateScaleDrag(
                 meta.mode === 'scale-sw')
     );
     if (r) {
-        const uniformScale =
-            Math.abs(r.newScaleX - meta.origScaleX) >= Math.abs(r.newScaleY - meta.origScaleY)
-                ? r.newScaleX
-                : r.newScaleY;
         applyNodeDragUpdate(meta, elId, {
-            uniformScale,
+            scaleX: r.newScaleX,
+            scaleY: r.newScaleY,
             translationX: r.newOffsetX,
             translationY: r.newOffsetY,
         });
@@ -590,7 +593,12 @@ function processDrag(
                 if (inverse && originalNode) {
                     const beforeUser = nodeTransformToMatrix(originalNode.userNodeTransform);
                     const nextPivot = applyMatrixToPoint(inverse, { x, y });
-                    const nextTransform = matrixToNodeTransform(beforeUser, nextPivot.x, nextPivot.y);
+                    const nextTransform = matrixToNodeTransform(
+                        beforeUser,
+                        nextPivot.x,
+                        nextPivot.y,
+                        originalNode.userNodeTransform
+                    );
                     if (nextTransform) {
                         const nextGraph = cloneSceneGraph(meta.originalGraph);
                         nextGraph.nodesById[meta.nodeIds[0]].userNodeTransform = nextTransform;

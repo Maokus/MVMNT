@@ -92,6 +92,18 @@ Easing functions come from `src/math/animation/easing.ts` (30+ presets) referenc
 
 All commands have undo inverses in `buildSceneCommandPatch()`. Drag operations use merge keys (`kf-drag:${channelId}:${sessionId}`) to collapse continuous drags into a single undo entry.
 
+### Property Catalog and Editing
+
+Plugin content and host-node transforms keep their natural authored storage, but the editor treats both through a
+shared property facade. `PropertyCatalog` normalizes plugin schemas and the host transform schema into descriptors
+containing a structured target, tab/group placement, capabilities, and a presentation codec. The codecs keep
+canonical animation values stable while displaying rotation in degrees and node X/Y scale as percentages.
+
+`PropertyEditCoordinator` is the common command path for scalar fields, compound layout controls, canvas edits, and
+multi-selection edits. Editing an animated property always inserts or updates its playhead key; Auto-key controls
+whether a constant is promoted into automation. Macro-bound fields remain read-only until detached. There is no
+transient "delink until scrub" value, so every visible edit is represented by undoable document state.
+
 ### Property Panel UI
 
 `KeyframeControl.tsx` renders a diamond-shaped toggle per automatable property row with three visual states:
@@ -102,8 +114,14 @@ All commands have undo inverses in `buildSceneCommandPatch()`. Drag operations u
 
 Click adds/removes a keyframe at the current tick. Right-click opens a context menu (add/remove, remove all, easing picker, navigate prev/next).
 
-`ElementPropertiesPanel.tsx` adapts plugin fields to element targets. The host node inspector uses the same generic
-control for group transforms and visibility. Timeline labels distinguish host-node animation from plugin content.
+`ElementPropertiesPanel.tsx` adapts plugin fields to element targets. The host node inspector uses the same catalog,
+edit coordinator, binding controls, and gesture merge rules for group transforms and visibility. Multi-selection
+keeps aggregate world-space operations separate from common local properties; common property edits and compatible
+binding actions are dispatched as one batch.
+
+The timeline is scene-hierarchy ordered. An element-node row combines its host-transform and element-content
+channels without conflating their typed owners; group rows provide ancestry context for animated descendants.
+Labels come from the property catalog rather than raw property paths, and expansion state uses typed owner keys.
 
 ### Persistence
 
@@ -123,7 +141,9 @@ bindings. Exports never emit legacy ownership fields or ownership-encoded IDs.
 | `src/automation/color-interpolation.ts`               | Hex color interpolation                                       |
 | `src/automation/hooks.ts`                             | `useAutomationChannel`, `useKeyframeAtTick`, `useCurrentTick` |
 | `src/bindings/keyframe-binding.ts`                    | `KeyframeBinding<T>` class                                    |
-| `src/workspace/panels/properties/KeyframeControl.tsx` | Diamond toggle UI                                             |
+| `src/state/scene/propertyCatalog.ts`                  | Shared host/plugin descriptors and display codecs             |
+| `src/state/scene/propertyEditing.ts`                  | Canonical single/bulk property edit coordinator               |
+| `src/workspace/panels/properties/KeyframeControl.tsx` | Automation toggle/key UI                                      |
 | `src/state/sceneStore.ts`                             | `AutomationState` slice, store actions                        |
 | `src/state/scene/commandGateway.ts`                   | 7 automation scene commands                                   |
 | `src/core/scene/elements/base.ts`                     | `'keyframes'` binding detection, per-frame cache invalidation |

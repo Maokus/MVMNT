@@ -8,9 +8,15 @@
 import { useCallback, useMemo } from 'react';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
-import { channelForTarget, elementPropertyTarget, encodePropertyTarget, findKeyframeAtTick } from './types';
-import type { AutomationChannel, AutomationKeyframe, PropertyTarget } from './types';
-import { selectAutomatedOwners } from './selectors';
+import {
+    channelForTarget,
+    elementPropertyTarget,
+    encodePropertyOwner,
+    encodePropertyTarget,
+    findKeyframeAtTick,
+} from './types';
+import type { AutomationChannel, AutomationKeyframe, PropertyOwner, PropertyTarget } from './types';
+import { selectAutomatedOwners, selectAutomationSceneNodes } from './selectors';
 
 /** Returns the automation channel for an element property, or null if not automated. */
 export function useAutomationChannel(elementId: string, propertyKey: string): AutomationChannel | null {
@@ -56,20 +62,21 @@ export function useIsPropertyAutomated(elementId: string, propertyKey: string): 
 }
 
 /** Returns all automation channels for an element or node owner, sorted by property path. */
-export function useOwnerChannels(ownerId: string): AutomationChannel[] {
+export function useOwnerChannels(owner: PropertyOwner): AutomationChannel[] {
+    const ownerKey = encodePropertyOwner(owner);
     return useSceneStore(
         useCallback(
             (state) => {
                 const channels: AutomationChannel[] = [];
                 for (const channel of Object.values(state.automation.channels)) {
-                    if (channel.target.owner.id === ownerId) {
+                    if (encodePropertyOwner(channel.target.owner) === ownerKey) {
                         channels.push(channel);
                     }
                 }
                 channels.sort((a, b) => a.target.propertyPath.localeCompare(b.target.propertyPath));
                 return channels;
             },
-            [ownerId]
+            [ownerKey]
         )
     );
 }
@@ -83,10 +90,24 @@ export function useAutomatedOwnerIds(): string[] {
     );
 }
 
+export function useAutomatedOwners() {
+    return useSceneStore(useCallback((state) => selectAutomatedOwners(state), []));
+}
+
+export function useAutomationSceneNodes() {
+    return useSceneStore(useCallback((state) => selectAutomationSceneNodes(state), []));
+}
+
 /** Returns whether an owner is expanded in the automation section. */
-export function useAutomationExpanded(ownerId: string): boolean {
+export function useAutomationExpanded(owner: PropertyOwner): boolean {
+    const ownerKey = encodePropertyOwner(owner);
     return useSceneStore(
-        useCallback((state) => state.interaction.automationExpandedOwners.includes(ownerId), [ownerId])
+        useCallback(
+            (state) =>
+                state.interaction.automationExpandedOwners.includes(ownerKey) ||
+                state.interaction.automationExpandedOwners.includes(owner.id),
+            [ownerKey, owner.id]
+        )
     );
 }
 

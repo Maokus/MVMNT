@@ -105,6 +105,8 @@ export interface PropertyTarget {
     propertyPath: string;
 }
 
+export type PropertyOwner = PropertyTarget['owner'];
+
 export function elementPropertyTarget(elementId: string, propertyPath: string): PropertyTarget {
     return { owner: { kind: 'element', id: elementId }, propertyPath };
 }
@@ -128,6 +130,29 @@ export function isPropertyTarget(value: unknown): value is PropertyTarget {
 export function encodePropertyTarget(target: PropertyTarget): string {
     const { kind, id } = target.owner;
     return `${kind.length}:${kind}${id.length}:${id}${target.propertyPath.length}:${target.propertyPath}`;
+}
+
+/** Collision-free key for UI state that belongs to an owner rather than one property. */
+export function encodePropertyOwner(owner: PropertyOwner): string {
+    return `${owner.kind.length}:${owner.kind}${owner.id.length}:${owner.id}`;
+}
+
+export function decodePropertyOwner(key: string): PropertyOwner | null {
+    const readPart = (offset: number): { value: string; next: number } | null => {
+        const colon = key.indexOf(':', offset);
+        if (colon < 0) return null;
+        const length = Number(key.slice(offset, colon));
+        if (!Number.isInteger(length) || length < 0) return null;
+        const start = colon + 1;
+        const end = start + length;
+        if (end > key.length) return null;
+        return { value: key.slice(start, end), next: end };
+    };
+    const kind = readPart(0);
+    if (!kind || (kind.value !== 'node' && kind.value !== 'element')) return null;
+    const id = readPart(kind.next);
+    if (!id || id.next !== key.length) return null;
+    return { kind: kind.value, id: id.value };
 }
 
 let channelSequence = 0;

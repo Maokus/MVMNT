@@ -373,26 +373,17 @@ export interface SceneElementInterface {
     visible: boolean;
 
     // Element transform properties
-    elementScaleX: number;
-    elementScaleY: number;
     elementSkewX: number;
     elementSkewY: number;
-
-    // Element visibility properties
-    elementOpacity: number;
 
     buildRenderObjects(config: any, targetTime: number): RenderObject[];
     updateConfig(newConfig: { [key: string]: any }): void;
     setVisible(visible: boolean): this;
 
     // Element transform methods
-    setElementScaleX(scaleX: number): this;
-    setElementScaleY(scaleY: number): this;
-    setElementScale(scaleX: number, scaleY?: number): this;
     setElementSkewX(skewX: number): this;
     setElementSkewY(skewY: number): this;
     setElementSkew(skewX: number, skewY: number): this;
-    setElementOpacity(opacity: number): this;
 }
 
 export interface BackgroundElementConfig extends BaseSceneElementConfig {

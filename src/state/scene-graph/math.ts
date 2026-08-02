@@ -24,32 +24,76 @@ export function invertMatrix(matrix: Matrix2D): Matrix2D | null {
 }
 
 export function nodeTransformToMatrix(transform: NodeTransform): Matrix2D {
-    const { translationX, translationY, rotation, uniformScale, pivotX, pivotY } = transform;
-    const cosine = Math.cos(rotation) * uniformScale;
-    const sine = Math.sin(rotation) * uniformScale;
+    const { translationX, translationY, rotation, scaleX, scaleY, pivotX, pivotY } = transform;
+    const legacyUniformScale = transform.legacyUniformScale ?? 1;
+    const legacyContentScaleX = transform.legacyContentScaleX ?? 1;
+    const legacyContentScaleY = transform.legacyContentScaleY ?? 1;
+    const cosine = Math.cos(rotation);
+    const sine = Math.sin(rotation);
+    const preX = scaleX * legacyUniformScale;
+    const preY = scaleY * legacyUniformScale;
+    const a = cosine * preX;
+    const b = sine * preX;
+    const c = -sine * preY;
+    const d = cosine * preY;
     return [
-        cosine,
-        sine,
-        -sine,
-        cosine,
-        translationX + pivotX - cosine * pivotX + sine * pivotY,
-        translationY + pivotY - sine * pivotX - cosine * pivotY,
+        a * legacyContentScaleX,
+        b * legacyContentScaleX,
+        c * legacyContentScaleY,
+        d * legacyContentScaleY,
+        translationX + pivotX - a * pivotX - c * pivotY,
+        translationY + pivotY - b * pivotX - d * pivotY,
     ];
 }
 
-/** Decompose a non-reflecting similarity matrix while retaining the authored pivot. */
-export function matrixToNodeTransform(matrix: Matrix2D, pivotX: number, pivotY: number): NodeTransform | null {
+/** Decompose a non-sheared affine matrix while retaining the authored pivot. */
+export function matrixToNodeTransform(
+    matrix: Matrix2D,
+    pivotX: number,
+    pivotY: number,
+    compatibility?: NodeTransform
+): NodeTransform | null {
+    const legacyUniformScale = compatibility?.legacyUniformScale ?? 1;
+    const legacyContentScaleX = compatibility?.legacyContentScaleX ?? 1;
+    const legacyContentScaleY = compatibility?.legacyContentScaleY ?? 1;
+    if (legacyUniformScale !== 1 || legacyContentScaleX !== 1 || legacyContentScaleY !== 1) {
+        if (
+            Math.abs(legacyUniformScale) <= MATRIX_EPSILON ||
+            Math.abs(legacyContentScaleX) <= MATRIX_EPSILON ||
+            Math.abs(legacyContentScaleY) <= MATRIX_EPSILON
+        ) {
+            return null;
+        }
+        const [a, b, c, d, e, f] = matrix;
+        const decomposed = matrixToNodeTransform(
+            [a / legacyContentScaleX, b / legacyContentScaleX, c / legacyContentScaleY, d / legacyContentScaleY, e, f],
+            pivotX,
+            pivotY
+        );
+        if (!decomposed) return null;
+        return {
+            ...decomposed,
+            scaleX: decomposed.scaleX / legacyUniformScale,
+            scaleY: decomposed.scaleY / legacyUniformScale,
+            ...(compatibility?.legacyUniformScale !== undefined ? { legacyUniformScale } : {}),
+            ...(compatibility?.legacyContentScaleX !== undefined ? { legacyContentScaleX } : {}),
+            ...(compatibility?.legacyContentScaleY !== undefined ? { legacyContentScaleY } : {}),
+        };
+    }
     const [a, b, c, d, e, f] = matrix;
-    const uniformScale = Math.hypot(a, b);
-    if (!Number.isFinite(uniformScale) || uniformScale <= MATRIX_EPSILON) return null;
+    const scaleX = Math.hypot(a, b);
+    if (!Number.isFinite(scaleX) || scaleX <= MATRIX_EPSILON) return null;
     const rotation = Math.atan2(b, a);
-    const cosine = Math.cos(rotation) * uniformScale;
-    const sine = Math.sin(rotation) * uniformScale;
-    const tolerance = Math.max(1, uniformScale) * 1e-7;
-    if (Math.abs(c + sine) > tolerance || Math.abs(d - cosine) > tolerance) return null;
-    const translationX = e - pivotX + cosine * pivotX - sine * pivotY;
-    const translationY = f - pivotY + sine * pivotX + cosine * pivotY;
-    const transform = { translationX, translationY, rotation, uniformScale, pivotX, pivotY };
+    const determinant = a * d - b * c;
+    const scaleY = determinant / scaleX;
+    if (!Number.isFinite(scaleY) || Math.abs(scaleY) <= MATRIX_EPSILON) return null;
+    const cosine = Math.cos(rotation);
+    const sine = Math.sin(rotation);
+    const tolerance = Math.max(1, scaleX, Math.abs(scaleY)) * 1e-7;
+    if (Math.abs(c + sine * scaleY) > tolerance || Math.abs(d - cosine * scaleY) > tolerance) return null;
+    const translationX = e - pivotX + a * pivotX + c * pivotY;
+    const translationY = f - pivotY + b * pivotX + d * pivotY;
+    const transform = { translationX, translationY, rotation, scaleX, scaleY, pivotX, pivotY };
     return Object.values(transform).every(Number.isFinite) ? transform : null;
 }
 
@@ -86,8 +130,8 @@ export function rotationMatrix(radians: number): Matrix2D {
     return [cosine, sine, -sine, cosine, 0, 0];
 }
 
-export function scaleMatrix(scale: number): Matrix2D {
-    return [scale, 0, 0, scale, 0, 0];
+export function scaleMatrix(scaleX: number, scaleY = scaleX): Matrix2D {
+    return [scaleX, 0, 0, scaleY, 0, 0];
 }
 
 export function matrixAroundPoint(matrix: Matrix2D, x: number, y: number): Matrix2D {

@@ -68,10 +68,9 @@ interface NodeRowProps {
     node: SceneNode;
     siblingIds: string[];
     depth: number;
-    onRename: (nodeId: string) => void;
 }
 
-function NodeRow({ graph, node, siblingIds, depth, onRename }: NodeRowProps) {
+export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
     const selectedNodeIds = useSelectionStore((state) => state.selectedNodeIds);
     const activeNodeId = useSelectionStore((state) => state.activeNodeId);
     const expandedNodeIds = useSelectionStore((state) => state.expandedNodeIds);
@@ -88,7 +87,9 @@ function NodeRow({ graph, node, siblingIds, depth, onRename }: NodeRowProps) {
         duplicateSelectedNodes,
         deleteSelectedNodes,
         reparentSelectedNodes,
+        updateElementId,
     } = useSceneSelection();
+    const rowLabel = node.kind === 'element' ? node.elementId : node.name;
     const expanded = node.kind === 'group' && expandedNodeIds[node.id] !== false;
     const selected = selectedNodeIds.includes(node.id);
     const active = activeNodeId === node.id;
@@ -101,12 +102,13 @@ function NodeRow({ graph, node, siblingIds, depth, onRename }: NodeRowProps) {
         new Set(contextSelection.map((id) => graph.nodesById[id]?.parentId)).size === 1 &&
         contextSelection.every((id) => !isNodeEffectivelyLocked(graph, id));
 
+    const isRenaming = renameValue !== null;
     useEffect(() => {
-        if (renameValue !== null) {
+        if (isRenaming) {
             renameRef.current?.focus();
             renameRef.current?.select();
         }
-    }, [renameValue]);
+    }, [isRenaming]);
     useEffect(() => {
         if (!contextMenu) return;
         const close = () => setContextMenu(null);
@@ -123,7 +125,11 @@ function NodeRow({ graph, node, siblingIds, depth, onRename }: NodeRowProps) {
     const commitRename = () => {
         const name = renameValue?.trim();
         setRenameValue(null);
-        if (!name || name === node.name) return;
+        if (!name || name === rowLabel) return;
+        if (node.kind === 'element') {
+            updateElementId(node.elementId, name);
+            return;
+        }
         dispatchSceneCommand({ type: 'setNodeName', nodeId: node.id, name }, { source: 'SceneNodeTree.rename' });
     };
     const select = (event: React.MouseEvent) => {
@@ -194,8 +200,7 @@ function NodeRow({ graph, node, siblingIds, depth, onRename }: NodeRowProps) {
                 onClick={select}
                 onDoubleClick={(event) => {
                     if ((event.target as Element).closest('button')) return;
-                    setRenameValue(node.name);
-                    onRename(node.id);
+                    setRenameValue(rowLabel);
                 }}
                 onContextMenu={(event) => {
                     event.preventDefault();
@@ -249,8 +254,8 @@ function NodeRow({ graph, node, siblingIds, depth, onRename }: NodeRowProps) {
                         }}
                     />
                 ) : (
-                    <span className="scene-node-name" title={node.name}>
-                        {node.name}
+                    <span className="scene-node-name" title={rowLabel}>
+                        {rowLabel}
                     </span>
                 )}
                 <span className="scene-node-type">{node.kind === 'group' ? 'Group' : 'Element'}</span>
@@ -288,7 +293,6 @@ function NodeRow({ graph, node, siblingIds, depth, onRename }: NodeRowProps) {
                               node={graph.nodesById[childId]}
                               siblingIds={node.children}
                               depth={depth + 1}
-                              onRename={onRename}
                           />
                       ))
                 : null}
@@ -303,7 +307,7 @@ function NodeRow({ graph, node, siblingIds, depth, onRename }: NodeRowProps) {
                           <button
                               role="menuitem"
                               onClick={() => {
-                                  setRenameValue(node.name);
+                                  setRenameValue(rowLabel);
                                   setContextMenu(null);
                               }}
                           >
@@ -456,7 +460,6 @@ export function SceneNodeTree() {
                     node={graph.nodesById[nodeId]}
                     siblingIds={(graph.nodesById[graph.rootId] as Extract<SceneNode, { kind: 'root' }>).children}
                     depth={0}
-                    onRename={() => undefined}
                 />
             ))}
         </div>

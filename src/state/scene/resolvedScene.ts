@@ -17,6 +17,7 @@ export interface SceneStructureRecord {
     depth: number;
     paintIndex: number;
     effectiveVisible: boolean;
+    effectiveOpacity: number;
     effectiveLocked: boolean;
     parentWorldTransform: Matrix2D;
     nodeWorldTransform: Matrix2D;
@@ -51,7 +52,8 @@ class AffineRenderPayload {
     _worldCorners?: Array<{ x: number; y: number }>;
     constructor(
         private readonly source: any,
-        private readonly matrix: Matrix2D
+        private readonly matrix: Matrix2D,
+        private readonly opacity: number
     ) {}
 
     get fillColor() {
@@ -65,6 +67,7 @@ class AffineRenderPayload {
     render(ctx: CanvasRenderingContext2D, config: any, time: number) {
         ctx.save();
         ctx.transform(...this.matrix);
+        if (this.opacity !== 1) ctx.globalAlpha *= this.opacity;
         this.source.render?.(ctx, config, time);
         ctx.restore();
     }
@@ -94,16 +97,17 @@ class AffineRenderPayload {
     }
 }
 
-function transformedPayload(source: any, matrix: Matrix2D, nodeTransform: NodeTransform): any {
+function transformedPayload(source: any, matrix: Matrix2D, nodeTransform: NodeTransform, opacity: number): any {
     if (source instanceof PerspectiveElementRoot) {
         source.setResolvedNodeTransform(matrix, {
             x: nodeTransform.pivotX,
             y: nodeTransform.pivotY,
         });
+        source.setOpacity(source.opacity * opacity);
         return source;
     }
-    if (matricesEqual(matrix, identityMatrix())) return source;
-    return new AffineRenderPayload(source, matrix);
+    if (matricesEqual(matrix, identityMatrix()) && opacity === 1) return source;
+    return new AffineRenderPayload(source, matrix, opacity);
 }
 
 function boundsAndHull(payload: any) {
@@ -126,9 +130,14 @@ export function buildSceneStructureIndex(graph: SceneGraphState): SceneStructure
     const byNodeId = new Map<string, SceneStructureRecord>();
     const root = graph.nodesById[graph.rootId];
     if (!root || root.kind !== 'root') return { graphRevision: graph.revision, records, byNodeId };
-    const stack: Array<{ node: SceneNode; depth: number; parentWorld: Matrix2D; visible: boolean; locked: boolean }> = [
-        { node: root, depth: 0, parentWorld: identityMatrix(), visible: true, locked: false },
-    ];
+    const stack: Array<{
+        node: SceneNode;
+        depth: number;
+        parentWorld: Matrix2D;
+        visible: boolean;
+        opacity: number;
+        locked: boolean;
+    }> = [{ node: root, depth: 0, parentWorld: identityMatrix(), visible: true, opacity: 1, locked: false }];
     const visited = new Set<string>();
     let paintIndex = 0;
     while (stack.length) {
@@ -141,12 +150,14 @@ export function buildSceneStructureIndex(graph: SceneGraphState): SceneStructure
         );
         const nodeWorldTransform = multiplyMatrices(entry.parentWorld, local);
         const effectiveVisible = entry.visible && entry.node.localVisible;
+        const effectiveOpacity = entry.opacity * entry.node.localOpacity;
         const effectiveLocked = entry.locked || entry.node.localLocked;
         const record: SceneStructureRecord = {
             node: entry.node,
             depth: entry.depth,
             paintIndex: entry.node.kind === 'element' ? paintIndex++ : -1,
             effectiveVisible,
+            effectiveOpacity,
             effectiveLocked,
             parentWorldTransform: entry.parentWorld,
             nodeWorldTransform,
@@ -162,6 +173,7 @@ export function buildSceneStructureIndex(graph: SceneGraphState): SceneStructure
                         depth: entry.depth + 1,
                         parentWorld: nodeWorldTransform,
                         visible: effectiveVisible,
+                        opacity: effectiveOpacity,
                         locked: effectiveLocked,
                     });
                 }
@@ -198,6 +210,7 @@ export function resolveSceneFrame(options: {
             multiplyMatrices(node.parentCompensation, nodeTransformToMatrix(node.userNodeTransform))
         );
         const effectiveVisible = (parentRecord?.effectiveVisible ?? true) && node.localVisible;
+        const effectiveOpacity = (parentRecord?.effectiveOpacity ?? 1) * node.localOpacity;
         const effectiveLocked = (parentRecord?.effectiveLocked ?? false) || node.localLocked;
         const record: ResolvedSceneRecord = {
             ...entry,
@@ -205,6 +218,7 @@ export function resolveSceneFrame(options: {
             parentWorldTransform,
             nodeWorldTransform,
             effectiveVisible,
+            effectiveOpacity,
             effectiveLocked,
             renderObjects: [],
         };
@@ -214,7 +228,7 @@ export function resolveSceneFrame(options: {
             if (record.effectiveVisible && record.element?.visible) {
                 const content = record.element.buildRenderObjects(config, time) ?? [];
                 record.renderObjects = content.map((payload: any) =>
-                    transformedPayload(payload, record.nodeWorldTransform, node.userNodeTransform)
+                    transformedPayload(payload, record.nodeWorldTransform, node.userNodeTransform, effectiveOpacity)
                 );
                 renderObjects.push(...record.renderObjects);
                 Object.assign(record, boundsAndHull(record.renderObjects[0]));

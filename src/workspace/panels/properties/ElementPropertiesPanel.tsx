@@ -8,13 +8,14 @@ import type { ElementBindings } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
 import type { FormInputChange } from '@workspace/forms/inputs/FormInput';
 import { useCurrentTick } from '@automation/hooks';
-import { channelForTarget, elementPropertyTarget, findKeyframeAtTick, createKeyframe } from '@automation/types';
+import { findKeyframeAtTick, elementPropertyTarget } from '@automation/types';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { automationEvaluator } from '@automation/automation-evaluator';
 import { resolveAutomationValueType } from './KeyframeControl';
 import { NodeTransformPanel } from './NodeTransformPanel';
+import { dispatchPropertyEdits, propertyEditMergeKey } from '@state/scene/propertyEditing';
 
 const NODE_TRANSFORM_TAB_ID = '__node-transform';
 
@@ -98,7 +99,6 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const currentTick = useCurrentTick();
     const autoKeying = useTimelineStore((s) => s.transport.autoKeying);
     const automationChannels = useSceneStore(useCallback((s) => s.automation.channels, []));
-    const propertyOverrides = useSceneStore(useCallback((s) => s.propertyOverrides, []));
     const groupCollapseState = useSceneStore(
         useCallback((s) => s.interaction.expandedPropertyGroups[elementId] ?? {}, [elementId])
     );
@@ -139,25 +139,6 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
 
     const bindingsMemo = useMemo(() => ({ ...(bindings ?? {}) }), [bindings, refreshToken]);
 
-    const delinkedKeys = useMemo(() => {
-        const keys = new Set<string>();
-        if (!enhancedSchema) return keys;
-        enhancedSchema.tabs
-            .flatMap((t) => t.groups)
-            .forEach((group) => {
-                group.properties.forEach((property) => {
-                    const binding = bindingsMemo[property.key];
-                    if (binding?.type === 'keyframes') {
-                        const chId = binding.channelId;
-                        if (propertyOverrides[chId] !== undefined) {
-                            keys.add(property.key);
-                        }
-                    }
-                });
-            });
-        return keys;
-    }, [enhancedSchema, bindingsMemo, propertyOverrides, elementId]);
-
     const handleMacroStoreUpdate = useCallback(() => {
         setMacroListenerKey((prev) => prev + 1);
     }, []);
@@ -196,33 +177,23 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                             nextValues[property.key] = property.default ?? null;
                         }
                     } else if (binding?.type === 'keyframes') {
-                        // Evaluate automation at current tick for display.
-                        // Check transient override first (set when auto key is off and user manually
-                        // changes a keyframed property — clears automatically on scrub/play).
                         const chId = binding.channelId;
                         if (!chId) {
                             nextValues[property.key] = property.default ?? null;
                             return;
                         }
-                        const override = propertyOverrides[chId];
-                        if (override !== undefined) {
-                            nextValues[property.key] = override;
-                        } else {
-                            // Read directly from automationChannels (hook-captured, always current) first.
-                            // This avoids stale evaluator-curve-cache results when a keyframe was just
-                            // added/modified at the current tick — the exact-match path bypasses the cache.
-                            const channel = automationChannels[chId];
-                            if (channel) {
-                                const kfAtTick = findKeyframeAtTick(channel.keyframes, currentTick);
-                                if (kfAtTick !== null) {
-                                    nextValues[property.key] = kfAtTick.value;
-                                } else {
-                                    const evaluated = automationEvaluator.evaluate(chId, currentTick);
-                                    nextValues[property.key] = evaluated ?? property.default;
-                                }
+                        // Exact keys bypass the evaluator cache so a just-edited key displays immediately.
+                        const channel = automationChannels[chId];
+                        if (channel) {
+                            const kfAtTick = findKeyframeAtTick(channel.keyframes, currentTick);
+                            if (kfAtTick !== null) {
+                                nextValues[property.key] = kfAtTick.value;
                             } else {
-                                nextValues[property.key] = property.default ?? null;
+                                const evaluated = automationEvaluator.evaluate(chId, currentTick);
+                                nextValues[property.key] = evaluated ?? property.default;
                             }
+                        } else {
+                            nextValues[property.key] = property.default ?? null;
                         }
                     } else if (binding?.type === 'constant') {
                         nextValues[property.key] = binding.value ?? property.default;
@@ -254,7 +225,6 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         refreshToken,
         currentTick,
         automationChannels,
-        propertyOverrides,
         setPropertyGroupCollapseState,
     ]);
 
@@ -325,65 +295,24 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 ...patch,
             }));
 
-            if (autoKeying) {
-                const commands: any[] = [];
-                const existingChannels = useSceneStore.getState().automation.channels;
-                for (const [key, value] of Object.entries(patch)) {
-                    const valueType = resolveAutomationValueType(propertyTypeMap.get(key) ?? '');
-                    if (!valueType) continue;
-                    const target = elementPropertyTarget(elementId, key);
-                    const channelId = channelForTarget({ channels: existingChannels }, target)?.id;
-                    commands.push(
-                        channelId
-                            ? { type: 'addKeyframe', channelId, keyframe: createKeyframe(currentTick, value) }
-                            : {
-                                  type: 'enablePropertyAutomation',
-                                  target,
-                                  valueType,
-                                  initialKeyframes: [createKeyframe(currentTick, value)],
-                              }
-                    );
+            const targets = Object.keys(patch).map((key) => elementPropertyTarget(elementId, key));
+            const session = meta?.mergeSession;
+            dispatchPropertyEdits(
+                Object.entries(patch).map(([key, value]) => ({
+                    target: elementPropertyTarget(elementId, key),
+                    value,
+                    valueType: resolveAutomationValueType(propertyTypeMap.get(key) ?? ''),
+                })),
+                {
+                    tick: currentTick,
+                    autoKey: autoKeying,
+                    source: 'property-panel',
+                    mergeKey: session ? propertyEditMergeKey(targets, session.id) : undefined,
+                    transient: session ? !session.finalize : undefined,
                 }
-                if (commands.length === Object.keys(patch).length && commands.length > 0) {
-                    const session = meta?.mergeSession;
-                    dispatchSceneCommand(
-                        commands.length === 1 ? commands[0] : { type: 'batch', commands },
-                        session
-                            ? {
-                                  source: 'property-panel',
-                                  mergeKey: `property-gesture:${elementId}:${session.id}`,
-                                  transient: !session.finalize,
-                              }
-                            : { source: 'property-panel' }
-                    );
-                    return;
-                }
-            }
-
-            if (onConfigChange) {
-                let options: Omit<SceneCommandOptions, 'source'> | undefined;
-                const session = meta?.mergeSession;
-                if (session && elementId) {
-                    const mergeKey = `property-drag:${elementId}:${Object.keys(patch).sort().join(':')}:${session.id}`;
-                    options = {
-                        mergeKey,
-                        transient: !session.finalize,
-                        canMergeWith: (other) => {
-                            const command = other.command;
-                            return (
-                                command.type === 'updateElementConfig' &&
-                                command.elementId === elementId &&
-                                Object.keys(patch).every((key) =>
-                                    Object.prototype.hasOwnProperty.call(command.patch ?? {}, key)
-                                )
-                            );
-                        },
-                    };
-                }
-                onConfigChange(elementId, patch, options);
-            }
+            );
         },
-        [elementId, onConfigChange, currentTick, autoKeying, propertyTypeMap]
+        [elementId, currentTick, autoKeying, propertyTypeMap]
     );
 
     const handleValueChange = useCallback(
@@ -567,7 +496,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                         values={propertyValues}
                         macroAssignments={macroAssignments}
                         elementId={elementId}
-                        delinkedKeys={delinkedKeys}
+                        delinkedKeys={new Set()}
                         onValueChange={handleValueChange}
                         onValuesChange={handleValuesChange}
                         onMacroAssignment={handleMacroAssignment}

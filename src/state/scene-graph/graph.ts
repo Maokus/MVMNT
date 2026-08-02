@@ -185,6 +185,7 @@ export function validateSceneGraph(graph: SceneGraphState, elementIds: Iterable<
                 ([key, value]) => root.userNodeTransform[key as keyof typeof IDENTITY_NODE_TRANSFORM] !== value
             ) ||
             !root.localVisible ||
+            root.localOpacity !== 1 ||
             root.localLocked)
     ) {
         errors.push({
@@ -212,8 +213,20 @@ export function validateSceneGraph(graph: SceneGraphState, elementIds: Iterable<
             !isFiniteMatrix(node.parentCompensation) ||
             !node.userNodeTransform ||
             typeof node.userNodeTransform !== 'object' ||
-            Object.values(node.userNodeTransform).length !== Object.keys(IDENTITY_NODE_TRANSFORM).length ||
-            Object.values(node.userNodeTransform).some((value) => typeof value !== 'number' || !Number.isFinite(value))
+            Object.entries(IDENTITY_NODE_TRANSFORM).some(
+                ([key]) =>
+                    typeof node.userNodeTransform[key as keyof typeof IDENTITY_NODE_TRANSFORM] !== 'number' ||
+                    !Number.isFinite(node.userNodeTransform[key as keyof typeof IDENTITY_NODE_TRANSFORM])
+            ) ||
+            Object.values(node.userNodeTransform).some(
+                (value) => typeof value !== 'number' || !Number.isFinite(value)
+            ) ||
+            node.userNodeTransform.scaleX <= 0 ||
+            node.userNodeTransform.scaleY <= 0 ||
+            typeof node.localOpacity !== 'number' ||
+            !Number.isFinite(node.localOpacity) ||
+            node.localOpacity < 0 ||
+            node.localOpacity > 1
         )
             errors.push({
                 code: 'TRANSFORM_INVALID',

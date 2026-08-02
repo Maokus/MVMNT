@@ -1,8 +1,9 @@
 import type { AutomationValueType } from '@automation/types';
 import type { NodeTransform } from '@state/scene-graph';
+import { hostPropertyDescriptors } from './propertyCatalog';
 
 export interface HostNodePropertyDefinition {
-    path: keyof NodeTransform | 'localVisible';
+    path: keyof NodeTransform | 'localVisible' | 'localOpacity';
     label: string;
     valueType: AutomationValueType;
     step?: number;
@@ -10,12 +11,12 @@ export interface HostNodePropertyDefinition {
 }
 
 /** Public editor schema for host-owned properties, independent of plugin schemas. */
-export const HOST_NODE_PROPERTY_SCHEMA: readonly HostNodePropertyDefinition[] = [
-    { path: 'translationX', label: 'X', valueType: 'number', step: 1 },
-    { path: 'translationY', label: 'Y', valueType: 'number', step: 1 },
-    { path: 'rotation', label: 'Rotation', valueType: 'number', step: 1, degrees: true },
-    { path: 'uniformScale', label: 'Scale', valueType: 'number', step: 0.01 },
-    { path: 'pivotX', label: 'Pivot X', valueType: 'number', step: 1 },
-    { path: 'pivotY', label: 'Pivot Y', valueType: 'number', step: 1 },
-    { path: 'localVisible', label: 'Visible', valueType: 'boolean' },
-];
+export const HOST_NODE_PROPERTY_SCHEMA: readonly HostNodePropertyDefinition[] = hostPropertyDescriptors('__schema__')
+    .filter((descriptor) => descriptor.definition.key !== 'localLocked')
+    .map((descriptor) => ({
+        path: descriptor.definition.key as keyof NodeTransform | 'localVisible' | 'localOpacity',
+        label: descriptor.definition.label,
+        valueType: descriptor.definition.type === 'number' ? 'number' : 'boolean',
+        step: descriptor.definition.step,
+        degrees: descriptor.presentation.unit === '°',
+    }));

@@ -345,7 +345,7 @@ describe('scene command gateway', () => {
         dispatchSceneCommand({ type: 'createMacro', macroId: 'group-scale', definition: { type: 'number', value: 2 } });
         dispatchSceneCommand({
             type: 'updatePropertyTargetBinding',
-            target: nodePropertyTarget('group:animated', 'uniformScale'),
+            target: nodePropertyTarget('group:animated', 'scaleX'),
             binding: { type: 'macro', macroId: 'group-scale' },
         });
         const before = useSceneStore.getState().exportSceneDraft();
@@ -379,7 +379,7 @@ describe('scene command gateway', () => {
         });
         dispatchSceneCommand({
             type: 'updatePropertyTargetBinding',
-            target: nodePropertyTarget('portable-group', 'uniformScale'),
+            target: nodePropertyTarget('portable-group', 'scaleX'),
             binding: { type: 'macro', macroId: 'portable-scale' },
         });
         dispatchSceneCommand({
@@ -401,7 +401,7 @@ describe('scene command gateway', () => {
         expect(copiedGroup).toBeDefined();
         expect(copiedGroup && 'children' in copiedGroup ? copiedGroup.children : []).toHaveLength(1);
         const copiedBinding = state.nodeBindings[copiedGroup!.id];
-        expect(copiedBinding.uniformScale).toEqual({ type: 'macro', macroId: 'portable-scale copy 2' });
+        expect(copiedBinding.scaleX).toEqual({ type: 'macro', macroId: 'portable-scale copy 2' });
         const copiedChannel = Object.values(state.automation.channels).find(
             (channel) => channel.target.owner.kind === 'node' && channel.target.owner.id === copiedGroup!.id
         );

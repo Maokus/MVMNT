@@ -250,6 +250,7 @@ export type SceneMutationSource =
     | 'replaceGraph'
     | 'updateNodeTransform'
     | 'setNodeVisibility'
+    | 'setNodeOpacity'
     | 'setNodeLocked'
     | 'importScene';
 
@@ -348,15 +349,10 @@ export interface SceneStoreActions {
     setAutomationChannel: (channel: AutomationChannel) => void;
     removeAutomationChannel: (channelId: string) => void;
     updateAutomationKeyframes: (channelId: string, keyframes: AutomationKeyframe[]) => void;
-    /** Set a transient per-property override (Blender-style delink when auto key is off). */
-    setPropertyOverride: (channelId: string, value: unknown) => void;
-    /** Clear a single transient property override (e.g. after manually keying a delinked property). */
-    clearPropertyOverride: (channelId: string) => void;
-    /** Clear all transient property overrides (called when playhead moves or playback starts). */
-    clearAllPropertyOverrides: () => void;
     replaceGraph: (graph: SceneGraphState) => void;
     updateNodeTransform: (nodeId: string, transform: Partial<NodeTransform>) => void;
     setNodeVisibility: (nodeId: string, visible: boolean) => void;
+    setNodeOpacity: (nodeId: string, opacity: number) => void;
     setNodeLocked: (nodeId: string, locked: boolean) => void;
     setNodeName: (nodeId: string, name: string) => void;
 }
@@ -375,9 +371,6 @@ export interface SceneStoreState extends SceneStoreActions {
     automation: AutomationState;
     /** Host node-property bindings keyed by stable node ID. */
     nodeBindings: Record<string, ElementBindings>;
-    /** Transient per-channel value overrides. Populated when auto key is off and user changes
-     *  a keyframed property. Cleared when the playhead moves. Does not affect saved state. */
-    propertyOverrides: Record<string, unknown>;
 }
 
 const INTERNAL_SCENE_STORE_SCHEMA_VERSION = 6;
@@ -935,7 +928,6 @@ const createSceneStoreState = (
     runtimeMeta: createRuntimeMeta(),
     automation: createEmptyAutomationState(),
     nodeBindings: {},
-    propertyOverrides: {},
 
     addElement: (input) => {
         set((state) => {
@@ -1788,12 +1780,23 @@ const createSceneStoreState = (
                 delete nextByElement[el.id].zIndex;
             }
 
-            const incomingGraph = payload.graph ?? createFlatSceneGraph(nextOrder);
+            const incomingGraph = cloneSceneGraph(payload.graph ?? createFlatSceneGraph(nextOrder));
+            for (const node of Object.values(incomingGraph.nodesById)) {
+                const transform = node.userNodeTransform as NodeTransform & { uniformScale?: number };
+                const oldUniformScale =
+                    typeof transform.uniformScale === 'number' && Number.isFinite(transform.uniformScale)
+                        ? transform.uniformScale
+                        : 1;
+                if (typeof transform.scaleX !== 'number') transform.scaleX = oldUniformScale;
+                if (typeof transform.scaleY !== 'number') transform.scaleY = oldUniformScale;
+                delete transform.uniformScale;
+                if (typeof node.localOpacity !== 'number') node.localOpacity = 1;
+            }
             const graphValidation = validateSceneGraph(incomingGraph, Object.keys(nextElements));
             if (!graphValidation.ok) {
                 throw new Error(`SceneStore.importScene: invalid scene graph (${graphValidation.errors[0]?.message})`);
             }
-            const nextGraph = cloneSceneGraph(incomingGraph);
+            const nextGraph = incomingGraph;
 
             const automation = cloneCurrentAutomationState(payload.automation);
             const nextNodeBindings: Record<string, ElementBindings> = {};
@@ -1821,6 +1824,64 @@ const createSceneStoreState = (
                 delete bindings.elementRotation;
                 delete bindings.anchorX;
                 delete bindings.anchorY;
+
+                const elementOpacity = bindings.elementOpacity;
+                const elementScaleX = bindings.elementScaleX;
+                const elementScaleY = bindings.elementScaleY;
+                delete bindings.elementOpacity;
+                delete bindings.elementScaleX;
+                delete bindings.elementScaleY;
+
+                let nodeBindings = nextNodeBindings[nodeId];
+                const moveBinding = (source: BindingState | undefined, path: string) => {
+                    if (!source) return;
+                    nodeBindings ??= nextNodeBindings[nodeId] = {};
+                    nodeBindings[path] = cloneBinding(source);
+                    if (source.type === 'keyframes') {
+                        const channel = automation.channels[source.channelId];
+                        if (channel)
+                            automation.channels[source.channelId] = {
+                                ...channel,
+                                target: nodePropertyTarget(nodeId, path),
+                            };
+                    }
+                };
+
+                if (elementOpacity) {
+                    const opacity = readBindingNumber(elementOpacity);
+                    if (opacity != null) node.localOpacity = Math.max(0, Math.min(1, opacity));
+                    else moveBinding(elementOpacity, 'localOpacity');
+                }
+
+                const oldUniformBinding = nodeBindings?.uniformScale;
+                if (nodeBindings) delete nodeBindings.uniformScale;
+                const scalesAreDynamic = [oldUniformBinding, elementScaleX, elementScaleY].some(
+                    (binding) => binding && binding.type !== 'constant'
+                );
+                const contentScaleX = readBindingNumber(elementScaleX) ?? 1;
+                const contentScaleY = readBindingNumber(elementScaleY) ?? 1;
+                const normalizedUniform = readBindingNumber(oldUniformBinding) ?? node.userNodeTransform.scaleX;
+                if (!scalesAreDynamic && normalizedUniform > 0 && contentScaleX > 0 && contentScaleY > 0) {
+                    const cosine = Math.cos(node.userNodeTransform.rotation) * normalizedUniform;
+                    const sine = Math.sin(node.userNodeTransform.rotation) * normalizedUniform;
+                    node.userNodeTransform.translationX +=
+                        cosine * (contentScaleX - 1) * node.userNodeTransform.pivotX -
+                        sine * (contentScaleY - 1) * node.userNodeTransform.pivotY;
+                    node.userNodeTransform.translationY +=
+                        sine * (contentScaleX - 1) * node.userNodeTransform.pivotX +
+                        cosine * (contentScaleY - 1) * node.userNodeTransform.pivotY;
+                    node.userNodeTransform.scaleX = normalizedUniform * contentScaleX;
+                    node.userNodeTransform.scaleY = normalizedUniform * contentScaleY;
+                } else if (oldUniformBinding || elementScaleX || elementScaleY) {
+                    node.userNodeTransform.scaleX = 1;
+                    node.userNodeTransform.scaleY = 1;
+                    node.userNodeTransform.legacyUniformScale = normalizedUniform;
+                    node.userNodeTransform.legacyContentScaleX = contentScaleX;
+                    node.userNodeTransform.legacyContentScaleY = contentScaleY;
+                    moveBinding(oldUniformBinding, 'legacyUniformScale');
+                    moveBinding(elementScaleX, 'legacyContentScaleX');
+                    moveBinding(elementScaleY, 'legacyContentScaleY');
+                }
 
                 if (offsetX || offsetY) {
                     const matrix = nodeTransformToMatrix(node.userNodeTransform);
@@ -2032,6 +2093,9 @@ const createSceneStoreState = (
             if (Object.values(userNodeTransform).some((value) => !Number.isFinite(value))) {
                 throw new Error('SceneStore.updateNodeTransform: transform values must be finite');
             }
+            if (userNodeTransform.scaleX <= 0 || userNodeTransform.scaleY <= 0) {
+                throw new Error('SceneStore.updateNodeTransform: scale values must be greater than zero');
+            }
             const graph = cloneSceneGraph(state.graph);
             graph.nodesById[nodeId] = { ...graph.nodesById[nodeId], userNodeTransform } as typeof current;
             graph.revision += 1;
@@ -2066,6 +2130,19 @@ const createSceneStoreState = (
                         : state.interaction,
                 runtimeMeta: markDirty(state, 'setNodeVisibility'),
             };
+        });
+    },
+
+    setNodeOpacity: (nodeId, opacity) => {
+        set((state) => {
+            const current = state.graph.nodesById[nodeId];
+            if (!current || current.kind === 'root' || !Number.isFinite(opacity)) return state;
+            const nextOpacity = Math.max(0, Math.min(1, opacity));
+            if (current.localOpacity === nextOpacity) return state;
+            const graph = cloneSceneGraph(state.graph);
+            graph.nodesById[nodeId] = { ...graph.nodesById[nodeId], localOpacity: nextOpacity } as typeof current;
+            graph.revision += 1;
+            return { ...state, ...graphIndexes(graph), runtimeMeta: markDirty(state, 'setNodeOpacity') };
         });
     },
 
@@ -2228,29 +2305,6 @@ const createSceneStoreState = (
             };
         });
     },
-
-    setPropertyOverride: (channelId, value) => {
-        set((state) => ({
-            ...state,
-            propertyOverrides: { ...state.propertyOverrides, [channelId]: value },
-        }));
-    },
-
-    clearPropertyOverride: (channelId) => {
-        set((state) => {
-            if (!(channelId in state.propertyOverrides)) return state;
-            const next = { ...state.propertyOverrides };
-            delete next[channelId];
-            return { ...state, propertyOverrides: next };
-        });
-    },
-
-    clearAllPropertyOverrides: () => {
-        set((state) => {
-            if (Object.keys(state.propertyOverrides).length === 0) return state;
-            return { ...state, propertyOverrides: {} };
-        });
-    },
 });
 
 const sceneStoreCreator: StateCreator<SceneStoreState> = (set, get) => createSceneStoreState(set, get);
@@ -2277,7 +2331,6 @@ setSelectionSceneResolvers({
         const tick = state.timeline.currentTick;
         if (tick !== _lastOverrideClearTick) {
             _lastOverrideClearTick = tick;
-            useSceneStore.getState().clearAllPropertyOverrides();
         }
     });
 }

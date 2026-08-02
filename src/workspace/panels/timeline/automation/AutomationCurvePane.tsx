@@ -21,8 +21,7 @@ import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { useSceneStore } from '@state/sceneStore';
 import { useSelectionStore } from '@state/selectionStore';
 import InterpolationPicker from './InterpolationPicker';
-import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
-import type { EnhancedConfigSchema } from '@core/types';
+import { descriptorForTarget, fallbackDescriptor } from '@state/scene/propertyCatalog';
 import { computeAutoHandles, DEFAULT_SEGMENT_INTERPOLATION } from '@automation/interpolation-defaults';
 import type { AutomationChannel, SegmentInterpolation, HandleType } from '@automation/types';
 import { useCurveHeight, useCurveHeightSetter } from '../context/curveHeightContext';
@@ -94,21 +93,23 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         useCallback((s) => (owner.kind === 'element' ? s.elements[owner.id]?.type : undefined), [owner])
     );
     const { propertyStep, propertyMin, propertyMax } = useMemo(() => {
-        if (!elementType) return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
-        const schema = sceneElementRegistry.getSchema(elementType) as EnhancedConfigSchema | null;
-        if (!schema?.tabs) return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
-        for (const group of schema.tabs.flatMap((t) => t.groups)) {
-            const prop = group.properties?.find((p) => p.key === propertyPath);
-            if (prop) {
-                return {
-                    propertyStep: prop.step !== undefined && prop.step > 0 ? prop.step : undefined,
-                    propertyMin: prop.min,
-                    propertyMax: prop.max,
-                };
-            }
-        }
-        return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
-    }, [elementType, propertyPath]);
+        const descriptor =
+            descriptorForTarget(channel.target, elementType) ?? fallbackDescriptor(channel.target, channel.valueType);
+        const { definition, presentation } = descriptor;
+        const canonical = (value: number | undefined) => {
+            if (value === undefined) return undefined;
+            const converted = presentation.fromDisplay(value);
+            return typeof converted === 'number' ? converted : undefined;
+        };
+        return {
+            propertyStep:
+                definition.step !== undefined && definition.step > 0
+                    ? (presentation.fromDisplayDelta?.(definition.step) ?? definition.step)
+                    : undefined,
+            propertyMin: canonical(definition.min),
+            propertyMax: canonical(definition.max),
+        };
+    }, [channel.target, channel.valueType, elementType]);
 
     // ── Displayed value range (smoothly animated) ─────────────────────────────
 

@@ -11,12 +11,11 @@ import {
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
-import {
-    useAutomatedOwnerIds,
-    useOwnerChannels,
-    useAutomationExpanded,
-    useCurveEditorExpanded,
-} from '@automation/hooks';
+import { useAutomationSceneNodes, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
+import { useSelectionStore } from '@state/selectionStore';
+import { encodePropertyOwner } from '@automation/types';
+import type { AutomatedSceneNodeView } from '@automation/selectors';
+import { descriptorForTarget, fallbackDescriptor } from '@state/scene/propertyCatalog';
 import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, AUTOMATION_SEARCH_HEIGHT } from '../constants';
 import { useCurveHeight } from '../context/curveHeightContext';
 import { useCurveRange, useCurveRangeControls } from '../context/curveRangeContext';
@@ -202,6 +201,16 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
     const seekTick = useTimelineStore((s) => s.seekTick);
     const curveHeight = useCurveHeight(channelId);
     const propertyPath = channel?.target.propertyPath ?? '';
+    const elementType = useSceneStore(
+        useCallback(
+            (state) =>
+                channel?.target.owner.kind === 'element' ? state.elements[channel.target.owner.id]?.type : undefined,
+            [channel]
+        )
+    );
+    const descriptor = channel
+        ? (descriptorForTarget(channel.target, elementType) ?? fallbackDescriptor(channel.target, channel.valueType))
+        : null;
 
     const toggleCurve = useCallback(() => {
         useSceneStore.setState((state) => {
@@ -234,7 +243,13 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
                 style={{ height: AUTOMATION_ROW_HEIGHT }}
                 onDoubleClick={toggleCurve}
             >
-                <span className="text-[11px] truncate">{propertyPath}</span>
+                <span className="text-[11px] truncate" title={propertyPath}>
+                    <span className="text-neutral-500 mr-1">
+                        {channel?.target.owner.kind === 'node' ? 'Host' : 'Content'}
+                    </span>
+                    {descriptor?.definition.label ?? propertyPath}
+                    {descriptor?.presentation.unit ?? ''}
+                </span>
                 <div className="flex items-center gap-1">
                     <button
                         className="flex items-center justify-center w-4 h-4 rounded text-neutral-500 hover:text-neutral-200 hover:bg-neutral-700/50"
@@ -295,28 +310,38 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
     );
 };
 
-/** A single element's automation label group. */
-const ElementAutomationGroup: React.FC<{ elementId: string }> = ({ elementId }) => {
-    const owner = useSceneStore(useCallback((s) => s.elements[elementId] ?? s.graph.nodesById[elementId], [elementId]));
-    const expanded = useAutomationExpanded(elementId);
-    const channels = useOwnerChannels(elementId);
+/** A scene-node row containing both host and element-content automation. */
+const SceneNodeAutomationGroup: React.FC<{ row: AutomatedSceneNodeView }> = ({ row }) => {
+    const owner = { kind: 'node' as const, id: row.nodeId };
+    const ownerKey = encodePropertyOwner(owner);
+    const expanded = useAutomationExpanded(owner);
+    const channels = [...row.hostChannels, ...row.contentChannels];
     const searchQuery = useSceneStore((s) => s.interaction.automationSearchQuery);
+    const treeExpanded = useSelectionStore((state) => state.expandedNodeIds[row.nodeId] !== false);
+    const toggleTreeExpanded = useSelectionStore((state) => state.toggleNodeExpanded);
 
     const toggleExpanded = useCallback(() => {
         useSceneStore.setState((state) => {
             const list = state.interaction.automationExpandedOwners;
-            const next = expanded ? list.filter((id) => id !== elementId) : [...list, elementId];
+            const next = expanded
+                ? list.filter((id) => id !== ownerKey && id !== row.nodeId)
+                : [...list.filter((id) => id !== row.nodeId), ownerKey];
             return {
                 interaction: { ...state.interaction, automationExpandedOwners: next },
             };
         });
-    }, [elementId, expanded]);
-
-    if (!owner || channels.length === 0) return null;
+    }, [expanded, ownerKey, row.nodeId]);
 
     const lowerQuery = searchQuery.toLowerCase().trim();
     const visibleChannels = lowerQuery
-        ? channels.filter((ch) => ch.target.propertyPath.toLowerCase().includes(lowerQuery))
+        ? channels.filter((ch) => {
+              const descriptor =
+                  descriptorForTarget(ch.target, row.elementType) ?? fallbackDescriptor(ch.target, ch.valueType);
+              return [ch.target.propertyPath, descriptor.definition.label, descriptor.group.label, row.name]
+                  .join(' ')
+                  .toLowerCase()
+                  .includes(lowerQuery);
+          })
         : channels;
 
     if (lowerQuery && visibleChannels.length === 0) return null;
@@ -325,18 +350,58 @@ const ElementAutomationGroup: React.FC<{ elementId: string }> = ({ elementId }) 
 
     return (
         <>
-            {/* Element header row */}
             <div
                 className="flex items-center gap-1.5 px-2 border-b border-neutral-800 cursor-pointer select-none text-neutral-300 hover:bg-neutral-800/40"
-                style={{ height: AUTOMATION_HEADER_HEIGHT }}
-                onClick={toggleExpanded}
-                title={isExpanded ? 'Collapse automation channels' : 'Expand automation channels'}
+                style={{ height: AUTOMATION_HEADER_HEIGHT, paddingLeft: row.depth * 12 + 8 }}
+                onClick={() => {
+                    const selection = useSelectionStore.getState();
+                    if (selection.selectedNodeIds.includes(row.nodeId)) {
+                        selection.selectSceneNodes(selection.selectedNodeIds, row.nodeId);
+                    } else {
+                        selection.selectSceneNodes([row.nodeId], row.nodeId);
+                    }
+                }}
+                title="Select scene node"
             >
-                {isExpanded ? <FaChevronDown className="text-[9px]" /> : <FaChevronRight className="text-[9px]" />}
-                <span className="text-[11px] font-medium truncate">
-                    {'name' in owner ? `${owner.name} · Host node` : elementId}
-                </span>
+                {row.kind === 'group' ? (
+                    <button
+                        type="button"
+                        className="flex items-center justify-center w-3 h-4"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            toggleTreeExpanded(row.nodeId);
+                        }}
+                        title={treeExpanded ? 'Collapse descendants' : 'Expand descendants'}
+                    >
+                        {treeExpanded ? (
+                            <FaChevronDown className="text-[9px]" />
+                        ) : (
+                            <FaChevronRight className="text-[9px]" />
+                        )}
+                    </button>
+                ) : (
+                    <span className="w-3" />
+                )}
+                <span className="text-[11px] font-medium truncate">{row.name}</span>
+                <span className="text-[9px] text-neutral-600">{row.kind === 'group' ? 'Group' : 'Element'}</span>
                 <span className="text-[10px] text-neutral-500 truncate">({visibleChannels.length})</span>
+                {visibleChannels.length ? (
+                    <button
+                        type="button"
+                        className="ml-auto flex items-center justify-center w-3 h-4"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            toggleExpanded();
+                        }}
+                        title={isExpanded ? 'Collapse property channels' : 'Expand property channels'}
+                    >
+                        {isExpanded ? (
+                            <FaChevronDown className="text-[9px]" />
+                        ) : (
+                            <FaChevronRight className="text-[9px]" />
+                        )}
+                    </button>
+                ) : null}
             </div>
 
             {/* Channel rows (when expanded) */}
@@ -347,10 +412,16 @@ const ElementAutomationGroup: React.FC<{ elementId: string }> = ({ elementId }) 
 
 /** Left-column labels for the automation section, rendered below track rows. */
 const AutomationTrackLabels: React.FC = () => {
-    const automatedIds = useAutomatedOwnerIds();
+    const automationRows = useAutomationSceneNodes();
+    const expandedSceneNodes = useSelectionStore((state) => state.expandedNodeIds);
     const searchQuery = useSceneStore((s) => s.interaction.automationSearchQuery);
+    const visibleAutomationRows = searchQuery.trim()
+        ? automationRows
+        : automationRows.filter((row) =>
+              row.ancestorNodeIds.every((ancestorId) => expandedSceneNodes[ancestorId] !== false)
+          );
 
-    if (automatedIds.length === 0) return null;
+    if (automationRows.length === 0) return null;
 
     const setSearchQuery = (q: string) => {
         useSceneStore.setState((s) => ({
@@ -388,9 +459,9 @@ const AutomationTrackLabels: React.FC = () => {
                 )}
             </div>
 
-            {/* Element groups */}
-            {automatedIds.map((id) => (
-                <ElementAutomationGroup key={id} elementId={id} />
+            {/* Scene hierarchy groups */}
+            {visibleAutomationRows.map((row) => (
+                <SceneNodeAutomationGroup key={row.nodeId} row={row} />
             ))}
         </div>
     );

@@ -13,10 +13,9 @@ import {
     type PropertyBindingContext,
     type PropertyBindingData,
 } from './property-bindings';
-import { automationEvaluator } from '@automation/automation-evaluator';
+import { resolveKeyframeValue } from './resolve-binding-state';
 import { useTimelineStore } from '@state/timelineStore';
 import { getSharedTimingManager } from '@state/timelineStore';
-import { useSceneStore } from '@state/sceneStore';
 
 export class KeyframeBinding<T = any> extends PropertyBinding<T> {
     private channelId: string;
@@ -28,11 +27,9 @@ export class KeyframeBinding<T = any> extends PropertyBinding<T> {
 
     /** Fallback: evaluate at current timeline tick (used outside render context). */
     getValue(): T {
-        const override = useSceneStore.getState().propertyOverrides[this.channelId];
-        if (override !== undefined) return override as T;
         try {
             const tick = useTimelineStore.getState().timeline.currentTick;
-            return automationEvaluator.evaluate(this.channelId, tick) as T;
+            return resolveKeyframeValue(this.channelId, tick) as T;
         } catch {
             return undefined as T;
         }
@@ -40,13 +37,11 @@ export class KeyframeBinding<T = any> extends PropertyBinding<T> {
 
     /** Preferred: evaluate at the render context's targetTime. */
     getValueWithContext(context: PropertyBindingContext): T {
-        const override = useSceneStore.getState().propertyOverrides[this.channelId];
-        if (override !== undefined) return override as T;
         try {
             const tm = getSharedTimingManager();
             if (tm) {
                 const tick = tm.secondsToTicks(context.targetTime);
-                return automationEvaluator.evaluate(this.channelId, tick) as T;
+                return resolveKeyframeValue(this.channelId, tick) as T;
             }
         } catch {
             // Timing manager not available — fall back

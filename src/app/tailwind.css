@@ -869,6 +869,22 @@
         fill: #ff6b6b;
     }
 
+    .ae-keyframe-menu {
+        @apply fixed z-[1000] flex min-w-[150px] flex-col rounded border border-neutral-700 bg-neutral-900 p-1 shadow-xl;
+    }
+
+    .ae-keyframe-menu button {
+        @apply rounded px-2 py-1 text-left text-[11px] text-neutral-300 hover:bg-neutral-800 hover:text-white;
+    }
+
+    .ae-keyframe-menu button.danger {
+        @apply text-red-300 hover:bg-red-950/60;
+    }
+
+    .ae-keyframe-menu-divider {
+        @apply my-1 border-t border-neutral-700;
+    }
+
     /* Automation timeline lanes */
     .automation-lane-row {
         display: block;
@@ -1525,10 +1541,6 @@
 
     .node-transform-identity > span {
         @apply min-w-0 truncate text-[11px] font-medium text-neutral-200;
-    }
-
-    .node-transform-identity > input {
-        @apply h-6 min-w-0 flex-1 rounded-sm border border-transparent bg-transparent px-1 text-[11px] font-medium text-neutral-200 outline-none hover:border-white/10 hover:bg-black/10 focus:border-accent focus:bg-[#1e1e1e];
     }
 
     .node-transform-identity small {

@@ -334,8 +334,8 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                 const target = elementPropertyTarget(elementId, key);
                 const channel = channelForTarget(automation, target);
                 const chId = channel?.id;
-                if (autoKeying && channel && chId) {
-                    // Auto key ON + channel already exists: add a keyframe at current tick.
+                if (channel && chId) {
+                    // Once automated, direct edits always write the playhead key.
                     automatedKeys.push(key);
                     const existingKf = findKeyframeAtTick(channel.keyframes, currentTick);
                     const segmentInterpolation = existingKf?.segmentInterpolation ?? DEFAULT_SEGMENT_INTERPOLATION;
@@ -378,11 +378,6 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                     } else {
                         nonAutomatedChanges[key] = value;
                     }
-                } else if (!autoKeying && channel && chId) {
-                    // Auto key OFF + channel exists: temporarily delink (Blender-style).
-                    // Store an override so the new value shows immediately, but the keyframed
-                    // binding is untouched — scrubbing the playhead clears the override.
-                    useSceneStore.getState().setPropertyOverride(chId, value);
                 } else {
                     nonAutomatedChanges[key] = value;
                 }

@@ -6,6 +6,8 @@ import {
     removeKeyframeAtTick,
     cloneChannel,
     findKeyframeAtTick,
+    encodePropertyOwner,
+    decodePropertyOwner,
 } from '../types';
 import type { AutomationKeyframe } from '../types';
 
@@ -14,6 +16,14 @@ function kf(tick: number, value: unknown = 0): AutomationKeyframe {
 }
 
 describe('automation/types utilities', () => {
+    it('round-trips typed owner identities without node/element collisions', () => {
+        const node = encodePropertyOwner({ kind: 'node', id: 'same:id' });
+        const element = encodePropertyOwner({ kind: 'element', id: 'same:id' });
+        expect(node).not.toBe(element);
+        expect(decodePropertyOwner(node)).toEqual({ kind: 'node', id: 'same:id' });
+        expect(decodePropertyOwner(element)).toEqual({ kind: 'element', id: 'same:id' });
+    });
+
     describe('createChannel', () => {
         it('creates an empty channel with defaults', () => {
             const ch = createChannel(elementPropertyTarget('el1', 'x'), 'number');

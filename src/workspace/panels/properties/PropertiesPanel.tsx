@@ -38,7 +38,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {
     if (selectedNodeIds.length) {
         return (
             <div className="node-properties-shell">
-                {element && schema ? (
+                {selectedNodeIds.length === 1 && element && schema ? (
                     <ElementPropertiesPanel
                         elementId={element.id}
                         elementType={element.type}

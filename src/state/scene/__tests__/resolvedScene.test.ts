@@ -4,6 +4,32 @@ import { resolveSceneFrame } from '@state/scene/resolvedScene';
 import { PerspectiveElementRoot } from '@core/render/render-objects/perspective-element-root';
 
 describe('resolved scene frame', () => {
+    it('multiplies group and element opacity into the render payload', () => {
+        let graph = createFlatSceneGraph(['shape']);
+        graph = groupSceneNodes(graph, ['element:shape'], 'group');
+        graph.nodesById.group.localOpacity = 0.5;
+        graph.nodesById['element:shape'].localOpacity = 0.4;
+        const render = vi.fn();
+        const frame = resolveSceneFrame({
+            graph,
+            time: 0,
+            runtimeVersion: 1,
+            config: {},
+            getElement: () =>
+                ({
+                    visible: true,
+                    buildRenderObjects: () => [
+                        { render, getVisualBounds: () => ({ x: 0, y: 0, width: 10, height: 10 }) },
+                    ],
+                }) as any,
+        });
+        expect(frame.byNodeId.get('element:shape')?.effectiveOpacity).toBeCloseTo(0.2);
+        const context = { save: vi.fn(), restore: vi.fn(), transform: vi.fn(), globalAlpha: 1 } as any;
+        frame.renderObjects[0].render(context, {}, 0);
+        expect(context.globalAlpha).toBeCloseTo(0.2);
+        expect(render).toHaveBeenCalledOnce();
+    });
+
     it('builds visible content once and applies node transforms to render and bounds', () => {
         const graph = createFlatSceneGraph(['shape']);
         const node = graph.nodesById['element:shape'];
@@ -102,7 +128,8 @@ describe('resolved scene frame', () => {
         node.userNodeTransform.translationX = 180;
         node.userNodeTransform.translationY = 70;
         node.userNodeTransform.rotation = 0.25;
-        node.userNodeTransform.uniformScale = 1.4;
+        node.userNodeTransform.scaleX = 1.4;
+        node.userNodeTransform.scaleY = 0.9;
         node.userNodeTransform.pivotX = 50;
         node.userNodeTransform.pivotY = 25;
         const payload = new PerspectiveElementRoot('perspective', {

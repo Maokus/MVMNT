@@ -24,7 +24,8 @@ describe('recursive scene graph operations', () => {
             translationX: 12,
             translationY: -8,
             rotation: 0.42,
-            uniformScale: 1.75,
+            scaleX: 1.75,
+            scaleY: 0.8,
             pivotX: 20,
             pivotY: 30,
         };
@@ -72,7 +73,8 @@ describe('recursive scene graph operations', () => {
         graph = groupSceneNodes(graph, ['element:b'], 'group:right');
         graph.nodesById['group:left'].userNodeTransform.rotation = 0.2;
         graph.nodesById['group:right'].userNodeTransform.rotation = -0.35;
-        graph.nodesById['group:right'].userNodeTransform.uniformScale = 1.4;
+        graph.nodesById['group:right'].userNodeTransform.scaleX = 1.4;
+        graph.nodesById['group:right'].userNodeTransform.scaleY = 1.4;
         graph = reparentSceneNodes(graph, ['element:a'], 'group:right', 0);
         const beforeCompensation = [...graph.nodesById['element:a'].parentCompensation];
         const beforeWorld = buildSceneStructureIndex(graph).byNodeId.get('element:a')!.nodeWorldTransform;
@@ -90,7 +92,8 @@ describe('recursive scene graph operations', () => {
         graph.nodesById['group:left'].userNodeTransform.translationX = 40;
         graph.nodesById['group:left'].userNodeTransform.rotation = 0.3;
         graph.nodesById['group:right'].userNodeTransform.translationY = 70;
-        graph.nodesById['group:right'].userNodeTransform.uniformScale = 1.5;
+        graph.nodesById['group:right'].userNodeTransform.scaleX = 1.5;
+        graph.nodesById['group:right'].userNodeTransform.scaleY = 1.5;
         const before = buildSceneStructureIndex(graph).byNodeId.get('element:a')!.nodeWorldTransform;
         const moved = reparentSceneNodes(graph, ['element:a'], 'group:right', 0);
         const after = buildSceneStructureIndex(moved).byNodeId.get('element:a')!.nodeWorldTransform;

@@ -152,6 +152,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
         const {
             bindings: { byElement },
             automation,
+            nodeBindings,
         } = sceneState;
         const order = deriveElementOrder(sceneState.graph);
         const wRatio = newWidth / oldWidth;
@@ -215,15 +216,20 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                         const newOy = oyB.value * hRatio;
                         if (newOy !== oyB.value) patch['offsetY'] = newOy;
                     }
-                    const sxB = elBindings['elementScaleX'];
-                    const syB = elBindings['elementScaleY'];
-                    if (sxB?.type === 'constant' && typeof sxB.value === 'number') {
-                        const newSx = sxB.value * wRatio;
-                        if (newSx !== sxB.value) patch['elementScaleX'] = newSx;
-                    }
-                    if (syB?.type === 'constant' && typeof syB.value === 'number') {
-                        const newSy = syB.value * hRatio;
-                        if (newSy !== syB.value) patch['elementScaleY'] = newSy;
+                    const nodeId = sceneState.nodeIdByElementId[elementId];
+                    const node = nodeId ? sceneState.graph.nodesById[nodeId] : undefined;
+                    if (node) {
+                        dispatchSceneCommand(
+                            {
+                                type: 'updateNodeTransform',
+                                nodeId,
+                                transform: {
+                                    scaleX: node.userNodeTransform.scaleX * wRatio,
+                                    scaleY: node.userNodeTransform.scaleY * hRatio,
+                                },
+                            },
+                            { mergeKey }
+                        );
                     }
                 }
 
@@ -237,12 +243,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                 // Scale mode: scale positions AND sizes.
                 const kfProps: Array<{ propKey: string; ratio: number }> = [];
                 if (scalingMode === 'scale') {
-                    kfProps.push(
-                        { propKey: 'offsetX', ratio: wRatio },
-                        { propKey: 'offsetY', ratio: hRatio },
-                        { propKey: 'elementScaleX', ratio: wRatio },
-                        { propKey: 'elementScaleY', ratio: hRatio }
-                    );
+                    kfProps.push({ propKey: 'offsetX', ratio: wRatio }, { propKey: 'offsetY', ratio: hRatio });
                 } else {
                     // reposition: only shift positions, not sizes
                     kfProps.push({ propKey: 'offsetX', ratio: wRatio }, { propKey: 'offsetY', ratio: hRatio });
@@ -261,6 +262,30 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                         { type: 'batchUpdateKeyframes', channelId: channel.id, keyframes: newKeyframes },
                         { mergeKey }
                     );
+                }
+
+                if (scalingMode === 'scale') {
+                    const nodeId = sceneState.nodeIdByElementId[elementId];
+                    for (const [propKey, ratio] of [
+                        ['scaleX', wRatio],
+                        ['scaleY', hRatio],
+                    ] as const) {
+                        const binding = nodeId ? nodeBindings[nodeId]?.[propKey] : undefined;
+                        if (binding?.type !== 'keyframes') continue;
+                        const channel = automation.channels[binding.channelId];
+                        if (!channel) continue;
+                        dispatchSceneCommand(
+                            {
+                                type: 'batchUpdateKeyframes',
+                                channelId: channel.id,
+                                keyframes: channel.keyframes.map((keyframe) => ({
+                                    ...keyframe,
+                                    value: typeof keyframe.value === 'number' ? keyframe.value * ratio : keyframe.value,
+                                })),
+                            },
+                            { mergeKey }
+                        );
+                    }
                 }
             }
         }

@@ -9,8 +9,9 @@ Schema v8 stores `scene.elements` and `scene.graph`. The graph contains a reserv
 element node for every element record. Child order is canonical back-to-front paint order. Flat `elementsOrder`
 exists only on released migration inputs and is not part of current documents or runtime state.
 
-Each node stores local visibility and lock flags, an exact six-value affine `parentCompensation` matrix, and an
-editable host transform containing translation, clockwise rotation in radians, uniform scale, and pivot. Element
+Each node stores local visibility, opacity, and lock flags, an exact six-value affine `parentCompensation` matrix,
+and an editable host transform containing translation, clockwise rotation in radians, independent X/Y scale, and
+pivot.
 Element IDs remain the ownership keys for plugin properties, while automation and macros use structured targets
 that distinguish element content from host nodes. Node IDs remain stable when an element is renamed.
 
@@ -33,10 +34,10 @@ The affine transform order is:
 parent world × parent compensation × host node transform × element content transform
 ```
 
-Element position, rotation, and pivot are owned exclusively by the host node; retired `offsetX`, `offsetY`,
-`elementRotation`, `anchorX`, and `anchorY` values are removed from the element property surface. Element content
-uses a fixed centered origin. Non-uniform scale and skew remain inside the element payload because host nodes expose
-uniform scale and no skew.
+Element position, rotation, scale, opacity, and pivot are owned exclusively by the host node; retired `offsetX`,
+`offsetY`, `elementRotation`, `elementScaleX`, `elementScaleY`, `elementOpacity`, `anchorX`, and `anchorY` values are
+removed from the element property surface. Element content uses a fixed centered origin, while skew remains inside
+the element payload. Opacity multiplies through node ancestry without isolated group compositing.
 Perspective elements stay top-level compositor payloads; their resolved node and ancestor affine matrix, plus the
 authored node pivot, are supplied directly to the perspective root.
 
@@ -68,14 +69,16 @@ visible element node. Groups are selected explicitly from the hierarchy and reta
 canvas target is chosen. Left-to-right marquees require containment, while right-to-left marquees select
 intersections. Locked inherited state removes descendants from interaction without changing their local values.
 
-Canvas move, nudge, rotation, and uniform-scale gestures apply a world-space delta to the normalized node
+Canvas move, nudge, rotation, and corner-scale gestures apply a world-space delta to the normalized node
 selection, then solve that delta back into authored node transforms. Parent compensation remains structural
 bookkeeping used only to preserve appearance during hierarchy changes. The resolver supplies oriented single-node
 bounds and world-axis-aligned aggregate bounds. Four corner handles expose uniform scaling; rotation and pivot use
 dedicated handles. Selected subtrees are excluded from snapping. For a single element, the inspector presents the
-host transform as a peer tab alongside the element's content tabs. Multi-selection position uses the aggregate world-space center,
-while rotation and scale are relative edits around a transient selection pivot. Single-node transform and
-visibility fields expose keyframe and macro controls.
+host transform as a peer tab alongside the element's content tabs. Both surfaces use the shared property catalog
+and edit coordinator. Multi-selection position uses the aggregate world-space center, while rotation and scale are
+relative edits around a transient selection pivot. Corner gestures remain uniform; independent X/Y scale is
+available in the inspector. These aggregate operations are not bindable; a separate common
+local-properties section exposes compatible local fields, mixed states, and atomic bulk keyframe/macro actions.
 
 Grouping non-contiguous siblings retains their relative order but creates a contiguous paint block at the
 frontmost selected position, so their stacking relative to intervening unselected siblings can change.

@@ -11,12 +11,7 @@ import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 import { useTickScale } from '../hooks/useTickScale';
 import { useSnapTicks } from '../hooks/useSnapTicks';
-import {
-    useAutomatedOwnerIds,
-    useOwnerChannels,
-    useAutomationExpanded,
-    useCurveEditorExpanded,
-} from '@automation/hooks';
+import { useAutomationSceneNodes, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { copySelectedKeyframes, getKeyframeSelClipboard } from '@automation/clipboard';
 import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, AUTOMATION_SEARCH_HEIGHT } from '../constants';
@@ -24,6 +19,8 @@ import { useCurveHeight } from '../context/curveHeightContext';
 import AutomationLaneRow from './AutomationLaneRow';
 import AutomationCurvePane from './AutomationCurvePane';
 import type { AutomationChannel, AutomationKeyframe } from '@automation/types';
+import type { AutomatedSceneNodeView } from '@automation/selectors';
+import { descriptorForTarget, fallbackDescriptor } from '@state/scene/propertyCatalog';
 
 interface KfMove {
     channelId: string;
@@ -89,12 +86,9 @@ const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ 
 };
 
 /** Lanes for a single element's automation channels. */
-const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = ({ elementId, width }) => {
-    const expanded = useAutomationExpanded(elementId);
-    const channels = useOwnerChannels(elementId);
-    const ownerExists = useSceneStore(
-        useCallback((s) => Boolean(s.elements[elementId] || s.graph.nodesById[elementId]), [elementId])
-    );
+const SceneNodeAutomationLanes: React.FC<{ row: AutomatedSceneNodeView; width: number }> = ({ row, width }) => {
+    const expanded = useAutomationExpanded({ kind: 'node', id: row.nodeId });
+    const channels = [...row.hostChannels, ...row.contentChannels];
     const searchQuery = useSceneStore((s) => s.interaction.automationSearchQuery);
     const { toX, toTick } = useTickScale();
     const snapTick = useSnapTicks();
@@ -291,11 +285,16 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
         [setDotDrag]
     );
 
-    if (!ownerExists || channels.length === 0) return null;
-
     const lowerQuery = searchQuery.toLowerCase().trim();
     const visibleChannels = lowerQuery
-        ? channels.filter((ch) => ch.target.propertyPath.toLowerCase().includes(lowerQuery))
+        ? channels.filter((ch) => {
+              const descriptor =
+                  descriptorForTarget(ch.target, row.elementType) ?? fallbackDescriptor(ch.target, ch.valueType);
+              return [ch.target.propertyPath, descriptor.definition.label, descriptor.group.label, row.name]
+                  .join(' ')
+                  .toLowerCase()
+                  .includes(lowerQuery);
+          })
         : channels;
 
     if (lowerQuery && visibleChannels.length === 0) return null;
@@ -311,7 +310,8 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
             {/* Element header with SVG diamond indicators */}
             <div
                 ref={headerRef}
-                data-element-id={elementId}
+                data-scene-node-id={row.nodeId}
+                data-channel-ids={channels.map((channel) => channel.id).join(',')}
                 className="relative border-b border-neutral-800"
                 style={{ height: AUTOMATION_HEADER_HEIGHT }}
                 onPointerMove={handleHeaderPointerMove}
@@ -376,7 +376,14 @@ interface AutomationLanesProps {
 }
 
 const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
-    const automatedIds = useAutomatedOwnerIds();
+    const automationRows = useAutomationSceneNodes();
+    const expandedSceneNodes = useSelectionStore((state) => state.expandedNodeIds);
+    const hierarchySearch = useSceneStore((state) => state.interaction.automationSearchQuery.trim());
+    const visibleAutomationRows = hierarchySearch
+        ? automationRows
+        : automationRows.filter((row) =>
+              row.ancestorNodeIds.every((ancestorId) => expandedSceneNodes[ancestorId] !== false)
+          );
     const { toTick } = useTickScale();
 
     // Cross-lane box select
@@ -463,14 +470,15 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
                     }
                 }
 
-                // Element header rows (diamond indicators) — include all channels for the element
-                const headerEls = containerRef.current.querySelectorAll<HTMLElement>('[data-element-id]');
+                // Scene-node header rows include direct host and element-content channels.
+                const headerEls = containerRef.current.querySelectorAll<HTMLElement>('[data-channel-ids]');
                 for (const el of headerEls) {
                     const elRect = el.getBoundingClientRect();
                     if (elRect.bottom < minAbsY || elRect.top > maxAbsY) continue;
-                    const elementId = el.dataset.elementId!;
-                    for (const ch of Object.values(channels)) {
-                        if (ch.target.owner.id !== elementId) continue;
+                    const channelIds = (el.dataset.channelIds ?? '').split(',').filter(Boolean);
+                    for (const channelId of channelIds) {
+                        const ch = channels[channelId];
+                        if (!ch) continue;
                         for (const kf of ch.keyframes) {
                             if (kf.tick >= minTick - 0.5 && kf.tick <= maxTick + 0.5) {
                                 addKf(ch.id, kf.tick);
@@ -645,7 +653,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
         return () => window.removeEventListener('keydown', handler, { capture: true } as any);
     }, []);
 
-    if (automatedIds.length === 0) return null;
+    if (automationRows.length === 0) return null;
 
     const selBoxRect =
         selBox && selBox.moved
@@ -671,9 +679,9 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
             {/* Search bar spacer (mirrors left-column search input row) */}
             <div className="border-b border-neutral-800" style={{ height: AUTOMATION_SEARCH_HEIGHT }} />
 
-            {/* Element lane groups */}
-            {automatedIds.map((id) => (
-                <ElementAutomationLanes key={id} elementId={id} width={width} />
+            {/* Scene hierarchy lane groups */}
+            {visibleAutomationRows.map((row) => (
+                <SceneNodeAutomationLanes key={row.nodeId} row={row} width={width} />
             ))}
 
             {/* Cross-lane selection box overlay */}

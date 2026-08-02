@@ -280,7 +280,8 @@ export function transformSceneNodes(
         const nextTransform = matrixToNodeTransform(
             nextUserMatrix,
             node.userNodeTransform.pivotX,
-            node.userNodeTransform.pivotY
+            node.userNodeTransform.pivotY,
+            node.userNodeTransform
         );
         if (!nextTransform) throw new Error('World transform cannot be represented by the node transform');
         node.userNodeTransform = nextTransform;

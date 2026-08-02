@@ -4,6 +4,7 @@ import { MissingPluginElement } from '@core/scene/elements/misc/missing-plugin';
 import type { RenderObject } from '@core/render/modular-renderer';
 import { serializeStable } from '@persistence/stable-stringify';
 import { automationEvaluator } from '@automation/automation-evaluator';
+import { resolveBindingStateValue } from '@bindings/resolve-binding-state';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 // Side-effect import: registers the KeyframeBinding factory so
 // PropertyBinding.fromSerialized can construct keyframe bindings.
@@ -226,28 +227,26 @@ export class SceneRuntimeAdapter {
                     userNodeTransform: { ...node.userNodeTransform },
                 } as typeof node;
                 for (const [path, binding] of Object.entries(bindings)) {
-                    let value: unknown;
-                    if (binding.type === 'constant') value = binding.value;
-                    else if (binding.type === 'macro') value = state.macros.byId[binding.macroId]?.value;
-                    else {
-                        value = state.propertyOverrides[binding.channelId];
-                        if (value === undefined) {
-                            const timing = getSharedTimingManager();
-                            const tick = timing
-                                ? timing.secondsToTicks(targetTime)
-                                : useTimelineStore.getState().timeline.currentTick;
-                            value = automationEvaluator.evaluate(binding.channelId, tick);
-                        }
-                    }
+                    const timing = getSharedTimingManager();
+                    const tick = timing
+                        ? timing.secondsToTicks(targetTime)
+                        : useTimelineStore.getState().timeline.currentTick;
+                    const value = resolveBindingStateValue(binding, {
+                        tick,
+                        macroValue: (macroId) => state.macros.byId[macroId]?.value,
+                    });
                     if (value === undefined) continue;
                     if (path === 'localVisible') evaluated.localVisible = Boolean(value);
                     else if (path === 'localLocked') evaluated.localLocked = Boolean(value);
-                    else if (
+                    else if (path === 'localOpacity' && typeof value === 'number' && Number.isFinite(value)) {
+                        evaluated.localOpacity = Math.max(0, Math.min(1, value));
+                    } else if (
                         path in evaluated.userNodeTransform &&
                         typeof value === 'number' &&
                         Number.isFinite(value)
                     ) {
-                        evaluated.userNodeTransform[path as keyof typeof evaluated.userNodeTransform] = value;
+                        evaluated.userNodeTransform[path as keyof typeof evaluated.userNodeTransform] =
+                            path === 'scaleX' || path === 'scaleY' ? Math.max(0.001, value) : value;
                     }
                 }
                 return evaluated;
@@ -371,12 +370,7 @@ export class SceneRuntimeAdapter {
             this.orderedIds = deriveElementOrder(next.graph);
             mutated = true;
         }
-        if (
-            next.graph !== prev.graph ||
-            next.nodeBindings !== prev.nodeBindings ||
-            next.macros !== prev.macros ||
-            next.propertyOverrides !== prev.propertyOverrides
-        )
+        if (next.graph !== prev.graph || next.nodeBindings !== prev.nodeBindings || next.macros !== prev.macros)
             mutated = true;
 
         const nextOrder = deriveElementOrder(next.graph);

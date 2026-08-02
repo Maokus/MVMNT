@@ -1,54 +1,91 @@
 /**
  * InsertKeyframePopup — floating search menu for quickly inserting a keyframe.
  *
- * Triggered by pressing "i" with a scene element selected. Shows a searchable
- * list of automatable properties. Selecting a property either enables automation
+ * Triggered by pressing "i" with a scene node selected. Shows a searchable
+ * list of node transforms and element properties. Selecting a property either enables automation
  * (if not yet automated) and inserts a keyframe, or adds a keyframe to an
  * existing automation channel.
  *
- * Shortcut presets (All Transforms, Offsets, Scales) appear at the top and
+ * Shortcut presets (All Transforms, Translation, Pivot, Scales) appear at the top and
  * insert keyframes for multiple properties at once.
  *
  * Property aliases promote a specific property to first result:
- *   x → Offset X, y → Offset Y, sx → Scale X, sy → Scale Y,
- *   r → Rotation, t → Opacity
+ *   x/y → node translation, r → node rotation, s → node scale,
+ *   px/py → node pivot, sx/sy → element scale, t → opacity
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FloatingPortal } from '@floating-ui/react';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { channelForTarget, createKeyframe, elementPropertyTarget } from '@automation/types';
-import { automationEvaluator } from '@automation/automation-evaluator';
+import type { AutomationValueType, PropertyTarget } from '@automation/types';
 import { useCurrentTick } from '@automation/hooks';
 import { useSceneStore } from '@state/sceneStore';
-import type { ConstantBindingState, ElementBindings } from '@state/sceneStore';
 import { resolveAutomationValueType } from './KeyframeControl';
 import type { EnhancedConfigSchema } from '@core/types';
+import { effectiveValueForTarget } from '@state/scene/propertyEditing';
+import { hostPropertyDescriptors } from '@state/scene/propertyCatalog';
 
 // ---------------------------------------------------------------------------
 // Shortcut data
 // ---------------------------------------------------------------------------
 
-/** Maps a shortcut alias to the property key it should promote to first result. */
+/** Maps a shortcut alias to the stable property ID it should promote to first result. */
 const PROPERTY_ALIASES: Record<string, string> = {
-    sx: 'elementScaleX',
-    sy: 'elementScaleY',
-    t: 'elementOpacity',
+    x: 'node:translationX',
+    y: 'node:translationY',
+    r: 'node:rotation',
+    s: 'node:scaleX',
+    px: 'node:pivotX',
+    py: 'node:pivotY',
+    sx: 'node:scaleX',
+    sy: 'node:scaleY',
+    t: 'node:localOpacity',
 };
+
+const PROPERTY_SHORTCUTS = Object.fromEntries(
+    Object.entries(PROPERTY_ALIASES).map(([shortcut, propertyId]) => [propertyId, shortcut])
+) as Record<string, string>;
 
 type ShortcutPreset = {
     id: string;
     label: string;
     description: string;
-    propertyKeys: string[];
+    propertyIds: string[];
 };
 
 const SHORTCUT_PRESETS: ShortcutPreset[] = [
     {
+        id: 'all-transforms',
+        label: 'All Transforms',
+        description: 'Translation X/Y · Rotation · Scale · Pivot X/Y',
+        propertyIds: [
+            'node:translationX',
+            'node:translationY',
+            'node:rotation',
+            'node:scaleX',
+            'node:scaleY',
+            'node:pivotX',
+            'node:pivotY',
+        ],
+    },
+    {
+        id: 'translation',
+        label: 'Translation',
+        description: 'X Translation · Y Translation',
+        propertyIds: ['node:translationX', 'node:translationY'],
+    },
+    {
+        id: 'pivot',
+        label: 'Pivot',
+        description: 'Pivot X · Pivot Y',
+        propertyIds: ['node:pivotX', 'node:pivotY'],
+    },
+    {
         id: 'scales',
         label: 'Scales',
         description: 'Scale X · Scale Y',
-        propertyKeys: ['elementScaleX', 'elementScaleY'],
+        propertyIds: ['node:scaleX', 'node:scaleY'],
     },
 ];
 
@@ -57,10 +94,13 @@ const SHORTCUT_PRESETS: ShortcutPreset[] = [
 // ---------------------------------------------------------------------------
 
 interface AutomatableProperty {
+    id: string;
     key: string;
     label: string;
     groupLabel: string;
     type: string;
+    valueType: AutomationValueType;
+    target: PropertyTarget;
     default?: unknown;
 }
 
@@ -68,9 +108,9 @@ type ListItem = { kind: 'preset'; preset: ShortcutPreset } | { kind: 'property';
 
 interface InsertKeyframePopupProps {
     position: { x: number; y: number };
-    elementId: string;
-    bindings: ElementBindings;
-    schema: EnhancedConfigSchema;
+    nodeId: string;
+    elementId?: string;
+    schema?: EnhancedConfigSchema;
     onClose: () => void;
 }
 
@@ -78,45 +118,66 @@ interface InsertKeyframePopupProps {
 // Component
 // ---------------------------------------------------------------------------
 
-const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
-    position,
-    elementId,
-    bindings,
-    schema,
-    onClose,
-}) => {
+const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({ position, nodeId, elementId, schema, onClose }) => {
     const [search, setSearch] = useState('');
     const [activeIndex, setActiveIndex] = useState(0);
     const searchRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const tick = useCurrentTick();
     const automationChannels = useSceneStore((state) => state.automation.channels);
-    const propertyOverrides = useSceneStore((state) => state.propertyOverrides);
 
     const allProperties = useMemo<AutomatableProperty[]>(() => {
-        const result: AutomatableProperty[] = [];
-        for (const group of schema.tabs.flatMap((t) => t.groups)) {
-            for (const prop of group.properties) {
-                if (resolveAutomationValueType(prop.type)) {
+        const result: AutomatableProperty[] = hostPropertyDescriptors(nodeId)
+            .filter(
+                (descriptor) =>
+                    descriptor.capabilities.automatable &&
+                    descriptor.target.propertyPath !== 'localVisible' &&
+                    descriptor.target.propertyPath !== 'localLocked'
+            )
+            .map((descriptor) => ({
+                id: `node:${descriptor.definition.key}`,
+                key: descriptor.definition.key,
+                label:
+                    descriptor.definition.key === 'translationX'
+                        ? 'X Translation'
+                        : descriptor.definition.key === 'translationY'
+                          ? 'Y Translation'
+                          : descriptor.definition.label,
+                groupLabel: `Node · ${descriptor.group.label}`,
+                type: descriptor.definition.type,
+                valueType: resolveAutomationValueType(descriptor.definition.type)!,
+                target: descriptor.target,
+                default: descriptor.definition.default,
+            }));
+
+        if (elementId && schema) {
+            for (const group of schema.tabs.flatMap((t) => t.groups)) {
+                for (const prop of group.properties) {
+                    const valueType = resolveAutomationValueType(prop.type);
+                    if (!valueType) continue;
                     result.push({
+                        id: `element:${prop.key}`,
                         key: prop.key,
                         label: prop.label,
-                        groupLabel: group.label,
+                        groupLabel: `Element · ${group.label}`,
                         type: prop.type,
+                        valueType,
+                        target: elementPropertyTarget(elementId, prop.key),
                         default: prop.default,
                     });
                 }
             }
         }
         return result;
-    }, [schema]);
+    }, [elementId, nodeId, schema]);
 
     const filteredItems = useMemo<ListItem[]>(() => {
         const q = search.toLowerCase().trim();
 
-        const matchingPresets = SHORTCUT_PRESETS.filter(
-            (p) => !q || p.label.toLowerCase().includes(q) || p.id.includes(q)
-        );
+        const matchingPresets = SHORTCUT_PRESETS.filter((preset) => {
+            const hasEveryProperty = preset.propertyIds.every((id) => allProperties.some((prop) => prop.id === id));
+            return hasEveryProperty && (!q || preset.label.toLowerCase().includes(q) || preset.id.includes(q));
+        });
 
         if (!q) {
             return [
@@ -134,17 +195,15 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
 
         // Tier 1: exact alias match (e.g. "x" → Offset X)
         const aliasTarget = PROPERTY_ALIASES[q];
-        const aliasedProp = aliasTarget ? allProperties.find((p) => p.key === aliasTarget) : undefined;
+        const aliasedProp = aliasTarget ? allProperties.find((p) => p.id === aliasTarget) : undefined;
 
         // Tier 2: exact label match (case-insensitive), excluding the alias target
-        const exactLabelProps = allMatchingProps.filter(
-            (p) => p.label.toLowerCase() === q && p.key !== aliasedProp?.key
-        );
+        const exactLabelProps = allMatchingProps.filter((p) => p.label.toLowerCase() === q && p.id !== aliasedProp?.id);
 
         // Tier 4: loose matches — everything not already in tier 1 or 2
-        const priorityKeys = new Set<string>(exactLabelProps.map((p) => p.key));
-        if (aliasedProp) priorityKeys.add(aliasedProp.key);
-        const looseProps = allMatchingProps.filter((p) => !priorityKeys.has(p.key));
+        const priorityIds = new Set<string>(exactLabelProps.map((p) => p.id));
+        if (aliasedProp) priorityIds.add(aliasedProp.id);
+        const looseProps = allMatchingProps.filter((p) => !priorityIds.has(p.id));
 
         // Final order: alias → exact label → presets → loose
         const result: ListItem[] = [];
@@ -164,46 +223,30 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
     useEffect(() => {
         if (!listRef.current) return;
         const item = listRef.current.children[activeIndex] as HTMLElement | undefined;
-        item?.scrollIntoView({ block: 'nearest' });
+        item?.scrollIntoView?.({ block: 'nearest' });
     }, [activeIndex]);
 
     const getCurrentValue = useCallback(
         (prop: AutomatableProperty): unknown => {
-            const channelId = channelForTarget(
-                { channels: automationChannels },
-                elementPropertyTarget(elementId, prop.key)
-            )?.id;
-            const isAutomated = !!channelId;
-            if (isAutomated) {
-                const override = propertyOverrides[channelId];
-                if (override !== undefined) return override;
-                return automationEvaluator.evaluate(channelId, tick);
-            }
-            const binding = bindings[prop.key];
-            if (binding?.type === 'constant') {
-                return (binding as ConstantBindingState).value;
-            }
-            return prop.default;
+            return effectiveValueForTarget(useSceneStore.getState(), prop.target, tick) ?? prop.default;
         },
-        [elementId, bindings, automationChannels, propertyOverrides, tick]
+        [tick]
     );
 
     const insertKeyframeForProp = useCallback(
         (prop: AutomatableProperty, mergeKey?: string) => {
-            const target = elementPropertyTarget(elementId, prop.key);
+            const target = prop.target;
             const channelId = channelForTarget({ channels: automationChannels }, target)?.id;
             const isAutomated = !!channelId;
             const currentValue = getCurrentValue(prop);
             const cmdOptions = { source: 'insert-keyframe-popup', mergeKey };
 
             if (!isAutomated) {
-                const valueType = resolveAutomationValueType(prop.type);
-                if (!valueType) return;
                 dispatchSceneCommand(
                     {
                         type: 'enablePropertyAutomation',
                         target,
-                        valueType,
+                        valueType: prop.valueType,
                         initialKeyframes: [createKeyframe(tick > 0 ? tick : 0, currentValue)],
                     },
                     cmdOptions
@@ -217,12 +260,9 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                     },
                     cmdOptions
                 );
-                if (propertyOverrides[channelId] !== undefined) {
-                    useSceneStore.getState().clearPropertyOverride(channelId);
-                }
             }
         },
-        [elementId, tick, automationChannels, propertyOverrides, getCurrentValue]
+        [tick, automationChannels, getCurrentValue]
     );
 
     const handleSelect = useCallback(
@@ -236,8 +276,8 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
     const handleSelectPreset = useCallback(
         (preset: ShortcutPreset) => {
             const mergeKey = `preset-keyframes:${preset.id}:${Date.now()}`;
-            const validProps = preset.propertyKeys
-                .map((key) => allProperties.find((p) => p.key === key))
+            const validProps = preset.propertyIds
+                .map((id) => allProperties.find((p) => p.id === id))
                 .filter(Boolean) as AutomatableProperty[];
             for (const prop of validProps) {
                 insertKeyframeForProp(prop, mergeKey);
@@ -334,13 +374,10 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                             }
 
                             const { prop } = item;
-                            const isAutomated = !!channelForTarget(
-                                { channels: automationChannels },
-                                elementPropertyTarget(elementId, prop.key)
-                            );
+                            const isAutomated = !!channelForTarget({ channels: automationChannels }, prop.target);
                             return (
                                 <button
-                                    key={prop.key}
+                                    key={prop.id}
                                     type="button"
                                     className={baseClass}
                                     onMouseEnter={() => setActiveIndex(i)}
@@ -358,6 +395,11 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                                             {prop.groupLabel}
                                         </span>
                                     </span>
+                                    {PROPERTY_SHORTCUTS[prop.id] ? (
+                                        <kbd className="flex-shrink-0 rounded border border-neutral-600 bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-400">
+                                            {PROPERTY_SHORTCUTS[prop.id]}
+                                        </kbd>
+                                    ) : null}
                                 </button>
                             );
                         })

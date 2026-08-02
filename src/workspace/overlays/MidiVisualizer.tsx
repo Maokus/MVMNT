@@ -94,7 +94,7 @@ const TrackInputPopupController: React.FC = () => {
 
 // Controller for the "i" key → insert keyframe popup. Must live inside SceneSelectionProvider.
 const InsertKeyframeController: React.FC = () => {
-    const { selectedElement, selectedElementSchema } = useSceneSelection();
+    const { selectedElement, selectedElementSchema, activeNodeId } = useSceneSelection();
     const [popupPos, setPopupPos] = useState<{ x: number; y: number } | null>(null);
     const mousePos = useRef({ x: 0, y: 0 });
 
@@ -112,17 +112,18 @@ const InsertKeyframeController: React.FC = () => {
             const target = e.target as HTMLElement | null;
             if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable))
                 return;
-            if (!selectedElement || !selectedElementSchema) return;
+            if (!activeNodeId) return;
             e.preventDefault();
 
             const hovered = hoveredPropertyRef.current;
-            if (hovered && hovered.elementId === selectedElement.id) {
+            const activeElement = selectedElement;
+            if (activeElement && hovered && hovered.elementId === activeElement.id) {
                 const { propertyKey, propertyType } = hovered;
                 const valueType = resolveAutomationValueType(propertyType);
                 if (valueType) {
                     const channelId = channelForTarget(
                         useSceneStore.getState().automation,
-                        elementPropertyTarget(selectedElement.id, propertyKey)
+                        elementPropertyTarget(activeElement.id, propertyKey)
                     )?.id;
                     const sceneState = useSceneStore.getState();
                     const tick = useTimelineStore.getState().timeline.currentTick;
@@ -130,11 +131,9 @@ const InsertKeyframeController: React.FC = () => {
 
                     let currentValue: unknown;
                     if (isAutomated) {
-                        const override = sceneState.propertyOverrides[channelId!];
-                        currentValue =
-                            override !== undefined ? override : automationEvaluator.evaluate(channelId!, tick);
+                        currentValue = automationEvaluator.evaluate(channelId!, tick);
                     } else {
-                        const binding = selectedElement.bindings[propertyKey];
+                        const binding = activeElement.bindings[propertyKey];
                         currentValue = binding?.type === 'constant' ? (binding as any).value : undefined;
                     }
 
@@ -142,7 +141,7 @@ const InsertKeyframeController: React.FC = () => {
                         dispatchSceneCommand(
                             {
                                 type: 'enablePropertyAutomation',
-                                target: elementPropertyTarget(selectedElement.id, propertyKey),
+                                target: elementPropertyTarget(activeElement.id, propertyKey),
                                 valueType,
                                 initialKeyframes: [
                                     {
@@ -174,9 +173,6 @@ const InsertKeyframeController: React.FC = () => {
                             },
                             { source: 'keyframe-hotkey' }
                         );
-                        if (sceneState.propertyOverrides[channelId] !== undefined) {
-                            sceneState.clearPropertyOverride(channelId);
-                        }
                     }
                     return;
                 }
@@ -186,16 +182,16 @@ const InsertKeyframeController: React.FC = () => {
         };
         document.addEventListener('keydown', onKeyDown);
         return () => document.removeEventListener('keydown', onKeyDown);
-    }, [selectedElement, selectedElementSchema]);
+    }, [activeNodeId, selectedElement, selectedElementSchema]);
 
-    if (!popupPos || !selectedElement || !selectedElementSchema) return null;
+    if (!popupPos || !activeNodeId) return null;
 
     return (
         <InsertKeyframePopup
             position={popupPos}
-            elementId={selectedElement.id}
-            bindings={selectedElement.bindings}
-            schema={selectedElementSchema}
+            nodeId={activeNodeId}
+            elementId={selectedElement?.id}
+            schema={selectedElementSchema ?? undefined}
             onClose={() => setPopupPos(null)}
         />
     );

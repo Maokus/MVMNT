@@ -408,11 +408,8 @@ export class SceneElement implements SceneElementInterface {
 
         // Set default bindings for base properties
         this.bindings.set('visible', new ConstantBinding(true));
-        this.bindings.set('elementScaleX', new ConstantBinding(1));
-        this.bindings.set('elementScaleY', new ConstantBinding(1));
         this.bindings.set('elementSkewX', new ConstantBinding(0));
         this.bindings.set('elementSkewY', new ConstantBinding(0));
-        this.bindings.set('elementOpacity', new ConstantBinding(1));
         for (const [key, value] of Object.entries(PERSPECTIVE_WARP_BINDING_DEFAULTS)) {
             this.bindings.set(key, new ConstantBinding(value));
         }
@@ -662,20 +659,11 @@ export class SceneElement implements SceneElementInterface {
     get visible(): boolean {
         return this.getProperty('visible');
     }
-    get elementScaleX(): number {
-        return this.getProperty('elementScaleX');
-    }
-    get elementScaleY(): number {
-        return this.getProperty('elementScaleY');
-    }
     get elementSkewX(): number {
         return this.getProperty('elementSkewX');
     }
     get elementSkewY(): number {
         return this.getProperty('elementSkewY');
-    }
-    get elementOpacity(): number {
-        return this.getProperty('elementOpacity');
     }
 
     get perspectiveWarp(): PerspectiveWarp {
@@ -761,16 +749,8 @@ export class SceneElement implements SceneElementInterface {
         const usePerspective =
             isFeatureEnabled('elementPerspectiveWarp') && this.getProperty<boolean>('warpEnabled') === true;
         const containerObject = usePerspective
-            ? new PerspectiveElementRoot(
-                  this.id,
-                  { ...IDENTITY_PERSPECTIVE_WARP },
-                  0,
-                  0,
-                  this.elementScaleX,
-                  this.elementScaleY,
-                  this.elementOpacity
-              )
-            : new EmptyRenderObject(0, 0, this.elementScaleX, this.elementScaleY, this.elementOpacity);
+            ? new PerspectiveElementRoot(this.id, { ...IDENTITY_PERSPECTIVE_WARP }, 0, 0, 1, 1, 1)
+            : new EmptyRenderObject(0, 0, 1, 1, 1);
         containerObject
             .setSkew(this.elementSkewX, this.elementSkewY)
             .setVisible(this.visible)
@@ -802,8 +782,8 @@ export class SceneElement implements SceneElementInterface {
         (containerObject as any).elementTransform = {
             offsetX: 0,
             offsetY: 0,
-            scaleX: this.elementScaleX,
-            scaleY: this.elementScaleY,
+            scaleX: 1,
+            scaleY: 1,
             rotation: 0,
             skewX: this.elementSkewX,
             skewY: this.elementSkewY,
@@ -958,31 +938,7 @@ export class SceneElement implements SceneElementInterface {
                             label: 'Visibility & Layer',
                             collapsed: false,
                             description: 'Control whether the element is visible and how it blends with other layers.',
-                            properties: [
-                                prop.boolean('visible', 'Visible', true),
-                                prop.number('elementOpacity', 'Opacity (0–1)', 1, {
-                                    min: 0,
-                                    max: 1,
-                                    step: 0.01,
-                                    description: 'Element transparency (0 = transparent, 1 = opaque).',
-                                }),
-                            ],
-                        },
-                        {
-                            id: 'basicTransform',
-                            label: 'Content Scale',
-                            collapsed: false,
-                            description: 'Adjust content transforms not represented by the host node.',
-                            properties: [
-                                prop.number('elementScaleX', 'Scale X (multiplier)', 1, {
-                                    step: 0.01,
-                                    description: 'Horizontal scaling factor.',
-                                }),
-                                prop.number('elementScaleY', 'Scale Y (multiplier)', 1, {
-                                    step: 0.01,
-                                    description: 'Vertical scaling factor.',
-                                }),
-                            ],
+                            properties: [prop.boolean('visible', 'Visible', true)],
                         },
                         {
                             id: 'advancedAnchor',
@@ -1208,7 +1164,10 @@ export class SceneElement implements SceneElementInterface {
                 key === 'offsetY' ||
                 key === 'elementRotation' ||
                 key === 'anchorX' ||
-                key === 'anchorY'
+                key === 'anchorY' ||
+                key === 'elementScaleX' ||
+                key === 'elementScaleY' ||
+                key === 'elementOpacity'
             )
                 continue;
 
@@ -1303,22 +1262,6 @@ export class SceneElement implements SceneElementInterface {
         return this;
     }
 
-    setElementScaleX(scaleX: number): this {
-        this.setProperty('elementScaleX', scaleX);
-        return this;
-    }
-
-    setElementScaleY(scaleY: number): this {
-        this.setProperty('elementScaleY', scaleY);
-        return this;
-    }
-
-    setElementScale(scaleX: number, scaleY: number = scaleX): this {
-        this.setProperty('elementScaleX', scaleX);
-        this.setProperty('elementScaleY', scaleY);
-        return this;
-    }
-
     setElementSkewX(skewX: number): this {
         this.setProperty('elementSkewX', skewX);
         return this;
@@ -1332,11 +1275,6 @@ export class SceneElement implements SceneElementInterface {
     setElementSkew(skewX: number, skewY: number): this {
         this.setElementSkewX(skewX);
         this.setElementSkewY(skewY);
-        return this;
-    }
-
-    setElementOpacity(opacity: number): this {
-        this.setProperty('elementOpacity', Math.max(0, Math.min(1, opacity)));
         return this;
     }
 }

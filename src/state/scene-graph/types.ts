@@ -9,9 +9,14 @@ export interface NodeTransform {
     translationY: number;
     /** Clockwise radians in the canvas coordinate system. */
     rotation: number;
-    uniformScale: number;
+    scaleX: number;
+    scaleY: number;
     pivotX: number;
     pivotY: number;
+    /** Import-only compatibility factors for animated pre-v9 element scaling. */
+    legacyUniformScale?: number;
+    legacyContentScaleX?: number;
+    legacyContentScaleY?: number;
 }
 
 export interface SceneNodeBase {
@@ -19,6 +24,7 @@ export interface SceneNodeBase {
     parentId: SceneNodeId | null;
     name: string;
     localVisible: boolean;
+    localOpacity: number;
     localLocked: boolean;
     parentCompensation: Matrix2D;
     userNodeTransform: NodeTransform;
@@ -53,7 +59,8 @@ export const IDENTITY_NODE_TRANSFORM: Readonly<NodeTransform> = Object.freeze({
     translationX: 0,
     translationY: 0,
     rotation: 0,
-    uniformScale: 1,
+    scaleX: 1,
+    scaleY: 1,
     pivotX: 0,
     pivotY: 0,
 });
@@ -64,6 +71,7 @@ export function createNodeBase(id: SceneNodeId, parentId: SceneNodeId | null, na
         parentId,
         name,
         localVisible: true,
+        localOpacity: 1,
         localLocked: false,
         parentCompensation: [...IDENTITY_MATRIX],
         userNodeTransform: { ...IDENTITY_NODE_TRANSFORM },

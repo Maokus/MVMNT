@@ -60,6 +60,37 @@ describe('sceneStore', () => {
         expect(state.bindings.byElement.legacy.anchorY).toBeUndefined();
     });
 
+    it('migrates element opacity and constant axis scales into the host node', () => {
+        const graph = createFlatSceneGraph(['legacy']);
+        const node = graph.nodesById['element:legacy'] as any;
+        node.userNodeTransform.uniformScale = 2;
+        delete node.userNodeTransform.scaleX;
+        delete node.userNodeTransform.scaleY;
+        delete node.localOpacity;
+        store.getState().importScene({
+            elements: {
+                legacy: {
+                    id: 'legacy',
+                    type: 'textOverlay',
+                    properties: {
+                        elementOpacity: { type: 'constant', value: 0.4 },
+                        elementScaleX: { type: 'constant', value: 1.5 },
+                        elementScaleY: { type: 'constant', value: 0.5 },
+                    },
+                },
+            },
+            graph,
+        });
+
+        const state = store.getState();
+        const migrated = state.graph.nodesById[state.nodeIdByElementId.legacy];
+        expect(migrated.localOpacity).toBe(0.4);
+        expect(migrated.userNodeTransform).toMatchObject({ scaleX: 3, scaleY: 1 });
+        expect(state.bindings.byElement.legacy).not.toHaveProperty('elementOpacity');
+        expect(state.bindings.byElement.legacy).not.toHaveProperty('elementScaleX');
+        expect(state.bindings.byElement.legacy).not.toHaveProperty('elementScaleY');
+    });
+
     it('maintains macro assignment index when bindings change', () => {
         importFixture();
 

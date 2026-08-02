@@ -179,6 +179,7 @@ export type SceneCommand =
     | { type: 'replaceGraph'; graph: SceneGraphState; expectedRevision?: number }
     | { type: 'updateNodeTransform'; nodeId: string; transform: Partial<NodeTransform> }
     | { type: 'setNodeVisibility'; nodeId: string; visible: boolean }
+    | { type: 'setNodeOpacity'; nodeId: string; opacity: number }
     | { type: 'setNodeLocked'; nodeId: string; locked: boolean }
     | { type: 'setNodeName'; nodeId: string; name: string }
     | { type: 'groupNodes'; nodeIds: string[]; groupId: string; name?: string }
@@ -217,6 +218,7 @@ function staticNodeProperty(state: SceneStoreState, target: PropertyTarget): unk
     if (!node) return undefined;
     if (target.propertyPath === 'localVisible') return node.localVisible;
     if (target.propertyPath === 'localLocked') return node.localLocked;
+    if (target.propertyPath === 'localOpacity') return node.localOpacity;
     return node.userNodeTransform[target.propertyPath as keyof NodeTransform];
 }
 
@@ -675,6 +677,7 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
         case 'replaceGraph':
         case 'updateNodeTransform':
         case 'setNodeVisibility':
+        case 'setNodeOpacity':
         case 'setNodeLocked':
         case 'setNodeName':
         case 'groupNodes':
@@ -937,6 +940,9 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
             break;
         case 'setNodeVisibility':
             store.setNodeVisibility(command.nodeId, command.visible);
+            break;
+        case 'setNodeOpacity':
+            store.setNodeOpacity(command.nodeId, command.opacity);
             break;
         case 'setNodeLocked':
             store.setNodeLocked(command.nodeId, command.locked);
