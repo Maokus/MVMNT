@@ -151,6 +151,13 @@ export interface SceneExportEnvelopeV11 extends Omit<SceneExportEnvelopeV6, 'sch
     schemaVersion: 11;
 }
 
+export interface SceneExportEnvelopeV12 extends Omit<SceneExportEnvelopeV6, 'schemaVersion' | 'scene'> {
+    schemaVersion: 12;
+    scene: Omit<SceneExportEnvelopeV6['scene'], 'elementsOrder'> & {
+        graph: import('@state/scene-graph').SceneGraphState;
+    };
+}
+
 export type SceneExportEnvelope =
     | SceneExportEnvelopeV2
     | SceneExportEnvelopeV4
@@ -160,7 +167,8 @@ export type SceneExportEnvelope =
     | SceneExportEnvelopeV8
     | SceneExportEnvelopeV9
     | SceneExportEnvelopeV10
-    | SceneExportEnvelopeV11;
+    | SceneExportEnvelopeV11
+    | SceneExportEnvelopeV12;
 
 interface AudioFeatureCacheAssetReference {
     assetId: string;
@@ -183,7 +191,7 @@ interface ExportResultBase {
 export interface ExportSceneResultZip extends ExportResultBase {
     ok: true;
     mode: 'zip-package';
-    envelope: SceneExportEnvelopeV11;
+    envelope: SceneExportEnvelopeV12;
     zip: Uint8Array<ArrayBuffer>;
     blob?: Blob;
 }
@@ -858,14 +866,14 @@ export async function exportScene(
         }
     }
 
-    const envelope: SceneExportEnvelopeV11 = {
+    const envelope: SceneExportEnvelopeV12 = {
         schemaVersion: CURRENT_SCHEMA_VERSION,
         format: 'mvmnt.scene',
         metadata,
         plugins: pluginResult.dependencies.length ? pluginResult.dependencies : undefined,
         scene: {
             elements: doc.scene?.elements ?? {},
-            elementsOrder: doc.scene?.elementsOrder ?? [],
+            graph: doc.scene.graph,
             sceneSettings: doc.scene?.sceneSettings,
             macros: doc.scene?.macros,
             fontAssets: doc.scene?.fontAssets,

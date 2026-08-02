@@ -8,6 +8,7 @@ import { getMacroSnapshot, replaceMacrosFromSnapshot } from '@state/scene/macroS
 import { migrateSceneAudioSystemV5 } from './migrations/audioSystemV5';
 import { useSceneMetadataStore, type SceneMetadataState } from '@state/sceneMetadataStore';
 import { hydrateRuntimeMidiPlacementFields } from './migrations/midiClipsV8';
+import { createFlatSceneGraph, deriveElementOrder, type SceneGraphState } from '@state/scene-graph';
 
 /** Fields stripped from sceneSettings when persisting (padding concepts removed). */
 const STRIP_SCENE_SETTINGS_KEYS = new Set(['prePadding', 'postPadding']);
@@ -25,6 +26,11 @@ function normalizeElements(scene: any): SceneSerializedElement[] {
                 const { id, type, index: _index, ...rest } = el;
                 return { id, type, properties: rest } as SceneSerializedElement;
             });
+    }
+    if (scene?.graph && scene?.elements && typeof scene.elements === 'object' && !Array.isArray(scene.elements)) {
+        return deriveElementOrder(scene.graph as SceneGraphState)
+            .map((id) => scene.elements[id])
+            .filter(Boolean) as SceneSerializedElement[];
     }
     if (
         scene?.elementsOrder &&
@@ -57,6 +63,7 @@ export interface PersistentDocumentV1 {
     audioFeatureCacheStatus?: Record<string, any>;
     scene: {
         elements: Record<string, any>;
+        graph: SceneGraphState;
         elementsOrder?: string[];
         sceneSettings?: any;
         macros?: any;
@@ -87,6 +94,7 @@ export const DocumentGateway = {
         // Scene + macros (best effort)
         let elements: Record<string, any> = {};
         let elementsOrder: string[] = [];
+        let graph: SceneGraphState = createFlatSceneGraph([]);
         let sceneSettings: any = undefined;
         let macros: any = undefined;
         let fontAssets: any = undefined;
@@ -98,6 +106,7 @@ export const DocumentGateway = {
             const snapshot = useSceneStore.getState().exportSceneDraft();
             elements = snapshot.elements ?? {};
             elementsOrder = snapshot.elementsOrder ?? [];
+            graph = snapshot.graph;
             if (snapshot.elementErrors?.length) {
                 elementWarnings = snapshot.elementErrors.map(
                     (e) => `Element "${e.id}" (${e.type}) could not be exported: ${e.message}`
@@ -148,6 +157,7 @@ export const DocumentGateway = {
             audioFeatureCacheStatus: state.audioFeatureCacheStatus,
             scene: {
                 elements,
+                graph,
                 elementsOrder,
                 sceneSettings,
                 macros,
@@ -244,6 +254,7 @@ export const DocumentGateway = {
         // Scene & macros (note: sceneSettings tempo/meter SHOULD NOT override timeline if timeline already specified).
         const rawSceneData = {
             elements: normalizeElements(doc.scene),
+            graph: doc.scene?.graph,
             sceneSettings: doc.scene?.sceneSettings,
             macros: doc.scene?.macros,
             fontAssets: doc.scene?.fontAssets,

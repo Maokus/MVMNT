@@ -15,6 +15,12 @@ import {
     type SceneSettingsState,
     type SceneStoreState,
 } from '@state/sceneStore';
+import {
+    buildSceneStructureIndex,
+    resolveSceneFrame,
+    type ResolvedSceneFrame,
+    type SceneStructureIndex,
+} from './resolvedScene';
 
 type SceneStoreBinding = typeof useSceneStore;
 
@@ -87,6 +93,8 @@ export class SceneRuntimeAdapter {
     private settingsVersion = 0;
     private unsubscribe?: () => void;
     private disposed = false;
+    private resolvedFrame: ResolvedSceneFrame | null = null;
+    private structureIndex: SceneStructureIndex | null = null;
     private readonly handleFontLoaded: (event: Event) => void;
     private readonly handlePluginInstalled: (event: Event) => void;
     private readonly handlePluginAvailabilityChanged: (event: Event) => void;
@@ -185,40 +193,31 @@ export class SceneRuntimeAdapter {
     }
 
     buildScene(config: any, targetTime: number): RenderObject[] {
-        const entries = this.orderedIds
-            .map((id, index) => {
-                const entry = this.cache.get(id);
-                if (!entry) return null;
-                return { id, element: entry.element, orderIndex: index };
-            })
-            .filter((item): item is { id: string; element: SceneElement; orderIndex: number } => item !== null);
+        return this.resolveFrame(config, targetTime).renderObjects as RenderObject[];
+    }
 
-        const visible = entries.filter((item) => {
-            try {
-                return item.element.visible;
-            } catch {
-                return false;
-            }
-        });
-
-        visible.sort((a, b) => {
-            const z = a.element.zIndex - b.element.zIndex;
-            if (z !== 0) return z;
-            return a.orderIndex - b.orderIndex;
-        });
-
-        const renderObjects: RenderObject[] = [];
-        for (const { element } of visible) {
-            try {
-                const objects = element.buildRenderObjects(config, targetTime);
-                if (Array.isArray(objects) && objects.length) {
-                    renderObjects.push(...objects);
-                }
-            } catch (error) {
-                console.warn('[SceneRuntimeAdapter] render object build failed', error);
-            }
+    resolveFrame(config: any, targetTime: number): ResolvedSceneFrame {
+        const state = this.store.getState();
+        if (
+            this.resolvedFrame &&
+            this.resolvedFrame.time === targetTime &&
+            this.resolvedFrame.graphRevision === state.graph.revision &&
+            this.resolvedFrame.runtimeVersion === this.adapterVersion
+        ) {
+            return this.resolvedFrame;
         }
-        return renderObjects;
+        if (!this.structureIndex || this.structureIndex.graphRevision !== state.graph.revision) {
+            this.structureIndex = buildSceneStructureIndex(state.graph);
+        }
+        this.resolvedFrame = resolveSceneFrame({
+            graph: state.graph,
+            time: targetTime,
+            runtimeVersion: this.adapterVersion,
+            config,
+            getElement: (elementId) => this.cache.get(elementId)?.element,
+            structure: this.structureIndex,
+        });
+        return this.resolvedFrame;
     }
 
     collectDiagnostics(): SceneRuntimeAdapterDiagnostics {
@@ -336,6 +335,7 @@ export class SceneRuntimeAdapter {
             this.orderedIds = [...next.order];
             mutated = true;
         }
+        if (next.graph !== prev.graph) mutated = true;
 
         const nextIds = new Set(next.order);
         for (const id of prev.order) {
@@ -399,6 +399,8 @@ export class SceneRuntimeAdapter {
 
         if (mutated) {
             this.adapterVersion += 1;
+            this.resolvedFrame = null;
+            if (next.graph !== prev.graph) this.structureIndex = null;
         }
     }
 }

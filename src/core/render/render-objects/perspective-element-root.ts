@@ -17,6 +17,7 @@ import {
     type PerspectiveViewport,
     type PerspectiveWarp,
 } from '@math/perspective-warp';
+import type { Matrix2D } from '@state/scene-graph';
 
 export class PerspectiveElementRoot extends EmptyRenderObject {
     private _perspectiveWarp: PerspectiveWarp;
@@ -25,6 +26,7 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
     private _warpMatrix: Homography | null = null;
     private _warpInvalidReason?: string;
     private _isPerspectiveEdgeOn: boolean;
+    private _resolvedAncestorTransform: Matrix2D = [1, 0, 0, 1, 0, 0];
 
     constructor(
         elementId: string | null,
@@ -72,7 +74,20 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
 
     getAffineTransform(): AffineTransform {
         this._resolveOriginFractions();
-        return this._getWorldTransformMatrix();
+        const local = this._getWorldTransformMatrix();
+        const [a, b, c, d, e, f] = this._resolvedAncestorTransform;
+        return {
+            a: a * local.a + c * local.b,
+            b: b * local.a + d * local.b,
+            c: a * local.c + c * local.d,
+            d: b * local.c + d * local.d,
+            e: a * local.e + c * local.f + e,
+            f: b * local.e + d * local.f + f,
+        };
+    }
+
+    setResolvedAncestorTransform(matrix: Matrix2D): void {
+        this._resolvedAncestorTransform = [...matrix];
     }
 
     getProjectedCorners(): PerspectivePoint[] | null {
@@ -185,7 +200,7 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
         if (!this.visible || this.opacity <= 0) return true;
         if (!this._warpMatrix || !this.baseBounds) return false;
         if (isIdentityPerspectiveWarp(this.perspectiveWarp)) {
-            super.render(ctx, config, currentTime);
+            this.render(ctx, config, currentTime);
             compositor.recordIdentityWarp();
             return true;
         }
@@ -194,7 +209,10 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
 
     override render(ctx: CanvasRenderingContext2D, config: RenderConfig, currentTime: number): void {
         // Direct rendering (including deterministic GPU fallback) retains the old affine result.
+        ctx.save();
+        ctx.transform(...this._resolvedAncestorTransform);
         super.render(ctx, config, currentTime);
+        ctx.restore();
     }
 
     protected override _getSelfBounds(): Bounds {

@@ -29,10 +29,34 @@ describe('Persistence validation extended', () => {
 
     it('detects duplicate element ids', async () => {
         const env = await makeValidEnvelope();
-        env.scene.elementsOrder = ['x', 'x'];
+        const root = env.scene.graph.nodesById[env.scene.graph.rootId];
+        if (root.children.length === 0) {
+            env.scene.elements.x = { id: 'x', type: 'shape', properties: {} };
+            const node = {
+                id: 'element:x',
+                parentId: root.id,
+                name: 'x',
+                kind: 'element',
+                elementId: 'x',
+                localVisible: true,
+                localLocked: false,
+                parentCompensation: [1, 0, 0, 1, 0, 0],
+                userNodeTransform: {
+                    translationX: 0,
+                    translationY: 0,
+                    rotation: 0,
+                    uniformScale: 1,
+                    pivotX: 0,
+                    pivotY: 0,
+                },
+            };
+            env.scene.graph.nodesById[node.id] = node;
+            root.children.push(node.id);
+        }
+        root.children.push(root.children[0]);
         const r = validateSceneEnvelope(env);
         expect(r.ok).toBe(false);
-        expect(r.errors.some((e) => e.code === 'ERR_DUP_ELEMENT_ID')).toBe(true);
+        expect(r.errors.some((e) => e.code === 'ERR_SCENE_GRAPH')).toBe(true);
     });
 
     it('detects malformed tracksOrder type', async () => {

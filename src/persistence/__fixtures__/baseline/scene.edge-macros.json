@@ -58,6 +58,66 @@
         }
     },
     "elementsOrder": ["title", "background"],
+    "graph": {
+        "rootId": "__mvmnt_scene_root__",
+        "revision": 2,
+        "nodesById": {
+            "__mvmnt_scene_root__": {
+                "id": "__mvmnt_scene_root__",
+                "parentId": null,
+                "name": "Scene",
+                "localVisible": true,
+                "localLocked": false,
+                "parentCompensation": [1, 0, 0, 1, 0, 0],
+                "userNodeTransform": {
+                    "translationX": 0,
+                    "translationY": 0,
+                    "rotation": 0,
+                    "uniformScale": 1,
+                    "pivotX": 0,
+                    "pivotY": 0
+                },
+                "kind": "root",
+                "children": ["element:title", "element:background"]
+            },
+            "element:title": {
+                "id": "element:title",
+                "parentId": "__mvmnt_scene_root__",
+                "name": "title",
+                "localVisible": true,
+                "localLocked": false,
+                "parentCompensation": [1, 0, 0, 1, 0, 0],
+                "userNodeTransform": {
+                    "translationX": 0,
+                    "translationY": 0,
+                    "rotation": 0,
+                    "uniformScale": 1,
+                    "pivotX": 0,
+                    "pivotY": 0
+                },
+                "kind": "element",
+                "elementId": "title"
+            },
+            "element:background": {
+                "id": "element:background",
+                "parentId": "__mvmnt_scene_root__",
+                "name": "background",
+                "localVisible": true,
+                "localLocked": false,
+                "parentCompensation": [1, 0, 0, 1, 0, 0],
+                "userNodeTransform": {
+                    "translationX": 0,
+                    "translationY": 0,
+                    "rotation": 0,
+                    "uniformScale": 1,
+                    "pivotX": 0,
+                    "pivotY": 0
+                },
+                "kind": "element",
+                "elementId": "background"
+            }
+        }
+    },
     "sceneSettings": {
         "fps": 60,
         "width": 1500,

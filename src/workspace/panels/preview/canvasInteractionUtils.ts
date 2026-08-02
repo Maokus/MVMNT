@@ -21,10 +21,8 @@ import {
 import type { GeometryInfo } from '@math/transforms/types';
 import { useSceneStore } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
+import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import type { MouseEvent as ReactMouseEvent } from 'react';
-
-const degreesToRadians = (degrees: number): number => (degrees * Math.PI) / 180;
-const radiansToDegrees = (radians: number): number => (radians * 180) / Math.PI;
 
 // Types kept broad (any) to avoid tight coupling with visualizer internal shapes.
 export interface InteractionDeps {
@@ -50,6 +48,9 @@ function ensureDragCommandOptions(meta: any, elementId: string): DragCommandOpti
         mergeKey: `${mode}:${sessionId}`,
         canMergeWith: (other) => {
             if (other.command.type === 'updateElementConfig') return other.command.elementId === elementId;
+            if (other.command.type === 'updateNodeTransform') {
+                return useSceneStore.getState().nodeIdByElementId[elementId] === other.command.nodeId;
+            }
             if (other.command.type === 'addKeyframe') return other.command.channelId.startsWith(`${elementId}.`);
             return false;
         },
@@ -65,6 +66,18 @@ function applyDragUpdate(meta: any, elementId: string, cfg: Record<string, unkno
     const baseOptions = ensureDragCommandOptions(meta, elementId);
     updateElementConfig(elementId, cfg, { ...baseOptions, transient: true });
     meta.lastConfig = { ...cfg };
+}
+
+function applyNodeDragUpdate(meta: any, elementId: string, transform: Record<string, number>, transient = true) {
+    const nodeId = useSceneStore.getState().nodeIdByElementId[elementId];
+    if (!nodeId) return;
+    meta.dragElementId = elementId;
+    const baseOptions = ensureDragCommandOptions(meta, elementId);
+    dispatchSceneCommand(
+        { type: 'updateNodeTransform', nodeId, transform },
+        { source: 'canvas.nodeTransform', ...baseOptions, transient }
+    );
+    meta.lastNodeTransform = { ...transform };
 }
 
 // ----- Helper functions -----
@@ -106,6 +119,9 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
         rec
     );
     const el = rec?.element;
+    const nodeTransform = rec?.nodeId
+        ? useSceneStore.getState().graph.nodesById[rec.nodeId]?.userNodeTransform
+        : undefined;
     const baseBounds = rec?.baseBounds || null;
     const geometry: GeometryInfo | null =
         geom && typeof geom === 'object' && (geom as any).widthVec ? (geom as GeometryInfo) : null; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -128,13 +144,18 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
         mode: handleHit.type,
         startX: x,
         startY: y,
-        origOffsetX: el?.getProperty('offsetX') ?? 0,
-        origOffsetY: el?.getProperty('offsetY') ?? 0,
+        origOffsetX: nodeTransform?.translationX ?? 0,
+        origOffsetY: nodeTransform?.translationY ?? 0,
+        origContentOffsetX: el?.getProperty('offsetX') ?? 0,
+        origContentOffsetY: el?.getProperty('offsetY') ?? 0,
         origWidth: rec?.bounds?.width ?? 0,
         origHeight: rec?.bounds?.height ?? 0,
-        origScaleX: el?.getProperty('elementScaleX') ?? el?.getProperty('globalScaleX') ?? 1,
-        origScaleY: el?.getProperty('elementScaleY') ?? el?.getProperty('globalScaleY') ?? 1,
-        origRotation: degreesToRadians(el?.getProperty('elementRotation') ?? 0),
+        origScaleX: nodeTransform?.uniformScale ?? 1,
+        origScaleY: nodeTransform?.uniformScale ?? 1,
+        origRotation: nodeTransform?.rotation ?? 0,
+        origContentRotation: ((el?.getProperty('elementRotation') ?? 0) * Math.PI) / 180,
+        origContentScaleX: el?.getProperty('elementScaleX') ?? el?.getProperty('globalScaleX') ?? 1,
+        origContentScaleY: el?.getProperty('elementScaleY') ?? el?.getProperty('globalScaleY') ?? 1,
         origSkewX: el?.getProperty('elementSkewX') ?? 0,
         origSkewY: el?.getProperty('elementSkewY') ?? 0,
         origAnchorX: el?.getProperty('anchorX') ?? 0.5,
@@ -174,15 +195,18 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
     const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
     const hit = elementHitTest(boundsList, x, y);
     if (hit) {
+        const nodeTransform = hit.nodeId
+            ? useSceneStore.getState().graph.nodesById[hit.nodeId]?.userNodeTransform
+            : undefined;
         selectElement(hit.id);
         vis.setInteractionState({ draggingElementId: hit.id, activeHandle: 'move', snapGuides: [] });
         vis._dragMeta = {
             mode: 'move',
             startX: x,
             startY: y,
-            origOffsetX: hit.element?.offsetX || 0,
-            origOffsetY: hit.element?.offsetY || 0,
-            origRotation: degreesToRadians(hit.element?.elementRotation || 0),
+            origOffsetX: nodeTransform?.translationX ?? 0,
+            origOffsetY: nodeTransform?.translationY ?? 0,
+            origRotation: nodeTransform?.rotation ?? 0,
             origSkewX: hit.element?.elementSkewX || 0,
             origSkewY: hit.element?.elementSkewY || 0,
             bounds: hit.bounds ? { ...hit.bounds } : null,
@@ -223,7 +247,7 @@ function updateMoveDrag(
     }
     const newX = meta.origOffsetX + dx;
     const newY = meta.origOffsetY + dy;
-    applyDragUpdate(meta, elId, { offsetX: newX, offsetY: newY }, deps);
+    applyNodeDragUpdate(meta, elId, { translationX: newX, translationY: newY });
     return guides;
 }
 
@@ -279,13 +303,15 @@ function updateScaleDrag(
                 meta.mode === 'scale-sw')
     );
     if (r) {
-        const cfg = {
-            elementScaleX: r.newScaleX,
-            elementScaleY: r.newScaleY,
-            offsetX: r.newOffsetX,
-            offsetY: r.newOffsetY,
-        };
-        applyDragUpdate(meta, elId, cfg, deps);
+        const uniformScale =
+            Math.abs(r.newScaleX - meta.origScaleX) >= Math.abs(r.newScaleY - meta.origScaleY)
+                ? r.newScaleX
+                : r.newScaleY;
+        applyNodeDragUpdate(meta, elId, {
+            uniformScale,
+            translationX: r.newOffsetX,
+            translationY: r.newOffsetY,
+        });
     }
     return guides;
 }
@@ -319,13 +345,13 @@ function updateAnchorDrag(
             baseBounds: meta.baseBounds,
             origAnchorX: meta.origAnchorX,
             origAnchorY: meta.origAnchorY,
-            origOffsetX: meta.origOffsetX,
-            origOffsetY: meta.origOffsetY,
-            origRotation: meta.origRotation,
+            origOffsetX: meta.origContentOffsetX,
+            origOffsetY: meta.origContentOffsetY,
+            origRotation: meta.origContentRotation,
             origSkewX: meta.origSkewX,
             origSkewY: meta.origSkewY,
-            origScaleX: meta.origScaleX,
-            origScaleY: meta.origScaleY,
+            origScaleX: meta.origContentScaleX,
+            origScaleY: meta.origContentScaleY,
             warp: meta.warp,
         },
         shiftKey
@@ -346,7 +372,7 @@ function updateRotateDrag(
 ) {
     if (!meta.bounds) return [];
     const newRotationRad = computeRotation(x, y, meta, shiftKey);
-    applyDragUpdate(meta, elId, { elementRotation: radiansToDegrees(newRotationRad) }, deps);
+    applyNodeDragUpdate(meta, elId, { rotation: newRotationRad });
     return [];
 }
 
@@ -417,6 +443,9 @@ function finalizeDrag(vis: any, deps: InteractionDeps) {
             ...meta.dragCommandOptionsBase,
             transient: false,
         });
+    }
+    if (draggingId && meta?.lastNodeTransform) {
+        applyNodeDragUpdate(meta, draggingId, meta.lastNodeTransform, false);
     }
     if (draggingId) {
         vis.setInteractionState({ draggingElementId: null, activeHandle: null, snapGuides: [] });

@@ -122,6 +122,7 @@ export function elementHitTest(boundsList: any[], x: number, y: number) {
     let hit: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
     for (let i = boundsList.length - 1; i >= 0; i--) {
         const b = boundsList[i];
+        if (b.effectiveLocked || b.effectiveVisible === false) continue;
         if (b.corners && b.corners.length === 4) {
             if (pointInPolygon(x, y, b.corners)) {
                 hit = b;

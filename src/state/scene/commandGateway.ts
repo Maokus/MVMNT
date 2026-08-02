@@ -14,13 +14,14 @@ import {
 import { createSceneElementInputFromSchema } from './storeElementFactory';
 import { ensureMacroSync, getMacroSnapshot, replaceMacrosFromSnapshot } from './macroSyncService';
 import { emitSceneCommandTelemetry } from './sceneTelemetry';
-import type { AutomationChannel, AutomationKeyframe, AutomationValueType } from '@automation/types';
+import type { AutomationKeyframe, AutomationValueType } from '@automation/types';
 import { createChannel, insertKeyframeSorted, makeChannelId, removeKeyframeAtTick } from '@automation/types';
 import { AutomationCurve } from '@automation/automation-curve';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
+import type { NodeTransform, SceneGraphState } from '@state/scene-graph';
 
 export type SceneCommand =
     | {
@@ -151,7 +152,11 @@ export type SceneCommand =
           type: 'batchUpdateKeyframes';
           channelId: string;
           keyframes: AutomationKeyframe[];
-      };
+      }
+    | { type: 'replaceGraph'; graph: SceneGraphState; expectedRevision?: number }
+    | { type: 'updateNodeTransform'; nodeId: string; transform: Partial<NodeTransform> }
+    | { type: 'setNodeVisibility'; nodeId: string; visible: boolean }
+    | { type: 'setNodeLocked'; nodeId: string; locked: boolean };
 
 export interface SceneCommandResult {
     success: boolean;
@@ -245,18 +250,12 @@ function bindingToConfigValue(binding: BindingState | undefined): unknown {
     return { type: 'constant', value: binding.value };
 }
 
-function buildConfigFromBindings(bindings: ElementBindings): Record<string, unknown> {
-    const config: Record<string, unknown> = {};
-    for (const [key, binding] of Object.entries(bindings)) {
-        config[key] = bindingToConfigValue(binding);
-    }
-    return config;
-}
-
 function captureSceneSnapshot(state: SceneStoreState): SceneImportPayload {
     const draft = state.exportSceneDraft();
     return {
         elements: draft.elementsOrder.map((id) => draft.elements[id]).filter(Boolean),
+        elementsOrder: draft.elementsOrder,
+        graph: draft.graph,
         sceneSettings: draft.sceneSettings,
         macros: draft.macros ?? null,
     };
@@ -269,72 +268,24 @@ function cloneCommand<T extends SceneCommand>(command: T): T {
 function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): SceneCommandPatch | null {
     switch (command.type) {
         case 'batch': {
-            const patches = command.commands
-                .map((child) => buildSceneCommandPatch(state, child))
-                .filter((patch): patch is SceneCommandPatch => patch !== null);
-            if (patches.length === 0) return null;
             return {
                 redo: [cloneCommand(command)],
-                undo: patches
-                    .slice()
-                    .reverse()
-                    .flatMap((patch) => patch.undo),
+                undo: [{ type: 'loadSerializedScene', payload: captureSceneSnapshot(state) }],
             };
         }
         case 'addElement': {
             if (state.elements[command.elementId]) return null;
             return {
                 redo: [cloneCommand(command)],
-                undo: [
-                    {
-                        type: 'removeElement',
-                        elementId: command.elementId,
-                    },
-                ],
+                undo: [{ type: 'loadSerializedScene', payload: captureSceneSnapshot(state) }],
             };
         }
         case 'removeElement': {
             const element = state.elements[command.elementId];
             if (!element) return null;
-            const bindings = state.bindings.byElement[command.elementId] ?? {};
-            const index = state.order.indexOf(command.elementId);
-
-            // Separate keyframe bindings from the rest — channels are deleted along with the element
-            // and must be restored explicitly via enablePropertyAutomation after re-adding the element.
-            const nonKeyframeBindings: ElementBindings = {};
-            const channelsToRestore: AutomationChannel[] = [];
-            for (const [key, binding] of Object.entries(bindings)) {
-                if (binding.type === 'keyframes') {
-                    const channel = state.automation.channels[binding.channelId];
-                    if (channel) channelsToRestore.push(channel);
-                } else {
-                    nonKeyframeBindings[key] = binding;
-                }
-            }
-
-            const config = buildConfigFromBindings(nonKeyframeBindings);
-            const undoCommands: SceneCommand[] = [
-                {
-                    type: 'addElement',
-                    elementType: element.type,
-                    elementId: element.id,
-                    config,
-                    targetIndex: index,
-                    createdAt: element.createdAt,
-                    createdBy: element.createdBy,
-                },
-                ...channelsToRestore.map((channel): SceneCommand => ({
-                    type: 'enablePropertyAutomation',
-                    elementId: channel.elementId,
-                    propertyKey: channel.propertyKey,
-                    valueType: channel.valueType,
-                    initialKeyframes: channel.keyframes.map((kf) => ({ ...kf })),
-                })),
-            ];
-
             return {
                 redo: [cloneCommand(command)],
-                undo: undoCommands,
+                undo: [{ type: 'loadSerializedScene', payload: captureSceneSnapshot(state) }],
             };
         }
         case 'updateElementConfig': {
@@ -368,13 +319,7 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
             if (command.targetIndex === currentIndex) return null;
             return {
                 redo: [cloneCommand(command)],
-                undo: [
-                    {
-                        type: 'moveElement',
-                        elementId: command.elementId,
-                        targetIndex: currentIndex,
-                    },
-                ],
+                undo: [{ type: 'loadSerializedScene', payload: captureSceneSnapshot(state) }],
             };
         }
         case 'duplicateElement': {
@@ -382,12 +327,7 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
             if (!source || state.elements[command.newId]) return null;
             return {
                 redo: [cloneCommand(command)],
-                undo: [
-                    {
-                        type: 'removeElement',
-                        elementId: command.newId,
-                    },
-                ],
+                undo: [{ type: 'loadSerializedScene', payload: captureSceneSnapshot(state) }],
             };
         }
         case 'updateElementId': {
@@ -395,13 +335,7 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
             if (!element || command.currentId === command.nextId) return null;
             return {
                 redo: [cloneCommand(command)],
-                undo: [
-                    {
-                        type: 'updateElementId',
-                        currentId: command.nextId,
-                        nextId: command.currentId,
-                    },
-                ],
+                undo: [{ type: 'loadSerializedScene', payload: captureSceneSnapshot(state) }],
             };
         }
         case 'clearScene': {
@@ -701,6 +635,15 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
                 ],
             };
         }
+        case 'replaceGraph':
+        case 'updateNodeTransform':
+        case 'setNodeVisibility':
+        case 'setNodeLocked': {
+            return {
+                redo: [cloneCommand(command)],
+                undo: [{ type: 'loadSerializedScene', payload: captureSceneSnapshot(state) }],
+            };
+        }
         default:
             return null;
     }
@@ -901,6 +844,23 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
             store.updateAutomationKeyframes(command.channelId, command.keyframes);
             break;
         }
+        case 'replaceGraph':
+            if (command.expectedRevision != null && store.graph.revision !== command.expectedRevision) {
+                throw new Error(
+                    `Scene command revision conflict: expected ${command.expectedRevision}, received ${store.graph.revision}`
+                );
+            }
+            store.replaceGraph(command.graph);
+            break;
+        case 'updateNodeTransform':
+            store.updateNodeTransform(command.nodeId, command.transform);
+            break;
+        case 'setNodeVisibility':
+            store.setNodeVisibility(command.nodeId, command.visible);
+            break;
+        case 'setNodeLocked':
+            store.setNodeLocked(command.nodeId, command.locked);
+            break;
         default:
             break;
     }
@@ -914,6 +874,7 @@ export function dispatchSceneCommand(command: SceneCommand, options?: SceneComma
     const start = now();
     ensureMacroSync();
     const store = useSceneStore.getState();
+    const snapshotBefore = command.type === 'batch' ? captureSceneSnapshot(store) : null;
     const patch = buildSceneCommandPatch(store, command);
 
     let result: SceneCommandResult;
@@ -926,6 +887,11 @@ export function dispatchSceneCommand(command: SceneCommand, options?: SceneComma
             patch,
         };
     } catch (error) {
+        if (command.type === 'batch') {
+            try {
+                if (snapshotBefore) useSceneStore.getState().importScene(snapshotBefore);
+            } catch {}
+        }
         const err = error instanceof Error ? error : new Error(String(error));
         result = {
             success: false,

@@ -22,6 +22,17 @@ import {
 } from '@persistence/migrations/removeSmoothingFromDescriptor';
 import { migrateSceneAudioSystemV5 } from '@persistence/migrations/audioSystemV5';
 import { useSelectionStore } from '@state/selectionStore';
+import {
+    buildSceneGraphIndexes,
+    cloneSceneGraph,
+    createFlatSceneGraph,
+    createNodeBase,
+    deriveElementOrder,
+    elementNodeId,
+    validateSceneGraph,
+    type NodeTransform,
+    type SceneGraphState,
+} from '@state/scene-graph';
 
 export type BindingState = ConstantBindingState | MacroBindingState | KeyframesBindingState;
 
@@ -226,6 +237,10 @@ export type SceneMutationSource =
     | 'updateFonts'
     | 'clearScene'
     | 'updateAutomation'
+    | 'replaceGraph'
+    | 'updateNodeTransform'
+    | 'setNodeVisibility'
+    | 'setNodeLocked'
     | 'importScene';
 
 export interface SceneBindingsState {
@@ -243,6 +258,7 @@ export interface SceneFontsState {
 export interface SceneStoreComputedExport {
     elements: Record<string, SceneSerializedElement>;
     elementsOrder: string[];
+    graph: SceneGraphState;
     elementErrors?: Array<{ id: string; type: string; message: string }>;
     sceneSettings: SceneSettingsState;
     macros?: SceneSerializedMacros;
@@ -273,6 +289,7 @@ export interface SceneMacroDefinition {
 export interface SceneImportPayload {
     elements?: SceneSerializedElement[] | Record<string, SceneSerializedElement>;
     elementsOrder?: string[];
+    graph?: SceneGraphState;
     sceneSettings?: Partial<SceneSettingsState> | null;
     macros?: SceneSerializedMacros | null;
     fontAssets?: Record<string, FontAsset> | null;
@@ -325,12 +342,19 @@ export interface SceneStoreActions {
     clearPropertyOverride: (channelId: string) => void;
     /** Clear all transient property overrides (called when playhead moves or playback starts). */
     clearAllPropertyOverrides: () => void;
+    replaceGraph: (graph: SceneGraphState) => void;
+    updateNodeTransform: (nodeId: string, transform: Partial<NodeTransform>) => void;
+    setNodeVisibility: (nodeId: string, visible: boolean) => void;
+    setNodeLocked: (nodeId: string, locked: boolean) => void;
 }
 
 export interface SceneStoreState extends SceneStoreActions {
     settings: SceneSettingsState;
     elements: Record<string, SceneElementRecord>;
     order: string[];
+    graph: SceneGraphState;
+    nodeIdByElementId: Record<string, string>;
+    elementIdByNodeId: Record<string, string>;
     bindings: SceneBindingsState;
     macros: SceneMacroState;
     fonts: SceneFontsState;
@@ -342,7 +366,7 @@ export interface SceneStoreState extends SceneStoreActions {
     propertyOverrides: Record<string, unknown>;
 }
 
-const SCENE_SCHEMA_VERSION = 5;
+const INTERNAL_SCENE_STORE_SCHEMA_VERSION = 6;
 
 export const DEFAULT_SCENE_SETTINGS: SceneSettingsState = {
     fps: 60,
@@ -666,7 +690,7 @@ function serializeElement(element: SceneElementRecord, bindings: ElementBindings
 function createRuntimeMeta(): SceneRuntimeMeta {
     const now = Date.now();
     return {
-        schemaVersion: SCENE_SCHEMA_VERSION,
+        schemaVersion: INTERNAL_SCENE_STORE_SCHEMA_VERSION,
         initializedAt: now,
         lastMutatedAt: now,
         persistentDirty: false,
@@ -864,6 +888,36 @@ function ordersEqual(a: string[], b: string[]): boolean {
     return true;
 }
 
+function graphIndexes(graph: SceneGraphState) {
+    return { graph, ...buildSceneGraphIndexes(graph), order: deriveElementOrder(graph) };
+}
+
+function graphWithInsertedElement(
+    graph: SceneGraphState,
+    elementId: string,
+    index: number,
+    name = elementId
+): SceneGraphState {
+    const next = cloneSceneGraph(graph);
+    const root = next.nodesById[next.rootId];
+    if (!root || root.kind !== 'root') throw new Error('SceneStore: graph root is invalid');
+    const nodeId = elementNodeId(elementId, new Set(Object.keys(next.nodesById)));
+    next.nodesById[nodeId] = { ...createNodeBase(nodeId, root.id, name), kind: 'element', elementId };
+    root.children.splice(normalizeIndex(index, root.children.length), 0, nodeId);
+    next.revision += 1;
+    return next;
+}
+
+function graphWithElementOrder(graph: SceneGraphState, order: readonly string[]): SceneGraphState {
+    const next = cloneSceneGraph(graph);
+    const root = next.nodesById[next.rootId];
+    if (!root || root.kind !== 'root') throw new Error('SceneStore: graph root is invalid');
+    const indexes = buildSceneGraphIndexes(next);
+    root.children = order.map((id) => indexes.nodeIdByElementId[id]).filter(Boolean);
+    next.revision += 1;
+    return next;
+}
+
 const createSceneStoreState = (
     set: (
         partial: Partial<SceneStoreState> | ((state: SceneStoreState) => Partial<SceneStoreState>),
@@ -873,7 +927,7 @@ const createSceneStoreState = (
 ): SceneStoreState => ({
     settings: { ...DEFAULT_SCENE_SETTINGS },
     elements: {},
-    order: [],
+    ...graphIndexes(createFlatSceneGraph([])),
     bindings: createEmptyBindingsState(),
     macros: { byId: {}, allIds: [], exportedAt: undefined },
     fonts: { assets: {}, order: [], totalBytes: 0, licensingAcknowledgedAt: undefined },
@@ -906,11 +960,12 @@ const createSceneStoreState = (
                 byElement: nextByElement,
                 byMacro: rebuildMacroIndex(nextByElement),
             };
+            const nextGraph = graphWithInsertedElement(state.graph, element.id, insertionIndex);
 
             return {
                 ...state,
                 elements: nextElements,
-                order: nextOrder,
+                ...graphIndexes(nextGraph),
                 bindings: nextBindings,
                 runtimeMeta: markDirty(state, 'addElement'),
             };
@@ -960,10 +1015,11 @@ const createSceneStoreState = (
                       byMacro: rebuildMacroIndex(nextByElement!),
                   }
                 : state.bindings;
+            const nextGraph = graphWithElementOrder(state.graph, nextOrder);
 
             return {
                 ...state,
-                order: nextOrder,
+                ...graphIndexes(nextGraph),
                 bindings: bindingsState,
                 runtimeMeta: markDirty(state, 'moveElement'),
             };
@@ -1001,6 +1057,7 @@ const createSceneStoreState = (
                 byElement: nextByElement,
                 byMacro: rebuildMacroIndex(nextByElement),
             };
+            const nextGraph = graphWithInsertedElement(state.graph, element.id, boundedIndex);
 
             // Clone automation channels for the duplicated element
             const nextAutomation = { ...state.automation, channels: { ...state.automation.channels } };
@@ -1027,7 +1084,7 @@ const createSceneStoreState = (
             return {
                 ...state,
                 elements: nextElements,
-                order: nextOrder,
+                ...graphIndexes(nextGraph),
                 bindings: nextBindings,
                 automation: nextAutomation,
                 runtimeMeta: markDirty(state, 'duplicateElement'),
@@ -1054,11 +1111,20 @@ const createSceneStoreState = (
                     delete nextChannels[channelId];
                 }
             }
+            const nextGraph = cloneSceneGraph(state.graph);
+            const nodeId = state.nodeIdByElementId[elementId];
+            const node = nodeId ? nextGraph.nodesById[nodeId] : undefined;
+            if (node?.parentId) {
+                const parent = nextGraph.nodesById[node.parentId];
+                if (parent && 'children' in parent) parent.children = parent.children.filter((id) => id !== nodeId);
+                delete nextGraph.nodesById[nodeId];
+                nextGraph.revision += 1;
+            }
 
             return {
                 ...state,
                 elements: remaining,
-                order: nextOrder,
+                ...graphIndexes(nextGraph),
                 bindings: nextBindings,
                 automation: { channels: nextChannels },
                 interaction: {
@@ -1134,11 +1200,19 @@ const createSceneStoreState = (
                 editingElementId:
                     state.interaction.editingElementId === currentId ? nextId : state.interaction.editingElementId,
             };
+            const nextGraph = cloneSceneGraph(state.graph);
+            const nodeId = state.nodeIdByElementId[currentId];
+            const node = nodeId ? nextGraph.nodesById[nodeId] : undefined;
+            if (node?.kind === 'element') {
+                node.elementId = nextId;
+                if (node.name === currentId) node.name = nextId;
+                nextGraph.revision += 1;
+            }
 
             return {
                 ...state,
                 elements: nextElements,
-                order: nextOrder,
+                ...graphIndexes(nextGraph),
                 bindings: nextBindings,
                 automation: { channels: nextChannels },
                 interaction: nextInteraction,
@@ -1309,9 +1383,13 @@ const createSceneStoreState = (
                 byMacro: rebuildMacroIndex(nextByElement),
             };
 
+            const nextGraph =
+                zIndexChanged && !ordersEqual(reordered, state.order)
+                    ? graphWithElementOrder(state.graph, reordered)
+                    : state.graph;
             return {
                 ...state,
-                order: zIndexChanged && !ordersEqual(reordered, state.order) ? reordered : state.order,
+                ...(nextGraph === state.graph ? {} : graphIndexes(nextGraph)),
                 bindings: nextBindings,
                 automation: nextAutomation,
                 runtimeMeta: markDirty(state, 'updateBindings'),
@@ -1624,11 +1702,12 @@ const createSceneStoreState = (
     },
 
     clearScene: () => {
+        const emptyGraph = createFlatSceneGraph([]);
         set((state) => ({
             ...state,
             settings: { ...DEFAULT_SCENE_SETTINGS },
             elements: {},
-            order: [],
+            ...graphIndexes(emptyGraph),
             bindings: createEmptyBindingsState(),
             macros: { byId: {}, allIds: [], exportedAt: undefined },
             fonts: { assets: {}, order: [], totalBytes: 0, licensingAcknowledgedAt: undefined },
@@ -1675,7 +1754,13 @@ const createSceneStoreState = (
                 nextByElement[el.id] = deserializeElementBindings(el);
             }
 
-            const sortedOrder = sortElementIdsByZIndex(nextOrder, nextByElement);
+            const incomingGraph = migratedPayload.graph ?? createFlatSceneGraph(nextOrder);
+            const graphValidation = validateSceneGraph(incomingGraph, Object.keys(nextElements));
+            if (!graphValidation.ok) {
+                throw new Error(`SceneStore.importScene: invalid scene graph (${graphValidation.errors[0]?.message})`);
+            }
+            const nextGraph = cloneSceneGraph(incomingGraph);
+            const derivedOrder = deriveElementOrder(nextGraph);
 
             const nextBindings: SceneBindingsState = {
                 byElement: nextByElement,
@@ -1707,7 +1792,7 @@ const createSceneStoreState = (
                 ...state,
                 settings: nextSettings,
                 elements: nextElements,
-                order: sortedOrder,
+                ...graphIndexes(nextGraph),
                 bindings: nextBindings,
                 macros: buildMacroState(migratedPayload.macros),
                 fonts: {
@@ -1759,6 +1844,7 @@ const createSceneStoreState = (
         return {
             elements,
             elementsOrder,
+            graph: cloneSceneGraph(state.graph),
             ...(elementErrors.length > 0 ? { elementErrors } : {}),
             sceneSettings: { ...state.settings },
             macros: buildMacroPayload(state.macros),
@@ -1787,6 +1873,93 @@ const createSceneStoreState = (
             macros: buildMacroState(payload),
             runtimeMeta: markDirty(state, 'updateMacros'),
         }));
+    },
+
+    replaceGraph: (graph) => {
+        set((state) => {
+            const validation = validateSceneGraph(graph, Object.keys(state.elements));
+            if (!validation.ok) {
+                throw new Error(`SceneStore.replaceGraph: ${validation.errors[0]?.message ?? 'invalid graph'}`);
+            }
+            const next = cloneSceneGraph(graph);
+            next.revision = Math.max(state.graph.revision + 1, next.revision);
+            return { ...state, ...graphIndexes(next), runtimeMeta: markDirty(state, 'replaceGraph') };
+        });
+    },
+
+    updateNodeTransform: (nodeId, transform) => {
+        set((state) => {
+            const current = state.graph.nodesById[nodeId];
+            if (!current || current.kind === 'root') return state;
+            const userNodeTransform = { ...current.userNodeTransform, ...transform };
+            if (Object.values(userNodeTransform).some((value) => !Number.isFinite(value))) {
+                throw new Error('SceneStore.updateNodeTransform: transform values must be finite');
+            }
+            const graph = cloneSceneGraph(state.graph);
+            graph.nodesById[nodeId] = { ...graph.nodesById[nodeId], userNodeTransform } as typeof current;
+            graph.revision += 1;
+            return { ...state, ...graphIndexes(graph), runtimeMeta: markDirty(state, 'updateNodeTransform') };
+        });
+    },
+
+    setNodeVisibility: (nodeId, visible) => {
+        set((state) => {
+            const current = state.graph.nodesById[nodeId];
+            if (!current || current.kind === 'root' || current.localVisible === visible) return state;
+            const graph = cloneSceneGraph(state.graph);
+            graph.nodesById[nodeId] = { ...graph.nodesById[nodeId], localVisible: visible } as typeof current;
+            graph.revision += 1;
+            const elementId = current.kind === 'element' ? current.elementId : null;
+            return {
+                ...state,
+                ...graphIndexes(graph),
+                interaction:
+                    !visible && elementId
+                        ? {
+                              ...state.interaction,
+                              hoveredElementId:
+                                  state.interaction.hoveredElementId === elementId
+                                      ? null
+                                      : state.interaction.hoveredElementId,
+                              editingElementId:
+                                  state.interaction.editingElementId === elementId
+                                      ? null
+                                      : state.interaction.editingElementId,
+                          }
+                        : state.interaction,
+                runtimeMeta: markDirty(state, 'setNodeVisibility'),
+            };
+        });
+    },
+
+    setNodeLocked: (nodeId, locked) => {
+        set((state) => {
+            const current = state.graph.nodesById[nodeId];
+            if (!current || current.kind === 'root' || current.localLocked === locked) return state;
+            const graph = cloneSceneGraph(state.graph);
+            graph.nodesById[nodeId] = { ...graph.nodesById[nodeId], localLocked: locked } as typeof current;
+            graph.revision += 1;
+            const elementId = current.kind === 'element' ? current.elementId : null;
+            return {
+                ...state,
+                ...graphIndexes(graph),
+                interaction:
+                    locked && elementId
+                        ? {
+                              ...state.interaction,
+                              hoveredElementId:
+                                  state.interaction.hoveredElementId === elementId
+                                      ? null
+                                      : state.interaction.hoveredElementId,
+                              editingElementId:
+                                  state.interaction.editingElementId === elementId
+                                      ? null
+                                      : state.interaction.editingElementId,
+                          }
+                        : state.interaction,
+                runtimeMeta: markDirty(state, 'setNodeLocked'),
+            };
+        });
     },
 
     setInteractionState: (patch) => {

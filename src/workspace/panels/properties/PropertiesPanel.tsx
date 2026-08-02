@@ -5,6 +5,7 @@ import { useSceneSelection } from '@context/SceneSelectionContext';
 import type { ElementBindings } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
 import type { DebugSettings } from '@context/visualizer/types';
+import { NodeTransformPanel } from './NodeTransformPanel';
 
 interface SelectedElementProps {
     id: string;
@@ -37,14 +38,18 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {
     // Show ElementPropertiesPanel when an element is selected, otherwise show GlobalPropertiesPanel
     if (element && schema) {
         return (
-            <ElementPropertiesPanel
-                elementId={element.id}
-                elementType={element.type}
-                schema={schema}
-                bindings={element.bindings}
-                onConfigChange={onConfigChange}
-                refreshToken={refreshToken}
-            />
+            <>
+                <NodeTransformPanel elementId={element.id} />
+                <div className="content-transform-label">Content properties (element/plugin)</div>
+                <ElementPropertiesPanel
+                    elementId={element.id}
+                    elementType={element.type}
+                    schema={schema}
+                    bindings={element.bindings}
+                    onConfigChange={onConfigChange}
+                    refreshToken={refreshToken}
+                />
+            </>
         );
     }
 

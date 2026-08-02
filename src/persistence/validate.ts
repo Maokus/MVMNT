@@ -8,7 +8,9 @@
  *  - Range checks for rowHeight (if present) & globalBpm > 0
  */
 
-export const CURRENT_SCHEMA_VERSION = 11;
+import { validateSceneGraph, type SceneGraphState } from '@state/scene-graph';
+
+export const CURRENT_SCHEMA_VERSION = 12;
 
 /**
  * Maps schema version to the minimum app version required to open files at that version.
@@ -26,6 +28,7 @@ export const SCHEMA_TO_MIN_APP_VERSION: Record<number, string> = {
     9: '0.15.5',
     10: '0.16.0',
     11: '0.16.0',
+    12: '0.17.0',
 };
 
 export type ValidationErrorCode =
@@ -40,6 +43,7 @@ export type ValidationErrorCode =
     | 'ERR_SCENE_MISSING'
     | 'ERR_SCENE_ELEMENTS_TYPE'
     | 'ERR_SCENE_ELEMENTS_ORDER_TYPE'
+    | 'ERR_SCENE_GRAPH'
     | 'ERR_DUP_ELEMENT_ID'
     | 'ERR_TIMELINE_MISSING'
     | 'ERR_TIMELINE_CORE_MISSING'
@@ -109,6 +113,34 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
     }
     if (!root.scene || typeof root.scene !== 'object') {
         errors.push(err('ERR_SCENE_MISSING', 'Missing scene object', 'scene'));
+    } else if (schemaVersion === 12) {
+        if (
+            typeof root.scene.elements !== 'object' ||
+            root.scene.elements === null ||
+            Array.isArray(root.scene.elements)
+        ) {
+            errors.push(err('ERR_SCENE_ELEMENTS_TYPE', 'scene.elements must be an object', 'scene.elements'));
+        } else {
+            const validation = validateSceneGraph(
+                root.scene.graph as SceneGraphState,
+                Object.keys(root.scene.elements),
+                true
+            );
+            for (const graphError of validation.errors) {
+                errors.push(
+                    err('ERR_SCENE_GRAPH', graphError.message, `scene.graph.nodesById.${graphError.nodeId ?? ''}`)
+                );
+            }
+        }
+        if ('elementsOrder' in root.scene && root.scene.elementsOrder !== undefined) {
+            errors.push(
+                err(
+                    'ERR_SCENE_ELEMENTS_ORDER_TYPE',
+                    'scene.elementsOrder is not allowed in schema v12',
+                    'scene.elementsOrder'
+                )
+            );
+        }
     } else if (
         schemaVersion === 6 ||
         schemaVersion === 7 ||
@@ -275,7 +307,8 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
         schemaVersion === 8 ||
         schemaVersion === 9 ||
         schemaVersion === 10 ||
-        schemaVersion === 11
+        schemaVersion === 11 ||
+        schemaVersion === 12
     ) {
         if (!root.assets || typeof root.assets !== 'object') {
             errors.push(err('ERR_ASSETS_MISSING', 'Missing assets block', 'assets'));

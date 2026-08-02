@@ -381,64 +381,59 @@ export class MIDIVisualizerCore {
         if (changed) this.invalidateRender();
     }
     getElementBoundsAtTime(targetTime = this.currentTime) {
-        const config = this.getSceneConfig();
-        const elements = this._getSceneElements().filter((e: any) => e.visible);
-        elements.sort((a: any, b: any) => (a.zIndex || 0) - (b.zIndex || 0));
-        const results: any[] = [];
-        for (const el of elements) {
-            try {
-                const ros: any[] = el.buildRenderObjects(config, targetTime);
-                if (ros && ros.length) {
-                    const container: any = ros[0];
-                    if (container?.getVisualBounds) {
-                        const b = container.getVisualBounds();
-                        if (b && isFinite(b.x) && isFinite(b.y) && isFinite(b.width) && isFinite(b.height)) {
-                            const corners = container._worldCorners
-                                ? container._worldCorners.map((p: any) => ({ x: p.x, y: p.y }))
-                                : null;
-                            const baseBounds = container.baseBounds
-                                ? {
-                                      x: container.baseBounds.x,
-                                      y: container.baseBounds.y,
-                                      width: container.baseBounds.width,
-                                      height: container.baseBounds.height,
-                                  }
-                                : null;
-                            results.push({
-                                id: el.id,
-                                zIndex: el.zIndex || 0,
-                                bounds: { ...b },
-                                element: el,
-                                corners,
-                                baseBounds,
-                                isPerspective:
-                                    container instanceof PerspectiveElementRoot && Boolean(container.warpMatrix),
-                                warp: container instanceof PerspectiveElementRoot ? container.perspectiveWarp : null,
-                                affineTransform:
-                                    container instanceof PerspectiveElementRoot ? container.getAffineTransform() : null,
-                                projectedAnchor:
-                                    container instanceof PerspectiveElementRoot
-                                        ? container.projectNormalizedPoint({
-                                              x: el.anchorX ?? 0.5,
-                                              y: el.anchorY ?? 0.5,
-                                          })
-                                        : null,
-                                projectedHandlePoints:
-                                    container instanceof PerspectiveElementRoot
-                                        ? {
-                                              MTop: container.projectNormalizedPoint({ x: 0.5, y: 0 }),
-                                              MRight: container.projectNormalizedPoint({ x: 1, y: 0.5 }),
-                                              MBottom: container.projectNormalizedPoint({ x: 0.5, y: 1 }),
-                                              MLeft: container.projectNormalizedPoint({ x: 0, y: 0.5 }),
-                                          }
-                                        : null,
-                            });
-                        }
-                    }
-                }
-            } catch {}
+        if (!this.runtimeAdapter?.resolveFrame) {
+            const config = this.getSceneConfig();
+            return (this._getSceneElements?.() ?? []).flatMap((element: any) => {
+                if (!element.visible) return [];
+                const payload = element.buildRenderObjects(config, targetTime)?.[0];
+                const bounds = payload?.getVisualBounds?.() ?? payload?.getBounds?.();
+                return bounds
+                    ? [
+                          {
+                              id: element.id,
+                              zIndex: element.zIndex ?? 0,
+                              bounds,
+                              element,
+                              corners: payload._worldCorners ?? null,
+                          },
+                      ]
+                    : [];
+            });
         }
-        return results;
+        const frame = this.runtimeAdapter.resolveFrame(this.getSceneConfig(), targetTime);
+        return frame.elements.flatMap((record) => {
+            const el: any = record.element;
+            const container: any = record.renderObjects[0];
+            const b = record.artworkBounds;
+            if (!el || !container || !b) return [];
+            const perspective = container instanceof PerspectiveElementRoot ? container : null;
+            return [
+                {
+                    id: record.elementId,
+                    nodeId: record.node.id,
+                    zIndex: record.paintIndex,
+                    bounds: { ...b },
+                    element: el,
+                    corners: record.artworkHull ?? null,
+                    baseBounds: container.baseBounds ? { ...container.baseBounds } : null,
+                    effectiveVisible: record.effectiveVisible,
+                    effectiveLocked: record.effectiveLocked,
+                    isPerspective: Boolean(perspective?.warpMatrix),
+                    warp: perspective?.perspectiveWarp ?? null,
+                    affineTransform: perspective?.getAffineTransform() ?? null,
+                    projectedAnchor:
+                        perspective?.projectNormalizedPoint({ x: el.anchorX ?? 0.5, y: el.anchorY ?? 0.5 }) ?? null,
+                    projectedHandlePoints: perspective
+                        ? {
+                              MTop: perspective.projectNormalizedPoint({ x: 0.5, y: 0 }),
+                              MRight: perspective.projectNormalizedPoint({ x: 1, y: 0.5 }),
+                              MBottom: perspective.projectNormalizedPoint({ x: 0.5, y: 1 }),
+                              MLeft: perspective.projectNormalizedPoint({ x: 0, y: 0.5 }),
+                          }
+                        : null,
+                },
+            ];
+        });
     }
     _renderInteractionOverlays(targetTime: number, config: any) {
         if (!this._interactionState) return;
@@ -566,7 +561,7 @@ export class MIDIVisualizerCore {
         if (!elementId) return [];
         const boundsList = this.getElementBoundsAtTime(targetTime);
         const record: any = boundsList.find((b) => b.id === elementId);
-        if (!record) return [];
+        if (!record || record.effectiveLocked || record.effectiveVisible === false) return [];
         const b = record.bounds;
         const element = record.element;
         const handles: any[] = [];

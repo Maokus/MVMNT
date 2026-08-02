@@ -35,7 +35,7 @@ describe('scene command gateway', () => {
 
         expect(result.success).toBe(true);
         expect(result.patch?.redo[0]).toMatchObject({ type: 'addElement', elementId: 'element-1' });
-        expect(result.patch?.undo[0]).toMatchObject({ type: 'removeElement', elementId: 'element-1' });
+        expect(result.patch?.undo[0]).toMatchObject({ type: 'loadSerializedScene' });
         const store = useSceneStore.getState();
         expect(store.order).toEqual(['element-1']);
         expect(store.bindings.byElement['element-1'].text).toEqual({ type: 'constant', value: 'Hello' });
@@ -60,7 +60,7 @@ describe('scene command gateway', () => {
         expect(state.bindings.byElement['element-2'].visible).toEqual({ type: 'constant', value: false });
     });
 
-    it('applies a batch as one command and produces undo commands for every child', () => {
+    it('applies a batch atomically and captures one exact snapshot for undo', () => {
         dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'batch-element' });
         const result = dispatchSceneCommand({
             type: 'batch',
@@ -72,11 +72,26 @@ describe('scene command gateway', () => {
         expect(result.success).toBe(true);
         expect(result.patch?.redo).toHaveLength(1);
         expect(result.patch?.redo[0]).toMatchObject({ type: 'batch' });
-        expect(result.patch?.undo).toHaveLength(2);
+        expect(result.patch?.undo).toHaveLength(1);
+        expect(result.patch?.undo[0]).toMatchObject({ type: 'loadSerializedScene' });
         expect(useSceneStore.getState().bindings.byElement['batch-element']).toMatchObject({
             offsetX: { type: 'constant', value: 12 },
             offsetY: { type: 'constant', value: 24 },
         });
+    });
+
+    it('rolls back every persistent change when a batch child fails', () => {
+        dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'atomic-element' });
+        const before = useSceneStore.getState().exportSceneDraft();
+        const result = dispatchSceneCommand({
+            type: 'batch',
+            commands: [
+                { type: 'updateElementConfig', elementId: 'atomic-element', patch: { offsetX: 99 } },
+                { type: 'updateElementConfig', elementId: 'missing-element', patch: { offsetY: 10 } },
+            ],
+        });
+        expect(result.success).toBe(false);
+        expect(useSceneStore.getState().exportSceneDraft()).toEqual(before);
     });
 
     it('removes elements and clears store state', () => {

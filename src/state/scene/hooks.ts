@@ -102,3 +102,11 @@ export function useSceneElementRecord(elementId: string | null) {
         (a, b) => a === b
     );
 }
+
+export function useSceneGraphRevision(): number {
+    return useSceneStore((state) => state.graph.revision);
+}
+
+export function useSceneNodeId(elementId: string | null): string | null {
+    return useSceneStore((state) => (elementId ? (state.nodeIdByElementId[elementId] ?? null) : null));
+}
