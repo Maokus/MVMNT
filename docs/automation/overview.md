@@ -137,7 +137,8 @@ Path alias `@automation/*` resolves to `src/automation/` (configured in `tsconfi
 
 **Adding a new automatable property type:** The `valueType` field on `AutomationChannel` controls how the curve evaluator interpolates. Currently supported: `'number'`, `'color'`, `'boolean'`. Adding `'vector'` or `'string'` would require a new interpolation branch in `automation-curve.ts`.
 
-**Channel ID collisions:** Shared channel IDs are a distinct concept from per-property channels. Always use `makeChannelId` / `parseChannelId` factory helpers rather than constructing IDs by hand.
+**Channel identity:** Channel IDs are opaque and never encode ownership. Create channels with `createChannel(target,
+valueType)` and use `channelIdForTarget()` or `channelForTarget()` for lookup. Read ownership from `channel.target`.
 
 **Undo coalescing:** Drag interactions must pass a `mergeKey` to `moveKeyframe` or `updateKeyframe` to avoid flooding the undo stack. Use the pattern `kf-drag:${channelId}:${sessionId}` where `sessionId` is a stable ID for the current pointer-down session.
 

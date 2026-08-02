@@ -12,7 +12,7 @@ export const background = definePluginElement<BackgroundProps, undefined>({
     type: 'background',
     metadata: { name: 'Background', description: 'Solid background color for the visualization', category: 'Misc' },
     schema: {
-        defaultConfig: { anchorX: 0, anchorY: 0, offsetX: 0, offsetY: 0, zIndex: -1000 },
+        defaultConfig: { anchorX: 0, anchorY: 0, offsetX: 0, offsetY: 0 },
         tabs: [
             {
                 id: 'appearance',

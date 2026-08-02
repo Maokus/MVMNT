@@ -8,7 +8,8 @@ import {
 import { loadDefaultScene } from '@core/default-scene-loader';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
-import { nodePropertyTarget } from '@automation/types';
+import { deriveElementOrder } from '@state/scene-graph';
+import { elementPropertyTarget, nodePropertyTarget } from '@automation/types';
 
 function resetState() {
     useSceneStore.getState().clearScene();
@@ -38,7 +39,7 @@ describe('scene command gateway', () => {
         expect(result.patch?.redo[0]).toMatchObject({ type: 'addElement', elementId: 'element-1' });
         expect(result.patch?.undo[0]).toMatchObject({ type: 'loadSerializedScene' });
         const store = useSceneStore.getState();
-        expect(store.order).toEqual(['element-1']);
+        expect(deriveElementOrder(store.graph)).toEqual(['element-1']);
         expect(store.bindings.byElement['element-1'].text).toEqual({ type: 'constant', value: 'Hello' });
     });
 
@@ -107,7 +108,7 @@ describe('scene command gateway', () => {
 
         expect(removeResult.success).toBe(true);
         const store = useSceneStore.getState();
-        expect(store.order).toHaveLength(0);
+        expect(deriveElementOrder(store.graph)).toHaveLength(0);
         expect(store.elements['element-3']).toBeUndefined();
     });
 
@@ -121,7 +122,7 @@ describe('scene command gateway', () => {
 
         expect(result.success).toBe(true);
         const store = useSceneStore.getState();
-        expect(store.order).toContain('store-only');
+        expect(deriveElementOrder(store.graph)).toContain('store-only');
         expect(store.bindings.byElement['store-only'].text).toEqual({
             type: 'constant',
             value: 'Store Only',
@@ -272,8 +273,7 @@ describe('scene command gateway', () => {
         dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'original-b' });
         dispatchSceneCommand({
             type: 'enablePropertyAutomation',
-            elementId: 'original-a',
-            propertyKey: 'offsetX',
+            target: elementPropertyTarget('original-a', 'offsetX'),
             valueType: 'number',
             initialKeyframes: [{ tick: 0, value: 12, segmentInterpolation: { mode: 'linear', direction: 'auto' } }],
         });

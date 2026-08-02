@@ -135,32 +135,12 @@ export interface SceneExportEnvelopeV7 extends Omit<SceneExportEnvelopeV6, 'sche
     schemaVersion: 7;
 }
 
-export interface SceneExportEnvelopeV8 extends Omit<SceneExportEnvelopeV6, 'schemaVersion'> {
+export interface SceneExportEnvelopeV8 extends Omit<SceneExportEnvelopeV6, 'schemaVersion' | 'scene'> {
     schemaVersion: 8;
-}
-
-export interface SceneExportEnvelopeV9 extends Omit<SceneExportEnvelopeV6, 'schemaVersion'> {
-    schemaVersion: 9;
-}
-
-export interface SceneExportEnvelopeV10 extends Omit<SceneExportEnvelopeV6, 'schemaVersion'> {
-    schemaVersion: 10;
-}
-
-export interface SceneExportEnvelopeV11 extends Omit<SceneExportEnvelopeV6, 'schemaVersion'> {
-    schemaVersion: 11;
-}
-
-export interface SceneExportEnvelopeV12 extends Omit<SceneExportEnvelopeV6, 'schemaVersion' | 'scene'> {
-    schemaVersion: 12;
     scene: Omit<SceneExportEnvelopeV6['scene'], 'elementsOrder'> & {
         graph: import('@state/scene-graph').SceneGraphState;
+        nodeBindings?: any;
     };
-}
-
-export interface SceneExportEnvelopeV13 extends Omit<SceneExportEnvelopeV12, 'schemaVersion' | 'scene'> {
-    schemaVersion: 13;
-    scene: SceneExportEnvelopeV12['scene'] & { nodeBindings?: any };
 }
 
 export type SceneExportEnvelope =
@@ -169,12 +149,7 @@ export type SceneExportEnvelope =
     | SceneExportEnvelopeV5
     | SceneExportEnvelopeV6
     | SceneExportEnvelopeV7
-    | SceneExportEnvelopeV8
-    | SceneExportEnvelopeV9
-    | SceneExportEnvelopeV10
-    | SceneExportEnvelopeV11
-    | SceneExportEnvelopeV12
-    | SceneExportEnvelopeV13;
+    | SceneExportEnvelopeV8;
 
 interface AudioFeatureCacheAssetReference {
     assetId: string;
@@ -197,7 +172,7 @@ interface ExportResultBase {
 export interface ExportSceneResultZip extends ExportResultBase {
     ok: true;
     mode: 'zip-package';
-    envelope: SceneExportEnvelopeV13;
+    envelope: SceneExportEnvelopeV8;
     zip: Uint8Array<ArrayBuffer>;
     blob?: Blob;
 }
@@ -872,7 +847,7 @@ export async function exportScene(
         }
     }
 
-    const envelope: SceneExportEnvelopeV13 = {
+    const envelope: SceneExportEnvelopeV8 = {
         schemaVersion: CURRENT_SCHEMA_VERSION,
         format: 'mvmnt.scene',
         metadata,

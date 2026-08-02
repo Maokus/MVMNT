@@ -3,7 +3,7 @@ import { exportScene, importScene } from '@persistence/index';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneStore } from '@state/sceneStore';
 import { dispatchSceneCommand } from '@state/scene';
-import { createKeyframe } from '@automation/types';
+import { createKeyframe, elementPropertyTarget } from '@automation/types';
 
 describe('Scene element + macro persistence', () => {
     beforeEach(() => {
@@ -107,8 +107,7 @@ describe('Scene element + macro persistence', () => {
 
         dispatchSceneCommand({
             type: 'enablePropertyAutomation',
-            elementId: 'el1',
-            propertyKey: 'offsetX',
+            target: elementPropertyTarget('el1', 'offsetX'),
             valueType: 'number',
             initialKeyframes: [createKeyframe(0, 0)],
         });

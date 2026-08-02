@@ -7,6 +7,7 @@ import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useScene } from '@context/SceneContext';
 import { useSceneStore } from '@state/sceneStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
+import { deriveElementOrder } from '@state/scene-graph';
 import SceneFontManager from '../scene-settings/SceneFontManager';
 import SceneAnalysisCachesTab from '../scene-settings/SceneAnalysisCachesTab';
 import ScenePluginsTab from '../scene-settings/ScenePluginsTab';
@@ -147,11 +148,12 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
         if (newWidth === oldWidth && newHeight === oldHeight) return;
 
         const mergeKey = `resize-elements-${Date.now()}`;
+        const sceneState = useSceneStore.getState();
         const {
             bindings: { byElement },
-            order,
             automation,
-        } = useSceneStore.getState();
+        } = sceneState;
+        const order = deriveElementOrder(sceneState.graph);
         const wRatio = newWidth / oldWidth;
         const hRatio = newHeight / oldHeight;
         const dw = newWidth - oldWidth;

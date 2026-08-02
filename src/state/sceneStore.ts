@@ -34,7 +34,7 @@ import {
     stripDescriptorSmoothing,
 } from '@persistence/migrations/removeSmoothingFromDescriptor';
 import { migrateSceneAudioSystemV5 } from '@persistence/migrations/audioSystemV5';
-import { useSelectionStore } from '@state/selectionStore';
+import { setSelectionChannelTargetResolver, useSelectionStore } from '@state/selectionStore';
 import {
     buildSceneGraphIndexes,
     cloneSceneGraph,
@@ -201,7 +201,6 @@ export interface SceneElementRecord {
 export interface SceneInteractionState {
     hoveredElementId: string | null;
     editingElementId: string | null;
-    clipboard: SceneClipboard | null;
     /** Element IDs expanded in the timeline automation section. */
     automationExpandedElements: string[];
     /** Channel IDs with curve editor pane open. */
@@ -213,11 +212,6 @@ export interface SceneInteractionState {
     /** Active property tab per element in the properties panel, keyed by elementId. */
     activePropertyTab: Record<string, string>;
     propertyClipboard: PropertyClipboard | null;
-}
-
-export interface SceneClipboard {
-    exportedAt: number;
-    elementIds: string[];
 }
 
 export interface PropertyClipboard {
@@ -274,7 +268,6 @@ export interface SceneFontsState {
 
 export interface SceneStoreComputedExport {
     elements: Record<string, SceneSerializedElement>;
-    elementsOrder: string[];
     graph: SceneGraphState;
     elementErrors?: Array<{ id: string; type: string; message: string }>;
     sceneSettings: SceneSettingsState;
@@ -373,7 +366,6 @@ export interface SceneStoreActions {
 export interface SceneStoreState extends SceneStoreActions {
     settings: SceneSettingsState;
     elements: Record<string, SceneElementRecord>;
-    order: string[];
     graph: SceneGraphState;
     nodeIdByElementId: Record<string, string>;
     elementIdByNodeId: Record<string, string>;
@@ -404,7 +396,6 @@ function createInitialInteractionState(): SceneInteractionState {
     return {
         hoveredElementId: null,
         editingElementId: null,
-        clipboard: null,
         automationExpandedElements: [],
         automationExpandedCurves: [],
         automationSearchQuery: '',
@@ -467,6 +458,7 @@ function cloneBindingsMap(bindings: ElementBindings, elementType?: string): Elem
     const result: ElementBindings = {};
     let migratedSmoothing: number | null = null;
     for (const [key, binding] of Object.entries(bindings)) {
+        if (key === 'zIndex') continue;
         if (binding.type === 'constant' && key === 'features') {
             const value = binding.value;
             if (Array.isArray(value)) {
@@ -723,6 +715,7 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
 function serializeElement(element: SceneElementRecord, bindings: ElementBindings): SceneSerializedElement {
     const properties: Record<string, PropertyBindingData> = {};
     for (const [key, binding] of Object.entries(bindings)) {
+        if (key === 'zIndex') continue;
         if (binding.type === 'constant') {
             properties[key] = { type: 'constant', value: binding.value } satisfies PropertyBindingData;
         } else if (binding.type === 'macro') {
@@ -909,38 +902,8 @@ function normalizeIndex(targetIndex: number, size: number): number {
     return Math.floor(targetIndex);
 }
 
-function readZIndexValue(binding: BindingState | undefined): number | null {
-    if (!binding || binding.type !== 'constant') return null;
-    const value = typeof binding.value === 'number' ? binding.value : Number(binding.value);
-    return Number.isFinite(value) ? value : null;
-}
-
-function sortElementIdsByZIndex(order: string[], byElement: Record<string, ElementBindings>): string[] {
-    const enriched = order.map((id, index) => ({
-        id,
-        z: readZIndexValue(byElement[id]?.zIndex) ?? Number.NEGATIVE_INFINITY,
-        index,
-    }));
-
-    enriched.sort((a, b) => {
-        if (a.z === b.z) return a.index - b.index;
-        return b.z - a.z;
-    });
-
-    return enriched.map((entry) => entry.id);
-}
-
-function ordersEqual(a: string[], b: string[]): boolean {
-    if (a === b) return true;
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i += 1) {
-        if (a[i] !== b[i]) return false;
-    }
-    return true;
-}
-
 function graphIndexes(graph: SceneGraphState) {
-    return { graph, ...buildSceneGraphIndexes(graph), order: deriveElementOrder(graph) };
+    return { graph, ...buildSceneGraphIndexes(graph) };
 }
 
 function graphWithInsertedElement(
@@ -1002,7 +965,7 @@ const createSceneStoreState = (
             };
 
             const nextElements = { ...state.elements, [element.id]: element };
-            const nextOrder = [...state.order];
+            const nextOrder = [...deriveElementOrder(state.graph)];
             const insertionIndex = normalizeIndex(input.index ?? nextOrder.length, nextOrder.length);
             nextOrder.splice(insertionIndex, 0, element.id);
 
@@ -1027,53 +990,21 @@ const createSceneStoreState = (
 
     moveElement: (elementId, targetIndex) => {
         set((state) => {
-            const currentIndex = state.order.indexOf(elementId);
+            const order = deriveElementOrder(state.graph);
+            const currentIndex = order.indexOf(elementId);
             if (currentIndex === -1) return state;
 
-            const boundedIndex = normalizeIndex(targetIndex, state.order.length - 1);
+            const boundedIndex = normalizeIndex(targetIndex, order.length - 1);
             if (currentIndex === boundedIndex) return state;
 
-            const nextOrder = [...state.order];
+            const nextOrder = [...order];
             nextOrder.splice(currentIndex, 1);
             nextOrder.splice(boundedIndex, 0, elementId);
-
-            const total = nextOrder.length;
-            let nextByElement: Record<string, ElementBindings> | null = null;
-            let bindingsMutated = false;
-
-            for (let index = 0; index < nextOrder.length; index += 1) {
-                const id = nextOrder[index];
-                const desiredZ = total - index - 1;
-                const sourceMap = nextByElement ?? state.bindings.byElement;
-                const existingBindings = sourceMap[id] ?? {};
-                const current = existingBindings.zIndex;
-                const currentValue = readZIndexValue(current);
-                if (current?.type === 'constant' && currentValue === desiredZ) {
-                    continue;
-                }
-
-                if (!nextByElement) {
-                    nextByElement = { ...state.bindings.byElement };
-                }
-
-                const nextZBinding: ConstantBindingState = { type: 'constant', value: desiredZ };
-                const updatedBindings: ElementBindings = { ...existingBindings, zIndex: nextZBinding };
-                nextByElement[id] = updatedBindings;
-                bindingsMutated = true;
-            }
-
-            const bindingsState = bindingsMutated
-                ? {
-                      byElement: nextByElement!,
-                      byMacro: rebuildMacroIndex(nextByElement!),
-                  }
-                : state.bindings;
             const nextGraph = graphWithElementOrder(state.graph, nextOrder);
 
             return {
                 ...state,
                 ...graphIndexes(nextGraph),
-                bindings: bindingsState,
                 runtimeMeta: markDirty(state, 'moveElement'),
             };
         });
@@ -1090,8 +1021,8 @@ const createSceneStoreState = (
             const clonedBindings = cloneBindingsMap(state.bindings.byElement[sourceId] ?? {}, source.type);
 
             const insertAfter = opts?.insertAfter ?? true;
-            const sourceIndex = state.order.indexOf(sourceId);
-            const insertionIndex = insertAfter ? sourceIndex + 1 : state.order.length;
+            const sourceIndex = deriveElementOrder(state.graph).indexOf(sourceId);
+            const insertionIndex = insertAfter ? sourceIndex + 1 : deriveElementOrder(state.graph).length;
 
             const element: SceneElementRecord = {
                 id: newId,
@@ -1101,7 +1032,7 @@ const createSceneStoreState = (
             };
 
             const nextElements = { ...state.elements, [element.id]: element };
-            const nextOrder = [...state.order];
+            const nextOrder = [...deriveElementOrder(state.graph)];
             const boundedIndex = normalizeIndex(insertionIndex, nextOrder.length);
             nextOrder.splice(boundedIndex, 0, element.id);
 
@@ -1158,11 +1089,12 @@ const createSceneStoreState = (
     },
 
     removeElement: (elementId) => {
+        useSelectionStore.getState().removeElementFromSelection(elementId);
         set((state) => {
             if (!state.elements[elementId]) return state;
 
             const { [elementId]: _removedElement, ...remaining } = state.elements;
-            const nextOrder = state.order.filter((id) => id !== elementId);
+            const nextOrder = deriveElementOrder(state.graph).filter((id) => id !== elementId);
             const { [elementId]: _removedBindings, ...remainingBindings } = state.bindings.byElement;
             const nextBindings: SceneBindingsState = {
                 byElement: remainingBindings,
@@ -1203,8 +1135,6 @@ const createSceneStoreState = (
                 runtimeMeta: markDirty(state, 'removeElement'),
             };
         });
-        // Sync selection store after state update
-        useSelectionStore.getState().removeElementFromSelection(elementId);
     },
 
     updateElementId: (currentId, nextId) => {
@@ -1224,7 +1154,7 @@ const createSceneStoreState = (
             const { [currentId]: _existing, ...remainingElements } = state.elements;
             const nextElements = { ...remainingElements, [nextId]: updatedElement };
 
-            const nextOrder = state.order.map((id) => (id === currentId ? nextId : id));
+            const nextOrder = deriveElementOrder(state.graph).map((id) => (id === currentId ? nextId : id));
 
             const existingBindings = state.bindings.byElement[currentId] ?? {};
             const { [currentId]: _removedBindingState, ...remainingBindings } = state.bindings.byElement;
@@ -1242,8 +1172,6 @@ const createSceneStoreState = (
                     nextChannels[channelId] = {
                         ...channel,
                         target: elementPropertyTarget(nextId, channel.target.propertyPath),
-                        elementId: nextId,
-                        propertyKey: channel.target.propertyPath,
                     };
                 }
             }
@@ -1294,17 +1222,14 @@ const createSceneStoreState = (
             const elementType = state.elements[elementId]?.type;
 
             let changed = false;
-            let zIndexChanged = false;
             const nextBindingsForElement: ElementBindings = { ...existing };
 
             for (const [key, binding] of Object.entries(patch)) {
+                if (key === 'zIndex') continue;
                 if (binding == null) {
                     if (key in nextBindingsForElement) {
                         delete nextBindingsForElement[key];
                         changed = true;
-                        if (key === 'zIndex') {
-                            zIndexChanged = true;
-                        }
                     }
                     continue;
                 }
@@ -1316,9 +1241,6 @@ const createSceneStoreState = (
                             if (clearedKey in nextBindingsForElement) {
                                 delete nextBindingsForElement[clearedKey];
                                 changed = true;
-                                if (clearedKey === 'zIndex') {
-                                    zIndexChanged = true;
-                                }
                             }
                         }
                         for (const [replacementKey, replacementBinding] of Object.entries(migration.replacements)) {
@@ -1326,9 +1248,6 @@ const createSceneStoreState = (
                             if (!current || !bindingEquals(current, replacementBinding)) {
                                 nextBindingsForElement[replacementKey] = replacementBinding;
                                 changed = true;
-                                if (replacementKey === 'zIndex') {
-                                    zIndexChanged = true;
-                                }
                             }
                         }
                         continue;
@@ -1403,9 +1322,6 @@ const createSceneStoreState = (
                 if (!current || !bindingEquals(current, normalized)) {
                     nextBindingsForElement[key] = normalized;
                     changed = true;
-                    if (key === 'zIndex') {
-                        zIndexChanged = true;
-                    }
                 }
             }
 
@@ -1431,24 +1347,17 @@ const createSceneStoreState = (
             }
 
             const nextByElement = { ...state.bindings.byElement, [elementId]: nextBindingsForElement };
-            const reordered = zIndexChanged ? sortElementIdsByZIndex(state.order, nextByElement) : state.order;
-
             const nextBindings: SceneBindingsState = {
                 byElement: nextByElement,
                 byMacro: rebuildMacroIndex(nextByElement),
                 byTargetMacro: rebuildTargetMacroIndex(nextByElement, state.nodeBindings),
             };
 
-            const nextGraph =
-                zIndexChanged && !ordersEqual(reordered, state.order)
-                    ? graphWithElementOrder(state.graph, reordered)
-                    : state.graph;
             if (nextAutomation !== state.automation) {
                 nextAutomation.channelIdByTarget = rebuildAutomationTargetIndex(nextAutomation.channels);
             }
             return {
                 ...state,
-                ...(nextGraph === state.graph ? {} : graphIndexes(nextGraph)),
                 bindings: nextBindings,
                 automation: nextAutomation,
                 runtimeMeta: markDirty(state, 'updateBindings'),
@@ -1900,6 +1809,7 @@ const createSceneStoreState = (
                     createdAt: Date.now(),
                 };
                 nextByElement[el.id] = deserializeElementBindings(el);
+                delete nextByElement[el.id].zIndex;
             }
 
             const incomingGraph = migratedPayload.graph ?? createFlatSceneGraph(nextOrder);
@@ -1908,7 +1818,6 @@ const createSceneStoreState = (
                 throw new Error(`SceneStore.importScene: invalid scene graph (${graphValidation.errors[0]?.message})`);
             }
             const nextGraph = cloneSceneGraph(incomingGraph);
-            const derivedOrder = deriveElementOrder(nextGraph);
 
             const migratedAutomation = migrateLegacyAutomationState(migratedPayload.automation);
             for (const bindings of Object.values(nextByElement)) {
@@ -1989,15 +1898,13 @@ const createSceneStoreState = (
     exportSceneDraft: () => {
         const state = get();
         const elements: Record<string, SceneSerializedElement> = {};
-        const elementsOrder: string[] = [];
         const elementErrors: Array<{ id: string; type: string; message: string }> = [];
-        state.order.forEach((id) => {
+        deriveElementOrder(state.graph).forEach((id) => {
             const element = state.elements[id];
             if (!element) return;
             const bindings = state.bindings.byElement[id] ?? {};
             try {
                 elements[id] = serializeElement(element, bindings);
-                elementsOrder.push(id);
             } catch (err) {
                 const message = err instanceof Error ? err.message : String(err);
                 elementErrors.push({ id, type: element.type, message });
@@ -2014,7 +1921,6 @@ const createSceneStoreState = (
         );
         return {
             elements,
-            elementsOrder,
             graph: cloneSceneGraph(state.graph),
             ...(elementErrors.length > 0 ? { elementErrors } : {}),
             sceneSettings: { ...state.settings },
@@ -2187,20 +2093,9 @@ const createSceneStoreState = (
                 }
             }
 
-            if ('clipboard' in patch) {
-                const clipboard = patch.clipboard ?? null;
-                const shouldUpdate =
-                    (!clipboard && next.clipboard !== null) ||
-                    (clipboard && (!next.clipboard || clipboard !== next.clipboard));
-                if (shouldUpdate) {
-                    next.clipboard = clipboard;
-                }
-            }
-
             if (
                 next.hoveredElementId === state.interaction.hoveredElementId &&
-                next.editingElementId === state.interaction.editingElementId &&
-                next.clipboard === state.interaction.clipboard
+                next.editingElementId === state.interaction.editingElementId
             ) {
                 return state;
             }
@@ -2329,6 +2224,7 @@ export const useSceneStore = createSceneStore();
 // Wire the automation evaluator's channel provider to the store so it can
 // resolve channels without relying on CommonJS require (which fails in Vite ESM).
 automationEvaluator.setChannelProvider((channelId) => useSceneStore.getState().automation.channels[channelId]);
+setSelectionChannelTargetResolver((channelId) => useSceneStore.getState().automation.channels[channelId]?.target);
 
 // Clear transient property overrides when the playhead moves so keyframed values
 // take over again (Blender-style delink: manually changed values persist only until scrub/play).

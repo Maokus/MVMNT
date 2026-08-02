@@ -5,7 +5,6 @@
             "type": "textOverlay",
             "properties": {
                 "visible": { "type": "constant", "value": true },
-                "zIndex": { "type": "constant", "value": 0 },
                 "elementOpacity": { "type": "constant", "value": 1 },
                 "offsetX": { "type": "constant", "value": 0 },
                 "offsetY": { "type": "constant", "value": 0 },
@@ -40,7 +39,6 @@
             "type": "background",
             "properties": {
                 "visible": { "type": "constant", "value": true },
-                "zIndex": { "type": "constant", "value": -1000 },
                 "elementOpacity": { "type": "constant", "value": 1 },
                 "offsetX": { "type": "constant", "value": 0 },
                 "offsetY": { "type": "constant", "value": 0 },
@@ -57,7 +55,6 @@
             }
         }
     },
-    "elementsOrder": ["title", "background"],
     "graph": {
         "rootId": "__mvmnt_scene_root__",
         "revision": 2,

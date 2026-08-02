@@ -1,6 +1,5 @@
 import { validateSceneEnvelope } from './validate';
-import { migrateSceneGraphV12 } from './migrations/sceneGraphV12';
-import { migrateAutomationTargetsV13 } from './migrations/automationTargetsV13';
+import { migrateSceneV8 } from './migrations/sceneV8';
 import { DocumentGateway } from './document-gateway';
 import type { SceneExportEnvelope, ScenePluginDependency } from './export';
 import { isMidiBinary } from '@core/midi/midi-encoder';
@@ -33,9 +32,7 @@ import {
 import { findReferencedAudioSourceIds, getAudioClipsForTrack } from '@state/timeline/audioClips';
 import type { AudioCacheEntry } from '@audio/audioTypes';
 import { migrateSceneRotationUnitsV7 } from './migrations/rotationUnitsV7';
-import { migrateSceneMidiClipsV8 } from './migrations/midiClipsV8';
-import { migrateSceneAudioClipSourceTimeV10 } from './migrations/audioClipSourceTimeV10';
-import { migrateSceneTextBoundsV11, prepareTextBoundsMigrationFonts } from './migrations/textBoundsV11';
+import { prepareTextBoundsMigrationFonts } from './migrations/textBoundsV11';
 
 const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
@@ -1019,13 +1016,7 @@ export async function importScene(
     options.onProgress?.(0.35, 'Validating scene…');
     await prepareTextBoundsMigrationFonts(envelope, fontPayloads);
     throwIfAborted(options.signal);
-    const migratedEnvelope = migrateAutomationTargetsV13(
-        migrateSceneGraphV12(
-            migrateSceneTextBoundsV11(
-                migrateSceneAudioClipSourceTimeV10(migrateSceneMidiClipsV8(migrateSceneRotationUnitsV7(envelope)))
-            )
-        )
-    );
+    const migratedEnvelope = migrateSceneV8(migrateSceneRotationUnitsV7(envelope));
     const validation = validateSceneEnvelope(migratedEnvelope);
     if (!validation.ok) {
         return {
@@ -1114,12 +1105,7 @@ export async function importScene(
             migratedEnvelope.schemaVersion === 5 ||
             migratedEnvelope.schemaVersion === 6 ||
             migratedEnvelope.schemaVersion === 7 ||
-            migratedEnvelope.schemaVersion === 8 ||
-            migratedEnvelope.schemaVersion === 9 ||
-            migratedEnvelope.schemaVersion === 10 ||
-            migratedEnvelope.schemaVersion === 11 ||
-            migratedEnvelope.schemaVersion === 12 ||
-            migratedEnvelope.schemaVersion === 13) &&
+            migratedEnvelope.schemaVersion === 8) &&
         migratedEnvelope.assets
     ) {
         options.onProgress?.(0.82, 'Restoring audio assets…');

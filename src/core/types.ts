@@ -181,7 +181,6 @@ export interface TimeUnitConfig {
 export interface BaseSceneElementConfig {
     id?: string;
     visible?: boolean;
-    zIndex?: number;
 
     // Global transform properties
     offsetX?: number;
@@ -374,7 +373,6 @@ export interface SceneElementInterface {
     type: string;
     id: string | null;
     visible: boolean;
-    zIndex: number;
 
     // Element transform properties
     offsetX: number;
@@ -391,7 +389,6 @@ export interface SceneElementInterface {
     buildRenderObjects(config: any, targetTime: number): RenderObject[];
     updateConfig(newConfig: { [key: string]: any }): void;
     setVisible(visible: boolean): this;
-    setZIndex(zIndex: number): this;
 
     // Element transform methods
     setOffsetX(offsetX: number): this;

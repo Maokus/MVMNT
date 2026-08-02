@@ -10,7 +10,7 @@
 
 import { validateSceneGraph, type SceneGraphState } from '@state/scene-graph';
 
-export const CURRENT_SCHEMA_VERSION = 13;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 /**
  * Maps schema version to the minimum app version required to open files at that version.
@@ -24,12 +24,7 @@ export const SCHEMA_TO_MIN_APP_VERSION: Record<number, string> = {
     5: '0.14.0',
     6: '0.15.0',
     7: '0.15.4',
-    8: '0.15.4',
-    9: '0.15.5',
-    10: '0.16.0',
-    11: '0.16.0',
-    12: '0.17.0',
-    13: '0.17.0',
+    8: '0.16.0',
 };
 
 export type ValidationErrorCode =
@@ -114,7 +109,7 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
     }
     if (!root.scene || typeof root.scene !== 'object') {
         errors.push(err('ERR_SCENE_MISSING', 'Missing scene object', 'scene'));
-    } else if (schemaVersion === 12 || schemaVersion === 13) {
+    } else if (schemaVersion === 8) {
         if (
             typeof root.scene.elements !== 'object' ||
             root.scene.elements === null ||
@@ -136,19 +131,12 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
             errors.push(
                 err(
                     'ERR_SCENE_ELEMENTS_ORDER_TYPE',
-                    'scene.elementsOrder is not allowed in schema v12+',
+                    'scene.elementsOrder is not allowed in schema v8',
                     'scene.elementsOrder'
                 )
             );
         }
-    } else if (
-        schemaVersion === 6 ||
-        schemaVersion === 7 ||
-        schemaVersion === 8 ||
-        schemaVersion === 9 ||
-        schemaVersion === 10 ||
-        schemaVersion === 11
-    ) {
+    } else if (schemaVersion === 6 || schemaVersion === 7) {
         // V6+: elements is a Record keyed by ID, elementsOrder is the ordering array
         if (
             typeof root.scene.elements !== 'object' ||
@@ -275,11 +263,11 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
                     errors.push(err('ERR_TRACK_SHAPE', 'Invalid track shape for id ' + k, 'timeline.tracks.' + k));
                     break;
                 }
-                if (schemaVersion >= 8 && tr.type === 'midi') {
+                if (schemaVersion === 8 && tr.type === 'midi') {
                     validateMidiTrackClips(tr, tl.midiCache, `timeline.tracks.${k}`, errors);
                     if (errors.length) break;
                 }
-                if (schemaVersion >= 10 && tr.type === 'audio') {
+                if (schemaVersion === 8 && tr.type === 'audio') {
                     validateAudioTrackClips(tr, `timeline.tracks.${k}`, errors);
                     if (errors.length) break;
                 }
@@ -304,20 +292,15 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
         schemaVersion === 5 ||
         schemaVersion === 6 ||
         schemaVersion === 7 ||
-        schemaVersion === 8 ||
-        schemaVersion === 9 ||
-        schemaVersion === 10 ||
-        schemaVersion === 11 ||
-        schemaVersion === 12 ||
-        schemaVersion === 13
+        schemaVersion === 8
     ) {
         if (!root.assets || typeof root.assets !== 'object') {
             errors.push(err('ERR_ASSETS_MISSING', 'Missing assets block', 'assets'));
         } else {
             const storage = root.assets.storage;
             if (
-                (schemaVersion >= 10 && storage !== 'zip-package') ||
-                (schemaVersion < 10 && storage !== 'inline-json' && storage !== 'zip-package')
+                (schemaVersion === 8 && storage !== 'zip-package') ||
+                (schemaVersion < 8 && storage !== 'inline-json' && storage !== 'zip-package')
             ) {
                 errors.push(err('ERR_ASSETS_MISSING', 'Invalid assets.storage value', 'assets.storage'));
             }

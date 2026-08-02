@@ -6,6 +6,7 @@ import type {
     SceneStoreState,
 } from '../sceneStore';
 import { elementPropertyTarget, encodePropertyTarget, type PropertyTarget } from '@automation/types';
+import { deriveElementOrder } from '@state/scene-graph';
 
 export interface SceneElementView {
     id: string;
@@ -76,7 +77,7 @@ function macroAssignmentsFingerprint(state: SceneStoreState): string {
     return slices.join('|');
 }
 
-export const selectOrderedElementIds = (state: SceneStoreState): string[] => state.order;
+export const selectOrderedElementIds = (state: SceneStoreState): string[] => deriveElementOrder(state.graph);
 
 export const createSceneSelectors = (initialState?: SceneStoreState): SceneSelectors => {
     let cachedElementsSignature: string | null = null;
@@ -86,10 +87,11 @@ export const createSceneSelectors = (initialState?: SceneStoreState): SceneSelec
     let cachedAssignmentsResult: MacroAssignmentView[] = [];
 
     if (initialState) {
-        cachedElementsSignature = `${initialState.order.join(',')}|${initialState.order
+        const order = deriveElementOrder(initialState.graph);
+        cachedElementsSignature = `${order.join(',')}|${order
             .map((id) => bindingsFingerprint(initialState.bindings.byElement[id] ?? {}))
             .join('|')}`;
-        cachedElementsResult = initialState.order.map((id, index) => ({
+        cachedElementsResult = order.map((id, index) => ({
             id,
             type: initialState.elements[id]?.type ?? 'unknown',
             index,
@@ -108,15 +110,14 @@ export const createSceneSelectors = (initialState?: SceneStoreState): SceneSelec
     }
 
     const selectOrderedElements = (state: SceneStoreState): SceneElementView[] => {
-        const orderSignature = state.order.join(',');
-        const bindingsSignature = state.order
-            .map((id) => bindingsFingerprint(state.bindings.byElement[id] ?? {}))
-            .join('|');
+        const order = deriveElementOrder(state.graph);
+        const orderSignature = order.join(',');
+        const bindingsSignature = order.map((id) => bindingsFingerprint(state.bindings.byElement[id] ?? {})).join('|');
         const signature = `${orderSignature}|${bindingsSignature}`;
         if (signature === cachedElementsSignature) {
             return cachedElementsResult;
         }
-        const next = state.order.map((id, index) => ({
+        const next = order.map((id, index) => ({
             id,
             type: state.elements[id]?.type ?? 'unknown',
             index,

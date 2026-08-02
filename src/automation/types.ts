@@ -148,10 +148,6 @@ export interface AutomationChannel {
     /** Independent opaque identity; it never encodes property ownership. */
     id: string;
     target: PropertyTarget;
-    /** @deprecated Read target.owner instead. Accepted only by compatibility inputs. */
-    elementId?: string;
-    /** @deprecated Read target.propertyPath instead. Accepted only by compatibility inputs. */
-    propertyKey?: string;
     /** Keyframes sorted ascending by tick. */
     keyframes: AutomationKeyframe[];
     /** The value type — determines evaluation strategy. */
@@ -208,21 +204,6 @@ export function cloneKeyframe(kf: AutomationKeyframe): AutomationKeyframe {
     return clone;
 }
 
-/** Legacy v12 channel ID helper. New channels never use this identity scheme. */
-export function makeChannelId(elementId: string, propertyKey: string): string {
-    return `${elementId}.${propertyKey}`;
-}
-
-/** Parse a channel ID back into its components. Returns null if malformed. */
-export function parseChannelId(channelId: string): { elementId: string; propertyKey: string } | null {
-    const dotIndex = channelId.indexOf('.');
-    if (dotIndex <= 0 || dotIndex === channelId.length - 1) return null;
-    return {
-        elementId: channelId.slice(0, dotIndex),
-        propertyKey: channelId.slice(dotIndex + 1),
-    };
-}
-
 /** Create an empty automation state. */
 export function createEmptyAutomationState(): AutomationState {
     return { channels: {}, channelIdByTarget: {} };
@@ -275,8 +256,10 @@ export function migrateLegacyAutomationState(input: unknown): {
             target = elementPropertyTarget(raw.elementId, raw.propertyKey);
         }
         if (!target) {
-            const legacy = parseChannelId(storedId);
-            if (legacy) target = elementPropertyTarget(legacy.elementId, legacy.propertyKey);
+            const dotIndex = storedId.indexOf('.');
+            if (dotIndex > 0 && dotIndex < storedId.length - 1) {
+                target = elementPropertyTarget(storedId.slice(0, dotIndex), storedId.slice(dotIndex + 1));
+            }
         }
         if (!target) continue;
         const alreadyOpaque = isPropertyTarget(raw.target) && typeof raw.id === 'string';
@@ -303,25 +286,16 @@ export function migrateLegacyAutomationState(input: unknown): {
 
 /** Create a new, empty automation channel. */
 export function createChannel(
-    targetOrElementId: PropertyTarget | string,
-    propertyPathOrValueType: string,
-    maybeValueType?: AutomationValueType,
+    target: PropertyTarget,
+    valueType: AutomationValueType,
     occupied: ReadonlySet<string> = new Set()
 ): AutomationChannel {
-    const target =
-        typeof targetOrElementId === 'string'
-            ? elementPropertyTarget(targetOrElementId, propertyPathOrValueType)
-            : targetOrElementId;
-    const valueType = (
-        typeof targetOrElementId === 'string' ? maybeValueType : propertyPathOrValueType
-    ) as AutomationValueType;
     return {
         id: createOpaqueChannelId(occupied),
         target: {
             owner: { ...target.owner },
             propertyPath: target.propertyPath,
         },
-        ...(target.owner.kind === 'element' ? { elementId: target.owner.id, propertyKey: target.propertyPath } : {}),
         keyframes: [],
         valueType,
     };
@@ -390,19 +364,12 @@ export function removeKeyframeAtTick(
  */
 export function cloneChannel(
     channel: AutomationChannel,
-    newTargetOrElementId: PropertyTarget | string = channel.target,
+    newTarget: PropertyTarget = channel.target,
     occupied: ReadonlySet<string> = new Set()
 ): AutomationChannel {
-    const newTarget =
-        typeof newTargetOrElementId === 'string'
-            ? elementPropertyTarget(newTargetOrElementId, channel.target.propertyPath)
-            : newTargetOrElementId;
     return {
         id: createOpaqueChannelId(occupied),
         target: { owner: { ...newTarget.owner }, propertyPath: newTarget.propertyPath },
-        ...(newTarget.owner.kind === 'element'
-            ? { elementId: newTarget.owner.id, propertyKey: newTarget.propertyPath }
-            : {}),
         keyframes: channel.keyframes.map(cloneKeyframe),
         valueType: channel.valueType,
     };

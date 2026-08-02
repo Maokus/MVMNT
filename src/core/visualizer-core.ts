@@ -392,7 +392,7 @@ export class MIDIVisualizerCore {
                     ? [
                           {
                               id: element.id,
-                              zIndex: element.zIndex ?? 0,
+                              zIndex: 0,
                               bounds,
                               element,
                               corners: payload._worldCorners ?? null,
@@ -833,13 +833,6 @@ export class MIDIVisualizerCore {
         const result = dispatchSceneCommand(
             { type: 'updateElementConfig', elementId, patch: { visible } },
             { source: 'MIDIVisualizerCore.setSceneElementVisibility' }
-        );
-        if (result.success) this.invalidateRender();
-    }
-    setSceneElementZIndex(elementId: string, zIndex: number) {
-        const result = dispatchSceneCommand(
-            { type: 'updateElementConfig', elementId, patch: { zIndex } },
-            { source: 'MIDIVisualizerCore.setSceneElementZIndex' }
         );
         if (result.success) this.invalidateRender();
     }

@@ -6,6 +6,7 @@ import { resolveAutomationValueType } from '@workspace/panels/properties/Keyfram
 import { channelForTarget, elementPropertyTarget } from '@automation/types';
 import { automationEvaluator } from '@automation/automation-evaluator';
 import { useTimelineStore } from '@state/timelineStore';
+import { deriveElementOrder } from '@state/scene-graph';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import MenuBar from '@workspace/layout/MenuBar';
@@ -141,8 +142,7 @@ const InsertKeyframeController: React.FC = () => {
                         dispatchSceneCommand(
                             {
                                 type: 'enablePropertyAutomation',
-                                elementId: selectedElement.id,
-                                propertyKey,
+                                target: elementPropertyTarget(selectedElement.id, propertyKey),
                                 valueType,
                                 initialKeyframes: [
                                     {
@@ -566,7 +566,7 @@ const TemplateInitializer: React.FC = () => {
                 return null;
             }
         })();
-        const hasScene = sceneStoreState ? sceneStoreState.order.length > 0 : false;
+        const hasScene = sceneStoreState ? deriveElementOrder(sceneStoreState.graph).length > 0 : false;
         const hasInitializedScene = sceneStoreState?.runtimeMeta?.hasInitializedScene ?? false;
 
         const shouldImport = Boolean(state.importScene);

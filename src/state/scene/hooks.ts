@@ -12,7 +12,6 @@ export interface SceneElementListItem {
     index: number;
     bindings: ElementBindings;
     visible: boolean;
-    zIndex: number;
 }
 
 export interface SceneSelectionView {
@@ -32,15 +31,6 @@ function resolveVisibility(bindings: ElementBindings): boolean {
     return true;
 }
 
-function resolveZIndex(bindings: ElementBindings, fallbackIndex: number): number {
-    const entry = bindings.zIndex;
-    if (!entry) return fallbackIndex;
-    if (entry.type === 'constant' && typeof entry.value === 'number' && Number.isFinite(entry.value)) {
-        return entry.value;
-    }
-    return fallbackIndex;
-}
-
 export function useSceneElements(): SceneElementListItem[] {
     const ordered = useSceneStore(sceneSelectors.selectOrderedElements, shallow);
     return useMemo(
@@ -51,7 +41,6 @@ export function useSceneElements(): SceneElementListItem[] {
                 index: entry.index,
                 bindings: entry.bindings,
                 visible: resolveVisibility(entry.bindings),
-                zIndex: resolveZIndex(entry.bindings, entry.index),
             })),
         [ordered]
     );

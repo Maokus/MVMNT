@@ -411,7 +411,6 @@ export class SceneElement implements SceneElementInterface {
 
         // Set default bindings for base properties
         this.bindings.set('visible', new ConstantBinding(true));
-        this.bindings.set('zIndex', new ConstantBinding(0));
         this.bindings.set('offsetX', new ConstantBinding(0));
         this.bindings.set('offsetY', new ConstantBinding(0));
         this.bindings.set('elementScaleX', new ConstantBinding(1));
@@ -670,9 +669,6 @@ export class SceneElement implements SceneElementInterface {
     // Property getters using the binding system
     get visible(): boolean {
         return this.getProperty('visible');
-    }
-    get zIndex(): number {
-        return this.getProperty('zIndex');
     }
     get offsetX(): number {
         return this.getProperty('offsetX');
@@ -998,12 +994,6 @@ export class SceneElement implements SceneElementInterface {
                                     max: 1,
                                     step: 0.01,
                                     description: 'Element transparency (0 = transparent, 1 = opaque).',
-                                }),
-                                prop.number('zIndex', 'Layer Order', 0, {
-                                    min: 0,
-                                    max: 100,
-                                    step: 1,
-                                    description: 'Stacking order for overlapping layers (higher values appear on top).',
                                 }),
                             ],
                         },
@@ -1354,11 +1344,6 @@ export class SceneElement implements SceneElementInterface {
     // Setter methods that work with the binding system
     setVisible(visible: boolean): this {
         this.setProperty('visible', visible);
-        return this;
-    }
-
-    setZIndex(zIndex: number): this {
-        this.setProperty('zIndex', zIndex);
         return this;
     }
 

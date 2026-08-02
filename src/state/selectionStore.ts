@@ -1,5 +1,12 @@
 import { createWithEqualityFn } from 'zustand/traditional';
 import { shallow } from 'zustand/shallow';
+import type { PropertyTarget } from '@automation/types';
+
+let resolveChannelTarget: (channelId: string) => PropertyTarget | undefined = () => undefined;
+
+export function setSelectionChannelTargetResolver(resolver: (channelId: string) => PropertyTarget | undefined): void {
+    resolveChannelTarget = resolver;
+}
 
 export interface SelectedKeyframe {
     channelId: string;
@@ -76,7 +83,7 @@ interface SelectionActions {
     // Housekeeping callbacks (called by sceneStore on element remove/rename)
     removeElementFromSelection(elementId: string): void;
     renameElementInSelection(currentId: string, nextId: string): void;
-    /** Remove all keyframes whose channelId starts with the given prefix. */
+    /** Remove all selected keyframes whose channels are owned by an element. */
     removeChannelsFromSelection(elementId: string): void;
 
     // Derived selectors (callable from event handlers without hooks)
@@ -85,7 +92,7 @@ interface SelectionActions {
     getInspectorContext(): { elementIds: string[] };
     /**
      * When activeTarget === 'keyframes', returns the element IDs that own the
-     * selected keyframe channels (derived from channelId format `elementId.prop`).
+     * selected keyframe channels (derived from their structured targets).
      */
     getSelectedElementContextForKeyframes(): string[];
 }
@@ -95,8 +102,8 @@ export type SelectionStoreState = SelectionState & SelectionActions;
 function deriveElementIdsFromKeyframes(keyframes: SelectedKeyframe[]): string[] {
     const ids = new Set<string>();
     for (const { channelId } of keyframes) {
-        const dot = channelId.indexOf('.');
-        if (dot > 0) ids.add(channelId.slice(0, dot));
+        const target = resolveChannelTarget(channelId);
+        if (target?.owner.kind === 'element') ids.add(target.owner.id);
     }
     return [...ids];
 }
@@ -222,7 +229,7 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
             set({
                 selectedKeyframes: keys,
                 // Preserve element selection for inspector context — elements are
-                // derived from the keyframe channel IDs anyway.
+                // derived from the selected channels' structured targets.
                 selectedTrackIds: [],
                 clipTimelineSelection: null,
                 activeTarget: keys.length ? 'keyframes' : 'none',
@@ -303,20 +310,17 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
             get().removeChannelsFromSelection(elementId);
         },
         renameElementInSelection(currentId, nextId) {
-            const { selectedElementIds, selectedKeyframes } = get();
+            const { selectedElementIds } = get();
             set({
                 selectedElementIds: selectedElementIds.map((id) => (id === currentId ? nextId : id)),
-                selectedKeyframes: selectedKeyframes.map((kf) => {
-                    const prefix = currentId + '.';
-                    if (!kf.channelId.startsWith(prefix)) return kf;
-                    return { ...kf, channelId: nextId + kf.channelId.slice(currentId.length) };
-                }),
             });
         },
         removeChannelsFromSelection(elementId) {
-            const prefix = elementId + '.';
             const { selectedKeyframes, activeTarget } = get();
-            const next = selectedKeyframes.filter((kf) => !kf.channelId.startsWith(prefix));
+            const next = selectedKeyframes.filter((kf) => {
+                const owner = resolveChannelTarget(kf.channelId)?.owner;
+                return owner?.kind !== 'element' || owner.id !== elementId;
+            });
             set({
                 selectedKeyframes: next,
                 activeTarget: activeTarget === 'keyframes' && !next.length ? 'none' : activeTarget,

@@ -11,6 +11,7 @@ import {
     type SceneStoreState,
     migrateLegacyAudioFeatureBinding,
 } from '@state/sceneStore';
+import { deriveElementOrder } from '@state/scene-graph';
 import { createSceneElementInputFromSchema } from './storeElementFactory';
 import { ensureMacroSync, getMacroSnapshot, replaceMacrosFromSnapshot } from './macroSyncService';
 import { emitSceneCommandTelemetry } from './sceneTelemetry';
@@ -128,19 +129,14 @@ export type SceneCommand =
       }
     | {
           type: 'enablePropertyAutomation';
-          target?: PropertyTarget;
-          /** Compatibility adapter for element property callers. */
-          elementId?: string;
-          propertyKey?: string;
+          target: PropertyTarget;
           valueType: AutomationValueType;
           /** Optional initial keyframes (e.g. current value at tick 0). */
           initialKeyframes?: AutomationKeyframe[];
       }
     | {
           type: 'disablePropertyAutomation';
-          target?: PropertyTarget;
-          elementId?: string;
-          propertyKey?: string;
+          target: PropertyTarget;
           /** Fallback constant value to revert to. */
           fallbackValue?: unknown;
       }
@@ -197,16 +193,6 @@ export interface SceneCommandResult {
     command: SceneCommand;
     error?: Error;
     patch?: SceneCommandPatch | null;
-}
-
-function propertyCommandTarget(command: {
-    target?: PropertyTarget;
-    elementId?: string;
-    propertyKey?: string;
-}): PropertyTarget {
-    if (command.target) return command.target;
-    if (command.elementId && command.propertyKey) return elementPropertyTarget(command.elementId, command.propertyKey);
-    throw new Error('Property command requires a structured target');
 }
 
 function targetBinding(state: SceneStoreState, target: PropertyTarget): BindingState | undefined {
@@ -319,8 +305,7 @@ function bindingToConfigValue(binding: BindingState | undefined): unknown {
 function captureSceneSnapshot(state: SceneStoreState): SceneImportPayload {
     const draft = state.exportSceneDraft();
     return {
-        elements: draft.elementsOrder.map((id) => draft.elements[id]).filter(Boolean),
-        elementsOrder: draft.elementsOrder,
+        elements: draft.elements,
         graph: draft.graph,
         sceneSettings: draft.sceneSettings,
         macros: draft.macros ?? null,
@@ -382,7 +367,7 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
             };
         }
         case 'moveElement': {
-            const currentIndex = state.order.indexOf(command.elementId);
+            const currentIndex = deriveElementOrder(state.graph).indexOf(command.elementId);
             if (currentIndex === -1) return null;
             if (command.targetIndex === currentIndex) return null;
             return {
@@ -542,7 +527,7 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
             };
         }
         case 'enablePropertyAutomation': {
-            const target = propertyCommandTarget(command);
+            const target = command.target;
             if (channelIdForTarget(state.automation, target)) return null;
             return {
                 redo: [cloneCommand(command)],
@@ -550,7 +535,7 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
             };
         }
         case 'disablePropertyAutomation': {
-            const target = propertyCommandTarget(command);
+            const target = command.target;
             const channelId = channelIdForTarget(state.automation, target);
             const channel = channelId ? state.automation.channels[channelId] : undefined;
             if (!channel) return null;
@@ -808,14 +793,9 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
             replaceMacrosFromSnapshot(command.payload);
             break;
         case 'enablePropertyAutomation': {
-            const target = propertyCommandTarget(command);
+            const target = command.target;
             if (channelIdForTarget(store.automation, target)) break;
-            const channel = createChannel(
-                target,
-                command.valueType,
-                undefined,
-                new Set(Object.keys(store.automation.channels))
-            );
+            const channel = createChannel(target, command.valueType, new Set(Object.keys(store.automation.channels)));
             if (command.initialKeyframes?.length) {
                 channel.keyframes = [...command.initialKeyframes];
             }
@@ -824,7 +804,7 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
             break;
         }
         case 'disablePropertyAutomation': {
-            const target = propertyCommandTarget(command);
+            const target = command.target;
             const channelId = channelIdForTarget(store.automation, target);
             if (!channelId) break;
             // Resolve fallback: explicit value, or evaluate channel at current tick, or 0

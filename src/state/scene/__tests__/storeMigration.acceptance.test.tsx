@@ -2,6 +2,7 @@ import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore, useSceneStore } from '@state/sceneStore';
+import { deriveElementOrder } from '@state/scene-graph';
 import { resetMacroStoreBinding, setMacroStoreBinding } from '@state/scene/macroSyncService';
 import { createSceneSelectors } from '@state/scene/selectors';
 import {
@@ -98,7 +99,7 @@ describe('store migration acceptance criteria', () => {
             expect(result.success).toBe(true);
 
             const state = useSceneStore.getState();
-            expect(state.order).toContain('gateway-element');
+            expect(deriveElementOrder(state.graph)).toContain('gateway-element');
             expect(state.bindings.byElement['gateway-element'].text).toEqual({
                 type: 'constant',
                 value: 'Gateway Element',
@@ -148,7 +149,7 @@ describe('store migration acceptance criteria', () => {
             const adapter = new SceneRuntimeAdapter({ store });
             try {
                 const ids = adapter.getElements().map((el) => el.id);
-                expect(ids).toEqual(store.getState().order);
+                expect(ids).toEqual(deriveElementOrder(store.getState().graph));
 
                 const beforeVersion = adapter.getElementVersion('title');
                 store.getState().updateBindings('title', { visible: { type: 'constant', value: false } });

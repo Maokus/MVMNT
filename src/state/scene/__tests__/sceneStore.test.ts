@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
+import { deriveElementOrder } from '@state/scene-graph';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
-import type { SceneClipboard } from '@state/sceneStore';
 import type { FontAsset } from '@state/scene/fonts';
 import { createSceneSelectors } from '@state/scene/selectors';
 import audioMacroFixture from '@persistence/__fixtures__/baseline/scene.audio-feature-macro.json';
@@ -54,7 +54,7 @@ describe('sceneStore', () => {
         store.getState().duplicateElement('title', 'titleCopy');
 
         const state = store.getState();
-        expect(state.order).toEqual(['title', 'titleCopy', 'background']);
+        expect(deriveElementOrder(state.graph)).toEqual(['title', 'titleCopy', 'background']);
         expect(state.bindings.byMacro['macro.color.primary']).toEqual([
             { elementId: 'title', propertyPath: 'color' },
             { elementId: 'titleCopy', propertyPath: 'color' },
@@ -69,37 +69,37 @@ describe('sceneStore', () => {
         store.getState().moveElement('background', 0);
         const afterMove = selectors.selectOrderedElements(store.getState());
 
-        expect(store.getState().order[0]).toBe('background');
+        expect(deriveElementOrder(store.getState().graph)[0]).toBe('background');
         expect(afterMove).not.toBe(beforeMove);
         expect(afterMove[0].id).toBe('background');
     });
 
-    it('reorders elements when zIndex bindings change', () => {
+    it('ignores retired zIndex bindings', () => {
         importFixture();
 
-        const initialOrder = store.getState().order;
+        const initialOrder = deriveElementOrder(store.getState().graph);
         expect(initialOrder).toEqual(['title', 'background']);
 
         store.getState().updateBindings('background', { zIndex: { type: 'constant', value: 10 } });
 
         const state = store.getState();
-        expect(state.order).toEqual(['background', 'title']);
-        expect(state.bindings.byElement.background.zIndex).toEqual({ type: 'constant', value: 10 });
+        expect(deriveElementOrder(state.graph)).toEqual(['title', 'background']);
+        expect(state.bindings.byElement.background.zIndex).toBeUndefined();
     });
 
-    it('assigns sequential zIndex values when elements are moved', () => {
+    it('uses graph child order without writing zIndex values', () => {
         importFixture();
 
         store.getState().moveElement('background', 0);
 
         const state = store.getState();
-        expect(state.order).toEqual(['background', 'title']);
+        expect(deriveElementOrder(state.graph)).toEqual(['background', 'title']);
 
         const backgroundZ = state.bindings.byElement.background?.zIndex;
         const titleZ = state.bindings.byElement.title?.zIndex;
 
-        expect(backgroundZ).toEqual({ type: 'constant', value: 1 });
-        expect(titleZ).toEqual({ type: 'constant', value: 0 });
+        expect(backgroundZ).toBeUndefined();
+        expect(titleZ).toBeUndefined();
     });
 
     it('keeps memoized selector references stable for unrelated updates', () => {
@@ -141,16 +141,6 @@ describe('sceneStore', () => {
 
         store.getState().setInteractionState({ editingElementId: 'missing' });
         expect(store.getState().interaction.editingElementId).toBeNull();
-    });
-
-    it('updates and clears clipboard interaction state', () => {
-        const payload: SceneClipboard = { exportedAt: 123, elementIds: ['foo'] };
-        store.getState().setInteractionState({ clipboard: payload });
-
-        expect(store.getState().interaction.clipboard).toEqual(payload);
-
-        store.getState().setInteractionState({ clipboard: null });
-        expect(store.getState().interaction.clipboard).toBeNull();
     });
 
     it('creates, updates, and deletes macros while maintaining bindings', () => {
@@ -415,7 +405,7 @@ describe('sceneStore', () => {
         store.getState().addElement({
             id: 'osc',
             type: 'audioWaveform',
-            index: store.getState().order.length,
+            index: deriveElementOrder(store.getState().graph).length,
         });
 
         store.getState().updateBindings('osc', {

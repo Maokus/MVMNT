@@ -5,9 +5,9 @@ continue to own only the content described by their element properties.
 
 ## Document model
 
-Schema v13 stores `scene.elements` and `scene.graph`. The graph contains a reserved synthetic root and one stable
-element node for every element record. Child order is canonical back-to-front paint order. `elementsOrder` is an
-internal compatibility projection derived by depth-first traversal and is not written to current scene files.
+Schema v8 stores `scene.elements` and `scene.graph`. The graph contains a reserved synthetic root and one stable
+element node for every element record. Child order is canonical back-to-front paint order. Flat `elementsOrder`
+exists only on released migration inputs and is not part of current documents or runtime state.
 
 Each node stores local visibility and lock flags, an exact six-value affine `parentCompensation` matrix, and an
 editable host transform containing translation, clockwise rotation in radians, uniform scale, and pivot. Element

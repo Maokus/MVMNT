@@ -6,8 +6,6 @@ function makeChannel(keyframes: AutomationKeyframe[], opts: Partial<AutomationCh
     return {
         id: 'test.prop',
         target: { owner: { kind: 'element', id: 'test' }, propertyPath: 'prop' },
-        elementId: 'test',
-        propertyKey: 'prop',
         keyframes,
         valueType: opts.valueType ?? 'number',
     };

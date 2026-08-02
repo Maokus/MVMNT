@@ -3,7 +3,7 @@ import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
 import { resetMacroStoreBinding, setMacroStoreBinding } from '@state/scene/macroSyncService';
 import { SceneRuntimeAdapter } from '@state/scene/runtimeAdapter';
-import { groupSceneNodes } from '@state/scene-graph';
+import { deriveElementOrder, groupSceneNodes } from '@state/scene-graph';
 
 describe('SceneRuntimeAdapter', () => {
     let store: ReturnType<typeof createSceneStore>;
@@ -23,7 +23,7 @@ describe('SceneRuntimeAdapter', () => {
 
     it('initializes runtime elements respecting store order', () => {
         const runtimeIds = adapter.getElements().map((element) => element.id);
-        expect(runtimeIds).toEqual(store.getState().order);
+        expect(runtimeIds).toEqual(deriveElementOrder(store.getState().graph));
     });
 
     it('gives older scene elements identity warp defaults without a migration', () => {
@@ -62,7 +62,7 @@ describe('SceneRuntimeAdapter', () => {
         expect(after.get('background')).toBe(before.get('background'));
     });
 
-    it('updates z-index bindings and cache versions when order changes', () => {
+    it('updates graph order without rewriting element bindings', () => {
         const beforeOrder = adapter.collectDiagnostics();
         const versionsBefore = {
             title: adapter.getElementVersion('title'),
@@ -78,19 +78,19 @@ describe('SceneRuntimeAdapter', () => {
         const afterOrder = adapter.collectDiagnostics();
 
         expect(versionsAfter.title).toBe(versionsBefore.title);
-        expect(versionsAfter.background).toBeGreaterThan(versionsBefore.background);
-        expect(adapter.getElements().map((element) => element.id)).toEqual(store.getState().order);
+        expect(versionsAfter.background).toBe(versionsBefore.background);
+        expect(adapter.getElements().map((element) => element.id)).toEqual(deriveElementOrder(store.getState().graph));
         expect(afterOrder.version).toBeGreaterThan(beforeOrder.version);
         const bindings = store.getState().bindings.byElement;
-        expect(bindings.background.zIndex).toEqual({ type: 'constant', value: 1 });
-        expect(bindings.title.zIndex).toEqual({ type: 'constant', value: 0 });
+        expect(bindings.background.zIndex).toBeUndefined();
+        expect(bindings.title.zIndex).toBeUndefined();
     });
 
     it('hydrates audio feature track bindings for new elements', () => {
         store.getState().addElement({
             id: 'osc',
             type: 'audioWaveform',
-            index: store.getState().order.length,
+            index: deriveElementOrder(store.getState().graph).length,
             bindings: {
                 audioTrackId: { type: 'constant', value: 'track-1' },
                 features: {
@@ -120,7 +120,7 @@ describe('SceneRuntimeAdapter', () => {
         store.getState().addElement({
             id: 'image',
             type: 'image',
-            index: store.getState().order.length,
+            index: deriveElementOrder(store.getState().graph).length,
             bindings: {
                 imageSource: { type: 'constant', value: 'custom-gif-id' },
             },

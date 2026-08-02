@@ -15,8 +15,6 @@ function makeChannel(
     return {
         id,
         target: { owner: { kind: 'element', id: parts[0] }, propertyPath: parts.slice(1).join('.') },
-        elementId: parts[0],
-        propertyKey: parts.slice(1).join('.'),
         keyframes,
         valueType: opts.valueType ?? 'number',
     };

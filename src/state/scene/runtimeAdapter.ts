@@ -22,6 +22,7 @@ import {
     type ResolvedSceneFrame,
     type SceneStructureIndex,
 } from './resolvedScene';
+import { deriveElementOrder } from '@state/scene-graph';
 
 type SceneStoreBinding = typeof useSceneStore;
 
@@ -138,7 +139,7 @@ export class SceneRuntimeAdapter {
 
         const initialState = this.store.getState();
         this.settings = { ...initialState.settings };
-        this.orderedIds = [...initialState.order];
+        this.orderedIds = deriveElementOrder(initialState.graph);
         this.bootstrap(initialState);
         this.unsubscribe = this.store.subscribe((next: SceneStoreState, prev: SceneStoreState) => {
             this.handleStateChange(next, prev);
@@ -268,7 +269,7 @@ export class SceneRuntimeAdapter {
     }
 
     private bootstrap(state: SceneStoreState) {
-        for (const id of state.order) {
+        for (const id of deriveElementOrder(state.graph)) {
             const record = state.elements[id];
             if (!record) continue;
             const bindings = state.bindings.byElement[id] ?? {};
@@ -311,7 +312,7 @@ export class SceneRuntimeAdapter {
         const typeSet = new Set(types);
         const state = this.store.getState();
         let mutated = false;
-        for (const id of state.order) {
+        for (const id of deriveElementOrder(state.graph)) {
             const record = state.elements[id];
             if (!record || !typeSet.has(record.type)) continue;
             const bindings = state.bindings.byElement[id] ?? {};
@@ -366,8 +367,8 @@ export class SceneRuntimeAdapter {
             mutated = true;
         }
 
-        if (next.order !== prev.order) {
-            this.orderedIds = [...next.order];
+        if (next.graph !== prev.graph) {
+            this.orderedIds = deriveElementOrder(next.graph);
             mutated = true;
         }
         if (
@@ -378,8 +379,10 @@ export class SceneRuntimeAdapter {
         )
             mutated = true;
 
-        const nextIds = new Set(next.order);
-        for (const id of prev.order) {
+        const nextOrder = deriveElementOrder(next.graph);
+        const prevOrder = deriveElementOrder(prev.graph);
+        const nextIds = new Set(nextOrder);
+        for (const id of prevOrder) {
             if (!nextIds.has(id)) {
                 const entry = this.cache.get(id);
                 if (entry) {
@@ -392,7 +395,7 @@ export class SceneRuntimeAdapter {
             }
         }
 
-        for (const id of next.order) {
+        for (const id of nextOrder) {
             const record = next.elements[id];
             if (!record) continue;
             const bindings = next.bindings.byElement[id] ?? {};

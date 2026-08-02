@@ -9,7 +9,6 @@ import { traverseSceneGraph, type SceneGraphState } from '@state/scene-graph';
 interface AutomationStoreSlice {
     automation: { channels: Record<string, AutomationChannel> };
     elements: Record<string, { id: string; type: string }>;
-    order: string[];
     graph: SceneGraphState;
     interaction: {
         automationExpandedElements: string[];
@@ -39,7 +38,9 @@ export function selectAutomatedElements(state: AutomationStoreSlice): AutomatedE
     }
 
     const result: AutomatedElementView[] = [];
-    for (const elementId of state.order) {
+    for (const node of traverseSceneGraph(state.graph)) {
+        if (node.kind !== 'element') continue;
+        const elementId = node.elementId;
         const channels = channelsByElement.get(`element:${elementId}`);
         if (!channels || channels.length === 0) continue;
         const element = state.elements[elementId];

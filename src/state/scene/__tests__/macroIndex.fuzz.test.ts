@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
+import { deriveElementOrder } from '@state/scene-graph';
 
 describe('sceneStore macro inverse index fuzz', () => {
     function createRng(seed: number) {
@@ -19,7 +20,7 @@ describe('sceneStore macro inverse index fuzz', () => {
 
         const elementProps = () => {
             const state = store.getState();
-            const order = state.order;
+            const order = deriveElementOrder(state.graph);
             if (order.length === 0) return null;
             const elementId = order[Math.floor(rand() * order.length)];
             const bindings = state.bindings.byElement[elementId];

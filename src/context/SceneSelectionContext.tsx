@@ -9,6 +9,7 @@ import {
     dispatchSceneCommand,
 } from '@state/scene';
 import type { SceneCommand, SceneCommandOptions } from '@state/scene';
+import { deriveElementOrder } from '@state/scene-graph';
 import { shallow } from 'zustand/shallow';
 import {
     channelForTarget,
@@ -360,8 +361,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                         dispatchSceneCommand(
                             {
                                 type: 'enablePropertyAutomation',
-                                elementId,
-                                propertyKey: key,
+                                target: elementPropertyTarget(elementId, key),
                                 valueType,
                                 initialKeyframes: [createKeyframe(currentTick, value)],
                             },
@@ -414,7 +414,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         (elementType: string, initialConfig?: Record<string, unknown>) => {
             const uniqueId = generateUniqueElementId(elementType);
             const selectedId = useSelectionStore.getState().selectedElementIds[0] ?? null;
-            const currentOrder = useSceneStore.getState().order;
+            const currentOrder = deriveElementOrder(useSceneStore.getState().graph);
             const selectedIndex = selectedId != null ? currentOrder.indexOf(selectedId) : -1;
             const targetIndex = selectedIndex >= 0 ? selectedIndex + 1 : undefined;
             const created = runSceneCommand(
@@ -422,19 +422,6 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                 'SceneSelectionContext.addElement'
             );
             if (!created) return;
-
-            const store = useSceneStore.getState();
-            const maxZ = store.order.reduce((acc, id) => {
-                const binding = store.bindings.byElement[id]?.zIndex;
-                const z = readNumericBinding(binding);
-                return z !== null && z > acc ? z : acc;
-            }, Number.NEGATIVE_INFINITY);
-            const nextZ = Number.isFinite(maxZ) ? maxZ + 1 : 0;
-
-            runSceneCommand(
-                { type: 'updateElementConfig', elementId: uniqueId, patch: { zIndex: nextZ } },
-                'SceneSelectionContext.addElement:zIndex'
-            );
 
             if (visualizer?.invalidateRender) visualizer.invalidateRender();
             setPropertyPanelRefresh((prev) => prev + 1);

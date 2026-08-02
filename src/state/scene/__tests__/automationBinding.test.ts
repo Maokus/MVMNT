@@ -1,9 +1,10 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
+import { deriveElementOrder } from '@state/scene-graph';
 import { resetMacroStoreBinding, setMacroStoreBinding } from '@state/scene/macroSyncService';
 import { SceneRuntimeAdapter } from '@state/scene/runtimeAdapter';
-import { makeChannelId, createChannel } from '@automation/types';
+import { createChannel, elementPropertyTarget } from '@automation/types';
 
 describe('SceneRuntimeAdapter: automation binding', () => {
     let store: ReturnType<typeof createSceneStore>;
@@ -23,9 +24,8 @@ describe('SceneRuntimeAdapter: automation binding', () => {
 
     it('should handle enablePropertyAutomation without errors', () => {
         const state = store.getState();
-        const elementId = state.order[0]; // First element
+        const elementId = deriveElementOrder(state.graph)[0]; // First element
         const propertyKey = 'visible';
-        const channelId = makeChannelId(elementId, propertyKey);
 
         // Get current binding value
         const currentBinding = state.bindings.byElement[elementId]?.[propertyKey];
@@ -34,7 +34,8 @@ describe('SceneRuntimeAdapter: automation binding', () => {
         console.log('Element type:', state.elements[elementId]?.type);
 
         // Create channel
-        const channel = createChannel(elementId, propertyKey, 'boolean');
+        const channel = createChannel(elementPropertyTarget(elementId, propertyKey), 'boolean');
+        const channelId = channel.id;
         channel.keyframes = [
             { tick: 0, value: true, segmentInterpolation: { mode: 'constant', direction: 'auto' } },
             { tick: 100, value: false, segmentInterpolation: { mode: 'constant', direction: 'auto' } },
@@ -60,11 +61,10 @@ describe('SceneRuntimeAdapter: automation binding', () => {
 
     it('should handle enablePropertyAutomation for numeric property', () => {
         const state = store.getState();
-        const elementId = state.order[0];
+        const elementId = deriveElementOrder(state.graph)[0];
         const propertyKey = 'offsetX';
-        const channelId = makeChannelId(elementId, propertyKey);
-
-        const channel = createChannel(elementId, propertyKey, 'number');
+        const channel = createChannel(elementPropertyTarget(elementId, propertyKey), 'number');
+        const channelId = channel.id;
         channel.keyframes = [
             { tick: 0, value: 0, segmentInterpolation: { mode: 'linear', direction: 'auto' } },
             { tick: 100, value: 100, segmentInterpolation: { mode: 'linear', direction: 'auto' } },
@@ -86,11 +86,10 @@ describe('SceneRuntimeAdapter: automation binding', () => {
 
     it('should handle enablePropertyAutomation for color property', () => {
         const state = store.getState();
-        const elementId = state.order[0];
+        const elementId = deriveElementOrder(state.graph)[0];
         const propertyKey = 'color';
-        const channelId = makeChannelId(elementId, propertyKey);
-
-        const channel = createChannel(elementId, propertyKey, 'color');
+        const channel = createChannel(elementPropertyTarget(elementId, propertyKey), 'color');
+        const channelId = channel.id;
         channel.keyframes = [
             { tick: 0, value: '#ff0000', segmentInterpolation: { mode: 'linear', direction: 'auto' } },
             { tick: 100, value: '#0000ff', segmentInterpolation: { mode: 'linear', direction: 'auto' } },

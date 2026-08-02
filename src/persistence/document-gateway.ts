@@ -64,7 +64,6 @@ export interface PersistentDocumentV1 {
     scene: {
         elements: Record<string, any>;
         graph: SceneGraphState;
-        elementsOrder?: string[];
         sceneSettings?: any;
         macros?: any;
         fontAssets?: any;
@@ -94,7 +93,6 @@ export const DocumentGateway = {
 
         // Scene + macros (best effort)
         let elements: Record<string, any> = {};
-        let elementsOrder: string[] = [];
         let graph: SceneGraphState = createFlatSceneGraph([]);
         let sceneSettings: any = undefined;
         let macros: any = undefined;
@@ -107,7 +105,6 @@ export const DocumentGateway = {
         try {
             const snapshot = useSceneStore.getState().exportSceneDraft();
             elements = snapshot.elements ?? {};
-            elementsOrder = snapshot.elementsOrder ?? [];
             graph = snapshot.graph;
             if (snapshot.elementErrors?.length) {
                 elementWarnings = snapshot.elementErrors.map(
@@ -161,7 +158,6 @@ export const DocumentGateway = {
             scene: {
                 elements,
                 graph,
-                elementsOrder,
                 sceneSettings,
                 macros,
                 fontAssets,
