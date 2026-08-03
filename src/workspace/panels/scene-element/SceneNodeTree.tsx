@@ -19,6 +19,8 @@ import {
 import { useSceneSelection } from '@context/SceneSelectionContext';
 import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
+import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+import { getSceneElementIcon } from './icons/elementIcon';
 import { useSelectionStore } from '@state/selectionStore';
 import {
     isNodeAncestor,
@@ -71,6 +73,9 @@ interface NodeRowProps {
 }
 
 export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
+    const elementType = useSceneStore((state) =>
+        node.kind === 'element' ? state.elements[node.elementId]?.type : undefined
+    );
     const selectedNodeIds = useSelectionStore((state) => state.selectedNodeIds);
     const activeNodeId = useSelectionStore((state) => state.activeNodeId);
     const expandedNodeIds = useSelectionStore((state) => state.expandedNodeIds);
@@ -90,6 +95,14 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
         updateElementId,
     } = useSceneSelection();
     const rowLabel = node.kind === 'element' ? node.elementId : node.name;
+    const elementIcon =
+        node.kind === 'element' && elementType
+            ? getSceneElementIcon(
+                  elementType,
+                  sceneElementRegistry.getSchema(elementType)?.category,
+                  Boolean(sceneElementRegistry.getPluginId(elementType) || elementType.includes(':'))
+              )
+            : null;
     const expanded = node.kind === 'group' && expandedNodeIds[node.id] !== false;
     const selected = selectedNodeIds.includes(node.id);
     const active = activeNodeId === node.id;
@@ -235,7 +248,13 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
                     <span className="scene-node-disclosure" aria-hidden="true" />
                 )}
                 <span className="scene-node-kind" aria-hidden="true">
-                    {node.kind === 'group' ? <FaFolder /> : <FaShapes />}
+                    {node.kind === 'group' ? (
+                        <FaFolder />
+                    ) : elementIcon ? (
+                        <img className="scene-node-element-icon" src={elementIcon} alt="" />
+                    ) : (
+                        <FaShapes />
+                    )}
                 </span>
                 {renameValue !== null ? (
                     <input

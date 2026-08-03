@@ -264,9 +264,10 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         const desktop = window.mvmntDesktop;
         if (!desktop) return;
         return desktop.lifecycle.onCloseRequest(() => {
-            void menuBarActions.saveProject(false).then((saved) => {
-                desktop.lifecycle.completeCloseRequest(saved ? 'saved' : 'canceled');
-            });
+            void menuBarActions
+                .saveProject(false)
+                .then((saved) => desktop.lifecycle.completeCloseRequest(saved ? 'saved' : 'canceled'))
+                .catch(() => desktop.lifecycle.completeCloseRequest('error'));
         });
     }, [menuBarActions]);
 
@@ -295,6 +296,10 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     // Warn before leaving with unsaved changes
     // -------------------------------------------------------------------------
     useEffect(() => {
+        // Electron owns the close confirmation so it can coordinate native save
+        // dialogs and exports. A browser beforeunload prompt here would otherwise
+        // block its approved close request.
+        if (window.mvmntDesktop) return;
         const handler = (event: BeforeUnloadEvent) => {
             if (!isDirty) return;
             event.preventDefault();

@@ -1484,6 +1484,11 @@
         @apply inline-flex h-4 w-4 items-center justify-center text-[10px] text-neutral-500;
     }
 
+    .scene-node-element-icon {
+        @apply h-3 w-3 object-contain opacity-40;
+        filter: brightness(0) invert(1);
+    }
+
     .scene-node-row.is-selected .scene-node-kind,
     .scene-node-row.is-selected .scene-node-type,
     .scene-node-row.is-selected .scene-node-action {

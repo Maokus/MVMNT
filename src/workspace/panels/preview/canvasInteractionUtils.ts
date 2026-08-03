@@ -51,6 +51,23 @@ type DragCommandOptionsBase = Omit<SceneCommandOptions, 'source' | 'transient'>;
 
 let dragSessionCounter = 0;
 
+/**
+ * Adds the pointer's shortest angular movement to an ongoing rotation drag.
+ * Storing the accumulated angle avoids the atan2 -π/π seam resetting a group
+ * transform after the pointer passes the opposite side of its pivot.
+ */
+export function accumulateRotationDrag(
+    previousPointerAngle: number,
+    pointerAngle: number,
+    accumulatedAngle = 0
+): number {
+    const change = Math.atan2(
+        Math.sin(pointerAngle - previousPointerAngle),
+        Math.cos(pointerAngle - previousPointerAngle)
+    );
+    return accumulatedAngle + change;
+}
+
 function selectedSubtreeElementIds(): string[] {
     const scene = useSceneStore.getState();
     return subtreeNodeIds(scene.graph, useSelectionStore.getState().selectedNodeIds)
@@ -328,7 +345,14 @@ function processDrag(
                 )
             );
         } else if (meta.mode === 'rotate' && meta.pivot) {
-            let delta = Math.atan2(y - meta.pivot.y, x - meta.pivot.x) - meta.startAngle;
+            const pointerAngle = Math.atan2(y - meta.pivot.y, x - meta.pivot.x);
+            meta.rotationDelta = accumulateRotationDrag(
+                meta.lastPointerAngle ?? meta.startAngle,
+                pointerAngle,
+                meta.rotationDelta ?? 0
+            );
+            meta.lastPointerAngle = pointerAngle;
+            let delta = meta.rotationDelta;
             if (shiftKey) delta = Math.round(delta / (Math.PI / 12)) * (Math.PI / 12);
             applyGraphDragUpdate(
                 meta,
