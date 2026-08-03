@@ -25,6 +25,35 @@ export interface PropertyEditContext {
     transient?: boolean;
 }
 
+const PREVIEWABLE_NODE_TRANSFORM_PATHS = new Set([
+    'translationX',
+    'translationY',
+    'rotation',
+    'scaleX',
+    'scaleY',
+    'pivotX',
+    'pivotY',
+]);
+
+function isUncommittedTransformPreview(
+    state: SceneStoreState,
+    edit: PropertyEdit,
+    context: Pick<PropertyEditContext, 'autoKey'>
+): boolean {
+    if (
+        context.autoKey ||
+        edit.target.owner.kind !== 'node' ||
+        !PREVIEWABLE_NODE_TRANSFORM_PATHS.has(edit.target.propertyPath)
+    ) {
+        return false;
+    }
+    return (
+        bindingForTarget(state, edit.target)?.type === 'keyframes' &&
+        typeof edit.value === 'number' &&
+        Number.isFinite(edit.value)
+    );
+}
+
 export function bindingForTarget(state: SceneStoreState, target: PropertyTarget): BindingState | undefined {
     return target.owner.kind === 'element'
         ? state.bindings.byElement[target.owner.id]?.[target.propertyPath]
@@ -86,8 +115,8 @@ function staticCommand(edit: PropertyEdit, binding: BindingState | undefined): S
 
 /**
  * Creates the canonical edit commands for both host and element properties.
- * Once a property is automated, editing it always writes the playhead key. Auto-key only
- * decides whether an unanimated property should become animated.
+ * Element properties keep their established direct-key behavior. Animated host transforms
+ * instead become runtime-only previews while Auto Key is off.
  */
 export function buildPropertyEditCommands(
     state: SceneStoreState,
@@ -96,6 +125,7 @@ export function buildPropertyEditCommands(
 ): SceneCommand[] {
     const commands: SceneCommand[] = [];
     for (const edit of edits) {
+        if (isUncommittedTransformPreview(state, edit, context)) continue;
         const binding = bindingForTarget(state, edit.target);
         const channel = channelForTarget(state.automation, edit.target);
         if (binding?.type === 'keyframes' && channel) {
@@ -125,7 +155,14 @@ export function buildPropertyEditCommands(
 }
 
 export function dispatchPropertyEdits(edits: readonly PropertyEdit[], context: PropertyEditContext) {
-    const commands = buildPropertyEditCommands(useSceneStore.getState(), edits, context);
+    const state = useSceneStore.getState();
+    for (const edit of edits) {
+        if (!isUncommittedTransformPreview(state, edit, context)) continue;
+        state.setTransientNodeTransform(edit.target.owner.id, {
+            [edit.target.propertyPath]: edit.value as number,
+        });
+    }
+    const commands = buildPropertyEditCommands(state, edits, context);
     if (!commands.length) return null;
     const command: SceneCommand = commands.length === 1 ? commands[0] : { type: 'batch', commands };
     const options: SceneCommandOptions = {

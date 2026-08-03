@@ -137,9 +137,14 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         return inspectorTabs[0]?.id ?? '';
     }, [storedActiveTabId, enhancedSchema, inspectorTabs]);
 
-    // The store replaces an element's binding map when that element changes. Keeping
-    // that reference avoids treating unrelated inspector refreshes as a full model update.
-    const bindingsMemo = bindings ?? {};
+    // Keyframe insertion can originate outside this panel (the `I` popup and timeline).
+    // Subscribe to the authoritative binding map rather than waiting for a selection-context
+    // snapshot to propagate, so the diamond state changes in the same store update.
+    const liveBindings = useSceneStore(
+        useCallback((state) => state.bindings.byElement[elementId] ?? {}, [elementId]),
+        shallow
+    );
+    const bindingsMemo = liveBindings ?? bindings ?? {};
     const automationChannelIds = useMemo(
         () =>
             Object.values(bindingsMemo)

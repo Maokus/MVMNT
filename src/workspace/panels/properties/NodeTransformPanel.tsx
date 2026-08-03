@@ -835,7 +835,6 @@ export function MultiSelectionCommonProperties({ nodes }: { nodes: SceneNode[] }
         const keysHere = targetChannels.filter(
             (channel) => channel && findKeyframeAtTick(channel.keyframes, tick)
         ).length;
-        const allAutomated = automatedCount === targets.length;
         const allKeyed = keysHere === targets.length;
         const stateClass = automatedCount === 0 ? 'inactive' : allKeyed ? 'active' : 'automated';
         const title =
@@ -853,7 +852,7 @@ export function MultiSelectionCommonProperties({ nodes }: { nodes: SceneNode[] }
                 aria-label={title}
                 onClick={(event) => {
                     event.stopPropagation();
-                    if (allAutomated && allKeyed) {
+                    if (allKeyed) {
                         const commands: SceneCommand[] = targetChannels.flatMap((channel) =>
                             channel ? [{ type: 'removeKeyframe' as const, channelId: channel.id, tick }] : []
                         );
@@ -861,11 +860,19 @@ export function MultiSelectionCommonProperties({ nodes }: { nodes: SceneNode[] }
                             { type: 'batch', commands },
                             { source: 'NodeTransformPanel.common.keyframe' }
                         );
+                        useSceneStore.getState().clearTransientNodeTransforms(
+                            selectedNodes.map((node) => node.id),
+                            [path as keyof NodeTransform]
+                        );
                         return;
                     }
                     dispatchPropertyEdits(
                         targets.map((target, index) => ({ target, value: values[index], valueType })),
                         { tick, autoKey: true, source: 'NodeTransformPanel.common.keyframe' }
+                    );
+                    useSceneStore.getState().clearTransientNodeTransforms(
+                        selectedNodes.map((node) => node.id),
+                        [path as keyof NodeTransform]
                     );
                 }}
                 onContextMenu={(event) => {
@@ -889,7 +896,25 @@ export function MultiSelectionCommonProperties({ nodes }: { nodes: SceneNode[] }
                     }
                 }}
             >
-                {automatedCount === 0 ? '◷' : '◆'}
+                {automatedCount === 0 ? (
+                    <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 10 10"
+                        className="ae-keyframe-stopwatch"
+                        aria-hidden="true"
+                    >
+                        <rect x="3.5" y="0.5" width="3" height="1.2" rx="0.6" fill="currentColor" />
+                        <line x1="5" y1="1.7" x2="5" y2="2.8" stroke="currentColor" strokeWidth="1" />
+                        <circle cx="5" cy="6" r="3.2" fill="none" stroke="currentColor" strokeWidth="1" />
+                        <line x1="5" y1="6" x2="5" y2="4" stroke="currentColor" strokeWidth="1" />
+                        <line x1="5" y1="6" x2="7" y2="6" stroke="currentColor" strokeWidth="1" />
+                    </svg>
+                ) : (
+                    <svg width="10" height="10" viewBox="0 0 10 10" className="ae-keyframe-diamond" aria-hidden="true">
+                        <path d="M5 0 L10 5 L5 10 L0 5 Z" />
+                    </svg>
+                )}
             </button>
         );
     }
@@ -1105,7 +1130,19 @@ function BulkTargetKeyframeControl({
                 }
             }}
         >
-            {automatedCount === 0 ? '◷' : '◆'}
+            {automatedCount === 0 ? (
+                <svg width="10" height="10" viewBox="0 0 10 10" className="ae-keyframe-stopwatch" aria-hidden="true">
+                    <rect x="3.5" y="0.5" width="3" height="1.2" rx="0.6" fill="currentColor" />
+                    <line x1="5" y1="1.7" x2="5" y2="2.8" stroke="currentColor" strokeWidth="1" />
+                    <circle cx="5" cy="6" r="3.2" fill="none" stroke="currentColor" strokeWidth="1" />
+                    <line x1="5" y1="6" x2="5" y2="4" stroke="currentColor" strokeWidth="1" />
+                    <line x1="5" y1="6" x2="7" y2="6" stroke="currentColor" strokeWidth="1" />
+                </svg>
+            ) : (
+                <svg width="10" height="10" viewBox="0 0 10 10" className="ae-keyframe-diamond" aria-hidden="true">
+                    <path d="M5 0 L10 5 L5 10 L0 5 Z" />
+                </svg>
+            )}
         </button>
     );
 }

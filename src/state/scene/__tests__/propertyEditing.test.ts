@@ -94,4 +94,23 @@ describe('shared property editing', () => {
         expect(effectiveValueForTarget(useSceneStore.getState(), target, 0)).toBe(12);
         expect(useSceneStore.getState().transientNodeTransforms[nodeId]).toEqual({ rotation: 1 });
     });
+
+    it('creates an uncommitted preview instead of a keyframe for animated transforms when auto-key is off', () => {
+        const state = useSceneStore.getState();
+        const nodeId = state.nodeIdByElementId.element;
+        const target = nodePropertyTarget(nodeId, 'rotation');
+        const channel = createChannel(target, 'number');
+        channel.keyframes = [createKeyframe(24, 0.25)];
+        state.setAutomationChannel(channel);
+        state.updateNodeBindings(nodeId, { rotation: { type: 'keyframes', channelId: channel.id } });
+
+        dispatchPropertyEdits([{ target, value: 0.75, valueType: 'number' }], {
+            tick: 24,
+            autoKey: false,
+            source: 'test',
+        });
+
+        expect(useSceneStore.getState().automation.channels[channel.id].keyframes).toEqual([createKeyframe(24, 0.25)]);
+        expect(useSceneStore.getState().transientNodeTransforms[nodeId]).toEqual({ rotation: 0.75 });
+    });
 });
