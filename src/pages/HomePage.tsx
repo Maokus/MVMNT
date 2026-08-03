@@ -251,15 +251,15 @@ const DonationNotice: React.FC = () => {
                     <div className="text-sm">
                         <div className="font-medium">Welcome!!</div>
                         <div className="mt-1 text-neutral-300">
-                            I develop and host this project at my own expense. If you enjoy the app, please consider
-                            donating!
+                            I develop and host this project at my own expense. If you enjoy the app, please check out
+                            how you can support it!
                         </div>
                         <div className="mt-2 flex gap-2">
                             <Link
                                 to="/contribute"
                                 className="rounded bg-indigo-600 px-2 py-1 text-xs hover:bg-indigo-500"
                             >
-                                Donate
+                                Support MVMNT
                             </Link>
                             <button
                                 onClick={() => setDismissed(true)}

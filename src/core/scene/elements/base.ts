@@ -751,10 +751,12 @@ export class SceneElement implements SceneElementInterface {
         const containerObject = usePerspective
             ? new PerspectiveElementRoot(this.id, { ...IDENTITY_PERSPECTIVE_WARP }, 0, 0, 1, 1, 1)
             : new EmptyRenderObject(0, 0, 1, 1, 1);
-        containerObject
-            .setSkew(this.elementSkewX, this.elementSkewY)
-            .setVisible(this.visible)
-            .setOriginFraction(0.5, 0.5);
+        containerObject.setSkew(this.elementSkewX, this.elementSkewY).setVisible(this.visible);
+        // Text Overlay supplies explicit horizontal and vertical block alignment.
+        // Its local (0, 0) must therefore remain the transform origin; centering
+        // the wrapper on its bounds would cancel those controls out.
+        if (this.type === 'textOverlay') containerObject.setOrigin(0, 0);
+        else containerObject.setOriginFraction(0.5, 0.5);
 
         // Add all child render objects to the container
         for (const childObj of childRenderObjects) {
@@ -794,7 +796,9 @@ export class SceneElement implements SceneElementInterface {
 
         // Add anchor point visualization if enabled
         if (config.showAnchorPoints) {
-            containerObject.setAnchorVisualizationData(layoutBounds, visualBounds, 0.5, 0.5);
+            const anchorX = this.type === 'textOverlay' ? 0 : 0.5;
+            const anchorY = this.type === 'textOverlay' ? 0 : 0.5;
+            containerObject.setAnchorVisualizationData(layoutBounds, visualBounds, anchorX, anchorY);
         }
 
         return [containerObject];

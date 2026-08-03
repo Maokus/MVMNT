@@ -139,6 +139,45 @@ describe('PropertyGroupPanel', () => {
         expect(screen.getAllByText('Y')).toHaveLength(2);
     });
 
+    it('writes both anchor coordinates when an anchor-grid point is selected', () => {
+        const properties = [
+            { key: 'anchorX', label: 'Anchor X', type: 'number', default: 0.5, min: 0, max: 1, step: 0.01 },
+            { key: 'anchorY', label: 'Anchor Y', type: 'number', default: 0.5, min: 0, max: 1, step: 0.01 },
+        ] as PropertyDefinition[];
+        const onValuesChange = vi.fn();
+        const group: PropertyGroup = {
+            id: 'anchor',
+            label: 'Anchor',
+            collapsed: false,
+            properties,
+            layout: [
+                {
+                    kind: 'control',
+                    control: 'anchor-grid',
+                    bindings: { x: 'anchorX', y: 'anchorY' },
+                    options: { label: 'Text Anchor' },
+                },
+            ],
+        };
+
+        render(
+            <PropertyGroupPanel
+                group={group}
+                properties={properties}
+                values={{ anchorX: 0.5, anchorY: 0.5 }}
+                macroAssignments={{}}
+                elementId="test-element"
+                onValueChange={vi.fn()}
+                onValuesChange={onValuesChange}
+                onMacroAssignment={vi.fn()}
+                onCollapseToggle={vi.fn()}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Top right' }));
+        expect(onValuesChange).toHaveBeenCalledWith({ anchorX: 1, anchorY: 0 }, undefined);
+    });
+
     it('retains the property row for a slider control when requested, including its animation control', () => {
         const properties = [
             { key: 'strength', label: 'Strength', type: 'number', default: 50, min: 0, max: 100, step: 1 },

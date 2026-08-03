@@ -137,6 +137,45 @@ const PointGrid: React.FC<PropertyControlProps> = (props) => (
     <NumericControl {...props} ports={['x', 'y']} label={String(props.options?.label ?? 'Point')} />
 );
 
+const AnchorGrid: React.FC<PropertyControlProps> = ({ bindings, options, values, disabled, setMany }) => {
+    const xKey = bindings.x;
+    const yKey = bindings.y;
+    const x = typeof values[xKey] === 'number' ? values[xKey] : 0.5;
+    const y = typeof values[yKey] === 'number' ? values[yKey] : 0.5;
+    const isDisabled = disabled(xKey) || disabled(yKey);
+    const positions = [
+        ['Top left', 0, 0],
+        ['Top center', 0.5, 0],
+        ['Top right', 1, 0],
+        ['Center left', 0, 0.5],
+        ['Center', 0.5, 0.5],
+        ['Center right', 1, 0.5],
+        ['Bottom left', 0, 1],
+        ['Bottom center', 0.5, 1],
+        ['Bottom right', 1, 1],
+    ] as const;
+    return (
+        <fieldset className="ae-property-control ae-anchor-grid" aria-label={String(options?.label ?? 'Anchor')}>
+            <legend>{String(options?.label ?? 'Anchor')}</legend>
+            <div className="ae-anchor-grid-buttons">
+                {positions.map(([label, nextX, nextY]) => (
+                    <button
+                        key={label}
+                        type="button"
+                        className="ae-anchor-grid-dot"
+                        aria-label={label}
+                        aria-pressed={x === nextX && y === nextY}
+                        disabled={isDisabled}
+                        onClick={() => setMany({ [xKey]: nextX, [yKey]: nextY })}
+                    >
+                        <span aria-hidden="true" />
+                    </button>
+                ))}
+            </div>
+        </fieldset>
+    );
+};
+
 const DerivedNumber: React.FC<PropertyControlProps> = ({
     bindings,
     options,
@@ -181,6 +220,12 @@ propertyControlRegistry.register({
     presentation: 'block',
     validate: requireNumericPorts(['x', 'y']),
     component: PointGrid,
+});
+propertyControlRegistry.register({
+    id: 'anchor-grid',
+    presentation: 'block',
+    validate: requireNumericPorts(['x', 'y']),
+    component: AnchorGrid,
 });
 propertyControlRegistry.register({
     id: 'derived-number',

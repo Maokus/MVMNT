@@ -55,7 +55,7 @@ compound control port and an exact scalar row.
 ## Built-in controls and fallback
 
 The workspace owns `PropertyControlRegistry`. The initial registrations are
-`slider`, `xy-pad`, `point-grid`, and `derived-number`. Numeric controls
+`slider`, `xy-pad`, `point-grid`, `anchor-grid`, and `derived-number`. Numeric controls
 validate that every required binding exists in the group and is a `number`
 property before rendering. A slider is paired with its ordinary property row to
 retain macro, keyframe, drag, and precise numeric-entry affordances:
