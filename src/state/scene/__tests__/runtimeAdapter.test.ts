@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, describe, expect, it } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
 import { resetMacroStoreBinding, setMacroStoreBinding } from '@state/scene/macroSyncService';
@@ -48,6 +48,16 @@ describe('SceneRuntimeAdapter', () => {
         expect(adapter.getElementVersion('title')).toBeGreaterThan(originalTitleVersion);
         expect(adapter.getElementVersion('background')).toBe(originalBackgroundVersion);
         expect(afterDiagnostics.version).toBeGreaterThan(beforeDiagnostics.version);
+    });
+
+    it('notifies the visualizer when a live element binding changes', () => {
+        const listener = vi.fn();
+        window.addEventListener('mvmnt-scene-runtime-updated', listener);
+
+        store.getState().updateBindings('title', { visible: { type: 'constant', value: false } });
+
+        expect(listener).toHaveBeenCalledTimes(1);
+        window.removeEventListener('mvmnt-scene-runtime-updated', listener);
     });
 
     it('retains unrelated plugin instances when hierarchy changes', () => {

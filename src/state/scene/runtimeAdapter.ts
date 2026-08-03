@@ -439,6 +439,11 @@ export class SceneRuntimeAdapter {
             this.adapterVersion += 1;
             this.resolvedFrame = null;
             if (next.graph !== prev.graph) this.structureIndex = null;
+            try {
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('mvmnt-scene-runtime-updated'));
+                }
+            } catch {}
         }
     }
 }

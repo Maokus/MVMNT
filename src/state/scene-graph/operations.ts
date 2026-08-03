@@ -1,4 +1,11 @@
-import { identityMatrix, invertMatrix, matrixToNodeTransform, multiplyMatrices, nodeTransformToMatrix } from './math';
+import {
+    applyMatrixToPoint,
+    identityMatrix,
+    invertMatrix,
+    matrixToNodeTransform,
+    multiplyMatrices,
+    nodeTransformToMatrix,
+} from './math';
 import { buildSceneGraphNavigationIndex } from './graph';
 import { cloneSceneGraph, createNodeBase, type Matrix2D, type SceneGraphState, type SceneNode } from './types';
 
@@ -115,7 +122,8 @@ export function groupSceneNodes(
     graph: SceneGraphState,
     nodeIds: readonly string[],
     groupId: string,
-    name = 'Group'
+    name = 'Group',
+    worldPivot?: { x: number; y: number }
 ): SceneGraphState {
     const selected = normalizeNodeSelection(graph, nodeIds);
     if (selected.length < 1) throw new Error('Select at least one node to group');
@@ -138,7 +146,26 @@ export function groupSceneNodes(
     if (!nextParent || !('children' in nextParent)) throw new Error('Group parent is invalid');
     nextParent.children = nextParent.children.filter((id) => !selectedSet.has(id));
     nextParent.children.splice(insertionIndex, 0, groupId);
-    next.nodesById[groupId] = { ...createNodeBase(groupId, parentId, name), kind: 'group', children: ordered };
+    const groupBase = createNodeBase(groupId, parentId, name);
+    if (worldPivot && Number.isFinite(worldPivot.x) && Number.isFinite(worldPivot.y)) {
+        const parentWorld = worldMatrices(graph).get(parentId);
+        const inverseParent = parentWorld ? invertMatrix(parentWorld) : null;
+        if (inverseParent) {
+            const localPivot = applyMatrixToPoint(inverseParent, worldPivot);
+            groupBase.userNodeTransform = {
+                ...groupBase.userNodeTransform,
+                translationX: localPivot.x,
+                translationY: localPivot.y,
+                pivotX: localPivot.x,
+                pivotY: localPivot.y,
+            };
+            // Keep the new group's effective transform at identity so grouping does not
+            // move its children. The authored transform can now rotate/scale around the
+            // visual centre while exposing useful X/Y and pivot values in the inspector.
+            groupBase.parentCompensation = [1, 0, 0, 1, -localPivot.x, -localPivot.y];
+        }
+    }
+    next.nodesById[groupId] = { ...groupBase, kind: 'group', children: ordered };
     for (const id of ordered) next.nodesById[id] = { ...next.nodesById[id], parentId: groupId } as SceneNode;
     next.revision += 1;
     return next;

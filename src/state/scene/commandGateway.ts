@@ -182,7 +182,7 @@ export type SceneCommand =
     | { type: 'setNodeOpacity'; nodeId: string; opacity: number }
     | { type: 'setNodeLocked'; nodeId: string; locked: boolean }
     | { type: 'setNodeName'; nodeId: string; name: string }
-    | { type: 'groupNodes'; nodeIds: string[]; groupId: string; name?: string }
+    | { type: 'groupNodes'; nodeIds: string[]; groupId: string; name?: string; worldPivot?: { x: number; y: number } }
     | { type: 'ungroupNode'; nodeId: string }
     | { type: 'deleteSubtrees'; nodeIds: string[] }
     | { type: 'duplicateSubtrees'; nodeIds: string[]; mappings: DuplicateMappings }
@@ -951,7 +951,9 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
             store.setNodeName(command.nodeId, command.name);
             break;
         case 'groupNodes':
-            store.replaceGraph(groupSceneNodes(store.graph, command.nodeIds, command.groupId, command.name));
+            store.replaceGraph(
+                groupSceneNodes(store.graph, command.nodeIds, command.groupId, command.name, command.worldPivot)
+            );
             break;
         case 'ungroupNode':
             store.replaceGraph(ungroupSceneNode(store.graph, command.nodeId));

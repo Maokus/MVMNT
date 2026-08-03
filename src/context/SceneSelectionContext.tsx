@@ -518,11 +518,18 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         const scene = useSceneStore.getState();
         const nodeIds = normalizeNodeSelection(scene.graph, useSelectionStore.getState().selectedNodeIds);
         if (!nodeIds.length) return;
+        const selectionGeometry = visualizer?.getNodeSelectionAtTime?.(nodeIds, visualizer.getCurrentTime?.() ?? 0);
         let suffix = 1;
         let groupId = `group:${suffix}`;
         while (scene.graph.nodesById[groupId]) groupId = `group:${++suffix}`;
         const ok = runSceneCommand(
-            { type: 'groupNodes', nodeIds, groupId, name: `Group ${suffix}` },
+            {
+                type: 'groupNodes',
+                nodeIds,
+                groupId,
+                name: `Group ${suffix}`,
+                worldPivot: selectionGeometry?.pivot,
+            },
             'SceneSelectionContext.groupNodes'
         );
         if (!ok) return;

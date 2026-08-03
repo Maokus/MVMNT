@@ -31,6 +31,7 @@ import { dispatchPropertyEdits, propertyEditMergeKey } from '@state/scene/proper
 import { effectiveValueForTarget } from '@state/scene/propertyEditing';
 import { elementPropertyDescriptors, hostPropertyDescriptors } from '@state/scene/propertyCatalog';
 import { resolveAutomationValueType } from './KeyframeControl';
+import { aggregateTransformDelta } from './aggregateTransformDelta';
 
 const fields = HOST_NODE_PROPERTY_SCHEMA.filter(
     (field): field is (typeof HOST_NODE_PROPERTY_SCHEMA)[number] & { path: keyof NodeTransform } =>
@@ -245,6 +246,8 @@ export function NodeTransformPanel() {
     const tick = useTimelineStore((state) => state.timeline.currentTick);
     const autoKeying = useTimelineStore((state) => state.transport.autoKeying);
     const { visualizer } = useSceneSelection();
+    const aggregateSessionValues = useRef(new Map<string, number>());
+    const [aggregateInputRevision, setAggregateInputRevision] = useState(0);
     const nodes = nodeIds.map((id) => graph.nodesById[id]).filter(Boolean);
     const geometry = useMemo(
         () => visualizer?.getNodeSelectionAtTime?.(nodeIds, visualizer.getCurrentTime?.() ?? 0) ?? null,
@@ -310,6 +313,24 @@ export function NodeTransformPanel() {
             }
         );
     };
+    const aggregateDelta = (
+        next: number,
+        neutral: number,
+        change: FormInputChange | undefined,
+        mode: 'add' | 'multiply'
+    ) => {
+        const session = change?.meta?.mergeSession;
+        const previous = session ? (aggregateSessionValues.current.get(session.id) ?? neutral) : neutral;
+        if (session) {
+            if (session.finalize) {
+                aggregateSessionValues.current.delete(session.id);
+                setAggregateInputRevision((revision) => revision + 1);
+            } else aggregateSessionValues.current.set(session.id, next);
+        } else {
+            setAggregateInputRevision((revision) => revision + 1);
+        }
+        return aggregateTransformDelta(next, neutral, previous, mode);
+    };
 
     if (!singleNode && !geometry) {
         return (
@@ -322,7 +343,6 @@ export function NodeTransformPanel() {
                     Show at least one selected node to use aggregate position, rotation, scale, and pivot controls.
                 </p>
                 <NodeStateRows nodes={nodes} common={common} dispatchForAll={dispatchForAll} />
-                <MultiSelectionCommonProperties nodes={nodes} />
                 <MultiSelectionCommonContent nodes={nodes} />
             </div>
         );
@@ -365,21 +385,25 @@ export function NodeTransformPanel() {
                 </TransformSection>
                 <TransformSection title="Rotation & Scale" ownerKey={inspectorOwnerKey}>
                     <TransformRow
-                        key={`rotation-${graph.revision}`}
+                        key={`rotation-${aggregateInputRevision}`}
                         label="Rotate by"
                         id="node-selection-rotation"
                         value={0}
                         suffix="°"
                         onChange={(degrees, change) =>
                             applyWorldDelta(
-                                matrixAroundPoint(rotationMatrix((degrees * Math.PI) / 180), pivot.x, pivot.y),
+                                matrixAroundPoint(
+                                    rotationMatrix((aggregateDelta(degrees, 0, change, 'add') * Math.PI) / 180),
+                                    pivot.x,
+                                    pivot.y
+                                ),
                                 `selection-rotation:${nodeIds.join(',')}`,
                                 change
                             )
                         }
                     />
                     <TransformRow
-                        key={`scale-${graph.revision}`}
+                        key={`scale-${aggregateInputRevision}`}
                         label="Scale by"
                         id="node-selection-scale"
                         value={100}
@@ -387,7 +411,11 @@ export function NodeTransformPanel() {
                         schema={{ step: 1, min: 0.1 }}
                         onChange={(percent, change) =>
                             applyWorldDelta(
-                                matrixAroundPoint(scaleMatrix(Math.max(0.001, percent / 100)), pivot.x, pivot.y),
+                                matrixAroundPoint(
+                                    scaleMatrix(Math.max(0.001, aggregateDelta(percent, 100, change, 'multiply'))),
+                                    pivot.x,
+                                    pivot.y
+                                ),
                                 `selection-scale:${nodeIds.join(',')}`,
                                 change
                             )
@@ -409,7 +437,6 @@ export function NodeTransformPanel() {
                     />
                 </TransformSection>
                 <NodeStateRows nodes={nodes} common={common} dispatchForAll={dispatchForAll} />
-                <MultiSelectionCommonProperties nodes={nodes} />
                 <MultiSelectionCommonContent nodes={nodes} />
             </div>
         );
@@ -649,7 +676,8 @@ function NodeStateRows({
     );
 }
 
-function MultiSelectionCommonProperties({ nodes }: { nodes: SceneNode[] }) {
+/** Optional bulk-local editor for extensions; the main inspector omits it because those host fields are shown above. */
+export function MultiSelectionCommonProperties({ nodes }: { nodes: SceneNode[] }) {
     const tick = useTimelineStore((state) => state.timeline.currentTick);
     const autoKey = useTimelineStore((state) => state.transport.autoKeying);
     const nodeBindings = useSceneStore((state) => state.nodeBindings);

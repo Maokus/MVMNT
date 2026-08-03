@@ -44,6 +44,24 @@ describe('recursive scene graph operations', () => {
         expect(group.kind === 'group' && group.children).toEqual(['element:a', 'element:c']);
     });
 
+    it('centres a new group transform on the selected artwork without moving its children', () => {
+        const graph = createFlatSceneGraph(['a', 'b']);
+        const grouped = groupSceneNodes(graph, ['element:a', 'element:b'], 'group:1', 'Group', { x: 40, y: 25 });
+        const group = grouped.nodesById['group:1'];
+
+        expect(group.userNodeTransform).toMatchObject({
+            translationX: 40,
+            translationY: 25,
+            pivotX: 40,
+            pivotY: 25,
+        });
+        const effectiveGroupMatrix = multiplyMatrices(
+            group.parentCompensation,
+            nodeTransformToMatrix(group.userNodeTransform)
+        );
+        effectiveGroupMatrix.forEach((value, index) => expect(value).toBeCloseTo([1, 0, 0, 1, 0, 0][index], 10));
+    });
+
     it('preserves child world position when a transformed group is ungrouped', () => {
         const graph = groupSceneNodes(createFlatSceneGraph(['a']), ['element:a'], 'group:1');
         graph.nodesById['group:1'].userNodeTransform.translationX = 25;
