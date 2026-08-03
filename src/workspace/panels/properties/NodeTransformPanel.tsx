@@ -32,6 +32,7 @@ import { effectiveValueForTarget } from '@state/scene/propertyEditing';
 import { elementPropertyDescriptors, hostPropertyDescriptors } from '@state/scene/propertyCatalog';
 import { resolveAutomationValueType } from './KeyframeControl';
 import { aggregateTransformDelta } from './aggregateTransformDelta';
+import { hoveredPropertyRef } from './hoveredPropertyRef';
 
 const fields = HOST_NODE_PROPERTY_SCHEMA.filter(
     (field): field is (typeof HOST_NODE_PROPERTY_SCHEMA)[number] & { path: keyof NodeTransform } =>
@@ -53,6 +54,8 @@ interface TransformRowProps {
     onChange?: (value: number, change?: FormInputChange) => void;
     automation?: React.ReactNode;
     macro?: React.ReactNode;
+    uncommitted?: boolean;
+    hoverProperty?: { owner: { kind: 'node'; id: string }; propertyKey: string; propertyType: string };
 }
 
 function TransformRow({
@@ -66,12 +69,34 @@ function TransformRow({
     onChange,
     automation,
     macro,
+    uncommitted = false,
+    hoverProperty,
 }: TransformRowProps) {
     return (
         <PropertyControlRow
             label={suffix ? `${label} (${suffix})` : label}
             animationControl={automation}
             macroControl={macro}
+            className={uncommitted ? 'ae-property-uncommitted' : undefined}
+            onMouseEnter={
+                hoverProperty
+                    ? () => {
+                          hoveredPropertyRef.current = hoverProperty;
+                      }
+                    : undefined
+            }
+            onMouseLeave={
+                hoverProperty
+                    ? () => {
+                          if (
+                              hoveredPropertyRef.current?.owner.kind === 'node' &&
+                              hoveredPropertyRef.current.owner.id === hoverProperty.owner.id &&
+                              hoveredPropertyRef.current.propertyKey === hoverProperty.propertyKey
+                          )
+                              hoveredPropertyRef.current = null;
+                      }
+                    : undefined
+            }
         >
             {mixed ? (
                 <input
@@ -242,6 +267,7 @@ export function NodeTransformPanel() {
     const setSelectionPivot = useSelectionStore((state) => state.setSelectionPivot);
     const graph = useSceneStore((state) => state.graph);
     const nodeBindings = useSceneStore((state) => state.nodeBindings);
+    const transientNodeTransforms = useSceneStore((state) => state.transientNodeTransforms);
     const macros = useSceneStore((state) => state.macros);
     const tick = useTimelineStore((state) => state.timeline.currentTick);
     const autoKeying = useTimelineStore((state) => state.transport.autoKeying);
@@ -274,6 +300,8 @@ export function NodeTransformPanel() {
     };
     const valueFor = (path: keyof NodeTransform | 'localVisible' | 'localOpacity', fallback: unknown) => {
         if (!singleNode) return fallback;
+        const transient = transientNodeTransforms[singleNode.id]?.[path as keyof NodeTransform];
+        if (typeof transient === 'number') return transient;
         const binding = nodeBindings[singleNode.id]?.[path];
         if (!binding) return fallback;
         if (binding.type === 'constant') return binding.value;
@@ -550,6 +578,7 @@ export function NodeTransformPanel() {
         const descriptor = hostPropertyDescriptors(nodes[0].id).find((candidate) => candidate.definition.key === path)!;
         const displayValue = descriptor.presentation.toDisplay(raw);
         const display = typeof displayValue === 'number' ? displayValue : raw;
+        const hasUncommittedPreview = typeof transientNodeTransforms[nodes[0].id]?.[path] === 'number';
         return (
             <TransformRow
                 label={field.label}
@@ -560,6 +589,8 @@ export function NodeTransformPanel() {
                 readOnly={nodeBindings[nodes[0].id]?.[path]?.type === 'macro'}
                 automation={<BindingControls path={path} raw={raw} type="number" />}
                 macro={macroControlFor(path, raw, 'number')}
+                uncommitted={hasUncommittedPreview}
+                hoverProperty={{ owner: { kind: 'node', id: nodes[0].id }, propertyKey: path, propertyType: 'number' }}
                 onChange={(displayValue, change) => {
                     const canonical = descriptor.presentation.fromDisplay(displayValue);
                     const next = typeof canonical === 'number' ? canonical : displayValue;

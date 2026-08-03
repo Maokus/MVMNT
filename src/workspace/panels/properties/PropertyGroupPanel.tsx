@@ -451,7 +451,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                     isAutomatableType(property.type)
                         ? () => {
                               hoveredPropertyRef.current = {
-                                  elementId,
+                                  owner: { kind: 'element', id: elementId },
                                   propertyKey: property.key,
                                   propertyType: property.type,
                               };
@@ -461,7 +461,11 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                 onMouseLeave={
                     isAutomatableType(property.type)
                         ? () => {
-                              if (hoveredPropertyRef.current?.propertyKey === property.key) {
+                              if (
+                                  hoveredPropertyRef.current?.owner.kind === 'element' &&
+                                  hoveredPropertyRef.current.owner.id === elementId &&
+                                  hoveredPropertyRef.current.propertyKey === property.key
+                              ) {
                                   hoveredPropertyRef.current = null;
                               }
                           }

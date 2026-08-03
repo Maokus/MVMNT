@@ -658,6 +658,12 @@ export class MIDIVisualizerCore {
     }
     getSelectionHandlesAtTime(elementId: string, targetTime = this.currentTime) {
         if (!elementId) return [];
+        const resolvedRecord = this.getResolvedSceneFrame(targetTime)?.byElementId.get(elementId);
+        if (!resolvedRecord || resolvedRecord.effectiveLocked || resolvedRecord.effectiveVisible === false) return [];
+        return this.getSelectionHandlesForNodesAtTime([resolvedRecord.node.id], targetTime);
+
+        /* Legacy element-owned handle geometry is intentionally retained below for source
+         * history only; selection now always uses the host-node pivot path above. */
         const boundsList = this.getElementBoundsAtTime(targetTime);
         const record: any = boundsList.find((b) => b.id === elementId);
         if (!record || record.effectiveLocked || record.effectiveVisible === false) return [];

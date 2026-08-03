@@ -3,14 +3,11 @@
 // all required dependencies are passed in explicitly.
 
 import {
-    computeConstrainedMoveDelta,
-    computeScaleHandleReferencePoints,
     elementHitTest,
     elementHoverId,
     findHandleUnderPoint,
     getCanvasWorldPoint,
 } from '@math/transforms/interaction';
-import { computeAnchorAdjustment, computeRotation, computeScaledTransform } from '@core/interaction/mouse-transforms';
 import {
     DEFAULT_SNAP_TOLERANCE,
     buildSnapTargets,
@@ -18,14 +15,13 @@ import {
     snapTranslation,
     type SnapGuide,
 } from '@core/interaction/snapping';
-import type { GeometryInfo } from '@math/transforms/types';
 import { useSceneStore } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
 import type { SceneCommand } from '@state/scene';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { useSelectionStore } from '@state/selectionStore';
 import { marqueeNodeIds } from '@state/scene';
-import { createKeyframe, nodePropertyTarget } from '@automation/types';
+import { createKeyframe, findKeyframeAtTick, nodePropertyTarget } from '@automation/types';
 import { useTimelineStore } from '@state/timelineStore';
 import {
     cloneSceneGraph,
@@ -48,7 +44,6 @@ export interface InteractionDeps {
     visualizer: any; // runtime visualizer instance
     selectElement: (id: string | null) => void;
     selectNode?: (id: string, options?: { toggle?: boolean }) => void;
-    updateElementConfig?: (id: string, cfg: any, options?: Omit<SceneCommandOptions, 'source'>) => void;
     incrementPropertyPanelRefresh: () => void;
 }
 
@@ -87,31 +82,12 @@ function ensureDragCommandOptions(meta: any, elementId: string): DragCommandOpti
     return base;
 }
 
-function applyDragUpdate(meta: any, elementId: string, cfg: Record<string, unknown>, deps: InteractionDeps) {
-    const { updateElementConfig } = deps;
-    if (!updateElementConfig) return;
-    meta.dragElementId = elementId;
-    const baseOptions = ensureDragCommandOptions(meta, elementId);
-    updateElementConfig(elementId, cfg, { ...baseOptions, transient: true });
-    meta.lastConfig = { ...cfg };
-}
-
-function applyNodeDragUpdate(meta: any, elementId: string, transform: Record<string, number>, transient = true) {
-    const nodeId = useSceneStore.getState().nodeIdByElementId[elementId];
-    if (!nodeId) return;
-    meta.dragElementId = elementId;
-    const baseOptions = ensureDragCommandOptions(meta, elementId);
-    dispatchSceneCommand(
-        { type: 'updateNodeTransform', nodeId, transform },
-        { source: 'canvas.nodeTransform', ...baseOptions, transient }
-    );
-    meta.lastNodeTransform = { ...transform };
-}
-
 function applyGraphDragUpdate(meta: any, graph: ReturnType<typeof cloneSceneGraph>, transient = true) {
     const baseOptions = ensureDragCommandOptions(meta, meta.dragElementId ?? meta.nodeIds[0]);
     const store = useSceneStore.getState();
-    const comparisonGraph = transient ? store.graph : (meta.originalGraph ?? store.graph);
+    const comparisonGraph = transient
+        ? (meta.lastGraph ?? meta.originalGraph ?? store.graph)
+        : (meta.originalGraph ?? store.graph);
     const tick = useTimelineStore.getState().timeline.currentTick;
     const autoKeying = useTimelineStore.getState().transport.autoKeying;
     const commands: SceneCommand[] = [];
@@ -120,6 +96,7 @@ function applyGraphDragUpdate(meta: any, graph: ReturnType<typeof cloneSceneGrap
         const next = graph.nodesById[nodeId]?.userNodeTransform;
         if (!previous || !next) continue;
         const staticPatch: Record<string, number> = {};
+        const transientPatch: Record<string, number> = {};
         for (const path of Object.keys(next) as Array<keyof typeof next>) {
             const nextValue = next[path];
             if (typeof nextValue !== 'number' || !Number.isFinite(nextValue) || Object.is(previous[path], nextValue)) {
@@ -127,11 +104,22 @@ function applyGraphDragUpdate(meta: any, graph: ReturnType<typeof cloneSceneGrap
             }
             const binding = store.nodeBindings[nodeId]?.[path];
             if (binding?.type === 'keyframes') {
-                commands.push({
-                    type: 'addKeyframe',
-                    channelId: binding.channelId,
-                    keyframe: createKeyframe(tick, nextValue),
-                });
+                if (autoKeying) {
+                    const existing = findKeyframeAtTick(
+                        store.automation.channels[binding.channelId]?.keyframes ?? [],
+                        tick
+                    );
+                    commands.push({
+                        type: 'addKeyframe',
+                        channelId: binding.channelId,
+                        keyframe: existing ? { ...existing, tick, value: nextValue } : createKeyframe(tick, nextValue),
+                    });
+                } else {
+                    transientPatch[path] = nextValue;
+                }
+            } else if (binding?.type === 'macro') {
+                // Macro values are authoritative until the user explicitly detaches the macro in the inspector.
+                continue;
             } else if (binding) {
                 commands.push({
                     type: 'updatePropertyTargetBinding',
@@ -152,6 +140,7 @@ function applyGraphDragUpdate(meta: any, graph: ReturnType<typeof cloneSceneGrap
         if (Object.keys(staticPatch).length) {
             commands.push({ type: 'updateNodeTransform', nodeId, transform: staticPatch });
         }
+        if (Object.keys(transientPatch).length) store.setTransientNodeTransform(nodeId, transientPatch);
     }
     if (commands.length) {
         dispatchSceneCommand(commands.length === 1 ? commands[0] : { type: 'batch', commands }, {
@@ -163,6 +152,17 @@ function applyGraphDragUpdate(meta: any, graph: ReturnType<typeof cloneSceneGrap
     meta.lastGraph = graph;
 }
 
+function graphWithDisplayedNodeTransforms(vis: any, nodeIds: readonly string[]) {
+    const graph = cloneSceneGraph(useSceneStore.getState().graph);
+    const frame = vis.getResolvedSceneFrame?.(vis.getCurrentTime?.() ?? 0);
+    for (const nodeId of nodeIds) {
+        const displayed = frame?.byNodeId?.get(nodeId)?.node?.userNodeTransform;
+        if (displayed)
+            graph.nodesById[nodeId] = { ...graph.nodesById[nodeId], userNodeTransform: { ...displayed } } as any;
+    }
+    return graph;
+}
+
 // ----- Helper functions -----
 
 function getWorldPoint(canvas: HTMLCanvasElement, clientX: number, clientY: number) {
@@ -171,135 +171,40 @@ function getWorldPoint(canvas: HTMLCanvasElement, clientX: number, clientY: numb
 
 function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
     const selectedId = vis._interactionState?.selectedElementId;
-    const nodeIds = useSelectionStore.getState().selectedNodeIds;
+    const selectedNodeIds = useSelectionStore.getState().selectedNodeIds;
+    const fallbackNodeId = selectedId ? useSceneStore.getState().nodeIdByElementId[selectedId] : undefined;
+    const nodeIds = selectedNodeIds.length ? selectedNodeIds : fallbackNodeId ? [fallbackNodeId] : [];
     if (!selectedId && !nodeIds.length) return;
     vis.setInteractionState({ activeHandle: handleHit.id, draggingElementId: selectedId ?? nodeIds[0] });
-    if (nodeIds.length > 1 || !selectedId) {
-        const selection = vis.getNodeSelectionAtTime?.(nodeIds, vis.getCurrentTime?.() ?? 0);
-        if (!selection) return;
-        const pivot = useSelectionStore.getState().selectionPivot ?? selection.pivot;
-        const b = selection.bounds;
-        const corners = selection.corners;
-        const oppositeByHandle: Record<string, { x: number; y: number }> =
-            corners?.length === 4
-                ? {
-                      'scale-nw': corners[2],
-                      'scale-ne': corners[3],
-                      'scale-se': corners[0],
-                      'scale-sw': corners[1],
-                  }
-                : {
-                      'scale-nw': { x: b.x + b.width, y: b.y + b.height },
-                      'scale-ne': { x: b.x, y: b.y + b.height },
-                      'scale-se': { x: b.x, y: b.y },
-                      'scale-sw': { x: b.x + b.width, y: b.y },
-                  };
-        const scaleOrigin = oppositeByHandle[handleHit.type] ?? pivot;
-        vis._dragMeta = {
-            mode: handleHit.type,
-            startX: x,
-            startY: y,
-            bounds: { ...selection.bounds },
-            pivot: { ...pivot },
-            startDistance: Math.hypot(x - scaleOrigin.x, y - scaleOrigin.y) || 1,
-            startAngle: Math.atan2(y - pivot.y, x - pivot.x),
-            scaleOrigin,
-            nodeIds: [...nodeIds],
-            originalGraph: cloneSceneGraph(useSceneStore.getState().graph),
-            pivotRecord: nodeIds.length === 1 ? selection.records?.[0] : null,
-            dragElementId: selectedId ?? nodeIds[0],
-            snapTargets: buildSnapTargets(vis, useSelectionStore.getState().getSelectedElementIds()),
-            snapTolerance: DEFAULT_SNAP_TOLERANCE,
-        };
-        vis.setInteractionState({ snapGuides: [] });
-        return;
-    }
-    const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
-    const rec = boundsList.find((b: any) => b.id === selectedId);
-    if (handleHit.type?.startsWith('warp-')) {
-        vis._dragMeta = {
-            mode: handleHit.type,
-            startX: x,
-            startY: y,
-            baseBounds: rec?.baseBounds ? { ...rec.baseBounds } : null,
-            affineTransform: rec?.affineTransform ? { ...rec.affineTransform } : null,
-            origWarp: rec?.warp
-                ? {
-                      topLeft: { ...rec.warp.topLeft },
-                      topRight: { ...rec.warp.topRight },
-                      bottomRight: { ...rec.warp.bottomRight },
-                      bottomLeft: { ...rec.warp.bottomLeft },
-                  }
-                : null,
-            dragElementId: selectedId,
-            snapTargets: buildSnapTargets(vis, selectedId),
-            snapTolerance: DEFAULT_SNAP_TOLERANCE,
-        };
-        vis.setInteractionState({ snapGuides: [] });
-        return;
-    }
-    const { geom, fixedWorldPoint, fixedLocalPoint, dragLocalPoint } = computeScaleHandleReferencePoints(
-        handleHit.type,
-        rec
-    );
-    const el = rec?.element;
-    const nodeTransform = rec?.nodeId
-        ? useSceneStore.getState().graph.nodesById[rec.nodeId]?.userNodeTransform
-        : undefined;
-    const baseBounds = rec?.baseBounds || null;
-    const geometry: GeometryInfo | null =
-        geom && typeof geom === 'object' && (geom as any).widthVec ? (geom as GeometryInfo) : null; // eslint-disable-line @typescript-eslint/no-explicit-any
-    const corners = geometry?.corners ?? null;
-    const centerWorld = corners
-        ? {
-              x: (corners.TL.x + corners.TR.x + corners.BR.x + corners.BL.x) / 4,
-              y: (corners.TL.y + corners.TR.y + corners.BR.y + corners.BL.y) / 4,
-          }
-        : rec?.bounds
-          ? {
-                x: (rec.bounds.x || 0) + (rec.bounds.width || 0) / 2,
-                y: (rec.bounds.y || 0) + (rec.bounds.height || 0) / 2,
-            }
-          : null;
-    const centerLocal = baseBounds
-        ? { x: baseBounds.x + baseBounds.width / 2, y: baseBounds.y + baseBounds.height / 2 }
-        : null;
+    const selection = vis.getNodeSelectionAtTime?.(nodeIds, vis.getCurrentTime?.() ?? 0);
+    if (!selection) return;
+    const pivot = useSelectionStore.getState().selectionPivot ?? selection.pivot;
+    const b = selection.bounds;
+    const corners = selection.corners;
+    const oppositeByHandle: Record<string, { x: number; y: number }> =
+        corners?.length === 4
+            ? { 'scale-nw': corners[2], 'scale-ne': corners[3], 'scale-se': corners[0], 'scale-sw': corners[1] }
+            : {
+                  'scale-nw': { x: b.x + b.width, y: b.y + b.height },
+                  'scale-ne': { x: b.x, y: b.y + b.height },
+                  'scale-se': { x: b.x, y: b.y },
+                  'scale-sw': { x: b.x + b.width, y: b.y },
+              };
+    const scaleOrigin = oppositeByHandle[handleHit.type] ?? pivot;
     vis._dragMeta = {
         mode: handleHit.type,
         startX: x,
         startY: y,
-        origOffsetX: nodeTransform?.translationX ?? 0,
-        origOffsetY: nodeTransform?.translationY ?? 0,
-        origContentOffsetX: el?.getProperty('offsetX') ?? 0,
-        origContentOffsetY: el?.getProperty('offsetY') ?? 0,
-        origWidth: rec?.bounds?.width ?? 0,
-        origHeight: rec?.bounds?.height ?? 0,
-        origScaleX: nodeTransform?.scaleX ?? 1,
-        origScaleY: nodeTransform?.scaleY ?? 1,
-        origRotation: nodeTransform?.rotation ?? 0,
-        origContentRotation: ((el?.getProperty('elementRotation') ?? 0) * Math.PI) / 180,
-        origContentScaleX: 1,
-        origContentScaleY: 1,
-        origSkewX: el?.getProperty('elementSkewX') ?? 0,
-        origSkewY: el?.getProperty('elementSkewY') ?? 0,
-        origAnchorX: el?.getProperty('anchorX') ?? 0.5,
-        origAnchorY: el?.getProperty('anchorY') ?? 0.5,
-        bounds: rec?.bounds ? { ...rec.bounds } : null,
-        corners: rec?.corners || null,
-        baseBounds,
-        geom: geometry,
-        fixedWorldPoint,
-        fixedLocalPoint,
-        dragLocalPoint,
-        centerWorld,
-        centerLocal,
-        warp: rec?.warp ?? null,
-        anchorWorld: rec?.projectedAnchor ?? null,
-        dragElementId: selectedId,
-        snapTargets: buildSnapTargets(
-            vis,
-            selectedSubtreeElementIds().length ? selectedSubtreeElementIds() : selectedId
-        ),
+        bounds: { ...selection.bounds },
+        pivot: { ...pivot },
+        startDistance: Math.hypot(x - scaleOrigin.x, y - scaleOrigin.y) || 1,
+        startAngle: Math.atan2(y - pivot.y, x - pivot.x),
+        scaleOrigin,
+        nodeIds: [...nodeIds],
+        originalGraph: graphWithDisplayedNodeTransforms(vis, nodeIds),
+        pivotRecord: nodeIds.length === 1 ? selection.records?.[0] : null,
+        dragElementId: selectedId ?? nodeIds[0],
+        snapTargets: buildSnapTargets(vis, useSelectionStore.getState().getSelectedElementIds()),
         snapTolerance: DEFAULT_SNAP_TOLERANCE,
     };
     vis.setInteractionState({ snapGuides: [] });
@@ -333,9 +238,9 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
         const ownerNodeId = hit.nodeId ?? scene.nodeIdByElementId[hit.id];
         const ownerRecord = vis.getResolvedSceneFrame?.(vis.getCurrentTime?.() ?? 0)?.byNodeId?.get(ownerNodeId);
         if (!ownerNodeId || ownerRecord?.effectiveLocked) return false;
-        const nodeTransform = hit.nodeId
-            ? useSceneStore.getState().graph.nodesById[hit.nodeId]?.userNodeTransform
-            : undefined;
+        const nodeTransform =
+            ownerRecord?.node?.userNodeTransform ??
+            (hit.nodeId ? useSceneStore.getState().graph.nodesById[hit.nodeId]?.userNodeTransform : undefined);
         if (toggle && deps.selectNode) deps.selectNode(ownerNodeId, { toggle: true });
         else selectElement(hit.id);
         const nodeIds = useSelectionStore.getState().selectedNodeIds;
@@ -361,7 +266,7 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
             ...(nodeIds.length
                 ? {
                       nodeIds: [...nodeIds],
-                      originalGraph: cloneSceneGraph(useSceneStore.getState().graph),
+                      originalGraph: graphWithDisplayedNodeTransforms(vis, nodeIds),
                       pivot: selection?.pivot,
                   }
                 : {}),
@@ -372,158 +277,6 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
         vis.setInteractionState({ hoverElementId: null, draggingElementId: null, activeHandle: null, snapGuides: [] });
         return false;
     }
-}
-
-function updateMoveDrag(
-    meta: any,
-    _vis: any,
-    elId: string,
-    x: number,
-    y: number,
-    shiftKey: boolean,
-    disableSnap: boolean,
-    deps: InteractionDeps
-): SnapGuide[] {
-    const rawDx = x - meta.startX;
-    const rawDy = y - meta.startY;
-    const constrained = computeConstrainedMoveDelta(rawDx, rawDy, meta.origRotation || 0, shiftKey);
-    let dx = constrained.dx;
-    let dy = constrained.dy;
-    let guides: SnapGuide[] | undefined = [];
-    if (!disableSnap) {
-        const targets = Array.isArray(meta.snapTargets) ? meta.snapTargets : [];
-        const tolerance = typeof meta.snapTolerance === 'number' ? meta.snapTolerance : DEFAULT_SNAP_TOLERANCE;
-        const snapResult = snapTranslation(meta.bounds ?? null, dx, dy, targets, tolerance);
-        dx = snapResult.dx;
-        dy = snapResult.dy;
-        guides = snapResult.guides;
-    }
-    const newX = meta.origOffsetX + dx;
-    const newY = meta.origOffsetY + dy;
-    applyNodeDragUpdate(meta, elId, { translationX: newX, translationY: newY });
-    return guides;
-}
-
-function updateScaleDrag(
-    meta: any,
-    _vis: any,
-    elId: string,
-    x: number,
-    y: number,
-    shiftKey: boolean,
-    altKey: boolean,
-    disableSnap: boolean,
-    deps: InteractionDeps
-) {
-    if (!meta.bounds) return [];
-    let pointerX = x;
-    let pointerY = y;
-    let guides: SnapGuide[] = [];
-    if (!disableSnap) {
-        const targets = Array.isArray(meta.snapTargets) ? meta.snapTargets : [];
-        const tolerance = typeof meta.snapTolerance === 'number' ? meta.snapTolerance : DEFAULT_SNAP_TOLERANCE;
-        const snapResult = snapPoint(pointerX, pointerY, targets, tolerance);
-        pointerX = snapResult.x;
-        pointerY = snapResult.y;
-        guides = snapResult.guides;
-    }
-    const r = computeScaledTransform(
-        pointerX,
-        pointerY,
-        {
-            mode: meta.mode,
-            origScaleX: meta.origScaleX,
-            origScaleY: meta.origScaleY,
-            baseBounds: meta.baseBounds,
-            fixedWorldPoint: meta.fixedWorldPoint,
-            fixedLocalPoint: meta.fixedLocalPoint,
-            dragLocalPoint: meta.dragLocalPoint,
-            centerWorldPoint: meta.centerWorld,
-            centerLocalPoint: meta.centerLocal,
-            geom: meta.geom,
-            origRotation: meta.origRotation,
-            origSkewX: meta.origSkewX,
-            origSkewY: meta.origSkewY,
-            origAnchorX: meta.origAnchorX,
-            origAnchorY: meta.origAnchorY,
-            warp: meta.warp,
-        },
-        shiftKey,
-        altKey &&
-            (meta.mode === 'scale-ne' ||
-                meta.mode === 'scale-nw' ||
-                meta.mode === 'scale-se' ||
-                meta.mode === 'scale-sw')
-    );
-    if (r) {
-        applyNodeDragUpdate(meta, elId, {
-            scaleX: r.newScaleX,
-            scaleY: r.newScaleY,
-            translationX: r.newOffsetX,
-            translationY: r.newOffsetY,
-        });
-    }
-    return guides;
-}
-
-function updateAnchorDrag(
-    meta: any,
-    _vis: any,
-    elId: string,
-    x: number,
-    y: number,
-    shiftKey: boolean,
-    disableSnap: boolean,
-    deps: InteractionDeps
-) {
-    if (!meta.bounds || !meta.baseBounds) return [];
-    let pointerX = x;
-    let pointerY = y;
-    let guides: SnapGuide[] = [];
-    const targets = Array.isArray(meta.snapTargets) ? meta.snapTargets : [];
-    if (!disableSnap && targets.length) {
-        const tolerance = typeof meta.snapTolerance === 'number' ? meta.snapTolerance : DEFAULT_SNAP_TOLERANCE;
-        const snapResult = snapPoint(pointerX, pointerY, targets, tolerance);
-        pointerX = snapResult.x;
-        pointerY = snapResult.y;
-        guides = snapResult.guides;
-    }
-    const { newAnchorX, newAnchorY, newOffsetX, newOffsetY } = computeAnchorAdjustment(
-        pointerX,
-        pointerY,
-        {
-            baseBounds: meta.baseBounds,
-            origAnchorX: meta.origAnchorX,
-            origAnchorY: meta.origAnchorY,
-            origOffsetX: meta.origContentOffsetX,
-            origOffsetY: meta.origContentOffsetY,
-            origRotation: meta.origContentRotation,
-            origSkewX: meta.origSkewX,
-            origSkewY: meta.origSkewY,
-            origScaleX: meta.origContentScaleX,
-            origScaleY: meta.origContentScaleY,
-            warp: meta.warp,
-        },
-        shiftKey
-    );
-    const cfg = { anchorX: newAnchorX, anchorY: newAnchorY, offsetX: newOffsetX, offsetY: newOffsetY };
-    applyDragUpdate(meta, elId, cfg, deps);
-    return guides;
-}
-
-function updateRotateDrag(
-    meta: any,
-    _vis: any,
-    elId: string,
-    x: number,
-    y: number,
-    shiftKey: boolean,
-    deps: InteractionDeps
-) {
-    if (!meta.bounds) return [];
-    const newRotationRad = computeRotation(x, y, meta, shiftKey);
-    applyNodeDragUpdate(meta, elId, { rotation: newRotationRad });
-    return [];
 }
 
 function processDrag(
@@ -614,25 +367,7 @@ function processDrag(
         vis.setInteractionState({ snapGuides: guides });
         return true;
     }
-    switch (true) {
-        case meta.mode === 'move':
-            guides = updateMoveDrag(meta, vis, elId, x, y, shiftKey, disableSnap, deps);
-            break;
-        case meta.mode?.startsWith('scale') && !!meta.bounds:
-            guides = updateScaleDrag(meta, vis, elId, x, y, shiftKey, altKey, disableSnap, deps);
-            break;
-        case meta.mode === 'anchor' && !!meta.bounds:
-            guides = updateAnchorDrag(meta, vis, elId, x, y, shiftKey, disableSnap, deps);
-            break;
-        case meta.mode === 'rotate' && !!meta.bounds:
-            guides = updateRotateDrag(meta, vis, elId, x, y, shiftKey, deps);
-            break;
-        default:
-            break;
-    }
-    const nextGuides = Array.isArray(guides) ? guides : [];
-    vis.setInteractionState({ snapGuides: nextGuides });
-    return true;
+    return false;
 }
 
 function updateHover(vis: any, x: number, y: number) {
@@ -678,22 +413,6 @@ function updateHover(vis: any, x: number, y: number) {
 function finalizeDrag(vis: any, deps: InteractionDeps) {
     const draggingId = vis._interactionState?.draggingElementId;
     const meta = vis._dragMeta;
-    if (
-        draggingId &&
-        meta &&
-        meta.lastConfig &&
-        meta.dragCommandOptionsBase &&
-        typeof deps.updateElementConfig === 'function'
-    ) {
-        const finalPatch = { ...meta.lastConfig };
-        deps.updateElementConfig(draggingId, finalPatch, {
-            ...meta.dragCommandOptionsBase,
-            transient: false,
-        });
-    }
-    if (draggingId && meta?.lastNodeTransform) {
-        applyNodeDragUpdate(meta, draggingId, meta.lastNodeTransform, false);
-    }
     if (draggingId && meta?.lastGraph) applyGraphDragUpdate(meta, meta.lastGraph, false);
     if (draggingId) {
         vis.setInteractionState({ draggingElementId: null, activeHandle: null, snapGuides: [] });

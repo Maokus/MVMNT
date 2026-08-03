@@ -64,6 +64,11 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
     const channel = useAutomationTargetChannel(target);
     const channelId = channel?.id ?? null;
     const keyframeAtTick = useKeyframeAtTick(channelId, tick);
+    const hasUncommittedPreview = useSceneStore((state) => {
+        if (target.owner.kind !== 'node') return false;
+        const preview = state.transientNodeTransforms[target.owner.id];
+        return Boolean(preview && typeof preview[target.propertyPath as keyof typeof preview] === 'number');
+    });
 
     const isAutomated = channel !== null;
     const hasKeyframeHere = keyframeAtTick !== null;
@@ -116,6 +121,9 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                     },
                     { source: 'keyframe-control' }
                 );
+            }
+            if (target.owner.kind === 'node') {
+                useSceneStore.getState().clearTransientNodeTransforms([target.owner.id], [target.propertyPath as any]);
             }
         },
         [isAutomated, hasKeyframeHere, channelId, tick, currentValue, target, propertyType]
@@ -181,13 +189,21 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
         setMenuPosition(null);
     };
 
-    const title = !isAutomated
-        ? 'Enable automation'
-        : hasKeyframeHere
-          ? 'Remove keyframe at current tick'
-          : 'Add keyframe at current tick';
+    const title = hasUncommittedPreview
+        ? 'Commit uncommitted keyframe at current tick'
+        : !isAutomated
+          ? 'Enable automation'
+          : hasKeyframeHere
+            ? 'Remove keyframe at current tick'
+            : 'Add keyframe at current tick';
 
-    const stateClass = !isAutomated ? 'inactive' : hasKeyframeHere ? 'active' : 'automated';
+    const stateClass = hasUncommittedPreview
+        ? 'uncommitted'
+        : !isAutomated
+          ? 'inactive'
+          : hasKeyframeHere
+            ? 'active'
+            : 'automated';
 
     return (
         <>

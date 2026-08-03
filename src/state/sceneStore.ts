@@ -351,6 +351,9 @@ export interface SceneStoreActions {
     updateAutomationKeyframes: (channelId: string, keyframes: AutomationKeyframe[]) => void;
     replaceGraph: (graph: SceneGraphState) => void;
     updateNodeTransform: (nodeId: string, transform: Partial<NodeTransform>) => void;
+    /** Runtime-only values layered over automated node transforms. Never serialized. */
+    setTransientNodeTransform: (nodeId: string, transform: Partial<NodeTransform>) => void;
+    clearTransientNodeTransforms: (nodeIds?: string[], paths?: Array<keyof NodeTransform>) => void;
     setNodeVisibility: (nodeId: string, visible: boolean) => void;
     setNodeOpacity: (nodeId: string, opacity: number) => void;
     setNodeLocked: (nodeId: string, locked: boolean) => void;
@@ -371,6 +374,8 @@ export interface SceneStoreState extends SceneStoreActions {
     automation: AutomationState;
     /** Host node-property bindings keyed by stable node ID. */
     nodeBindings: Record<string, ElementBindings>;
+    /** Manual preview values for automated node transforms while Auto Key is disabled. */
+    transientNodeTransforms: Record<string, Partial<NodeTransform>>;
 }
 
 const INTERNAL_SCENE_STORE_SCHEMA_VERSION = 6;
@@ -928,6 +933,7 @@ const createSceneStoreState = (
     runtimeMeta: createRuntimeMeta(),
     automation: createEmptyAutomationState(),
     nodeBindings: {},
+    transientNodeTransforms: {},
 
     addElement: (input) => {
         set((state) => {
@@ -1742,6 +1748,7 @@ const createSceneStoreState = (
             interaction: createInitialInteractionState(),
             automation: createEmptyAutomationState(),
             nodeBindings: {},
+            transientNodeTransforms: {},
             runtimeMeta: markDirty(state, 'clearScene'),
         }));
     },
@@ -1982,6 +1989,7 @@ const createSceneStoreState = (
                 interaction: createInitialInteractionState(),
                 automation,
                 nodeBindings: nextNodeBindings,
+                transientNodeTransforms: {},
                 runtimeMeta: {
                     ...state.runtimeMeta,
                     persistentDirty: false,
@@ -2100,6 +2108,49 @@ const createSceneStoreState = (
             graph.nodesById[nodeId] = { ...graph.nodesById[nodeId], userNodeTransform } as typeof current;
             graph.revision += 1;
             return { ...state, ...graphIndexes(graph), runtimeMeta: markDirty(state, 'updateNodeTransform') };
+        });
+    },
+
+    setTransientNodeTransform: (nodeId, transform) => {
+        set((state) => ({
+            ...state,
+            transientNodeTransforms: {
+                ...state.transientNodeTransforms,
+                [nodeId]: { ...state.transientNodeTransforms[nodeId], ...transform },
+            },
+        }));
+    },
+
+    clearTransientNodeTransforms: (nodeIds, paths) => {
+        set((state) => {
+            if (!nodeIds) {
+                if (!Object.keys(state.transientNodeTransforms).length) return state;
+                return { ...state, transientNodeTransforms: {} };
+            }
+            const next = { ...state.transientNodeTransforms };
+            let changed = false;
+            for (const nodeId of nodeIds) {
+                const current = next[nodeId];
+                if (!current) continue;
+                if (!paths?.length) {
+                    delete next[nodeId];
+                    changed = true;
+                    continue;
+                }
+                const remaining = { ...current };
+                let nodeChanged = false;
+                for (const path of paths) {
+                    if (path in remaining) {
+                        delete remaining[path];
+                        nodeChanged = true;
+                    }
+                }
+                if (!nodeChanged) continue;
+                changed = true;
+                if (Object.keys(remaining).length) next[nodeId] = remaining;
+                else delete next[nodeId];
+            }
+            return changed ? { ...state, transientNodeTransforms: next } : state;
         });
     },
 
@@ -2330,6 +2381,7 @@ setSelectionSceneResolvers({
     useTimelineStore.subscribe((state) => {
         const tick = state.timeline.currentTick;
         if (tick !== _lastOverrideClearTick) {
+            if (_lastOverrideClearTick !== null) useSceneStore.getState().clearTransientNodeTransforms();
             _lastOverrideClearTick = tick;
         }
     });

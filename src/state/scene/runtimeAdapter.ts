@@ -221,12 +221,13 @@ export class SceneRuntimeAdapter {
             structure: this.structureIndex,
             evaluateNode: (node) => {
                 const bindings = state.nodeBindings[node.id];
-                if (!bindings) return node;
+                const transientTransform = state.transientNodeTransforms[node.id];
+                if (!bindings && !transientTransform) return node;
                 const evaluated = {
                     ...node,
                     userNodeTransform: { ...node.userNodeTransform },
                 } as typeof node;
-                for (const [path, binding] of Object.entries(bindings)) {
+                for (const [path, binding] of Object.entries(bindings ?? {})) {
                     const timing = getSharedTimingManager();
                     const tick = timing
                         ? timing.secondsToTicks(targetTime)
@@ -254,6 +255,9 @@ export class SceneRuntimeAdapter {
                                     : value
                                 : value;
                     }
+                }
+                if (transientTransform) {
+                    Object.assign(evaluated.userNodeTransform, transientTransform);
                 }
                 return evaluated;
             },
@@ -376,7 +380,12 @@ export class SceneRuntimeAdapter {
             this.orderedIds = deriveElementOrder(next.graph);
             mutated = true;
         }
-        if (next.graph !== prev.graph || next.nodeBindings !== prev.nodeBindings || next.macros !== prev.macros)
+        if (
+            next.graph !== prev.graph ||
+            next.nodeBindings !== prev.nodeBindings ||
+            next.transientNodeTransforms !== prev.transientNodeTransforms ||
+            next.macros !== prev.macros
+        )
             mutated = true;
 
         const nextOrder = deriveElementOrder(next.graph);

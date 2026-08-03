@@ -1,5 +1,5 @@
 export interface HoveredPropertyInfo {
-    elementId: string;
+    owner: { kind: 'element' | 'node'; id: string };
     propertyKey: string;
     propertyType: string;
 }

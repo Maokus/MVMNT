@@ -44,6 +44,13 @@ export function authoredValueForTarget(state: SceneStoreState, target: PropertyT
 }
 
 export function effectiveValueForTarget(state: SceneStoreState, target: PropertyTarget, tick: number): unknown {
+    if (target.owner.kind === 'node') {
+        const preview =
+            state.transientNodeTransforms[target.owner.id]?.[
+                target.propertyPath as keyof (typeof state.transientNodeTransforms)[string]
+            ];
+        if (typeof preview === 'number') return preview;
+    }
     const binding = bindingForTarget(state, target);
     if (!binding) return authoredValueForTarget(state, target);
     return resolveBindingStateValue(binding, {

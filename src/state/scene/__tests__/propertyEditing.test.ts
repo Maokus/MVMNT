@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createChannel, createKeyframe, elementPropertyTarget, nodePropertyTarget } from '@automation/types';
 import { dispatchSceneCommand } from '../commandGateway';
-import { buildPropertyEditCommands, dispatchPropertyEdits } from '../propertyEditing';
+import { buildPropertyEditCommands, dispatchPropertyEdits, effectiveValueForTarget } from '../propertyEditing';
 import { useSceneStore } from '@state/sceneStore';
 
 describe('shared property editing', () => {
@@ -76,5 +76,22 @@ describe('shared property editing', () => {
                 segmentInterpolation: { mode: 'bounce', direction: 'ease_out' },
             },
         });
+    });
+
+    it('layers an uncommitted node-transform preview over automation until that property is committed', () => {
+        const state = useSceneStore.getState();
+        const nodeId = state.nodeIdByElementId.element;
+        const target = nodePropertyTarget(nodeId, 'translationX');
+        const channel = createChannel(target, 'number');
+        channel.keyframes = [createKeyframe(0, 12)];
+        state.setAutomationChannel(channel);
+        state.updateNodeBindings(nodeId, { translationX: { type: 'keyframes', channelId: channel.id } });
+        state.setTransientNodeTransform(nodeId, { translationX: 48, rotation: 1 });
+
+        expect(effectiveValueForTarget(useSceneStore.getState(), target, 0)).toBe(48);
+
+        useSceneStore.getState().clearTransientNodeTransforms([nodeId], ['translationX']);
+        expect(effectiveValueForTarget(useSceneStore.getState(), target, 0)).toBe(12);
+        expect(useSceneStore.getState().transientNodeTransforms[nodeId]).toEqual({ rotation: 1 });
     });
 });

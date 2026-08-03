@@ -3,8 +3,8 @@ import InsertKeyframePopup from '@workspace/panels/properties/InsertKeyframePopu
 import TrackInputAssignPopup from '@workspace/components/TrackInputAssignPopup';
 import { hoveredPropertyRef } from '@workspace/panels/properties/hoveredPropertyRef';
 import { resolveAutomationValueType } from '@workspace/panels/properties/KeyframeControl';
-import { channelForTarget, elementPropertyTarget } from '@automation/types';
-import { automationEvaluator } from '@automation/automation-evaluator';
+import { channelForTarget, createKeyframe, elementPropertyTarget, nodePropertyTarget } from '@automation/types';
+import { effectiveValueForTarget } from '@state/scene/propertyEditing';
 import { useTimelineStore } from '@state/timelineStore';
 import { deriveElementOrder } from '@state/scene-graph';
 import { useSceneSelection } from '@context/SceneSelectionContext';
@@ -116,63 +116,47 @@ const InsertKeyframeController: React.FC = () => {
             e.preventDefault();
 
             const hovered = hoveredPropertyRef.current;
-            const activeElement = selectedElement;
-            if (activeElement && hovered && hovered.elementId === activeElement.id) {
+            if (hovered) {
                 const { propertyKey, propertyType } = hovered;
                 const valueType = resolveAutomationValueType(propertyType);
                 if (valueType) {
-                    const channelId = channelForTarget(
-                        useSceneStore.getState().automation,
-                        elementPropertyTarget(activeElement.id, propertyKey)
-                    )?.id;
+                    const propertyTarget =
+                        hovered.owner.kind === 'node'
+                            ? nodePropertyTarget(hovered.owner.id, propertyKey)
+                            : elementPropertyTarget(hovered.owner.id, propertyKey);
+                    const channelId = channelForTarget(useSceneStore.getState().automation, propertyTarget)?.id;
                     const sceneState = useSceneStore.getState();
                     const tick = useTimelineStore.getState().timeline.currentTick;
                     const isAutomated = !!channelId;
-
-                    let currentValue: unknown;
-                    if (isAutomated) {
-                        currentValue = automationEvaluator.evaluate(channelId!, tick);
-                    } else {
-                        const binding = activeElement.bindings[propertyKey];
-                        currentValue = binding?.type === 'constant' ? (binding as any).value : undefined;
-                    }
+                    const currentValue = effectiveValueForTarget(sceneState, propertyTarget, tick);
 
                     if (!isAutomated) {
                         dispatchSceneCommand(
                             {
                                 type: 'enablePropertyAutomation',
-                                target: elementPropertyTarget(activeElement.id, propertyKey),
+                                target: propertyTarget,
                                 valueType,
-                                initialKeyframes: [
-                                    {
-                                        tick: tick > 0 ? tick : 0,
-                                        value: currentValue,
-                                        segmentInterpolation: {
-                                            mode: 'cubic' as const,
-                                            direction: 'ease_in_out' as const,
-                                        },
-                                        leftHandleType: 'auto_clamped' as const,
-                                        rightHandleType: 'auto_clamped' as const,
-                                    },
-                                ],
+                                initialKeyframes: [createKeyframe(tick > 0 ? tick : 0, currentValue)],
                             },
                             { source: 'keyframe-hotkey' }
                         );
                     } else {
+                        const existing = sceneState.automation.channels[channelId!]?.keyframes.find(
+                            (keyframe) => Math.abs(keyframe.tick - tick) < 0.5
+                        );
                         dispatchSceneCommand(
                             {
                                 type: 'addKeyframe',
                                 channelId,
-                                keyframe: {
-                                    tick,
-                                    value: currentValue,
-                                    segmentInterpolation: { mode: 'cubic', direction: 'ease_in_out' },
-                                    leftHandleType: 'auto_clamped',
-                                    rightHandleType: 'auto_clamped',
-                                },
+                                keyframe: existing
+                                    ? { ...existing, tick, value: currentValue }
+                                    : createKeyframe(tick, currentValue),
                             },
                             { source: 'keyframe-hotkey' }
                         );
+                    }
+                    if (hovered.owner.kind === 'node') {
+                        useSceneStore.getState().clearTransientNodeTransforms([hovered.owner.id], [propertyKey as any]);
                     }
                     return;
                 }

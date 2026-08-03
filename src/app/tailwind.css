@@ -860,6 +860,17 @@
         fill-opacity: 0.3;
     }
 
+    .ae-keyframe-toggle.uncommitted .ae-keyframe-diamond path {
+        fill: transparent;
+        stroke: #facc15;
+        stroke-width: 1.25;
+    }
+
+    .ae-property-row.ae-property-uncommitted .ae-property-name,
+    .ae-property-row.ae-property-uncommitted .ae-property-input input {
+        color: #facc15;
+    }
+
     .ae-keyframe-toggle.active .ae-keyframe-diamond path {
         fill: var(--twc-accent);
         transition: fill 0.15s;
