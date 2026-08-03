@@ -408,11 +408,11 @@ export function NodeTransformPanel() {
                         id="node-selection-scale"
                         value={100}
                         suffix="%"
-                        schema={{ step: 1, min: 0.1 }}
+                        schema={{ step: 1 }}
                         onChange={(percent, change) =>
                             applyWorldDelta(
                                 matrixAroundPoint(
-                                    scaleMatrix(Math.max(0.001, aggregateDelta(percent, 100, change, 'multiply'))),
+                                    scaleMatrix(aggregateDelta(percent, 100, change, 'multiply')),
                                     pivot.x,
                                     pivot.y
                                 ),

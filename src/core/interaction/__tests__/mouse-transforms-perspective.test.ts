@@ -12,6 +12,48 @@ const warp = {
 };
 
 describe('perspective-aware mouse transforms', () => {
+    it('allows a scale handle to cross its fixed edge and produce a negative scale', () => {
+        const result = computeScaledTransform(
+            -50,
+            50,
+            {
+                mode: 'scale-e',
+                origScaleX: 1,
+                origScaleY: 1,
+                baseBounds: bounds,
+                fixedWorldPoint: { x: 0, y: 50 },
+                fixedLocalPoint: { x: 0, y: 50 },
+                dragLocalPoint: { x: 200, y: 50 },
+                geom: {
+                    widthVec: { x: 200, y: 0 },
+                    heightVec: { x: 0, y: 100 },
+                    corners: {
+                        TL: { x: 0, y: 0 },
+                        TR: { x: 200, y: 0 },
+                        BR: { x: 200, y: 100 },
+                        BL: { x: 0, y: 100 },
+                    },
+                    mids: {
+                        MTop: { x: 100, y: 0 },
+                        MRight: { x: 200, y: 50 },
+                        MBottom: { x: 100, y: 100 },
+                        MLeft: { x: 0, y: 50 },
+                    },
+                    baseBounds: bounds,
+                },
+                origRotation: 0,
+                origSkewX: 0,
+                origSkewY: 0,
+                origAnchorX: 0.5,
+                origAnchorY: 0.5,
+            },
+            false
+        )!;
+
+        expect(result.newScaleX).toBeCloseTo(-0.25, 8);
+        expect(result.newScaleY).toBe(1);
+    });
+
     it('inverse-maps an anchor drag through the warp and keeps the displayed anchor under the pointer', () => {
         const matrix = createHomography(warp)!;
         const oldOrigin = warpLocalPoint(matrix, bounds, { x: 100, y: 50 })!;

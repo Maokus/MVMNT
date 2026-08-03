@@ -29,7 +29,11 @@ export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         // Force a tick so consumers re-read canUndo/canRedo
         const id = setInterval(() => forceTick((t) => t + 1), 500); // lightweight polling to update buttons if added later
-        return () => clearInterval(id);
+        return () => {
+            clearInterval(id);
+            controllerRef.current?.dispose();
+            controllerRef.current = null;
+        };
     }, [enabled]);
 
     // Global keyboard shortcuts (Cmd/Ctrl+Z and redo variants)

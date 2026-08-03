@@ -174,7 +174,7 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
     const nodeIds = useSelectionStore.getState().selectedNodeIds;
     if (!selectedId && !nodeIds.length) return;
     vis.setInteractionState({ activeHandle: handleHit.id, draggingElementId: selectedId ?? nodeIds[0] });
-    if (nodeIds.length) {
+    if (nodeIds.length > 1 || !selectedId) {
         const selection = vis.getNodeSelectionAtTime?.(nodeIds, vis.getCurrentTime?.() ?? 0);
         if (!selection) return;
         const pivot = useSelectionStore.getState().selectionPivot ?? selection.pivot;
@@ -653,6 +653,10 @@ function updateHover(vis: any, x: number, y: number) {
                 'scale-se': 'nwse-resize',
                 'scale-ne': 'nesw-resize',
                 'scale-sw': 'nesw-resize',
+                'scale-n': 'ns-resize',
+                'scale-s': 'ns-resize',
+                'scale-e': 'ew-resize',
+                'scale-w': 'ew-resize',
                 rotate: 'crosshair',
                 pivot: 'crosshair',
                 anchor: 'crosshair',
@@ -743,7 +747,7 @@ export function onCanvasMouseDown(e: CanvasMouseEvent, deps: InteractionDeps) {
     if (attemptHandleHit(vis, x, y)) return;
     // 2) Otherwise element hit test
     const beforeSelected = vis._interactionState?.selectedElementId || null;
-    const hit = performElementHitTest(vis, x, y, deps, Boolean(e.metaKey || e.ctrlKey));
+    const hit = performElementHitTest(vis, x, y, deps, e.shiftKey);
     if (!hit) {
         vis._marqueeMeta = { start: { x, y }, end: { x, y } };
         vis.setInteractionState({ marqueeBounds: { x, y, width: 0, height: 0 } });

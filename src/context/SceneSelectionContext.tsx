@@ -257,33 +257,6 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         }
     }, [selectedElement, updatePropertiesHeader]);
 
-    const runtimeMeta = useSceneStore(
-        useCallback(
-            (state) => ({
-                lastMutatedAt: state.runtimeMeta.lastMutatedAt,
-                lastHydratedAt: state.runtimeMeta.lastHydratedAt,
-            }),
-            []
-        ),
-        shallow
-    );
-    const lastRuntimeMetaRef = useRef<typeof runtimeMeta | null>(runtimeMeta);
-
-    useEffect(() => {
-        const previous = lastRuntimeMetaRef.current;
-        const hasPrevious = !!previous;
-        const changed =
-            !previous ||
-            previous.lastMutatedAt !== runtimeMeta.lastMutatedAt ||
-            previous.lastHydratedAt !== runtimeMeta.lastHydratedAt;
-        if (changed && hasPrevious) {
-            setPropertyPanelRefresh((prev) => prev + 1);
-        }
-        if (!previous || changed) {
-            lastRuntimeMetaRef.current = runtimeMeta;
-        }
-    }, [runtimeMeta]);
-
     // Sync selection state down into the visualizer interaction state (single source of truth = React)
     useEffect(() => {
         if (!visualizer || typeof visualizer.setInteractionState !== 'function') return;
@@ -392,11 +365,8 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                 );
                 if (!ok) return;
             }
-
-            if (visualizer?.invalidateRender) visualizer.invalidateRender();
-            setPropertyPanelRefresh((prev) => prev + 1);
         },
-        [runSceneCommand, visualizer]
+        [runSceneCommand]
     );
 
     const generateUniqueElementId = useCallback((elementType: string): string => {
@@ -517,7 +487,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     const groupSelectedNodes = useCallback(() => {
         const scene = useSceneStore.getState();
         const nodeIds = normalizeNodeSelection(scene.graph, useSelectionStore.getState().selectedNodeIds);
-        if (!nodeIds.length) return;
+        if (nodeIds.length < 2) return;
         const selectionGeometry = visualizer?.getNodeSelectionAtTime?.(nodeIds, visualizer.getCurrentTime?.() ?? 0);
         let suffix = 1;
         let groupId = `group:${suffix}`;

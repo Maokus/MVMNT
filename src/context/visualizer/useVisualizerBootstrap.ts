@@ -32,7 +32,6 @@ const loadVisualizerModules = async (): Promise<VisualizerModules> => {
 
 interface UseVisualizerBootstrapArgs {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
-    visualizer: any | null;
     setVisualizer: (visualizer: any) => void;
     setImageSequenceGenerator: (generator: any) => void;
     setVideoExporter: (exporter: VideoExporter | null) => void;
@@ -43,7 +42,6 @@ interface UseVisualizerBootstrapArgs {
 
 export function useVisualizerBootstrap({
     canvasRef,
-    visualizer,
     setVisualizer,
     setImageSequenceGenerator,
     setVideoExporter,
@@ -64,10 +62,11 @@ export function useVisualizerBootstrap({
 
     useEffect(() => {
         const canvas = canvasRef.current;
-        if (!canvas || visualizer) {
+        if (!canvas) {
             return;
         }
         let cancelled = false;
+        let createdVisualizer: InstanceType<VisualizerModules['MIDIVisualizerCore']> | null = null;
         (async () => {
             try {
                 const { MIDIVisualizerCore, ImageSequenceGenerator, VideoExporter } = await loadVisualizerModules();
@@ -75,6 +74,11 @@ export function useVisualizerBootstrap({
                     return;
                 }
                 const vis = new MIDIVisualizerCore(canvasRef.current);
+                createdVisualizer = vis;
+                if (cancelled) {
+                    vis.cleanup();
+                    return;
+                }
                 vis.render();
                 setVisualizer(vis);
                 const gen = new ImageSequenceGenerator(canvasRef.current, vis);
@@ -99,6 +103,8 @@ export function useVisualizerBootstrap({
         })();
         return () => {
             cancelled = true;
+            createdVisualizer?.cleanup();
+            createdVisualizer = null;
         };
-    }, [canvasRef, visualizer, setVisualizer, setImageSequenceGenerator, setVideoExporter, setExportSettings]);
+    }, [canvasRef, setVisualizer, setImageSequenceGenerator, setVideoExporter, setExportSettings]);
 }

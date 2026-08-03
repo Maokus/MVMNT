@@ -2093,8 +2093,8 @@ const createSceneStoreState = (
             if (Object.values(userNodeTransform).some((value) => !Number.isFinite(value))) {
                 throw new Error('SceneStore.updateNodeTransform: transform values must be finite');
             }
-            if (userNodeTransform.scaleX <= 0 || userNodeTransform.scaleY <= 0) {
-                throw new Error('SceneStore.updateNodeTransform: scale values must be greater than zero');
+            if (Math.abs(userNodeTransform.scaleX) <= 1e-10 || Math.abs(userNodeTransform.scaleY) <= 1e-10) {
+                throw new Error('SceneStore.updateNodeTransform: scale values must not be zero');
             }
             const graph = cloneSceneGraph(state.graph);
             graph.nodesById[nodeId] = { ...graph.nodesById[nodeId], userNodeTransform } as typeof current;

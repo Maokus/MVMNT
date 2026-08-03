@@ -19,6 +19,17 @@ import {
 import { buildSceneStructureIndex } from '@state/scene/resolvedScene';
 
 describe('recursive scene graph operations', () => {
+    it('accepts reflected node transforms while rejecting zero scales', () => {
+        const graph = createFlatSceneGraph(['a']);
+        graph.nodesById['element:a'].userNodeTransform.scaleX = -1;
+        graph.nodesById['element:a'].userNodeTransform.scaleY = -0.5;
+
+        expect(validateSceneGraph(graph, ['a']).ok).toBe(true);
+
+        graph.nodesById['element:a'].userNodeTransform.scaleX = 0;
+        expect(validateSceneGraph(graph, ['a']).ok).toBe(false);
+    });
+
     it('round-trips authored similarity transforms while changing the pivot', () => {
         const transform = {
             translationX: 12,

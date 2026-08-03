@@ -41,7 +41,7 @@ const degreesCodec: PropertyPresentationCodec = {
 const percentCodec: PropertyPresentationCodec = {
     unit: '%',
     toDisplay: (value) => (typeof value === 'number' ? value * 100 : value),
-    fromDisplay: (value) => (typeof value === 'number' ? Math.max(0.001, value / 100) : value),
+    fromDisplay: (value) => (typeof value === 'number' ? value / 100 : value),
     toDisplayDelta: (value) => value * 100,
     fromDisplayDelta: (value) => value / 100,
 };
@@ -60,8 +60,8 @@ const hostGroups = [
         label: 'Rotation & Scale',
         properties: [
             { key: 'rotation', type: 'number', label: 'Rotation', default: 0, step: 1 },
-            { key: 'scaleX', type: 'number', label: 'Scale X', default: 1, step: 1, min: 0.1 },
-            { key: 'scaleY', type: 'number', label: 'Scale Y', default: 1, step: 1, min: 0.1 },
+            { key: 'scaleX', type: 'number', label: 'Scale X', default: 1, step: 1 },
+            { key: 'scaleY', type: 'number', label: 'Scale Y', default: 1, step: 1 },
         ],
     },
     {

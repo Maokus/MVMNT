@@ -11,6 +11,7 @@ import { useCurrentTick } from '@automation/hooks';
 import { findKeyframeAtTick, elementPropertyTarget } from '@automation/types';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
+import { shallow } from 'zustand/shallow';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { automationEvaluator } from '@automation/automation-evaluator';
 import { resolveAutomationValueType } from './KeyframeControl';
@@ -98,7 +99,6 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     );
     const currentTick = useCurrentTick();
     const autoKeying = useTimelineStore((s) => s.transport.autoKeying);
-    const automationChannels = useSceneStore(useCallback((s) => s.automation.channels, []));
     const groupCollapseState = useSceneStore(
         useCallback((s) => s.interaction.expandedPropertyGroups[elementId] ?? {}, [elementId])
     );
@@ -137,7 +137,30 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         return inspectorTabs[0]?.id ?? '';
     }, [storedActiveTabId, enhancedSchema, inspectorTabs]);
 
-    const bindingsMemo = useMemo(() => ({ ...(bindings ?? {}) }), [bindings, refreshToken]);
+    // The store replaces an element's binding map when that element changes. Keeping
+    // that reference avoids treating unrelated inspector refreshes as a full model update.
+    const bindingsMemo = bindings ?? {};
+    const automationChannelIds = useMemo(
+        () =>
+            Object.values(bindingsMemo)
+                .filter((binding) => binding.type === 'keyframes')
+                .map((binding) => binding.channelId)
+                .sort(),
+        [bindingsMemo]
+    );
+    const automationChannels = useSceneStore(
+        useCallback(
+            (state) =>
+                Object.fromEntries(
+                    automationChannelIds.flatMap((channelId) => {
+                        const channel = state.automation.channels[channelId];
+                        return channel ? [[channelId, channel]] : [];
+                    })
+                ),
+            [automationChannelIds]
+        ),
+        shallow
+    );
 
     const handleMacroStoreUpdate = useCallback(() => {
         setMacroListenerKey((prev) => prev + 1);
@@ -222,7 +245,6 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         macroListenerKey,
         elementId,
         elementType,
-        refreshToken,
         currentTick,
         automationChannels,
         setPropertyGroupCollapseState,

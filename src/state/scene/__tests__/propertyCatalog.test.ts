@@ -19,6 +19,7 @@ describe('property catalog', () => {
         expect(rotation.presentation.fromDisplay(90)).toBeCloseTo(Math.PI / 2);
         expect(scaleX.presentation.toDisplay(1.25)).toBe(125);
         expect(scaleX.presentation.fromDisplay(50)).toBe(0.5);
+        expect(scaleX.presentation.fromDisplay(-50)).toBe(-0.5);
         expect(scaleY.presentation.toDisplay(0.75)).toBe(75);
     });
 

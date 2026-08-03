@@ -13,6 +13,7 @@ import { isFeatureEnabled } from '@utils/featureFlags';
 import { selectionGeometry } from '@state/scene/selectionGeometry';
 
 export class MIDIVisualizerCore {
+    private static activeInstances = 0;
     canvas: HTMLCanvasElement;
     ctx: CanvasRenderingContext2D;
     events: any[] = [];
@@ -31,6 +32,10 @@ export class MIDIVisualizerCore {
     private _rafMinIntervalMs = 0;
     private _pendingRenderRAF: number | null = null;
     private _pendingVisUpdate = false;
+    private _cleanedUp = false;
+    private _renderCount = 0;
+    private _invalidationCount = 0;
+    private _totalRenderMilliseconds = 0;
     private _handleImageLoaded: any;
     private _handleSceneRuntimeUpdated: (() => void) | null = null;
     private _imageLoadDebounceTimeout: any;
@@ -51,6 +56,7 @@ export class MIDIVisualizerCore {
     constructor(canvas: HTMLCanvasElement, timingManager: any = null) {
         if (!canvas) throw new Error('Canvas element is required');
         this.canvas = canvas;
+        MIDIVisualizerCore.activeInstances += 1;
         const ctx = canvas.getContext('2d');
         if (!ctx) throw new Error('Could not get 2D context from canvas');
         this.ctx = ctx;
@@ -196,6 +202,7 @@ export class MIDIVisualizerCore {
         }
     }
     invalidateRender() {
+        this._invalidationCount += 1;
         this._needsRender = true;
         if (!this.isPlaying) {
             if (!this._pendingRenderRAF) {
@@ -290,12 +297,26 @@ export class MIDIVisualizerCore {
         }
     }
     renderAtTime(targetTime: number) {
+        const started = typeof performance !== 'undefined' ? performance.now() : Date.now();
         const config = this.getSceneConfig();
         const renderObjects = this._buildSceneRenderObjects(config, targetTime);
         this.modularRenderer.render(this.ctx, renderObjects, config, targetTime);
         try {
             this._renderInteractionOverlays(targetTime, config);
         } catch {}
+        this._renderCount += 1;
+        this._totalRenderMilliseconds +=
+            (typeof performance !== 'undefined' ? performance.now() : Date.now()) - started;
+    }
+    getPerformanceDiagnostics() {
+        return {
+            activeVisualizerInstances: MIDIVisualizerCore.activeInstances,
+            renderCount: this._renderCount,
+            invalidationCount: this._invalidationCount,
+            totalRenderMilliseconds: this._totalRenderMilliseconds,
+            averageRenderMilliseconds: this._renderCount ? this._totalRenderMilliseconds / this._renderCount : 0,
+            runtime: this.runtimeAdapter?.collectDiagnostics() ?? null,
+        };
     }
     _setupImageLoadedListener() {
         document.removeEventListener('imageLoaded', this._handleImageLoaded);
@@ -666,6 +687,14 @@ export class MIDIVisualizerCore {
             addHandle('scale-ne', 'scale-ne', oriented[1].x, oriented[1].y);
             addHandle('scale-se', 'scale-se', oriented[2].x, oriented[2].y);
             addHandle('scale-sw', 'scale-sw', oriented[3].x, oriented[3].y);
+            const topMid = mid(oriented[0], oriented[1]);
+            const rightMid = mid(oriented[1], oriented[2]);
+            const bottomMid = mid(oriented[2], oriented[3]);
+            const leftMid = mid(oriented[3], oriented[0]);
+            addHandle('scale-n', 'scale-n', topMid.x, topMid.y);
+            addHandle('scale-e', 'scale-e', rightMid.x, rightMid.y);
+            addHandle('scale-s', 'scale-s', bottomMid.x, bottomMid.y);
+            addHandle('scale-w', 'scale-w', leftMid.x, leftMid.y);
             const interp = (a: number, b: number, t: number) => a + (b - a) * t;
             const top = {
                 x: interp(oriented[0].x, oriented[1].x, anchorX),
@@ -685,6 +714,10 @@ export class MIDIVisualizerCore {
             addHandle('scale-ne', 'scale-ne', b.x + b.width, b.y);
             addHandle('scale-se', 'scale-se', b.x + b.width, b.y + b.height);
             addHandle('scale-sw', 'scale-sw', b.x, b.y + b.height);
+            addHandle('scale-n', 'scale-n', b.x + b.width / 2, b.y);
+            addHandle('scale-e', 'scale-e', b.x + b.width, b.y + b.height / 2);
+            addHandle('scale-s', 'scale-s', b.x + b.width / 2, b.y + b.height);
+            addHandle('scale-w', 'scale-w', b.x, b.y + b.height / 2);
         }
         addHandle('anchor', 'anchor', anchorPixelX, anchorPixelY, 'rect');
         let rotHandleX: number;
@@ -753,6 +786,22 @@ export class MIDIVisualizerCore {
                       ['scale-se', b.x + b.width, b.y + b.height],
                       ['scale-sw', b.x, b.y + b.height],
                   ];
+        const showNonUniformHandles = nodeIds.length === 1 && selection.records[0]?.node.kind === 'element';
+        const sidePoints = !showNonUniformHandles
+            ? []
+            : corners?.length === 4
+              ? [
+                    ['scale-n', (corners[0].x + corners[1].x) / 2, (corners[0].y + corners[1].y) / 2],
+                    ['scale-e', (corners[1].x + corners[2].x) / 2, (corners[1].y + corners[2].y) / 2],
+                    ['scale-s', (corners[2].x + corners[3].x) / 2, (corners[2].y + corners[3].y) / 2],
+                    ['scale-w', (corners[3].x + corners[0].x) / 2, (corners[3].y + corners[0].y) / 2],
+                ]
+              : [
+                    ['scale-n', b.x + b.width / 2, b.y],
+                    ['scale-e', b.x + b.width, b.y + b.height / 2],
+                    ['scale-s', b.x + b.width / 2, b.y + b.height],
+                    ['scale-w', b.x, b.y + b.height / 2],
+                ];
         const topMid =
             corners?.length === 4
                 ? { x: (corners[0].x + corners[1].x) / 2, y: (corners[0].y + corners[1].y) / 2 }
@@ -772,6 +821,7 @@ export class MIDIVisualizerCore {
         }
         return [
             ...points.map(([id, cx, cy]) => ({ id, type: id, cx, cy, size, shape: 'rect', r: size / 2 })),
+            ...sidePoints.map(([id, cx, cy]) => ({ id, type: id, cx, cy, size, shape: 'rect', r: size / 2 })),
             {
                 id: 'rotate',
                 type: 'rotate',
@@ -858,6 +908,8 @@ export class MIDIVisualizerCore {
         return useSceneStore.getState().exportSceneDraft();
     }
     cleanup() {
+        if (this._cleanedUp) return;
+        this._cleanedUp = true;
         if (this._handleImageLoaded) document.removeEventListener('imageLoaded', this._handleImageLoaded);
         if (this._handleSceneRuntimeUpdated && typeof window !== 'undefined') {
             window.removeEventListener('mvmnt-scene-runtime-updated', this._handleSceneRuntimeUpdated as EventListener);
@@ -876,7 +928,21 @@ export class MIDIVisualizerCore {
             cancelAnimationFrame(this._pendingRenderRAF);
             this._pendingRenderRAF = null;
         }
+        this._pendingVisUpdate = false;
+        this.runtimeAdapter?.dispose();
+        this.runtimeAdapter = null;
+        this._interactionBoundsCache.clear();
+        this._interactionHandlesCache.clear();
         this.modularRenderer.dispose();
+        if (typeof window !== 'undefined') {
+            try {
+                if ((window as any).vis === this) delete (window as any).vis;
+                if ((window as any).debugVisualizer === this) delete (window as any).debugVisualizer;
+            } catch {
+                /* non-fatal debug cleanup */
+            }
+        }
+        MIDIVisualizerCore.activeInstances = Math.max(0, MIDIVisualizerCore.activeInstances - 1);
     }
     getSceneElement(elementId: string) {
         try {

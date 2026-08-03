@@ -221,8 +221,8 @@ export function validateSceneGraph(graph: SceneGraphState, elementIds: Iterable<
             Object.values(node.userNodeTransform).some(
                 (value) => typeof value !== 'number' || !Number.isFinite(value)
             ) ||
-            node.userNodeTransform.scaleX <= 0 ||
-            node.userNodeTransform.scaleY <= 0 ||
+            Math.abs(node.userNodeTransform.scaleX) <= 1e-10 ||
+            Math.abs(node.userNodeTransform.scaleY) <= 1e-10 ||
             typeof node.localOpacity !== 'number' ||
             !Number.isFinite(node.localOpacity) ||
             node.localOpacity < 0 ||

@@ -148,7 +148,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
 
     useVisualizerBootstrap({
         canvasRef,
-        visualizer,
         setVisualizer,
         setImageSequenceGenerator,
         setVideoExporter,

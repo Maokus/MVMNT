@@ -246,7 +246,13 @@ export class SceneRuntimeAdapter {
                         Number.isFinite(value)
                     ) {
                         evaluated.userNodeTransform[path as keyof typeof evaluated.userNodeTransform] =
-                            path === 'scaleX' || path === 'scaleY' ? Math.max(0.001, value) : value;
+                            path === 'scaleX' || path === 'scaleY'
+                                ? Math.abs(value) < 0.001
+                                    ? value < 0
+                                        ? -0.001
+                                        : 0.001
+                                    : value
+                                : value;
                     }
                 }
                 return evaluated;

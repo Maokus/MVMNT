@@ -1,10 +1,11 @@
 import type { SceneCommand, SceneCommandOptions, SceneCommandResult } from '@state/scene/commandGateway';
-import { dispatchSceneCommand } from '@state/scene';
+import { dispatchSceneCommand, registerSceneCommandListener } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
 import { dispatchTimelineCommandDescriptor, useTimelineStore } from '@state/timelineStore';
 import type { TempoKeyframe } from '@core/timing/types';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import { exportScene, importScene } from '@persistence/index';
+import { renderResourceManager } from '@core/render/render-resource-manager';
 import type { ImportSceneResult } from '@persistence/index';
 import type { ImportSceneInput } from '@persistence/import';
 import {
@@ -106,12 +107,51 @@ const diagnosticsTools = {
     historySummary: () => useAudioDiagnosticsStore.getState().getHistorySummary(),
 };
 
+type CommandMetric = { count: number; totalDurationMs: number; maxDurationMs: number };
+const sceneCommandMetrics = new Map<string, CommandMetric>();
+
+registerSceneCommandListener((event) => {
+    const key = `${event.command.type}:${event.source}`;
+    const current = sceneCommandMetrics.get(key) ?? { count: 0, totalDurationMs: 0, maxDurationMs: 0 };
+    current.count += 1;
+    current.totalDurationMs += event.durationMs;
+    current.maxDurationMs = Math.max(current.maxDurationMs, event.durationMs);
+    sceneCommandMetrics.set(key, current);
+});
+
+const performanceTools = {
+    snapshot: () => {
+        const visualizer = (window as any).debugVisualizer ?? (window as any).vis;
+        return {
+            visualizer: visualizer?.getPerformanceDiagnostics?.() ?? null,
+            renderResources: renderResourceManager.getDiagnostics(),
+            sceneCommands: Object.fromEntries(
+                [...sceneCommandMetrics.entries()].map(([key, metric]) => [
+                    key,
+                    {
+                        ...metric,
+                        averageDurationMs: metric.count ? metric.totalDurationMs / metric.count : 0,
+                    },
+                ])
+            ),
+            heap:
+                (
+                    performance as Performance & {
+                        memory?: { usedJSHeapSize?: number; jsHeapSizeLimit?: number };
+                    }
+                ).memory ?? null,
+        };
+    },
+    reset: () => sceneCommandMetrics.clear(),
+};
+
 export interface MvmntDevTools {
     scene: typeof sceneTools;
     timeline: typeof timelineTools;
     undo: typeof undoTools;
     persistence: typeof persistenceTools;
     diagnostics: typeof diagnosticsTools;
+    performance: typeof performanceTools;
 }
 
 declare global {
@@ -127,6 +167,7 @@ if (typeof window !== 'undefined') {
         undo: undoTools,
         persistence: persistenceTools,
         diagnostics: diagnosticsTools,
+        performance: performanceTools,
     };
     (window as any).mvmntTools = tools;
 }
