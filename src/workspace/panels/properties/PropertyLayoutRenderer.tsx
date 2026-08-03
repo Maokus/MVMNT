@@ -3,7 +3,7 @@ import type { PropertyDefinition, PropertyLayoutNode, PropertyVisibilityConditio
 import { propertyControlRegistry } from './PropertyControlRegistry';
 
 interface Props {
-    nodes: PropertyLayoutNode[];
+    nodes: readonly PropertyLayoutNode[];
     properties: PropertyDefinition[];
     values: Record<string, unknown>;
     renderProperty: (property: PropertyDefinition, nested?: boolean) => React.ReactNode;
@@ -11,7 +11,7 @@ interface Props {
     onPatch: (patch: Record<string, unknown>, gesture?: { id: string; finalize: boolean }) => void;
 }
 
-const passes = (rules: PropertyVisibilityCondition[] | undefined, values: Record<string, unknown>) =>
+const passes = (rules: readonly PropertyVisibilityCondition[] | undefined, values: Record<string, unknown>) =>
     !rules?.length ||
     rules.every((rule) =>
         'equals' in rule
@@ -59,7 +59,7 @@ export const PropertyLayoutRenderer: React.FC<Props> = ({
 }) => {
     const propertyMap = new Map(properties.map((property) => [property.key, property]));
     const laidOut = new Set<string>();
-    const renderNodes = (children: PropertyLayoutNode[], nested = false): React.ReactNode[] =>
+    const renderNodes = (children: readonly PropertyLayoutNode[], nested = false): React.ReactNode[] =>
         children.reduce<React.ReactNode[]>((result, node) => {
             if (!passes('visibleWhen' in node ? node.visibleWhen : undefined, values)) return result;
             if (node.kind === 'property') {

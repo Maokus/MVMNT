@@ -1,8 +1,9 @@
 import React from 'react';
+import type { ElementPropertyControlBindings } from '@mvmnt-app/plugin-sdk';
 import type { PropertyDefinition } from '@core/types';
 
-export interface PropertyControlProps {
-    bindings: Record<string, string>;
+export interface PropertyControlProps<Ports extends string = string> {
+    bindings: ElementPropertyControlBindings<Ports>;
     options?: Record<string, unknown>;
     properties: Map<string, PropertyDefinition>;
     values: Record<string, unknown>;
@@ -10,22 +11,25 @@ export interface PropertyControlProps {
     setMany: (patch: Record<string, unknown>, gesture?: { id: string; finalize: boolean }) => void;
 }
 
-export interface PropertyControlRegistration {
+export interface PropertyControlRegistration<Ports extends string = string> {
     id: string;
     /** Presentation only; serialized schemas continue to reference controls by ID. */
     presentation: 'inline' | 'block';
-    validate: (bindings: Record<string, string>, properties: Map<string, PropertyDefinition>) => string | null;
-    component: React.ComponentType<PropertyControlProps>;
+    validate: (
+        bindings: ElementPropertyControlBindings<Ports>,
+        properties: Map<string, PropertyDefinition>
+    ) => string | null;
+    component: React.ComponentType<PropertyControlProps<Ports>>;
 }
 
 export class PropertyControlRegistry {
     private readonly registrations = new Map<string, PropertyControlRegistration>();
 
-    register(registration: PropertyControlRegistration): void {
+    register<Ports extends string>(registration: PropertyControlRegistration<Ports>): void {
         if (this.registrations.has(registration.id)) {
             throw new Error(`Property control "${registration.id}" is already registered.`);
         }
-        this.registrations.set(registration.id, registration);
+        this.registrations.set(registration.id, registration as PropertyControlRegistration);
     }
 
     get(id: string): PropertyControlRegistration | undefined {
@@ -34,7 +38,8 @@ export class PropertyControlRegistry {
 }
 
 const requireNumericPorts =
-    (ports: string[]) => (bindings: Record<string, string>, properties: Map<string, PropertyDefinition>) => {
+    <Ports extends string>(ports: readonly Ports[]) =>
+    (bindings: ElementPropertyControlBindings<Ports>, properties: Map<string, PropertyDefinition>) => {
         for (const port of ports) {
             const key = bindings[port];
             const property = key ? properties.get(key) : undefined;
@@ -123,21 +128,21 @@ const NumericControl: React.FC<PropertyControlProps & { ports: string[]; label: 
     );
 };
 
-const Slider: React.FC<PropertyControlProps> = (props) => (
+const Slider: React.FC<PropertyControlProps<'value'>> = (props) => (
     <NumericControl
         {...props}
         ports={['value']}
         label={String(props.options?.label ?? props.properties.get(props.bindings.value)?.label ?? 'Value')}
     />
 );
-const XYPad: React.FC<PropertyControlProps> = (props) => (
+const XYPad: React.FC<PropertyControlProps<'x' | 'y'>> = (props) => (
     <NumericControl {...props} ports={['x', 'y']} label={String(props.options?.label ?? 'XY control')} />
 );
-const PointGrid: React.FC<PropertyControlProps> = (props) => (
+const PointGrid: React.FC<PropertyControlProps<'x' | 'y'>> = (props) => (
     <NumericControl {...props} ports={['x', 'y']} label={String(props.options?.label ?? 'Point')} />
 );
 
-const AnchorGrid: React.FC<PropertyControlProps> = ({ bindings, options, values, disabled, setMany }) => {
+const AnchorGrid: React.FC<PropertyControlProps<'x' | 'y'>> = ({ bindings, options, values, disabled, setMany }) => {
     const xKey = bindings.x;
     const yKey = bindings.y;
     const x = typeof values[xKey] === 'number' ? values[xKey] : 0.5;
@@ -176,7 +181,7 @@ const AnchorGrid: React.FC<PropertyControlProps> = ({ bindings, options, values,
     );
 };
 
-const DerivedNumber: React.FC<PropertyControlProps> = ({
+const DerivedNumber: React.FC<PropertyControlProps<'value'>> = ({
     bindings,
     options,
     properties,

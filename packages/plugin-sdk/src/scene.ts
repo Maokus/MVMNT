@@ -54,13 +54,11 @@ export interface ElementPropertyOption<Value = unknown> {
     readonly label: string;
 }
 
-export type ElementPropertyVisibilityCondition = Readonly<{
-    key: string;
-    equals?: unknown;
-    notEquals?: unknown;
-    truthy?: boolean;
-    falsy?: boolean;
-}>;
+export type ElementPropertyVisibilityCondition =
+    | Readonly<{ key: string; equals: unknown }>
+    | Readonly<{ key: string; notEquals: unknown }>
+    | Readonly<{ key: string; truthy: true }>
+    | Readonly<{ key: string; falsy: true }>;
 
 export interface ElementPreset {
     readonly id: string;
@@ -95,16 +93,21 @@ export interface ElementPropertyDefinition<Type extends ElementPropertyType = El
     readonly visibleWhen?: readonly ElementPropertyVisibilityCondition[];
 }
 
+/** Semantic ports supplied by a declarative property-layout control. */
+export type ElementPropertyControlBindings<Ports extends string = string> = Readonly<Record<Ports, string>>;
+
+export type ElementPropertyControlLayoutNode<Ports extends string = string> = Readonly<{
+    kind: 'control';
+    control: string;
+    bindings: ElementPropertyControlBindings<Ports>;
+    options?: Readonly<Record<string, unknown>>;
+    visibleWhen?: readonly ElementPropertyVisibilityCondition[];
+}>;
+
 /** Serializable inspector composition metadata. It never becomes scene data. */
 export type ElementPropertyLayoutNode =
     | Readonly<{ kind: 'property'; propertyKey: string }>
-    | Readonly<{
-          kind: 'control';
-          control: string;
-          bindings: Readonly<Record<string, string>>;
-          options?: Readonly<Record<string, unknown>>;
-          visibleWhen?: readonly ElementPropertyVisibilityCondition[];
-      }>
+    | ElementPropertyControlLayoutNode
     | Readonly<{
           kind: 'section';
           id: string;

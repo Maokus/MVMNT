@@ -60,6 +60,50 @@ describe('sceneStore', () => {
         expect(state.bindings.byElement.legacy.anchorY).toBeUndefined();
     });
 
+    it('retains non-text legacy wrapper anchors on the host node', () => {
+        store.getState().importScene({
+            elements: {
+                background: {
+                    id: 'background',
+                    type: 'shape',
+                    properties: {
+                        anchorX: { type: 'constant', value: 0 },
+                        anchorY: { type: 'constant', value: 1 },
+                    },
+                },
+            },
+            graph: createFlatSceneGraph(['background']),
+        });
+
+        const state = store.getState();
+        const node = state.graph.nodesById[state.nodeIdByElementId.background];
+        expect(node.userNodeTransform).toMatchObject({ legacyAnchorX: 0, legacyAnchorY: 1 });
+        expect(state.bindings.byElement.background.anchorX).toBeUndefined();
+        expect(state.bindings.byElement.background.anchorY).toBeUndefined();
+    });
+
+    it('moves legacy text wrapper anchors into text block anchors', () => {
+        store.getState().importScene({
+            elements: {
+                text: {
+                    id: 'text',
+                    type: 'textOverlay',
+                    properties: {
+                        anchorX: { type: 'constant', value: 0 },
+                        anchorY: { type: 'constant', value: 1 },
+                    },
+                },
+            },
+            graph: createFlatSceneGraph(['text']),
+        });
+
+        const state = store.getState();
+        expect(state.bindings.byElement.text.textAnchorX).toEqual({ type: 'constant', value: 0 });
+        expect(state.bindings.byElement.text.textAnchorY).toEqual({ type: 'constant', value: 1 });
+        expect(state.bindings.byElement.text.anchorX).toBeUndefined();
+        expect(state.bindings.byElement.text.anchorY).toBeUndefined();
+    });
+
     it('migrates element opacity and constant axis scales into the host node', () => {
         const graph = createFlatSceneGraph(['legacy']);
         const node = graph.nodesById['element:legacy'] as any;

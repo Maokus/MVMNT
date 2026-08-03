@@ -1,6 +1,7 @@
 // Merged types for MIDI processing, timing management, and visualizer rendering
 
 import { RenderObject } from '@core/render/render-objects';
+import type { ElementPropertyLayoutNode, ElementPropertyVisibilityCondition } from '@mvmnt-app/plugin-sdk';
 
 // ==========================================
 // MIDI Processing and Core Types
@@ -230,23 +231,7 @@ export interface ConfigSchema {
 // New Grouped Schema Types (for AE-style UI)
 // ==========================================
 
-export type PropertyVisibilityCondition =
-    | {
-          key: string;
-          equals: any;
-      }
-    | {
-          key: string;
-          notEquals: any;
-      }
-    | {
-          key: string;
-          truthy: true;
-      }
-    | {
-          key: string;
-          falsy: true;
-      };
+export type PropertyVisibilityCondition = ElementPropertyVisibilityCondition;
 
 export type PropertyRuntimeTransform = (value: unknown, element: SceneElementInterface) => unknown;
 
@@ -311,29 +296,8 @@ export interface PropertyDefinition {
     runtime?: PropertyRuntimeConfig;
 }
 
-/** Serializable inspector-only composition metadata. It never becomes scene data. */
-export type PropertyLayoutNode =
-    | { kind: 'property'; propertyKey: string }
-    | {
-          kind: 'control';
-          control: string;
-          bindings: Record<string, string>;
-          options?: Record<string, unknown>;
-          visibleWhen?: PropertyVisibilityCondition[];
-      }
-    | {
-          kind: 'section';
-          id: string;
-          label?: string;
-          collapsed?: boolean;
-          visibleWhen?: PropertyVisibilityCondition[];
-          children: PropertyLayoutNode[];
-      }
-    | {
-          kind: 'actions';
-          visibleWhen?: PropertyVisibilityCondition[];
-          actions: Array<{ id: string; label: string; patch: Record<string, unknown> }>;
-      };
+/** Re-export the SDK layout contract so built-ins and plugins share one definition. */
+export type PropertyLayoutNode = ElementPropertyLayoutNode;
 
 export interface PropertyGroup {
     id: string;
@@ -342,7 +306,7 @@ export interface PropertyGroup {
     description?: string;
     properties: PropertyDefinition[];
     /** Optional layout for richer inspector controls over the group's canonical properties. */
-    layout?: PropertyLayoutNode[];
+    layout?: readonly PropertyLayoutNode[];
 }
 
 export interface PropertyTab {

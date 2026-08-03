@@ -760,15 +760,15 @@
     }
 
     .ae-anchor-grid-buttons {
-        @apply grid grid-cols-3 gap-1 p-1;
+        @apply grid w-fit grid-cols-3 gap-0.5 p-0;
     }
 
     .ae-anchor-grid-dot {
-        @apply flex h-7 items-center justify-center rounded border border-transparent bg-white/5 hover:border-neutral-500 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40;
+        @apply flex h-5 w-5 items-center justify-center rounded-sm border border-transparent bg-white/5 hover:border-neutral-500 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40;
     }
 
     .ae-anchor-grid-dot span {
-        @apply h-1.5 w-1.5 rounded-full bg-neutral-400;
+        @apply h-1 w-1 rounded-full bg-neutral-400;
     }
 
     .ae-anchor-grid-dot[aria-pressed='true'] {

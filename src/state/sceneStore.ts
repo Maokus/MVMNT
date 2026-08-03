@@ -1829,6 +1829,8 @@ const createSceneStoreState = (
                 delete bindings.offsetY;
                 const elementRotation = bindings.elementRotation;
                 delete bindings.elementRotation;
+                const anchorX = bindings.anchorX;
+                const anchorY = bindings.anchorY;
                 delete bindings.anchorX;
                 delete bindings.anchorY;
 
@@ -1853,6 +1855,36 @@ const createSceneStoreState = (
                             };
                     }
                 };
+
+                const moveTextAnchor = (source: BindingState | undefined, path: 'textAnchorX' | 'textAnchorY') => {
+                    if (!source || bindings[path]) return;
+                    bindings[path] = cloneBinding(source);
+                    if (source.type === 'keyframes') {
+                        const channel = automation.channels[source.channelId];
+                        if (channel)
+                            automation.channels[source.channelId] = {
+                                ...channel,
+                                target: elementPropertyTarget(elementId, path),
+                            };
+                    }
+                };
+
+                if (nextElements[elementId].type === 'textOverlay') {
+                    // Text now owns its block anchor. Moving the legacy binding
+                    // here keeps text placement and any anchor animation intact.
+                    moveTextAnchor(anchorX, 'textAnchorX');
+                    moveTextAnchor(anchorY, 'textAnchorY');
+                } else {
+                    // Other elements still use a centered wrapper. Retain their
+                    // legacy wrapper anchor on the host node so its local origin
+                    // is restored when the element is rendered.
+                    const legacyAnchorX = readBindingNumber(anchorX);
+                    const legacyAnchorY = readBindingNumber(anchorY);
+                    if (legacyAnchorX != null) node.userNodeTransform.legacyAnchorX = legacyAnchorX;
+                    if (legacyAnchorY != null) node.userNodeTransform.legacyAnchorY = legacyAnchorY;
+                    if (anchorX && legacyAnchorX == null) moveBinding(anchorX, 'legacyAnchorX');
+                    if (anchorY && legacyAnchorY == null) moveBinding(anchorY, 'legacyAnchorY');
+                }
 
                 if (elementOpacity) {
                     const opacity = readBindingNumber(elementOpacity);

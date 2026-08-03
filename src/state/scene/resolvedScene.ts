@@ -98,6 +98,19 @@ class AffineRenderPayload {
 }
 
 function transformedPayload(source: any, matrix: Matrix2D, nodeTransform: NodeTransform, opacity: number): any {
+    // Imported wrapper-anchor fractions override the centered default. Applying
+    // them to the wrapper preserves its transform order, including element skew.
+    const legacyAnchorX = nodeTransform.legacyAnchorX;
+    const legacyAnchorY = nodeTransform.legacyAnchorY;
+    if (
+        (Number.isFinite(legacyAnchorX) || Number.isFinite(legacyAnchorY)) &&
+        typeof source?.setOriginFraction === 'function'
+    ) {
+        source.setOriginFraction(
+            Number.isFinite(legacyAnchorX) ? legacyAnchorX : 0.5,
+            Number.isFinite(legacyAnchorY) ? legacyAnchorY : 0.5
+        );
+    }
     if (source instanceof PerspectiveElementRoot) {
         source.setResolvedNodeTransform(matrix, {
             x: nodeTransform.pivotX,
