@@ -23,7 +23,8 @@
                 "showBackground": { "type": "constant", "value": false },
                 "strokeColor": { "type": "constant", "value": "#000000" },
                 "strokeWidth": { "type": "constant", "value": 0 },
-                "textAlign": { "type": "constant", "value": "center" }
+                "textAlign": { "type": "constant", "value": "center" },
+                "justification": { "type": "constant", "value": "center" }
             }
         },
         "background": {

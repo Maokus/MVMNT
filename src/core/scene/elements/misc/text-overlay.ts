@@ -28,6 +28,7 @@ interface Props extends Readonly<Record<string, unknown>> {
     readonly fontFamily: string;
     readonly fontSize: number;
     readonly textAlign: CanvasTextAlign;
+    readonly justification?: CanvasTextAlign;
     readonly letterSpacing: number;
     readonly strokeColor: string;
     readonly strokeWidth: number;
@@ -120,6 +121,17 @@ export const textOverlay = definePluginElement<Props, undefined>({
                                     { value: 'right', label: 'Right' },
                                 ],
                             },
+                            {
+                                key: 'justification',
+                                label: 'Justification',
+                                type: 'select',
+                                default: 'center',
+                                options: [
+                                    { value: 'left', label: 'Left' },
+                                    { value: 'center', label: 'Center' },
+                                    { value: 'right', label: 'Right' },
+                                ],
+                            },
                             { key: 'letterSpacing', label: 'Letter Spacing', type: 'number', default: 0 },
                             { key: 'strokeColor', label: 'Stroke Color', type: 'colorAlpha', default: '#000000' },
                             { key: 'strokeWidth', label: 'Stroke Width', type: 'number', default: 0, min: 0 },
@@ -165,12 +177,21 @@ export const textOverlay = definePluginElement<Props, undefined>({
         const selected = parseFontSelection(props.fontFamily);
         const font = `${selected.weight ?? '400'} ${props.fontSize}px ${selected.family || 'Inter'}, sans-serif`;
         const lines = props.text.split(/\r?\n/);
+        const width = Math.max(1, ...lines.map((line) => measureLineWidth(line, font, props.letterSpacing)));
         const totalHeight = lines.length * props.fontSize + Math.max(0, lines.length - 1) * props.lineSpacing;
         const startY = -totalHeight / 2;
+        // Alignment places the complete text block around the element origin.
+        // Justification places each line inside that block. Falling back to
+        // textAlign preserves the appearance of scenes saved before the new
+        // property existed.
+        const blockX = props.textAlign === 'center' ? -width / 2 : props.textAlign === 'right' ? -width : 0;
+        const justification = props.justification ?? props.textAlign;
+        const textX =
+            justification === 'center' ? blockX + width / 2 : justification === 'right' ? blockX + width : blockX;
         lines.forEach((line, index) => {
-            const item = new Text(0, startY + index * (props.fontSize + props.lineSpacing), line, font, {
+            const item = new Text(textX, startY + index * (props.fontSize + props.lineSpacing), line, font, {
                 color: applyOpacity(props.color, props.opacity),
-                align: props.textAlign,
+                align: justification,
                 baseline: 'top',
             });
             item.letterSpacing = props.letterSpacing;
@@ -179,10 +200,8 @@ export const textOverlay = definePluginElement<Props, undefined>({
             objects.push(item);
         });
         if (props.showBackground) {
-            const width = Math.max(1, ...lines.map((line) => measureLineWidth(line, font, props.letterSpacing)));
-            const x = props.textAlign === 'center' ? -width / 2 : props.textAlign === 'right' ? -width : 0;
             const bg = new Rectangle(
-                x - props.backgroundPaddingX,
+                blockX - props.backgroundPaddingX,
                 startY - props.backgroundPaddingY,
                 width + props.backgroundPaddingX * 2,
                 totalHeight + props.backgroundPaddingY * 2,

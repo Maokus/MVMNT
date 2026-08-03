@@ -38,6 +38,7 @@ interface UseMenuBarProps {
     isDirty: boolean;
     markSaveClean: () => void;
     markDirty: () => void;
+    requestUnsavedChangesDecision: (message: string) => Promise<'save' | 'discard' | 'cancel'>;
 }
 
 interface MenuBarActions {
@@ -60,6 +61,7 @@ export const useMenuBar = ({
     isDirty,
     markSaveClean,
     markDirty,
+    requestUnsavedChangesDecision,
 }: UseMenuBarProps): MenuBarActions => {
     // Access undo (optional if provider disabled)
     let undo: ReturnType<typeof useUndo> | null = null;
@@ -251,13 +253,13 @@ export const useMenuBar = ({
     const createNewDefaultScene = () => {
         void (async () => {
             if (isDirty) {
-                const saveFirst = window.confirm('Save changes before creating a new blank scene?');
-                if (saveFirst) {
+                const decision = await requestUnsavedChangesDecision(
+                    'Your current scene has unsaved changes. Save them before creating a new blank scene?'
+                );
+                if (decision === 'cancel') return;
+                if (decision === 'save') {
                     const saved = await saveProject(false);
                     if (!saved) return;
-                } else {
-                    const discard = window.confirm('Discard unsaved changes and create a new blank scene?');
-                    if (!discard) return;
                 }
             }
 

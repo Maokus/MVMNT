@@ -50,7 +50,7 @@ const ContributePage: React.FC = () => {
                                 Subscribe on YouTube
                             </a>
                             <a
-                                href="https://x.com/maokaros"
+                                href="https://x.com/karosmao"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
@@ -100,7 +100,7 @@ const ContributePage: React.FC = () => {
                                 href="https://patreon.com/maokus"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-[#F96854] hover:bg-[#F96854]/80 border border-neutral-700 text-sm font-medium"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
                             >
                                 <FaPatreon className="text-[#FFF]" />
                                 Join Patreon

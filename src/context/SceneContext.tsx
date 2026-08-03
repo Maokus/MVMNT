@@ -43,8 +43,8 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     const setSceneName = useSceneMetadataStore((state) => state.setName);
 
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-    const [isLeavePromptOpen, setIsLeavePromptOpen] = useState(false);
-    const leaveDecisionResolver = useRef<((decision: 'save' | 'discard' | 'cancel') => void) | null>(null);
+    const [unsavedChangesPrompt, setUnsavedChangesPrompt] = useState<{ message: string } | null>(null);
+    const unsavedDecisionResolver = useRef<((decision: 'save' | 'discard' | 'cancel') => void) | null>(null);
 
     const { isDirty, markClean, markDirty } = useDirtyTracking();
 
@@ -102,6 +102,19 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         }));
     }, []);
 
+    const chooseUnsavedChangesDecision = useCallback((decision: 'save' | 'discard' | 'cancel') => {
+        setUnsavedChangesPrompt(null);
+        unsavedDecisionResolver.current?.(decision);
+        unsavedDecisionResolver.current = null;
+    }, []);
+
+    const requestUnsavedChangesDecision = useCallback((message: string) => {
+        return new Promise<'save' | 'discard' | 'cancel'>((resolve) => {
+            unsavedDecisionResolver.current = resolve;
+            setUnsavedChangesPrompt({ message });
+        });
+    }, []);
+
     const menuBarActions = useMenuBar({
         visualizer,
         sceneName,
@@ -110,6 +123,7 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         isDirty,
         markSaveClean: markClean,
         markDirty,
+        requestUnsavedChangesDecision,
     });
 
     const { loadScene, openDesktopFile } = menuBarActions;
@@ -128,29 +142,22 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     // Expose markClean so TemplateInitializer can call it after loading from IDB
     const markSaveClean = markClean;
 
-    const chooseLeaveDecision = useCallback((decision: 'save' | 'discard' | 'cancel') => {
-        setIsLeavePromptOpen(false);
-        leaveDecisionResolver.current?.(decision);
-        leaveDecisionResolver.current = null;
-    }, []);
-
     useEffect(() => {
-        if (!isLeavePromptOpen) return;
+        if (!unsavedChangesPrompt) return;
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key !== 'Escape') return;
             event.preventDefault();
-            chooseLeaveDecision('cancel');
+            chooseUnsavedChangesDecision('cancel');
         };
         window.addEventListener('keydown', handleKeyDown, { capture: true });
         return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-    }, [chooseLeaveDecision, isLeavePromptOpen]);
+    }, [chooseUnsavedChangesDecision, unsavedChangesPrompt]);
 
     const leaveWorkspace = useCallback(async (): Promise<boolean> => {
         if (isDirty) {
-            const decision = await new Promise<'save' | 'discard' | 'cancel'>((resolve) => {
-                leaveDecisionResolver.current = resolve;
-                setIsLeavePromptOpen(true);
-            });
+            const decision = await requestUnsavedChangesDecision(
+                'Your current scene has unsaved changes. Save them before leaving the workspace?'
+            );
             if (decision === 'cancel') return false;
             if (decision === 'save') {
                 const saved = await menuBarActions.saveProject(false);
@@ -165,7 +172,7 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
         markClean();
         return true;
-    }, [isDirty, markClean, menuBarActions]);
+    }, [isDirty, markClean, menuBarActions, requestUnsavedChangesDecision]);
 
     // -------------------------------------------------------------------------
     // Export to file (download .mvt)
@@ -331,38 +338,36 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
             {isExportModalOpen && (
                 <SaveSceneModal initialName={sceneName} onCancel={closeExportModal} onConfirm={handleConfirmExport} />
             )}
-            {isLeavePromptOpen && (
+            {unsavedChangesPrompt && (
                 <div
                     className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4"
                     role="dialog"
                     aria-modal="true"
-                    aria-labelledby="leave-workspace-title"
+                    aria-labelledby="unsaved-changes-title"
                 >
                     <div className="w-full max-w-sm rounded-lg border border-neutral-700 bg-neutral-900 p-5 text-neutral-100 shadow-2xl">
-                        <h2 id="leave-workspace-title" className="text-base font-semibold">
+                        <h2 id="unsaved-changes-title" className="text-base font-semibold">
                             Save changes?
                         </h2>
-                        <p className="mt-2 text-sm leading-6 text-neutral-400">
-                            Your current scene has unsaved changes. Save them before leaving the workspace?
-                        </p>
+                        <p className="mt-2 text-sm leading-6 text-neutral-400">{unsavedChangesPrompt.message}</p>
                         <div className="mt-5 flex justify-end gap-3">
                             <button
                                 type="button"
-                                onClick={() => chooseLeaveDecision('discard')}
+                                onClick={() => chooseUnsavedChangesDecision('discard')}
                                 className="rounded bg-neutral-700 px-3 py-2 text-sm font-medium hover:bg-neutral-600"
                             >
                                 Don’t save
                             </button>
                             <button
                                 type="button"
-                                onClick={() => chooseLeaveDecision('cancel')}
+                                onClick={() => chooseUnsavedChangesDecision('cancel')}
                                 className="rounded bg-neutral-700 px-3 py-2 text-sm font-medium hover:bg-neutral-600"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="button"
-                                onClick={() => chooseLeaveDecision('save')}
+                                onClick={() => chooseUnsavedChangesDecision('save')}
                                 className="rounded bg-indigo-600 px-3 py-2 text-sm font-medium hover:bg-indigo-500"
                             >
                                 Save
