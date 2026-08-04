@@ -6,8 +6,8 @@ describe('createDuplicateElementId', () => {
         expect(createDuplicateElementId('title', ['title'])).toBe('title_1');
     });
 
-    it('increments from existing numbered duplicates', () => {
-        expect(createDuplicateElementId('title', ['title', 'title_1', 'title_2'])).toBe('title_3');
+    it('uses the first available numbered suffix', () => {
+        expect(createDuplicateElementId('title_3', ['title_1', 'title_3'])).toBe('title_2');
     });
 
     it('uses the original base when duplicating a numbered copy', () => {

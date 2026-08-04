@@ -3,6 +3,7 @@ import {
     applyMatrixToPoint,
     buildSceneGraphNavigationIndex,
     cloneSubtrees,
+    createDuplicateMappings,
     createFlatSceneGraph,
     groupSceneNodes,
     multiplyMatrices,
@@ -19,6 +20,14 @@ import {
 import { buildSceneStructureIndex } from '@state/scene/resolvedScene';
 
 describe('recursive scene graph operations', () => {
+    it('allocates the first available element id when duplicating a subtree', () => {
+        const graph = createFlatSceneGraph(['shape_1', 'shape_3']);
+
+        const mappings = createDuplicateMappings(graph, ['shape_1', 'shape_3'], ['element:shape_3']);
+
+        expect(mappings.elementIdMap).toEqual({ shape_3: 'shape_2' });
+    });
+
     it('accepts reflected node transforms while rejecting zero scales', () => {
         const graph = createFlatSceneGraph(['a']);
         graph.nodesById['element:a'].userNodeTransform.scaleX = -1;

@@ -8,6 +8,7 @@ import {
 } from './math';
 import { buildSceneGraphNavigationIndex } from './graph';
 import { cloneSceneGraph, createNodeBase, type Matrix2D, type SceneGraphState, type SceneNode } from './types';
+import { createDuplicateElementId } from '../../context/duplicateElementName';
 
 export interface DuplicateMappings {
     nodeIdMap: Record<string, string>;
@@ -105,8 +106,11 @@ export function createDuplicateMappings(
     for (const id of subtreeNodeIds(graph, normalizeNodeSelection(graph, rootIds))) {
         const node = graph.nodesById[id];
         nodeIdMap[id] = uniqueId(`${id}:copy`, occupiedNodes);
-        if (node.kind === 'element')
-            elementIdMap[node.elementId] = uniqueId(`${node.elementId} copy`, occupiedElements);
+        if (node.kind === 'element') {
+            const duplicateId = createDuplicateElementId(node.elementId, occupiedElements);
+            occupiedElements.add(duplicateId);
+            elementIdMap[node.elementId] = duplicateId;
+        }
     }
     return { nodeIdMap, elementIdMap };
 }

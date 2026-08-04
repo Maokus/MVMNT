@@ -23,20 +23,7 @@ export function createDuplicateElementId(elementId: string, existingIds: Iterabl
     const ids = Array.from(existingIds);
     const existing = new Set(ids);
     const baseId = getDuplicateBaseId(elementId, ids);
-    const duplicatePattern = new RegExp(`^${escapeRegExp(baseId)}_(\\d+)$`);
-    let nextCopyNumber = 1;
-
-    for (const existingId of ids) {
-        const match = duplicatePattern.exec(existingId);
-        if (!match) continue;
-        nextCopyNumber = Math.max(nextCopyNumber, Number(match[1]) + 1);
-    }
-
-    let duplicateId = `${baseId}_${nextCopyNumber}`;
-    while (existing.has(duplicateId)) {
-        nextCopyNumber += 1;
-        duplicateId = `${baseId}_${nextCopyNumber}`;
-    }
-
-    return duplicateId;
+    let copyNumber = 1;
+    while (existing.has(`${baseId}_${copyNumber}`)) copyNumber += 1;
+    return `${baseId}_${copyNumber}`;
 }
