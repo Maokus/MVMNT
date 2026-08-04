@@ -8,6 +8,7 @@ import {
     getProjectedBounds,
     isIdentityPerspectiveWarp,
     invertAffineTransform,
+    perspectiveWarpPoints,
     projectPerspectivePoint,
     validatePerspectiveWarp,
     warpLocalPoint,
@@ -242,6 +243,9 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
         currentTime: number
     ): boolean {
         if (!this.visible || this.opacity <= 0) return true;
+        // A plane with no projected area must not fall through to the affine
+        // renderer: that would make an edge-on element appear untransformed.
+        if (this._isPerspectiveEdgeOn) return true;
         if (!this._warpMatrix || !this.baseBounds) return false;
         if (isIdentityPerspectiveWarp(this.perspectiveWarp)) {
             this.render(ctx, config, currentTime);
@@ -252,6 +256,7 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
     }
 
     override render(ctx: CanvasRenderingContext2D, config: RenderConfig, currentTime: number): void {
+        if (this._isPerspectiveEdgeOn) return;
         // Direct rendering (including deterministic GPU fallback) retains the old affine result.
         ctx.save();
         ctx.transform(...this._resolvedAncestorTransform);
@@ -260,6 +265,30 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
     }
 
     protected override _getSelfBounds(): Bounds {
+        if (this._isPerspectiveEdgeOn && this.baseBounds) {
+            const affine = this.getAffineTransform();
+            const corners = perspectiveWarpPoints(this._perspectiveWarp).map((point) =>
+                applyAffinePoint(affine, {
+                    x: this.baseBounds!.x + point.x * this.baseBounds!.width,
+                    y: this.baseBounds!.y + point.y * this.baseBounds!.height,
+                })
+            );
+            const bounds = getProjectedBounds(corners);
+            if (bounds) {
+                // Keep the collapsed edge selectable without turning it into a
+                // large affine fallback box. One logical pixel on either side
+                // gives a stable hit target for a horizontal, vertical, or
+                // diagonal projected edge.
+                const edgePadding = 1;
+                this._worldCorners = corners;
+                return {
+                    x: bounds.x - edgePadding,
+                    y: bounds.y - edgePadding,
+                    width: bounds.width + edgePadding * 2,
+                    height: bounds.height + edgePadding * 2,
+                };
+            }
+        }
         const corners = this.getProjectedCorners();
         if (!corners) return super._getSelfBounds();
         this._worldCorners = corners;

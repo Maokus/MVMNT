@@ -174,6 +174,7 @@ export class VisualResourceCache {
     private readonly _resources = new Map<string, VisualResource>();
     private readonly _pending = new Map<string, Promise<VisualResource>>();
     private readonly _refCounts = new Map<string, number>();
+    private readonly _loadListeners = new Set<(resource: VisualResource) => void>();
     /**
      * Per-key load generation. Incremented whenever a new decode is started or
      * a key is evicted while loading. The in-flight async task captures the
@@ -237,11 +238,11 @@ export class VisualResourceCache {
                 this._pending.delete(key);
                 // If the generation changed while we were loading, this decode was
                 // superseded (the key was evicted and/or reloaded). Discard and clean up.
-                if (this._loadGeneration.get(key) !== gen) {
+                const isCurrent = this._loadGeneration.get(key) === gen && this._resources.get(key) === placeholder;
+                if (!isCurrent) {
                     this._closeDrawables(placeholder);
-                    if (this._resources.get(key) === placeholder) {
-                        this._resources.delete(key);
-                    }
+                } else if (placeholder.status === 'ready') {
+                    this._notifyLoadListeners(placeholder);
                 }
             }
             return placeholder;
@@ -439,6 +440,12 @@ export class VisualResourceCache {
         return this._resources.get(key);
     }
 
+    /** Subscribe to successful resource decodes. Returns an unsubscribe function. */
+    subscribeToLoads(listener: (resource: VisualResource) => void): () => void {
+        this._loadListeners.add(listener);
+        return () => this._loadListeners.delete(listener);
+    }
+
     /** Increment the reference count for a resource key. */
     retain(key: string): void {
         this._refCounts.set(key, (this._refCounts.get(key) ?? 0) + 1);
@@ -491,6 +498,16 @@ export class VisualResourceCache {
                 if (frame.drawable instanceof ImageBitmap) {
                     frame.drawable.close();
                 }
+            }
+        }
+    }
+
+    private _notifyLoadListeners(resource: VisualResource): void {
+        for (const listener of this._loadListeners) {
+            try {
+                listener(resource);
+            } catch (error) {
+                console.warn('[VisualResourceCache] load listener failed', error);
             }
         }
     }

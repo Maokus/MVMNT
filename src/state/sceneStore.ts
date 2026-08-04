@@ -1833,6 +1833,10 @@ const createSceneStoreState = (
                 const anchorY = bindings.anchorY;
                 delete bindings.anchorX;
                 delete bindings.anchorY;
+                const textAnchorX = bindings.textAnchorX;
+                const textAnchorY = bindings.textAnchorY;
+                delete bindings.textAnchorX;
+                delete bindings.textAnchorY;
 
                 const elementOpacity = bindings.elementOpacity;
                 const elementScaleX = bindings.elementScaleX;
@@ -1856,7 +1860,10 @@ const createSceneStoreState = (
                     }
                 };
 
-                const moveTextAnchor = (source: BindingState | undefined, path: 'textAnchorX' | 'textAnchorY') => {
+                const moveContentAnchor = (
+                    source: BindingState | undefined,
+                    path: 'contentAnchorX' | 'contentAnchorY'
+                ) => {
                     if (!source || bindings[path]) return;
                     bindings[path] = cloneBinding(source);
                     if (source.type === 'keyframes') {
@@ -1869,21 +1876,40 @@ const createSceneStoreState = (
                     }
                 };
 
-                if (nextElements[elementId].type === 'textOverlay') {
-                    // Text now owns its block anchor. Moving the legacy binding
-                    // here keeps text placement and any anchor animation intact.
-                    moveTextAnchor(anchorX, 'textAnchorX');
-                    moveTextAnchor(anchorY, 'textAnchorY');
-                } else {
-                    // Other elements still use a centered wrapper. Retain their
-                    // legacy wrapper anchor on the host node so its local origin
-                    // is restored when the element is rendered.
-                    const legacyAnchorX = readBindingNumber(anchorX);
-                    const legacyAnchorY = readBindingNumber(anchorY);
-                    if (legacyAnchorX != null) node.userNodeTransform.legacyAnchorX = legacyAnchorX;
-                    if (legacyAnchorY != null) node.userNodeTransform.legacyAnchorY = legacyAnchorY;
-                    if (anchorX && legacyAnchorX == null) moveBinding(anchorX, 'legacyAnchorX');
-                    if (anchorY && legacyAnchorY == null) moveBinding(anchorY, 'legacyAnchorY');
+                // The retired element anchor and text-only anchor both selected
+                // a normalized point in the wrapper's layout bounds. They now
+                // map directly to the shared content anchor for every element.
+                moveContentAnchor(textAnchorX ?? anchorX, 'contentAnchorX');
+                moveContentAnchor(textAnchorY ?? anchorY, 'contentAnchorY');
+
+                // Files opened by the previous compatibility layer may already
+                // have the old anchor on their host node. Move that state back
+                // to the element, including animated node bindings.
+                const legacyTransform = node.userNodeTransform as NodeTransform & {
+                    legacyAnchorX?: number;
+                    legacyAnchorY?: number;
+                };
+                const legacyAnchorX = legacyTransform.legacyAnchorX;
+                const legacyAnchorY = legacyTransform.legacyAnchorY;
+                delete legacyTransform.legacyAnchorX;
+                delete legacyTransform.legacyAnchorY;
+                moveContentAnchor(
+                    nodeBindings?.legacyAnchorX ??
+                        (Number.isFinite(legacyAnchorX)
+                            ? ({ type: 'constant', value: legacyAnchorX } satisfies BindingState)
+                            : undefined),
+                    'contentAnchorX'
+                );
+                moveContentAnchor(
+                    nodeBindings?.legacyAnchorY ??
+                        (Number.isFinite(legacyAnchorY)
+                            ? ({ type: 'constant', value: legacyAnchorY } satisfies BindingState)
+                            : undefined),
+                    'contentAnchorY'
+                );
+                if (nodeBindings) {
+                    delete nodeBindings.legacyAnchorX;
+                    delete nodeBindings.legacyAnchorY;
                 }
 
                 if (elementOpacity) {
@@ -1899,22 +1925,28 @@ const createSceneStoreState = (
                 );
                 const contentScaleX = readBindingNumber(elementScaleX) ?? 1;
                 const contentScaleY = readBindingNumber(elementScaleY) ?? 1;
-                const normalizedUniform = readBindingNumber(oldUniformBinding) ?? node.userNodeTransform.scaleX;
-                if (!scalesAreDynamic && normalizedUniform > 0 && contentScaleX > 0 && contentScaleY > 0) {
-                    const cosine = Math.cos(node.userNodeTransform.rotation) * normalizedUniform;
-                    const sine = Math.sin(node.userNodeTransform.rotation) * normalizedUniform;
+                const baseScaleX = node.userNodeTransform.scaleX;
+                const baseScaleY = node.userNodeTransform.scaleY;
+                const hasUsableBaseScale =
+                    Number.isFinite(baseScaleX) &&
+                    Number.isFinite(baseScaleY) &&
+                    Math.abs(baseScaleX) > 1e-10 &&
+                    Math.abs(baseScaleY) > 1e-10;
+                if (!scalesAreDynamic && hasUsableBaseScale && contentScaleX !== 0 && contentScaleY !== 0) {
+                    const cosine = Math.cos(node.userNodeTransform.rotation);
+                    const sine = Math.sin(node.userNodeTransform.rotation);
                     node.userNodeTransform.translationX +=
-                        cosine * (contentScaleX - 1) * node.userNodeTransform.pivotX -
-                        sine * (contentScaleY - 1) * node.userNodeTransform.pivotY;
+                        cosine * baseScaleX * (contentScaleX - 1) * node.userNodeTransform.pivotX -
+                        sine * baseScaleY * (contentScaleY - 1) * node.userNodeTransform.pivotY;
                     node.userNodeTransform.translationY +=
-                        sine * (contentScaleX - 1) * node.userNodeTransform.pivotX +
-                        cosine * (contentScaleY - 1) * node.userNodeTransform.pivotY;
-                    node.userNodeTransform.scaleX = normalizedUniform * contentScaleX;
-                    node.userNodeTransform.scaleY = normalizedUniform * contentScaleY;
+                        sine * baseScaleX * (contentScaleX - 1) * node.userNodeTransform.pivotX +
+                        cosine * baseScaleY * (contentScaleY - 1) * node.userNodeTransform.pivotY;
+                    node.userNodeTransform.scaleX = baseScaleX * contentScaleX;
+                    node.userNodeTransform.scaleY = baseScaleY * contentScaleY;
                 } else if (oldUniformBinding || elementScaleX || elementScaleY) {
                     node.userNodeTransform.scaleX = 1;
                     node.userNodeTransform.scaleY = 1;
-                    node.userNodeTransform.legacyUniformScale = normalizedUniform;
+                    node.userNodeTransform.legacyUniformScale = readBindingNumber(oldUniformBinding) ?? 1;
                     node.userNodeTransform.legacyContentScaleX = contentScaleX;
                     node.userNodeTransform.legacyContentScaleY = contentScaleY;
                     moveBinding(oldUniformBinding, 'legacyUniformScale');

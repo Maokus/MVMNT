@@ -60,7 +60,7 @@ describe('sceneStore', () => {
         expect(state.bindings.byElement.legacy.anchorY).toBeUndefined();
     });
 
-    it('retains non-text legacy wrapper anchors on the host node', () => {
+    it('moves legacy wrapper anchors into the shared content anchor', () => {
         store.getState().importScene({
             elements: {
                 background: {
@@ -76,13 +76,13 @@ describe('sceneStore', () => {
         });
 
         const state = store.getState();
-        const node = state.graph.nodesById[state.nodeIdByElementId.background];
-        expect(node.userNodeTransform).toMatchObject({ legacyAnchorX: 0, legacyAnchorY: 1 });
+        expect(state.bindings.byElement.background.contentAnchorX).toEqual({ type: 'constant', value: 0 });
+        expect(state.bindings.byElement.background.contentAnchorY).toEqual({ type: 'constant', value: 1 });
         expect(state.bindings.byElement.background.anchorX).toBeUndefined();
         expect(state.bindings.byElement.background.anchorY).toBeUndefined();
     });
 
-    it('moves legacy text wrapper anchors into text block anchors', () => {
+    it('moves text-only anchors into the shared content anchor', () => {
         store.getState().importScene({
             elements: {
                 text: {
@@ -98,8 +98,8 @@ describe('sceneStore', () => {
         });
 
         const state = store.getState();
-        expect(state.bindings.byElement.text.textAnchorX).toEqual({ type: 'constant', value: 0 });
-        expect(state.bindings.byElement.text.textAnchorY).toEqual({ type: 'constant', value: 1 });
+        expect(state.bindings.byElement.text.contentAnchorX).toEqual({ type: 'constant', value: 0 });
+        expect(state.bindings.byElement.text.contentAnchorY).toEqual({ type: 'constant', value: 1 });
         expect(state.bindings.byElement.text.anchorX).toBeUndefined();
         expect(state.bindings.byElement.text.anchorY).toBeUndefined();
     });
@@ -133,6 +133,41 @@ describe('sceneStore', () => {
         expect(state.bindings.byElement.legacy).not.toHaveProperty('elementOpacity');
         expect(state.bindings.byElement.legacy).not.toHaveProperty('elementScaleX');
         expect(state.bindings.byElement.legacy).not.toHaveProperty('elementScaleY');
+    });
+
+    it('preserves non-uniform node scaling while migrating constant element scales', () => {
+        const graph = createFlatSceneGraph(['legacy']);
+        const node = graph.nodesById['element:legacy'] as any;
+        node.userNodeTransform = {
+            ...node.userNodeTransform,
+            translationX: 10,
+            translationY: 20,
+            scaleX: 2,
+            scaleY: 3,
+            pivotX: 100,
+            pivotY: 200,
+        };
+        store.getState().importScene({
+            elements: {
+                legacy: {
+                    id: 'legacy',
+                    type: 'textOverlay',
+                    properties: {
+                        elementScaleX: { type: 'constant', value: 4 },
+                        elementScaleY: { type: 'constant', value: 5 },
+                    },
+                },
+            },
+            graph,
+        });
+
+        const migrated = store.getState().graph.nodesById['element:legacy'];
+        expect(migrated.userNodeTransform).toMatchObject({
+            translationX: 610,
+            translationY: 2420,
+            scaleX: 8,
+            scaleY: 15,
+        });
     });
 
     it('maintains macro assignment index when bindings change', () => {

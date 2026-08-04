@@ -752,11 +752,15 @@ export class SceneElement implements SceneElementInterface {
             ? new PerspectiveElementRoot(this.id, { ...IDENTITY_PERSPECTIVE_WARP }, 0, 0, 1, 1, 1)
             : new EmptyRenderObject(0, 0, 1, 1, 1);
         containerObject.setSkew(this.elementSkewX, this.elementSkewY).setVisible(this.visible);
-        // Text Overlay supplies explicit horizontal and vertical block alignment.
-        // Its local (0, 0) must therefore remain the transform origin; centering
-        // the wrapper on its bounds would cancel those controls out.
-        if (this.type === 'textOverlay') containerObject.setOrigin(0, 0);
-        else containerObject.setOriginFraction(0.5, 0.5);
+        // The content anchor chooses which normalized point of the element's
+        // layout bounds occupies its local origin. Node pivots remain a
+        // separate, pixel-based transform concern.
+        const contentAnchorX = this.getProperty<number>('contentAnchorX');
+        const contentAnchorY = this.getProperty<number>('contentAnchorY');
+        containerObject.setOriginFraction(
+            Number.isFinite(contentAnchorX) ? contentAnchorX : 0.5,
+            Number.isFinite(contentAnchorY) ? contentAnchorY : 0.5
+        );
 
         // Add all child render objects to the container
         for (const childObj of childRenderObjects) {
@@ -796,8 +800,8 @@ export class SceneElement implements SceneElementInterface {
 
         // Add anchor point visualization if enabled
         if (config.showAnchorPoints) {
-            const anchorX = this.type === 'textOverlay' ? 0 : 0.5;
-            const anchorY = this.type === 'textOverlay' ? 0 : 0.5;
+            const anchorX = Number.isFinite(contentAnchorX) ? contentAnchorX : 0.5;
+            const anchorY = Number.isFinite(contentAnchorY) ? contentAnchorY : 0.5;
             containerObject.setAnchorVisualizationData(layoutBounds, visualBounds, anchorX, anchorY);
         }
 
@@ -945,10 +949,38 @@ export class SceneElement implements SceneElementInterface {
                             properties: [prop.boolean('visible', 'Visible', true)],
                         },
                         {
-                            id: 'advancedAnchor',
+                            id: 'contentAnchor',
+                            label: 'Content Anchor',
+                            collapsed: false,
+                            description: 'Choose which point of the element content is placed at its local origin.',
+                            properties: [
+                                prop.number('contentAnchorX', 'Content Anchor X', 0.5, {
+                                    min: 0,
+                                    max: 1,
+                                    step: 0.01,
+                                }),
+                                prop.number('contentAnchorY', 'Content Anchor Y', 0.5, {
+                                    min: 0,
+                                    max: 1,
+                                    step: 0.01,
+                                }),
+                            ],
+                            layout: [
+                                {
+                                    kind: 'control',
+                                    control: 'anchor-grid',
+                                    bindings: { x: 'contentAnchorX', y: 'contentAnchorY' },
+                                    options: { label: 'Content Anchor' },
+                                },
+                                { kind: 'property', propertyKey: 'contentAnchorX' },
+                                { kind: 'property', propertyKey: 'contentAnchorY' },
+                            ],
+                        },
+                        {
+                            id: 'advancedSkew',
                             label: 'Skew',
-                            collapsed: true,
-                            description: 'Advanced pivot, rotation, and skew controls.',
+                            collapsed: false,
+                            description: 'Advanced skew controls.',
                             properties: [
                                 prop.number('elementSkewX', 'Skew X', 0, {
                                     step: 0.01,
@@ -963,7 +995,7 @@ export class SceneElement implements SceneElementInterface {
                         {
                             id: 'perspective',
                             label: 'Perspective',
-                            collapsed: true,
+                            collapsed: false,
                             description: 'Tilt the element in 3D around its horizontal and vertical axes.',
                             properties: [
                                 prop.boolean('warpEnabled', 'Enable Perspective', false, {

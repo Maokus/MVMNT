@@ -64,6 +64,29 @@ describe('SceneElement bounds', () => {
         expect(root.visible).toBe(true);
     });
 
+    it('hides an edge-on perspective element while retaining a small bound around its projected edge', () => {
+        const root = new PerspectiveElementRoot(
+            'edge-on',
+            {
+                topLeft: { x: 0.5, y: 0 },
+                topRight: { x: 0.5, y: 0 },
+                bottomRight: { x: 0.5, y: 1 },
+                bottomLeft: { x: 0.5, y: 1 },
+            },
+            0,
+            0,
+            1,
+            1,
+            1,
+            true
+        );
+        root.baseBounds = { x: 0, y: 0, width: 200, height: 100 };
+
+        expect(root.getVisualBounds()).toEqual({ x: 99, y: -1, width: 2, height: 102 });
+        expect(root.renderPerspective({} as any, {} as CanvasRenderingContext2D, {}, 0)).toBe(true);
+        expect(() => root.render({} as CanvasRenderingContext2D, {}, 0)).not.toThrow();
+    });
+
     it('keeps position out of the element wrapper so the host node can own it', () => {
         const element = new BoundsTestElement({ offsetX: 500, offsetY: 300, anchorX: 0.5, anchorY: 0.5 });
 
@@ -84,6 +107,15 @@ describe('SceneElement bounds', () => {
         expect(element.getBinding('anchorY')).toBeUndefined();
         expect(container.rotation).toBe(0);
         expect(container.getVisualBounds()).toEqual({ x: -100, y: -50, width: 200, height: 100 });
+    });
+
+    it('uses the shared content anchor to place layout bounds at the local origin', () => {
+        const element = new BoundsTestElement({ contentAnchorX: 0, contentAnchorY: 1 });
+        const [container] = element.buildRenderObjects({}, 0);
+
+        expect(container.getVisualBounds()).toEqual({ x: 0, y: -100, width: 200, height: 100 });
+        expect(container.originX).toBe(0);
+        expect(container.originY).toBe(100);
     });
 });
 

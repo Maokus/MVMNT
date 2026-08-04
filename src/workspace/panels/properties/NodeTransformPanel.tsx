@@ -489,7 +489,7 @@ export function NodeTransformPanel() {
                 {renderSingleField('scaleX', Number(valueFor('scaleX', nodes[0].userNodeTransform.scaleX)))}
                 {renderSingleField('scaleY', Number(valueFor('scaleY', nodes[0].userNodeTransform.scaleY)))}
             </TransformSection>
-            <TransformSection title="Pivot" ownerKey={inspectorOwnerKey}>
+            <TransformSection title="Transform Pivot" ownerKey={inspectorOwnerKey}>
                 {renderSingleField('pivotX', Number(valueFor('pivotX', nodes[0].userNodeTransform.pivotX)))}
                 {renderSingleField('pivotY', Number(valueFor('pivotY', nodes[0].userNodeTransform.pivotY)))}
             </TransformSection>

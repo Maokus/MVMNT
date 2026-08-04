@@ -11,6 +11,7 @@ import type { SnapGuide } from '@core/interaction/snapping';
 import { PerspectiveElementRoot } from '@core/render/render-objects';
 import { isFeatureEnabled } from '@utils/featureFlags';
 import { selectionGeometry } from '@state/scene/selectionGeometry';
+import { visualResourceCache } from '@core/resources/visual-resource-cache';
 
 export class MIDIVisualizerCore {
     private static activeInstances = 0;
@@ -36,10 +37,8 @@ export class MIDIVisualizerCore {
     private _renderCount = 0;
     private _invalidationCount = 0;
     private _totalRenderMilliseconds = 0;
-    private _handleImageLoaded: any;
+    private _unsubscribeImageLoads: (() => void) | null = null;
     private _handleSceneRuntimeUpdated: (() => void) | null = null;
-    private _imageLoadDebounceTimeout: any;
-    private _pendingImageLoads: Set<string> | null = null;
     private _interactionState: any = {
         hoverElementId: null,
         selectedElementId: null,
@@ -72,6 +71,7 @@ export class MIDIVisualizerCore {
         };
         if (typeof window !== 'undefined') {
             window.addEventListener('mvmnt-scene-runtime-updated', this._handleSceneRuntimeUpdated as EventListener);
+            window.addEventListener('mvmnt-scene-import-complete', this._handleSceneRuntimeUpdated as EventListener);
         }
         (window as any).vis = this; // debug helper
     }
@@ -319,19 +319,8 @@ export class MIDIVisualizerCore {
         };
     }
     _setupImageLoadedListener() {
-        document.removeEventListener('imageLoaded', this._handleImageLoaded);
-        this._imageLoadDebounceTimeout = null;
-        this._pendingImageLoads = new Set();
-        this._handleImageLoaded = (event: any) => {
-            if (event.detail?.imageSource) this._pendingImageLoads?.add(event.detail.imageSource);
-            if (this._imageLoadDebounceTimeout) clearTimeout(this._imageLoadDebounceTimeout);
-            this._imageLoadDebounceTimeout = setTimeout(() => {
-                this.invalidateRender();
-                this._pendingImageLoads?.clear();
-                this._imageLoadDebounceTimeout = null;
-            }, 50);
-        };
-        document.addEventListener('imageLoaded', this._handleImageLoaded);
+        this._unsubscribeImageLoads?.();
+        this._unsubscribeImageLoads = visualResourceCache.subscribeToLoads(() => this.invalidateRender());
     }
     resize(width: number, height: number) {
         this.canvas.width = width;
@@ -916,16 +905,13 @@ export class MIDIVisualizerCore {
     cleanup() {
         if (this._cleanedUp) return;
         this._cleanedUp = true;
-        if (this._handleImageLoaded) document.removeEventListener('imageLoaded', this._handleImageLoaded);
+        this._unsubscribeImageLoads?.();
+        this._unsubscribeImageLoads = null;
         if (this._handleSceneRuntimeUpdated && typeof window !== 'undefined') {
             window.removeEventListener('mvmnt-scene-runtime-updated', this._handleSceneRuntimeUpdated as EventListener);
+            window.removeEventListener('mvmnt-scene-import-complete', this._handleSceneRuntimeUpdated as EventListener);
             this._handleSceneRuntimeUpdated = null;
         }
-        if (this._imageLoadDebounceTimeout) {
-            clearTimeout(this._imageLoadDebounceTimeout);
-            this._imageLoadDebounceTimeout = null;
-        }
-        this._pendingImageLoads?.clear();
         if (this.animationId) {
             cancelAnimationFrame(this.animationId);
             this.animationId = null;

@@ -17,9 +17,6 @@ export interface NodeTransform {
     legacyUniformScale?: number;
     legacyContentScaleX?: number;
     legacyContentScaleY?: number;
-    /** Import-only legacy element-wrapper anchor fractions. */
-    legacyAnchorX?: number;
-    legacyAnchorY?: number;
 }
 
 export interface SceneNodeBase {

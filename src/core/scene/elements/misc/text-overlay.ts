@@ -27,8 +27,6 @@ interface Props extends Readonly<Record<string, unknown>> {
     readonly blendMode: GlobalCompositeOperation;
     readonly fontFamily: string;
     readonly fontSize: number;
-    readonly textAnchorX: number;
-    readonly textAnchorY: number;
     readonly justification?: CanvasTextAlign;
     readonly verticalAlign?: 'top' | 'center' | 'bottom';
     readonly letterSpacing: number;
@@ -123,24 +121,6 @@ export const textOverlay = definePluginElement<Props, undefined>({
                                     { value: 'right', label: 'Right' },
                                 ],
                             },
-                            {
-                                key: 'textAnchorX',
-                                label: 'Anchor X',
-                                type: 'number',
-                                default: 0.5,
-                                min: 0,
-                                max: 1,
-                                step: 0.01,
-                            },
-                            {
-                                key: 'textAnchorY',
-                                label: 'Anchor Y',
-                                type: 'number',
-                                default: 0.5,
-                                min: 0,
-                                max: 1,
-                                step: 0.01,
-                            },
                             { key: 'letterSpacing', label: 'Letter Spacing', type: 'number', default: 0 },
                             { key: 'strokeColor', label: 'Stroke Color', type: 'colorAlpha', default: '#000000' },
                             { key: 'strokeWidth', label: 'Stroke Width', type: 'number', default: 0, min: 0 },
@@ -149,14 +129,6 @@ export const textOverlay = definePluginElement<Props, undefined>({
                             { kind: 'property', propertyKey: 'fontFamily' },
                             { kind: 'property', propertyKey: 'fontSize' },
                             { kind: 'property', propertyKey: 'justification' },
-                            {
-                                kind: 'control',
-                                control: 'anchor-grid',
-                                bindings: { x: 'textAnchorX', y: 'textAnchorY' },
-                                options: { label: 'Text Anchor' },
-                            },
-                            { kind: 'property', propertyKey: 'textAnchorX' },
-                            { kind: 'property', propertyKey: 'textAnchorY' },
                             { kind: 'property', propertyKey: 'letterSpacing' },
                             { kind: 'property', propertyKey: 'strokeColor' },
                             { kind: 'property', propertyKey: 'strokeWidth' },
@@ -204,14 +176,13 @@ export const textOverlay = definePluginElement<Props, undefined>({
         const lines = props.text.split(/\r?\n/);
         const width = Math.max(1, ...lines.map((line) => measureLineWidth(line, font, props.letterSpacing)));
         const totalHeight = lines.length * props.fontSize + Math.max(0, lines.length - 1) * props.lineSpacing;
-        // The normalized anchor point is pinned to the element origin.
-        const anchorX = Number.isFinite(props.textAnchorX) ? props.textAnchorX : 0.5;
-        const anchorY = Number.isFinite(props.textAnchorY) ? props.textAnchorY : 0.5;
-        const blockX = -width * anchorX;
+        // The base element places this centered content block according to its
+        // shared content-anchor properties.
+        const blockX = -width / 2;
         const justification = props.justification ?? 'center';
         const textX =
             justification === 'center' ? blockX + width / 2 : justification === 'right' ? blockX + width : blockX;
-        const startY = -totalHeight * anchorY;
+        const startY = -totalHeight / 2;
         lines.forEach((line, index) => {
             const item = new Text(textX, startY + index * (props.fontSize + props.lineSpacing), line, font, {
                 color: applyOpacity(props.color, props.opacity),

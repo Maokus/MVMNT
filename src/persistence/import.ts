@@ -1166,6 +1166,13 @@ export async function importScene(
         ...fontWarnings.map((message) => ({ message })),
         ...pluginWarnings.map((message) => ({ message })),
     ];
+    // Runtime elements are rebuilt before visual files are restored into the
+    // project registry. Signal completion only after every imported asset is
+    // available so the preview's next frame resolves image references against
+    // the new registry rather than the scene that was just replaced.
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('mvmnt-scene-import-complete'));
+    }
     options.onProgress?.(1, 'Scene loaded.');
     return { ok: true, errors: [], warnings };
 }

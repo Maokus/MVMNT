@@ -13,8 +13,6 @@ describe('text overlay anchoring', () => {
                 blendMode: 'source-over',
                 fontFamily: 'Arial|400',
                 fontSize: 10,
-                textAnchorX: 1,
-                textAnchorY: 0.5,
                 justification: 'left',
                 letterSpacing: 0,
                 strokeColor: '#000000',
@@ -49,8 +47,6 @@ describe('text overlay anchoring', () => {
                 blendMode: 'source-over',
                 fontFamily: 'Arial|400',
                 fontSize: 10,
-                textAnchorX: 0,
-                textAnchorY: 0.5,
                 justification: 'right',
                 letterSpacing: 0,
                 strokeColor: '#000000',
@@ -84,8 +80,6 @@ describe('text overlay anchoring', () => {
                 blendMode: 'source-over',
                 fontFamily: 'Arial|400',
                 fontSize: 10,
-                textAnchorX: 0,
-                textAnchorY: 1,
                 justification: 'left',
                 letterSpacing: 0,
                 strokeColor: '#000000',
@@ -102,18 +96,19 @@ describe('text overlay anchoring', () => {
             {} as any
         );
 
-        expect((line as Text).y).toBe(-10);
+        expect((line as Text).y).toBe(-5);
     });
 
-    it('keeps the element wrapper origin at the aligned text origin', () => {
+    it('delegates text-block placement to the shared content anchor', () => {
         const [container] = new TextOverlayElement('text', {
             text: 'Text',
-            textAnchorX: 1,
-            textAnchorY: 1,
+            contentAnchorX: 1,
+            contentAnchorY: 1,
             justification: 'right',
         }).buildRenderObjects({}, 0);
 
-        expect(container.originX).toBe(0);
-        expect(container.originY).toBe(0);
+        container.getVisualBounds();
+        expect(container.originX).toBeCloseTo(container.baseBounds.x + container.baseBounds.width);
+        expect(container.originY).toBeCloseTo(container.baseBounds.y + container.baseBounds.height);
     });
 });
