@@ -320,7 +320,13 @@ export class MIDIVisualizerCore {
     }
     _setupImageLoadedListener() {
         this._unsubscribeImageLoads?.();
-        this._unsubscribeImageLoads = visualResourceCache.subscribeToLoads(() => this.invalidateRender());
+        this._unsubscribeImageLoads = visualResourceCache.subscribeToLoads(() => {
+            // Resource decoding happens outside the Zustand scene state. Without
+            // clearing this cache, the next draw reuses a frame whose image
+            // element was built while the resource still reported "loading".
+            this.runtimeAdapter?.invalidateResolvedFrame();
+            this.invalidateRender();
+        });
     }
     resize(width: number, height: number) {
         this.canvas.width = width;

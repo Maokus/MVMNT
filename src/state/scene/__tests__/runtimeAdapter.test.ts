@@ -60,6 +60,17 @@ describe('SceneRuntimeAdapter', () => {
         window.removeEventListener('mvmnt-scene-runtime-updated', listener);
     });
 
+    it('rebuilds a resolved frame after an external resource update', () => {
+        const config = { canvas: { width: 1920, height: 1080 } };
+        const first = adapter.resolveFrame(config, 0);
+
+        expect(adapter.resolveFrame(config, 0)).toBe(first);
+
+        adapter.invalidateResolvedFrame();
+
+        expect(adapter.resolveFrame(config, 0)).not.toBe(first);
+    });
+
     it('retains unrelated plugin instances when hierarchy changes', () => {
         const before = new Map(adapter.getElements().map((element) => [element.id, element]));
         const scene = store.getState();

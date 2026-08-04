@@ -199,6 +199,17 @@ export class SceneRuntimeAdapter {
         return this.resolveFrame(config, targetTime).renderObjects as RenderObject[];
     }
 
+    /**
+     * Discard the resolved frame without changing the scene's persisted state.
+     *
+     * Visual resources decode asynchronously and mutate their resource status
+     * outside the scene store.  Their completion therefore does not change the
+     * graph revision or runtime version used by `resolveFrame`'s cache key.
+     */
+    invalidateResolvedFrame(): void {
+        this.resolvedFrame = null;
+    }
+
     resolveFrame(config: any, targetTime: number): ResolvedSceneFrame {
         const state = this.store.getState();
         if (
