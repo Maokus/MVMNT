@@ -9,6 +9,7 @@ import {
 } from '@audio/audioMemoryDiagnostics';
 import { recordAudioMemoryDiagnostic } from '@state/audioMemoryDiagnosticsStore';
 import { isMidiFile, isAudioFile } from '../utils/fileTypeUtils';
+import { getNextImportedTrackName } from './importTrackName';
 
 export interface AudioImportProgressState {
     active: boolean;
@@ -50,7 +51,6 @@ export function useAudioImport() {
                 alert('Unsupported file type. Please select an audio file.');
                 return false;
             }
-            const name = file.name.replace(/\.[^/.]+$/, '');
             try {
                 const estimate = await estimateAudioImportBatch([file]);
                 recordAudioMemoryDiagnostic({
@@ -65,7 +65,10 @@ export function useAudioImport() {
                         retainedAudio: estimate.retainedHeapBytes,
                     },
                 });
-                await addAudioTrack({ name, file });
+                await addAudioTrack({
+                    name: getNextImportedTrackName('audio', useTimelineStore.getState().tracks),
+                    file,
+                });
                 return true;
             } catch (error) {
                 console.error('Failed to import audio track', error);

@@ -95,6 +95,10 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
         updateElementId,
     } = useSceneSelection();
     const rowLabel = node.kind === 'element' ? node.elementId : node.name;
+    const elementName =
+        node.kind === 'element' && elementType
+            ? (sceneElementRegistry.getElementTypeInfo().find((type) => type.type === elementType)?.name ?? elementType)
+            : null;
     const elementIcon =
         node.kind === 'element' && elementType
             ? getSceneElementIcon(
@@ -247,7 +251,7 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
                 ) : (
                     <span className="scene-node-disclosure" aria-hidden="true" />
                 )}
-                <span className="scene-node-kind" aria-hidden="true">
+                <span className="scene-node-kind" title={elementName ?? undefined} aria-hidden="true">
                     {node.kind === 'group' ? (
                         <FaFolder />
                     ) : elementIcon ? (

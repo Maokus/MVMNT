@@ -68,10 +68,6 @@ function chunkKey(index: number): string {
     return `${CURRENT_FILE_CHUNK_PREFIX}${index}`;
 }
 
-function cloneBytes(data: Uint8Array): Uint8Array {
-    return new Uint8Array(data);
-}
-
 function toStoredBuffer(data: Uint8Array): ArrayBuffer {
     const buffer = new ArrayBuffer(data.byteLength);
     new Uint8Array(buffer).set(data);
@@ -116,7 +112,10 @@ async function runTransaction<T>(mode: IDBTransactionMode, fn: (store: IDBObject
 export const LocalFileStore = {
     /** Persist the current file bytes. Overwrites any previous save. */
     async save(data: Uint8Array): Promise<void> {
-        const copy = cloneBytes(data);
+        // The caller owns a freshly packaged immutable snapshot. IndexedDB makes
+        // its own structured clone, so making another renderer-thread copy here
+        // only increases autosave pause time and peak memory use.
+        const copy = data;
         const idb = getIndexedDB();
         if (!idb) {
             memoryCache = copy;

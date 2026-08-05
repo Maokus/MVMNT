@@ -46,7 +46,10 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     const [unsavedChangesPrompt, setUnsavedChangesPrompt] = useState<{ message: string } | null>(null);
     const unsavedDecisionResolver = useRef<((decision: 'save' | 'discard' | 'cancel') => void) | null>(null);
 
-    const { isDirty, markClean, markDirty } = useDirtyTracking();
+    const { isDirty, dirtyRevision, markClean, markDirty } = useDirtyTracking();
+    const recoveryState = useRef({ saving: false, queued: false, savedRevision: -1 });
+    const latestDirtyRevision = useRef(dirtyRevision);
+    latestDirtyRevision.current = dirtyRevision;
 
     useEffect(() => {
         try {
@@ -281,23 +284,35 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         if (!window.mvmntDesktop || !isDirty) return;
         localStorage.setItem('mvmnt.desktop.recovery-state', 'dirty');
-        let saving = false;
+        let disposed = false;
         const saveRecovery = async () => {
-            if (saving) return;
-            saving = true;
+            const state = recoveryState.current;
+            const revision = latestDirtyRevision.current;
+            if (state.savedRevision === revision) return;
+            if (state.saving) {
+                state.queued = true;
+                return;
+            }
+            state.saving = true;
             try {
-                await LocalSaveService.saveCurrentFile(sceneName);
+                const result = await LocalSaveService.saveCurrentFile(sceneName);
+                if (result.ok) state.savedRevision = revision;
             } finally {
-                saving = false;
+                state.saving = false;
+                if ((state.queued || state.savedRevision !== latestDirtyRevision.current) && !disposed) {
+                    state.queued = false;
+                    window.setTimeout(() => void saveRecovery(), 0);
+                }
             }
         };
         const initial = window.setTimeout(() => void saveRecovery(), 5_000);
         const recurring = window.setInterval(() => void saveRecovery(), 30_000);
         return () => {
+            disposed = true;
             window.clearTimeout(initial);
             window.clearInterval(recurring);
         };
-    }, [isDirty, sceneName]);
+    }, [dirtyRevision, isDirty, sceneName]);
 
     // -------------------------------------------------------------------------
     // Warn before leaving with unsaved changes

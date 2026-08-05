@@ -1,6 +1,9 @@
+import { sha256Hex } from '@utils/hash/sha256';
+
 const DB_NAME = 'mvmnt-autosave-versions';
 const STORE_NAME = 'versions';
-const DB_VERSION = 1;
+const BYTES_STORE_NAME = 'version-bytes';
+const DB_VERSION = 2;
 const MAX_VERSIONS_PER_PROJECT = 12;
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -13,11 +16,12 @@ export interface AutosaveVersionSummary {
 }
 
 interface AutosaveVersionRecord extends AutosaveVersionSummary {
-    bytes: ArrayBuffer;
+    digest?: string;
 }
 
 let databasePromise: Promise<IDBDatabase> | null = null;
 const memoryVersions = new Map<string, AutosaveVersionRecord>();
+const memoryBytes = new Map<string, ArrayBuffer>();
 
 function indexedDb(): IDBFactory | null {
     try {
@@ -35,10 +39,27 @@ function openDatabase(): Promise<IDBDatabase> {
         const request = factory.open(DB_NAME, DB_VERSION);
         request.onupgradeneeded = () => {
             const db = request.result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-                store.createIndex('projectId', 'projectId');
-                store.createIndex('savedAt', 'savedAt');
+            const tx = request.transaction!;
+            const versions = db.objectStoreNames.contains(STORE_NAME)
+                ? tx.objectStore(STORE_NAME)
+                : db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            if (!versions.indexNames.contains('projectId')) versions.createIndex('projectId', 'projectId');
+            if (!versions.indexNames.contains('savedAt')) versions.createIndex('savedAt', 'savedAt');
+            if (!db.objectStoreNames.contains(BYTES_STORE_NAME)) {
+                const payloads = db.createObjectStore(BYTES_STORE_NAME);
+                // V1 stored package bytes alongside metadata. Move them out during the
+                // upgrade so routine history operations no longer clone every package.
+                versions.openCursor().onsuccess = (event) => {
+                    const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+                    if (!cursor) return;
+                    const value = cursor.value as AutosaveVersionRecord & { bytes?: ArrayBuffer };
+                    if (value.bytes) {
+                        payloads.put(value.bytes, value.id);
+                        const { bytes: _bytes, ...metadata } = value;
+                        cursor.update(metadata);
+                    }
+                    cursor.continue();
+                };
             }
         };
         request.onerror = () => reject(request.error ?? new Error('Could not open autosave database'));
@@ -47,7 +68,7 @@ function openDatabase(): Promise<IDBDatabase> {
         databasePromise = null;
         throw error;
     });
-    return databasePromise!;
+    return databasePromise;
 }
 
 function request<T>(value: IDBRequest<T>): Promise<T> {
@@ -57,10 +78,13 @@ function request<T>(value: IDBRequest<T>): Promise<T> {
     });
 }
 
-async function transaction<T>(mode: IDBTransactionMode, action: (store: IDBObjectStore) => Promise<T>): Promise<T> {
+async function transaction<T>(
+    mode: IDBTransactionMode,
+    action: (versions: IDBObjectStore, bytes: IDBObjectStore) => Promise<T>
+): Promise<T> {
     const db = await openDatabase();
-    const tx = db.transaction(STORE_NAME, mode);
-    const result = await action(tx.objectStore(STORE_NAME));
+    const tx = db.transaction([STORE_NAME, BYTES_STORE_NAME], mode);
+    const result = await action(tx.objectStore(STORE_NAME), tx.objectStore(BYTES_STORE_NAME));
     await new Promise<void>((resolve, reject) => {
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error ?? new Error('Autosave transaction failed'));
@@ -79,13 +103,9 @@ function normalizeProjectId(name: string): string {
     );
 }
 
-function cloneRecord(record: AutosaveVersionRecord): AutosaveVersionRecord {
-    return { ...record, bytes: record.bytes.slice(0) };
-}
-
 async function allRecords(): Promise<AutosaveVersionRecord[]> {
-    if (!indexedDb()) return [...memoryVersions.values()].map(cloneRecord);
-    return transaction('readonly', (store) => request(store.getAll() as IDBRequest<AutosaveVersionRecord[]>));
+    if (!indexedDb()) return [...memoryVersions.values()].map((record) => ({ ...record }));
+    return transaction('readonly', (versions) => request(versions.getAll() as IDBRequest<AutosaveVersionRecord[]>));
 }
 
 async function prune(records: AutosaveVersionRecord[]): Promise<void> {
@@ -105,36 +125,30 @@ async function prune(records: AutosaveVersionRecord[]): Promise<void> {
     }
     const removals = records.filter((record) => !keep.has(record.id));
     if (!indexedDb()) {
-        for (const record of removals) memoryVersions.delete(record.id);
+        for (const record of removals) {
+            memoryVersions.delete(record.id);
+            memoryBytes.delete(record.id);
+        }
         return;
     }
-    await transaction('readwrite', async (store) => {
-        for (const record of removals) store.delete(record.id);
-        return undefined;
+    await transaction('readwrite', async (versions, bytes) => {
+        for (const record of removals) {
+            versions.delete(record.id);
+            bytes.delete(record.id);
+        }
     });
 }
 
 export const AutosaveVersionStore = {
     policy: { maxVersionsPerProject: MAX_VERSIONS_PER_PROJECT, maxAgeDays: 30 },
 
-    async save(documentName: string, bytes: Uint8Array): Promise<AutosaveVersionSummary> {
+    async save(documentName: string, bytes: Uint8Array, suppliedDigest?: string): Promise<AutosaveVersionSummary> {
         const projectId = normalizeProjectId(documentName);
+        const digest = suppliedDigest ?? (await sha256Hex(bytes));
         const records = await allRecords();
         const latest = records.filter((item) => item.projectId === projectId).sort((a, b) => b.savedAt - a.savedAt)[0];
-        // Repeated recovery timers commonly serialize identical packages. Avoid
-        // filling the browser quota with byte-for-byte duplicate versions.
-        if (latest && latest.size === bytes.byteLength) {
-            const current = new Uint8Array(latest.bytes);
-            if (current.length === bytes.length && current.every((value, index) => value === bytes[index])) {
-                return {
-                    id: latest.id,
-                    projectId,
-                    documentName: latest.documentName,
-                    savedAt: latest.savedAt,
-                    size: latest.size,
-                };
-            }
-        }
+        if (latest?.digest === digest) return latest;
+
         const savedAt = Date.now();
         const record: AutosaveVersionRecord = {
             id: `${projectId}:${savedAt}:${crypto.randomUUID()}`,
@@ -142,51 +156,58 @@ export const AutosaveVersionStore = {
             documentName: documentName.trim().replace(/\.mvt$/i, '') || 'Untitled',
             savedAt,
             size: bytes.byteLength,
-            bytes: bytes.slice().buffer,
+            digest,
         };
-        if (!indexedDb()) memoryVersions.set(record.id, cloneRecord(record));
-        else
-            await transaction('readwrite', async (store) => {
-                store.put(record);
-                return undefined;
+        const payload = bytes.slice().buffer;
+        if (!indexedDb()) {
+            memoryVersions.set(record.id, record);
+            memoryBytes.set(record.id, payload);
+        } else {
+            await transaction('readwrite', async (versions, payloads) => {
+                versions.put(record);
+                payloads.put(payload, record.id);
             });
+        }
         await prune([...records, record]);
-        return { id: record.id, projectId, documentName: record.documentName, savedAt, size: record.size };
+        return record;
     },
 
     async list(): Promise<AutosaveVersionSummary[]> {
         return (await allRecords())
             .sort((a, b) => b.savedAt - a.savedAt)
-            .map(({ bytes: _bytes, ...summary }) => summary);
+            .map(({ digest: _digest, ...summary }) => summary);
     },
 
     async load(id: string): Promise<Uint8Array | null> {
-        let record: AutosaveVersionRecord | undefined;
-        if (!indexedDb()) record = memoryVersions.get(id);
-        else
-            record = await transaction('readonly', (store) =>
-                request(store.get(id) as IDBRequest<AutosaveVersionRecord | undefined>)
-            );
-        return record ? new Uint8Array(record.bytes.slice(0)) : null;
+        if (!indexedDb()) {
+            const bytes = memoryBytes.get(id);
+            return bytes ? new Uint8Array(bytes.slice(0)) : null;
+        }
+        const bytes = await transaction('readonly', (_versions, payloads) =>
+            request(payloads.get(id) as IDBRequest<ArrayBuffer | undefined>)
+        );
+        return bytes ? new Uint8Array(bytes) : null;
     },
 
     async remove(id: string): Promise<void> {
         if (!indexedDb()) {
             memoryVersions.delete(id);
+            memoryBytes.delete(id);
             return;
         }
-        await transaction('readwrite', async (store) => {
-            store.delete(id);
-            return undefined;
+        await transaction('readwrite', async (versions, bytes) => {
+            versions.delete(id);
+            bytes.delete(id);
         });
     },
 
     async clear(): Promise<void> {
         memoryVersions.clear();
+        memoryBytes.clear();
         if (!indexedDb()) return;
-        await transaction('readwrite', async (store) => {
-            store.clear();
-            return undefined;
+        await transaction('readwrite', async (versions, bytes) => {
+            versions.clear();
+            bytes.clear();
         });
     },
 

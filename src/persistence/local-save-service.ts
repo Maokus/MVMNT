@@ -76,6 +76,7 @@ export const LocalSaveService = {
         let res;
         try {
             res = await exportScene(sceneName, {
+                touchMetadata: false,
                 onProgress: (progress, message) => options.onProgress?.(progress * 0.85, message),
             });
         } catch (e) {
@@ -104,7 +105,7 @@ export const LocalSaveService = {
         try {
             options.onProgress?.(0.9, 'Saving file…');
             await LocalFileStore.save(res.zip);
-            await AutosaveVersionStore.save(sceneName || 'Untitled', res.zip).catch((error) => {
+            await AutosaveVersionStore.save(sceneName || 'Untitled', res.zip, res.digest).catch((error) => {
                 // The current-file recovery write remains useful even if the
                 // bounded history store is unavailable or at quota.
                 console.warn('[LocalSaveService] Could not create autosave version:', error);

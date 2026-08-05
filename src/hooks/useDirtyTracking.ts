@@ -89,6 +89,8 @@ function captureCheckpoint(): SaveCheckpoint {
 
 export interface DirtyTrackingState {
     isDirty: boolean;
+    /** Monotonically increases for each persistent edit while this document is open. */
+    dirtyRevision: number;
     /** Call after a successful save to IndexedDB or a load from IndexedDB. */
     markClean: () => void;
     /** Explicitly mark the scene as dirty (e.g. after loading a template/remix). */
@@ -98,6 +100,7 @@ export interface DirtyTrackingState {
 export function useDirtyTracking(): DirtyTrackingState {
     const checkpointRef = useRef<SaveCheckpoint | null>(null);
     const [isDirty, setIsDirty] = useState(false);
+    const [dirtyRevision, setDirtyRevision] = useState(0);
 
     const markClean = useCallback(() => {
         checkpointRef.current = captureCheckpoint();
@@ -110,6 +113,7 @@ export function useDirtyTracking(): DirtyTrackingState {
             checkpointRef.current = captureCheckpoint();
         }
         setIsDirty(true);
+        setDirtyRevision((revision) => revision + 1);
     }, []);
 
     useEffect(() => {
@@ -119,6 +123,7 @@ export function useDirtyTracking(): DirtyTrackingState {
             const mutatedAt = state.runtimeMeta?.lastMutatedAt ?? 0;
             if (mutatedAt !== checkpointRef.current.sceneMutatedAt) {
                 setIsDirty(true);
+                setDirtyRevision((revision) => revision + 1);
             }
             // Suppress lint warning: prev is needed for the Zustand callback signature
             void prev;
@@ -129,6 +134,7 @@ export function useDirtyTracking(): DirtyTrackingState {
             if (!checkpointRef.current) return;
             if (state.metadata.modifiedAt !== checkpointRef.current.metadataModifiedAt) {
                 setIsDirty(true);
+                setDirtyRevision((revision) => revision + 1);
             }
             void prev;
         });
@@ -140,6 +146,7 @@ export function useDirtyTracking(): DirtyTrackingState {
             const currentRefs = captureTimelineRefs();
             if (timelineRefsDiffer(currentRefs, checkpointRef.current.timelineRefs)) {
                 setIsDirty(true);
+                setDirtyRevision((revision) => revision + 1);
             }
             void prev;
         });
@@ -151,5 +158,5 @@ export function useDirtyTracking(): DirtyTrackingState {
         };
     }, []);
 
-    return { isDirty, markClean, markDirty };
+    return { isDirty, dirtyRevision, markClean, markDirty };
 }

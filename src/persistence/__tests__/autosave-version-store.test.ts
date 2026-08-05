@@ -20,4 +20,12 @@ describe('AutosaveVersionStore', () => {
         expect(second.id).toBe(first.id);
         expect(await AutosaveVersionStore.list()).toHaveLength(1);
     });
+
+    it('uses the supplied package digest without rereading a previous package', async () => {
+        const first = await AutosaveVersionStore.save('Demo', new Uint8Array([4, 5]), 'stable-digest');
+        const second = await AutosaveVersionStore.save('Demo', new Uint8Array([9, 9]), 'stable-digest');
+
+        expect(second.id).toBe(first.id);
+        expect(await AutosaveVersionStore.load(first.id)).toEqual(new Uint8Array([4, 5]));
+    });
 });
