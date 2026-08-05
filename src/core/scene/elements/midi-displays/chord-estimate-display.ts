@@ -294,6 +294,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                                 default: 0.1,
                                 step: 0.05,
                                 runtime: { transform: clampWindowSeconds, defaultValue: 0.1 },
+                                visibleWhen: [{ key: 'analysisMode', equals: 'windowed' }],
                             },
                             {
                                 key: 'windowFuturePercent',
@@ -304,6 +305,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                                 max: 100,
                                 step: 5,
                                 runtime: { transform: clampWindowFuturePercent, defaultValue: 0 },
+                                visibleWhen: [{ key: 'analysisMode', equals: 'windowed' }],
                             },
                             prop.number('layoutWidth', 'Width (px)', 400, { min: 1, step: 1 }),
                             prop.number('layoutHeight', 'Layout Height (px)', 100, { min: 1, step: 1 }),
@@ -322,16 +324,28 @@ export class ChordEstimateDisplayElement extends SceneElement {
                                 { value: 'simple-interval', label: 'Simple Interval' },
                             ]),
                             prop.boolean('includeTriads', 'Allow Triads (maj/min)', true, {
-                                visibleWhen: [{ key: 'detectionMethod', notEquals: 'musicpy' }],
+                                visibleWhen: [
+                                    { key: 'detectionMethod', notEquals: 'musicpy' },
+                                    { key: 'detectionMethod', notEquals: 'pattern-scoring' },
+                                ],
                             }),
                             prop.boolean('includeDiminished', 'Allow Diminished', true, {
-                                visibleWhen: [{ key: 'detectionMethod', notEquals: 'musicpy' }],
+                                visibleWhen: [
+                                    { key: 'detectionMethod', notEquals: 'musicpy' },
+                                    { key: 'detectionMethod', notEquals: 'pattern-scoring' },
+                                ],
                             }),
                             prop.boolean('includeAugmented', 'Allow Augmented', false, {
-                                visibleWhen: [{ key: 'detectionMethod', notEquals: 'musicpy' }],
+                                visibleWhen: [
+                                    { key: 'detectionMethod', notEquals: 'musicpy' },
+                                    { key: 'detectionMethod', notEquals: 'pattern-scoring' },
+                                ],
                             }),
                             prop.boolean('includeSevenths', 'Allow 7ths', true, {
-                                visibleWhen: [{ key: 'detectionMethod', notEquals: 'musicpy' }],
+                                visibleWhen: [
+                                    { key: 'detectionMethod', notEquals: 'musicpy' },
+                                    { key: 'detectionMethod', notEquals: 'pattern-scoring' },
+                                ],
                             }),
                             prop.boolean('preferBassRoot', 'Prefer Root in Bass', true),
                             prop.boolean('showInversion', 'Show Inversion (slash)', true),

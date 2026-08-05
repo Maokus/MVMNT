@@ -122,6 +122,14 @@ function isEditableTarget(target: EventTarget | null): boolean {
     return role === 'textbox' || role === 'combobox' || Boolean(element.closest('[role="tree"]'));
 }
 
+export function isTextEditingTarget(target: EventTarget | null): boolean {
+    const element = target as HTMLElement | null;
+    if (!element) return false;
+    return Boolean(
+        element.closest('input, textarea, select, [contenteditable="true"], [role="textbox"], [role="combobox"]')
+    );
+}
+
 /** Infer AutomationValueType from a raw value for auto-key channel creation (canvas drag path). */
 function inferValueTypeForAutoKey(value: unknown): AutomationValueType | null {
     if (typeof value === 'number') return 'number';
@@ -664,8 +672,17 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
 
     useEffect(() => {
         const handleArrowKey = (event: KeyboardEvent) => {
-            if (event.altKey || isEditableTarget(event.target)) return;
+            if (event.altKey) return;
             const selected = useSelectionStore.getState().selectedNodeIds;
+            if (!isTextEditingTarget(event.target)) {
+                if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'g' && selected.length) {
+                    event.preventDefault();
+                    if (event.shiftKey) ungroupSelectedNodes();
+                    else groupSelectedNodes();
+                    return;
+                }
+            }
+            if (isEditableTarget(event.target)) return;
             if ((event.key === 'Backspace' || event.key === 'Delete') && selected.length) {
                 event.preventDefault();
                 deleteSelectedNodes();
@@ -674,17 +691,6 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
             if (event.key === 'Escape' && selected.length) {
                 event.preventDefault();
                 useSelectionStore.getState().selectSceneNodes([], null);
-                return;
-            }
-            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'g' && selected.length) {
-                event.preventDefault();
-                if (event.shiftKey) ungroupSelectedNodes();
-                else groupSelectedNodes();
-                return;
-            }
-            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'd' && selected.length) {
-                event.preventDefault();
-                duplicateSelectedNodes();
                 return;
             }
             if (event.metaKey || event.ctrlKey) return;
@@ -727,7 +733,6 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         return () => window.removeEventListener('keydown', handleArrowKey, { capture: true } as any);
     }, [
         deleteSelectedNodes,
-        duplicateSelectedNodes,
         groupSelectedNodes,
         runSceneCommand,
         ungroupSelectedNodes,

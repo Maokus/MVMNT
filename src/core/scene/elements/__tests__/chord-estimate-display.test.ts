@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { estimateChordPB } from '@core/midi/music-theory/chord-estimator';
+import { ChordEstimateDisplayElement } from '../midi-displays/chord-estimate-display';
 
 function makeChroma(indices: number[]): Float32Array {
     const v = new Float32Array(12);
@@ -49,5 +50,27 @@ describe('Chord estimation (via @math/midi)', () => {
         });
         expect(chordRootDifferentBass).toBeTruthy();
         expect([0, 9]).toContain(chordRootDifferentBass!.root);
+    });
+});
+
+describe('Chord Estimate Display controls', () => {
+    it('hides allow-quality controls for pattern scoring and musicpy', () => {
+        const schema = ChordEstimateDisplayElement.getConfigSchema() as any;
+        const content = schema.tabs.find((tab: any) => tab.id === 'content');
+        const estimation = content.groups.find((group: any) => group.id === 'estimation');
+        const triads = estimation.properties.find((property: any) => property.key === 'includeTriads');
+        expect(triads.visibleWhen).toEqual([
+            { key: 'detectionMethod', notEquals: 'musicpy' },
+            { key: 'detectionMethod', notEquals: 'pattern-scoring' },
+        ]);
+    });
+
+    it('shows window controls only for windowed chroma analysis', () => {
+        const schema = ChordEstimateDisplayElement.getConfigSchema() as any;
+        const content = schema.tabs.find((tab: any) => tab.id === 'content');
+        const source = content.groups.find((group: any) => group.id === 'chordSource');
+        expect(source.properties.find((property: any) => property.key === 'windowSeconds').visibleWhen).toEqual([
+            { key: 'analysisMode', equals: 'windowed' },
+        ]);
     });
 });
