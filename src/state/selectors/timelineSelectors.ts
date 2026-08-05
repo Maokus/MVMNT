@@ -30,10 +30,11 @@ export const getTrackOffsetSeconds = (s: TimelineState, t: TimelineTrack): numbe
     return convertBeatsToSeconds(s.timeline.masterTempoMap, beats, 60 / (s.timeline.globalBpm || 120));
 };
 
-const getClipOffsetSeconds = (s: TimelineState, clip: MidiClip): number => {
-    const beats = offsetTicksToBeats(clip.offsetTicks || 0);
-    return convertBeatsToSeconds(s.timeline.masterTempoMap, beats, 60 / (s.timeline.globalBpm || 120));
-};
+const timelineTickToSeconds = (s: TimelineState, tick: number): number =>
+    convertBeatsToSeconds(s.timeline.masterTempoMap, tick / CANONICAL_PPQ, 60 / (s.timeline.globalBpm || 120));
+
+const timelineSecondsToTick = (s: TimelineState, seconds: number): number =>
+    secondsToBeats(s.timeline.masterTempoMap, seconds, 60 / (s.timeline.globalBpm || 120)) * CANONICAL_PPQ;
 
 const clipIntersectsWindow = (s: TimelineState, clip: MidiClip, startSec: number, endSec: number): boolean => {
     const bounds = getMidiClipTimelineBounds(s.midiCache, clip);
@@ -80,7 +81,6 @@ export const selectNotesInWindow = (
 ): TimelineNoteEvent[] => {
     const { startSec, endSec } = args;
     if (args.trackIds.length === 0) return [];
-    const spbFallback = 60 / (s.timeline.globalBpm || 120);
     const res: TimelineNoteEvent[] = [];
     for (const tid of args.trackIds) {
         const track = s.tracks[tid];
@@ -89,25 +89,16 @@ export const selectNotesInWindow = (
             if (clip.enabled === false || !clipIntersectsWindow(s, clip, startSec, endSec)) continue;
             const cache = s.midiCache[clip.sourceId];
             if (!cache) continue;
-            const offsetSec = getClipOffsetSeconds(s, clip);
             const regionStartTick = clip.regionStartTick ?? 0;
             const regionEndTick = clip.regionEndTick ?? Number.POSITIVE_INFINITY;
-            // Convert window to clip-local seconds
-            const localStartSec = Math.max(0, startSec - offsetSec);
-            const localEndSec = Math.max(0, endSec - offsetSec);
+            const localStartTick = Math.max(regionStartTick, timelineSecondsToTick(s, startSec) - clip.offsetTicks);
+            const localEndTick = Math.min(regionEndTick, timelineSecondsToTick(s, endSec) - clip.offsetTicks);
+            if (!(localEndTick > localStartTick)) continue;
             const notesRaw = cache.notesRaw;
             // Binary search for start index when cache is sorted (bounds present)
             let startIdx = 0;
             if (cache.bounds && notesRaw.length > 32) {
-                const localStartBeats = secondsToBeats(
-                    s.timeline.masterTempoMap,
-                    Math.max(0, localStartSec),
-                    spbFallback
-                );
-                const searchStartTick = Math.max(
-                    0,
-                    Math.round(localStartBeats * CANONICAL_PPQ) - cache.bounds.maxDurationTicks
-                );
+                const searchStartTick = Math.max(0, Math.round(localStartTick) - cache.bounds.maxDurationTicks);
                 let lo = 0,
                     hi = notesRaw.length;
                 while (lo < hi) {
@@ -119,19 +110,13 @@ export const selectNotesInWindow = (
             }
             for (let i = startIdx; i < notesRaw.length; i++) {
                 const n = notesRaw[i];
-                const startBeat = n.startBeat !== undefined ? n.startBeat : n.startTick / CANONICAL_PPQ;
-                const endBeat = n.endBeat !== undefined ? n.endBeat : n.endTick / CANONICAL_PPQ;
                 if (n.endTick <= regionStartTick || n.startTick >= regionEndTick) continue;
-                const noteStartSec = convertBeatsToSeconds(s.timeline.masterTempoMap, startBeat, spbFallback);
-                const noteEndSec = convertBeatsToSeconds(s.timeline.masterTempoMap, endBeat, spbFallback);
-                const localStart = noteStartSec;
-                const localEnd = noteEndSec;
-                if (localEnd <= localStartSec || localStart >= localEndSec) {
-                    if (cache.bounds && localStart >= localEndSec) break;
+                if (n.endTick <= localStartTick || n.startTick >= localEndTick) {
+                    if (cache.bounds && n.startTick >= localEndTick) break;
                     continue;
                 }
-                const timelineStartSec = localStart + offsetSec;
-                const timelineEndSec = localEnd + offsetSec;
+                const timelineStartSec = timelineTickToSeconds(s, clip.offsetTicks + n.startTick);
+                const timelineEndSec = timelineTickToSeconds(s, clip.offsetTicks + n.endTick);
                 res.push({
                     trackId: tid,
                     clipId: clip.id,
@@ -167,7 +152,6 @@ export const selectCCInWindow = (
     args: { trackIds?: string[]; controller?: number; startSec: number; endSec: number }
 ): TimelineCCEvent[] => {
     const { startSec, endSec } = args;
-    const spbFallback = 60 / (s.timeline.globalBpm || 120);
     const res: TimelineCCEvent[] = [];
     const trackIds = args.trackIds ?? Object.keys(s.tracks).filter((id) => s.tracks[id]?.type === 'midi');
     if (trackIds.length === 0) return [];
@@ -180,14 +164,12 @@ export const selectCCInWindow = (
             if (!cache) continue;
             const ccRaw = cache.ccRaw ?? [];
             if (ccRaw.length === 0) continue;
-            const offsetSec = getClipOffsetSeconds(s, clip);
             const regionStartTick = clip.regionStartTick ?? 0;
             const regionEndTick = clip.regionEndTick ?? Number.POSITIVE_INFINITY;
             for (const cc of ccRaw) {
                 if (args.controller !== undefined && cc.controller !== args.controller) continue;
                 if (cc.tick < regionStartTick || cc.tick >= regionEndTick) continue;
-                const beat = cc.tick / CANONICAL_PPQ;
-                const ccTimeSec = convertBeatsToSeconds(s.timeline.masterTempoMap, beat, spbFallback) + offsetSec;
+                const ccTimeSec = timelineTickToSeconds(s, clip.offsetTicks + cc.tick);
                 if (ccTimeSec < startSec || ccTimeSec > endSec) continue;
                 res.push({
                     trackId: tid,

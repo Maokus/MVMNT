@@ -123,4 +123,50 @@ describe('MIDI preview synth', () => {
         expect(context.oscillators[0].stops[0]).toBeCloseTo(0.251);
         engine.dispose();
     });
+
+    it('schedules placed MIDI notes using absolute ticks through tempo automation', async () => {
+        useTimelineStore.setState({
+            timeline: {
+                ...useTimelineStore.getState().timeline,
+                masterTempoMap: [
+                    { time: 0, bpm: 120 },
+                    { time: 2, bpm: 60 },
+                ],
+            },
+            tracks: {
+                midi1: {
+                    id: 'midi1',
+                    name: 'MIDI',
+                    type: 'midi',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    clips: [{ id: 'clip1', type: 'midi', sourceId: 'source1', offsetTicks: 960 * 4, enabled: true }],
+                },
+            },
+            tracksOrder: ['midi1'],
+            midiCache: {
+                source1: {
+                    midiData: {} as any,
+                    ticksPerQuarter: 960,
+                    notesRaw: [
+                        { note: 69, channel: 0, startTick: 120, endTick: 240, durationTicks: 120, velocity: 127 },
+                    ],
+                    ccRaw: [],
+                    bounds: { minTick: 120, maxTick: 240, minNote: 69, maxNote: 69, maxDurationTicks: 120 },
+                },
+            },
+            midiPreviewTrackIds: { midi1: true },
+        } as any);
+        const context = new SynthTestContext();
+        const engine = new AudioEngine();
+        (engine as any).ctx = context;
+
+        await engine.playTick(960 * 4);
+
+        // At 60 BPM, the eighth-beat note starts 0.125 seconds after beat 4.
+        expect(context.oscillators[0].starts[0]).toBeCloseTo(0.125);
+        expect(context.oscillators[0].stops[0]).toBeCloseTo(0.251);
+        engine.dispose();
+    });
 });

@@ -138,4 +138,53 @@ describe('timeline MIDI clip selectors', () => {
             end: CANONICAL_PPQ * 10,
         });
     });
+
+    it('resolves MIDI notes and CC events at their absolute ticks across tempo changes', () => {
+        const ppq = CANONICAL_PPQ;
+        useTimelineStore.setState((state) => ({
+            timeline: {
+                ...state.timeline,
+                masterTempoMap: [
+                    { time: 0, bpm: 120 },
+                    { time: 2, bpm: 60 },
+                ],
+            },
+            tracks: {
+                track1: {
+                    id: 'track1',
+                    name: 'Placed',
+                    type: 'midi',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    clips: [{ id: 'clip1', type: 'midi', sourceId: 'source1', offsetTicks: ppq * 4 }],
+                },
+            },
+            tracksOrder: ['track1'],
+            midiCache: {
+                source1: {
+                    midiData: undefined as any,
+                    notesRaw: [{ note: 60, channel: 0, startTick: ppq, endTick: ppq * 2, durationTicks: ppq }],
+                    ccRaw: [{ channel: 0, controller: 64, value: 127, tick: ppq }],
+                    ticksPerQuarter: ppq,
+                    bounds: { minTick: ppq, maxTick: ppq * 2, minNote: 60, maxNote: 60, maxDurationTicks: ppq },
+                },
+            },
+        }));
+
+        const [note] = selectNotesInWindow(useTimelineStore.getState(), {
+            trackIds: ['track1'],
+            startSec: 2.9,
+            endSec: 4.1,
+        });
+        const [cc] = selectCCInWindow(useTimelineStore.getState(), {
+            trackIds: ['track1'],
+            startSec: 2.9,
+            endSec: 3.1,
+        });
+
+        expect(note.startTime).toBeCloseTo(3);
+        expect(note.endTime).toBeCloseTo(4);
+        expect(cc.timeSec).toBeCloseTo(3);
+    });
 });

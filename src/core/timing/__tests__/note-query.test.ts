@@ -103,4 +103,44 @@ describe('note-query utilities', () => {
         ]);
         expect(notes[1].startSec).toBeCloseTo(2);
     });
+
+    it('maps placed notes through the absolute tempo map after a tempo change', () => {
+        const PPQ = CANONICAL_PPQ;
+        useTimelineStore.setState((state) => ({
+            timeline: {
+                ...state.timeline,
+                // 120 BPM through beat 4, then 60 BPM. Beat 5 is at 3 seconds.
+                masterTempoMap: [
+                    { time: 0, bpm: 120 },
+                    { time: 2, bpm: 60 },
+                ],
+            },
+            tracks: {
+                track1: {
+                    id: 'track1',
+                    name: 'Placed',
+                    type: 'midi',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    clips: [{ id: 'clip1', type: 'midi', sourceId: 'source1', offsetTicks: PPQ * 4 }],
+                },
+            },
+            tracksOrder: ['track1'],
+            midiCache: {
+                source1: {
+                    midiData: undefined as any,
+                    notesRaw: [{ note: 60, channel: 0, startTick: PPQ, endTick: PPQ * 2, durationTicks: PPQ }],
+                    ccRaw: [],
+                    ticksPerQuarter: PPQ,
+                    bounds: { minTick: PPQ, maxTick: PPQ * 2, minNote: 60, maxNote: 60, maxDurationTicks: PPQ },
+                },
+            },
+        }));
+
+        const [note] = noteQueryApi.getNotesInWindow(useTimelineStore.getState(), ['track1'], 2.9, 4.1);
+
+        expect(note.startSec).toBeCloseTo(3);
+        expect(note.endSec).toBeCloseTo(4);
+    });
 });
