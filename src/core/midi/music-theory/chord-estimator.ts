@@ -1,5 +1,6 @@
 import { NoteEvent } from '@core/midi/note-event';
 import { detectMusicpy, type MusicpyChordResult, type DetectOptions } from './musicpy-detect';
+export { detectPatternChord, type PatternChordResult } from './pattern-chord-detector';
 
 export type ChordQuality =
     'maj' | 'min' | 'dim' | 'aug' | '7' | 'maj7' | 'min7' | 'm7b5' | 'dim7' | 'sus2' | 'sus4' | 'ext'; // extended chords (9th, 11th, 13th etc.) — musicpy path only

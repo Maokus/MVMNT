@@ -11,9 +11,11 @@ import {
     computeChromaFromNotes,
     detectChordFromNotes,
     detectChordMusicpy,
+    detectPatternChord,
     estimateChordPB,
     type EstimatedChord,
     type MusicpyChordResult,
+    type PatternChordResult,
 } from '@core/midi/music-theory/chord-estimator';
 import { PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
 import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/plugins/built-in-definition';
@@ -34,7 +36,7 @@ const clampSmoothingMs: PropertyTransform<number, SceneElementInterface> = (valu
     return numeric === undefined ? undefined : Math.max(0, numeric);
 };
 
-type DetectionMethod = 'musicpy' | 'template-match' | 'simple-interval';
+type DetectionMethod = 'pattern-scoring' | 'musicpy' | 'template-match' | 'simple-interval';
 
 type ChordEstimateRuntimeProps = {
     visible: boolean;
@@ -171,6 +173,16 @@ export class ChordEstimateDisplayElement extends SceneElement {
                         },
                     },
                     {
+                        id: 'patternScoring',
+                        label: 'Pattern Scoring',
+                        values: {
+                            detectionMethod: 'pattern-scoring',
+                            preferBassRoot: true,
+                            showInversion: true,
+                            smoothingMs: 180,
+                        },
+                    },
+                    {
                         id: 'bandDefault',
                         label: 'Band Default',
                         values: {
@@ -281,7 +293,8 @@ export class ChordEstimateDisplayElement extends SceneElement {
                         collapsed: false,
                         description: 'Refine which chord qualities are considered during detection.',
                         properties: [
-                            prop.select('detectionMethod', 'Detection Method', 'musicpy', [
+                            prop.select('detectionMethod', 'Detection Method', 'pattern-scoring', [
+                                { value: 'pattern-scoring', label: 'Pattern Scoring (jazz/extended)' },
                                 { value: 'musicpy', label: 'Musicpy Full' },
                                 { value: 'template-match', label: 'Template Match' },
                                 { value: 'simple-interval', label: 'Simple Interval' },
@@ -406,7 +419,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
             showChroma,
         } = props;
 
-        const method: DetectionMethod = detectionMethod ?? 'musicpy';
+        const method: DetectionMethod = detectionMethod ?? 'pattern-scoring';
         const color = applyOpacity(rawColor ?? '#ffffff', props.opacity ?? 1);
         const justify = (props.textAlign ?? props.textJustification ?? 'left') as CanvasTextAlign;
 
@@ -464,11 +477,15 @@ export class ChordEstimateDisplayElement extends SceneElement {
 
         let chord: EstimatedChord | undefined;
         let rawMusicpy: MusicpyChordResult | undefined;
+        let rawPattern: PatternChordResult | undefined;
         const midiNoteNumbers = noteEvents.map((n) => n.note);
         const energy = chroma.reduce((a, b) => a + b, 0);
 
         if (energy > 0) {
-            if (method === 'musicpy') {
+            if (method === 'pattern-scoring') {
+                rawPattern = detectPatternChord(midiNoteNumbers, bassPc, detectionOptions);
+                chord = rawPattern?.chord;
+            } else if (method === 'musicpy') {
                 const result = detectChordMusicpy(midiNoteNumbers, bassPc, { rootPreference: preferBassRoot });
                 if (result) {
                     chord = result.chord;
@@ -517,6 +534,8 @@ export class ChordEstimateDisplayElement extends SceneElement {
             label = 'N.C.';
         } else if (method === 'musicpy' && rawMusicpy) {
             label = this._formatMusicpyChordLabel(rawMusicpy, showInversion, props.accidentalStyle ?? 'sharps');
+        } else if (method === 'pattern-scoring' && rawPattern) {
+            label = this._formatPatternChordLabel(rawPattern, showInversion, props.accidentalStyle ?? 'sharps');
         } else {
             label = this._formatChordLabel(chord, showInversion, props.accidentalStyle ?? 'sharps');
         }
@@ -681,6 +700,19 @@ export class ChordEstimateDisplayElement extends SceneElement {
         let label = `${root}${qual}`;
         if (showInversion && ch.bassPc !== undefined && ch.bassPc !== ch.root) {
             label += `/${rootNames[ch.bassPc]}`;
+        }
+        return label;
+    }
+
+    private _formatPatternChordLabel(
+        result: PatternChordResult,
+        showInversion: boolean,
+        accidentalStyle: 'sharps' | 'flats' = 'sharps'
+    ): string {
+        const rootNames = accidentalStyle === 'flats' ? ROOT_NAMES_FLAT : ROOT_NAMES;
+        let label = `${rootNames[result.chord.root]}${result.symbol}`;
+        if (showInversion && result.chord.bassPc !== undefined && result.chord.bassPc !== result.chord.root) {
+            label += `/${rootNames[result.chord.bassPc]}`;
         }
         return label;
     }
