@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 import { createTimingContext, ticksToSeconds, type TimelineTimingContext } from '@state/timelineTime';
+import { getCanvasRenderScale } from './canvasRenderScale';
 
 interface AudioWaveformProps {
     trackId: string;
@@ -69,10 +70,11 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         if (!canvas || !context) return;
         const width = canvas.clientWidth;
         if (width <= 0) return;
-        const ratio = Math.max(1, window.devicePixelRatio || 1);
-        canvas.width = Math.max(1, Math.floor(width * ratio));
-        canvas.height = Math.max(1, Math.floor(height * ratio));
-        context.setTransform(ratio, 0, 0, ratio, 0, 0);
+        const renderScale = getCanvasRenderScale(width, height, window.devicePixelRatio || 1);
+        const renderWidth = Math.max(1, Math.floor(width * renderScale));
+        canvas.width = renderWidth;
+        canvas.height = Math.max(1, Math.floor(height * renderScale));
+        context.setTransform(renderScale, 0, 0, renderScale, 0, 0);
         context.clearRect(0, 0, width, height);
         if (background !== 'transparent') {
             context.fillStyle = background;
@@ -94,8 +96,8 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         context.lineWidth = 1;
         const middle = height / 2;
         context.beginPath();
-        for (let x = 0; x < width; x++) {
-            const fraction = x / Math.max(1, width - 1);
+        for (let pixelX = 0; pixelX < renderWidth; pixelX++) {
+            const fraction = pixelX / Math.max(1, renderWidth - 1);
             const tick = visibleStart + fraction * (visibleEnd - visibleStart);
             const bin = getWaveformBinAtTimelineTick({
                 tick,
@@ -106,6 +108,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
             });
             const amplitude = peaks[bin] ?? 0;
             const y = amplitude * (middle - 1);
+            const x = pixelX / renderScale;
             context.moveTo(x + 0.5, middle - y);
             context.lineTo(x + 0.5, middle + y);
         }

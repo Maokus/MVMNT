@@ -1,5 +1,6 @@
 import React, { useRef, useLayoutEffect } from 'react';
 import type { NoteRaw } from '@state/timelineTypes';
+import { getCanvasRenderScale } from './canvasRenderScale';
 
 interface MidiCacheBoundsRef {
     minNote?: number;
@@ -39,9 +40,9 @@ const MidiNotePreview: React.FC<MidiNotePreviewProps> = ({
             const width = container.offsetWidth;
             if (width <= 0 || height <= 0) return;
 
-            const dpr = window.devicePixelRatio || 1;
-            const physW = Math.round(width * dpr);
-            const physH = Math.round(height * dpr);
+            const renderScale = getCanvasRenderScale(width, height, window.devicePixelRatio || 1);
+            const physW = Math.max(1, Math.floor(width * renderScale));
+            const physH = Math.max(1, Math.floor(height * renderScale));
             if (canvas.width !== physW || canvas.height !== physH) {
                 canvas.width = physW;
                 canvas.height = physH;
@@ -51,7 +52,7 @@ const MidiNotePreview: React.FC<MidiNotePreviewProps> = ({
             if (!ctx) return;
 
             ctx.save();
-            ctx.scale(dpr, dpr);
+            ctx.scale(renderScale, renderScale);
             ctx.clearRect(0, 0, width, height);
 
             const hasNotes = Array.isArray(notes) && notes.length > 0;
