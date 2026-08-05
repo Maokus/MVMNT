@@ -8,15 +8,21 @@ import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import {
-    computeChromaFromNotes,
-    detectChordFromNotes,
-    detectChordMusicpy,
-    detectPatternChord,
-    estimateChordPB,
     type EstimatedChord,
     type MusicpyChordResult,
     type PatternChordResult,
 } from '@core/midi/music-theory/chord-estimator';
+import {
+    buildChordObservation,
+    clusterChordOnsets,
+    chordKey,
+    detectChordFromObservation,
+    stabiliseChordFrames,
+    type CanonicalChordResult,
+    type ChordAnalysisMode,
+    type ChordDetectionMethod,
+    type ChordTimelineNote,
+} from '@core/midi/music-theory/chord-detection-pipeline';
 import { PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
 import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/plugins/built-in-definition';
 
@@ -36,14 +42,16 @@ const clampSmoothingMs: PropertyTransform<number, SceneElementInterface> = (valu
     return numeric === undefined ? undefined : Math.max(0, numeric);
 };
 
-type DetectionMethod = 'pattern-scoring' | 'musicpy' | 'template-match' | 'simple-interval';
-
 type ChordEstimateRuntimeProps = {
     visible: boolean;
     windowSeconds: number;
     windowFuturePercent: number;
     midiTrackId: string | null;
-    detectionMethod: DetectionMethod;
+    detectionMethod: ChordDetectionMethod;
+    analysisMode?: ChordAnalysisMode;
+    bassMode?: 'included' | 'split-note' | 'separate-track';
+    bassTrackId?: string | null;
+    bassSplitNote?: number;
     includeTriads: boolean;
     includeDiminished: boolean;
     includeAugmented: boolean;
@@ -143,10 +151,6 @@ const ROOT_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 
 const ROOT_NAMES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 export class ChordEstimateDisplayElement extends SceneElement {
-    private _lastChord?: EstimatedChord;
-    private _lastRawResult?: MusicpyChordResult;
-    private _lastTime = -1;
-
     constructor(id: string = 'chordEstimateDisplay', config: { [key: string]: any } = {}) {
         super('chordEstimateDisplay', id, config);
     }
@@ -265,6 +269,24 @@ export class ChordEstimateDisplayElement extends SceneElement {
                         description: 'Choose the MIDI track and analysis window for detection.',
                         properties: [
                             prop.midiTrack('midiTrackId', 'MIDI Track'),
+                            prop.select('analysisMode', 'Analysis Input', 'active', [
+                                { value: 'active', label: 'Active Notes at Playhead' },
+                                { value: 'windowed', label: 'Windowed Chroma' },
+                            ]),
+                            prop.select('bassMode', 'Bass Source', 'included', [
+                                { value: 'included', label: 'Include in Harmonic Notes' },
+                                { value: 'split-note', label: 'Separate Below Split' },
+                                { value: 'separate-track', label: 'Separate MIDI Track' },
+                            ]),
+                            prop.midiTrack('bassTrackId', 'Bass MIDI Track', {
+                                visibleWhen: [{ key: 'bassMode', equals: 'separate-track' }],
+                            }),
+                            prop.number('bassSplitNote', 'Bass Split Note', 48, {
+                                min: 0,
+                                max: 127,
+                                step: 1,
+                                visibleWhen: [{ key: 'bassMode', equals: 'split-note' }],
+                            }),
                             {
                                 key: 'windowSeconds',
                                 type: 'number',
@@ -403,6 +425,10 @@ export class ChordEstimateDisplayElement extends SceneElement {
             windowFuturePercent,
             midiTrackId,
             detectionMethod,
+            analysisMode,
+            bassMode,
+            bassTrackId,
+            bassSplitNote,
             includeTriads,
             includeDiminished,
             includeAugmented,
@@ -419,7 +445,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
             showChroma,
         } = props;
 
-        const method: DetectionMethod = detectionMethod ?? 'pattern-scoring';
+        const method: ChordDetectionMethod = detectionMethod ?? 'pattern-scoring';
         const color = applyOpacity(rawColor ?? '#ffffff', props.opacity ?? 1);
         const justify = (props.textAlign ?? props.textJustification ?? 'left') as CanvasTextAlign;
 
@@ -430,29 +456,23 @@ export class ChordEstimateDisplayElement extends SceneElement {
 
         const renderObjects: RenderObject[] = [layoutRect];
 
-        // Effective time
         const t = Math.max(0, targetTime);
-
-        // Estimation window
-        const futureRatio = Math.max(0, Math.min(1, windowFuturePercent / 100));
-        const pastRatio = 1 - futureRatio;
-        let start = t - windowSeconds * pastRatio;
-        let end = t + windowSeconds * futureRatio;
-        if (start < 0) {
-            const deficit = -start;
-            start = 0;
-            end += deficit;
-        }
-
-        // Active notes and chroma via the SDK 2 timeline capability.
-        const noteEvents: { note: number; channel: number; startTime: number; endTime: number; velocity: number }[] =
-            [];
+        const holdMilliseconds = Math.max(0, smoothingMs ?? 0);
+        const effectiveWindowSeconds = Math.max(0.05, windowSeconds ?? 0.1);
+        const holdSeconds = holdMilliseconds / 1000;
+        const queryStart = Math.max(
+            0,
+            t - Math.max(holdSeconds, analysisMode === 'windowed' ? effectiveWindowSeconds : 0)
+        );
+        const queryEnd = t + Math.max(0.000_001, analysisMode === 'windowed' ? effectiveWindowSeconds : 0.000_001);
+        const noteEvents: ChordTimelineNote[] = [];
+        const bassEvents: ChordTimelineNote[] = [];
         const timeline = getEnginePrivateContext(this).timeline;
         if (midiTrackId && timeline) {
             const selected = timeline.selectNotes({
                 trackIds: [midiTrackId],
-                startSeconds: start,
-                endSeconds: end,
+                startSeconds: queryStart,
+                endSeconds: queryEnd,
             });
             const notes = selected.ok ? selected.value : [];
             for (const n of notes) {
@@ -465,7 +485,31 @@ export class ChordEstimateDisplayElement extends SceneElement {
                 });
             }
         }
-        const { chroma, bassPc } = computeChromaFromNotes(noteEvents, start, end);
+        if (bassMode === 'separate-track' && bassTrackId && timeline) {
+            const selected = timeline.selectNotes({
+                trackIds: [bassTrackId],
+                startSeconds: queryStart,
+                endSeconds: queryEnd,
+            });
+            for (const n of selected.ok ? selected.value : []) {
+                bassEvents.push({
+                    note: n.note,
+                    channel: n.channel,
+                    startTime: n.startSeconds,
+                    endTime: n.endSeconds,
+                    velocity: n.velocity || 0,
+                });
+            }
+        }
+        const harmonicNotes =
+            bassMode === 'split-note' ? noteEvents.filter((note) => note.note >= (bassSplitNote ?? 48)) : noteEvents;
+        const splitBassNotes =
+            bassMode === 'split-note' ? noteEvents.filter((note) => note.note < (bassSplitNote ?? 48)) : [];
+        const observationOptions = {
+            analysisMode: analysisMode ?? 'active',
+            windowSeconds: effectiveWindowSeconds,
+            windowFuturePercent,
+        } as const;
 
         const detectionOptions = {
             includeTriads,
@@ -474,49 +518,42 @@ export class ChordEstimateDisplayElement extends SceneElement {
             includeSevenths,
             preferBassRoot,
         };
-
-        let chord: EstimatedChord | undefined;
-        let rawMusicpy: MusicpyChordResult | undefined;
-        let rawPattern: PatternChordResult | undefined;
-        const midiNoteNumbers = noteEvents.map((n) => n.note);
-        const energy = chroma.reduce((a, b) => a + b, 0);
-
-        if (energy > 0) {
-            if (method === 'pattern-scoring') {
-                rawPattern = detectPatternChord(midiNoteNumbers, bassPc);
-                chord = rawPattern?.chord;
-            } else if (method === 'musicpy') {
-                const result = detectChordMusicpy(midiNoteNumbers, bassPc, { rootPreference: preferBassRoot });
-                if (result) {
-                    chord = result.chord;
-                    rawMusicpy = result.raw;
-                }
-            } else if (method === 'template-match') {
-                chord = estimateChordPB(chroma, bassPc, detectionOptions);
-            } else {
-                chord =
-                    detectChordFromNotes(midiNoteNumbers, bassPc, detectionOptions) ??
-                    estimateChordPB(chroma, bassPc, detectionOptions);
-            }
-        }
-
-        // Simple temporal smoothing to reduce flicker
-        if (chord) {
-            if (this._lastChord && this._lastTime >= 0) {
-                const dtMs = Math.abs(t - this._lastTime) * 1000;
-                if (
-                    dtMs < smoothingMs &&
-                    this._lastChord.confidence > 0.2 &&
-                    chord.confidence < this._lastChord.confidence * 1.0
-                ) {
-                    chord = this._lastChord;
-                    rawMusicpy = this._lastRawResult;
-                }
-            }
-            this._lastChord = chord;
-            this._lastRawResult = rawMusicpy;
-            this._lastTime = t;
-        }
+        const frameTimes = [
+            ...new Set([...clusterChordOnsets(harmonicNotes.flatMap((note) => [note.startTime, note.endTime])), t]),
+        ]
+            .filter((time) => time >= queryStart && time <= t)
+            .sort((left, right) => left - right);
+        let previousChordKey: string | undefined;
+        const frames = frameTimes.map((time) => {
+            const observation = buildChordObservation({
+                targetTime: time,
+                notes: harmonicNotes,
+                bassNotes:
+                    bassMode === 'separate-track'
+                        ? bassEvents
+                        : bassMode === 'split-note'
+                          ? splitBassNotes
+                          : harmonicNotes,
+                ...observationOptions,
+            });
+            const result = detectChordFromObservation(observation, method, { ...detectionOptions, previousChordKey });
+            previousChordKey = chordKey(result) ?? previousChordKey;
+            return { time, result };
+        });
+        const stableResults = stabiliseChordFrames(frames, holdMilliseconds);
+        const result = stableResults[stableResults.length - 1];
+        const chord = result?.chord;
+        const rawMusicpy = result?.metadata.kind === 'musicpy' ? result.metadata.value : undefined;
+        const rawPattern = result?.metadata.kind === 'pattern' ? result.metadata.value : undefined;
+        const observation = buildChordObservation({
+            targetTime: t,
+            notes: harmonicNotes,
+            bassNotes:
+                bassMode === 'separate-track' ? bassEvents : bassMode === 'split-note' ? splitBassNotes : harmonicNotes,
+            ...observationOptions,
+        });
+        const chroma = observation.chroma;
+        const activeNotes = observation.notes;
 
         // Appearance
         const fontSelection = configuredFont ?? 'Inter';
@@ -555,9 +592,9 @@ export class ChordEstimateDisplayElement extends SceneElement {
         renderObjects.push(title);
         y += chordFontSize + lineSpacing;
 
-        // Active notes line (unique MIDI notes overlapping window)
+        // Active notes line
         if (showActiveNotes) {
-            const allUniqueNotes = Array.from(new Set(noteEvents.map((n) => n.note))).sort((a, b) => a - b);
+            const allUniqueNotes = Array.from(new Set(activeNotes.map((n) => n.note))).sort((a, b) => a - b);
             const MAX_NOTES = 8;
             const truncated = allUniqueNotes.length > MAX_NOTES;
             const displayNotes = truncated ? allUniqueNotes.slice(0, MAX_NOTES) : allUniqueNotes;

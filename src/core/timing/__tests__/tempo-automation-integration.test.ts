@@ -48,15 +48,18 @@ describe('Tempo automation store actions', () => {
         }
     });
 
-    it('disableTempoAutomation clears map and keyframes', () => {
+    it('disableTempoAutomation clears the applied map but preserves keyframes for re-enabling', () => {
         useTimelineStore.getState().enableTempoAutomation();
         useTimelineStore.getState().addTempoKeyframe(1920, 140);
         useTimelineStore.getState().disableTempoAutomation();
 
         const ta = useTimelineStore.getState().timeline.tempoAutomation!;
         expect(ta.enabled).toBe(false);
-        expect(ta.keyframes).toHaveLength(0);
+        expect(ta.keyframes).toHaveLength(2);
         expect(useTimelineStore.getState().timeline.masterTempoMap).toBeUndefined();
+
+        useTimelineStore.getState().enableTempoAutomation();
+        expect(useTimelineStore.getState().timeline.tempoAutomation?.keyframes).toHaveLength(2);
     });
 
     it('removeTempoKeyframe removes and rebuilds map', () => {
@@ -91,6 +94,32 @@ describe('Tempo automation store actions', () => {
         const ta = useTimelineStore.getState().timeline.tempoAutomation!;
         const kf = ta.keyframes.find((k) => k.tick === 1920)!;
         expect(kf.bpm).toBe(160);
+    });
+
+    it('keeps the Bar 1 base point and rejects an occupied drag target', () => {
+        const api = useTimelineStore.getState();
+        api.enableTempoAutomation();
+        api.addTempoKeyframe(1920, 140);
+        api.addTempoKeyframe(3840, 100);
+
+        api.removeTempoKeyframe(0);
+        expect(useTimelineStore.getState().timeline.tempoAutomation?.keyframes).toHaveLength(3);
+        expect(api.updateTempoKeyframe(0, { tick: 960, bpm: 130 })).toBe(false);
+        expect(api.updateTempoKeyframe(1920, { tick: 3840, bpm: 140 })).toBe(false);
+        expect(api.updateTempoKeyframe(1920, { tick: 2880, bpm: 150 })).toBe(true);
+        expect(useTimelineStore.getState().timeline.tempoAutomation?.keyframes).toEqual([
+            { tick: 0, bpm: 120 },
+            { tick: 2880, bpm: 150 },
+            { tick: 3840, bpm: 100 },
+        ]);
+    });
+
+    it('resetTempoAutomationChanges preserves only the Bar 1 base point', () => {
+        const api = useTimelineStore.getState();
+        api.enableTempoAutomation();
+        api.addTempoKeyframe(1920, 140);
+        api.resetTempoAutomationChanges();
+        expect(useTimelineStore.getState().timeline.tempoAutomation?.keyframes).toEqual([{ tick: 0, bpm: 120 }]);
     });
 
     it('batchSetTempoKeyframes replaces all keyframes', () => {

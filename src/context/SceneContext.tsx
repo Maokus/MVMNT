@@ -8,6 +8,7 @@ import { LocalSaveService } from '@persistence/local-save-service';
 import { LocalFileStore } from '@persistence/local-file-store';
 import { useDirtyTracking } from '@hooks/useDirtyTracking';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
+import { useTimelineStore } from '@state/timelineStore';
 
 interface SceneContextValue {
     sceneName: string;
@@ -170,6 +171,9 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
 
         // Returning home closes the editor document. Do not let recovery state
         // silently reopen it the next time the workspace is entered.
+        // The transport coordinator is shared beyond the workspace component,
+        // so unmounting the editor alone would leave active playback running.
+        useTimelineStore.getState().pause();
         await LocalFileStore.clear().catch(() => undefined);
         await window.mvmntDesktop?.documents.clearActivePath();
         localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');

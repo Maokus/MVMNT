@@ -154,7 +154,7 @@ export function App() {
         return desktop.menu.onCommand((command) => {
             if (command === 'new') {
                 void desktop.documents.clearActivePath().then(() => {
-                    navigate('/workspace', { state: { template: 'default', desktopNew: true } });
+                    navigate('/workspace', { state: { template: 'blank', desktopNew: true } });
                 });
             }
             if (command === 'open') {

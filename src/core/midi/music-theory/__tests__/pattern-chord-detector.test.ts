@@ -36,6 +36,16 @@ describe('detectPatternChord', () => {
         expect(result!.chord.root).toBe(9);
     });
 
+    it('ranks tied candidates deterministically with explicit evidence', () => {
+        const notes = [A4 - 12, C4, E4, G4];
+        const first = detectPatternChord(notes, 9)!;
+        const second = detectPatternChord(notes, 9)!;
+        expect(first.chordType).toBe(second.chordType);
+        expect(
+            first.alternatives.some((candidate) => candidate.chordType === 'major6' || candidate.chordType === 'minor7')
+        ).toBe(true);
+    });
+
     it('does not let a rootless interpretation override a complete chord', () => {
         const result = detectPatternChord([E4, G4, Bb4, D5]);
         expect(result).toMatchObject({ chordType: 'half-diminished7', isRootless: false });

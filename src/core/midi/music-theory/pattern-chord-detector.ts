@@ -1,4 +1,4 @@
-import type { ChordQuality, EstimatedChord } from './chord-estimator';
+import type { ChordEstimatorOptions, ChordQuality, EstimatedChord } from './chord-estimator';
 
 /**
  * Interval-pattern chord detector.
@@ -24,6 +24,23 @@ export type PatternChordResult = {
     chordType: string;
     symbol: string;
     isRootless: boolean;
+    score: number;
+    matchedIntervals: number[];
+    missingIntervals: number[];
+    extraIntervals: number[];
+    voicingType: 'close' | 'open' | 'drop2' | 'drop3' | 'rootless';
+    alternatives: PatternChordAlternative[];
+};
+
+export type PatternChordAlternative = {
+    root: number;
+    chordType: string;
+    symbol: string;
+    score: number;
+    unexplainedToneCount: number;
+    definingToneCoverage: number;
+    bassEvidence: number;
+    complexity: number;
 };
 
 const pattern = (
@@ -112,7 +129,17 @@ const PATTERNS: readonly ChordPattern[] = [
 ];
 const PATTERNS_BY_TYPE = [...PATTERNS].sort((left, right) => left.type.localeCompare(right.type));
 
-type Candidate = { pattern: ChordPattern; root: number; score: number; rootless: boolean; exact: boolean };
+type Candidate = {
+    pattern: ChordPattern;
+    root: number;
+    score: number;
+    rootless: boolean;
+    exact: boolean;
+    intervals: number[];
+    unexplainedToneCount: number;
+    definingToneCoverage: number;
+    bassEvidence: number;
+};
 
 // Reference detector scoring parameters (ChordScoring.cpp / ChordTypes.h).
 const SCORE = {
@@ -153,6 +180,19 @@ function sameIntervals(left: readonly number[], right: readonly number[]): boole
     return left.length === right.length && left.every((interval, index) => interval === right[index]);
 }
 
+function isAllowed(patternToCheck: ChordPattern, options: ChordEstimatorOptions): boolean {
+    if (options.includeTriads === false && ['major', 'minor', 'sus2', 'sus4', 'power5'].includes(patternToCheck.type))
+        return false;
+    if (options.includeDiminished === false && ['dim', 'dim7', 'm7b5'].includes(patternToCheck.quality)) return false;
+    if (options.includeAugmented === false && patternToCheck.quality === 'aug') return false;
+    if (
+        options.includeSevenths === false &&
+        patternToCheck.intervals.some((interval) => interval === 10 || interval === 11)
+    )
+        return false;
+    return true;
+}
+
 function classifyVoicing(midiNotes: readonly number[]): 'close' | 'open' | 'drop2' | 'drop3' | 'rootless' {
     const span = midiNotes[midiNotes.length - 1] - midiNotes[0];
     if (span <= 12) return 'close';
@@ -166,7 +206,8 @@ function scorePattern(
     patternToScore: ChordPattern,
     bassPc: number,
     root: number,
-    voicing: 'close' | 'open' | 'drop2' | 'drop3' | 'rootless'
+    voicing: 'close' | 'open' | 'drop2' | 'drop3' | 'rootless',
+    preferBassRoot: boolean
 ): Candidate | undefined {
     const intervalSet = new Set(intervals);
     const patternSet = new Set(patternToScore.intervals);
@@ -189,12 +230,23 @@ function scorePattern(
     score += optional * SCORE.optionalTone;
     score += (matched / patternToScore.intervals.length) * SCORE.matchRatio;
     score -= extras * SCORE.extraTonePenalty;
-    if (bassPc === root) score += SCORE.rootInBass;
+    const bassEvidence = bassPc === root ? 2 : patternSet.has((bassPc - root + 12) % 12) ? 1 : 0;
+    if (preferBassRoot && bassEvidence === 2) score += SCORE.rootInBass;
     if (voicing === 'rootless') score += SCORE.rootlessVoicing;
     else if (voicing === 'close') score += SCORE.closeVoicing;
     if (!intervalSet.has(0) && voicing !== 'rootless') score -= SCORE.missingRootPenalty;
     if (!intervals.some((interval) => [2, 3, 4, 5].includes(interval))) score -= SCORE.noThirdOrSuspensionPenalty;
-    return { pattern: patternToScore, root, score, rootless: voicing === 'rootless', exact };
+    return {
+        pattern: patternToScore,
+        root,
+        score,
+        rootless: voicing === 'rootless',
+        exact,
+        intervals: [...intervals],
+        unexplainedToneCount: extras,
+        definingToneCoverage: important / Math.max(1, patternToScore.important.length),
+        bassEvidence,
+    };
 }
 
 function confidenceFor(best: Candidate, secondBest: Candidate | undefined, noteCount: number): number {
@@ -206,7 +258,11 @@ function confidenceFor(best: Candidate, secondBest: Candidate | undefined, noteC
 }
 
 /** Detect a chord by scoring interval patterns for every played and virtual root. */
-export function detectPatternChord(midiNotes: readonly number[], bassPc?: number): PatternChordResult | undefined {
+export function detectPatternChord(
+    midiNotes: readonly number[],
+    bassPc?: number,
+    options: ChordEstimatorOptions & { previousChordKey?: string } = {}
+): PatternChordResult | undefined {
     if (midiNotes.length < 2) return undefined;
     const sortedNotes = [...new Set(midiNotes)].sort((a, b) => a - b);
     const pcs = uniqueSorted(sortedNotes.map(pitchClass));
@@ -226,13 +282,35 @@ export function detectPatternChord(midiNotes: readonly number[], bassPc?: number
             sameIntervals(intervals, candidatePattern.intervals)
         );
         for (const candidatePattern of exactPatterns.length > 0 ? exactPatterns : PATTERNS_BY_TYPE) {
-            const candidate = scorePattern(intervals, candidatePattern, bass, root, rootless ? 'rootless' : voicing);
+            if (!isAllowed(candidatePattern, options)) continue;
+            const candidate = scorePattern(
+                intervals,
+                candidatePattern,
+                bass,
+                root,
+                rootless ? 'rootless' : voicing,
+                options.preferBassRoot ?? true
+            );
             if (candidate && candidate.score > SCORE.minimumCandidate) candidates.push(candidate);
         }
     }
     if (candidates.length === 0) return undefined;
 
-    candidates.sort((a, b) => b.score - a.score);
+    candidates.sort((left, right) => {
+        if (left.unexplainedToneCount !== right.unexplainedToneCount)
+            return left.unexplainedToneCount - right.unexplainedToneCount;
+        if (left.definingToneCoverage !== right.definingToneCoverage)
+            return right.definingToneCoverage - left.definingToneCoverage;
+        if (left.bassEvidence !== right.bassEvidence) return right.bassEvidence - left.bassEvidence;
+        const leftContinuity = `${left.root}:${left.pattern.type}` === options.previousChordKey ? 1 : 0;
+        const rightContinuity = `${right.root}:${right.pattern.type}` === options.previousChordKey ? 1 : 0;
+        if (leftContinuity !== rightContinuity) return rightContinuity - leftContinuity;
+        if (left.pattern.intervals.length !== right.pattern.intervals.length)
+            return right.pattern.intervals.length - left.pattern.intervals.length;
+        if (left.score !== right.score) return right.score - left.score;
+        if (left.root !== right.root) return left.root - right.root;
+        return left.pattern.type.localeCompare(right.pattern.type);
+    });
     let best = candidates[0];
     const secondBest = candidates[1];
 
@@ -268,5 +346,20 @@ export function detectPatternChord(midiNotes: readonly number[], bassPc?: number
         chordType: best.pattern.type,
         symbol: best.pattern.symbol,
         isRootless: best.rootless,
+        score: best.score,
+        matchedIntervals: best.intervals.filter((interval) => best.pattern.intervals.includes(interval)),
+        missingIntervals: best.pattern.intervals.filter((interval) => !best.intervals.includes(interval)),
+        extraIntervals: best.intervals.filter((interval) => !best.pattern.intervals.includes(interval)),
+        voicingType: best.rootless ? 'rootless' : voicing,
+        alternatives: candidates.slice(1, 4).map((candidate) => ({
+            root: candidate.root,
+            chordType: candidate.pattern.type,
+            symbol: candidate.pattern.symbol,
+            score: candidate.score,
+            unexplainedToneCount: candidate.unexplainedToneCount,
+            definingToneCoverage: candidate.definingToneCoverage,
+            bassEvidence: candidate.bassEvidence,
+            complexity: candidate.pattern.intervals.length,
+        })),
     };
 }

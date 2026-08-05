@@ -290,8 +290,11 @@ export type TimelineState = {
     removeTempoKeyframe: (tick: number) => void;
     moveTempoKeyframe: (fromTick: number, toTick: number) => void;
     updateTempoKeyframeBpm: (tick: number, bpm: number) => void;
+    /** Atomically update a tempo point. Returns false when the target tick is occupied or the base point is moved. */
+    updateTempoKeyframe: (fromTick: number, next: { tick: number; bpm: number }) => boolean;
     batchSetTempoKeyframes: (keyframes: TempoKeyframe[]) => void;
     commitTempoKeyframeDrag: (fromTick: number, toTick: number) => void;
+    resetTempoAutomationChanges: () => void;
     setTempoLaneVisible: (visible: boolean) => void;
 };
 
@@ -1873,7 +1876,11 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                         ...s.timeline,
                         tempoAutomation: {
                             enabled: true,
-                            keyframes: [{ tick: 0, bpm: currentBpm }],
+                            laneVisible: s.timeline.tempoAutomation?.laneVisible ?? true,
+                            // Re-enabling is non-destructive: retain the user's map if one exists.
+                            keyframes: s.timeline.tempoAutomation?.keyframes.length
+                                ? s.timeline.tempoAutomation.keyframes
+                                : [{ tick: 0, bpm: currentBpm }],
                         },
                     },
                 }) as any
@@ -1889,7 +1896,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                         ...s.timeline,
                         tempoAutomation: {
                             enabled: false,
-                            keyframes: [],
+                            // Disabling only bypasses the map. Resetting it is an explicit action.
+                            keyframes: s.timeline.tempoAutomation?.keyframes ?? [],
                         },
                     },
                 }) as any
@@ -1919,6 +1927,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     removeTempoKeyframe(tick: number) {
+        // The Bar 1 point is the required base tempo for an enabled map.
+        if (Math.abs(tick) <= TEMPO_KF_TICK_TOLERANCE) return;
         set((s: TimelineState) => {
             const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
             const next = ta.keyframes.filter((kf) => Math.abs(kf.tick - tick) > TEMPO_KF_TICK_TOLERANCE);
@@ -1933,6 +1943,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     moveTempoKeyframe(fromTick: number, toTick: number) {
+        if (Math.abs(fromTick) <= TEMPO_KF_TICK_TOLERANCE) return;
+        if (Math.abs(fromTick - toTick) > TEMPO_KF_TICK_TOLERANCE) {
+            const occupied = get().timeline.tempoAutomation?.keyframes.some(
+                (kf) => Math.abs(kf.tick - toTick) <= TEMPO_KF_TICK_TOLERANCE
+            );
+            if (occupied) return;
+        }
         set((s: TimelineState) => {
             const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
             const idx = ta.keyframes.findIndex((kf) => Math.abs(kf.tick - fromTick) <= TEMPO_KF_TICK_TOLERANCE);
@@ -1967,8 +1984,37 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         _applyTempoAutomation(get);
     },
 
+    updateTempoKeyframe(fromTick: number, next: { tick: number; bpm: number }) {
+        if (!Number.isFinite(fromTick) || !Number.isFinite(next.tick) || !Number.isFinite(next.bpm)) return false;
+        const targetTick = Math.max(0, Math.round(next.tick));
+        const targetBpm = Math.max(1, Math.min(999, next.bpm));
+        const current = get().timeline.tempoAutomation?.keyframes ?? [];
+        const idx = current.findIndex((kf) => Math.abs(kf.tick - fromTick) <= TEMPO_KF_TICK_TOLERANCE);
+        if (idx < 0) return false;
+        if (Math.abs(fromTick) <= TEMPO_KF_TICK_TOLERANCE && targetTick !== 0) return false;
+        const collision = current.some(
+            (kf, i) => i !== idx && Math.abs(kf.tick - targetTick) <= TEMPO_KF_TICK_TOLERANCE
+        );
+        if (collision) return false;
+        set((s: TimelineState) => {
+            const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
+            const keyframes = [...ta.keyframes];
+            const pointIndex = keyframes.findIndex((kf) => Math.abs(kf.tick - fromTick) <= TEMPO_KF_TICK_TOLERANCE);
+            if (pointIndex < 0) return s;
+            keyframes[pointIndex] = { tick: targetTick, bpm: targetBpm };
+            keyframes.sort((a, b) => a.tick - b.tick);
+            return { timeline: { ...s.timeline, tempoAutomation: { ...ta, keyframes } } } as any;
+        });
+        _applyTempoAutomation(get);
+        return true;
+    },
+
     batchSetTempoKeyframes(keyframes: TempoKeyframe[]) {
-        const sorted = [...keyframes].sort((a, b) => a.tick - b.tick);
+        const byTick = new Map<number, TempoKeyframe>();
+        keyframes.forEach((kf) =>
+            byTick.set(Math.max(0, Math.round(kf.tick)), { tick: Math.max(0, Math.round(kf.tick)), bpm: kf.bpm })
+        );
+        const sorted = [...byTick.values()].sort((a, b) => a.tick - b.tick);
         set((s: TimelineState) => {
             const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
             return {
@@ -1983,6 +2029,20 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     commitTempoKeyframeDrag(fromTick: number, toTick: number) {
         get().moveTempoKeyframe(fromTick, toTick);
+    },
+
+    resetTempoAutomationChanges() {
+        set((s: TimelineState) => {
+            const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
+            const base = ta.keyframes.find((kf) => Math.abs(kf.tick) <= TEMPO_KF_TICK_TOLERANCE) ?? {
+                tick: 0,
+                bpm: s.timeline.globalBpm || 120,
+            };
+            return {
+                timeline: { ...s.timeline, tempoAutomation: { ...ta, keyframes: [{ tick: 0, bpm: base.bpm }] } },
+            } as any;
+        });
+        _applyTempoAutomation(get);
     },
 
     setTempoLaneVisible(visible: boolean) {
