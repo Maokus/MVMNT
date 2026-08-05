@@ -47,6 +47,7 @@ import {
     deriveElementOrder,
     elementNodeId,
     nodeTransformToMatrix,
+    normalizeElementNodeNames,
     validateSceneGraph,
     type NodeTransform,
     type SceneGraphState,
@@ -1168,7 +1169,7 @@ const createSceneStoreState = (
             const node = nodeId ? nextGraph.nodesById[nodeId] : undefined;
             if (node?.kind === 'element') {
                 node.elementId = nextId;
-                if (node.name === currentId) node.name = nextId;
+                node.name = nextId;
                 nextGraph.revision += 1;
             }
 
@@ -1787,7 +1788,9 @@ const createSceneStoreState = (
                 delete nextByElement[el.id].zIndex;
             }
 
-            const incomingGraph = cloneSceneGraph(payload.graph ?? createFlatSceneGraph(nextOrder));
+            const incomingGraph = normalizeElementNodeNames(
+                cloneSceneGraph(payload.graph ?? createFlatSceneGraph(nextOrder))
+            );
             for (const node of Object.values(incomingGraph.nodesById)) {
                 const transform = node.userNodeTransform as NodeTransform & { uniformScale?: number };
                 const oldUniformScale =
@@ -2120,7 +2123,6 @@ const createSceneStoreState = (
                                   },
                               ])
                           ),
-                          channelIdByTarget: rebuildAutomationTargetIndex(state.automation.channels),
                       },
                   }
                 : {}),
@@ -2147,11 +2149,12 @@ const createSceneStoreState = (
 
     replaceGraph: (graph) => {
         set((state) => {
-            const validation = validateSceneGraph(graph, Object.keys(state.elements));
+            const normalized = normalizeElementNodeNames(graph);
+            const validation = validateSceneGraph(normalized, Object.keys(state.elements));
             if (!validation.ok) {
                 throw new Error(`SceneStore.replaceGraph: ${validation.errors[0]?.message ?? 'invalid graph'}`);
             }
-            const next = cloneSceneGraph(graph);
+            const next = cloneSceneGraph(normalized);
             next.revision = Math.max(state.graph.revision + 1, next.revision);
             return { ...state, ...graphIndexes(next), runtimeMeta: markDirty(state, 'replaceGraph') };
         });
@@ -2296,6 +2299,7 @@ const createSceneStoreState = (
             const current = state.graph.nodesById[nodeId];
             const trimmed = name.trim();
             if (!current || current.kind === 'root' || !trimmed || current.name === trimmed) return state;
+            if (current.kind === 'element') return state;
             const graph = cloneSceneGraph(state.graph);
             graph.nodesById[nodeId] = { ...graph.nodesById[nodeId], name: trimmed } as typeof current;
             graph.revision += 1;

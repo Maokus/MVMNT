@@ -8,7 +8,7 @@ import {
 } from './math';
 import { buildSceneGraphNavigationIndex } from './graph';
 import { cloneSceneGraph, createNodeBase, type Matrix2D, type SceneGraphState, type SceneNode } from './types';
-import { createDuplicateElementId } from '../../context/duplicateElementName';
+import { createDuplicateName } from '../../context/duplicateElementName';
 
 export interface DuplicateMappings {
     nodeIdMap: Record<string, string>;
@@ -107,7 +107,7 @@ export function createDuplicateMappings(
         const node = graph.nodesById[id];
         nodeIdMap[id] = uniqueId(`${id}:copy`, occupiedNodes);
         if (node.kind === 'element') {
-            const duplicateId = createDuplicateElementId(node.elementId, occupiedElements);
+            const duplicateId = createDuplicateName(node.elementId, occupiedElements);
             occupiedElements.add(duplicateId);
             elementIdMap[node.elementId] = duplicateId;
         }
@@ -328,16 +328,22 @@ export function cloneSubtrees(
 ): SceneGraphState {
     const selected = normalizeNodeSelection(graph, rootIds);
     const next = cloneSceneGraph(graph);
+    const occupiedNames = new Set(Object.values(graph.nodesById).map((node) => node.name));
     const allCloneIds = new Set(Object.values(mappings.nodeIdMap));
     for (const id of allCloneIds) delete next.nodesById[id];
     for (const sourceId of subtreeNodeIds(graph, selected)) {
         const source = graph.nodesById[sourceId];
         const cloneId = mappings.nodeIdMap[sourceId];
         if (!source || !cloneId) throw new Error('Duplicate mapping is incomplete');
+        const name =
+            source.kind === 'element'
+                ? mappings.elementIdMap[source.elementId]
+                : createDuplicateName(source.name, occupiedNames);
+        occupiedNames.add(name);
         next.nodesById[cloneId] = {
             ...source,
             id: cloneId,
-            name: `${source.name} copy`,
+            name,
             parentCompensation: [...source.parentCompensation],
             userNodeTransform: { ...source.userNodeTransform },
             parentId: mappings.nodeIdMap[source.parentId ?? ''] ?? source.parentId,

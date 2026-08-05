@@ -28,6 +28,18 @@ describe('recursive scene graph operations', () => {
         expect(mappings.elementIdMap).toEqual({ shape_3: 'shape_2' });
     });
 
+    it('uses numbered names for duplicated groups and canonical IDs for element labels', () => {
+        const graph = groupSceneNodes(createFlatSceneGraph(['shape']), ['element:shape'], 'group:shape', 'Group');
+        const mappings = createDuplicateMappings(graph, ['shape'], ['group:shape']);
+
+        const duplicated = cloneSubtrees(graph, ['group:shape'], mappings);
+        const copiedGroup = duplicated.nodesById[mappings.nodeIdMap['group:shape']];
+        const copiedElement = duplicated.nodesById[mappings.nodeIdMap['element:shape']];
+
+        expect(copiedGroup).toMatchObject({ name: 'Group_1' });
+        expect(copiedElement).toMatchObject({ elementId: 'shape_1', name: 'shape_1' });
+    });
+
     it('accepts reflected node transforms while rejecting zero scales', () => {
         const graph = createFlatSceneGraph(['a']);
         graph.nodesById['element:a'].userNodeTransform.scaleX = -1;
@@ -176,6 +188,7 @@ describe('recursive scene graph operations', () => {
         const duplicated = cloneSubtrees(graph, ['group:outer'], mappings);
         expect(duplicated.nodesById['copy:inner']).not.toBe(graph.nodesById['group:inner']);
         expect(duplicated.nodesById['copy:a']).toMatchObject({ parentId: 'copy:inner', elementId: 'a copy' });
+        expect(duplicated.nodesById['copy:a'].name).toBe('a copy');
         const ungrouped = ungroupSceneNode(duplicated, 'copy:inner');
         expect((ungrouped.nodesById['copy:outer'] as any).children).toEqual(['copy:a', 'copy:b']);
         const removed = removeSubtrees(ungrouped, ['copy:outer']);

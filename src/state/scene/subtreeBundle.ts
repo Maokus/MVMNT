@@ -13,6 +13,7 @@ import {
     type SceneGraphState,
     type SceneNode,
 } from '@state/scene-graph';
+import { createDuplicateName } from '@context/duplicateElementName';
 import type {
     BindingState,
     ElementBindings,
@@ -182,6 +183,7 @@ export function buildSceneSubtreeImport(
     const occupiedElements = new Set(Object.keys(state.elements));
     const occupiedMacros = new Set(Object.keys(state.macros.byId));
     const occupiedChannels = new Set(Object.keys(state.automation.channels));
+    const occupiedNames = new Set(Object.values(state.graph.nodesById).map((node) => node.name));
     for (const id of Object.keys(bundle.nodes)) nodeIds[id] = allocateId(id, occupiedNodes);
     for (const id of Object.keys(bundle.elements)) elementIds[id] = allocateId(id, occupiedElements);
     for (const id of Object.keys(bundle.macros.macros)) macroIds[id] = allocateId(id, occupiedMacros);
@@ -217,7 +219,13 @@ export function buildSceneSubtreeImport(
         cloned.id = id;
         cloned.parentId = node.parentId ? nodeIds[node.parentId] : parentId;
         if ('children' in cloned) cloned.children = cloned.children.map((childId) => nodeIds[childId]);
-        if (cloned.kind === 'element') cloned.elementId = elementIds[cloned.elementId];
+        if (cloned.kind === 'element') {
+            cloned.elementId = elementIds[cloned.elementId];
+            cloned.name = cloned.elementId;
+        } else if (cloned.kind === 'group') {
+            cloned.name = createDuplicateName(cloned.name, occupiedNames);
+        }
+        occupiedNames.add(cloned.name);
         graph.nodesById[id] = cloned;
     }
     const importedRootIds = bundle.roots.map((id) => nodeIds[id]);

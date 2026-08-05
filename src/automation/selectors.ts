@@ -121,7 +121,7 @@ export function selectAutomationSceneNodes(state: AutomationStoreSlice): Automat
         return [
             {
                 nodeId: node.id,
-                name: node.name,
+                name: node.kind === 'element' ? node.elementId : node.name,
                 kind: node.kind,
                 depth,
                 ancestorNodeIds,

@@ -1,5 +1,6 @@
 import { isFiniteMatrix, matricesEqual } from './math';
 import {
+    cloneSceneGraph,
     createNodeBase,
     IDENTITY_MATRIX,
     IDENTITY_NODE_TRANSFORM,
@@ -19,6 +20,7 @@ export type SceneGraphErrorCode =
     | 'DUPLICATE_CHILD'
     | 'ELEMENT_REFERENCE_INVALID'
     | 'ELEMENT_REFERENCE_DUPLICATE'
+    | 'ELEMENT_NAME_MISMATCH'
     | 'CYCLE'
     | 'UNREACHABLE'
     | 'TRANSFORM_INVALID'
@@ -154,6 +156,18 @@ export function buildSceneGraphIndexes(graph: SceneGraphState) {
     return { nodeIdByElementId, elementIdByNodeId };
 }
 
+/** Repair the legacy redundant element-node label from its canonical element ID. */
+export function normalizeElementNodeNames(graph: SceneGraphState): SceneGraphState {
+    let next: SceneGraphState | null = null;
+    for (const node of Object.values(graph.nodesById)) {
+        if (node.kind !== 'element' || node.name === node.elementId) continue;
+        next ??= cloneSceneGraph(graph);
+        next.nodesById[node.id] = { ...node, name: node.elementId };
+    }
+    if (next) next.revision += 1;
+    return next ?? graph;
+}
+
 export function validateSceneGraph(graph: SceneGraphState, elementIds: Iterable<string>): SceneGraphValidationResult {
     const errors: SceneGraphValidationError[] = [];
     const expectedElements = new Set(elementIds);
@@ -206,6 +220,13 @@ export function validateSceneGraph(graph: SceneGraphState, elementIds: Iterable<
             errors.push({
                 code: 'NODE_KIND_INVALID',
                 message: 'Element nodes require an elementId and cannot have children.',
+                nodeId: node.id,
+            });
+        }
+        if (node.kind === 'element' && node.name !== node.elementId) {
+            errors.push({
+                code: 'ELEMENT_NAME_MISMATCH',
+                message: `Element node name '${node.name}' must match element '${node.elementId}'.`,
                 nodeId: node.id,
             });
         }

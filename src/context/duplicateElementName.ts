@@ -19,11 +19,15 @@ function getDuplicateBaseId(elementId: string, existingIds: Iterable<string>): s
     return elementId;
 }
 
-export function createDuplicateElementId(elementId: string, existingIds: Iterable<string>): string {
-    const ids = Array.from(existingIds);
+/** Allocates the next numbered duplicate label for elements and groups. */
+export function createDuplicateName(name: string, existingNames: Iterable<string>): string {
+    const ids = Array.from(existingNames);
     const existing = new Set(ids);
-    const baseId = getDuplicateBaseId(elementId, ids);
+    const baseId = getDuplicateBaseId(name, ids);
     let copyNumber = 1;
     while (existing.has(`${baseId}_${copyNumber}`)) copyNumber += 1;
     return `${baseId}_${copyNumber}`;
 }
+
+/** @deprecated Use createDuplicateName for element IDs and group names. */
+export const createDuplicateElementId = createDuplicateName;

@@ -396,7 +396,7 @@ describe('scene command gateway', () => {
         expect(imported.success).toBe(true);
         const state = useSceneStore.getState();
         const copiedGroup = Object.values(state.graph.nodesById).find(
-            (node) => node.kind === 'group' && node.id !== 'portable-group' && node.name === 'Portable group'
+            (node) => node.kind === 'group' && node.id !== 'portable-group' && node.name === 'Portable group_1'
         );
         expect(copiedGroup).toBeDefined();
         expect(copiedGroup && 'children' in copiedGroup ? copiedGroup.children : []).toHaveLength(1);

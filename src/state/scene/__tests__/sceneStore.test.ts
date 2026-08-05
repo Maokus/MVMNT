@@ -60,6 +60,20 @@ describe('sceneStore', () => {
         expect(state.bindings.byElement.legacy.anchorY).toBeUndefined();
     });
 
+    it('repairs legacy element node labels during import', () => {
+        const graph = createFlatSceneGraph(['legacy']);
+        graph.nodesById['element:legacy'].name = 'legacy copy';
+
+        store.getState().importScene({
+            elements: { legacy: { id: 'legacy', type: 'textOverlay', properties: {} } },
+            graph,
+        });
+
+        const exported = store.getState().exportSceneDraft();
+        expect(store.getState().graph.nodesById['element:legacy'].name).toBe('legacy');
+        expect(exported.graph.nodesById['element:legacy'].name).toBe('legacy');
+    });
+
     it('moves legacy wrapper anchors into the shared content anchor', () => {
         store.getState().importScene({
             elements: {
