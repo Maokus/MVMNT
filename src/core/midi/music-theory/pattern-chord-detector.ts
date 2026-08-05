@@ -1,10 +1,10 @@
-import type { ChordEstimatorOptions, ChordQuality, EstimatedChord } from './chord-estimator';
+import type { ChordQuality, EstimatedChord } from './chord-estimator';
 
 /**
  * Interval-pattern chord detector.
  *
  * This is an independent TypeScript implementation of the pattern-scoring
- * approach documented by Long Kelvin's MIT-licensed MIDI Chord Detector
+ * approach and parameters documented by Long Kelvin's MIT-licensed MIDI Chord Detector
  * (https://github.com/LongKelvin/midi-chord-detector-plugin): test each root,
  * require defining tones, tolerate optional tones and penalise unrelated ones.
  */
@@ -64,25 +64,74 @@ const PATTERNS: readonly ChordPattern[] = [
     pattern('dominant9', '9', 'ext', [0, 4, 7, 10, 14], [0, 4, 10, 14], [4, 10, 14], 125, [7]),
     pattern('dominant7b9', '7♭9', 'ext', [0, 4, 7, 10, 13], [0, 4, 10, 13], [4, 10, 13], 120, [7]),
     pattern('dominant7#9', '7♯9', 'ext', [0, 4, 7, 10, 15], [0, 4, 10, 15], [4, 10, 15], 120, [7]),
+    pattern('minor-major9', 'm(maj9)', 'ext', [0, 3, 7, 11, 14], [0, 3, 11, 14], [3, 11, 14], 120, [7]),
     pattern('major11', 'maj11', 'ext', [0, 4, 7, 11, 14, 17], [0, 4, 11, 14, 17], [4, 11, 14, 17], 130, [7]),
     pattern('minor11', 'm11', 'ext', [0, 3, 7, 10, 14, 17], [0, 3, 10, 14, 17], [3, 10, 14, 17], 130, [7]),
     pattern('dominant11', '11', 'ext', [0, 4, 7, 10, 14, 17], [0, 4, 10, 14, 17], [4, 10, 14, 17], 130, [7]),
     pattern('major7#11', 'maj7♯11', 'ext', [0, 4, 7, 11, 18], [0, 4, 11, 18], [4, 11, 18], 125, [7]),
     pattern('dominant7#11', '7♯11', 'ext', [0, 4, 7, 10, 18], [0, 4, 10, 18], [4, 10, 18], 125, [7]),
+    pattern('major9#11', 'maj9♯11', 'ext', [0, 4, 7, 11, 14, 18], [0, 4, 11, 14, 18], [4, 11, 14, 18], 130, [7]),
+    pattern('minor11b5', 'm11♭5', 'ext', [0, 3, 6, 10, 14, 17], [0, 3, 6, 10, 14, 17], [3, 6, 10, 14, 17], 125),
     pattern('major13', 'maj13', 'ext', [0, 4, 7, 11, 14, 21], [0, 4, 11, 21], [4, 11, 21], 135, [7, 14]),
     pattern('minor13', 'm13', 'ext', [0, 3, 7, 10, 14, 21], [0, 3, 10, 21], [3, 10, 21], 135, [7, 14]),
     pattern('dominant13', '13', 'ext', [0, 4, 7, 10, 14, 21], [0, 4, 10, 21], [4, 10, 21], 135, [7, 14]),
+    pattern('dominant13#11', '13♯11', 'ext', [0, 4, 7, 10, 18, 21], [0, 4, 10, 18, 21], [4, 10, 18, 21], 135, [7]),
+    pattern('dominant7b13', '7♭13', 'ext', [0, 4, 7, 10, 20], [0, 4, 10, 20], [4, 10, 20], 125, [7]),
+    pattern('dominant13b9', '13♭9', 'ext', [0, 4, 7, 10, 13, 21], [0, 4, 10, 13, 21], [4, 10, 13, 21], 130, [7]),
+    pattern('dominant13#9', '13♯9', 'ext', [0, 4, 7, 10, 15, 21], [0, 4, 10, 15, 21], [4, 10, 15, 21], 130, [7]),
     pattern('dominant7b5', '7♭5', 'ext', [0, 4, 6, 10], [0, 4, 6, 10], [4, 6, 10], 118),
     pattern('dominant7#5', '7♯5', 'ext', [0, 4, 8, 10], [0, 4, 8, 10], [4, 8, 10], 118),
+    pattern('dominant7b5b9', '7♭5♭9', 'ext', [0, 4, 6, 10, 13], [0, 4, 6, 10, 13], [4, 6, 10, 13], 122),
+    pattern('dominant7#5b9', '7♯5♭9', 'ext', [0, 4, 8, 10, 13], [0, 4, 8, 10, 13], [4, 8, 10, 13], 122),
+    pattern('dominant7b5#9', '7♭5♯9', 'ext', [0, 4, 6, 10, 15], [0, 4, 6, 10, 15], [4, 6, 10, 15], 122),
+    pattern('dominant7#5#9', '7♯5♯9', 'ext', [0, 4, 8, 10, 15], [0, 4, 8, 10, 15], [4, 8, 10, 15], 122),
     pattern('altered', '7alt', 'ext', [0, 4, 6, 10, 13], [0, 4, 10], [4, 10], 120, [6, 8, 13, 15]),
+    pattern(
+        'dominant7#5#9b13',
+        '7♯5♯9♭13',
+        'ext',
+        [0, 4, 8, 10, 15, 20],
+        [0, 4, 8, 10, 15, 20],
+        [4, 8, 10, 15, 20],
+        128
+    ),
+    pattern('dominant9#11', '9♯11', 'ext', [0, 4, 7, 10, 14, 18], [0, 4, 10, 14, 18], [4, 10, 14, 18], 130, [7]),
+    pattern('dominant9b13', '9♭13', 'ext', [0, 4, 7, 10, 14, 20], [0, 4, 10, 14, 20], [4, 10, 14, 20], 130, [7]),
+    pattern('dominant7#9#11', '7♯9♯11', 'ext', [0, 4, 7, 10, 15, 18], [0, 4, 10, 15, 18], [4, 10, 15, 18], 128, [7]),
+    pattern('dominant7b9#11', '7♭9♯11', 'ext', [0, 4, 7, 10, 13, 18], [0, 4, 10, 13, 18], [4, 10, 13, 18], 128, [7]),
+    pattern('dominant7b9b13', '7♭9♭13', 'ext', [0, 4, 7, 10, 13, 20], [0, 4, 10, 13, 20], [4, 10, 13, 20], 128, [7]),
+    pattern('dominant7#9b13', '7♯9♭13', 'ext', [0, 4, 7, 10, 15, 20], [0, 4, 10, 15, 20], [4, 10, 15, 20], 128, [7]),
     pattern('add9', 'add9', 'ext', [0, 4, 7, 14], [0, 4, 7, 14], [4, 7, 14], 105),
     pattern('minor-add9', 'm(add9)', 'ext', [0, 3, 7, 14], [0, 3, 7, 14], [3, 7, 14], 105),
     pattern('add11', 'add11', 'ext', [0, 4, 7, 17], [0, 4, 7, 17], [4, 7, 17], 100),
     pattern('add#11', 'add♯11', 'ext', [0, 4, 7, 18], [0, 4, 7, 18], [4, 7, 18], 100),
+    pattern('major7#5', 'maj7♯5', 'aug', [0, 4, 8, 11], [0, 4, 8, 11], [4, 8, 11], 115),
+    pattern('minor7b5', 'm7♭5', 'm7b5', [0, 3, 6, 10], [0, 3, 6, 10], [3, 6, 10], 115),
     pattern('quartal', 'quartal', 'ext', [0, 5, 10], [0, 5, 10], [5, 10], 90),
+    pattern('quartal-7', 'quartal7', 'ext', [0, 5, 10, 15], [0, 5, 10, 15], [5, 10, 15], 95),
 ];
+const PATTERNS_BY_TYPE = [...PATTERNS].sort((left, right) => left.type.localeCompare(right.type));
 
 type Candidate = { pattern: ChordPattern; root: number; score: number; rootless: boolean; exact: boolean };
+
+// Reference detector scoring parameters (ChordScoring.cpp / ChordTypes.h).
+const SCORE = {
+    exactMatch: 150,
+    requiredTone: 30,
+    optionalTone: 10,
+    rootInBass: 25,
+    importantTone: 30,
+    matchRatio: 80,
+    extraTonePenalty: 4,
+    rootlessVoicing: 10,
+    closeVoicing: 5,
+    missingRootPenalty: 40,
+    noThirdOrSuspensionPenalty: 25,
+    minimumCandidate: 80,
+    confidenceMarginScale: 100,
+    confidenceAbsoluteScale: 250,
+    confidenceNoteCount: 6,
+} as const;
 
 function pitchClass(note: number): number {
     return ((note % 12) + 12) % 12;
@@ -100,23 +149,16 @@ function intervalsFor(root: number, pitchClasses: readonly number[], expand: boo
     return uniqueSorted(intervals);
 }
 
-function isAllowed(patternToCheck: ChordPattern, options: ChordEstimatorOptions): boolean {
-    if (options.includeTriads === false && ['major', 'minor', 'sus2', 'sus4', 'power5'].includes(patternToCheck.type))
-        return false;
-    if (options.includeDiminished === false && patternToCheck.quality === 'dim') return false;
-    if (options.includeAugmented === false && patternToCheck.quality === 'aug') return false;
-    if (
-        options.includeSevenths === false &&
-        patternToCheck.intervals.some((interval) => interval === 10 || interval === 11)
-    )
-        return false;
-    return true;
+function sameIntervals(left: readonly number[], right: readonly number[]): boolean {
+    return left.length === right.length && left.every((interval, index) => interval === right[index]);
 }
 
-function supportsRootlessVoicing(patternToCheck: ChordPattern): boolean {
-    const hasThird = patternToCheck.important.some((interval) => interval === 3 || interval === 4);
-    const hasSeventh = patternToCheck.important.some((interval) => interval === 10 || interval === 11);
-    return hasThird && hasSeventh;
+function classifyVoicing(midiNotes: readonly number[]): 'close' | 'open' | 'drop2' | 'drop3' | 'rootless' {
+    const span = midiNotes[midiNotes.length - 1] - midiNotes[0];
+    if (span <= 12) return 'close';
+    if (midiNotes.length >= 4 && midiNotes[1] - midiNotes[0] > 7) return 'drop2';
+    if (midiNotes.length >= 4 && midiNotes[2] - midiNotes[1] > 7) return 'drop3';
+    return 'open';
 }
 
 function scorePattern(
@@ -124,20 +166,15 @@ function scorePattern(
     patternToScore: ChordPattern,
     bassPc: number,
     root: number,
-    rootless: boolean,
-    preferBassRoot: boolean
+    voicing: 'close' | 'open' | 'drop2' | 'drop3' | 'rootless'
 ): Candidate | undefined {
     const intervalSet = new Set(intervals);
     const patternSet = new Set(patternToScore.intervals);
-    const hasRequired = patternToScore.required.every(
-        (interval) => intervalSet.has(interval) || (rootless && interval === 0)
-    );
+    const hasRequired = patternToScore.required.every((interval) => intervalSet.has(interval));
     if (!hasRequired) return undefined;
 
     const exact =
-        !rootless &&
-        intervalSet.size === patternSet.size &&
-        [...intervalSet].every((interval) => patternSet.has(interval));
+        intervalSet.size === patternSet.size && [...intervalSet].every((interval) => patternSet.has(interval));
     const matched = intervals.filter((interval) => patternSet.has(interval)).length;
     const important = intervals.filter((interval) => patternToScore.important.includes(interval)).length;
     const optional = intervals.filter((interval) => patternToScore.optional?.includes(interval)).length;
@@ -146,72 +183,79 @@ function scorePattern(
     ).length;
 
     let score = patternToScore.baseScore;
-    if (exact) score += 150;
-    score += patternToScore.required.length * 30;
-    score += important * 30;
-    score += optional * 10;
-    score += (matched / patternToScore.intervals.length) * 80;
-    score -= extras * 4;
-    if (preferBassRoot && bassPc === root) score += 25;
-    // A rootless reading is useful for jazz shells, but a complete played-root
-    // chord is stronger evidence when both interpretations are possible.
-    if (rootless) score -= 50;
-    if (!intervals.some((interval) => [2, 3, 4, 5].includes(interval))) score -= 25;
-    return { pattern: patternToScore, root, score, rootless, exact };
+    if (exact) score += SCORE.exactMatch;
+    score += patternToScore.required.length * SCORE.requiredTone;
+    score += important * SCORE.importantTone;
+    score += optional * SCORE.optionalTone;
+    score += (matched / patternToScore.intervals.length) * SCORE.matchRatio;
+    score -= extras * SCORE.extraTonePenalty;
+    if (bassPc === root) score += SCORE.rootInBass;
+    if (voicing === 'rootless') score += SCORE.rootlessVoicing;
+    else if (voicing === 'close') score += SCORE.closeVoicing;
+    if (!intervalSet.has(0) && voicing !== 'rootless') score -= SCORE.missingRootPenalty;
+    if (!intervals.some((interval) => [2, 3, 4, 5].includes(interval))) score -= SCORE.noThirdOrSuspensionPenalty;
+    return { pattern: patternToScore, root, score, rootless: voicing === 'rootless', exact };
 }
 
 function confidenceFor(best: Candidate, secondBest: Candidate | undefined, noteCount: number): number {
     const margin = Math.max(0, best.score - (secondBest?.score ?? 0));
-    const marginConfidence = Math.min(margin / 100, 1);
-    const absoluteConfidence = Math.min(best.score / 250, 1);
-    const noteConfidence = Math.min(noteCount / 6, 1);
+    const marginConfidence = Math.min(margin / SCORE.confidenceMarginScale, 1);
+    const absoluteConfidence = Math.min(best.score / SCORE.confidenceAbsoluteScale, 1);
+    const noteConfidence = Math.min(noteCount / SCORE.confidenceNoteCount, 1);
     return 0.35 * marginConfidence + 0.25 * absoluteConfidence + 0.15 * noteConfidence + 0.25 * (best.exact ? 1 : 0.5);
 }
 
 /** Detect a chord by scoring interval patterns for every played and virtual root. */
-export function detectPatternChord(
-    midiNotes: readonly number[],
-    bassPc?: number,
-    options: ChordEstimatorOptions = {}
-): PatternChordResult | undefined {
+export function detectPatternChord(midiNotes: readonly number[], bassPc?: number): PatternChordResult | undefined {
     if (midiNotes.length < 2) return undefined;
     const sortedNotes = [...new Set(midiNotes)].sort((a, b) => a - b);
     const pcs = uniqueSorted(sortedNotes.map(pitchClass));
     if (pcs.length < 2) return undefined;
     const bass = bassPc ?? pitchClass(sortedNotes[0]);
     const expand = sortedNotes.length > 3;
-    const preferBassRoot = options.preferBassRoot ?? true;
+    const voicing = classifyVoicing(sortedNotes);
     const candidates: Candidate[] = [];
+    // The reference detector visits played roots first, then absent virtual roots.
+    // Its map-backed pattern store is lexicographically ordered by pattern name.
+    const roots = [...pcs, ...Array.from({ length: 12 }, (_, root) => root).filter((root) => !pcs.includes(root))];
 
-    for (let root = 0; root < 12; root++) {
+    for (const root of roots) {
         const rootless = !pcs.includes(root);
         const intervals = intervalsFor(root, pcs, expand);
-        for (const candidatePattern of PATTERNS) {
-            if (!isAllowed(candidatePattern, options)) continue;
-            if (rootless && !supportsRootlessVoicing(candidatePattern)) continue;
-            const candidate = scorePattern(intervals, candidatePattern, bass, root, rootless, preferBassRoot);
-            if (candidate && candidate.score > 150) candidates.push(candidate);
+        const exactPatterns = PATTERNS_BY_TYPE.filter((candidatePattern) =>
+            sameIntervals(intervals, candidatePattern.intervals)
+        );
+        for (const candidatePattern of exactPatterns.length > 0 ? exactPatterns : PATTERNS_BY_TYPE) {
+            const candidate = scorePattern(intervals, candidatePattern, bass, root, rootless ? 'rootless' : voicing);
+            if (candidate && candidate.score > SCORE.minimumCandidate) candidates.push(candidate);
         }
     }
     if (candidates.length === 0) return undefined;
 
-    candidates.sort((a, b) => b.score - a.score || Number(a.rootless) - Number(b.rootless));
+    candidates.sort((a, b) => b.score - a.score);
     let best = candidates[0];
-    const secondBest = candidates.find(
-        (candidate) =>
-            candidate !== best && (candidate.root !== best.root || candidate.pattern.type !== best.pattern.type)
-    );
+    const secondBest = candidates[1];
 
     // C6 and Am7 have the same pitch classes. The bass provides the most useful
     // signal; without it, retain the higher-priority major-sixth interpretation.
-    const closeAlternative = candidates.find(
-        (candidate) =>
-            Math.abs(best.score - candidate.score) <= 40 &&
-            new Set([best.pattern.type, candidate.pattern.type]).size === 2 &&
-            [best.pattern.type, candidate.pattern.type].includes('major6') &&
-            [best.pattern.type, candidate.pattern.type].includes('minor7')
-    );
-    if (preferBassRoot && closeAlternative && closeAlternative.root === bass) best = closeAlternative;
+    const topCandidates = candidates.slice(0, 3);
+    const second = topCandidates[1];
+    if (second && best.score - second.score <= 40) {
+        const types = new Set([best.pattern.type, second.pattern.type]);
+        if (types.has('major6') && types.has('minor7')) {
+            if (second.root === bass) best = second;
+            else if (best.root !== bass) best = best.pattern.type === 'major6' ? best : second;
+        } else if (best.pattern.type === 'diminished7' && second.pattern.type === 'diminished7') {
+            if (second.root === bass) best = second;
+        } else if (
+            types.has('minor6') &&
+            types.has('minor') &&
+            second.pattern.type === 'minor6' &&
+            second.root === bass
+        ) {
+            best = second;
+        }
+    }
 
     const confidence = confidenceFor(best, secondBest, sortedNotes.length);
     return {

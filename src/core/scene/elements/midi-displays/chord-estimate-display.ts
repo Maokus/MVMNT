@@ -483,7 +483,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
 
         if (energy > 0) {
             if (method === 'pattern-scoring') {
-                rawPattern = detectPatternChord(midiNoteNumbers, bassPc, detectionOptions);
+                rawPattern = detectPatternChord(midiNoteNumbers, bassPc);
                 chord = rawPattern?.chord;
             } else if (method === 'musicpy') {
                 const result = detectChordMusicpy(midiNoteNumbers, bassPc, { rootPreference: preferBassRoot });

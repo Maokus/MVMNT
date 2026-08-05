@@ -22,6 +22,14 @@ describe('detectPatternChord', () => {
         expect(result!.chord.root).toBe(0);
     });
 
+    it('covers the reference altered and #11 pattern vocabulary', () => {
+        const majorSharp11 = detectPatternChord([C4, E4, G4, 71, D5, 78]);
+        expect(majorSharp11).toMatchObject({ chordType: 'major9#11', symbol: 'maj9♯11' });
+
+        const alteredDominant = detectPatternChord([C4, E4, 68, Bb4, 75, 80]);
+        expect(alteredDominant).toMatchObject({ chordType: 'dominant7#5#9b13', symbol: '7♯5♯9♭13' });
+    });
+
     it('uses the bass to resolve C6 versus Am7', () => {
         const result = detectPatternChord([A4 - 12, C4, E4, G4]);
         expect(result).toMatchObject({ chordType: 'minor7' });
