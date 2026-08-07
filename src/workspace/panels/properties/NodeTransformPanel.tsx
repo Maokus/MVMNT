@@ -34,6 +34,7 @@ import { resolveAutomationValueType } from './KeyframeControl';
 import { aggregateTransformDelta } from './aggregateTransformDelta';
 import { hoveredPropertyRef } from './hoveredPropertyRef';
 import { readFiniteTransformInput, unwrapTransformInputValue } from './nodeTransformInput';
+import { resolveNodeTransformValue } from './nodeTransformValue';
 
 const fields = HOST_NODE_PROPERTY_SCHEMA.filter(
     (field): field is (typeof HOST_NODE_PROPERTY_SCHEMA)[number] & { path: keyof NodeTransform } =>
@@ -297,13 +298,13 @@ export function NodeTransformPanel() {
     };
     const valueFor = (path: keyof NodeTransform | 'localVisible' | 'localOpacity', fallback: unknown) => {
         if (!singleNode) return fallback;
-        const transient = transientNodeTransforms[singleNode.id]?.[path as keyof NodeTransform];
-        if (typeof transient === 'number') return transient;
-        const binding = nodeBindings[singleNode.id]?.[path];
-        if (!binding) return fallback;
-        if (binding.type === 'constant') return binding.value;
-        if (binding.type === 'macro') return macros.byId[binding.macroId]?.value ?? fallback;
-        return automationEvaluator.evaluate(binding.channelId, tick) ?? fallback;
+        return resolveNodeTransformValue({
+            transientValue: transientNodeTransforms[singleNode.id]?.[path as keyof NodeTransform],
+            binding: nodeBindings[singleNode.id]?.[path],
+            fallback,
+            macroValue: (macroId) => macros.byId[macroId]?.value,
+            evaluateChannel: (channelId) => automationEvaluator.evaluate(channelId, tick),
+        });
     };
     const editNodeProperty = (
         nodeId: string,

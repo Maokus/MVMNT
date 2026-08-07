@@ -22,34 +22,7 @@ import { BUILTIN_EXPORT_PRESETS, expandExportFilename } from '@export/export-pre
 import { ExportPerformanceTracker } from '@export/export-performance';
 import { isPendingRenderImported, takePendingRender } from '../desktop/pending-automation';
 import { exportScene } from '@persistence/index';
-
-const BACKGROUND_EXPORT_KEY = 'mvmnt.desktop.background-export.v1';
-
-type BackgroundExportBootstrap = {
-    jobId: string;
-    kind: ExportJobKind;
-    sceneName: string;
-    settings: Partial<ExportSettings>;
-};
-
-function readBackgroundExportBootstrap(): BackgroundExportBootstrap | null {
-    try {
-        const raw = sessionStorage.getItem(BACKGROUND_EXPORT_KEY);
-        if (!raw) return null;
-        const value = JSON.parse(raw) as Partial<BackgroundExportBootstrap>;
-        if (
-            typeof value.jobId !== 'string' ||
-            (value.kind !== 'video' && value.kind !== 'png') ||
-            typeof value.sceneName !== 'string' ||
-            !value.settings ||
-            typeof value.settings !== 'object'
-        )
-            return null;
-        return value as BackgroundExportBootstrap;
-    } catch {
-        return null;
-    }
-}
+import { BACKGROUND_EXPORT_KEY, readBackgroundExportBootstrap } from './visualizer/backgroundExportBootstrap';
 
 interface VisualizerContextValue {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;

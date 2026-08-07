@@ -52,6 +52,9 @@ import {
     type NodeTransform,
     type SceneGraphState,
 } from '@state/scene-graph';
+import { createSceneSnapshot } from './scene/snapshot';
+export { createSceneSnapshot } from './scene/snapshot';
+export type { SceneSnapshot } from './scene/snapshot';
 
 export type BindingState = ConstantBindingState | MacroBindingState | KeyframesBindingState;
 
@@ -278,9 +281,6 @@ export interface SceneStoreComputedExport {
     automation?: AutomationState;
     nodeBindings?: Record<string, ElementBindings>;
 }
-
-/** Canonical persistent representation of the scene store. */
-export type SceneSnapshot = SceneStoreComputedExport;
 
 export interface SceneSerializedElement {
     id: string;
@@ -698,89 +698,6 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
     }
     ensureDefaultAnalysisProfileBinding(bindings);
     return bindings;
-}
-
-function serializeElement(element: SceneElementRecord, bindings: ElementBindings): SceneSerializedElement {
-    const properties: Record<string, PropertyBindingData> = {};
-    for (const [key, binding] of Object.entries(bindings)) {
-        if (key === 'zIndex') continue;
-        if (binding.type === 'constant') {
-            properties[key] = { type: 'constant', value: binding.value } satisfies PropertyBindingData;
-        } else if (binding.type === 'macro') {
-            properties[key] = { type: 'macro', macroId: binding.macroId } satisfies PropertyBindingData;
-        } else if (binding.type === 'keyframes') {
-            properties[key] = { type: 'keyframes', channelId: binding.channelId };
-        }
-    }
-    return {
-        id: element.id,
-        type: element.type,
-        properties,
-    };
-}
-
-/**
- * Create a deep, persistent scene snapshot. This is the sole scene-state
- * boundary for undo/rollback, document export, recovery, and subtree transfer.
- */
-export function createSceneSnapshot(state: SceneStoreState): SceneSnapshot {
-    const elements: Record<string, SceneSerializedElement> = {};
-    const elementErrors: Array<{ id: string; type: string; message: string }> = [];
-    deriveElementOrder(state.graph).forEach((id) => {
-        const element = state.elements[id];
-        if (!element) return;
-        try {
-            elements[id] = serializeElement(element, state.bindings.byElement[id] ?? {});
-        } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            elementErrors.push({ id, type: element.type, message });
-            console.warn(`[createSceneSnapshot] Failed to serialize element ${id} (${element.type}):`, err);
-        }
-    });
-    const fontAssets = state.fonts.order.reduce(
-        (assets, id) => {
-            const asset = state.fonts.assets[id];
-            if (asset) assets[id] = cloneFontAsset(asset);
-            return assets;
-        },
-        {} as Record<string, FontAsset>
-    );
-    const automation = Object.keys(state.automation.channels).length
-        ? {
-              channels: Object.fromEntries(
-                  Object.entries(state.automation.channels).map(([channelId, channel]) => [
-                      channelId,
-                      {
-                          id: channel.id,
-                          target: { owner: { ...channel.target.owner }, propertyPath: channel.target.propertyPath },
-                          keyframes: channel.keyframes.map((keyframe) => ({
-                              ...keyframe,
-                              segmentInterpolation: { ...keyframe.segmentInterpolation },
-                          })),
-                          valueType: channel.valueType,
-                      },
-                  ])
-              ),
-          }
-        : undefined;
-    const nodeBindings = Object.keys(state.nodeBindings).length
-        ? Object.fromEntries(
-              Object.entries(state.nodeBindings).map(([id, bindings]) => [id, cloneBindingsMap(bindings)])
-          )
-        : undefined;
-    return {
-        elements,
-        graph: cloneSceneGraph(state.graph),
-        ...(elementErrors.length ? { elementErrors } : {}),
-        sceneSettings: { ...state.settings },
-        macros: buildMacroPayload(state.macros),
-        ...(Object.keys(fontAssets).length ? { fontAssets } : {}),
-        ...(typeof state.fonts.licensingAcknowledgedAt === 'number'
-            ? { fontLicensingAcknowledgedAt: state.fonts.licensingAcknowledgedAt }
-            : {}),
-        ...(automation ? { automation } : {}),
-        ...(nodeBindings ? { nodeBindings } : {}),
-    };
 }
 
 function createRuntimeMeta(): SceneRuntimeMeta {

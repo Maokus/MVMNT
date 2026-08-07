@@ -33,6 +33,7 @@ import { findReferencedAudioSourceIds, getAudioClipsForTrack } from '@state/time
 import type { AudioCacheEntry } from '@audio/audioTypes';
 import { migrateSceneRotationUnitsV7 } from './migrations/rotationUnitsV7';
 import { prepareTextBoundsMigrationFonts } from './migrations/textBoundsV11';
+import { throwIfImportAborted, throwIfImportAborted as throwIfAborted } from './import-abort';
 
 const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
@@ -75,25 +76,11 @@ interface ParsedArtifact {
     pluginPayloads: Map<string, Uint8Array>;
 }
 
-function createAbortError(): Error {
-    if (typeof DOMException === 'function') {
-        return new DOMException('Import aborted', 'AbortError');
-    }
-    const error = new Error('Import aborted');
-    error.name = 'AbortError';
-    return error;
-}
-
-function throwIfAborted(signal?: AbortSignal): void {
-    if (!signal?.aborted) return;
-    throw createAbortError();
-}
-
 async function parseArtifact(
     input: ImportSceneInput,
     options: ImportSceneOptions = {}
 ): Promise<ParsedArtifact | { error: ImportError }> {
-    throwIfAborted(options.signal);
+    throwIfImportAborted(options.signal);
     options.onProgress?.(0.1, 'Reading scene file…');
     let bytes: Uint8Array | null = null;
     if (input instanceof ArrayBuffer) {
@@ -105,7 +92,7 @@ async function parseArtifact(
     } else if (typeof Blob !== 'undefined' && input instanceof Blob) {
         bytes = new Uint8Array(await input.arrayBuffer());
     }
-    throwIfAborted(options.signal);
+    throwIfImportAborted(options.signal);
 
     if (!bytes) {
         return { error: { code: 'ERR_INPUT_TYPE', message: 'Unsupported import input' } };
