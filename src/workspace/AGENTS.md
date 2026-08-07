@@ -26,6 +26,12 @@ State mutations flow through command gateways (`dispatchSceneCommand`, `dispatch
 - Emit telemetry events for diagnostics
 - Support merge sessions for grouping rapid updates
 
+### Interaction ownership
+
+- Scene keyboard commands belong to `SceneSelectionContext`; do not duplicate scene Delete, Escape, grouping, or nudge handlers in panels.
+- Tree focus is navigational rather than text editing. Reuse the shared editable-target helpers so keyboard commands protect text fields without suppressing tree actions.
+- Panels should call domain actions such as `deleteSelectedNodes` rather than reproducing selection or command logic locally.
+
 ### Real-Time Synchronization
 
 - Canvas rendering updates are driven by store subscriptions and React's useEffect

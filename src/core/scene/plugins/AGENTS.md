@@ -2,6 +2,12 @@
 
 This directory implements host runtime adapters for the public `packages/plugin-sdk` contract. SDK 2 definitions use callback-scoped contexts; global SDK accessors are not supported.
 
+## Pre-release SDK rule
+
+SDK 2 is not released yet. Prefer one clean current contract over shims for earlier SDK 2 designs. When changing it,
+update the SDK package, host adapter, manifest, documentation, and contract-parity tests together. Existing scene
+migrations remain supported independently of SDK evolution.
+
 ## Key Files
 
 | File                     | Role                                                                                              |

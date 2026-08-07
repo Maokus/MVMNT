@@ -37,7 +37,7 @@ const ChangelogPage: React.FC = () => {
                             'API 2.0',
                             [
                                 'Removed API 1.0 support (all elements must be updated to API 2.0)',
-                                'Published mvmnt-app/plugin-sdk and cli helpers to npm',
+                                'Prepared the MVMNT plugin SDK and CLI helpers for publication',
                                 'Better documented seperation between system internals and plugin API should make vibecoding easier',
                                 "Honestly I don't know how to write this changelog basically the whole thing changed...",
                             ],

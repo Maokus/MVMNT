@@ -11,6 +11,15 @@ npm run build
 npm run compile
 ```
 
+Before changing code, read the nearest `AGENTS.md`, identify the owning domain, and check its existing command,
+selection, persistence, and shortcut paths. Add a focused regression test for user-visible bugs.
+
+## Current Compatibility Status
+
+Read [`docs/current-state.md`](docs/current-state.md) before changing scene formats, plugin contracts, or
+compatibility code. MVMNT 0.16 and SDK 2 are pre-release: simplify their current designs freely, but preserve
+tested scene migrations unless their maintenance cost is disproportionate.
+
 If `npm run test` fails because an optional Rollup native dependency is missing, run `npm install` and rerun `npm run test` before continuing.
 
 When asked to "implement phase x" of a plan, read through the requirements and goals of the phase clearly, and do not exit until the goals are met. If the implementation of the phase requires writing code, WRITE THE CODE. DO NOT simply mark the phase as complete.
