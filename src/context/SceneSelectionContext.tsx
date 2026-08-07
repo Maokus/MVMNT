@@ -21,10 +21,10 @@ import {
 } from '@automation/types';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
-import { createDuplicateElementId } from './duplicateElementName';
 import {
     SCENE_ROOT_ID,
     createDuplicateMappings,
+    createDuplicateName,
     isNodeAncestor,
     isNodeEffectivelyLocked,
     normalizeNodeSelection,
@@ -128,6 +128,10 @@ export function isTextEditingTarget(target: EventTarget | null): boolean {
     return Boolean(
         element.closest('input, textarea, select, [contenteditable="true"], [role="textbox"], [role="combobox"]')
     );
+}
+
+export function isSceneDeletionShortcut(event: Pick<KeyboardEvent, 'key' | 'target'>): boolean {
+    return (event.key === 'Backspace' || event.key === 'Delete') && !isTextEditingTarget(event.target);
 }
 
 /** Infer AutomationValueType from a raw value for auto-key channel creation (canvas drag path). */
@@ -468,7 +472,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         (elementId: string) => {
             const store = useSceneStore.getState();
             if (!store.elements[elementId]) return;
-            const duplicateId = createDuplicateElementId(elementId, Object.keys(store.elements));
+            const duplicateId = createDuplicateName(elementId, Object.keys(store.elements));
             const ok = runSceneCommand(
                 { type: 'duplicateElement', sourceId: elementId, newId: duplicateId },
                 'SceneSelectionContext.duplicateElement'
@@ -682,12 +686,12 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                     return;
                 }
             }
-            if (isEditableTarget(event.target)) return;
-            if ((event.key === 'Backspace' || event.key === 'Delete') && selected.length) {
+            if (isSceneDeletionShortcut(event) && selected.length) {
                 event.preventDefault();
                 deleteSelectedNodes();
                 return;
             }
+            if (isEditableTarget(event.target)) return;
             if (event.key === 'Escape' && selected.length) {
                 event.preventDefault();
                 useSelectionStore.getState().selectSceneNodes([], null);

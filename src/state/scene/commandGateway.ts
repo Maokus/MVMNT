@@ -307,17 +307,7 @@ function bindingToConfigValue(binding: BindingState | undefined): unknown {
 }
 
 function captureSceneSnapshot(state: SceneStoreState): SceneImportPayload {
-    const draft = state.exportSceneDraft();
-    return {
-        elements: draft.elements,
-        graph: draft.graph,
-        sceneSettings: draft.sceneSettings,
-        macros: draft.macros ?? null,
-        automation: draft.automation ?? null,
-        nodeBindings: draft.nodeBindings ?? null,
-        fontAssets: draft.fontAssets,
-        fontLicensingAcknowledgedAt: draft.fontLicensingAcknowledgedAt,
-    };
+    return state.exportSceneDraft();
 }
 
 function cloneCommand<T extends SceneCommand>(command: T): T {

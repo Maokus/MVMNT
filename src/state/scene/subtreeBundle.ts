@@ -13,7 +13,7 @@ import {
     type SceneGraphState,
     type SceneNode,
 } from '@state/scene-graph';
-import { createDuplicateName } from '@context/duplicateElementName';
+import { createDuplicateName } from '@state/scene-graph';
 import type {
     BindingState,
     ElementBindings,

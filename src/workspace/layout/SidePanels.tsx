@@ -169,9 +169,6 @@ const SidePanelsInternal: React.FC = () => {
         clearSelection,
         updateElementConfig,
         addElement,
-        deleteElement,
-        deleteSelectedNodes,
-        selectedNodeIds,
     } = useSceneSelection();
 
     // Debug settings now handled in GlobalPropertiesPanel
@@ -199,37 +196,14 @@ const SidePanelsInternal: React.FC = () => {
             }
         };
 
-        const handleKeyPress = (event: KeyboardEvent) => {
-            // Avoid interfering with typing inside inputs/textareas
-            const target = event.target as HTMLElement | null;
-            const isEditable =
-                !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
-            // Clear selection on Escape key
-            if (event.key === 'Escape' && selectedElementId) {
-                console.log('Escape key pressed, clearing selection');
-                clearSelection();
-                return;
-            }
-            // Prefer the scene-tree selection so Delete handles multiple elements and groups.
-            if (!isEditable && (event.key === 'Delete' || event.key === 'Backspace')) {
-                if (selectedNodeIds.length) {
-                    deleteSelectedNodes();
-                } else if (selectedElementId) {
-                    deleteElement(selectedElementId);
-                }
-            }
-        };
-
         // Add event listeners to document
         document.addEventListener('mousedown', handleClickOutside);
-        document.addEventListener('keydown', handleKeyPress);
 
         // Cleanup event listeners on unmount
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
-            document.removeEventListener('keydown', handleKeyPress);
         };
-    }, [selectedElementId, selectedNodeIds, clearSelection, deleteElement, deleteSelectedNodes, canvasRef]);
+    }, [selectedElementId, clearSelection, canvasRef]);
 
     // Wrapper to handle adding element and closing dropdown
     const handleAddElementAndCloseDropdown = (elementType: string) => {

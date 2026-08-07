@@ -8,7 +8,7 @@ import {
 } from './math';
 import { buildSceneGraphNavigationIndex } from './graph';
 import { cloneSceneGraph, createNodeBase, type Matrix2D, type SceneGraphState, type SceneNode } from './types';
-import { createDuplicateName } from '../../context/duplicateElementName';
+import { createDuplicateName } from './naming';
 
 export interface DuplicateMappings {
     nodeIdMap: Record<string, string>;
