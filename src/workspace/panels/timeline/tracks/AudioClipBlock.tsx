@@ -95,10 +95,10 @@ const AudioClipBlock: React.FC<Props> = ({
         dragTick == null
             ? timelineBounds
             : getAudioClipTimelineBounds(
-                useTimelineStore.getState().audioCache,
-                { ...clip, offsetTicks: offsetTick },
-                timingContext
-            );
+                  useTimelineStore.getState().audioCache,
+                  { ...clip, offsetTicks: offsetTick },
+                  timingContext
+              );
     if (!movedBounds) return null;
     const absStartTick = resizePreview?.start != null ? clip.offsetTicks + resizePreview.start : movedBounds.startTick;
     const absEndTick = resizePreview?.end != null ? clip.offsetTicks + resizePreview.end : movedBounds.endTick;
@@ -106,17 +106,17 @@ const AudioClipBlock: React.FC<Props> = ({
     const localEndTick = absEndTick - offsetTick;
     const previewSourceBounds = resizePreview
         ? {
-            startSeconds: Math.max(
-                0,
-                ticksToSeconds(timingContext, clip.offsetTicks + resizePreview.start) -
-                ticksToSeconds(timingContext, clip.offsetTicks)
-            ),
-            endSeconds: Math.max(
-                0,
-                ticksToSeconds(timingContext, clip.offsetTicks + resizePreview.end) -
-                ticksToSeconds(timingContext, clip.offsetTicks)
-            ),
-        }
+              startSeconds: Math.max(
+                  0,
+                  ticksToSeconds(timingContext, clip.offsetTicks + resizePreview.start) -
+                      ticksToSeconds(timingContext, clip.offsetTicks)
+              ),
+              endSeconds: Math.max(
+                  0,
+                  ticksToSeconds(timingContext, clip.offsetTicks + resizePreview.end) -
+                      ticksToSeconds(timingContext, clip.offsetTicks)
+              ),
+          }
         : sourceBounds;
     const leftX = toX(absStartTick, laneWidth);
     const rightX = toX(absEndTick, laneWidth);
@@ -152,8 +152,8 @@ const AudioClipBlock: React.FC<Props> = ({
         const audioStatus = isAudioLoading
             ? '\nAudio is loading…'
             : audioLoadFailed
-                ? '\nAudio could not be loaded yet'
-                : '';
+              ? '\nAudio could not be loaded yet'
+              : '';
         return `Clip: ${displayName}\n${snapInfo}\nOffset ${label}${audioStatus}`;
     }, [audioLoadFailed, displayName, isAudioLoading, label, quantize]);
 
@@ -188,7 +188,7 @@ const AudioClipBlock: React.FC<Props> = ({
         try {
             const clipEl = clipElRef.current;
             if (clipEl?.hasPointerCapture?.(pointerId)) clipEl.releasePointerCapture(pointerId);
-        } catch { }
+        } catch {}
     };
 
     const finishPointerGesture = (pointerId: number | null) => {
@@ -297,11 +297,11 @@ const AudioClipBlock: React.FC<Props> = ({
                 const ti = storeState.tracksOrder.indexOf(entry.trackId);
                 return targetClip
                     ? {
-                        trackId: entry.trackId,
-                        clipId: entry.clipId,
-                        offsetTicks: targetClip.offsetTicks,
-                        trackIndex: ti,
-                    }
+                          trackId: entry.trackId,
+                          clipId: entry.clipId,
+                          offsetTicks: targetClip.offsetTicks,
+                          trackIndex: ti,
+                      }
                     : null;
             })
             .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));

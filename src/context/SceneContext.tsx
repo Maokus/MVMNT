@@ -9,6 +9,7 @@ import { LocalFileStore } from '@persistence/local-file-store';
 import { useDirtyTracking } from '@hooks/useDirtyTracking';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
 import { useTimelineStore } from '@state/timelineStore';
+import { isTextEditingTarget, useGlobalShortcut } from './shortcuts/shortcutRegistry';
 
 interface SceneContextValue {
     sceneName: string;
@@ -146,16 +147,17 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     // Expose markClean so TemplateInitializer can call it after loading from IDB
     const markSaveClean = markClean;
 
-    useEffect(() => {
-        if (!unsavedChangesPrompt) return;
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key !== 'Escape') return;
+    useGlobalShortcut({
+        id: 'modal.unsaved-changes',
+        domain: 'modal',
+        enabled: Boolean(unsavedChangesPrompt),
+        matches: (event) => event.key === 'Escape',
+        handle: (event) => {
             event.preventDefault();
             chooseUnsavedChangesDecision('cancel');
-        };
-        window.addEventListener('keydown', handleKeyDown, { capture: true });
-        return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-    }, [chooseUnsavedChangesDecision, unsavedChangesPrompt]);
+            return true;
+        },
+    });
 
     const leaveWorkspace = useCallback(async (): Promise<boolean> => {
         if (isDirty) {
@@ -214,37 +216,22 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         [closeExportModal, menuBarActions, updateSceneName]
     );
 
-    // -------------------------------------------------------------------------
-    // Keyboard shortcuts
-    // -------------------------------------------------------------------------
-    useEffect(() => {
-        const handler = (event: KeyboardEvent) => {
-            if (!(event.ctrlKey || event.metaKey)) return;
-            const key = event.key.toLowerCase();
-            if (key !== 's' && key !== 'o' && key !== 'n') return;
-            const target = event.target as HTMLElement | null;
-            const tag = target?.tagName;
-            const isEditable = !!(
-                target &&
-                (target.isContentEditable ||
-                    tag === 'INPUT' ||
-                    tag === 'TEXTAREA' ||
-                    target.getAttribute?.('role') === 'textbox')
-            );
-            if (isEditable) return;
+    useGlobalShortcut({
+        id: 'document.file',
+        domain: 'document',
+        matches: (event) =>
+            (event.ctrlKey || event.metaKey) &&
+            !isTextEditingTarget(event.target) &&
+            ['s', 'o', 'n'].includes(event.key.toLowerCase()),
+        handle: (event) => {
             event.preventDefault();
-            if (key === 's') {
-                if (event.shiftKey) void saveAs();
-                else void saveToLocal();
-            } else if (key === 'o') {
-                loadScene();
-            } else if (key === 'n') {
-                menuBarActions.createNewDefaultScene();
-            }
-        };
-        window.addEventListener('keydown', handler, { capture: true });
-        return () => window.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
-    }, [loadScene, menuBarActions, saveAs, saveToLocal]);
+            const key = event.key.toLowerCase();
+            if (key === 's') void (event.shiftKey ? saveAs() : saveToLocal());
+            else if (key === 'o') loadScene();
+            else menuBarActions.createNewDefaultScene();
+            return true;
+        },
+    });
 
     // -------------------------------------------------------------------------
     // Electron desktop bridge

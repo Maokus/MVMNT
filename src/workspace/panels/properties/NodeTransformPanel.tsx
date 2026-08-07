@@ -33,15 +33,12 @@ import { elementPropertyDescriptors, hostPropertyDescriptors } from '@state/scen
 import { resolveAutomationValueType } from './KeyframeControl';
 import { aggregateTransformDelta } from './aggregateTransformDelta';
 import { hoveredPropertyRef } from './hoveredPropertyRef';
+import { readFiniteTransformInput, unwrapTransformInputValue } from './nodeTransformInput';
 
 const fields = HOST_NODE_PROPERTY_SCHEMA.filter(
     (field): field is (typeof HOST_NODE_PROPERTY_SCHEMA)[number] & { path: keyof NodeTransform } =>
         field.path !== 'localVisible' && field.path !== 'localOpacity'
 );
-
-function valueOf(change: unknown): unknown {
-    return change && typeof change === 'object' && 'value' in change ? (change as FormInputChange).value : change;
-}
 
 interface TransformRowProps {
     label: string;
@@ -121,8 +118,8 @@ function TransformRow({
                     schema={schema ?? { step: 1 }}
                     disabled={readOnly}
                     onChange={(change) => {
-                        const next = Number(valueOf(change));
-                        if (Number.isFinite(next)) onChange?.(next, change as FormInputChange);
+                        const next = readFiniteTransformInput(change);
+                        if (next != null) onChange?.(next, change as FormInputChange);
                     }}
                 />
             )}
@@ -516,7 +513,7 @@ export function NodeTransformPanel() {
                         disabled={nodeBindings[nodes[0].id]?.localVisible?.type === 'macro'}
                         schema={{}}
                         onChange={(value) => {
-                            const visible = Boolean(valueOf(value));
+                            const visible = Boolean(unwrapTransformInputValue(value));
                             editNodeProperty(nodes[0].id, 'localVisible', visible, 'boolean');
                         }}
                     />
@@ -529,7 +526,11 @@ export function NodeTransformPanel() {
                         schema={{}}
                         onChange={(value) =>
                             dispatchForAll([
-                                { type: 'setNodeLocked', nodeId: nodes[0].id, locked: Boolean(valueOf(value)) },
+                                {
+                                    type: 'setNodeLocked',
+                                    nodeId: nodes[0].id,
+                                    locked: Boolean(unwrapTransformInputValue(value)),
+                                },
                             ])
                         }
                     />
@@ -556,8 +557,8 @@ export function NodeTransformPanel() {
                         schema={{ min: 0, max: 1, step: 0.01 }}
                         disabled={nodeBindings[nodes[0].id]?.localOpacity?.type === 'macro'}
                         onChange={(change) => {
-                            const opacity = Number(valueOf(change));
-                            if (Number.isFinite(opacity)) {
+                            const opacity = readFiniteTransformInput(change);
+                            if (opacity != null) {
                                 editNodeProperty(
                                     nodes[0].id,
                                     'localOpacity',

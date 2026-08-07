@@ -14,6 +14,7 @@ import {
     type SceneNode,
 } from '@state/scene-graph';
 import { createDuplicateName } from '@state/scene-graph';
+import { createSceneSnapshot } from '@state/sceneStore';
 import type {
     BindingState,
     ElementBindings,
@@ -87,7 +88,7 @@ export function createSceneSubtreeBundle(state: SceneStoreState, nodeIds: readon
         if (node.kind === 'element') includedElementIds.add(node.elementId);
     }
 
-    const draft = state.exportSceneDraft();
+    const draft = createSceneSnapshot(state);
     const elements = Object.fromEntries(
         [...includedElementIds].flatMap((id) => (draft.elements[id] ? [[id, cloneValue(draft.elements[id])]] : []))
     );
@@ -193,7 +194,7 @@ export function buildSceneSubtreeImport(
         channelIds[id] = allocated;
     }
 
-    const draft = state.exportSceneDraft();
+    const draft = createSceneSnapshot(state);
     const elements = { ...draft.elements };
     for (const [oldId, element] of Object.entries(bundle.elements)) {
         const id = elementIds[oldId];

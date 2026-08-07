@@ -1,5 +1,6 @@
 import { useCallback, useEffect, type Dispatch, type SetStateAction } from 'react';
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
+import { isTextEditingTarget, useGlobalShortcut } from '../shortcuts/shortcutRegistry';
 
 interface UseTransportBridgeArgs {
     visualizer: any | null;
@@ -21,62 +22,27 @@ export function useTransportBridge({ visualizer, setIsPlaying }: UseTransportBri
         togglePlay();
     }, []);
 
-    useEffect(() => {
-        const handleKey = (e: KeyboardEvent) => {
-            const ctrlOrCmd = e.ctrlKey || e.metaKey;
-
-            if (ctrlOrCmd && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
-                const target = e.target as HTMLElement | null;
-                const tag = target?.tagName;
-                let isEditing = false;
-                if (target) {
-                    if (target.isContentEditable) {
-                        isEditing = true;
-                    } else if (tag === 'TEXTAREA') {
-                        isEditing = true;
-                    } else if (tag === 'INPUT') {
-                        const type = (target as HTMLInputElement).type;
-                        const textLike = ['text', 'search', 'url', 'tel', 'email', 'password'];
-                        if (textLike.includes(type)) isEditing = true;
-                    }
-                }
-                if (isEditing) return;
-                e.preventDefault();
-                try {
-                    const st = useTimelineStore.getState();
-                    const next =
-                        e.code === 'ArrowLeft' ? Math.max(0, st.timeline.currentTick - 1) : st.timeline.currentTick + 1;
-                    st.seekTick(next);
-                } catch {}
-                return;
+    useGlobalShortcut({
+        id: 'transport.playback',
+        domain: 'transport',
+        matches: (event) => {
+            if (isTextEditingTarget(event.target)) return false;
+            return (
+                event.code === 'Space' ||
+                ((event.ctrlKey || event.metaKey) && ['ArrowLeft', 'ArrowRight'].includes(event.code))
+            );
+        },
+        handle: (event) => {
+            event.preventDefault();
+            const state = useTimelineStore.getState();
+            if ((event.ctrlKey || event.metaKey) && event.code.startsWith('Arrow')) {
+                state.seekTick(Math.max(0, state.timeline.currentTick + (event.code === 'ArrowLeft' ? -1 : 1)));
+            } else {
+                state.togglePlay();
             }
-
-            if (e.code === 'Space' || e.key === ' ') {
-                const target = e.target as HTMLElement | null;
-                const tag = target?.tagName;
-                let isEditing = false;
-                if (target) {
-                    if (target.isContentEditable) {
-                        isEditing = true;
-                    } else if (tag === 'TEXTAREA') {
-                        isEditing = true;
-                    } else if (tag === 'INPUT') {
-                        const type = (target as HTMLInputElement).type;
-                        const textLike = ['text', 'search', 'url', 'tel', 'email', 'password'];
-                        if (textLike.includes(type)) isEditing = true;
-                    }
-                }
-                if (isEditing) return;
-                e.preventDefault();
-                try {
-                    const { togglePlay } = useTimelineStore.getState();
-                    togglePlay();
-                } catch {}
-            }
-        };
-        window.addEventListener('keydown', handleKey);
-        return () => window.removeEventListener('keydown', handleKey);
-    }, []);
+            return true;
+        },
+    });
 
     const tIsPlaying = useTimelineStore((s) => s.transport.isPlaying);
     useEffect(() => {

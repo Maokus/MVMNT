@@ -279,6 +279,9 @@ export interface SceneStoreComputedExport {
     nodeBindings?: Record<string, ElementBindings>;
 }
 
+/** Canonical persistent representation of the scene store. */
+export type SceneSnapshot = SceneStoreComputedExport;
+
 export interface SceneSerializedElement {
     id: string;
     type: string;
@@ -713,6 +716,70 @@ function serializeElement(element: SceneElementRecord, bindings: ElementBindings
         id: element.id,
         type: element.type,
         properties,
+    };
+}
+
+/**
+ * Create a deep, persistent scene snapshot. This is the sole scene-state
+ * boundary for undo/rollback, document export, recovery, and subtree transfer.
+ */
+export function createSceneSnapshot(state: SceneStoreState): SceneSnapshot {
+    const elements: Record<string, SceneSerializedElement> = {};
+    const elementErrors: Array<{ id: string; type: string; message: string }> = [];
+    deriveElementOrder(state.graph).forEach((id) => {
+        const element = state.elements[id];
+        if (!element) return;
+        try {
+            elements[id] = serializeElement(element, state.bindings.byElement[id] ?? {});
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            elementErrors.push({ id, type: element.type, message });
+            console.warn(`[createSceneSnapshot] Failed to serialize element ${id} (${element.type}):`, err);
+        }
+    });
+    const fontAssets = state.fonts.order.reduce(
+        (assets, id) => {
+            const asset = state.fonts.assets[id];
+            if (asset) assets[id] = cloneFontAsset(asset);
+            return assets;
+        },
+        {} as Record<string, FontAsset>
+    );
+    const automation = Object.keys(state.automation.channels).length
+        ? {
+              channels: Object.fromEntries(
+                  Object.entries(state.automation.channels).map(([channelId, channel]) => [
+                      channelId,
+                      {
+                          id: channel.id,
+                          target: { owner: { ...channel.target.owner }, propertyPath: channel.target.propertyPath },
+                          keyframes: channel.keyframes.map((keyframe) => ({
+                              ...keyframe,
+                              segmentInterpolation: { ...keyframe.segmentInterpolation },
+                          })),
+                          valueType: channel.valueType,
+                      },
+                  ])
+              ),
+          }
+        : undefined;
+    const nodeBindings = Object.keys(state.nodeBindings).length
+        ? Object.fromEntries(
+              Object.entries(state.nodeBindings).map(([id, bindings]) => [id, cloneBindingsMap(bindings)])
+          )
+        : undefined;
+    return {
+        elements,
+        graph: cloneSceneGraph(state.graph),
+        ...(elementErrors.length ? { elementErrors } : {}),
+        sceneSettings: { ...state.settings },
+        macros: buildMacroPayload(state.macros),
+        ...(Object.keys(fontAssets).length ? { fontAssets } : {}),
+        ...(typeof state.fonts.licensingAcknowledgedAt === 'number'
+            ? { fontLicensingAcknowledgedAt: state.fonts.licensingAcknowledgedAt }
+            : {}),
+        ...(automation ? { automation } : {}),
+        ...(nodeBindings ? { nodeBindings } : {}),
     };
 }
 
@@ -2069,75 +2136,7 @@ const createSceneStoreState = (
         });
     },
 
-    exportSceneDraft: () => {
-        const state = get();
-        const elements: Record<string, SceneSerializedElement> = {};
-        const elementErrors: Array<{ id: string; type: string; message: string }> = [];
-        deriveElementOrder(state.graph).forEach((id) => {
-            const element = state.elements[id];
-            if (!element) return;
-            const bindings = state.bindings.byElement[id] ?? {};
-            try {
-                elements[id] = serializeElement(element, bindings);
-            } catch (err) {
-                const message = err instanceof Error ? err.message : String(err);
-                elementErrors.push({ id, type: element.type, message });
-                console.warn(`[exportSceneDraft] Failed to serialize element ${id} (${element.type}):`, err);
-            }
-        });
-        const fontAssets = state.fonts.order.reduce(
-            (acc, id) => {
-                const asset = state.fonts.assets[id];
-                if (asset) acc[id] = cloneFontAsset(asset);
-                return acc;
-            },
-            {} as Record<string, FontAsset>
-        );
-        return {
-            elements,
-            graph: cloneSceneGraph(state.graph),
-            ...(elementErrors.length > 0 ? { elementErrors } : {}),
-            sceneSettings: { ...state.settings },
-            macros: buildMacroPayload(state.macros),
-            ...(Object.keys(fontAssets).length ? { fontAssets } : {}),
-            ...(typeof state.fonts.licensingAcknowledgedAt === 'number'
-                ? { fontLicensingAcknowledgedAt: state.fonts.licensingAcknowledgedAt }
-                : {}),
-            ...(Object.keys(state.automation.channels).length
-                ? {
-                      automation: {
-                          channels: Object.fromEntries(
-                              Object.entries(state.automation.channels).map(([channelId, channel]) => [
-                                  channelId,
-                                  {
-                                      id: channel.id,
-                                      target: {
-                                          owner: { ...channel.target.owner },
-                                          propertyPath: channel.target.propertyPath,
-                                      },
-                                      keyframes: channel.keyframes.map((keyframe) => ({
-                                          ...keyframe,
-                                          segmentInterpolation: { ...keyframe.segmentInterpolation },
-                                      })),
-                                      valueType: channel.valueType,
-                                  },
-                              ])
-                          ),
-                      },
-                  }
-                : {}),
-            ...(Object.keys(state.nodeBindings).length
-                ? {
-                      nodeBindings: Object.fromEntries(
-                          Object.entries(state.nodeBindings).map(([nodeId, bindings]) => [
-                              nodeId,
-                              cloneBindingsMap(bindings),
-                          ])
-                      ),
-                  }
-                : {}),
-        };
-    },
+    exportSceneDraft: () => createSceneSnapshot(get()),
 
     replaceMacros: (payload) => {
         set((state) => ({

@@ -2,7 +2,7 @@ import { useTimelineStore, sharedTimingManager } from '@state/timelineStore';
 import { resolveTempoKeyframes } from '@core/timing/tempo-automation-resolver';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { serializeStable } from './stable-stringify';
-import { useSceneStore } from '@state/sceneStore';
+import { createSceneSnapshot, useSceneStore } from '@state/sceneStore';
 import type { SceneSerializedElement } from '@state/sceneStore';
 import { getMacroSnapshot, replaceMacrosFromSnapshot } from '@state/scene/macroSyncService';
 import { migrateSceneAudioSystemV5 } from './migrations/audioSystemV5';
@@ -103,7 +103,7 @@ export const DocumentGateway = {
         let elementWarnings: string[] | undefined;
 
         try {
-            const snapshot = useSceneStore.getState().exportSceneDraft();
+            const snapshot = createSceneSnapshot(useSceneStore.getState());
             elements = snapshot.elements ?? {};
             graph = snapshot.graph;
             if (snapshot.elementErrors?.length) {

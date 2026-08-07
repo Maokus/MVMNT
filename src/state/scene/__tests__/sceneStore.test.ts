@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
-import { createSceneStore } from '@state/sceneStore';
+import { createSceneSnapshot, createSceneStore } from '@state/sceneStore';
 import { createFlatSceneGraph, deriveElementOrder } from '@state/scene-graph';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 import type { FontAsset } from '@state/scene/fonts';
 import { createSceneSelectors } from '@state/scene/selectors';
 import audioMacroFixture from '@persistence/__fixtures__/baseline/scene.audio-feature-macro.json';
-import { elementPropertyTarget } from '@automation/types';
+import { createKeyframe, elementPropertyTarget } from '@automation/types';
 
 type Store = ReturnType<typeof createSceneStore>;
 
@@ -29,6 +29,43 @@ describe('sceneStore', () => {
         expect(exported.sceneSettings).toEqual(fixture.sceneSettings);
         expect(exported.elements).toEqual(fixture.elements);
         expect(exported.macros).toEqual(fixture.macros);
+    });
+
+    it('round-trips every persistent scene slice through the canonical snapshot', () => {
+        importFixture();
+        const font: FontAsset = {
+            id: 'contract-font',
+            family: 'Contract Family',
+            originalFileName: 'contract.ttf',
+            fileSize: 128,
+            createdAt: 1,
+            updatedAt: 2,
+            licensingAcknowledged: true,
+            variants: [{ id: 'regular', weight: 400, style: 'normal', sourceFormat: 'ttf' }],
+        };
+        store.getState().registerFontAsset(font);
+        store.getState().acknowledgeFontLicensing(42);
+        const elementId = Object.keys(store.getState().elements)[0]!;
+        store.getState().setAutomationChannel({
+            id: 'contract-channel',
+            target: elementPropertyTarget(elementId, 'opacity'),
+            valueType: 'number',
+            keyframes: [createKeyframe(0, 1)],
+        });
+
+        const snapshot = createSceneSnapshot(store.getState());
+        const restored = createSceneStore();
+        restored.getState().importScene(snapshot);
+        const roundTrip = createSceneSnapshot(restored.getState());
+
+        expect(roundTrip.elements).toEqual(snapshot.elements);
+        expect(roundTrip.graph).toEqual(snapshot.graph);
+        expect(roundTrip.sceneSettings).toEqual(snapshot.sceneSettings);
+        expect(roundTrip.macros).toEqual(snapshot.macros);
+        expect(roundTrip.fontAssets).toEqual(snapshot.fontAssets);
+        expect(roundTrip.fontLicensingAcknowledgedAt).toBe(42);
+        expect(roundTrip.automation).toEqual(snapshot.automation);
+        expect(roundTrip.nodeBindings).toEqual(snapshot.nodeBindings);
     });
 
     it('migrates imported element offsets into host node position', () => {

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPatchUndoController } from '@persistence/index';
 import { useTimelineStore } from '@state/timelineStore';
+import { isTextEditingTarget, useGlobalShortcut } from './shortcuts/shortcutRegistry';
 
 interface UndoContextValue {
     canUndo: boolean;
@@ -36,39 +37,25 @@ export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
     }, [enabled]);
 
-    // Global keyboard shortcuts (Cmd/Ctrl+Z and redo variants)
-    useEffect(() => {
-        const handler = (e: KeyboardEvent) => {
-            const meta = e.metaKey || e.ctrlKey;
-            if (!meta) return;
-            if (e.key.toLowerCase() === 'z') {
-                if (e.shiftKey) {
-                    if (controllerRef.current?.canRedo()) {
-                        e.preventDefault();
-                        controllerRef.current.redo();
-                        forceTick((t) => t + 1);
-                        window.dispatchEvent(new CustomEvent('mvmnt-undo-applied'));
-                    }
-                } else {
-                    if (controllerRef.current?.canUndo()) {
-                        e.preventDefault();
-                        controllerRef.current.undo();
-                        forceTick((t) => t + 1);
-                        window.dispatchEvent(new CustomEvent('mvmnt-undo-applied'));
-                    }
-                }
-            } else if (e.key.toLowerCase() === 'y') {
-                if (controllerRef.current?.canRedo()) {
-                    e.preventDefault();
-                    controllerRef.current.redo();
-                    forceTick((t) => t + 1);
-                    window.dispatchEvent(new CustomEvent('mvmnt-undo-applied'));
-                }
-            }
-        };
-        window.addEventListener('keydown', handler);
-        return () => window.removeEventListener('keydown', handler);
-    }, [enabled]);
+    useGlobalShortcut({
+        id: 'undo.history',
+        domain: 'undo',
+        matches: (event) =>
+            (event.metaKey || event.ctrlKey) &&
+            !isTextEditingTarget(event.target) &&
+            ['z', 'y'].includes(event.key.toLowerCase()),
+        handle: (event) => {
+            const redo = event.key.toLowerCase() === 'y' || event.shiftKey;
+            const controller = controllerRef.current;
+            if (!controller || (redo ? !controller.canRedo() : !controller.canUndo())) return false;
+            event.preventDefault();
+            if (redo) controller.redo();
+            else controller.undo();
+            forceTick((tick) => tick + 1);
+            window.dispatchEvent(new CustomEvent('mvmnt-undo-applied'));
+            return true;
+        },
+    });
 
     const value: UndoContextValue = useMemo(
         () => ({

@@ -45,6 +45,7 @@ import {
     type Matrix2D,
 } from '@state/scene-graph';
 import { buildSceneSubtreeImport, type SceneSubtreeBundle, type SceneSubtreeImportOptions } from './subtreeBundle';
+import { sceneCommandDefinition } from './commandDefinitions';
 
 export type SceneCommand =
     | {
@@ -1042,29 +1043,12 @@ function now() {
     return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
 
-function requiresRollbackSnapshot(command: SceneCommand): boolean {
-    return [
-        'batch',
-        'importSubtreeBundle',
-        'replaceGraph',
-        'groupNodes',
-        'ungroupNode',
-        'deleteSubtrees',
-        'duplicateSubtrees',
-        'reorderNodes',
-        'reparentNodes',
-        'transformNodes',
-        'enablePropertyAutomation',
-        'disablePropertyAutomation',
-        'updatePropertyTargetBinding',
-    ].includes(command.type);
-}
-
 export function dispatchSceneCommand(command: SceneCommand, options?: SceneCommandOptions): SceneCommandResult {
     const start = now();
     ensureMacroSync();
     const store = useSceneStore.getState();
-    const snapshotBefore = requiresRollbackSnapshot(command) ? captureSceneSnapshot(store) : null;
+    const definition = sceneCommandDefinition(command);
+    const snapshotBefore = definition.rollback === 'inverse-patch' ? null : captureSceneSnapshot(store);
     const patch = buildSceneCommandPatch(store, command);
 
     let result: SceneCommandResult;

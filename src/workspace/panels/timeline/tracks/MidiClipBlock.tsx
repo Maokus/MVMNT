@@ -175,7 +175,7 @@ const MidiClipBlock: React.FC<Props> = ({
             if (clipEl?.hasPointerCapture?.(pointerId)) {
                 clipEl.releasePointerCapture(pointerId);
             }
-        } catch { }
+        } catch {}
     };
 
     const finishPointerGesture = (pointerId: number | null) => {
@@ -273,11 +273,11 @@ const MidiClipBlock: React.FC<Props> = ({
                 const ti = storeState.tracksOrder.indexOf(entry.trackId);
                 return targetClip
                     ? {
-                        trackId: entry.trackId,
-                        clipId: entry.clipId,
-                        offsetTicks: targetClip.offsetTicks,
-                        trackIndex: ti,
-                    }
+                          trackId: entry.trackId,
+                          clipId: entry.clipId,
+                          offsetTicks: targetClip.offsetTicks,
+                          trackIndex: ti,
+                      }
                     : null;
             })
             .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
@@ -407,8 +407,9 @@ const MidiClipBlock: React.FC<Props> = ({
 
     return (
         <div
-            className={`timeline-clip timeline-clip--midi absolute top-1/2 -translate-y-1/2 ${isCrossDragging ? 'opacity-30 pointer-events-none' : ''
-                } ${isSelected ? 'bg-sky-500/65 border border-sky-200/90' : 'bg-blue-500/40 border border-blue-400/60'}`}
+            className={`timeline-clip timeline-clip--midi absolute top-1/2 -translate-y-1/2 ${
+                isCrossDragging ? 'opacity-30 pointer-events-none' : ''
+            } ${isSelected ? 'bg-sky-500/65 border border-sky-200/90' : 'bg-blue-500/40 border border-blue-400/60'}`}
             ref={clipElRef}
             style={
                 {

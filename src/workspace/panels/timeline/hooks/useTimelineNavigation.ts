@@ -15,6 +15,7 @@ import {
     getMidiClipsInTimelineSelection,
     prepareTimelineClipPaste,
 } from '../clipboard/midiClipClipboard';
+import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 
 /**
  * Provides view preset callbacks (fitAll, zoomToSelection, centerOnPlayhead, frameSelection)
@@ -135,9 +136,14 @@ export function useTimelineNavigation() {
     }, [zoomToSelection, centerOnPlayhead]);
 
     // Keyboard shortcuts: zoom, navigate, snap toggle
-    useEffect(() => {
-        const ZOOM_STEP = 1.3;
-        const handler = (e: KeyboardEvent) => {
+    useGlobalShortcut({
+        id: 'timeline.navigation',
+        domain: 'timeline',
+        matches: (event) =>
+            !isEditableTarget(event.target as Element | null) &&
+            ['+', '=', '-', '!', '@', 'f', 'F', 's', 'S', 'ArrowLeft', 'ArrowRight'].includes(event.key),
+        handle: (e) => {
+            const ZOOM_STEP = 1.3;
             if (isEditableTarget(document.activeElement)) return;
             const state = useTimelineStore.getState();
             const { startTick, endTick } = state.timelineView;
@@ -198,18 +204,21 @@ export function useTimelineNavigation() {
                 default:
                     break;
             }
-        };
-        window.addEventListener('keydown', handler, { capture: true });
-        return () => window.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
-    }, [fitAll, zoomToSelection, frameSelection]);
+            return e.defaultPrevented;
+        },
+    });
 
     // Cmd+A: select all clips when clip timeline is active
-    useEffect(() => {
-        const handler = (e: KeyboardEvent) => {
-            if (isEditableTarget(document.activeElement)) return;
-            if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'a') return;
+    useGlobalShortcut({
+        id: 'timeline.select-all-clips',
+        domain: 'timeline',
+        matches: (event) =>
+            (event.ctrlKey || event.metaKey) &&
+            event.key.toLowerCase() === 'a' &&
+            !isEditableTarget(event.target as Element | null),
+        handle: (e) => {
             const sel = useSelectionStore.getState();
-            if (sel.activeTarget !== 'clipTimeline') return;
+            if (sel.activeTarget !== 'clipTimeline') return false;
             const state = useTimelineStore.getState();
             const allRefs: Array<{ trackId: string; clipId: string; kind: 'midi' | 'audio' }> = [];
             for (const trackId of state.tracksOrder) {
@@ -229,11 +238,11 @@ export function useTimelineNavigation() {
                 sel.selectClipTimeline({ type: 'clips', clips: allRefs });
                 e.preventDefault();
                 e.stopPropagation();
+                return true;
             }
-        };
-        window.addEventListener('keydown', handler, { capture: true });
-        return () => window.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
-    }, []);
+            return false;
+        },
+    });
 
     // Resolve paste destination from current selection state
     const resolvePasteDestination = () => {
@@ -344,10 +353,15 @@ export function useTimelineNavigation() {
     };
 
     // Cmd+C / Cmd+V copy-paste
-    useEffect(() => {
-        const handler = (e: KeyboardEvent) => {
-            if (isEditableTarget(document.activeElement)) return;
-            if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    useGlobalShortcut({
+        id: 'timeline.clipboard',
+        domain: 'timeline',
+        matches: (event) =>
+            (event.ctrlKey || event.metaKey) &&
+            !event.altKey &&
+            ['c', 'v'].includes(event.key.toLowerCase()) &&
+            !isEditableTarget(event.target as Element | null),
+        handle: (e) => {
             const key = e.key.toLowerCase();
 
             if (key === 'c') {
@@ -359,82 +373,92 @@ export function useTimelineNavigation() {
                 if (copied) {
                     e.preventDefault();
                     e.stopPropagation();
+                    return true;
                 }
-                return;
+                return false;
             }
 
             if (key === 'v') {
                 const clipboard = getTimelineClipClipboard();
-                if (!clipboard) return;
+                if (!clipboard) return false;
                 const destination = resolvePasteDestination();
-                if (!destination) return;
+                if (!destination) return false;
                 const prepared = prepareTimelineClipPaste(useTimelineStore.getState(), clipboard, destination);
-                if (!prepared) return;
+                if (!prepared) return false;
                 e.preventDefault();
                 e.stopPropagation();
                 executePaste(prepared);
-                return;
+                return true;
             }
-        };
-        window.addEventListener('keydown', handler, { capture: true });
-        return () => window.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
-    }, []);
+            return false;
+        },
+    });
 
     // Cmd+X: cut (copy + delete in single undo step for delete)
-    useEffect(() => {
-        const handler = (e: KeyboardEvent) => {
-            if (isEditableTarget(document.activeElement)) return;
-            if (!(e.ctrlKey || e.metaKey) || e.altKey || e.key.toLowerCase() !== 'x') return;
+    useGlobalShortcut({
+        id: 'timeline.cut-clips',
+        domain: 'timeline',
+        matches: (event) =>
+            (event.ctrlKey || event.metaKey) &&
+            !event.altKey &&
+            event.key.toLowerCase() === 'x' &&
+            !isEditableTarget(event.target as Element | null),
+        handle: (e) => {
             const selection = useSelectionStore.getState();
-            if (selection.activeTarget !== 'clipTimeline') return;
+            if (selection.activeTarget !== 'clipTimeline') return false;
             const clipSel = selection.clipTimelineSelection;
-            if (!clipSel || clipSel.type === 'point') return;
+            if (!clipSel || clipSel.type === 'point') return false;
             const state = useTimelineStore.getState();
             const copied = copyTimelineSelectionToClipboard(state, clipSel);
-            if (!copied) return;
+            if (!copied) return false;
             e.preventDefault();
             e.stopPropagation();
             const midiClips = getMidiClipsInTimelineSelection(state, clipSel);
             const audioClips = getAudioClipsInTimelineSelection(state, clipSel);
-            if (!midiClips.length && !audioClips.length) return;
+            if (!midiClips.length && !audioClips.length) return true;
             if (midiClips.length) void useTimelineStore.getState().removeMidiClips({ clips: midiClips });
             if (audioClips.length) void useTimelineStore.getState().removeAudioClips({ clips: audioClips });
             useSelectionStore.getState().clearSelection('clipTimeline');
-        };
-        window.addEventListener('keydown', handler, { capture: true });
-        return () => window.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
-    }, []);
+            return true;
+        },
+    });
 
     // Cmd+D: duplicate (paste copy immediately after current clips)
-    useEffect(() => {
-        const handler = (e: KeyboardEvent) => {
-            if (isEditableTarget(document.activeElement)) return;
-            if (!(e.ctrlKey || e.metaKey) || e.altKey || e.key.toLowerCase() !== 'd') return;
+    useGlobalShortcut({
+        id: 'timeline.duplicate-clips',
+        domain: 'timeline',
+        matches: (event) =>
+            (event.ctrlKey || event.metaKey) &&
+            !event.altKey &&
+            event.key.toLowerCase() === 'd' &&
+            !isEditableTarget(event.target as Element | null),
+        handle: (e) => {
             const selection = useSelectionStore.getState();
-            if (selection.activeTarget !== 'clipTimeline') return;
+            if (selection.activeTarget !== 'clipTimeline') return false;
             const clipSel = selection.clipTimelineSelection;
-            if (!clipSel || clipSel.type === 'point') return;
+            if (!clipSel || clipSel.type === 'point') return false;
             e.preventDefault();
             e.stopPropagation();
             const state = useTimelineStore.getState();
             // Build a clipboard payload from selected clips
             const copied = copyTimelineSelectionToClipboard(state, clipSel);
-            if (!copied) return;
+            if (!copied) return true;
             const destination = getTimelineClipDuplicateDestination(state, copied);
-            if (!destination) return;
+            if (!destination) return true;
             const prepared = prepareTimelineClipPaste(state, copied, destination);
-            if (!prepared) return;
+            if (!prepared) return true;
             executePaste(prepared);
-        };
-        window.addEventListener('keydown', handler, { capture: true });
-        return () => window.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
-    }, []);
+            return true;
+        },
+    });
 
     // Delete/Backspace
-    useEffect(() => {
-        const handler = (e: KeyboardEvent) => {
-            if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-            if (isEditableTarget(document.activeElement)) return;
+    useGlobalShortcut({
+        id: 'timeline.delete-selection',
+        domain: 'timeline',
+        matches: (event) =>
+            (event.key === 'Delete' || event.key === 'Backspace') && !isEditableTarget(event.target as Element | null),
+        handle: (e) => {
             const activeTarget = useSelectionStore.getState().getActiveCommandTarget();
             switch (activeTarget) {
                 case 'tracks': {
@@ -475,10 +499,9 @@ export function useTimelineNavigation() {
                 default:
                     break;
             }
-        };
-        window.addEventListener('keydown', handler, { capture: true });
-        return () => window.removeEventListener('keydown', handler, { capture: true } as EventListenerOptions);
-    }, []);
+            return e.defaultPrevented;
+        },
+    });
 
     return { fitAll, zoomToSelection, centerOnPlayhead, frameSelection };
 }

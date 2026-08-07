@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useVisualizer } from './VisualizerContext';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
-import { useSceneStore, type BindingState, type ElementBindings } from '@state/sceneStore';
+import { useSceneStore, type ElementBindings } from '@state/sceneStore';
 import {
     useSceneElements,
     useSceneSelection as useSceneSelectionStore,
@@ -28,8 +28,10 @@ import {
     isNodeAncestor,
     isNodeEffectivelyLocked,
     normalizeNodeSelection,
-    translationMatrix,
 } from '@state/scene-graph';
+import { useSceneShortcuts } from './shortcuts/useSceneShortcuts';
+export { isTextEditingTarget } from './shortcuts/shortcutRegistry';
+export { isSceneDeletionShortcut } from './shortcuts/useSceneShortcuts';
 
 export interface TrackInputDef {
     key: string;
@@ -93,47 +95,6 @@ interface SelectedElementView {
     bindings: ElementBindings;
 }
 
-type OffsetBindingKey = 'offsetX' | 'offsetY';
-type ArrowKey = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown';
-
-const ARROW_KEY_TO_OFFSET: Record<ArrowKey, { bindingKey: OffsetBindingKey; delta: number }> = {
-    ArrowLeft: { bindingKey: 'offsetX', delta: -1 },
-    ArrowRight: { bindingKey: 'offsetX', delta: 1 },
-    ArrowUp: { bindingKey: 'offsetY', delta: -1 },
-    ArrowDown: { bindingKey: 'offsetY', delta: 1 },
-};
-
-function readNumericBinding(binding: BindingState | undefined): number | null {
-    if (!binding) return null;
-    if (binding.type === 'constant') {
-        return typeof binding.value === 'number' ? binding.value : null;
-    }
-    return null;
-}
-
-function isEditableTarget(target: EventTarget | null): boolean {
-    const element = target as HTMLElement | null;
-    if (!element) return false;
-    if (element.isContentEditable) return true;
-    const tag = element.tagName;
-    if (!tag) return false;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
-    const role = element.getAttribute('role');
-    return role === 'textbox' || role === 'combobox' || Boolean(element.closest('[role="tree"]'));
-}
-
-export function isTextEditingTarget(target: EventTarget | null): boolean {
-    const element = target as HTMLElement | null;
-    if (!element) return false;
-    return Boolean(
-        element.closest('input, textarea, select, [contenteditable="true"], [role="textbox"], [role="combobox"]')
-    );
-}
-
-export function isSceneDeletionShortcut(event: Pick<KeyboardEvent, 'key' | 'target'>): boolean {
-    return (event.key === 'Backspace' || event.key === 'Delete') && !isTextEditingTarget(event.target);
-}
-
 /** Infer AutomationValueType from a raw value for auto-key channel creation (canvas drag path). */
 function inferValueTypeForAutoKey(value: unknown): AutomationValueType | null {
     if (typeof value === 'number') return 'number';
@@ -179,18 +140,6 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
             bindings: selectedBindings,
         };
     }, [selectedRecord, selectedBindings]);
-
-    const selectionSnapshotRef = useRef<{ elementId: string | null; bindings: ElementBindings }>({
-        elementId: selectedElementId,
-        bindings: selectedBindings,
-    });
-
-    useEffect(() => {
-        selectionSnapshotRef.current = {
-            elementId: selectedElementId,
-            bindings: selectedBindings,
-        };
-    }, [selectedElementId, selectedBindings]);
 
     const updatePropertiesHeader = useCallback((element: any) => {
         const propertiesHeader = document.getElementById('propertiesHeader');
@@ -674,75 +623,16 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         dismissTrackInputPopup,
     };
 
-    useEffect(() => {
-        const handleArrowKey = (event: KeyboardEvent) => {
-            if (event.altKey) return;
-            const selected = useSelectionStore.getState().selectedNodeIds;
-            if (!isTextEditingTarget(event.target)) {
-                if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'g' && selected.length) {
-                    event.preventDefault();
-                    if (event.shiftKey) ungroupSelectedNodes();
-                    else groupSelectedNodes();
-                    return;
-                }
-            }
-            if (isSceneDeletionShortcut(event) && selected.length) {
-                event.preventDefault();
-                deleteSelectedNodes();
-                return;
-            }
-            if (isEditableTarget(event.target)) return;
-            if (event.key === 'Escape' && selected.length) {
-                event.preventDefault();
-                useSelectionStore.getState().selectSceneNodes([], null);
-                return;
-            }
-            if (event.metaKey || event.ctrlKey) return;
-            const mapping = ARROW_KEY_TO_OFFSET[event.key as ArrowKey];
-            if (!mapping) return;
-
-            const nodeIds = useSelectionStore.getState().selectedNodeIds;
-            if (nodeIds.length) {
-                event.preventDefault();
-                const amount = event.shiftKey ? 10 : 1;
-                const dx = event.key === 'ArrowLeft' ? -amount : event.key === 'ArrowRight' ? amount : 0;
-                const dy = event.key === 'ArrowUp' ? -amount : event.key === 'ArrowDown' ? amount : 0;
-                runSceneCommand(
-                    { type: 'transformNodes', nodeIds, worldDelta: translationMatrix(dx, dy) },
-                    'SceneSelectionContext.nudgeNodes',
-                    { mergeKey: `keyboard-node-nudge:${nodeIds.join(',')}` }
-                );
-                visualizer?.invalidateRender?.();
-                return;
-            }
-
-            const { elementId, bindings } = selectionSnapshotRef.current;
-            if (!elementId) return;
-
-            const targetBinding = bindings?.[mapping.bindingKey];
-            if (targetBinding && targetBinding.type !== 'constant') return;
-
-            event.preventDefault();
-            const currentValue = readNumericBinding(targetBinding) ?? 0;
-            const nextValue = currentValue + mapping.delta;
-
-            updateElementConfig(
-                elementId,
-                { [mapping.bindingKey]: { type: 'constant', value: nextValue } },
-                { mergeKey: `keyboard-offset:${elementId}:${mapping.bindingKey}` }
-            );
-        };
-
-        window.addEventListener('keydown', handleArrowKey, { capture: true });
-        return () => window.removeEventListener('keydown', handleArrowKey, { capture: true } as any);
-    }, [
+    useSceneShortcuts({
+        selectedElementId,
+        selectedBindings,
         deleteSelectedNodes,
         groupSelectedNodes,
-        runSceneCommand,
         ungroupSelectedNodes,
         updateElementConfig,
-        visualizer,
-    ]);
+        runSceneCommand,
+        invalidateRender: visualizer?.invalidateRender,
+    });
 
     return <SceneSelectionContext.Provider value={contextValue}>{children}</SceneSelectionContext.Provider>;
 }
