@@ -34,11 +34,7 @@ import {
     stripDescriptorArraySmoothing,
     stripDescriptorSmoothing,
 } from '@persistence/migrations/removeSmoothingFromDescriptor';
-import {
-    setSelectionChannelTargetResolver,
-    setSelectionSceneResolvers,
-    useSelectionStore,
-} from '@state/selectionStore';
+import { useSelectionStore } from '@state/selectionStore';
 import {
     buildSceneGraphIndexes,
     cloneSceneGraph,
@@ -53,6 +49,7 @@ import {
     type SceneGraphState,
 } from '@state/scene-graph';
 import { createSceneSnapshot } from './scene/snapshot';
+import { wireSceneStoreRuntime } from './scene/sceneStoreRuntimeWiring';
 export { createSceneSnapshot } from './scene/snapshot';
 export type { SceneSnapshot } from './scene/snapshot';
 
@@ -2347,26 +2344,4 @@ const sceneStoreCreator: StateCreator<SceneStoreState> = (set, get) => createSce
 export const createSceneStore = () => createWithEqualityFn<SceneStoreState>(sceneStoreCreator);
 
 export const useSceneStore = createSceneStore();
-
-// Wire the automation evaluator's channel provider to the store so it can
-// resolve channels without relying on CommonJS require (which fails in Vite ESM).
-automationEvaluator.setChannelProvider((channelId) => useSceneStore.getState().automation.channels[channelId]);
-setSelectionChannelTargetResolver((channelId) => useSceneStore.getState().automation.channels[channelId]?.target);
-setSelectionSceneResolvers({
-    nodeIdForElement: (elementId) => useSceneStore.getState().nodeIdByElementId[elementId],
-    elementIdForNode: (nodeId) => useSceneStore.getState().elementIdByNodeId[nodeId],
-    graph: () => useSceneStore.getState().graph,
-});
-
-// Clear transient property overrides when the playhead moves so keyframed values
-// take over again (Blender-style delink: manually changed values persist only until scrub/play).
-{
-    let _lastOverrideClearTick: number | null = null;
-    useTimelineStore.subscribe((state) => {
-        const tick = state.timeline.currentTick;
-        if (tick !== _lastOverrideClearTick) {
-            if (_lastOverrideClearTick !== null) useSceneStore.getState().clearTransientNodeTransforms();
-            _lastOverrideClearTick = tick;
-        }
-    });
-}
+wireSceneStoreRuntime(useSceneStore);
