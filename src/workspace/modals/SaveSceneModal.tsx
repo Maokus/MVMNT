@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 
 interface SaveSceneModalProps {
     initialName: string;
@@ -28,16 +29,16 @@ export function SaveSceneModal({ initialName, onCancel, onConfirm }: SaveSceneMo
         setAuthor(metadata.author);
     }, [initialName, metadata.description, metadata.author]);
 
-    useEffect(() => {
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                onCancel();
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [onCancel]);
+    useGlobalShortcut({
+        id: 'modal.save-scene.escape',
+        domain: 'modal',
+        matches: (event) => event.key === 'Escape',
+        handle: (event) => {
+            event.preventDefault();
+            onCancel();
+            return true;
+        },
+    });
 
     useEffect(() => {
         inputRef.current?.focus();

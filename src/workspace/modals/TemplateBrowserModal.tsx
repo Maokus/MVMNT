@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { TemplateDefinition, TemplateMetadata } from '../templates/types';
+import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 
 interface TemplateBrowserModalProps {
     templates: TemplateDefinition[];
@@ -11,16 +12,16 @@ interface TemplateBrowserModalProps {
 export const TemplateBrowserModal: React.FC<TemplateBrowserModalProps> = ({ templates, onClose, onSelect }) => {
     const [metadataMap, setMetadataMap] = useState<Record<string, TemplateMetadata>>({});
 
-    useEffect(() => {
-        const handler = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                onClose();
-            }
-        };
-        window.addEventListener('keydown', handler);
-        return () => window.removeEventListener('keydown', handler);
-    }, [onClose]);
+    useGlobalShortcut({
+        id: 'modal.template-browser.escape',
+        domain: 'modal',
+        matches: (event) => event.key === 'Escape',
+        handle: (event) => {
+            event.preventDefault();
+            onClose();
+            return true;
+        },
+    });
 
     useEffect(() => {
         let cancelled = false;

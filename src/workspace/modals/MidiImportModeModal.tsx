@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
 import type { MIDITrackDetails } from '@core/types';
+import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 
 interface MidiImportModeModalProps {
     open: boolean;
@@ -18,17 +18,17 @@ export function MidiImportModeModal({
     onImportSplit,
     onCancel,
 }: MidiImportModeModalProps) {
-    useEffect(() => {
-        if (!open) return;
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                onCancel();
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [open, onCancel]);
+    useGlobalShortcut({
+        id: 'modal.midi-import-mode.escape',
+        domain: 'modal',
+        enabled: open,
+        matches: (event) => event.key === 'Escape',
+        handle: (event) => {
+            event.preventDefault();
+            onCancel();
+            return true;
+        },
+    });
 
     if (!open) return null;
 

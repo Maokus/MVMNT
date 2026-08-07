@@ -29,6 +29,31 @@ describe('global shortcut registry', () => {
         expect(calls).toEqual(['timeline']);
     });
 
+    it('lets a modal Escape claim the event before scene selection can clear', () => {
+        const calls: string[] = [];
+        registerGlobalShortcut({
+            id: 'scene.escape',
+            domain: 'scene',
+            matches: (event) => event.key === 'Escape',
+            handle: () => {
+                calls.push('scene');
+                return true;
+            },
+        });
+        registerGlobalShortcut({
+            id: 'modal.escape',
+            domain: 'modal',
+            matches: (event) => event.key === 'Escape',
+            handle: () => {
+                calls.push('modal');
+                return true;
+            },
+        });
+
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        expect(calls).toEqual(['modal']);
+    });
+
     it('rejects duplicate ownership for one shortcut registration', () => {
         registerGlobalShortcut({ id: 'scene.delete', domain: 'scene', matches: () => false, handle: () => false });
         expect(() =>

@@ -7,6 +7,7 @@ import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useScene } from '@context/SceneContext';
 import { useSceneStore } from '@state/sceneStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
+import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 import { deriveElementOrder } from '@state/scene-graph';
 import SceneFontManager from '../scene-settings/SceneFontManager';
 import SceneAnalysisCachesTab from '../scene-settings/SceneAnalysisCachesTab';
@@ -116,13 +117,16 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
         setLocalAuthor(metadata.author ?? '');
     }, [metadata.author]);
 
-    useEffect(() => {
-        const handler = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
-        };
-        window.addEventListener('keydown', handler);
-        return () => window.removeEventListener('keydown', handler);
-    }, [onClose]);
+    useGlobalShortcut({
+        id: 'modal.scene-settings.escape',
+        domain: 'modal',
+        matches: (event) => event.key === 'Escape',
+        handle: (event) => {
+            event.preventDefault();
+            onClose();
+            return true;
+        },
+    });
 
     // Pending (normalised but not yet applied) dimensions
     const pendingWidth = useMemo(

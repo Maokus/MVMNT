@@ -11,6 +11,7 @@ import { useExportEstimates } from './render-modal/useExportEstimates';
 import { FormField, inputCls } from './render-modal/FormField';
 import { loadExportPresets, type ExportPreset } from '@export/export-presets';
 import { updateDestinationExtension } from './render-modal/exportDestination';
+import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 
 interface RenderModalProps {
     onClose: () => void;
@@ -34,13 +35,16 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         });
     }, [sceneName]);
 
-    useEffect(() => {
-        const esc = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
-        };
-        window.addEventListener('keydown', esc);
-        return () => window.removeEventListener('keydown', esc);
-    }, [onClose]);
+    useGlobalShortcut({
+        id: 'modal.render.escape',
+        domain: 'modal',
+        matches: (event) => event.key === 'Escape',
+        handle: (event) => {
+            event.preventDefault();
+            onClose();
+            return true;
+        },
+    });
 
     const { videoCodecs, audioCodecs, capLoaded, getPreferredVideoCodec, getPreferredAudioCodec } =
         useCodecCapabilities();

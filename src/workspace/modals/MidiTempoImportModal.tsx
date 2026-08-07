@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 
 export type TempoImportChoice = 'skip' | 'replace' | 'merge';
 
@@ -15,17 +15,17 @@ export function MidiTempoImportModal({
     hasExistingKeyframes,
     onChoice,
 }: MidiTempoImportModalProps) {
-    useEffect(() => {
-        if (!open) return;
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                onChoice('skip');
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [open, onChoice]);
+    useGlobalShortcut({
+        id: 'modal.midi-tempo-import.escape',
+        domain: 'modal',
+        enabled: open,
+        matches: (event) => event.key === 'Escape',
+        handle: (event) => {
+            event.preventDefault();
+            onChoice('skip');
+            return true;
+        },
+    });
 
     if (!open) return null;
 
