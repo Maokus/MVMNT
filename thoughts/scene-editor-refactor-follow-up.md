@@ -11,8 +11,16 @@ grouping.
 The persistence and command work is partially complete. `createSceneSnapshot` now lives in the
 dedicated `state/scene/snapshot.ts` adapter and is used by the store facade, document gateway,
 subtree bundle paths, and rollback capture. `sceneCommandDefinitions` gives every existing scene
-command a persistence impact, rollback strategy, and affected-boundaries declaration. The original
-large modules have not yet been fully split into their requested capability files.
+command a persistence impact, rollback strategy, and affected-boundaries declaration. Command
+types now live in `scene/commandTypes.ts`; graph mutations and their validation live in
+`scene/sceneGraphCommands.ts`; transaction metadata is validated before dispatch. Store startup
+subscriptions and resolver registration are composed by `scene/sceneStoreRuntimeWiring.ts`.
+
+The package-level contract now covers snapshot, undo, document application, packaged export/import,
+and failed transactional rollback for all persistent slices. Node-transform aggregate gesture state
+has been extracted to `aggregateTransformSession.ts` with a direct test. Modal Escape shortcuts are
+also registry-owned, so they take priority over selection Escape without adding individual window
+listeners.
 
 ## Remaining implementation work
 
@@ -37,9 +45,8 @@ bindings, macros, custom-font metadata plus acknowledgement, and automation thro
 scene-command undo, and document application. It does not yet exercise package import, recovery,
 or subtree transfer in the same contract suite.
 
-- Extend the existing contract fixture through package export/import, recovery autosave/load, and
-  subtree transfer where a field is applicable.
-- Add an explicit failed-command rollback assertion alongside the existing undo assertion.
+- Extend the existing contract fixture through recovery autosave/load and subtree transfer where a
+  field is applicable. Package export/import and failed transactional rollback are covered now.
 - Assert both data equality and absence of transient interaction/runtime fields. Keep binary font
   payload verification in the existing font-package tests; this contract should verify the stored
   font metadata.
@@ -48,29 +55,21 @@ or subtree transfer in the same contract suite.
 
 ### Scene command modules
 
-`src/state/scene/commandGateway.ts` remains about 1,080 lines and still contains the command
-union, inverse patch generation, mutation application, and graph operations.
+`src/state/scene/commandGateway.ts` still contains inverse patch generation and non-graph mutation
+application, but command types and graph operations are now separate modules.
 
-- Move command discriminated-union types and metadata into `scene/commands/types.ts` and a typed
-  registry module. Avoid a type-only import cycle from command definitions back into the gateway.
 - Move inverse-patch creation to a patch module and store mutation application to an apply module.
-- Move graph-specific command validation and application (group, ungroup, subtree deletion,
-  duplication, reorder, reparent, transform) into a graph-command module.
-- Make the definition metadata executable: dispatch should consistently choose inverse-patch,
-  snapshot, or transactional rollback from the definition, and validate that multi-boundary
-  commands have a transaction declaration before applying.
-- Add tests that enumerate command definitions, verify every command declares metadata, and force
-  representative multi-boundary failures to restore all persistent slices.
+- Complete dispatch strategy selection so definitions, rather than gateway defaults, select
+  inverse-patch, snapshot, or transactional rollback.
 
-`scene/__tests__/commandDefinitions.test.ts` now enforces the declaration invariants. Failure
-coverage for representative multi-boundary operations remains to be added.
+`scene/__tests__/commandDefinitions.test.ts` now enforces declaration invariants, and the canonical
+persistence contract forces a representative multi-boundary failure to restore persistent state.
 
 ### Capability splits for large modules
 
-NodeTransformPanel now delegates form normalization and binding-value resolution to direct-test
-modules (`nodeTransformInput.ts` and `nodeTransformValue.ts`), but its aggregate-session and
-command-construction behavior remains in the component. The requested staged splits are otherwise
-not complete.
+NodeTransformPanel now delegates form normalization, binding-value resolution, and aggregate
+gesture state to direct-test modules (`nodeTransformInput.ts`, `nodeTransformValue.ts`, and
+`aggregateTransformSession.ts`). Command construction remains in the component.
 
 - Split `timelineStore.ts` into state composition, transport/timing, tracks/clips, audio/cache,
   view state, and persistence adapters. Retain the existing hook and timeline command gateway
@@ -98,8 +97,8 @@ their own `keydown` listeners. These are acceptable only when locally scoped and
   overlay, onboarding, and menu bar for command overlap.
 - Move overlapping global actions to the registry with a modal or focused-control domain. Keep
   component-local focus management local.
-- Add a registry integration test for modal Escape taking precedence over scene Escape and timeline
-  Delete taking precedence only when its selection target is active.
+- Add a registry integration test for timeline Delete taking precedence only when its selection
+  target is active. Modal Escape precedence is covered by the registry test.
 
 ## Recommended order and acceptance criteria
 
