@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createKeyframe, elementPropertyTarget } from '@automation/types';
 import { DocumentGateway } from '@persistence/document-gateway';
+import { exportScene, importScene } from '..';
 import { dispatchSceneCommand } from '@state/scene';
 import { createSceneSnapshot, useSceneStore } from '@state/sceneStore';
 import type { FontAsset } from '@state/scene/fonts';
@@ -53,6 +54,42 @@ describe('canonical scene snapshot contract', () => {
         const document = DocumentGateway.build();
         useSceneStore.getState().clearScene();
         DocumentGateway.apply(document);
+        expect(createSceneSnapshot(useSceneStore.getState())).toEqual(expected);
+    });
+
+    it('round-trips the canonical persistent slices through the packaged document adapter', async () => {
+        seedPersistentScene();
+        const expected = createSceneSnapshot(useSceneStore.getState());
+
+        const exported = await exportScene();
+        if (!exported.ok || exported.mode !== 'zip-package') throw new Error('Expected a packaged scene export');
+
+        useSceneStore.getState().clearScene();
+        const imported = await importScene(exported.zip);
+        expect(imported.ok).toBe(true);
+        expect(createSceneSnapshot(useSceneStore.getState())).toEqual(expected);
+    });
+
+    it('restores all persistent slices when a transactional graph command fails', () => {
+        seedPersistentScene();
+        const store = useSceneStore.getState();
+        const nodeId = store.nodeIdByElementId['snapshot-contract'];
+        store.setAutomationChannel({
+            id: 'snapshot-contract-node-channel',
+            target: { owner: { kind: 'node', id: nodeId }, propertyPath: 'translationX' },
+            valueType: 'number',
+            keyframes: [createKeyframe(0, 1)],
+        });
+        const expected = createSceneSnapshot(useSceneStore.getState());
+
+        const result = dispatchSceneCommand({
+            type: 'reparentNodes',
+            nodeIds: [nodeId],
+            newParentId: useSceneStore.getState().graph.rootId,
+            targetIndex: 0,
+        });
+
+        expect(result.success).toBe(false);
         expect(createSceneSnapshot(useSceneStore.getState())).toEqual(expected);
     });
 });
