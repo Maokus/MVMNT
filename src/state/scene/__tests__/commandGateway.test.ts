@@ -11,6 +11,7 @@ import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { deriveElementOrder } from '@state/scene-graph';
 import { elementPropertyTarget, nodePropertyTarget } from '@automation/types';
+import type { FontAsset } from '@state/scene/fonts';
 
 function resetState() {
     useSceneStore.getState().clearScene();
@@ -83,6 +84,31 @@ describe('scene command gateway', () => {
         expect(updateResult.success).toBe(true);
         const state = useSceneStore.getState();
         expect(state.bindings.byElement['element-2'].visible).toEqual({ type: 'constant', value: false });
+    });
+
+    it('retains custom font metadata when undoing a text element edit', () => {
+        const font: FontAsset = {
+            id: 'font-custom',
+            family: 'Custom Family',
+            originalFileName: 'Custom.ttf',
+            fileSize: 1024,
+            createdAt: 1,
+            updatedAt: 1,
+            licensingAcknowledged: true,
+            variants: [{ id: 'regular', weight: 400, style: 'normal', sourceFormat: 'ttf' }],
+        };
+        useSceneStore.getState().registerFontAsset(font);
+        dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'font-text' });
+
+        const result = dispatchSceneCommand({
+            type: 'updateNodeTransform',
+            nodeId: useSceneStore.getState().nodeIdByElementId['font-text'],
+            transform: { translationX: 24 },
+        });
+
+        expect(result.success).toBe(true);
+        expect(dispatchSceneCommand(result.patch!.undo[0]).success).toBe(true);
+        expect(useSceneStore.getState().fonts.assets[font.id]).toMatchObject(font);
     });
 
     it('applies a batch atomically and captures one exact snapshot for undo', () => {

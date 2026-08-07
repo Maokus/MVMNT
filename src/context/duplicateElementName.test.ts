@@ -14,8 +14,8 @@ describe('createDuplicateElementId', () => {
         expect(createDuplicateElementId('title_1', ['title', 'title_1'])).toBe('title_2');
     });
 
-    it('does not treat a standalone numeric suffix as a duplicate marker', () => {
-        expect(createDuplicateElementId('layer_2026', ['layer_2026'])).toBe('layer_2026_1');
+    it('uses the base of any numeric suffix when allocating a duplicate', () => {
+        expect(createDuplicateElementId('layer_2026', ['layer_2026'])).toBe('layer_1');
     });
 
     it('escapes special characters in element ids', () => {

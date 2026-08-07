@@ -170,6 +170,8 @@ const SidePanelsInternal: React.FC = () => {
         updateElementConfig,
         addElement,
         deleteElement,
+        deleteSelectedNodes,
+        selectedNodeIds,
     } = useSceneSelection();
 
     // Debug settings now handled in GlobalPropertiesPanel
@@ -208,9 +210,13 @@ const SidePanelsInternal: React.FC = () => {
                 clearSelection();
                 return;
             }
-            // Delete selected element on Delete key
-            if (!isEditable && selectedElementId && (event.key === 'Delete' || event.key === 'Backspace')) {
-                deleteElement(selectedElementId);
+            // Prefer the scene-tree selection so Delete handles multiple elements and groups.
+            if (!isEditable && (event.key === 'Delete' || event.key === 'Backspace')) {
+                if (selectedNodeIds.length) {
+                    deleteSelectedNodes();
+                } else if (selectedElementId) {
+                    deleteElement(selectedElementId);
+                }
             }
         };
 
@@ -223,7 +229,7 @@ const SidePanelsInternal: React.FC = () => {
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('keydown', handleKeyPress);
         };
-    }, [selectedElementId, clearSelection, deleteElement, canvasRef]);
+    }, [selectedElementId, selectedNodeIds, clearSelection, deleteElement, deleteSelectedNodes, canvasRef]);
 
     // Wrapper to handle adding element and closing dropdown
     const handleAddElementAndCloseDropdown = (elementType: string) => {

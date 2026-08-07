@@ -315,6 +315,8 @@ function captureSceneSnapshot(state: SceneStoreState): SceneImportPayload {
         macros: draft.macros ?? null,
         automation: draft.automation ?? null,
         nodeBindings: draft.nodeBindings ?? null,
+        fontAssets: draft.fontAssets,
+        fontLicensingAcknowledgedAt: draft.fontLicensingAcknowledgedAt,
     };
 }
 
