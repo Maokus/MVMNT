@@ -16,11 +16,9 @@ import { emitSceneCommandTelemetry } from './sceneTelemetry';
 import type { AutomationKeyframe, AutomationValueType, PropertyTarget } from '@automation/types';
 import {
     channelIdForTarget,
-    cloneChannel,
     createChannel,
     elementPropertyTarget,
     insertKeyframeSorted,
-    nodePropertyTarget,
     removeKeyframeAtTick,
 } from '@automation/types';
 import { AutomationCurve } from '@automation/automation-curve';
@@ -29,20 +27,10 @@ import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 import type { NodeTransform } from '@state/scene-graph';
-import {
-    cloneSceneGraph,
-    cloneSubtrees,
-    groupSceneNodes,
-    removeSubtrees,
-    reparentSceneNodes,
-    reorderSceneNodes,
-    subtreeNodeIds,
-    transformSceneNodes,
-    ungroupSceneNode,
-} from '@state/scene-graph';
 import { buildSceneSubtreeImport } from './subtreeBundle';
 import { sceneCommandDefinition } from './commandDefinitions';
 import type { SceneCommand } from './commandTypes';
+import { applySceneGraphCommand } from './sceneGraphCommands';
 export type { SceneCommand } from './commandTypes';
 
 export interface SceneCommandResult {
@@ -585,6 +573,8 @@ function extractNodeAxis(
 }
 
 function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
+    if (applySceneGraphCommand(store, command)) return;
+
     switch (command.type) {
         case 'batch':
             command.commands.forEach((child) => applyStoreCommand(store, child));
@@ -772,120 +762,6 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
         }
         case 'batchUpdateKeyframes': {
             store.updateAutomationKeyframes(command.channelId, command.keyframes);
-            break;
-        }
-        case 'replaceGraph':
-            if (command.expectedRevision != null && store.graph.revision !== command.expectedRevision) {
-                throw new Error(
-                    `Scene command revision conflict: expected ${command.expectedRevision}, received ${store.graph.revision}`
-                );
-            }
-            store.replaceGraph(command.graph);
-            break;
-        case 'updateNodeTransform':
-            store.updateNodeTransform(command.nodeId, command.transform);
-            break;
-        case 'setNodeVisibility':
-            store.setNodeVisibility(command.nodeId, command.visible);
-            break;
-        case 'setNodeOpacity':
-            store.setNodeOpacity(command.nodeId, command.opacity);
-            break;
-        case 'setNodeLocked':
-            store.setNodeLocked(command.nodeId, command.locked);
-            break;
-        case 'setNodeName':
-            store.setNodeName(command.nodeId, command.name);
-            break;
-        case 'groupNodes':
-            store.replaceGraph(
-                groupSceneNodes(store.graph, command.nodeIds, command.groupId, command.name, command.worldPivot)
-            );
-            break;
-        case 'ungroupNode':
-            store.replaceGraph(ungroupSceneNode(store.graph, command.nodeId));
-            useSceneStore.getState().removeNodeBindings([command.nodeId]);
-            break;
-        case 'reorderNodes':
-            store.replaceGraph(reorderSceneNodes(store.graph, command.parentId, command.nodeIds, command.targetIndex));
-            break;
-        case 'reparentNodes':
-            {
-                const affectedAncestors = new Set<string>(command.nodeIds);
-                for (const start of [...command.nodeIds, command.newParentId]) {
-                    let id: string | null = start;
-                    while (id) {
-                        affectedAncestors.add(id);
-                        id = store.graph.nodesById[id]?.parentId ?? null;
-                    }
-                }
-                if (
-                    Object.values(store.automation.channels).some(
-                        (channel) =>
-                            channel.target.owner.kind === 'node' && affectedAncestors.has(channel.target.owner.id)
-                    )
-                ) {
-                    throw new Error('Animated hierarchy cannot be reparented without an explicit preservation mode');
-                }
-            }
-            store.replaceGraph(
-                reparentSceneNodes(store.graph, command.nodeIds, command.newParentId, command.targetIndex)
-            );
-            break;
-        case 'transformNodes':
-            store.replaceGraph(transformSceneNodes(store.graph, command.nodeIds, command.worldDelta));
-            break;
-        case 'deleteSubtrees': {
-            const graph = store.graph;
-            const removedIds = new Set(subtreeNodeIds(graph, command.nodeIds));
-            const elementIds = [...removedIds]
-                .map((id) => graph.nodesById[id])
-                .filter((node): node is Extract<typeof node, { kind: 'element' }> => node?.kind === 'element')
-                .map((node) => node.elementId);
-            const nextGraph = removeSubtrees(graph, command.nodeIds);
-            useSceneStore.getState().removeNodeBindings([...removedIds]);
-            for (const elementId of elementIds) useSceneStore.getState().removeElement(elementId);
-            useSceneStore.getState().replaceGraph(nextGraph);
-            break;
-        }
-        case 'duplicateSubtrees': {
-            for (const [sourceElementId, newElementId] of Object.entries(command.mappings.elementIdMap)) {
-                useSceneStore.getState().duplicateElement(sourceElementId, newElementId);
-            }
-            const current = useSceneStore.getState();
-            const base = cloneSceneGraph(current.graph);
-            for (const newElementId of Object.values(command.mappings.elementIdMap)) {
-                const generatedNodeId = current.nodeIdByElementId[newElementId];
-                const generated = generatedNodeId ? base.nodesById[generatedNodeId] : undefined;
-                if (generated?.parentId) {
-                    const parent = base.nodesById[generated.parentId];
-                    if (parent && 'children' in parent) {
-                        parent.children = parent.children.filter((id) => id !== generatedNodeId);
-                    }
-                    delete base.nodesById[generatedNodeId];
-                }
-            }
-            current.replaceGraph(cloneSubtrees(base, command.nodeIds, command.mappings));
-            const afterGraph = useSceneStore.getState();
-            const occupied = new Set(Object.keys(afterGraph.automation.channels));
-            for (const [sourceNodeId, clonedNodeId] of Object.entries(command.mappings.nodeIdMap)) {
-                const sourceBindings = store.nodeBindings[sourceNodeId];
-                if (!sourceBindings) continue;
-                const clonedBindings: ElementBindings = {};
-                for (const [path, binding] of Object.entries(sourceBindings)) {
-                    if (binding.type !== 'keyframes') {
-                        clonedBindings[path] = { ...binding };
-                        continue;
-                    }
-                    const sourceChannel = store.automation.channels[binding.channelId];
-                    if (!sourceChannel) continue;
-                    const clonedChannel = cloneChannel(sourceChannel, nodePropertyTarget(clonedNodeId, path), occupied);
-                    occupied.add(clonedChannel.id);
-                    useSceneStore.getState().setAutomationChannel(clonedChannel);
-                    clonedBindings[path] = { type: 'keyframes', channelId: clonedChannel.id };
-                }
-                useSceneStore.getState().updateNodeBindings(clonedNodeId, clonedBindings);
-            }
             break;
         }
         default:
