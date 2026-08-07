@@ -5,8 +5,6 @@ import {
     type ElementBindings,
     type ElementBindingsPatch,
     type SceneImportPayload,
-    type SceneMacroDefinition,
-    type SceneSerializedMacros,
     type SceneSettingsState,
     type SceneStoreState,
     migrateLegacyAudioFeatureBinding,
@@ -30,7 +28,7 @@ import { useTimelineStore } from '@state/timelineStore';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
-import type { NodeTransform, SceneGraphState } from '@state/scene-graph';
+import type { NodeTransform } from '@state/scene-graph';
 import {
     cloneSceneGraph,
     cloneSubtrees,
@@ -41,155 +39,11 @@ import {
     subtreeNodeIds,
     transformSceneNodes,
     ungroupSceneNode,
-    type DuplicateMappings,
-    type Matrix2D,
 } from '@state/scene-graph';
-import { buildSceneSubtreeImport, type SceneSubtreeBundle, type SceneSubtreeImportOptions } from './subtreeBundle';
+import { buildSceneSubtreeImport } from './subtreeBundle';
 import { sceneCommandDefinition } from './commandDefinitions';
-
-export type SceneCommand =
-    | {
-          /** A single undoable operation composed of independent scene commands. */
-          type: 'batch';
-          commands: SceneCommand[];
-      }
-    | {
-          type: 'addElement';
-          elementType: string;
-          elementId: string;
-          config?: Record<string, unknown>;
-          targetIndex?: number;
-          createdAt?: number;
-          createdBy?: string;
-      }
-    | {
-          type: 'removeElement';
-          elementId: string;
-      }
-    | {
-          type: 'updateElementConfig';
-          elementId: string;
-          patch: Record<string, unknown>;
-      }
-    | {
-          type: 'moveElement';
-          elementId: string;
-          targetIndex: number;
-      }
-    | {
-          type: 'duplicateElement';
-          sourceId: string;
-          newId: string;
-          insertAfter?: boolean;
-      }
-    | {
-          type: 'updateElementId';
-          currentId: string;
-          nextId: string;
-      }
-    | {
-          type: 'clearScene';
-          clearMacros?: boolean;
-      }
-    | {
-          type: 'resetSceneSettings';
-      }
-    | {
-          type: 'updateSceneSettings';
-          patch: Record<string, unknown>;
-      }
-    | {
-          type: 'loadSerializedScene';
-          payload: SceneImportPayload;
-      }
-    | ({ type: 'importSubtreeBundle'; bundle: SceneSubtreeBundle } & SceneSubtreeImportOptions)
-    | {
-          type: 'createMacro';
-          macroId: string;
-          definition: SceneMacroDefinition;
-      }
-    | {
-          type: 'updateMacroValue';
-          macroId: string;
-          value: unknown;
-      }
-    | {
-          type: 'renameMacro';
-          currentId: string;
-          nextId: string;
-      }
-    | {
-          type: 'deleteMacro';
-          macroId: string;
-      }
-    | {
-          type: 'reorderMacros';
-          order: string[];
-      }
-    | {
-          type: 'importMacros';
-          payload: SceneSerializedMacros;
-      }
-    | {
-          type: 'enablePropertyAutomation';
-          target: PropertyTarget;
-          valueType: AutomationValueType;
-          /** Optional initial keyframes (e.g. current value at tick 0). */
-          initialKeyframes?: AutomationKeyframe[];
-      }
-    | {
-          type: 'disablePropertyAutomation';
-          target: PropertyTarget;
-          /** Fallback constant value to revert to. */
-          fallbackValue?: unknown;
-      }
-    | { type: 'updatePropertyTargetBinding'; target: PropertyTarget; binding: BindingState | null }
-    | {
-          type: 'addKeyframe';
-          channelId: string;
-          keyframe: AutomationKeyframe;
-      }
-    | {
-          type: 'removeKeyframe';
-          channelId: string;
-          tick: number;
-      }
-    | {
-          type: 'updateKeyframe';
-          channelId: string;
-          tick: number;
-          /** Partial patch — only provided fields are updated. */
-          patch: Partial<
-              Pick<
-                  AutomationKeyframe,
-                  'value' | 'segmentInterpolation' | 'leftHandle' | 'rightHandle' | 'leftHandleType' | 'rightHandleType'
-              >
-          >;
-      }
-    | {
-          type: 'moveKeyframe';
-          channelId: string;
-          fromTick: number;
-          toTick: number;
-      }
-    | {
-          type: 'batchUpdateKeyframes';
-          channelId: string;
-          keyframes: AutomationKeyframe[];
-      }
-    | { type: 'replaceGraph'; graph: SceneGraphState; expectedRevision?: number }
-    | { type: 'updateNodeTransform'; nodeId: string; transform: Partial<NodeTransform> }
-    | { type: 'setNodeVisibility'; nodeId: string; visible: boolean }
-    | { type: 'setNodeOpacity'; nodeId: string; opacity: number }
-    | { type: 'setNodeLocked'; nodeId: string; locked: boolean }
-    | { type: 'setNodeName'; nodeId: string; name: string }
-    | { type: 'groupNodes'; nodeIds: string[]; groupId: string; name?: string; worldPivot?: { x: number; y: number } }
-    | { type: 'ungroupNode'; nodeId: string }
-    | { type: 'deleteSubtrees'; nodeIds: string[] }
-    | { type: 'duplicateSubtrees'; nodeIds: string[]; mappings: DuplicateMappings }
-    | { type: 'reorderNodes'; parentId: string; nodeIds: string[]; targetIndex: number }
-    | { type: 'reparentNodes'; nodeIds: string[]; newParentId: string; targetIndex: number }
-    | { type: 'transformNodes'; nodeIds: string[]; worldDelta: Matrix2D };
+import type { SceneCommand } from './commandTypes';
+export type { SceneCommand } from './commandTypes';
 
 export interface SceneCommandResult {
     success: boolean;

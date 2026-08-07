@@ -1,4 +1,4 @@
-import type { SceneCommand } from './commandGateway';
+import type { SceneCommand } from './commandTypes';
 
 export type ScenePersistenceImpact = 'none' | 'scene' | 'multi-store';
 export type SceneRollbackStrategy = 'inverse-patch' | 'snapshot' | 'transaction';
@@ -73,5 +73,34 @@ export const sceneCommandDefinitions: Record<SceneCommandType, SceneCommandDefin
 };
 
 export function sceneCommandDefinition(command: SceneCommand): SceneCommandDefinition {
-    return sceneCommandDefinitions[command.type];
+    const definition = sceneCommandDefinitions[command.type];
+    if (!definition) {
+        throw new Error(`Scene command "${command.type}" has no command definition`);
+    }
+    validateSceneCommandDefinition(command.type, definition);
+    return definition;
+}
+
+/**
+ * Keep command metadata executable: commands which span stores must opt in to
+ * transaction rollback, and their declared boundaries must be meaningful.
+ */
+export function validateSceneCommandDefinition(
+    commandType: string,
+    definition: SceneCommandDefinition
+): SceneCommandDefinition {
+    const boundaries = new Set(definition.boundaries);
+    if (!boundaries.size) {
+        throw new Error(`Scene command "${commandType}" must declare at least one store boundary`);
+    }
+    if (definition.persistenceImpact === 'multi-store' && boundaries.size < 2) {
+        throw new Error(`Multi-store scene command "${commandType}" must declare every transactional boundary`);
+    }
+    if (definition.rollback === 'transaction' && definition.persistenceImpact !== 'multi-store') {
+        throw new Error(`Transactional scene command "${commandType}" must have multi-store persistence impact`);
+    }
+    if (definition.rollback !== 'transaction' && definition.persistenceImpact === 'multi-store') {
+        throw new Error(`Multi-store scene command "${commandType}" must use transaction rollback`);
+    }
+    return definition;
 }
