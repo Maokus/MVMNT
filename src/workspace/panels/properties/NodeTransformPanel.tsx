@@ -31,7 +31,7 @@ import { dispatchPropertyEdits, propertyEditMergeKey } from '@state/scene/proper
 import { effectiveValueForTarget } from '@state/scene/propertyEditing';
 import { elementPropertyDescriptors, hostPropertyDescriptors } from '@state/scene/propertyCatalog';
 import { resolveAutomationValueType } from './KeyframeControl';
-import { aggregateTransformDelta } from './aggregateTransformDelta';
+import { AggregateTransformSession } from './aggregateTransformSession';
 import { hoveredPropertyRef } from './hoveredPropertyRef';
 import { readFiniteTransformInput, unwrapTransformInputValue } from './nodeTransformInput';
 import { resolveNodeTransformValue } from './nodeTransformValue';
@@ -270,7 +270,7 @@ export function NodeTransformPanel() {
     const tick = useTimelineStore((state) => state.timeline.currentTick);
     const autoKeying = useTimelineStore((state) => state.transport.autoKeying);
     const { visualizer } = useSceneSelection();
-    const aggregateSessionValues = useRef(new Map<string, number>());
+    const aggregateSession = useRef(new AggregateTransformSession());
     const [aggregateInputRevision, setAggregateInputRevision] = useState(0);
     const nodes = nodeIds.map((id) => graph.nodesById[id]).filter(Boolean);
     const geometry = useMemo(
@@ -345,17 +345,9 @@ export function NodeTransformPanel() {
         change: FormInputChange | undefined,
         mode: 'add' | 'multiply'
     ) => {
-        const session = change?.meta?.mergeSession;
-        const previous = session ? (aggregateSessionValues.current.get(session.id) ?? neutral) : neutral;
-        if (session) {
-            if (session.finalize) {
-                aggregateSessionValues.current.delete(session.id);
-                setAggregateInputRevision((revision) => revision + 1);
-            } else aggregateSessionValues.current.set(session.id, next);
-        } else {
-            setAggregateInputRevision((revision) => revision + 1);
-        }
-        return aggregateTransformDelta(next, neutral, previous, mode);
+        const result = aggregateSession.current.update(next, neutral, change?.meta?.mergeSession, mode);
+        if (result.resetInput) setAggregateInputRevision((revision) => revision + 1);
+        return result.delta;
     };
 
     if (!singleNode && !geometry) {
