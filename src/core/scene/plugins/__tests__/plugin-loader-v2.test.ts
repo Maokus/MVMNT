@@ -1,6 +1,6 @@
 import { zipSync } from 'fflate';
 import { afterEach, describe, expect, it } from 'vitest';
-import { disablePlugin, enablePlugin, loadPlugin, unloadPlugin } from '../plugin-loader';
+import { disablePlugin, enablePlugin, getDevelopmentPluginBundle, loadPlugin, unloadPlugin } from '../plugin-loader';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import { usePluginStore } from '@state/pluginStore';
 import { PluginBinaryStore } from '@persistence/plugin-binary-store';
@@ -101,9 +101,14 @@ describe('v2 plugin loader fixture', () => {
     });
 
     it('keeps development bundles session-only', async () => {
-        const result = await loadPlugin(bundle(developmentPluginId), { persist: false, source: 'development' });
+        const bytes = bundle(developmentPluginId);
+        const result = await loadPlugin(bytes, { persist: false, source: 'development' });
         expect(result.success).toBe(true);
         expect(usePluginStore.getState().plugins[developmentPluginId]?.source).toBe('development');
         expect(await PluginBinaryStore.get(developmentPluginId)).toBeUndefined();
+        expect(getDevelopmentPluginBundle(developmentPluginId)).toEqual(bytes);
+
+        await unloadPlugin(developmentPluginId, { removePersisted: false });
+        expect(getDevelopmentPluginBundle(developmentPluginId)).toBeUndefined();
     });
 });

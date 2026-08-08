@@ -17,7 +17,8 @@ types now live in `scene/commandTypes.ts`; graph mutations and their validation 
 subscriptions and resolver registration are composed by `scene/sceneStoreRuntimeWiring.ts`.
 
 The package-level contract now covers snapshot, undo, document application, packaged export/import,
-and failed transactional rollback for all persistent slices. Node-transform aggregate gesture state
+recovery storage, subtree transfer, and failed transactional rollback for all persistent slices where
+the boundary applies. Node-transform aggregate gesture state
 has been extracted to `aggregateTransformSession.ts` with a direct test. Modal Escape shortcuts are
 also registry-owned, so they take priority over selection Escape without adding individual window
 listeners.
@@ -40,18 +41,14 @@ import behavior, and snapshot adapters in one module.
 
 ### Canonical persistence contract
 
-`persistence/__tests__/sceneSnapshot.contract.test.ts` now verifies elements/bindings, graph/node
+`persistence/__tests__/sceneSnapshot.contract.test.ts` verifies elements/bindings, graph/node
 bindings, macros, custom-font metadata plus acknowledgement, and automation through snapshot,
-scene-command undo, and document application. It does not yet exercise package import, recovery,
-or subtree transfer in the same contract suite.
+scene-command undo, document application, package import, recovery storage, and subtree transfer.
 
-- Extend the existing contract fixture through recovery autosave/load and subtree transfer where a
-  field is applicable. Package export/import and failed transactional rollback are covered now.
-- Assert both data equality and absence of transient interaction/runtime fields. Keep binary font
-  payload verification in the existing font-package tests; this contract should verify the stored
-  font metadata.
-- Replace residual `exportSceneDraft()` snapshot capture call sites, including the command gateway
-  facade, with the named snapshot helper where direct state access is already available.
+- Keep binary font payload verification in the existing font-package tests; this contract verifies
+  the stored font metadata and acknowledgement only.
+- Replace residual `exportSceneDraft()` snapshot capture call sites with the named snapshot helper
+  where direct state access is already available. The command gateway now uses the helper.
 
 ### Scene command modules
 

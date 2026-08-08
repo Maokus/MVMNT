@@ -103,4 +103,20 @@ describe('font-loader', () => {
         await expect(loading).resolves.toBe(false);
         expect(isFontLoaded('Inter')).toBe(false);
     });
+
+    it('loads serialized font selections before an export begins', async () => {
+        const { ensureSceneFontsLoaded } = await import('../font-loader');
+        const pending = ensureSceneFontsLoaded(
+            {
+                text: { properties: { fontFamily: { type: 'constant', value: 'Inter|700' } } },
+                labels: { properties: { noteLabelFontFamily: { type: 'macro', macroId: 'label-font' } } },
+            },
+            { macros: { 'label-font': { value: 'Meddon|400' } } }
+        );
+
+        document.getElementById('gf-Inter')?.dispatchEvent(new Event('load'));
+        document.getElementById('gf-Meddon')?.dispatchEvent(new Event('load'));
+
+        await expect(pending).resolves.toBeUndefined();
+    });
 });

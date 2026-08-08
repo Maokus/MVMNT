@@ -110,6 +110,16 @@ export function getPluginRuntimeExportNames(moduleId: string): readonly string[]
 }
 
 const pluginDefinitionScopes = new Map<string, PluginDefinitionScope[]>();
+const developmentPluginBundles = new Map<string, ArrayBuffer>();
+
+/**
+ * Returns the current development bundle for snapshot packaging. Development
+ * plugins remain session-only: this cache is cleared when they are unloaded.
+ */
+export function getDevelopmentPluginBundle(pluginId: string): ArrayBuffer | undefined {
+    if (usePluginStore.getState().plugins[pluginId]?.source !== 'development') return undefined;
+    return developmentPluginBundles.get(pluginId)?.slice(0);
+}
 
 async function disposePluginDefinitionScopes(pluginId: string): Promise<void> {
     const scopes = pluginDefinitionScopes.get(pluginId) ?? [];
@@ -376,6 +386,7 @@ export async function loadPlugin(bundleData: ArrayBuffer, options: LoadPluginOpt
 
         // Add to plugin store
         usePluginStore.getState().addPlugin(manifest, true, source);
+        if (source === 'development') developmentPluginBundles.set(manifest.id, bundleData.slice(0));
 
         // Log any partial failures
         if (loadErrors.length > 0) {
@@ -424,6 +435,7 @@ export async function unloadPlugin(
 
         // Remove from plugin store
         usePluginStore.getState().removePlugin(pluginId);
+        developmentPluginBundles.delete(pluginId);
 
         // Development bundles never own persistent storage. Callers may also
         // request a runtime-only teardown while performing a hot replacement.

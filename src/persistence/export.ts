@@ -17,6 +17,7 @@ import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { usePluginStore } from '@state/pluginStore';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import { PluginBinaryStore } from './plugin-binary-store';
+import { getDevelopmentPluginBundle } from '@core/scene/plugins/plugin-loader';
 import iconDataUrl from '@assets/Icon.icns?inline';
 import { sha256Hex } from '@utils/hash/sha256';
 import {
@@ -58,6 +59,8 @@ export interface ScenePluginDependency {
     hash?: string;
     elementTypesUsed: string[];
     embedded: boolean;
+    /** Development bundles are embedded for an isolated render but never persisted on import. */
+    source?: 'development';
 }
 
 /** A scene element as serialized in schema V6+. Properties are nested under the `properties` key. */
@@ -297,10 +300,10 @@ async function collectPluginDependencies(
     }
 
     const pluginState = usePluginStore.getState();
-    const manifestById = new Map<string, (typeof pluginState.plugins)[string]['manifest']>();
+    const pluginById = new Map<string, (typeof pluginState.plugins)[string]>();
     const typeToPluginId = new Map<string, string>();
     for (const plugin of Object.values(pluginState.plugins)) {
-        manifestById.set(plugin.manifest.id, plugin.manifest);
+        pluginById.set(plugin.manifest.id, plugin);
         for (const element of plugin.manifest.elements ?? []) {
             if (element?.type) {
                 typeToPluginId.set(element.type, plugin.manifest.id);
@@ -320,7 +323,8 @@ async function collectPluginDependencies(
     }
 
     for (const [pluginId, entry] of dependencyMap.entries()) {
-        const manifest = manifestById.get(pluginId);
+        const plugin = pluginById.get(pluginId);
+        const manifest = plugin?.manifest;
         if (!manifest) {
             warnings.push(`Plugin metadata missing for ${pluginId}; dependency recorded without version.`);
         }
@@ -329,7 +333,10 @@ async function collectPluginDependencies(
         let embedded = false;
         let bundleBytes: Uint8Array | null = null;
         try {
-            const bundle = await PluginBinaryStore.get(pluginId);
+            const bundle =
+                plugin?.source === 'development'
+                    ? getDevelopmentPluginBundle(pluginId)
+                    : await PluginBinaryStore.get(pluginId);
             if (bundle) {
                 bundleBytes = new Uint8Array(bundle);
                 hash = await sha256Hex(bundleBytes);
@@ -338,7 +345,9 @@ async function collectPluginDependencies(
             /* ignore hash failures */
         }
 
-        if (options.embedPlugins) {
+        // A hidden desktop renderer has no development-plugin watcher. Always
+        // embed a used dev bundle so it can render the same scene snapshot.
+        if (options.embedPlugins || plugin?.source === 'development') {
             if (bundleBytes) {
                 embedded = true;
                 pluginAssets.set(pluginId, {
@@ -357,6 +366,7 @@ async function collectPluginDependencies(
             hash,
             elementTypesUsed: Array.from(entry.elementTypesUsed).sort(),
             embedded,
+            ...(plugin?.source === 'development' ? { source: 'development' as const } : {}),
         });
     }
 

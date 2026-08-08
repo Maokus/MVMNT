@@ -1,5 +1,6 @@
 import {
     DEFAULT_SCENE_SETTINGS,
+    createSceneSnapshot,
     useSceneStore,
     type BindingState,
     type ElementBindings,
@@ -150,7 +151,7 @@ function bindingToConfigValue(binding: BindingState | undefined): unknown {
 }
 
 function captureSceneSnapshot(state: SceneStoreState): SceneImportPayload {
-    return state.exportSceneDraft();
+    return createSceneSnapshot(state);
 }
 
 function cloneCommand<T extends SceneCommand>(command: T): T {

@@ -616,6 +616,8 @@ const TemplateInitializer: React.FC = () => {
                             const result = await importScene(payload, {
                                 signal: abortController?.signal,
                                 onProgress: (progress, text) => updateTemplateLoading({ progress, message: text }),
+                                autoInstallEmbeddedPlugins:
+                                    sessionStorage.getItem('mvmnt.desktop.background-export.v1') !== null,
                             });
                             if (!result.ok) {
                                 const msg = result.errors.map((e) => e.message).join('\n');

@@ -386,3 +386,50 @@ export function isFontLoaded(selection: string): boolean {
 export function parseFontSelection(value?: string): ParsedFontSelection {
     return parseFontSelectionToken(value, (assetId) => customAssets.get(assetId));
 }
+
+type SerializedBinding =
+    | { type: 'constant'; value: unknown }
+    | { type: 'macro'; macroId: string }
+    | { type: 'keyframes'; channelId: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function fontSelectionFromBinding(binding: unknown, macros: Record<string, unknown>): string | undefined {
+    if (typeof binding === 'string') return binding;
+    if (!isRecord(binding)) return undefined;
+    const serialized = binding as SerializedBinding;
+    if (serialized.type === 'constant' && typeof serialized.value === 'string') return serialized.value;
+    if (serialized.type !== 'macro' || typeof serialized.macroId !== 'string') return undefined;
+    const macro = macros[serialized.macroId];
+    return isRecord(macro) && typeof macro.value === 'string' ? macro.value : undefined;
+}
+
+/**
+ * Wait for every constant or macro-backed font selection in a serialized scene.
+ * Exporters call this before their first frame because element rendering only
+ * requests fonts lazily, which is too late for a deterministic render.
+ */
+export async function ensureSceneFontsLoaded(
+    elements: Record<string, { properties?: Record<string, unknown> }> | undefined,
+    sceneMacros: unknown
+): Promise<void> {
+    const macroRoot = isRecord(sceneMacros) ? sceneMacros : {};
+    const macros = isRecord(macroRoot.macros)
+        ? macroRoot.macros
+        : isRecord(macroRoot.byId)
+          ? macroRoot.byId
+          : macroRoot;
+    const selections = new Set<string>();
+
+    for (const element of Object.values(elements ?? {})) {
+        for (const [key, binding] of Object.entries(element?.properties ?? {})) {
+            if (!/fontfamily$/i.test(key)) continue;
+            const selection = fontSelectionFromBinding(binding, macros);
+            if (selection) selections.add(selection);
+        }
+    }
+
+    await Promise.all([...selections].map((selection) => ensureFontLoaded(selection)));
+}

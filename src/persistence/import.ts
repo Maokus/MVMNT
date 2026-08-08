@@ -62,6 +62,8 @@ export type ImportSceneInput = ArrayBuffer | Uint8Array | Blob;
 export interface ImportSceneOptions {
     signal?: AbortSignal;
     onProgress?: (progress: number, text?: string) => void;
+    /** Install embedded dependencies without prompting (used by isolated background exports). */
+    autoInstallEmbeddedPlugins?: boolean;
 }
 
 interface ParsedArtifact {
@@ -218,7 +220,10 @@ async function installEmbeddedPlugins(
 
         const pluginBuffer = new ArrayBuffer(payload.byteLength);
         new Uint8Array(pluginBuffer).set(payload);
-        const result = await loadPlugin(pluginBuffer);
+        const result = await loadPlugin(pluginBuffer, {
+            persist: dep.source !== 'development',
+            source: dep.source === 'development' ? 'development' : 'installed',
+        });
         if (!result.success) {
             warnings.push(`Failed to install plugin ${dep.pluginId}: ${result.error || 'Unknown error'}`);
         }
@@ -1022,9 +1027,11 @@ export async function importScene(
 
     if (dependencyAssessment.embeddedMissing.length) {
         const canPrompt = !isTestEnvironment() && typeof window !== 'undefined' && typeof window.confirm === 'function';
-        const shouldInstall = canPrompt
-            ? window.confirm('This scene includes embedded plugins needed for some elements. Install them now?')
-            : false;
+        const shouldInstall =
+            options.autoInstallEmbeddedPlugins ||
+            (canPrompt
+                ? window.confirm('This scene includes embedded plugins needed for some elements. Install them now?')
+                : false);
         if (shouldInstall) {
             pluginWarnings.push(
                 ...(await installEmbeddedPlugins(dependencyAssessment.embeddedMissing, pluginPayloads, options))

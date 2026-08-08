@@ -22,7 +22,9 @@ import { BUILTIN_EXPORT_PRESETS, expandExportFilename } from '@export/export-pre
 import { ExportPerformanceTracker } from '@export/export-performance';
 import { isPendingRenderImported, takePendingRender } from '../desktop/pending-automation';
 import { exportScene } from '@persistence/index';
+import { DocumentGateway } from '@persistence/document-gateway';
 import { BACKGROUND_EXPORT_KEY, readBackgroundExportBootstrap } from './visualizer/backgroundExportBootstrap';
+import { ensureSceneFontsLoaded } from '@fonts/font-loader';
 
 interface VisualizerContextValue {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -338,10 +340,13 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 store.update(job.id, {
                     status: 'preparing',
                     startedAt: new Date().toISOString(),
-                    text: 'Choosing destination…',
+                    text: 'Loading fonts…',
                 });
                 setShowProgressOverlay(true);
                 setExportKind(job.kind);
+                const document = DocumentGateway.build();
+                await ensureSceneFontsLoaded(document.scene?.elements, document.scene?.macros);
+                if (controller.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
                 const rangeLabel = settings.fullDuration ? 'full' : `${settings.startTime}-${settings.endTime}s`;
                 const filename = expandExportFilename(settings.filename, {
                     scene: job.snapshot.sceneName,
@@ -631,7 +636,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     .update(job.id, { status: 'preparing', text: 'Packaging background export…' });
                 void (async () => {
                     try {
-                        const packaged = await exportScene(job.snapshot.sceneName);
+                        const packaged = await exportScene(job.snapshot.sceneName, { embedPlugins: true });
                         if (!packaged.ok)
                             throw new Error(
                                 packaged.errors.map((item) => item.message).join('\n') ||

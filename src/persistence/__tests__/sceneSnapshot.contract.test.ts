@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createKeyframe, elementPropertyTarget } from '@automation/types';
 import { DocumentGateway } from '@persistence/document-gateway';
+import { AutosaveVersionStore } from '@persistence/autosave-version-store';
 import { exportScene, importScene } from '..';
-import { dispatchSceneCommand } from '@state/scene';
+import { createSceneSubtreeBundle, dispatchSceneCommand } from '@state/scene';
 import { createSceneSnapshot, useSceneStore } from '@state/sceneStore';
 import type { FontAsset } from '@state/scene/fonts';
 
@@ -36,10 +37,17 @@ function seedPersistentScene() {
         valueType: 'number',
         keyframes: [createKeyframe(0, 1)],
     });
+    store.updateBindings('snapshot-contract', {
+        opacity: { type: 'keyframes', channelId: 'snapshot-contract-channel' },
+    });
 }
 
 describe('canonical scene snapshot contract', () => {
-    beforeEach(() => useSceneStore.getState().clearScene());
+    beforeEach(async () => {
+        useSceneStore.getState().clearScene();
+        useSceneStore.getState().replaceMacros(null);
+        await AutosaveVersionStore.clear();
+    });
 
     it('preserves every persistent scene slice through undo and document application', () => {
         seedPersistentScene();
@@ -68,6 +76,53 @@ describe('canonical scene snapshot contract', () => {
         const imported = await importScene(exported.zip);
         expect(imported.ok).toBe(true);
         expect(createSceneSnapshot(useSceneStore.getState())).toEqual(expected);
+    });
+
+    it('round-trips the canonical persistent slices through recovery storage', async () => {
+        seedPersistentScene();
+        const expected = createSceneSnapshot(useSceneStore.getState());
+        const exported = await exportScene('Snapshot contract recovery');
+        if (!exported.ok || exported.mode !== 'zip-package') throw new Error('Expected a packaged scene export');
+
+        const version = await AutosaveVersionStore.save('Snapshot contract recovery', exported.zip, exported.digest);
+        useSceneStore.getState().clearScene();
+        useSceneStore.getState().replaceMacros(null);
+        const recoveryBytes = await AutosaveVersionStore.load(version.id);
+        expect(recoveryBytes).not.toBeNull();
+        const imported = await importScene(recoveryBytes!);
+
+        expect(imported.ok).toBe(true);
+        expect(createSceneSnapshot(useSceneStore.getState())).toEqual(expected);
+    });
+
+    it('transfers every subtree-applicable persistent slice without runtime state', () => {
+        seedPersistentScene();
+        const source = createSceneSnapshot(useSceneStore.getState());
+        const sourceNodeId = useSceneStore.getState().nodeIdByElementId['snapshot-contract'];
+        const bundle = createSceneSubtreeBundle(useSceneStore.getState(), [sourceNodeId]);
+
+        useSceneStore.getState().clearScene();
+        useSceneStore.getState().replaceMacros(null);
+        const transferred = dispatchSceneCommand({ type: 'importSubtreeBundle', bundle });
+        expect(transferred.success).toBe(true);
+
+        const snapshot = createSceneSnapshot(useSceneStore.getState());
+        const [transferredChannel] = Object.values(snapshot.automation?.channels ?? {});
+        const expectedElements = structuredClone(source.elements);
+        expectedElements['snapshot-contract'].properties.opacity = {
+            type: 'keyframes',
+            channelId: transferredChannel.id,
+        };
+        expect(snapshot.elements).toEqual(expectedElements);
+        expect(snapshot.nodeBindings).toEqual(source.nodeBindings);
+        expect(snapshot.macros?.macros).toEqual(source.macros?.macros);
+        expect(transferredChannel).toEqual({
+            ...Object.values(source.automation?.channels ?? {})[0],
+            id: transferredChannel.id,
+        });
+        expect(snapshot.fontAssets).toBeUndefined();
+        expect(snapshot).not.toHaveProperty('interaction');
+        expect(snapshot).not.toHaveProperty('runtimeMeta');
     });
 
     it('restores all persistent slices when a transactional graph command fails', () => {
