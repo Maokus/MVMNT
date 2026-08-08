@@ -18,7 +18,7 @@ import { PluginBinaryStore } from './plugin-binary-store';
 import { loadPlugin, satisfiesVersion } from '@core/scene/plugins';
 import { clearSpectrogramTileCache } from '@core/scene/elements/audio-displays/spectrogram-tiles';
 import { usePluginStore } from '@state/pluginStore';
-import { ensureFontVariantsRegistered } from '@fonts/font-loader';
+import { ensureFontVariantsRegistered, ensureSceneFontsLoaded } from '@fonts/font-loader';
 import type { FontAsset } from '@state/scene/fonts';
 import { decodeSceneText, parseScenePackage, ScenePackageError } from './scene-package';
 import { isTestEnvironment } from '@utils/env';
@@ -1017,6 +1017,13 @@ export async function importScene(
             warnings: [...artifactWarnings, ...validation.warnings.map((w) => ({ message: w.message }))],
         };
     }
+
+    // Element renderers request fonts lazily, but an imported scene can remain
+    // paused indefinitely. Resolve its selected Google faces before applying
+    // it so the first preview and an immediate background export use them.
+    options.onProgress?.(0.43, 'Loading scene fonts…');
+    await ensureSceneFontsLoaded(migratedEnvelope.scene?.elements, migratedEnvelope.scene?.macros);
+    throwIfAborted(options.signal);
 
     const pluginWarnings: string[] = [];
     const dependencies = Array.isArray(migratedEnvelope?.plugins)
