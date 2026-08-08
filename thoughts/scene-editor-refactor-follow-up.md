@@ -27,16 +27,17 @@ listeners.
 
 ### Scene store slices
 
-`src/state/sceneStore.ts` is still about 2,455 lines and contains all slice state, mutations,
-import behavior, and snapshot adapters in one module.
+`src/state/sceneStore.ts` is now the stable application-facing compatibility facade. Store
+construction, state contracts, and mutations live in `scene/storeComposition.ts`; this keeps
+existing consumers on the facade while making the composition boundary explicit.
 
-- Extract slice creators and their state/action types for elements/bindings, graph/node bindings,
-  fonts/assets, and automation/macros.
+- Split `scene/storeComposition.ts` into slice creators and their state/action types for
+  elements/bindings, graph/node bindings, fonts/assets, and automation/macros.
 - Move scene import normalization into an import/export adapter module. `createSceneSnapshot` is
   already extracted. Keep `useSceneStore`, `createSceneStore`, `SceneStoreState`, `importScene`, and
   `exportSceneDraft` as compatibility facades.
-- Move store wiring subscriptions and selection/automation resolver registration to a composition
-  module so slice modules remain free of startup side effects.
+- Keep store wiring subscriptions and selection/automation resolver registration in the existing
+  composition module so future slice modules remain free of startup side effects.
 - Preserve the current scene migration behavior and fixture baseline during the move.
 
 ### Canonical persistence contract

@@ -71,6 +71,21 @@ describe('SceneRuntimeAdapter', () => {
         expect(adapter.resolveFrame(config, 0)).not.toBe(first);
     });
 
+    it('rebuilds text geometry when a font finishes loading', () => {
+        const config = { canvas: { width: 1920, height: 1080 } };
+        const first = adapter.resolveFrame(config, 0);
+        const beforeVersion = adapter.getVersion();
+        const listener = vi.fn();
+        window.addEventListener('mvmnt-scene-runtime-updated', listener);
+
+        window.dispatchEvent(new CustomEvent('font-loaded', { detail: { family: 'Meddon', weights: [400] } }));
+
+        expect(adapter.getVersion()).toBeGreaterThan(beforeVersion);
+        expect(adapter.resolveFrame(config, 0)).not.toBe(first);
+        expect(listener).toHaveBeenCalledTimes(1);
+        window.removeEventListener('mvmnt-scene-runtime-updated', listener);
+    });
+
     it('retains unrelated plugin instances when hierarchy changes', () => {
         const before = new Map(adapter.getElements().map((element) => [element.id, element]));
         const scene = store.getState();

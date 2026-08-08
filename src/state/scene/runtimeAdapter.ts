@@ -111,6 +111,16 @@ export class SceneRuntimeAdapter {
                     entry.element.markBoundsDirty?.();
                 } catch {}
             }
+            // Text geometry is part of the resolved frame. Marking element
+            // bounds dirty alone leaves that frame cached until an unrelated
+            // scene edit changes its version.
+            this.resolvedFrame = null;
+            this.adapterVersion += 1;
+            try {
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('mvmnt-scene-runtime-updated'));
+                }
+            } catch {}
         };
         this.handlePluginInstalled = (event: Event) => {
             const detail = (event as CustomEvent)?.detail as { registeredTypes?: string[] } | undefined;
