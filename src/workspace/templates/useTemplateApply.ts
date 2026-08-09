@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { SceneNameGenerator } from '@core/scene-name-generator';
 import { importScene } from '@persistence/index';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
@@ -8,7 +9,7 @@ import { useVisualizer } from '@context/VisualizerContext';
 import type { LoadedTemplateArtifact, TemplateDefinition } from './types';
 
 export function useTemplateApply() {
-    const { refreshSceneUI, isDirty, markDirty, sceneName } = useScene();
+    const { refreshSceneUI, isDirty, markDirty } = useScene();
     const undo = useUndo();
     const visualizerCtx = useVisualizer() as { visualizer?: { invalidateRender?: () => void } } | undefined;
     const visualizer = visualizerCtx?.visualizer ?? (visualizerCtx as any);
@@ -35,6 +36,11 @@ export function useTemplateApply() {
                     alert('Failed to load template. Please try again.');
                     return false;
                 }
+
+                // Templates start a new document just like Cmd+N. Detach the
+                // previous native file before hydrating new content so Save
+                // must choose a new path instead of overwriting that file.
+                await window.mvmntDesktop?.documents.clearActivePath();
                 const result = await importScene(artifact.data);
                 if (!result.ok) {
                     const message = result.errors.map((error) => error.message).join('\n') || 'Unknown error';
@@ -56,8 +62,7 @@ export function useTemplateApply() {
                     ? `Based on "${importedName}" by ${importedAuthor}`
                     : `Based on "${importedName}"`;
 
-                // Applying a preset changes scene content, not document identity.
-                metadataStore.setName(sceneName);
+                metadataStore.setName(SceneNameGenerator.generate());
                 metadataStore.setAuthor('');
                 metadataStore.setAttribution(attribution);
 
@@ -67,12 +72,13 @@ export function useTemplateApply() {
                 refreshSceneUI();
                 visualizer?.invalidateRender?.();
                 // Don't persist to IDB — this is a new unsaved remix, not a saved file.
+                localStorage.setItem('mvmnt.desktop.recovery-state', 'dirty');
                 markDirty();
                 return true;
             } finally {
                 finishTemplateLoading();
             }
         },
-        [finishTemplateLoading, isDirty, markDirty, refreshSceneUI, sceneName, startTemplateLoading, undo, visualizer]
+        [finishTemplateLoading, isDirty, markDirty, refreshSceneUI, startTemplateLoading, undo, visualizer]
     );
 }

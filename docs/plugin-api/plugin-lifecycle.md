@@ -8,3 +8,7 @@ asynchronous. Until both complete, rendering returns no objects. Initialization 
 upgraded, or removed. Each lifetime has an `AbortSignal`. Calculator registrations, asset handles,
 and other resources created through its context are tracked and cleaned automatically. Plugins
 should still stop their own asynchronous loops when the signal aborts.
+
+`load` and `unload` receive the definition-scoped `CapabilityContext`. `create`, `render`, and `dispose` receive an
+instance-scoped `ElementContext<Props>`, which adds `context.properties` for sampling that instance's effective
+property values. Property access is unavailable at definition scope because no scene-element instance exists yet.

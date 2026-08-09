@@ -446,6 +446,18 @@ export class SceneElement implements SceneElementInterface {
         return value;
     }
 
+    /** Resolve a property at a specific timeline time without changing render state or caches. */
+    protected getPropertyAtTime<T>(key: string, targetTime: number): T {
+        const binding = this.bindings.get(key);
+        if (!binding) return undefined as T;
+        return typeof binding.getValueWithContext === 'function'
+            ? binding.getValueWithContext({
+                  targetTime,
+                  sceneConfig: this._renderContext?.sceneConfig ?? {},
+              })
+            : binding.getValue();
+    }
+
     protected getProps<TDescriptors extends PropertyDescriptorMap<this>>(
         descriptors: TDescriptors
     ): PropertySnapshot<TDescriptors, this> {

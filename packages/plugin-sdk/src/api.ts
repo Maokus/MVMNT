@@ -1,4 +1,4 @@
-export const SDK_VERSION = '2.1.0' as const;
+export const SDK_VERSION = '2.2.0' as const;
 
 export const PLUGIN_CAPABILITIES = {
     timelineRead: 'timeline.read',

@@ -49,6 +49,33 @@ npm run typecheck
 SDK 2 plugins use `definePluginElement()` and imports from `@mvmnt-app/plugin-sdk`. Do not import
 MVMNT application aliases such as `@core/*` or `@state/*`.
 
+## Sample properties at other times
+
+`props` contains property values for the current render time. Instance callbacks can also sample their own
+declared properties at arbitrary timeline times without reading automation data directly:
+
+```ts
+render(props, _state, time, context) {
+    const previous = context.properties.valueAt('speed', time.seconds - 0.25);
+    const distance = context.properties.integrate('speed', {
+        startSeconds: 0,
+        endSeconds: time.seconds,
+    });
+    const meanSpeed = context.properties.average('speed', {
+        startSeconds: Math.max(0, time.seconds - 1),
+        endSeconds: time.seconds,
+    });
+
+    if (!previous.ok || !distance.ok || !meanSpeed.ok) return [];
+    // Use previous.value, distance.value, and meanSpeed.value here.
+    return [];
+}
+```
+
+`valueAt()` supports every declared property. `integrate()` and `average()` are restricted to numeric properties
+by TypeScript and validate values again at runtime. Integration returns signed value-seconds and accepts optional
+`absoluteTolerance`, `relativeTolerance`, and `maxEvaluations` controls as its third argument.
+
 ## Cache expensive generated visuals without element state
 
 Keep `render()` deterministic: derive output from `props`, `time`, and callback-scoped host

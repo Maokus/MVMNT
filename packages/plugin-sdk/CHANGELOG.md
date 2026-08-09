@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.0
+
+- Added instance-scoped `context.properties.valueAt()` access to effective property values at arbitrary timeline
+  times.
+- Added bounded adaptive `context.properties.integrate()` and `average()` helpers for numeric properties without
+  exposing automation channels or keyframes.
+
 ## 2.1.0
 
 - Added packed `sampleFeatureMatrix()` audio reads with clip coverage and opaque revisions.

@@ -4,6 +4,8 @@ import { createPluginDefinitionScope } from '../v2-runtime';
 import { definePluginElement, type CapabilityContext } from '../../../../../packages/plugin-sdk/src/scene';
 import { getElementSubscriptionSnapshot } from '@audio/features/sceneApi';
 import { renderResourceManager } from '@core/render/render-resource-manager';
+import type { ElementContext } from '../../../../../packages/plugin-sdk/src/scene';
+import { KeyframeBinding } from '@bindings/keyframe-binding';
 
 afterEach(() => {
     document.querySelectorAll('link[id^="gf-"]').forEach((link) => link.remove());
@@ -32,6 +34,154 @@ function installHost(getFeatureData: (...args: any[]) => any = () => null) {
 }
 
 describe('SDK v2 runtime', () => {
+    it('provides instance-scoped arbitrary-time property sampling and integration', async () => {
+        type Props = Readonly<{ speed: number; label: string }>;
+        const contexts: ElementContext<Props>[] = [];
+        const renderedSpeeds: number[] = [];
+        const definition = definePluginElement<Props>({
+            type: 'property-sampling-test',
+            metadata: { name: 'Property sampling test' },
+            schema: {
+                tabs: [
+                    {
+                        id: 'properties',
+                        label: 'Properties',
+                        groups: [
+                            {
+                                id: 'values',
+                                label: 'Values',
+                                properties: [
+                                    { key: 'speed', type: 'number', label: 'Speed', default: 2 },
+                                    { key: 'label', type: 'string', label: 'Label', default: 'first' },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+            capabilities: { required: [], optional: [] },
+            create(_props, context) {
+                contexts.push(context);
+                return undefined;
+            },
+            render(props) {
+                renderedSpeeds.push(props.speed);
+                return [];
+            },
+        });
+        const scope = createPluginDefinitionScope(definition, {
+            pluginId: 'test',
+            services: installHost(),
+            synchronousInitialization: true,
+            loadAsset: async () => 'blob:test',
+            report: vi.fn(),
+        });
+        const ElementClass = scope.createElementClass();
+        const first = new ElementClass('first', { speed: 4, label: 'one' });
+        const second = new ElementClass('second', { speed: 10, label: 'two' });
+
+        first.buildRenderObjects({}, 5);
+        expect(contexts[0].properties.valueAt('speed', -2)).toEqual({ ok: true, value: 4 });
+        expect(contexts[0].properties.integrate('speed', { startSeconds: -1, endSeconds: 2 })).toEqual({
+            ok: true,
+            value: 12,
+        });
+        expect(contexts[0].properties.average('speed', { startSeconds: 0, endSeconds: 2 })).toEqual({
+            ok: true,
+            value: 4,
+        });
+        expect(contexts[1].properties.valueAt('speed', 1)).toEqual({ ok: true, value: 10 });
+        expect(renderedSpeeds).toEqual([4]);
+
+        expect(contexts[0].properties.valueAt('missing' as keyof Props, 0)).toMatchObject({
+            ok: false,
+            error: { code: 'INVALID_ARGUMENT' },
+        });
+        expect(contexts[0].properties.integrate('speed', { startSeconds: 2, endSeconds: 1 })).toMatchObject({
+            ok: false,
+            error: { code: 'INVALID_ARGUMENT' },
+        });
+        expect(contexts[0].properties.average('speed', { startSeconds: 1, endSeconds: 1 })).toMatchObject({
+            ok: false,
+            error: { code: 'INVALID_ARGUMENT' },
+        });
+        expect((contexts[0].properties as any).integrate('label', { startSeconds: 0, endSeconds: 1 })).toMatchObject({
+            ok: false,
+            error: { code: 'INVALID_ARGUMENT' },
+        });
+
+        first.dispose();
+        second.dispose();
+        expect(contexts[0].properties.valueAt('speed', 0)).toMatchObject({
+            ok: false,
+            error: { code: 'ABORTED' },
+        });
+        await scope.dispose();
+    });
+
+    it('samples keyframe-bound properties without changing the current render value', async () => {
+        type Props = Readonly<{ speed: number }>;
+        const bindingRead = vi
+            .spyOn(KeyframeBinding.prototype, 'getValueWithContext')
+            .mockImplementation((context) => context.targetTime * 10);
+        let context!: ElementContext<Props>;
+        const rendered: number[] = [];
+        const definition = definePluginElement<Props>({
+            type: 'keyframe-property-sampling-test',
+            metadata: { name: 'Keyframe property sampling test' },
+            schema: {
+                tabs: [
+                    {
+                        id: 'properties',
+                        label: 'Properties',
+                        groups: [
+                            {
+                                id: 'values',
+                                label: 'Values',
+                                properties: [{ key: 'speed', type: 'number', label: 'Speed', default: 0 }],
+                            },
+                        ],
+                    },
+                ],
+            },
+            capabilities: { required: [], optional: [] },
+            create(_props, value) {
+                context = value;
+                return undefined;
+            },
+            render(props) {
+                rendered.push(props.speed);
+                return [];
+            },
+        });
+        const scope = createPluginDefinitionScope(definition, {
+            pluginId: 'test',
+            services: installHost(),
+            synchronousInitialization: true,
+            loadAsset: async () => 'blob:test',
+            report: vi.fn(),
+        });
+        const ElementClass = scope.createElementClass();
+        const instance = new ElementClass('keyframed', {
+            speed: { type: 'keyframes', channelId: 'channel:speed' },
+        });
+
+        instance.buildRenderObjects({}, 2);
+        expect(rendered).toEqual([20]);
+        expect(context.properties.valueAt('speed', 0.25)).toEqual({ ok: true, value: 2.5 });
+        expect(context.properties.integrate('speed', { startSeconds: 0, endSeconds: 1 })).toEqual({
+            ok: true,
+            value: 5,
+        });
+        instance.buildRenderObjects({}, 2);
+        expect(rendered).toEqual([20, 20]);
+        expect(bindingRead).toHaveBeenCalledWith(expect.objectContaining({ targetTime: 0.25 }));
+
+        instance.dispose();
+        await scope.dispose();
+        bindingRead.mockRestore();
+    });
+
     it('forwards feature smoothing to the host sampling options', async () => {
         const getFeatureData = vi.fn(() => null);
         const host = installHost(getFeatureData);
@@ -56,6 +206,7 @@ describe('SDK v2 runtime', () => {
             report: vi.fn(),
         });
 
+        expect('properties' in context).toBe(false);
         context.audio!.sampleFeature({ trackId: 'audio-track', feature: 'spectrogram', timeSeconds: 1, smoothing: 12 });
 
         expect(getFeatureData).toHaveBeenCalledWith(expect.any(Object), 'audio-track', 'spectrogram', 1, {

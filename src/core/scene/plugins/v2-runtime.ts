@@ -6,11 +6,19 @@ import { BundledGridAtlasHandle, BundledSparrowHandle, BundledSprite } from '@co
 import { VisualResourceHandle } from '@core/resources/visual-resource-handle';
 import { resolveProjectAssetDescriptor } from '@state/visualAssetRegistryStore';
 import { PLUGIN_CAPABILITIES, type PluginHostServices, type PluginHostCapability } from './host-api/plugin-api';
-import type { CapabilityContext, PluginElementDefinition } from '../../../../packages/plugin-sdk/src/scene';
+import type {
+    CapabilityContext,
+    ElementContext,
+    ElementPropertyApi,
+    PluginElementDefinition,
+    PropertyIntegrationOptions,
+    PropertyTimeRange,
+} from '../../../../packages/plugin-sdk/src/scene';
 import { err, ok, type PluginDiagnostic, type Result } from '../../../../packages/plugin-sdk/src/api';
 import { registerScopedFeatureRequirements } from '@audio/audioElementMetadata';
 import { ensureFontLoaded } from '@fonts/font-loader';
 import { renderResourceManager } from '@core/render/render-resource-manager';
+import { integratePropertySampler } from './property-integration';
 
 const diagnostic = (
     code: PluginDiagnostic['code'],
@@ -60,7 +68,21 @@ function createContext(
     controller: AbortController,
     options: ScopeOptions,
     cleanups: Set<() => void>
-): CapabilityContext {
+): CapabilityContext;
+function createContext(
+    definition: PluginElementDefinition<any, any>,
+    controller: AbortController,
+    options: ScopeOptions,
+    cleanups: Set<() => void>,
+    properties: ElementPropertyApi<Readonly<Record<string, unknown>>>
+): ElementContext<Readonly<Record<string, unknown>>>;
+function createContext(
+    definition: PluginElementDefinition<any, any>,
+    controller: AbortController,
+    options: ScopeOptions,
+    cleanups: Set<() => void>,
+    properties?: ElementPropertyApi<Readonly<Record<string, unknown>>>
+): CapabilityContext | ElementContext<Readonly<Record<string, unknown>>> {
     const host = options.services;
     const declared = new Set([
         ...(definition.capabilities.required ?? []),
@@ -85,6 +107,7 @@ function createContext(
     const context: CapabilityContext = {
         signal: controller.signal,
         diagnostics: Object.freeze({ report: options.report }),
+        ...(properties ? { properties } : {}),
         assets: Object.freeze({
             async load(path: string) {
                 if (controller.signal.aborted)
@@ -555,6 +578,7 @@ export function createPluginDefinitionScope(
     const cleanups = new Set<() => void>();
     const context = createContext(definition, controller, options, cleanups);
     const fontPropertyKeys = new Set<string>();
+    const definitionPropertyKeys = new Set<string>();
     const runtimeSchema =
         definition.schema && typeof definition.schema === 'object'
             ? (definition.schema as EnhancedConfigSchema)
@@ -562,6 +586,7 @@ export function createPluginDefinitionScope(
     for (const tab of runtimeSchema?.tabs ?? []) {
         for (const group of tab.groups ?? []) {
             for (const property of group.properties ?? []) {
+                if (property?.key) definitionPropertyKeys.add(property.key);
                 if (property?.type === 'font' && property.key) fontPropertyKeys.add(property.key);
             }
         }
@@ -608,12 +633,112 @@ export function createPluginDefinitionScope(
             definition,
             this.instanceController,
             options,
-            this.instanceCleanups
+            this.instanceCleanups,
+            this.createPropertyApi()
         );
         private state: any = undefined;
         private initialized = false;
         private initializationFailed = false;
         private readonly requestedFonts = new Map<string, string>();
+
+        private createPropertyApi(): ElementPropertyApi<Readonly<Record<string, unknown>>> {
+            const valueAt = (key: string, timeSeconds: number): Result<unknown> => {
+                if (this.instanceController.signal.aborted)
+                    return err(diagnostic('ABORTED', 'Element instance has been disposed', 'properties.valueAt'));
+                if (!definitionPropertyKeys.has(key))
+                    return err(
+                        diagnostic(
+                            'INVALID_ARGUMENT',
+                            `Property '${key}' is not declared by this element`,
+                            'properties.valueAt'
+                        )
+                    );
+                if (!Number.isFinite(timeSeconds))
+                    return err(diagnostic('INVALID_ARGUMENT', 'timeSeconds must be finite', 'properties.valueAt'));
+                try {
+                    const value = this.getPropertyAtTime(key, timeSeconds);
+                    return value === undefined
+                        ? err(
+                              diagnostic(
+                                  'RESOURCE_UNAVAILABLE',
+                                  `Property '${key}' could not be resolved at ${timeSeconds} seconds`,
+                                  'properties.valueAt'
+                              )
+                          )
+                        : ok(value);
+                } catch (error) {
+                    return err(
+                        diagnostic(
+                            'RESOURCE_UNAVAILABLE',
+                            error instanceof Error ? error.message : String(error),
+                            'properties.valueAt'
+                        )
+                    );
+                }
+            };
+            const integrate = (
+                key: string,
+                range: PropertyTimeRange,
+                integrationOptions?: PropertyIntegrationOptions
+            ): Result<number> => {
+                const valid = finiteRange(range?.startSeconds, range?.endSeconds, 'properties.integrate');
+                if (!valid.ok) return valid;
+                let sampleFailure: PluginDiagnostic | undefined;
+                const result = integratePropertySampler(
+                    (timeSeconds) => {
+                        const sampled = valueAt(key, timeSeconds);
+                        if (!sampled.ok) {
+                            sampleFailure = sampled.error;
+                            return { ok: false, message: sampled.error.message };
+                        }
+                        if (typeof sampled.value !== 'number' || !Number.isFinite(sampled.value)) {
+                            sampleFailure = diagnostic(
+                                'INVALID_ARGUMENT',
+                                `Property '${key}' must resolve to finite numeric values for integration`,
+                                'properties.integrate'
+                            );
+                            return { ok: false, message: sampleFailure.message };
+                        }
+                        return { ok: true, value: sampled.value };
+                    },
+                    range.startSeconds,
+                    range.endSeconds,
+                    integrationOptions
+                );
+                if (result.ok) return ok(result.value);
+                if (sampleFailure) return err(sampleFailure);
+                return err(
+                    diagnostic(
+                        result.error.reason === 'invalid-options' ? 'INVALID_ARGUMENT' : 'RESOURCE_UNAVAILABLE',
+                        result.error.message,
+                        'properties.integrate'
+                    )
+                );
+            };
+            return Object.freeze({
+                valueAt,
+                integrate,
+                average: (
+                    key: string,
+                    range: PropertyTimeRange,
+                    integrationOptions?: PropertyIntegrationOptions
+                ): Result<number> => {
+                    const valid = finiteRange(range?.startSeconds, range?.endSeconds, 'properties.average');
+                    if (!valid.ok) return valid;
+                    const duration = range.endSeconds - range.startSeconds;
+                    if (duration === 0)
+                        return err(
+                            diagnostic(
+                                'INVALID_ARGUMENT',
+                                'Property average requires a non-empty range',
+                                'properties.average'
+                            )
+                        );
+                    const result = integrate(key, range, integrationOptions);
+                    return result.ok ? ok(result.value / duration) : result;
+                },
+            }) as ElementPropertyApi<Readonly<Record<string, unknown>>>;
+        }
 
         private getDefinitionProps(): Readonly<Record<string, unknown>> {
             const schema =

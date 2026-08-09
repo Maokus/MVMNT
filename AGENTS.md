@@ -44,4 +44,5 @@ When asked to "implement phase x" of a plan, read through the requirements and g
 
 Scene elements are the visual building blocks of a scene. First-party defaults live in `src/core/scene/elements/`. The public `@mvmnt/plugin-sdk` is a versioned workspace package in `packages/plugin-sdk`; plugin bundles externalize it and the loader injects the runtime selected by `apiVersion`.
 
-Start with `docs/plugin-quickstart.md`. `docs/plugin-api-v1.md` documents only the frozen compatibility surface.
+Start with `docs/plugin-api/plugin-quickstart.md`. SDK 1 has been removed from the current plugin surface; use the
+SDK 1 to SDK 2 migration guide only when updating legacy plugin source.

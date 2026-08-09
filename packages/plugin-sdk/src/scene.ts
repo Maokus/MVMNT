@@ -1,4 +1,4 @@
-import { PluginContractError, type DiagnosticsApi, type PluginCapability } from './api.js';
+import { PluginContractError, type DiagnosticsApi, type PluginCapability, type Result } from './api.js';
 import type { AudioApi, AudioCalculator, AudioCalculatorsApi } from './audio.js';
 import type { AudioFeatureRequirement } from './audio.js';
 import type { RenderObject, RenderTime } from './render.js';
@@ -19,6 +19,46 @@ export interface CapabilityContext {
     readonly assets: AssetApi;
     readonly diagnostics: DiagnosticsApi;
     readonly signal: AbortSignal;
+}
+
+export type NumericPropertyKey<Props extends Readonly<Record<string, unknown>>> = {
+    [Key in keyof Props]-?: Props[Key] extends number ? Key : never;
+}[keyof Props];
+
+export interface PropertyTimeRange {
+    readonly startSeconds: number;
+    readonly endSeconds: number;
+}
+
+export interface PropertyIntegrationOptions {
+    /** Absolute error target. Defaults to 1e-6. */
+    readonly absoluteTolerance?: number;
+    /** Error target relative to the current area estimate. Defaults to 1e-4. */
+    readonly relativeTolerance?: number;
+    /** Hard sampling budget. Defaults to 2049 and may not exceed 16385. */
+    readonly maxEvaluations?: number;
+}
+
+/** Instance-scoped access to effective property values without exposing their backing bindings. */
+export interface ElementPropertyApi<Props extends Readonly<Record<string, unknown>>> {
+    valueAt<Key extends keyof Props>(key: Key, timeSeconds: number): Result<Props[Key]>;
+    /** Signed area in value-seconds for a numeric property. */
+    integrate<Key extends NumericPropertyKey<Props>>(
+        key: Key,
+        range: PropertyTimeRange,
+        options?: PropertyIntegrationOptions
+    ): Result<number>;
+    /** Time-weighted mean for a numeric property over a non-empty range. */
+    average<Key extends NumericPropertyKey<Props>>(
+        key: Key,
+        range: PropertyTimeRange,
+        options?: PropertyIntegrationOptions
+    ): Result<number>;
+}
+
+/** Context for callbacks owned by one scene-element instance. */
+export interface ElementContext<Props extends Readonly<Record<string, unknown>>> extends CapabilityContext {
+    readonly properties: ElementPropertyApi<Props>;
 }
 
 export interface ElementMetadata {
@@ -263,7 +303,7 @@ export type EnhancedConfigSchema = NamedElementSchema;
  * the host scene instance, stores, and global SDK accessors are never exposed.
  */
 export abstract class CallbackElementRenderer {
-    protected context!: CapabilityContext;
+    protected context!: ElementContext<Readonly<Record<string, unknown>>>;
     private props: Readonly<Record<string, unknown>> = Object.freeze({ visible: true });
     private readonly pendingAssets: Array<(context: CapabilityContext) => void> = [];
     constructor(_type?: string, _id?: string | null, config: Record<string, unknown> = {}) {
@@ -272,7 +312,10 @@ export abstract class CallbackElementRenderer {
     static getConfigSchema(): NamedElementSchema {
         return { name: '', description: '', tabs: [] };
     }
-    __attach(context: CapabilityContext, props: Readonly<Record<string, unknown>>): void {
+    __attach(
+        context: ElementContext<Readonly<Record<string, unknown>>>,
+        props: Readonly<Record<string, unknown>>
+    ): void {
         this.context = context;
         this.__update(props);
         this.pendingAssets.splice(0).forEach((attach) => attach(context));
@@ -425,9 +468,9 @@ export interface PluginElementDefinition<
     readonly schema: Schema;
     readonly capabilities: ElementCapabilities;
     load?(context: CapabilityContext): void | Promise<void>;
-    create?(props: Props, context: CapabilityContext): State | Promise<State>;
-    render(props: Props, state: State, time: RenderTime, context: CapabilityContext): readonly RenderObject[];
-    dispose?(state: State, context: CapabilityContext): void | Promise<void>;
+    create?(props: Props, context: ElementContext<Props>): State | Promise<State>;
+    render(props: Props, state: State, time: RenderTime, context: ElementContext<Props>): readonly RenderObject[];
+    dispose?(state: State, context: ElementContext<Props>): void | Promise<void>;
     unload?(context: CapabilityContext): void | Promise<void>;
 }
 

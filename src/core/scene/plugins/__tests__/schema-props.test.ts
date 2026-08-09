@@ -46,7 +46,7 @@ describe('schema-inferred plugin props', () => {
             metadata: { name: 'Schema Props' },
             schema,
             capabilities: { required: [], optional: [] },
-            create(props) {
+            create(props, context) {
                 expectTypeOf(props).toEqualTypeOf<PropsFromSchema<typeof schema>>();
                 expectTypeOf(props.size).toEqualTypeOf<number>();
                 expectTypeOf(props.opacity).toEqualTypeOf<number>();
@@ -55,6 +55,18 @@ describe('schema-inferred plugin props', () => {
                 expectTypeOf(props.align).toEqualTypeOf<'left' | 'right'>();
                 expectTypeOf(props.trackIds).toEqualTypeOf<readonly string[] | null>();
                 expectTypeOf(props.imageId).toEqualTypeOf<string | null>();
+                expectTypeOf(context.properties.valueAt('size', 1)).toEqualTypeOf<
+                    import('../../../../../packages/plugin-sdk/src/api').Result<number>
+                >();
+                expectTypeOf(context.properties.integrate('opacity', { startSeconds: 0, endSeconds: 1 })).toEqualTypeOf<
+                    import('../../../../../packages/plugin-sdk/src/api').Result<number>
+                >();
+                if (false) {
+                    // @ts-expect-error Boolean properties cannot be integrated.
+                    context.properties.integrate('enabled', { startSeconds: 0, endSeconds: 1 });
+                    // @ts-expect-error Unknown properties cannot be sampled.
+                    context.properties.valueAt('missing', 0);
+                }
                 return { frames: 0 };
             },
             render(props, state) {

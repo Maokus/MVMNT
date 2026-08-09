@@ -1,5 +1,16 @@
 # Plugin SDK changelog
 
+## 2.2.0
+
+Adds instance-scoped access to an element's effective property values. `context.properties.valueAt()` samples a
+declared property at any finite timeline time, while `integrate()` and `average()` operate on numeric properties
+over an ordered seconds range. Integration is bounded and adaptive, with optional absolute tolerance, relative
+tolerance, and evaluation-budget controls.
+
+The API deliberately exposes property results rather than automation channels, keyframes, ticks, interpolation
+descriptors, or binding types. Constants, macros, keyframes, and future binding implementations therefore share
+one plugin contract. The current-time `props` snapshot is unchanged.
+
 ## 2.1.0
 
 Adds two bounded, callback-scoped performance primitives:

@@ -30,3 +30,7 @@ export const element = definePluginElement({
 
 Passing the callback facet keeps host capability checks and lifecycle ownership intact. The
 `audio`, `timeline`, `timing`, and `visual-assets` subpaths expose the same adapters.
+
+Element-instance callbacks also receive `context.properties`. Use `valueAt()` to resolve one of the element's own
+properties at any timeline time, or `integrate()` and `average()` for bounded numeric area calculations. These
+methods operate on effective property values and do not expose automation channels or keyframes.

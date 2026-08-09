@@ -44,7 +44,11 @@ execFileSync('npm', ['pack', resolve(projectRoot, 'packages/plugin-sdk'), '--pac
     stdio: 'inherit',
     env: npmEnvironment,
 });
-const tarball = join(work, 'mvmnt-app-plugin-sdk-2.0.0.tgz');
+const packedTarballs = readdirSync(work).filter((entry) => entry.endsWith('.tgz'));
+if (packedTarballs.length !== 1) {
+    throw new Error(`Expected npm pack to create one tarball, found ${packedTarballs.length}`);
+}
+const tarball = join(work, packedTarballs[0]);
 const fixturePackagePath = join(fixture, 'package.json');
 const fixturePackage = JSON.parse(readFileSync(fixturePackagePath, 'utf8'));
 fixturePackage.dependencies['@mvmnt-app/plugin-sdk'] = `file:${tarball}`;

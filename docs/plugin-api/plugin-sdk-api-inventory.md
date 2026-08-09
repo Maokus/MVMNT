@@ -10,7 +10,7 @@ machine-readable source used by loader and builder parity tests.
 | `/animation`            | `clamp`, `lerp`, `invLerp`, `remap`, `easings`, `FloatCurve`                                                                    |
 | `/audio`                | audio DTO types and standalone adapters for every `AudioApi`/calculator operation                                               |
 | `/render`               | host-injected render primitives                                                                                                 |
-| `/scene`                | definitions, lifecycle/context types, property DTO builders, callback-owned renderer state                                      |
+| `/scene`                | definitions, lifecycle/context types, instance property sampling, property DTO builders, callback-owned renderer state          |
 | `/safety`               | `checkCapability`, `limitRenderObjects`                                                                                         |
 | `/timeline`             | timeline DTO types and standalone adapters for every `TimelineApi` operation                                                    |
 | `/timing`               | timing facet types and standalone adapters for every conversion operation                                                       |
@@ -25,3 +25,7 @@ making every SDK operation available as a named import from both its subpath and
 Published declaration files are checked to contain no `@core`, `@state`, `@audio`, or Zustand
 types. Host-dependent JavaScript is an explicit outside-host stub; MVMNT replaces each runtime
 module when evaluating a plugin bundle.
+
+Instance callbacks receive `context.properties`. Its `valueAt()` method samples any declared property in timeline
+seconds, and its numeric-only `integrate()` and `average()` methods operate over ordered seconds ranges. These
+methods resolve effective values without exposing the host's binding or automation representation.

@@ -1,6 +1,6 @@
 {
     "name": "@mvmnt-app/plugin-sdk",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "description": "Public authoring SDK for MVMNT scene element plugins",
     "license": "MIT",
     "publishConfig": {
