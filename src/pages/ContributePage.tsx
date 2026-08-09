@@ -125,7 +125,7 @@ const ContributePage: React.FC = () => {
                             this :")
                         </p>
                         <a
-                            href="https://github.com/Maokus/MVMNT/blob/main/docs/plugin-quickstart.md"
+                            href="https://github.com/Maokus/MVMNT/blob/main/docs/plugin-api/quickstart.md"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"

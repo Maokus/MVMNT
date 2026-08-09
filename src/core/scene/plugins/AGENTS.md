@@ -29,7 +29,7 @@ Six capabilities are defined in `PLUGIN_CAPABILITIES` (in `host-api/plugin-api.t
 - `midiUtils` — MIDI note utilities (always available)
 - `audioCalculatorsRegister` — register custom audio calculators (always available)
 
-See `docs/plugin-api/plugin-capabilities.md` and `docs/plugin-api/plugin-lifecycle.md` for SDK 2.
+See `docs/plugin-api/authoring.md` and `docs/plugin-api/reference.md` for SDK 2.
 
 ## SDK 2 access pattern
 

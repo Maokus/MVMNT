@@ -23,6 +23,8 @@ jobs:
               run: npm run architecture:modules
             - name: Report module size and type debt
               run: npm run architecture:health
+            - name: Check documentation links
+              run: npm run docs:check
             - run: npx prettier --write .
             - run: npm run test
             - run: npm run build

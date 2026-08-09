@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://maok.us">
-    <img src="src/assets/titlecard.png" width="1000" alt="Godot Engine logo">
+    <img src="src/assets/titlecard.png" width="1000" alt="MVMNT title card">
   </a>
 </p>
 
@@ -12,6 +12,7 @@ For developers, it is a framework which handles the boilerplate so that you can 
 
 - [Installation](#installation)
 - [Windows Node/Electron recovery](#windows-nodeelectron-recovery)
+- [Documentation](#documentation)
 - [Making Plugins](#making-plugins)
 - [License](#license)
 
@@ -58,17 +59,24 @@ Node version. MVMNT requires Node 22.12 or newer within the Node 22 release line
 Do not delete `package-lock.json`, and do not use Electron's suggested manual installer; reinstalling
 after switching Node installs the correct Electron binary.
 
+## Documentation
+
+The [documentation index](docs/README.md) provides separate paths for application contributors and
+external plugin authors. Architecture, state, persistence, rendering, audio, desktop, and plugin
+contracts are documented there.
+
 ## Making Plugins
 
-**Just want to make visualisations?** Read the [Plugin Development Quickstart](docs/plugin-quickstart.md).
+Start with the [Plugin SDK 2 quickstart](docs/plugin-api/quickstart.md). External plugins use
+`definePluginElement()` and import only `@mvmnt-app/plugin-sdk` or its documented subpaths. MVMNT
+injects capability-scoped timeline, timing, audio, and asset services into lifecycle and render
+callbacks.
 
-One main goal of this project was making coding music visualisations easier. With MVMNT, you can write, build, and distribute your own scene elements using the same API that the built-in elements use.
+The plugin generator creates a complete project with validation, hot reload, and packaging:
 
-Plugins are TypeScript classes that extend `SceneElement`. They (1) declare their configurable properties and (2) implement a `_buildRenderObjects()` method that passes `RenderObject`s to the renderer to draw.
-
-The `@mvmnt/plugin-sdk` module provides everything you need: the base class, render primitives, and access to the timeline, audio features, and timing data via a stable host API.
-
-For a full reference see [Creating Custom Elements](docs/creating-custom-elements.md) and the [Plugin API v1 Reference](docs/plugin-api-v1.md).
+```bash
+npm create mvmnt-plugin@latest -- --name com.example.my-plugin --template minimal
+```
 
 ## License
 

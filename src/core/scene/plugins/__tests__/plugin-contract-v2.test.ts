@@ -73,10 +73,7 @@ describe('plugin SDK v2 contract', () => {
             );
         }
 
-        const docs = readFileSync(
-            resolve(__dirname, '../../../../../docs/plugin-api/plugin-sdk-api-inventory.md'),
-            'utf8'
-        );
+        const docs = readFileSync(resolve(__dirname, '../../../../../docs/plugin-api/reference.md'), 'utf8');
         for (const subpath of sdkManifest.subpaths.filter((value) => value !== '.')) {
             expect(docs).toContain(`/${subpath}`);
         }

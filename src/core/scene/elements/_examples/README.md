@@ -9,4 +9,4 @@ Examples will be distributed through the external plugin generator. This directo
 ## See Also
 
 - [\_templates/README.md](../_templates/README.md) — leaner starting-point templates for new elements
-- [Visual Asset Registry](../../../../docs/visual-asset-registry.md) — asset loading API reference
+- [Plugin rendering and assets](../../../../docs/plugin-api/rendering-and-assets.md)

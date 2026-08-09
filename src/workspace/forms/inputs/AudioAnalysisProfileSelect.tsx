@@ -29,7 +29,7 @@ const normalizeTrackId = (trackId: AudioAnalysisProfileSelectSchema['trackId']):
 
 const buildGlossaryTitle = (term: string | undefined): string | undefined => {
     if (!term) return undefined;
-    return `Analysis profile. See docs/audio-feature-bindings.md#${term}`;
+    return 'Analysis profile. See docs/contributors/audio-system.md#feature-analysis';
 };
 
 export const AudioAnalysisProfileSelect: React.FC<AudioAnalysisProfileSelectProps> = ({

@@ -1,6 +1,7 @@
 # Element Templates
 
-This directory contains SDK 2 template implementations for the future external plugin generator. Until that generator is published, copy a template into an external plugin project and adapt its manifest and metadata.
+This directory contains the built-in counterparts of the SDK 2 templates published by the external
+plugin generator.
 
 ## Available Templates
 
@@ -93,6 +94,6 @@ lifecycle-scoped asset handles. External capability declarations live in `plugin
 
 ## See Also
 
-- [Visual Asset Registry](../../../../docs/visual-asset-registry.md) — asset loading API reference
-- [Creating Custom Elements Guide](../../../../docs/creating-custom-elements.md)
+- [Plugin rendering and assets](../../../../docs/plugin-api/rendering-and-assets.md)
+- [Plugin authoring guide](../../../../docs/plugin-api/authoring.md)
 - [\_examples](../_examples/README.md) — complete worked examples illustrating specific concepts

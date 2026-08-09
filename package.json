@@ -96,6 +96,7 @@
         "architecture:modules": "node scripts/module-map.mjs",
         "architecture:cycles": "node scripts/module-map.mjs --check",
         "architecture:health": "node scripts/code-health-report.mjs",
+        "docs:check": "node scripts/check-doc-links.mjs",
         "compile": "npx tsc --noEmit && npx tsc --noEmit -p electron/tsconfig.json",
         "build-plugin": "node scripts/build-plugin.mjs",
         "dev-plugin": "node scripts/dev-plugin.mjs",
