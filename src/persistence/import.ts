@@ -43,7 +43,7 @@ import {
 import { hydrateAudioAssets } from './import/audioHydration';
 import { migrateAndValidateScene } from './import/migrationOrchestration';
 import { applyImportedDocument } from './import/documentApplication';
-import { hydrateSceneFonts } from './import/fontHydration';
+import { hydrateSceneFonts, preloadImportedSceneFonts } from './import/fontHydration';
 import type { ImportSceneInput, ImportSceneOptions, ImportSceneResult } from './import/contracts';
 export type {
     ImportError,
@@ -163,6 +163,11 @@ export async function importScene(
         (migratedEnvelope as any).visualAssetRegistry
     );
 
+    // FontFace registration emits the renderer refresh event. Run it after
+    // applying the document so the imported elements, rather than the scene
+    // being replaced, receive that refresh and recalculate their text bounds.
+    const fontPreloadWarnings = await preloadImportedSceneFonts(migratedEnvelope);
+
     let hydrationWarnings: string[] = [];
     if (
         (migratedEnvelope.schemaVersion === 2 ||
@@ -210,6 +215,7 @@ export async function importScene(
         ...visualWarnings.map((message) => ({ message })),
         ...hydrationWarnings.map((message) => ({ message })),
         ...fontWarnings.map((message) => ({ message })),
+        ...fontPreloadWarnings.map((message) => ({ message })),
         ...fontUpgradeWarnings.map((message) => ({ message })),
         ...pluginWarnings.map((message) => ({ message })),
     ];

@@ -3,6 +3,7 @@ import type { FontAsset } from '@state/scene/fonts';
 export const FONT_ASSETS_SCHEMA_VERSION = 9;
 
 const DEVICE_FAMILIES = new Set(['arial', 'helvetica', 'times new roman', 'georgia', 'verdana']);
+const BUILT_IN_FAMILIES = new Map([['inter', 'inter']]);
 
 function normalizeSelection(value: string): string {
     if (value.startsWith('Custom:')) return `Project:${value.slice('Custom:'.length)}`;
@@ -10,6 +11,8 @@ function normalizeSelection(value: string): string {
     const [familyPart, weightPart = '400'] = value.split('|');
     const family = familyPart.trim();
     if (!family) return value;
+    const builtInId = BUILT_IN_FAMILIES.get(family.toLowerCase());
+    if (builtInId) return `BuiltIn:${builtInId}|${weightPart || '400'}`;
     if (DEVICE_FAMILIES.has(family.toLowerCase())) return `Device:${family}|${weightPart || '400'}`;
     return `MissingGoogle:${family}|${weightPart || '400'}`;
 }
@@ -23,11 +26,12 @@ function migrateFontValues(value: unknown, key = '', fontContext = false): unkno
     }
     if (Array.isArray(value)) return value.map((entry) => migrateFontValues(entry, key, isFontValue));
     if (!value || typeof value !== 'object') return value;
+    const record = value as Record<string, unknown>;
+    if (isFontValue && typeof record.value === 'string') {
+        return { ...record, value: normalizeSelection(record.value) };
+    }
     return Object.fromEntries(
-        Object.entries(value as Record<string, unknown>).map(([childKey, child]) => [
-            childKey,
-            migrateFontValues(child, childKey || key, isFontValue),
-        ])
+        Object.entries(record).map(([childKey, child]) => [childKey, migrateFontValues(child, childKey)])
     );
 }
 

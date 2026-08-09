@@ -59,6 +59,7 @@ describe('FontInput source separation', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /Inter.*built-in/i }));
         expect(await screen.findByText('Project Fonts · embedded')).toBeInTheDocument();
+        expect(screen.getByText('Project Fonts · embedded').closest('[data-preserve-selection="true"]')).not.toBeNull();
         expect(screen.getByText('Built-in Fonts · offline')).toBeInTheDocument();
         expect(screen.getByText('Device Fonts · not portable')).toBeInTheDocument();
         fireEvent.click(await screen.findByRole('button', { name: /Remote Sans/i }));

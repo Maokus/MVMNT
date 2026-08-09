@@ -231,6 +231,7 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                     <div
                         ref={familyFloating.refs.setFloating}
                         style={familyFloating.floatingStyles}
+                        data-preserve-selection="true"
                         className="z-[1000] flex max-h-[420px] w-[360px] flex-col overflow-hidden rounded border border-neutral-700 bg-neutral-950 text-xs shadow-2xl"
                     >
                         <label className="relative border-b border-neutral-800 p-3">
@@ -308,6 +309,7 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                     <div
                         ref={weightFloating.refs.setFloating}
                         style={weightFloating.floatingStyles}
+                        data-preserve-selection="true"
                         className="z-[1000] max-h-[280px] w-[140px] overflow-y-auto rounded border border-neutral-700 bg-neutral-950 p-1 shadow-xl"
                     >
                         {availableVariants.map((variant) => (
@@ -326,7 +328,10 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
 
             {download && (
                 <FloatingPortal>
-                    <div className="fixed left-1/2 top-1/2 z-[1100] w-[360px] -translate-x-1/2 -translate-y-1/2 rounded border border-sky-700 bg-neutral-950 p-3 text-xs text-neutral-200 shadow-2xl">
+                    <div
+                        data-preserve-selection="true"
+                        className="fixed left-1/2 top-1/2 z-[1100] w-[360px] -translate-x-1/2 -translate-y-1/2 rounded border border-sky-700 bg-neutral-950 p-3 text-xs text-neutral-200 shadow-2xl"
+                    >
                         <div className="flex items-center justify-between gap-3">
                             <span>
                                 Embedding {download.family}… {download.completed}/{download.total}
