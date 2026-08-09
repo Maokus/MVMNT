@@ -21,6 +21,7 @@ import AutomationCurvePane from './AutomationCurvePane';
 import type { AutomationChannel, AutomationKeyframe } from '@automation/types';
 import type { AutomatedSceneNodeView } from '@automation/selectors';
 import { descriptorForTarget, fallbackDescriptor } from '@state/scene/propertyCatalog';
+import { isTextEditingTarget, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 
 interface KfMove {
     channelId: string;
@@ -507,151 +508,154 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
     }, [setSelBox]);
 
     // Keyboard shortcuts: copy/paste/delete keyframes, j/k navigate prev/next keyframe
-    useEffect(() => {
-        const handler = (e: KeyboardEvent) => {
-            const active = document.activeElement as HTMLElement | null;
-            if (active) {
-                const tag = active.tagName;
-                if (active.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA') return;
+    const handleAutomationShortcut = useCallback((e: KeyboardEvent) => {
+        if (isTextEditingTarget(e.target)) return;
+
+        // J = previous keyframe globally, K = next keyframe globally
+        if (e.key === 'j' || e.key === 'k') {
+            const sceneState = useSceneStore.getState();
+            const allTicks = Object.values(sceneState.automation.channels).flatMap((ch) =>
+                ch.keyframes.map((kf) => kf.tick)
+            );
+            if (allTicks.length === 0) return;
+            const unique = [...new Set(allTicks)].sort((a, b) => a - b);
+            const currentTick = useTimelineStore.getState().timeline.currentTick;
+            if (e.key === 'j') {
+                const prev = [...unique].reverse().find((t) => t < currentTick - 0.5);
+                if (prev !== undefined) {
+                    e.preventDefault();
+                    useTimelineStore.getState().seekTick(prev);
+                }
+            } else {
+                const next = unique.find((t) => t > currentTick + 0.5);
+                if (next !== undefined) {
+                    e.preventDefault();
+                    useTimelineStore.getState().seekTick(next);
+                }
             }
+            return;
+        }
 
-            // J = previous keyframe globally, K = next keyframe globally
-            if (e.key === 'j' || e.key === 'k') {
-                const sceneState = useSceneStore.getState();
-                const allTicks = Object.values(sceneState.automation.channels).flatMap((ch) =>
-                    ch.keyframes.map((kf) => kf.tick)
-                );
-                if (allTicks.length === 0) return;
-                const unique = [...new Set(allTicks)].sort((a, b) => a - b);
-                const currentTick = useTimelineStore.getState().timeline.currentTick;
-                if (e.key === 'j') {
-                    const prev = [...unique].reverse().find((t) => t < currentTick - 0.5);
-                    if (prev !== undefined) {
-                        e.preventDefault();
-                        useTimelineStore.getState().seekTick(prev);
-                    }
-                } else {
-                    const next = unique.find((t) => t > currentTick + 0.5);
-                    if (next !== undefined) {
-                        e.preventDefault();
-                        useTimelineStore.getState().seekTick(next);
-                    }
-                }
-                return;
-            }
-
-            // Copy selected keyframes
-            if (e.key === 'c' && (e.metaKey || e.ctrlKey)) {
-                const selected = useSelectionStore.getState().selectedKeyframes;
-                if (selected.length === 0) return;
-                e.preventDefault();
-                e.stopPropagation();
-                // Group by channelId
-                const byChannel = new Map<string, number[]>();
-                for (const { channelId, tick } of selected) {
-                    if (!byChannel.has(channelId)) byChannel.set(channelId, []);
-                    byChannel.get(channelId)!.push(tick);
-                }
-                const state = useSceneStore.getState();
-                const entries: Array<{ channelId: string; keyframes: AutomationKeyframe[] }> = [];
-                for (const [channelId, ticks] of byChannel) {
-                    const ch = state.automation.channels[channelId];
-                    if (!ch) continue;
-                    const kfs = ch.keyframes.filter((kf) => ticks.some((t) => Math.abs(kf.tick - t) < 0.5));
-                    if (kfs.length > 0) entries.push({ channelId, keyframes: kfs });
-                }
-                copySelectedKeyframes(entries);
-                return;
-            }
-
-            // Duplicate selected keyframes immediately after the selection (tiles on repeat)
-            if (e.key === 'd' && (e.metaKey || e.ctrlKey)) {
-                const selected = useSelectionStore.getState().selectedKeyframes;
-                if (selected.length === 0) return;
-                e.preventDefault();
-                e.stopPropagation();
-
-                selected.sort((a, b) => a.tick - b.tick);
-                const minTick = selected[0].tick;
-                const maxTick = selected[selected.length - 1].tick;
-                const span = maxTick - minTick;
-                if (span === 0) return; // single tick — no meaningful tile
-
-                const state = useSceneStore.getState();
-                const mergeKey = `duplicate-kf-${Date.now()}`;
-                const newSelected: Array<{ channelId: string; tick: number }> = [];
-
-                // The first new keyframe lands at minTick + span = maxTick, which would override
-                // any selected keyframe already there. Move those back by one tick first.
-                for (const { channelId, tick } of selected) {
-                    if (Math.abs(tick - maxTick) < 0.5) {
-                        dispatchSceneCommand(
-                            { type: 'moveKeyframe', channelId, fromTick: tick, toTick: tick - 1 },
-                            { source: 'automation-lane', mergeKey }
-                        );
-                    }
-                }
-
-                for (const { channelId, tick } of selected) {
-                    const ch = state.automation.channels[channelId];
-                    if (!ch) continue;
-                    const kf = ch.keyframes.find((k) => Math.abs(k.tick - tick) < 0.5);
-                    if (!kf) continue;
-                    const newTick = tick + span;
-
-                    dispatchSceneCommand(
-                        { type: 'addKeyframe', channelId, keyframe: { ...kf, tick: newTick } },
-                        { source: 'automation-lane', mergeKey }
-                    );
-                    newSelected.push({ channelId, tick: newTick });
-                }
-
-                // Shift selection to duplicated block — next Cmd+D tiles another copy
-                useSelectionStore.getState().selectKeyframes(newSelected);
-                return;
-            }
-
-            // Paste selected keyframes (offset to playhead)
-            if (e.key === 'v' && (e.metaKey || e.ctrlKey)) {
-                const clip = getKeyframeSelClipboard();
-                if (!clip) return;
-                e.preventDefault();
-                e.stopPropagation();
-                const currentTick = useTimelineStore.getState().timeline.currentTick ?? 0;
-                const tickOffset = currentTick - clip.minTick;
-                const pasteKey = `paste-kf-${Date.now()}`;
-                for (const entry of clip.entries) {
-                    for (const kf of entry.keyframes) {
-                        const newTick = Math.max(0, Math.round(kf.tick + tickOffset));
-                        dispatchSceneCommand(
-                            {
-                                type: 'addKeyframe',
-                                channelId: entry.channelId,
-                                keyframe: { ...kf, tick: newTick },
-                            },
-                            { source: 'automation-lane', mergeKey: pasteKey }
-                        );
-                    }
-                }
-                return;
-            }
-
-            if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+        // Copy selected keyframes
+        if (e.key === 'c' && (e.metaKey || e.ctrlKey)) {
             const selected = useSelectionStore.getState().selectedKeyframes;
             if (selected.length === 0) return;
             e.preventDefault();
             e.stopPropagation();
-            for (const kf of selected) {
-                dispatchSceneCommand(
-                    { type: 'removeKeyframe', channelId: kf.channelId, tick: kf.tick },
-                    { source: 'automation-lane' }
-                );
+            // Group by channelId
+            const byChannel = new Map<string, number[]>();
+            for (const { channelId, tick } of selected) {
+                if (!byChannel.has(channelId)) byChannel.set(channelId, []);
+                byChannel.get(channelId)!.push(tick);
             }
-            useSelectionStore.getState().clearSelection('keyframes');
-        };
-        window.addEventListener('keydown', handler, { capture: true });
-        return () => window.removeEventListener('keydown', handler, { capture: true } as any);
+            const state = useSceneStore.getState();
+            const entries: Array<{ channelId: string; keyframes: AutomationKeyframe[] }> = [];
+            for (const [channelId, ticks] of byChannel) {
+                const ch = state.automation.channels[channelId];
+                if (!ch) continue;
+                const kfs = ch.keyframes.filter((kf) => ticks.some((t) => Math.abs(kf.tick - t) < 0.5));
+                if (kfs.length > 0) entries.push({ channelId, keyframes: kfs });
+            }
+            copySelectedKeyframes(entries);
+            return;
+        }
+
+        // Duplicate selected keyframes immediately after the selection (tiles on repeat)
+        if (e.key === 'd' && (e.metaKey || e.ctrlKey)) {
+            const selected = useSelectionStore.getState().selectedKeyframes;
+            if (selected.length === 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            selected.sort((a, b) => a.tick - b.tick);
+            const minTick = selected[0].tick;
+            const maxTick = selected[selected.length - 1].tick;
+            const span = maxTick - minTick;
+            if (span === 0) return; // single tick — no meaningful tile
+
+            const state = useSceneStore.getState();
+            const mergeKey = `duplicate-kf-${Date.now()}`;
+            const newSelected: Array<{ channelId: string; tick: number }> = [];
+
+            // The first new keyframe lands at minTick + span = maxTick, which would override
+            // any selected keyframe already there. Move those back by one tick first.
+            for (const { channelId, tick } of selected) {
+                if (Math.abs(tick - maxTick) < 0.5) {
+                    dispatchSceneCommand(
+                        { type: 'moveKeyframe', channelId, fromTick: tick, toTick: tick - 1 },
+                        { source: 'automation-lane', mergeKey }
+                    );
+                }
+            }
+
+            for (const { channelId, tick } of selected) {
+                const ch = state.automation.channels[channelId];
+                if (!ch) continue;
+                const kf = ch.keyframes.find((k) => Math.abs(k.tick - tick) < 0.5);
+                if (!kf) continue;
+                const newTick = tick + span;
+
+                dispatchSceneCommand(
+                    { type: 'addKeyframe', channelId, keyframe: { ...kf, tick: newTick } },
+                    { source: 'automation-lane', mergeKey }
+                );
+                newSelected.push({ channelId, tick: newTick });
+            }
+
+            // Shift selection to duplicated block — next Cmd+D tiles another copy
+            useSelectionStore.getState().selectKeyframes(newSelected);
+            return;
+        }
+
+        // Paste selected keyframes (offset to playhead)
+        if (e.key === 'v' && (e.metaKey || e.ctrlKey)) {
+            const clip = getKeyframeSelClipboard();
+            if (!clip) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const currentTick = useTimelineStore.getState().timeline.currentTick ?? 0;
+            const tickOffset = currentTick - clip.minTick;
+            const pasteKey = `paste-kf-${Date.now()}`;
+            for (const entry of clip.entries) {
+                for (const kf of entry.keyframes) {
+                    const newTick = Math.max(0, Math.round(kf.tick + tickOffset));
+                    dispatchSceneCommand(
+                        {
+                            type: 'addKeyframe',
+                            channelId: entry.channelId,
+                            keyframe: { ...kf, tick: newTick },
+                        },
+                        { source: 'automation-lane', mergeKey: pasteKey }
+                    );
+                }
+            }
+            return;
+        }
+
+        if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+        const selected = useSelectionStore.getState().selectedKeyframes;
+        if (selected.length === 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        for (const kf of selected) {
+            dispatchSceneCommand(
+                { type: 'removeKeyframe', channelId: kf.channelId, tick: kf.tick },
+                { source: 'automation-lane' }
+            );
+        }
+        useSelectionStore.getState().clearSelection('keyframes');
     }, []);
+    useGlobalShortcut({
+        id: 'timeline.automation-keyframes',
+        domain: 'timeline',
+        matches: (event) =>
+            ['j', 'k', 'Delete', 'Backspace'].includes(event.key) ||
+            ((event.metaKey || event.ctrlKey) && ['c', 'd', 'v'].includes(event.key)),
+        handle: (event) => {
+            handleAutomationShortcut(event);
+            return event.defaultPrevented;
+        },
+    });
 
     if (automationRows.length === 0) return null;
 

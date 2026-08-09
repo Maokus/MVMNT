@@ -5,7 +5,7 @@ import type { SceneElement } from '@core/scene/elements';
 import { CANONICAL_PPQ } from './timing/ppq';
 import { loadDefaultScene } from './default-scene-loader';
 import { dispatchSceneCommand, SceneRuntimeAdapter } from '@state/scene';
-import { useSceneStore } from '@state/sceneStore';
+import { createSceneSnapshot, useSceneStore } from '@state/sceneStore';
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 import type { SnapGuide } from '@core/interaction/snapping';
 import { PerspectiveElementRoot } from '@core/render/render-objects';
@@ -906,7 +906,7 @@ export class MIDIVisualizerCore {
         }
     }
     exportSceneConfig() {
-        return useSceneStore.getState().exportSceneDraft();
+        return createSceneSnapshot(useSceneStore.getState());
     }
     cleanup() {
         if (this._cleanedUp) return;

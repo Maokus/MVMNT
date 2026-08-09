@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
+import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 
 interface OnboardingOverlayProps {
     onClose: () => void;
@@ -7,14 +8,15 @@ interface OnboardingOverlayProps {
 
 // Simple first-time onboarding overlay. Appears only if localStorage key not set.
 const OnboardingOverlay: React.FC<OnboardingOverlayProps> = ({ onClose }) => {
-    // Allow ESC key to close
-    useEffect(() => {
-        const handler = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
-        };
-        window.addEventListener('keydown', handler);
-        return () => window.removeEventListener('keydown', handler);
-    }, [onClose]);
+    useGlobalShortcut({
+        id: 'modal.onboarding.escape',
+        domain: 'modal',
+        matches: (event) => event.key === 'Escape',
+        handle: () => {
+            onClose();
+            return true;
+        },
+    });
 
     return (
         <div

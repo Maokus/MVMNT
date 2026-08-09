@@ -54,6 +54,36 @@ describe('global shortcut registry', () => {
         expect(calls).toEqual(['modal']);
     });
 
+    it('lets timeline Delete win only while a timeline selection can handle it', () => {
+        const calls: string[] = [];
+        let hasTimelineSelection = false;
+        registerGlobalShortcut({
+            id: 'scene.delete',
+            domain: 'scene',
+            matches: (event) => event.key === 'Delete',
+            handle: () => {
+                calls.push('scene');
+                return true;
+            },
+        });
+        registerGlobalShortcut({
+            id: 'timeline.delete',
+            domain: 'timeline',
+            matches: (event) => event.key === 'Delete',
+            handle: () => {
+                if (!hasTimelineSelection) return false;
+                calls.push('timeline');
+                return true;
+            },
+        });
+
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' }));
+        hasTimelineSelection = true;
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' }));
+
+        expect(calls).toEqual(['scene', 'timeline']);
+    });
+
     it('rejects duplicate ownership for one shortcut registration', () => {
         registerGlobalShortcut({ id: 'scene.delete', domain: 'scene', matches: () => false, handle: () => false });
         expect(() =>

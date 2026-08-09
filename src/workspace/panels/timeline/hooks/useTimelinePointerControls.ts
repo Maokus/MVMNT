@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import type { PointerEventHandler } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { zoomAround, isEditableTarget } from '../utils/timelineNavUtils';
+import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 
 /**
  * Handles all pointer and touch gesture interactions on the timeline right pane:
@@ -31,6 +32,18 @@ export function useTimelinePointerControls() {
     const spaceDragRef = useRef<{ startClientX: number; startView: { s: number; e: number } } | null>(null);
     const activePointersRef = useRef<Map<number, { clientX: number; clientY: number }>>(new Map());
     const pinchRef = useRef<{ dist: number; startView: { s: number; e: number }; pivotTick: number } | null>(null);
+
+    useGlobalShortcut({
+        id: 'focused-control.timeline-space-drag',
+        domain: 'focused-control',
+        matches: (event) => event.code === 'Space' && !isEditableTarget(document.activeElement),
+        handle: (event) => {
+            spaceDownRef.current = true;
+            if (!isPointerDownRef.current) return false;
+            event.preventDefault();
+            return true;
+        },
+    });
 
     const onRightPointerDown: PointerEventHandler<HTMLDivElement> = (e) => {
         activePointersRef.current.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
@@ -169,25 +182,13 @@ export function useTimelinePointerControls() {
 
     // Space key tracking — allows space-drag pan while preventing conflict with play/pause
     useEffect(() => {
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.code !== 'Space') return;
-            if (isEditableTarget(document.activeElement)) return;
-            spaceDownRef.current = true;
-            // If a left-button drag is already active, consume space so transport doesn't toggle play
-            if (isPointerDownRef.current) {
-                e.stopImmediatePropagation();
-                e.preventDefault();
-            }
-        };
         const onKeyUp = (e: KeyboardEvent) => {
             if (e.code !== 'Space') return;
             spaceDownRef.current = false;
             spaceDragRef.current = null;
         };
-        window.addEventListener('keydown', onKeyDown, { capture: true });
         window.addEventListener('keyup', onKeyUp);
         return () => {
-            window.removeEventListener('keydown', onKeyDown, { capture: true } as EventListenerOptions);
             window.removeEventListener('keyup', onKeyUp);
         };
     }, []);

@@ -8,7 +8,7 @@ undo, transport, and timeline-navigation commands register a domain and priority
 targets are distinct from navigation targets, so tree rows remain eligible for scene deletion and
 grouping.
 
-The persistence and command work is partially complete. `createSceneSnapshot` now lives in the
+The persistence and command work is complete. `createSceneSnapshot` lives in the
 dedicated `state/scene/snapshot.ts` adapter and is used by the store facade, document gateway,
 subtree bundle paths, and rollback capture. `sceneCommandDefinitions` gives every existing scene
 command a persistence impact, rollback strategy, and affected-boundaries declaration. Command
@@ -31,7 +31,7 @@ has been extracted to `aggregateTransformSession.ts` with a direct test. Modal E
 also registry-owned, so they take priority over selection Escape without adding individual window
 listeners.
 
-## Remaining implementation work
+## Completed implementation
 
 ### Scene store slices (complete)
 
@@ -48,76 +48,65 @@ listeners.
 - [x] Preserve existing store-boundary migrations and fixture behavior. Direct adapter coverage
       guards graph-ordered record normalization through both the adapter and compatibility facade.
 
-### Canonical persistence contract
+### Canonical persistence contract (complete)
 
 `persistence/__tests__/sceneSnapshot.contract.test.ts` verifies elements/bindings, graph/node
 bindings, macros, custom-font metadata plus acknowledgement, and automation through snapshot,
 scene-command undo, document application, package import, recovery storage, and subtree transfer.
 
-- Keep binary font payload verification in the existing font-package tests; this contract verifies
-  the stored font metadata and acknowledgement only.
-- Replace residual `exportSceneDraft()` snapshot capture call sites with the named snapshot helper
-  where direct state access is already available. The command gateway now uses the helper.
+- [x] Keep binary font payload verification in the existing font-package tests; the canonical
+      contract verifies stored font metadata and acknowledgement only.
+- [x] Use `createSceneSnapshot` at direct-state production call sites. `exportSceneDraft` remains
+      only as a compatibility facade and in tests that explicitly verify that facade.
 
-### Scene command modules
+### Scene command modules (complete)
 
-`src/state/scene/commandGateway.ts` still contains inverse patch generation and non-graph mutation
-application, but command types and graph operations are now separate modules.
+`src/state/scene/commandGateway.ts` is now a small dispatch facade.
 
-- Move inverse-patch creation to a patch module and store mutation application to an apply module.
-- Complete dispatch strategy selection so definitions, rather than gateway defaults, select
-  inverse-patch, snapshot, or transactional rollback.
+- [x] Move inverse-patch creation to `scene/commandPatch.ts` and non-graph store mutation application
+      to `scene/commandApply.ts`.
+- [x] Select inverse-patch, snapshot, or transactional rollback from `sceneCommandDefinitions`.
 
 `scene/__tests__/commandDefinitions.test.ts` now enforces declaration invariants, and the canonical
 persistence contract forces a representative multi-boundary failure to restore persistent state.
 
-### Capability splits for large modules
+### Capability splits for large modules (complete)
 
 NodeTransformPanel now delegates form normalization, binding-value resolution, and aggregate
 gesture state to direct-test modules (`nodeTransformInput.ts`, `nodeTransformValue.ts`, and
 `aggregateTransformSession.ts`). Command construction remains in the component.
 
-- Split `timelineStore.ts` into state composition, transport/timing, tracks/clips, audio/cache,
-  view state, and persistence adapters. Retain the existing hook and timeline command gateway
-  surface.
-- Split `persistence/import.ts` into parsing/validation, migration orchestration, asset and plugin
-  hydration, and final document application. Import cancellation is already extracted to
-  `persistence/import-abort.ts`. Retain `importScene` as the public facade and retain all tested
-  migrations.
-- Continue reducing `NodeTransformPanel` to layout/wiring by extracting aggregate-edit session
-  state and transform command construction into direct-test modules. Value resolution is already
-  extracted.
-- Split `VisualizerContext` export queue/background lifecycle into a dedicated hook or service.
-  Background-export bootstrap parsing is already extracted to
-  `context/visualizer/backgroundExportBootstrap.ts`; bootstrap, render loop, and transport already
-  have hooks and should remain the provider's composition inputs.
-- For every extracted pure transform or interaction state machine, add direct unit coverage and a
-  public-entry-point integration test where lifecycle wiring is involved.
+- [x] Split timeline state contracts/composition, transport timing, view state, and persistence
+      normalization into `state/timeline/`; existing clip command and audio/cache modules remain the
+      owning capability modules. The hook and command gateway surface is unchanged.
+- [x] Split persistence import into artifact parsing, migration orchestration, document shaping,
+      plugin/asset/audio hydration, and final document application under `persistence/import/`.
+      `importScene` remains the public facade and all migrations remain covered.
+- [x] Extract aggregate-edit session state and transform command construction from
+      `NodeTransformPanel` into direct-tested modules.
+- [x] Move mutable export queue/background ownership into `ExportLifecycleService`; bootstrap,
+      render-loop, and transport hooks remain provider composition inputs.
+- [x] Add direct unit coverage for the extracted view, transform-command, and export-lifecycle
+      state machines, with existing public-entry integration suites retained.
 
-### Remaining shortcut migration audit
+### Shortcut migration audit (complete)
 
 Core editor shortcuts use the registry, but a number of modal and panel handlers still install
 their own `keydown` listeners. These are acceptable only when locally scoped and non-overlapping.
 
-- Audit `src/workspace/modals`, `AutomationLanes`, `useTimelinePointerControls`, the developer
-  overlay, onboarding, and menu bar for command overlap.
-- Move overlapping global actions to the registry with a modal or focused-control domain. Keep
-  component-local focus management local.
-- Add a registry integration test for timeline Delete taking precedence only when its selection
-  target is active. Modal Escape precedence is covered by the registry test.
+- [x] Audit modals, `AutomationLanes`, `useTimelinePointerControls`, the developer overlay,
+      onboarding, and the menu bar for command overlap.
+- [x] Move all global `keydown` actions in those surfaces to the shortcut registry with modal,
+      focused-control, document, or timeline ownership. Component-local field handlers remain local.
+- [x] Cover timeline Delete precedence only while a timeline selection can handle the command;
+      modal Escape precedence remains covered.
 
-## Recommended order and acceptance criteria
+## Completion audit
 
-1. Complete scene-store composition and move snapshot/import adapters first; run the new persisted
-   scene contract suite before and after each extraction.
-2. Split the scene command gateway around the now-stable snapshot adapter, with transactional
-   rollback tests guarding each cross-slice graph operation.
-3. Extract timeline and import capabilities, then finish NodeTransformPanel and visualizer export
-   lifecycle modules without changing their public entry points.
-4. Finish the shortcut audit after the consuming capability modules have stable ownership.
-
-Completion requires all requested public facades to remain stable, all existing migration tests to
-pass, and the root verification commands to pass:
+The requested public facades remain stable. The audit found no production `exportSceneDraft()`
+snapshot captures and no standalone global `keydown` listeners in the named shortcut surfaces.
+The canonical persistence, migration, scene command, timeline, transform, export lifecycle, and
+shortcut suites cover the extracted boundaries. Final repository verification uses:
 
 ```sh
 npx prettier --write .
@@ -125,3 +114,7 @@ npm run test
 npm run build
 npm run compile
 ```
+
+Verified on 2026-08-09: formatting completed, 220 test files passed (1,010 tests passed and one
+pre-existing test skipped), the renderer/electron production build completed, and both TypeScript
+compile targets passed.

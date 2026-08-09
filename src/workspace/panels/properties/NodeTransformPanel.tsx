@@ -35,6 +35,12 @@ import { AggregateTransformSession } from './aggregateTransformSession';
 import { hoveredPropertyRef } from './hoveredPropertyRef';
 import { readFiniteTransformInput, unwrapTransformInputValue } from './nodeTransformInput';
 import { resolveNodeTransformValue } from './nodeTransformValue';
+import {
+    batchSceneCommands,
+    transformCommandOptions,
+    transformNodesCommand,
+    updateTargetBindingCommand,
+} from './nodeTransformCommands';
 
 const fields = HOST_NODE_PROPERTY_SCHEMA.filter(
     (field): field is (typeof HOST_NODE_PROPERTY_SCHEMA)[number] & { path: keyof NodeTransform } =>
@@ -286,11 +292,10 @@ export function NodeTransformPanel() {
     const pivot = selectionPivot ?? geometry?.pivot ?? { x: 0, y: 0 };
     const dispatchForAll = (commands: SceneCommand[], mergeKey?: string, change?: FormInputChange) => {
         const session = change?.meta?.mergeSession;
-        return dispatchSceneCommand(commands.length === 1 ? commands[0] : { type: 'batch', commands }, {
-            source: 'NodeTransformPanel',
-            mergeKey: session && mergeKey ? `${mergeKey}:${session.id}` : mergeKey,
-            transient: session ? !session.finalize : undefined,
-        });
+        return dispatchSceneCommand(
+            batchSceneCommands(commands),
+            transformCommandOptions('NodeTransformPanel', mergeKey, session)
+        );
     };
     const common = <T,>(read: (node: (typeof nodes)[number]) => T): T | undefined => {
         const first = read(nodes[0]);
@@ -331,12 +336,8 @@ export function NodeTransformPanel() {
     ) => {
         const session = change?.meta?.mergeSession;
         return dispatchSceneCommand(
-            { type: 'transformNodes', nodeIds, worldDelta: matrix },
-            {
-                source: 'NodeTransformPanel.aggregate',
-                mergeKey: session ? `${mergeKey}:${session.id}` : mergeKey,
-                transient: session ? !session.finalize : undefined,
-            }
+            transformNodesCommand(nodeIds, matrix),
+            transformCommandOptions('NodeTransformPanel.aggregate', mergeKey, session)
         );
     };
     const aggregateDelta = (
@@ -646,11 +647,10 @@ export function NodeTransformPanel() {
                 options={macroOptions(type)}
                 onAssign={(macroId) =>
                     dispatchSceneCommand(
-                        {
-                            type: 'updatePropertyTargetBinding',
-                            target: nodePropertyTarget(nodes[0].id, path),
-                            binding: macroId ? { type: 'macro', macroId } : { type: 'constant', value: raw },
-                        },
+                        updateTargetBindingCommand(
+                            nodePropertyTarget(nodes[0].id, path),
+                            macroId ? { type: 'macro', macroId } : { type: 'constant', value: raw }
+                        ),
                         { source: 'NodeTransformPanel.macro' }
                     )
                 }

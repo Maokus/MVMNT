@@ -24,6 +24,7 @@ import { isPendingRenderImported, takePendingRender } from '../desktop/pending-a
 import { exportScene } from '@persistence/index';
 import { DocumentGateway } from '@persistence/document-gateway';
 import { BACKGROUND_EXPORT_KEY, readBackgroundExportBootstrap } from './visualizer/backgroundExportBootstrap';
+import { ExportLifecycleService } from './visualizer/exportLifecycleService';
 import { ensureSceneFontsLoaded } from '@fonts/font-loader';
 
 interface VisualizerContextValue {
@@ -110,11 +111,12 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const [progressData, setProgressData] = useState<ProgressData>({ progress: 0, text: 'Generating images...' });
     const [exportKind, setExportKind] = useState<ExportKind>(null);
     const sceneNameRef = useRef<string>('scene');
-    const pendingExportsRef = useRef<ExportJob[]>([]);
-    const drainingExportsRef = useRef(false);
-    const exportAbortControllersRef = useRef(new Map<string, AbortController>());
+    const exportLifecycleRef = useRef<ExportLifecycleService | null>(null);
+    exportLifecycleRef.current ??= new ExportLifecycleService();
+    const exportLifecycle = exportLifecycleRef.current;
+    const { pendingExportsRef, drainingExportsRef, abortControllersRef: exportAbortControllersRef } = exportLifecycle;
     const automationJobRef = useRef<string | null>(null);
-    const backgroundJobRef = useRef<string | null>(null);
+    const { backgroundJobRef } = exportLifecycle;
     // Keep a reactive scene name so consumers (like Render / Export modal) get live updates.
     const [sceneNameState, setSceneNameState] = useState<string>('scene');
     // Keep export settings aligned with the currently loaded scene resolution.
@@ -664,7 +666,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 })();
                 return job;
             }
-            pendingExportsRef.current.push(job);
+            exportLifecycle.enqueue(job);
             void drainExportQueue();
             return job;
         },
@@ -699,7 +701,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 background.jobId
             );
             useExportJobStore.getState().enqueue(job);
-            pendingExportsRef.current.push(job);
+            exportLifecycle.enqueue(job);
             void drainExportQueue();
         };
         const onImported = () => start();
@@ -804,7 +806,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     }, []);
 
     const removeExport = useCallback((jobId: string) => {
-        pendingExportsRef.current = pendingExportsRef.current.filter((job) => job.id !== jobId);
+        exportLifecycle.remove(jobId);
         useExportJobStore.getState().remove(jobId);
     }, []);
 

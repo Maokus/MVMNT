@@ -1,6 +1,6 @@
 import type { SceneCommand, SceneCommandOptions, SceneCommandResult } from '@state/scene/commandGateway';
 import { dispatchSceneCommand, registerSceneCommandListener } from '@state/scene';
-import { useSceneStore } from '@state/sceneStore';
+import { createSceneSnapshot, useSceneStore } from '@state/sceneStore';
 import { dispatchTimelineCommandDescriptor, useTimelineStore } from '@state/timelineStore';
 import type { TempoKeyframe } from '@core/timing/types';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
@@ -49,7 +49,7 @@ function resolveUndo(): UndoControllerLike | null {
 
 const sceneTools = {
     getState: () => useSceneStore.getState(),
-    exportDraft: () => useSceneStore.getState().exportSceneDraft(),
+    exportDraft: () => createSceneSnapshot(useSceneStore.getState()),
     dispatch: runSceneCommand,
 };
 

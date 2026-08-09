@@ -8,6 +8,7 @@ import { TelemetrySection, type TelemetryEvent, type TelemetryMetrics } from './
 import { TransportSection } from './TransportSection';
 import { UndoSection } from './UndoSection';
 import { PerspectiveDiagnosticsSection } from './PerspectiveDiagnosticsSection';
+import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 
 const MAX_RECENT_COMMANDS = 5;
 
@@ -119,19 +120,17 @@ export const DeveloperOverlay: React.FC = () => {
         };
     }, [enabled]);
 
-    React.useEffect(() => {
-        if (!enabled) return;
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === '?' || (event.key === '/' && event.shiftKey)) {
-                event.preventDefault();
-                setVisible((prev) => !prev);
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-        };
-    }, [enabled]);
+    useGlobalShortcut({
+        id: 'focused-control.developer-overlay',
+        domain: 'focused-control',
+        enabled,
+        matches: (event) => event.key === '?' || (event.key === '/' && event.shiftKey),
+        handle: (event) => {
+            event.preventDefault();
+            setVisible((prev) => !prev);
+            return true;
+        },
+    });
 
     React.useEffect(() => {
         if (typeof window === 'undefined') return;

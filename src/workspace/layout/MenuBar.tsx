@@ -8,6 +8,7 @@ import { BrowseTemplatesButton } from '@workspace/templates/BrowseTemplatesButto
 import { easyModeTemplates } from '@workspace/templates/easyModeTemplates';
 import { useTemplateApply } from '@workspace/templates/useTemplateApply';
 import type { TemplateDefinition } from '@workspace/templates/types';
+import { isTextEditingTarget, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 
 interface MenuBarProps {
     onHelp?: () => void;
@@ -48,31 +49,23 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
         }
     }, [showSceneMenu]);
 
-    useEffect(() => {
-        const handleSceneSettingsShortcut = (event: KeyboardEvent) => {
-            if (!event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.key !== ',') {
-                return;
-            }
-
-            const target = event.target as HTMLElement | null;
-            const tag = target?.tagName;
-            if (
-                target?.isContentEditable ||
-                tag === 'INPUT' ||
-                tag === 'TEXTAREA' ||
-                target?.getAttribute('role') === 'textbox'
-            ) {
-                return;
-            }
-
+    useGlobalShortcut({
+        id: 'document.scene-settings',
+        domain: 'document',
+        matches: (event) =>
+            event.metaKey &&
+            !event.ctrlKey &&
+            !event.altKey &&
+            !event.shiftKey &&
+            event.key === ',' &&
+            !isTextEditingTarget(event.target),
+        handle: (event) => {
             event.preventDefault();
             setShowSceneMenu(false);
             setShowSettingsModal(true);
-        };
-
-        window.addEventListener('keydown', handleSceneSettingsShortcut, { capture: true });
-        return () => window.removeEventListener('keydown', handleSceneSettingsShortcut, { capture: true });
-    }, []);
+            return true;
+        },
+    });
 
     const handleSceneNameSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
