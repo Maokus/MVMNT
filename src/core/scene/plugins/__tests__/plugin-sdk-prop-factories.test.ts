@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { insertElementConfig } from '../plugin-sdk-prop-factories';
+import { insertElementConfig } from '@core/scene/runtime/schema-builders';
 
 describe('insertElementConfig', () => {
     it('does not duplicate the shared element tab from a legacy schema', () => {

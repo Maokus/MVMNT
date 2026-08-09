@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { FaTimes } from 'react-icons/fa';
 import PropertyGroupPanel from './PropertyGroupPanel';
 import PropertyTabStrip, { OverflowAction } from './PropertyTabStrip';
-import { EnhancedConfigSchema, PropertyDefinition } from '@core/types';
+import type { ElementPropertyDefinition as PropertyDefinition } from '@mvmnt-app/plugin-sdk';
+import type { RegisteredElementSchema as EnhancedConfigSchema } from '@core/scene/runtime/schema';
 import { useMacros } from '@context/MacroContext';
 import type { ElementBindings } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';

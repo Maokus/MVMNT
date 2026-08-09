@@ -1,4 +1,4 @@
-import { clearSpectrogramTileCache } from '@core/scene/elements/audio-displays/spectrogram-tiles';
+import { clearSpectrogramTileCache } from '@core/scene/built-ins/audio-displays/spectrogram-tiles';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 import { advanceTimelineMutationGeneration } from '@state/timelineStore';
 import { DocumentGateway } from '../document-gateway';

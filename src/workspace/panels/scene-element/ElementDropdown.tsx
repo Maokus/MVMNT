@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { FaChevronLeft } from 'react-icons/fa';
-import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+import { sceneElementRegistry } from '@core/scene/registry';
 
 interface ElementDropdownProps {
     onAddElement: (elementType: string) => void;

@@ -42,7 +42,7 @@ When asked to "implement phase x" of a plan, read through the requirements and g
 
 ## Plugin / Scene Element System
 
-Scene elements are the visual building blocks of a scene. First-party defaults live in `src/core/scene/elements/`. The public `@mvmnt-app/plugin-sdk` is a versioned workspace package in `packages/plugin-sdk`; plugin bundles externalize it and the loader injects the runtime selected by `apiVersion`.
+Scene elements are the visual building blocks of a scene. First-party definitions live in `src/core/scene/built-ins/`; their host runtime adapters live in `src/core/scene/runtime/`. The public `@mvmnt-app/plugin-sdk` is a versioned workspace package in `packages/plugin-sdk`; plugin bundles externalize it and the loader injects the runtime selected by `apiVersion`.
 
 Start with `docs/plugin-api/quickstart.md`. SDK 1 has been removed from the current plugin surface; use the
 SDK 1 to SDK 2 migration guide only when updating legacy plugin source.

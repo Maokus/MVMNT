@@ -39,8 +39,11 @@ persistent authority.
 ## Runtime subsystems
 
 - `src/core/render/` implements Canvas 2D render objects, compositing, and perspective projection.
-- `src/core/scene/` implements built-in elements, the scene registry, graph resolution, and plugin
-  host adapters.
+- `src/core/scene/built-ins/` owns shipped SDK 2 definitions and their canonical catalog.
+- `src/core/scene/runtime/` adapts definitions to bound runtime instances and owns host-only property,
+  resource, and bounds behavior.
+- `src/core/scene/registry/` stores normalized registrations; `src/core/scene/plugins/` owns external
+  bundle loading, capability services, and validation.
 - `src/core/timing/` and `src/core/midi/` implement playback time and note queries.
 - `src/core/resources/` implements decoded visual resources and lifecycle handles.
 - `src/audio/` implements decoded PCM access, feature analysis, caches, and sampling.
@@ -52,6 +55,11 @@ persistent authority.
 External elements import only `@mvmnt-app/plugin-sdk` and its documented subpaths. Their bundles
 externalize those imports; `plugin-loader.ts` injects the SDK runtime selected by `apiVersion`.
 Application aliases such as `@core/*` and Zustand types are private.
+
+Both built-ins and external plugins cross the same definition-runtime boundary. The registry never
+imports element implementations or plugin loaders; it receives a normalized registration containing
+origin metadata, a serializable schema, and an instance factory. `builtInCatalog` is the ordered
+inventory used to bootstrap the default registry.
 
 The SDK package owns serializable definitions, DTOs, and portable helpers. The application owns
 services such as rendering, timeline/audio reads, assets, and lifecycle cleanup. Contract tests

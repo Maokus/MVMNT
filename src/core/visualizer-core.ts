@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ModularRenderer } from './render/modular-renderer';
-import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
-import type { SceneElement } from '@core/scene/elements';
+import { sceneElementRegistry } from '@core/scene/registry';
+import type { SceneElementInstance } from '@core/scene/runtime/types';
 import { CANONICAL_PPQ } from './timing/ppq';
 import { loadDefaultScene } from './default-scene-loader';
 import { dispatchSceneCommand, SceneRuntimeAdapter } from '@state/scene';
@@ -236,7 +236,7 @@ export class MIDIVisualizerCore {
         } catch {}
         this.runtimeAdapter = null;
     }
-    private _getSceneElements(): SceneElement[] {
+    private _getSceneElements(): SceneElementInstance[] {
         if (!this.runtimeAdapter) {
             return [];
         }

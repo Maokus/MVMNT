@@ -19,7 +19,7 @@ import {
 import { useSceneSelection } from '@context/SceneSelectionContext';
 import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
-import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+import { sceneElementRegistry } from '@core/scene/registry';
 import { getSceneElementIcon } from './icons/elementIcon';
 import { useSelectionStore } from '@state/selectionStore';
 import {

@@ -19,10 +19,10 @@ export { MIDIVisualizerCore as MIDIVisualizer } from './visualizer-core.js';
 export { ModularRenderer } from './render/modular-renderer.js';
 
 // Scene management exports
-export { SceneElementRegistry, sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+export { SceneElementRegistry, sceneElementRegistry } from '@core/scene/registry';
 
 // Scene elements
-export * from '@core/scene/elements';
+export * from '@core/scene/built-ins';
 
 // Render objects
 export * from '@core/render/render-objects';

@@ -15,7 +15,7 @@ import { AudioAssetStore, createAudioAssetId } from './audio-asset-store';
 import { sha256Hex } from '@utils/hash/sha256';
 import { PluginBinaryStore } from './plugin-binary-store';
 import { loadPlugin, satisfiesVersion } from '@core/scene/plugins';
-import { clearSpectrogramTileCache } from '@core/scene/elements/audio-displays/spectrogram-tiles';
+import { clearSpectrogramTileCache } from '@core/scene/built-ins/audio-displays/spectrogram-tiles';
 import { usePluginStore } from '@state/pluginStore';
 import { decodeSceneText, parseScenePackage, ScenePackageError } from './scene-package';
 import { isTestEnvironment } from '@utils/env';

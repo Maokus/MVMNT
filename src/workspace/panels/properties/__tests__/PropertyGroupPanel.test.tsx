@@ -2,7 +2,10 @@ import React from 'react';
 import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import PropertyGroupPanel from '../PropertyGroupPanel';
-import type { PropertyDefinition, PropertyGroup } from '@core/types';
+import type {
+    ElementPropertyDefinition as PropertyDefinition,
+    ElementPropertyGroup as PropertyGroup,
+} from '@mvmnt-app/plugin-sdk';
 
 const assignListenerMock = vi.fn(() => () => {});
 

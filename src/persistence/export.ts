@@ -15,7 +15,7 @@ import pkg from '../../package.json';
 import { strToU8 } from 'fflate';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { usePluginStore } from '@state/pluginStore';
-import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+import { sceneElementRegistry } from '@core/scene/registry';
 import { PluginBinaryStore } from './plugin-binary-store';
 import { getDevelopmentPluginBundle } from '@core/scene/plugins/plugin-loader';
 import iconDataUrl from '@assets/Icon.icns?inline';

@@ -1,4 +1,4 @@
-import type { PropertyDefinition } from '@core/types';
+import type { PropertyDefinition } from '@core/scene/runtime/schema';
 
 export type TransferFunctionId = 'linear' | 'log' | 'power' | 'db';
 

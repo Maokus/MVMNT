@@ -1,7 +1,7 @@
 import { zipSync } from 'fflate';
 import { afterEach, describe, expect, it } from 'vitest';
 import { disablePlugin, enablePlugin, getDevelopmentPluginBundle, loadPlugin, unloadPlugin } from '../plugin-loader';
-import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+import { sceneElementRegistry } from '@core/scene/registry';
 import { usePluginStore } from '@state/pluginStore';
 import { PluginBinaryStore } from '@persistence/plugin-binary-store';
 

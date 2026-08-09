@@ -1,6 +1,6 @@
 import React from 'react';
 import type { ElementPropertyControlBindings } from '@mvmnt-app/plugin-sdk';
-import type { PropertyDefinition } from '@core/types';
+import type { ElementPropertyDefinition as PropertyDefinition } from '@mvmnt-app/plugin-sdk';
 
 export interface PropertyControlProps<Ports extends string = string> {
     bindings: ElementPropertyControlBindings<Ports>;

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useVisualizer } from './VisualizerContext';
-import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+import { sceneElementRegistry } from '@core/scene/registry';
 import { useSceneStore, type ElementBindings } from '@state/sceneStore';
 import {
     useSceneElements,

@@ -1,15 +1,15 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
-import { SceneElement } from '@core/scene/elements/base';
+import { describe, expect, it } from 'vitest';
+import { builtInCatalog } from '@core/scene/built-ins/catalog';
+import { sceneElementRegistry, SceneElementRegistry, type SceneElementRegistration } from '@core/scene/registry';
+import { BoundSceneElement } from '@core/scene/runtime/bound-scene-element';
 
-// Mock element class for testing
-class TestCustomElement extends SceneElement {
+class TestElement extends BoundSceneElement {
     static override getConfigSchema() {
         return {
             ...super.getConfigSchema(),
-            name: 'Test Custom Element',
-            description: 'A test element for plugin registry',
-            category: 'test',
+            name: 'Test Element',
+            description: 'Registry test element',
+            category: 'Tests',
         };
     }
 
@@ -18,214 +18,84 @@ class TestCustomElement extends SceneElement {
     }
 }
 
-class ThrowingCustomElement extends TestCustomElement {
-    override _buildRenderObjects(): never {
-        throw new Error('plugin render failed');
-    }
+function registration(
+    type: string,
+    origin: SceneElementRegistration['origin'] = { kind: 'plugin', pluginId: 'test.plugin' }
+): SceneElementRegistration {
+    return {
+        type,
+        origin,
+        schema: TestElement.getConfigSchema(),
+        create(config = {}) {
+            return new TestElement(type, String(config.id ?? type), config);
+        },
+    };
 }
 
-describe('SceneElementRegistry - Plugin API', () => {
-    const testType = 'test-custom-element';
-    const testPluginId = 'test.plugin';
+describe('SceneElementRegistry', () => {
+    it('registers a normalized, qualified plugin entry', () => {
+        const registry = new SceneElementRegistry();
+        const type = registry.register(registration('test.plugin:pulse'));
 
-    afterEach(() => {
-        // Clean up plugin-registered elements
-        sceneElementRegistry.unregisterPlugin(testPluginId);
-        // Clean up elements registered without a pluginId
-        if (sceneElementRegistry.hasElement(testType)) {
-            try {
-                sceneElementRegistry.unregisterElement(testType);
-            } catch {
-                // ignore if it's a built-in
-            }
-        }
-    });
-
-    describe('registerCustomElement', () => {
-        it('registers a custom element successfully', () => {
-            expect(sceneElementRegistry.hasElement(testType)).toBe(false);
-
-            const registryKey = sceneElementRegistry.registerCustomElement(testType, TestCustomElement, {
-                pluginId: testPluginId,
-            });
-
-            expect(sceneElementRegistry.hasElement(registryKey)).toBe(true);
-            expect(sceneElementRegistry.getPluginId(registryKey)).toBe(testPluginId);
-        });
-
-        it('applies plugin render safety on the first render', () => {
-            const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-            const registryKey = sceneElementRegistry.registerCustomElement(testType, ThrowingCustomElement, {
-                pluginId: testPluginId,
-            });
-            const element = sceneElementRegistry.createElement(registryKey, { id: 'throwing-plugin-element' });
-
-            expect(element?.buildRenderObjects({}, 0)).toEqual([]);
-            expect(consoleError).toHaveBeenCalledWith(
-                expect.stringContaining(
-                    `[PluginSafety] Render error for plugin '${testPluginId}' element '${registryKey}'`
-                ),
-                expect.any(Error)
-            );
-
-            consoleError.mockRestore();
-        });
-
-        it('overrides category when specified', () => {
-            const registryKey = sceneElementRegistry.registerCustomElement(testType, TestCustomElement, {
-                pluginId: testPluginId,
-                overrideCategory: 'custom-category',
-            });
-
-            const schema = sceneElementRegistry.getSchema(registryKey);
-            expect(schema?.category).toBe('custom-category');
-        });
-
-        it('throws error for invalid element type', () => {
-            expect(() => {
-                sceneElementRegistry.registerCustomElement('', TestCustomElement);
-            }).toThrow('Invalid element type');
-        });
-
-        it('throws error when conflicting with built-in element', () => {
-            expect(() => {
-                sceneElementRegistry.registerCustomElement('background', TestCustomElement);
-            }).toThrow('conflicts with built-in element');
-        });
-
-        it('throws error when element class lacks getConfigSchema', () => {
-            // Create an element class without getConfigSchema method
-            class InvalidElement {
-                constructor(
-                    public id: string,
-                    public config: any
-                ) {}
-                _buildRenderObjects() {
-                    return [];
-                }
-            }
-
-            expect(() => {
-                sceneElementRegistry.registerCustomElement(testType, InvalidElement as any);
-            }).toThrow('must have static getConfigSchema()');
+        expect(type).toBe('test.plugin:pulse');
+        expect(registry.getPluginId(type)).toBe('test.plugin');
+        expect(registry.getSchema(type)?.category).toBe('Tests');
+        expect(registry.createElement(type, { id: 'pulse-1' })).toMatchObject({
+            id: 'pulse-1',
+            type: 'test.plugin:pulse',
         });
     });
 
-    describe('unregisterElement', () => {
-        it('unregisters a custom element successfully', () => {
-            const registryKey = sceneElementRegistry.registerCustomElement(testType, TestCustomElement, {
-                pluginId: testPluginId,
-            });
+    it('rejects invalid, unqualified, and duplicate registrations', () => {
+        const registry = new SceneElementRegistry();
+        expect(() => registry.register(registration(''))).toThrow('Invalid element type');
+        expect(() => registry.register(registration('pulse'))).toThrow('must be qualified');
 
-            expect(sceneElementRegistry.hasElement(registryKey)).toBe(true);
-
-            const result = sceneElementRegistry.unregisterElement(registryKey);
-
-            expect(result).toBe(true);
-            expect(sceneElementRegistry.hasElement(registryKey)).toBe(false);
-        });
-
-        it('returns false when element does not exist', () => {
-            const result = sceneElementRegistry.unregisterElement('non-existent');
-            expect(result).toBe(false);
-        });
-
-        it('throws error when attempting to unregister built-in element', () => {
-            expect(() => {
-                sceneElementRegistry.unregisterElement('background');
-            }).toThrow('Cannot unregister built-in element');
-        });
+        registry.register(registration('test.plugin:pulse'));
+        expect(() => registry.register(registration('test.plugin:pulse'))).toThrow('already registered');
     });
 
-    describe('unregisterPlugin', () => {
-        it('unregisters all elements from a plugin', () => {
-            const type1 = 'test-element-1';
-            const type2 = 'test-element-2';
+    it('protects built-ins and removes all entries owned by one plugin', () => {
+        const registry = new SceneElementRegistry([
+            registration('background', { kind: 'built-in' }),
+            registration('test.plugin:first'),
+            registration('test.plugin:second'),
+        ]);
 
-            const key1 = sceneElementRegistry.registerCustomElement(type1, TestCustomElement, {
-                pluginId: testPluginId,
-            });
-            const key2 = sceneElementRegistry.registerCustomElement(type2, TestCustomElement, {
-                pluginId: testPluginId,
-            });
-
-            expect(sceneElementRegistry.hasElement(key1)).toBe(true);
-            expect(sceneElementRegistry.hasElement(key2)).toBe(true);
-
-            const unregistered = sceneElementRegistry.unregisterPlugin(testPluginId);
-
-            expect(unregistered).toEqual([key1, key2]);
-            expect(sceneElementRegistry.hasElement(key1)).toBe(false);
-            expect(sceneElementRegistry.hasElement(key2)).toBe(false);
-        });
-
-        it('returns empty array when plugin has no elements', () => {
-            const unregistered = sceneElementRegistry.unregisterPlugin('non-existent-plugin');
-            expect(unregistered).toEqual([]);
-        });
+        expect(() => registry.unregisterElement('background')).toThrow('Cannot unregister built-in');
+        expect(registry.unregisterPlugin('test.plugin')).toEqual(['test.plugin:first', 'test.plugin:second']);
+        expect(registry.getAvailableTypes()).toEqual(['background']);
     });
 
-    describe('hasElement', () => {
-        it('returns true for built-in elements', () => {
-            expect(sceneElementRegistry.hasElement('background')).toBe(true);
-            expect(sceneElementRegistry.hasElement('textOverlay')).toBe(true);
-        });
+    it('reports registration origin in element type information', () => {
+        const registry = new SceneElementRegistry([
+            registration('background', { kind: 'built-in' }),
+            registration('test.plugin:pulse'),
+        ]);
 
-        it('returns false for non-existent elements', () => {
-            expect(sceneElementRegistry.hasElement('non-existent')).toBe(false);
-        });
-
-        it('returns true for registered custom elements', () => {
-            sceneElementRegistry.registerCustomElement(testType, TestCustomElement);
-            expect(sceneElementRegistry.hasElement(testType)).toBe(true);
-        });
-    });
-
-    describe('isBuiltIn', () => {
-        it('returns true for built-in elements', () => {
-            expect(sceneElementRegistry.isBuiltIn('background')).toBe(true);
-        });
-
-        it('returns false for custom elements', () => {
-            sceneElementRegistry.registerCustomElement(testType, TestCustomElement);
-            expect(sceneElementRegistry.isBuiltIn(testType)).toBe(false);
-        });
-
-        it('returns false for non-existent elements', () => {
-            expect(sceneElementRegistry.isBuiltIn('non-existent')).toBe(false);
-        });
-    });
-
-    describe('getPluginId', () => {
-        it('returns plugin ID for custom elements', () => {
-            const registryKey = sceneElementRegistry.registerCustomElement(testType, TestCustomElement, {
-                pluginId: testPluginId,
-            });
-            expect(sceneElementRegistry.getPluginId(registryKey)).toBe(testPluginId);
-        });
-
-        it('returns undefined for built-in elements', () => {
-            expect(sceneElementRegistry.getPluginId('background')).toBeUndefined();
-        });
-
-        it('returns undefined for non-existent elements', () => {
-            expect(sceneElementRegistry.getPluginId('non-existent')).toBeUndefined();
-        });
+        expect(registry.getElementTypeInfo()).toEqual([
+            expect.objectContaining({ type: 'background', pluginId: null }),
+            expect.objectContaining({ type: 'test.plugin:pulse', pluginId: 'test.plugin' }),
+        ]);
     });
 });
 
-describe('SceneElementRegistry - Built-in type drift detection', () => {
-    it('registry built-in types match scripts/built-in-element-types.mjs', async () => {
-        // Dynamically import the shared list used by the build script.
-        // If this test fails, the build-script list and registry have drifted.
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore – no type declarations for the build-only .mjs module
-        const mod = await import('../../../../../scripts/built-in-element-types.mjs');
-        const BUILTIN_ELEMENT_TYPES = mod.BUILTIN_ELEMENT_TYPES as string[];
+describe('built-in catalog', () => {
+    it('is the ordered registry inventory and has matching unique definition types', () => {
+        const catalogTypes = builtInCatalog.map(({ type }) => type);
+        expect(new Set(catalogTypes).size).toBe(catalogTypes.length);
+        expect(builtInCatalog.every(({ type, definition }) => type === definition.type)).toBe(true);
+        expect(sceneElementRegistry.getBuiltInTypes()).toEqual(catalogTypes);
+    });
 
-        const registryTypes = [...sceneElementRegistry.getBuiltInTypes()].sort();
-        const scriptTypes = [...BUILTIN_ELEMENT_TYPES].sort();
-
-        expect(registryTypes).toEqual(scriptTypes);
+    it('exposes only serializable property schema data', () => {
+        for (const type of sceneElementRegistry.getBuiltInTypes()) {
+            const schema = sceneElementRegistry.getSchema(type);
+            for (const tab of schema?.tabs ?? []) {
+                for (const group of tab.groups) {
+                    for (const property of group.properties) expect(property).not.toHaveProperty('runtime');
+                }
+            }
+        }
     });
 });

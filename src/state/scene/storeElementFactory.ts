@@ -1,5 +1,5 @@
-import { sceneElementRegistry, type SceneElementRegistry } from '@core/scene/registry/scene-element-registry';
-import type { SceneElement } from '@core/scene/elements';
+import { sceneElementRegistry, type SceneElementRegistry } from '@core/scene/registry';
+import type { SceneElementInstance } from '@core/scene/runtime/types';
 import {
     deserializeElementBindings,
     type ElementBindings,
@@ -24,13 +24,13 @@ export interface CreateSceneElementInputOptions {
 export function createSceneElementInputFromSchema(options: CreateSceneElementInputOptions): SceneElementInput {
     const registry = options.registry ?? sceneElementRegistry;
     const elementConfig = { ...(options.config ?? {}), id: options.id };
-    const instance = registry.createElement(options.type, elementConfig) as SceneElement | null;
+    const instance = registry.createElement(options.type, elementConfig) as SceneElementInstance | null;
     if (!instance || typeof (instance as any).getSerializableConfig !== 'function') {
         throw new Error(`[sceneStore] Failed to instantiate element '${options.type}' via registry for store creation`);
     }
 
     try {
-        const serialized = instance.getSerializableConfig() as SceneSerializedElement;
+        const serialized = instance.getSerializableConfig() as unknown as SceneSerializedElement;
         const bindings: ElementBindings = deserializeElementBindings(serialized);
         return {
             id: options.id,

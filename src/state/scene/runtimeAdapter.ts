@@ -1,6 +1,6 @@
-import { sceneElementRegistry, type SceneElementRegistry } from '@core/scene/registry/scene-element-registry';
-import type { SceneElement } from '@core/scene/elements';
-import { MissingPluginElement } from '@core/scene/elements/misc/missing-plugin';
+import { sceneElementRegistry, type SceneElementRegistry } from '@core/scene/registry';
+import type { SceneElementInstance } from '@core/scene/runtime/types';
+import { MissingPluginElement } from '@core/scene/runtime/missing-plugin';
 import type { RenderObject } from '@core/render/modular-renderer';
 import { serializeStable } from '@persistence/stable-stringify';
 import { automationEvaluator } from '@automation/automation-evaluator';
@@ -29,7 +29,7 @@ import { useSceneEditorStore } from '@state/sceneEditorStore';
 type SceneStoreBinding = typeof useSceneStore;
 
 interface RuntimeElementEntry {
-    element: SceneElement;
+    element: SceneElementInstance;
     signature: string;
     version: number;
 }
@@ -209,8 +209,10 @@ export class SceneRuntimeAdapter {
         return { ...this.settings };
     }
 
-    getElements(): SceneElement[] {
-        return this.orderedIds.map((id) => this.cache.get(id)?.element).filter((el): el is SceneElement => Boolean(el));
+    getElements(): SceneElementInstance[] {
+        return this.orderedIds
+            .map((id) => this.cache.get(id)?.element)
+            .filter((el): el is SceneElementInstance => Boolean(el));
     }
 
     buildScene(config: any, targetTime: number): RenderObject[] {
@@ -322,7 +324,7 @@ export class SceneRuntimeAdapter {
     private instantiateElement(record: SceneElementRecord, bindings: ElementBindings): RuntimeElementEntry | null {
         try {
             const config = buildConfigPayload(record, bindings);
-            const element = this.registry.createElement(record.type, config) as SceneElement | null;
+            const element = this.registry.createElement(record.type, config);
             if (!element) {
                 const placeholder = new MissingPluginElement(record.id, {
                     ...config,

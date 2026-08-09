@@ -1,6 +1,7 @@
 import type { AutomationValueType, PropertyOwner, PropertyTarget } from '@automation/types';
-import type { EnhancedConfigSchema, PropertyDefinition } from '@core/types';
-import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+import type { ElementPropertyDefinition as PropertyDefinition } from '@mvmnt-app/plugin-sdk';
+import type { RegisteredElementSchema as EnhancedConfigSchema } from '@core/scene/runtime/schema';
+import { sceneElementRegistry } from '@core/scene/registry';
 
 export interface PropertyPresentationCodec {
     unit?: string;

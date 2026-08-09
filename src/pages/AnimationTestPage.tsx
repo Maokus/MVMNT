@@ -1,9 +1,12 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import easings from '@math/animation/easing';
 import { ModularRenderer } from '@core/render/modular-renderer';
-import { createAnimationInstance, getAnimationSelectOptions } from '@core/scene/elements/midi-displays/note-animations';
-import type { AnimationPhase } from '@core/scene/elements/midi-displays/note-animations';
-import { NoteBlock } from '@core/scene/elements/midi-displays/time-unit-piano-roll/note-block';
+import {
+    createAnimationInstance,
+    getAnimationSelectOptions,
+} from '@core/scene/built-ins/midi-displays/note-animations';
+import type { AnimationPhase } from '@core/scene/built-ins/midi-displays/note-animations';
+import { NoteBlock } from '@core/scene/built-ins/midi-displays/time-unit-piano-roll/note-block';
 import { RenderObject } from '@core/index';
 // Using Tailwind component classes defined in tailwind.css
 

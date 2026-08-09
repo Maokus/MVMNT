@@ -1,0 +1,22 @@
+/** Public inventory of shipped definitions. Runtime adapter classes are intentionally not re-exported. */
+export { builtInCatalog, type BuiltInElementType } from './catalog';
+export { background } from './misc/background';
+export { basicShapes } from './misc/basic-shapes';
+export { image } from './misc/image';
+export { progressDisplay } from './misc/progress-display';
+export { textOverlay } from './misc/text-overlay';
+export { timeDisplay } from './misc/time-display';
+export { debug } from './misc/debug';
+export { timeUnitPianoRoll } from './midi-displays/time-unit-piano-roll/time-unit-piano-roll';
+export { movingNotesPianoRoll } from './midi-displays/moving-notes-piano-roll/moving-notes-piano-roll';
+export { notesPlayedTracker } from './midi-displays/note-count-tracker';
+export { notesPlayingDisplay } from './midi-displays/notes-playing-display';
+export { chordEstimateDisplay } from './midi-displays/chord-estimate-display';
+export { ccMonitor } from './midi-displays/cc-monitor';
+export { audioSpectrum } from './audio-displays/audio-spectrum';
+export { audioVolumeMeter } from './audio-displays/audio-volume-meter';
+export { audioWaveform } from './audio-displays/audio-waveform';
+export { audioPeaks } from './audio-displays/audio-peaks';
+export { audioLockedOscilloscope } from './audio-displays/audio-locked-oscilloscope';
+export { audioSpectrogram } from './audio-displays/audio-spectrogram';
+export { audioVectorscope } from './audio-displays/audio-vectorscope';

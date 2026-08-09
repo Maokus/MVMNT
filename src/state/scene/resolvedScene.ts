@@ -1,4 +1,4 @@
-import type { SceneElement } from '@core/scene/elements';
+import type { SceneElementInstance } from '@core/scene/runtime/types';
 import { PerspectiveElementRoot } from '@core/render/render-objects/perspective-element-root';
 import {
     applyMatrixToPoint,
@@ -31,7 +31,7 @@ export interface SceneStructureIndex {
 
 export interface ResolvedSceneRecord extends SceneStructureRecord {
     elementId?: string;
-    element?: SceneElement;
+    element?: SceneElementInstance;
     renderObjects: any[];
     artworkBounds?: { x: number; y: number; width: number; height: number };
     artworkHull?: Array<{ x: number; y: number }>;
@@ -189,7 +189,7 @@ export function resolveSceneFrame(options: {
     time: number;
     runtimeVersion: number;
     config: any;
-    getElement: (elementId: string) => SceneElement | undefined;
+    getElement: (elementId: string) => SceneElementInstance | undefined;
     structure?: SceneStructureIndex;
     evaluateNode?: (node: SceneNode) => SceneNode;
 }): ResolvedSceneFrame {

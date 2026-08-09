@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FaEllipsisV, FaSearch } from 'react-icons/fa';
-import { PropertyTab } from '@core/types';
+import type { ElementPropertyTab as PropertyTab } from '@mvmnt-app/plugin-sdk';
 
 export interface OverflowAction {
     label: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { integratePropertySampler } from '../property-integration';
+import { integratePropertySampler } from '@core/scene/runtime/property-integration';
 
 const sampler = (fn: (time: number) => number) => (time: number) => ({ ok: true as const, value: fn(time) });
 

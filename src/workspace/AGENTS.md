@@ -57,10 +57,10 @@ Number drag interactions and other rapid updates use merge sessions to group con
 
 ### Adding a New Scene Element
 
-1. Define element class in `src/core/scene/elements/`
-2. Register in element factory
-3. Update `ElementDropdown.tsx` to include new type in menu
-4. Define schema for properties in element definition
+1. Define the SDK 2 element in `src/core/scene/built-ins/`
+2. Add its `{ type, definition }` entry to `builtInCatalog`
+3. Define the inspector schema on the element definition
+4. Verify it appears through the registry-backed element menu
 5. `ElementPropertiesPanel.tsx` will auto-generate form controls from schema
 
 ### Adding a New Form Input Type

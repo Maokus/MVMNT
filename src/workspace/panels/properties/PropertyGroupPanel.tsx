@@ -1,5 +1,8 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { PropertyGroup, PropertyDefinition } from '@core/types';
+import type {
+    ElementPropertyDefinition as PropertyDefinition,
+    ElementPropertyGroup as PropertyGroup,
+} from '@mvmnt-app/plugin-sdk';
 import FormInput, { type FormInputChange } from '@workspace/forms/inputs/FormInput';
 // @ts-ignore
 import { useMacros } from '@context/MacroContext';
@@ -64,7 +67,7 @@ function resolveFormInputType(property: PropertyDefinition): SupportedFormInputT
 
 interface PropertyGroupPanelProps {
     group: PropertyGroup;
-    properties: PropertyDefinition[];
+    properties: readonly PropertyDefinition[];
     values: { [key: string]: any };
     macroAssignments: { [key: string]: string };
     elementId: string;

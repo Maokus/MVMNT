@@ -22,7 +22,7 @@ import type { AutomationValueType, PropertyTarget } from '@automation/types';
 import { useCurrentTick } from '@automation/hooks';
 import { useSceneStore } from '@state/sceneStore';
 import { resolveAutomationValueType } from './KeyframeControl';
-import type { EnhancedConfigSchema } from '@core/types';
+import type { RegisteredElementSchema as EnhancedConfigSchema } from '@core/scene/runtime/schema';
 import { effectiveValueForTarget } from '@state/scene';
 import { hostPropertyDescriptors } from '@state/scene/propertyCatalog';
 

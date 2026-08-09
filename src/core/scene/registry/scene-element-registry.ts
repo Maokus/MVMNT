@@ -1,244 +1,89 @@
-/* Minimal typing (improve later) */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import * as elements from '@core/scene/elements';
-import type { PluginElementDefinition } from '../../../../packages/plugin-sdk/src/scene';
-import { createBuiltInDefinitionElementClass } from '@core/scene/plugins/built-in-definition';
-import { setSceneElementPluginIdResolver } from './plugin-id-resolver';
+import type { SceneElementInstance, SceneElementRegistration, SceneElementTypeInfo } from '@core/scene/runtime/types';
 
-export interface SceneElementFactorySchema {
-    name?: string;
-    description?: string;
-    category?: string;
-    properties?: Record<string, any>;
-}
-
-export type SceneElementFactory = (config?: any) => any;
-
-interface RegisterableSceneElement {
-    new (...args: any[]): elements.SceneElement;
-    getConfigSchema(): SceneElementFactorySchema;
-}
-
-export interface RegisterCustomElementOptions {
-    pluginId?: string;
-    overrideCategory?: string;
-}
-
+/** Stores normalized scene element registrations without knowing how definitions are hosted. */
 export class SceneElementRegistry {
-    private factories = new Map<string, SceneElementFactory>();
-    private schemas = new Map<string, SceneElementFactorySchema>();
-    private builtInTypes = new Set<string>();
-    private pluginTypes = new Map<string, string>(); // type -> pluginId
+    private readonly registrations = new Map<string, SceneElementRegistration>();
 
-    constructor() {
-        this.registerDefaultElements();
+    constructor(registrations: readonly SceneElementRegistration[] = []) {
+        for (const registration of registrations) this.register(registration);
     }
 
-    /**
-     * Register a built-in element (internal use)
-     */
-    registerElement(type: string, factory: SceneElementFactory, schema: SceneElementFactorySchema) {
-        this.factories.set(type, factory);
-        this.schemas.set(type, schema);
-        this.builtInTypes.add(type);
-    }
-
-    /**
-     * Register a built-in element from a class (internal use)
-     */
-    registerElementFromClass(type: string, ElementClass: RegisterableSceneElement) {
-        if (typeof (ElementClass as any)?.getConfigSchema !== 'function') {
-            console.error('[SceneElementRegistry] Missing getConfigSchema for', type, ElementClass);
-        }
-        this.registerElement(
-            type,
-            (config) => new ElementClass(config.id || type, config),
-            ElementClass.getConfigSchema()
-        );
-    }
-
-    registerElementFromDefinition(type: string, definition: PluginElementDefinition<any, any>) {
-        if (definition.type !== type)
-            throw new Error(`Built-in definition type '${definition.type}' does not match '${type}'`);
-        this.registerElementFromClass(type, createBuiltInDefinitionElementClass(definition));
-    }
-
-    /**
-     * Register a custom element from a plugin.
-     *
-     * Plugin elements are stored under a composite key `${pluginId}:${type}` so that
-     * two different plugins can define elements with the same bare type name without
-     * colliding. The element instance's `type` property is also set to this composite
-     * key so that scene serialization stores the fully-qualified type.
-     *
-     * @returns The actual registry key used (composite for plugin elements, bare for others).
-     * @throws {Error} if element type conflicts with a built-in element or class is invalid.
-     */
-    registerCustomElement(
-        type: string,
-        ElementClass: RegisterableSceneElement,
-        options: RegisterCustomElementOptions = {}
-    ): string {
-        // Validate type
-        if (!type || typeof type !== 'string') {
-            throw new Error(`Invalid element type: ${type}`);
-        }
-
-        // Check for conflicts with built-in elements
-        if (this.builtInTypes.has(type)) {
-            throw new Error(`Cannot register custom element '${type}': conflicts with built-in element`);
-        }
-
-        // Validate class has required methods
-        if (typeof (ElementClass as any)?.getConfigSchema !== 'function') {
-            throw new Error(`Custom element class for '${type}' must have static getConfigSchema() method`);
-        }
-
-        // Plugin elements use a composite key to avoid cross-plugin collisions.
-        const registryKey = options.pluginId ? `${options.pluginId}:${type}` : type;
-
-        // Get base schema from class
-        const baseSchema = ElementClass.getConfigSchema();
-        const schema = {
-            ...baseSchema,
-            category: options.overrideCategory ?? baseSchema.category,
-        };
-
-        // Register factory. Override element.type so the serialized scene stores the composite key.
-        const factory: SceneElementFactory = (config) => {
-            const el = new ElementClass(config.id || type, config);
-            if (options.pluginId) {
-                (el as any).type = registryKey;
+    register(registration: SceneElementRegistration): string {
+        const type = registration?.type;
+        if (!type || typeof type !== 'string') throw new Error(`Invalid element type: ${type}`);
+        if (registration.origin.kind === 'plugin') {
+            const prefix = `${registration.origin.pluginId}:`;
+            if (!registration.origin.pluginId || !type.startsWith(prefix) || type.length === prefix.length) {
+                throw new Error(`Plugin element type '${type}' must be qualified as '${prefix}<type>'`);
             }
-            return el;
-        };
-        this.factories.set(registryKey, factory);
-        this.schemas.set(registryKey, schema);
-
-        // Track as plugin element
-        if (options.pluginId) {
-            this.pluginTypes.set(registryKey, options.pluginId);
         }
-
-        return registryKey;
+        if (this.registrations.has(type)) throw new Error(`Element type '${type}' is already registered`);
+        this.registrations.set(type, registration);
+        return type;
     }
 
-    /**
-     * Unregister a custom element
-     * @throws {Error} if attempting to unregister a built-in element
-     */
     unregisterElement(type: string): boolean {
-        if (this.builtInTypes.has(type)) {
+        const registration = this.registrations.get(type);
+        if (registration?.origin.kind === 'built-in') {
             throw new Error(`Cannot unregister built-in element '${type}'`);
         }
-
-        const hadFactory = this.factories.delete(type);
-        this.schemas.delete(type);
-        this.pluginTypes.delete(type);
-        return hadFactory;
+        return this.registrations.delete(type);
     }
 
-    /**
-     * Check if an element type is registered
-     */
-    hasElement(type: string): boolean {
-        return this.factories.has(type);
-    }
-
-    /**
-     * Check if an element type is a built-in element
-     */
-    isBuiltIn(type: string): boolean {
-        return this.builtInTypes.has(type);
-    }
-
-    /**
-     * Get the plugin ID for a custom element type
-     */
-    getPluginId(type: string): string | undefined {
-        return this.pluginTypes.get(type);
-    }
-
-    /**
-     * Unregister all elements from a specific plugin
-     */
     unregisterPlugin(pluginId: string): string[] {
         const unregistered: string[] = [];
-        for (const [type, pid] of this.pluginTypes.entries()) {
-            if (pid === pluginId) {
-                this.factories.delete(type);
-                this.schemas.delete(type);
-                this.pluginTypes.delete(type);
+        for (const [type, registration] of this.registrations) {
+            if (registration.origin.kind === 'plugin' && registration.origin.pluginId === pluginId) {
+                this.registrations.delete(type);
                 unregistered.push(type);
             }
         }
         return unregistered;
     }
 
-    /**
-     * Get all built-in element type strings.
-     * Used for drift detection — tests assert this matches scripts/built-in-element-types.mjs.
-     */
-    getBuiltInTypes(): readonly string[] {
-        return Array.from(this.builtInTypes);
+    hasElement(type: string): boolean {
+        return this.registrations.has(type);
     }
 
-    createElement(type: string, config: any = {}) {
-        const factory = this.factories.get(type);
-        if (!factory) {
+    isBuiltIn(type: string): boolean {
+        return this.registrations.get(type)?.origin.kind === 'built-in';
+    }
+
+    getPluginId(type: string): string | undefined {
+        const origin = this.registrations.get(type)?.origin;
+        return origin?.kind === 'plugin' ? origin.pluginId : undefined;
+    }
+
+    getBuiltInTypes(): readonly string[] {
+        return [...this.registrations.values()]
+            .filter((registration) => registration.origin.kind === 'built-in')
+            .map((registration) => registration.type);
+    }
+
+    createElement(type: string, config: Record<string, unknown> = {}): SceneElementInstance | null {
+        const registration = this.registrations.get(type);
+        if (!registration) {
             console.warn(`Unknown scene element type: ${type}`);
             return null;
         }
-        return factory(config);
+        return registration.create(config);
     }
 
     getSchema(type: string) {
-        return this.schemas.get(type) || null;
+        return this.registrations.get(type)?.schema ?? null;
     }
 
-    getAvailableTypes() {
-        return Array.from(this.factories.keys());
+    getAvailableTypes(): string[] {
+        return [...this.registrations.keys()];
     }
 
-    getElementTypeInfo() {
-        return this.getAvailableTypes().map((type) => {
-            const schema = this.getSchema(type);
-            return {
-                type,
-                name: schema?.name || type,
-                description: schema?.description || `${type} element`,
-                category: schema?.category || 'general',
-                pluginId: this.pluginTypes.get(type) ?? null,
-            };
-        });
-    }
-
-    private registerDefaultElements() {
-        this.registerElementFromDefinition('background', elements.background);
-        this.registerElementFromDefinition('basicShapes', elements.basicShapes);
-        this.registerElementFromDefinition('image', elements.image);
-        this.registerElementFromDefinition('progressDisplay', elements.progressDisplay);
-        this.registerElementFromDefinition('textOverlay', elements.textOverlay);
-        this.registerElementFromDefinition('timeDisplay', elements.timeDisplay);
-
-        this.registerElementFromDefinition('timeUnitPianoRoll', elements.timeUnitPianoRoll);
-        this.registerElementFromDefinition('movingNotesPianoRoll', elements.movingNotesPianoRoll);
-        this.registerElementFromDefinition('notesPlayedTracker', elements.notesPlayedTracker);
-        this.registerElementFromDefinition('notesPlayingDisplay', elements.notesPlayingDisplay);
-        this.registerElementFromDefinition('chordEstimateDisplay', elements.chordEstimateDisplay);
-        this.registerElementFromDefinition('ccMonitor', elements.ccMonitor);
-
-        this.registerElementFromDefinition('audioSpectrum', elements.audioSpectrum);
-        this.registerElementFromDefinition('audioVolumeMeter', elements.audioVolumeMeter);
-        this.registerElementFromDefinition('audioWaveform', elements.audioWaveform);
-        this.registerElementFromDefinition('audioPeaks', elements.audioPeaks);
-        this.registerElementFromDefinition('audioLockedOscilloscope', elements.audioLockedOscilloscope);
-        this.registerElementFromDefinition('audioSpectrogram', elements.audioSpectrogram);
-        this.registerElementFromDefinition('audioVectorscope', elements.audioVectorscope);
-
-        this.registerElementFromDefinition('debug', elements.debug);
+    getElementTypeInfo(): SceneElementTypeInfo[] {
+        return [...this.registrations.values()].map((registration) => ({
+            type: registration.type,
+            name: registration.schema.name || registration.type,
+            description: registration.schema.description || `${registration.type} element`,
+            category: registration.schema.category || 'general',
+            pluginId: registration.origin.kind === 'plugin' ? registration.origin.pluginId : null,
+        }));
     }
 }
-
-export const sceneElementRegistry = new SceneElementRegistry();
-setSceneElementPluginIdResolver((type) => sceneElementRegistry.getPluginId(type));

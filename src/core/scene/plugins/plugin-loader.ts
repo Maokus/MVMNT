@@ -1,6 +1,6 @@
 import { unzipSync } from 'fflate';
 import { parseModule } from 'meriyah';
-import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+import { sceneElementRegistry } from '@core/scene/registry';
 import * as pluginSdkRenderModule from '@core/scene/plugins/sdk/render';
 import * as pluginSdkV2ApiModule from '../../../../packages/plugin-sdk/src/api';
 import * as pluginSdkV2AnimationModule from '../../../../packages/plugin-sdk/src/animation';
@@ -21,7 +21,7 @@ import { PluginSettingsStore } from '@persistence/plugin-settings-store';
 import { satisfiesVersion } from './version-check';
 import { registerElementAssetLoader } from './bundled-asset-registry';
 import { isPluginElementDefinition } from '../../../../packages/plugin-sdk/src/scene';
-import { createPluginDefinitionScope, type PluginDefinitionScope } from './v2-runtime';
+import { createPluginDefinitionScope, type PluginDefinitionScope } from '@core/scene/runtime/definition-runtime';
 import { normalizeElementCapabilities, validateArchivePaths, validatePluginManifest } from './plugin-contract';
 import { createPluginHostServices } from './host-api/plugin-api';
 
@@ -330,9 +330,7 @@ export async function loadPlugin(bundleData: ArrayBuffer, options: LoadPluginOpt
 
                 const code = new TextDecoder().decode(entryData);
 
-                // Load the element class dynamically
                 const loadedExport = await loadElementFromCode(code, elementManifest.type);
-                let ElementClass = loadedExport;
                 if (!isPluginElementDefinition(loadedExport)) {
                     throw new Error(`SDK 2 element '${elementManifest.type}' must export definePluginElement(...)`);
                 }
@@ -354,14 +352,8 @@ export async function loadPlugin(bundleData: ArrayBuffer, options: LoadPluginOpt
                 });
                 if (!(await scope.ready)) throw new Error(scope.failure?.message ?? 'Definition load failed');
                 definitionScope = scope;
-                ElementClass = scope.createElementClass();
-
-                // Register the element. The registry returns the actual key used
-                // (composite pluginId:type for plugin elements).
-                const registryKey = sceneElementRegistry.registerCustomElement(elementManifest.type, ElementClass, {
-                    pluginId: manifest.id,
-                    overrideCategory: manifest.name,
-                });
+                const registration = scope.createRegistration({ kind: 'plugin', pluginId: manifest.id }, manifest.name);
+                const registryKey = sceneElementRegistry.register(registration);
 
                 // Wire loadBundledAsset() for this element type.
                 const pluginId = manifest.id;

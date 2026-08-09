@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import type { PropertyDefinition, PropertyLayoutNode, PropertyVisibilityCondition } from '@core/types';
+import type {
+    ElementPropertyDefinition as PropertyDefinition,
+    ElementPropertyLayoutNode as PropertyLayoutNode,
+    ElementPropertyVisibilityCondition as PropertyVisibilityCondition,
+} from '@mvmnt-app/plugin-sdk';
 import { propertyControlRegistry } from './PropertyControlRegistry';
 
 interface Props {
     nodes: readonly PropertyLayoutNode[];
-    properties: PropertyDefinition[];
+    properties: readonly PropertyDefinition[];
     values: Record<string, unknown>;
     renderProperty: (property: PropertyDefinition, nested?: boolean) => React.ReactNode;
     isDisabled: (propertyKey: string) => boolean;

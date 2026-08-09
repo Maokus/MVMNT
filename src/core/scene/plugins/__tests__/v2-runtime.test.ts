@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createPluginHostServices, PLUGIN_CAPABILITIES } from '../host-api/plugin-api';
-import { createPluginDefinitionScope } from '../v2-runtime';
+import { createPluginDefinitionScope } from '@core/scene/runtime/definition-runtime';
 import { definePluginElement, type CapabilityContext } from '../../../../../packages/plugin-sdk/src/scene';
 import { getElementSubscriptionSnapshot } from '@audio/features/sceneApi';
 import { renderResourceManager } from '@core/render/render-resource-manager';
@@ -75,9 +75,9 @@ describe('SDK v2 runtime', () => {
             loadAsset: async () => 'blob:test',
             report: vi.fn(),
         });
-        const ElementClass = scope.createElementClass();
-        const first = new ElementClass('first', { speed: 4, label: 'one' });
-        const second = new ElementClass('second', { speed: 10, label: 'two' });
+        const registration = scope.createRegistration({ kind: 'built-in' });
+        const first = registration.create({ id: 'first', speed: 4, label: 'one' });
+        const second = registration.create({ id: 'second', speed: 10, label: 'two' });
 
         first.buildRenderObjects({}, 5);
         expect(contexts[0].properties.valueAt('speed', -2)).toEqual({ ok: true, value: 4 });
@@ -159,8 +159,8 @@ describe('SDK v2 runtime', () => {
             loadAsset: async () => 'blob:test',
             report: vi.fn(),
         });
-        const ElementClass = scope.createElementClass();
-        const instance = new ElementClass('keyframed', {
+        const instance = scope.createRegistration({ kind: 'built-in' }).create({
+            id: 'keyframed',
             speed: { type: 'keyframes', channelId: 'channel:speed' },
         });
 
@@ -319,13 +319,14 @@ describe('SDK v2 runtime', () => {
             loadAsset: async () => 'blob:test',
             report: vi.fn(),
         });
-        const ElementClass = scope.createElementClass();
-        const instance = new ElementClass('feature-display', {});
+        const instance = scope
+            .createRegistration({ kind: 'plugin', pluginId: 'test.plugin' })
+            .create({ id: 'feature-display' });
 
         expect(instance.type).toBe('test.plugin:feature-display');
         expect(getElementSubscriptionSnapshot(instance)).toEqual([]);
 
-        instance.setProperty('audioTrackId', 'audio-track');
+        instance.updateConfig({ audioTrackId: 'audio-track' });
 
         expect(getElementSubscriptionSnapshot(instance)).toEqual([
             {
@@ -379,8 +380,7 @@ describe('SDK v2 runtime', () => {
             loadAsset: async () => 'blob:test',
             report: vi.fn(),
         });
-        const ElementClass = scope.createElementClass();
-        const instance = new ElementClass('font-test', {});
+        const instance = scope.createRegistration({ kind: 'built-in' }).create({ id: 'font-test' });
 
         await vi.waitFor(() => expect(load).toHaveBeenCalledWith("600 32px 'Inter'"));
         expect(document.querySelector('link[href*="fonts.googleapis.com"]')).toBeNull();
@@ -441,8 +441,7 @@ describe('SDK v2 runtime', () => {
             report: vi.fn(),
         });
         await scope.ready;
-        const ElementClass = scope.createElementClass();
-        const instance = new ElementClass('async', {});
+        const instance = scope.createRegistration({ kind: 'built-in' }).create({ id: 'async' });
         instance.buildRenderObjects({}, 0);
         expect(render).not.toHaveBeenCalled();
         await Promise.resolve();
