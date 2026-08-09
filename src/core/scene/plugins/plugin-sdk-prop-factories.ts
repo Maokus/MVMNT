@@ -1,4 +1,4 @@
-import { asNumber, asBoolean, asString, asTrimmedString } from '@core/scene/elements/base';
+import { asNumber, asBoolean, asString, asTrimmedString } from '@core/scene/elements/property-transforms';
 import type {
     ElementPreset,
     EnhancedConfigSchema,

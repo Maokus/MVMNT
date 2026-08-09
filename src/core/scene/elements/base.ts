@@ -1,6 +1,7 @@
 // Enhanced Base SceneElement class with Property Binding System
 import { EnhancedConfigSchema, PropertyDefinition, SceneElementInterface } from '@core/types.js';
 import { prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
+import { getSceneElementPluginId } from '@core/scene/registry/plugin-id-resolver';
 import { EmptyRenderObject, PerspectiveElementRoot, RenderObject } from '@core/render/render-objects';
 import {
     createPerspectiveCameraWarp,
@@ -32,18 +33,7 @@ import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 import { isFeatureEnabled } from '@utils/featureFlags';
 import { PERSPECTIVE_WARP_BINDING_DEFAULTS } from '@core/scene/perspective-bindings';
 export { PERSPECTIVE_WARP_BINDING_DEFAULTS } from '@core/scene/perspective-bindings';
-
-// Lazy reference to avoid circular dependency with scene-element-registry
-let _sceneElementRegistry: { getPluginId(type: string): string | undefined } | null = null;
-function getSceneElementRegistry() {
-    if (!_sceneElementRegistry) {
-        // Dynamically resolve at first use (after all modules have initialized)
-        import('@core/scene/registry/scene-element-registry').then((m) => {
-            _sceneElementRegistry = m.sceneElementRegistry;
-        });
-    }
-    return _sceneElementRegistry;
-}
+export { asBoolean, asNumber, asString, asTrimmedString } from './property-transforms';
 
 export type PropertyTransform<TValue, TElement = SceneElement> = (
     value: unknown,
@@ -61,67 +51,6 @@ type DescriptorValue<TDescriptor> = TDescriptor extends PropertyDescriptor<infer
 
 export type PropertySnapshot<TDescriptors extends PropertyDescriptorMap<TElement>, TElement = SceneElement> = {
     [K in keyof TDescriptors]: DescriptorValue<TDescriptors[K]>;
-};
-
-export const asNumber: PropertyTransform<number, SceneElementInterface> = (value) => {
-    if (typeof value === 'number' && Number.isFinite(value)) {
-        return value;
-    }
-
-    if (typeof value === 'string') {
-        const parsed = Number(value.trim());
-        return Number.isFinite(parsed) ? parsed : undefined;
-    }
-
-    return undefined;
-};
-
-export const asBoolean: PropertyTransform<boolean, SceneElementInterface> = (value) => {
-    if (typeof value === 'boolean') {
-        return value;
-    }
-
-    if (typeof value === 'string') {
-        const normalized = value.trim().toLowerCase();
-        if (normalized === 'true') {
-            return true;
-        }
-        if (normalized === 'false') {
-            return false;
-        }
-    }
-
-    if (typeof value === 'number') {
-        return value !== 0;
-    }
-
-    return undefined;
-};
-
-export const asString: PropertyTransform<string, SceneElementInterface> = (value) => {
-    if (typeof value === 'string') {
-        return value;
-    }
-
-    if (value == null) {
-        return undefined;
-    }
-
-    if (typeof value === 'number' || typeof value === 'boolean') {
-        return String(value);
-    }
-
-    return undefined;
-};
-
-export const asTrimmedString: PropertyTransform<string, SceneElementInterface> = (value, element) => {
-    const stringValue = asString(value, element);
-    if (typeof stringValue !== 'string') {
-        return undefined;
-    }
-
-    const trimmed = stringValue.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
 };
 
 const schemaRuntimeDescriptorCache: WeakMap<object, PropertyDescriptorMap<any>> = new WeakMap();
@@ -718,8 +647,7 @@ export class SceneElement implements SceneElementInterface {
             return [];
         }
 
-        // Apply safety controls for plugin elements (lazy import to avoid circular dependency)
-        const pluginId = getSceneElementRegistry()?.getPluginId(this.type);
+        const pluginId = getSceneElementPluginId(this.type);
 
         let childRenderObjects: RenderObject[];
 

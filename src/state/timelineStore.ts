@@ -23,6 +23,7 @@ import {
     sharedAudioFeatureAnalysisScheduler,
     type AudioFeatureAnalysisHandle,
 } from '@audio/features/audioFeatureScheduler';
+import { onAudioFeatureCalculatorRegistered } from '@audio/features/audioFeatureRegistry';
 import {
     DEFAULT_ANALYSIS_PROFILE_ID,
     resolveFeatureTrackFromCache,
@@ -1519,6 +1520,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 });
 
 export const useTimelineStore = createWithEqualityFn<TimelineState>(storeImpl);
+onAudioFeatureCalculatorRegistered((calculator) => {
+    useTimelineStore.getState().invalidateAudioFeatureCachesByCalculator(calculator.id, calculator.version);
+});
 (window as any).timelineStore = useTimelineStore;
 
 export const devZustand = (store: any, name: string) => {

@@ -24,7 +24,7 @@ import { createPitchGuideCalculator } from './calculators/pitchGuideCalculator';
 import { createSpectrogramCalculator } from './calculators/spectrogramCalculator';
 import { createPeaksCalculator } from './calculators/peaksCalculator';
 import { createTempoMapper, type TempoMapper } from '@core/timing';
-import { getSharedTimingManager } from '@state/timelineStore';
+import { getSharedTimingManager } from '@state/timeline/timelineShared';
 import type { TempoMapEntry } from '@state/timelineTypes';
 
 type SerializedTypedArray = {

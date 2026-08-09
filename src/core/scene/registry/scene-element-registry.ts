@@ -3,6 +3,7 @@
 import * as elements from '@core/scene/elements';
 import type { PluginElementDefinition } from '../../../../packages/plugin-sdk/src/scene';
 import { createBuiltInDefinitionElementClass } from '@core/scene/plugins/built-in-definition';
+import { setSceneElementPluginIdResolver } from './plugin-id-resolver';
 
 export interface SceneElementFactorySchema {
     name?: string;
@@ -240,3 +241,4 @@ export class SceneElementRegistry {
 }
 
 export const sceneElementRegistry = new SceneElementRegistry();
+setSceneElementPluginIdResolver((type) => sceneElementRegistry.getPluginId(type));

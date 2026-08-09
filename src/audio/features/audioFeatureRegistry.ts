@@ -1,4 +1,3 @@
-import { useTimelineStore } from '@state/timelineStore';
 import {
     AudioFeatureCalculator,
     type AudioFeatureCalculatorRegistry,
@@ -7,6 +6,7 @@ import {
 
 const calculators = new Map<string, AudioFeatureCalculator>();
 const featureDefaults = new Map<string, FeatureDescriptorDefaults>();
+const calculatorRegisteredListeners = new Set<(calculator: AudioFeatureCalculator) => void>();
 const DEFAULT_PROFILE_ID = 'default';
 
 function register(calculator: AudioFeatureCalculator): void {
@@ -28,10 +28,8 @@ function register(calculator: AudioFeatureCalculator): void {
         calculatorId: calculator.id,
         bandIndex: existing.bandIndex,
     });
-    try {
-        useTimelineStore.getState().invalidateAudioFeatureCachesByCalculator(calculator.id, calculator.version);
-    } catch {
-        /* store may not be initialized yet */
+    for (const listener of calculatorRegisteredListeners) {
+        listener(calculator);
     }
 }
 
@@ -85,6 +83,11 @@ export const audioFeatureCalculatorRegistry: AudioFeatureCalculatorRegistry = {
 export function resetAudioFeatureCalculators(): void {
     calculators.clear();
     featureDefaults.clear();
+}
+
+export function onAudioFeatureCalculatorRegistered(listener: (calculator: AudioFeatureCalculator) => void): () => void {
+    calculatorRegisteredListeners.add(listener);
+    return () => calculatorRegisteredListeners.delete(listener);
 }
 
 export { getDefaultProfile, getFeatureDefaults };

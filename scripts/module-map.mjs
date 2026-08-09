@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve } from 'node:path';
+import ts from 'typescript';
 
 const root = process.cwd();
 const roots = ['src', 'packages', 'electron', 'scripts'];
@@ -53,13 +54,49 @@ function resolveImport(importer, specifier) {
     return null;
 }
 
+function executableImportSpecifiers(file, source) {
+    const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+    const specifiers = [];
+
+    function visit(node) {
+        if (ts.isImportDeclaration(node)) {
+            const clause = node.importClause;
+            const namedBindings = clause?.namedBindings;
+            const onlyTypeNamedImports =
+                namedBindings &&
+                ts.isNamedImports(namedBindings) &&
+                !clause.name &&
+                namedBindings.elements.every((element) => element.isTypeOnly);
+            if (!clause?.isTypeOnly && !onlyTypeNamedImports && ts.isStringLiteral(node.moduleSpecifier)) {
+                specifiers.push(node.moduleSpecifier.text);
+            }
+        } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && !node.isTypeOnly) {
+            const clause = node.exportClause;
+            const hasExecutableExport =
+                !clause || !ts.isNamedExports(clause) || clause.elements.some((element) => !element.isTypeOnly);
+            if (hasExecutableExport && ts.isStringLiteral(node.moduleSpecifier)) {
+                specifiers.push(node.moduleSpecifier.text);
+            }
+        } else if (
+            ts.isCallExpression(node) &&
+            node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+            node.arguments.length === 1 &&
+            ts.isStringLiteral(node.arguments[0])
+        ) {
+            specifiers.push(node.arguments[0].text);
+        }
+        ts.forEachChild(node, visit);
+    }
+
+    visit(sourceFile);
+    return specifiers;
+}
+
 const graph = {};
-const importPattern =
-    /(?:import|export)\s+(?:type\s+)?(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g;
 for (const file of [...relativeFiles].sort()) {
     const source = readFileSync(resolve(root, file), 'utf8');
-    graph[file] = [...source.matchAll(importPattern)]
-        .map((match) => resolveImport(file, match[1] ?? match[2]))
+    graph[file] = executableImportSpecifiers(file, source)
+        .map((specifier) => resolveImport(file, specifier))
         .filter(Boolean)
         .sort();
 }
@@ -88,6 +125,8 @@ const report = { generatedAt: new Date().toISOString(), modules: graph, cycles }
 const output = resolve(root, '.cache/module-map.json');
 mkdirSync(dirname(output), { recursive: true });
 writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
-console.log(`Module map: ${Object.keys(graph).length} modules, ${cycles.length} cycle(s); ${relative(root, output)}`);
+console.log(
+    `Module map: ${Object.keys(graph).length} modules, ${cycles.length} executable cycle(s); ${relative(root, output)}`
+);
 for (const cycle of cycles) console.log(`  ${cycle.join(' -> ')}`);
 if (process.argv.includes('--check') && cycles.length > 0) process.exitCode = 1;

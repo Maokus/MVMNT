@@ -18,6 +18,12 @@ class TestCustomElement extends SceneElement {
     }
 }
 
+class ThrowingCustomElement extends TestCustomElement {
+    override _buildRenderObjects(): never {
+        throw new Error('plugin render failed');
+    }
+}
+
 describe('SceneElementRegistry - Plugin API', () => {
     const testType = 'test-custom-element';
     const testPluginId = 'test.plugin';
@@ -45,6 +51,24 @@ describe('SceneElementRegistry - Plugin API', () => {
 
             expect(sceneElementRegistry.hasElement(registryKey)).toBe(true);
             expect(sceneElementRegistry.getPluginId(registryKey)).toBe(testPluginId);
+        });
+
+        it('applies plugin render safety on the first render', () => {
+            const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const registryKey = sceneElementRegistry.registerCustomElement(testType, ThrowingCustomElement, {
+                pluginId: testPluginId,
+            });
+            const element = sceneElementRegistry.createElement(registryKey, { id: 'throwing-plugin-element' });
+
+            expect(element?.buildRenderObjects({}, 0)).toEqual([]);
+            expect(consoleError).toHaveBeenCalledWith(
+                expect.stringContaining(
+                    `[PluginSafety] Render error for plugin '${testPluginId}' element '${registryKey}'`
+                ),
+                expect.any(Error)
+            );
+
+            consoleError.mockRestore();
         });
 
         it('overrides category when specified', () => {

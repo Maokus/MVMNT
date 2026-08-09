@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
     analyzeAudioBufferFeatures,
     deserializeAudioFeatureCache,
@@ -6,7 +6,11 @@ import {
 } from '@audio/features/audioFeatureAnalysis';
 import { buildFeatureTrackKey, DEFAULT_ANALYSIS_PROFILE_ID } from '@audio/features/featureTrackIdentity';
 import { sharedAudioFeatureAnalysisScheduler } from '@audio/features/audioFeatureScheduler';
-import { audioFeatureCalculatorRegistry, resetAudioFeatureCalculators } from '@audio/features/audioFeatureRegistry';
+import {
+    audioFeatureCalculatorRegistry,
+    onAudioFeatureCalculatorRegistered,
+    resetAudioFeatureCalculators,
+} from '@audio/features/audioFeatureRegistry';
 import { createTempoMapper } from '@core/timing';
 import { getSharedTimingManager } from '@state/timelineStore';
 
@@ -201,6 +205,26 @@ describe('audio feature analysis', () => {
             expect(cache.featureTracks[zeroKey]?.hopTicks).toBe(cache.hopTicks);
         } finally {
             resetAudioFeatureCalculators();
+        }
+    });
+
+    it('notifies cache owners when a calculator is registered', () => {
+        const listener = vi.fn();
+        const unsubscribe = onAudioFeatureCalculatorRegistered(listener);
+        const calculator = {
+            id: 'test.registration-notification',
+            version: 1,
+            featureKey: 'registrationNotification',
+            label: 'Registration notification',
+            calculate: vi.fn(),
+        };
+
+        try {
+            audioFeatureCalculatorRegistry.register(calculator);
+            expect(listener).toHaveBeenCalledWith(calculator);
+        } finally {
+            unsubscribe();
+            audioFeatureCalculatorRegistry.unregister(calculator.id);
         }
     });
 });

@@ -30,6 +30,7 @@ import {
     invertMatrix,
     matrixToNodeTransform,
     matrixAroundPoint,
+    multiplyMatrices,
     nodeTransformToMatrix,
     rotationMatrix,
     scaleMatrix,
@@ -67,6 +68,84 @@ export function accumulateRotationDrag(
         Math.cos(pointerAngle - previousPointerAngle)
     );
     return accumulatedAngle + change;
+}
+
+type Point = { x: number; y: number };
+
+const OPPOSITE_SCALE_HANDLE: Record<string, string> = {
+    'scale-nw': 'scale-se',
+    'scale-ne': 'scale-sw',
+    'scale-se': 'scale-nw',
+    'scale-sw': 'scale-ne',
+    'scale-n': 'scale-s',
+    'scale-e': 'scale-w',
+    'scale-s': 'scale-n',
+    'scale-w': 'scale-e',
+};
+
+function unitVector(from: Point, to: Point): Point {
+    const x = to.x - from.x;
+    const y = to.y - from.y;
+    const length = Math.hypot(x, y) || 1;
+    return { x: x / length, y: y / length };
+}
+
+/** Selects the closest CSS resize cursor to the handle's actual screen-space axis. */
+export function resizeCursorForHandle(handleType: string, handles: readonly any[]): string | null {
+    if (!handleType.startsWith('scale-')) return null;
+    const handle = handles.find((candidate) => candidate.type === handleType);
+    if (!handle) return null;
+    const northWest = handles.find((candidate) => candidate.type === 'scale-nw');
+    const northEast = handles.find((candidate) => candidate.type === 'scale-ne');
+    const rotation =
+        northWest && northEast ? Math.atan2(northEast.cy - northWest.cy, northEast.cx - northWest.cx) : null;
+    const offsetByHandle: Record<string, number> = {
+        'scale-e': 0,
+        'scale-w': 0,
+        'scale-n': Math.PI / 2,
+        'scale-s': Math.PI / 2,
+        'scale-nw': Math.PI / 4,
+        'scale-se': Math.PI / 4,
+        'scale-ne': -Math.PI / 4,
+        'scale-sw': -Math.PI / 4,
+    };
+    const opposite = handles.find((candidate) => candidate.type === OPPOSITE_SCALE_HANDLE[handleType]);
+    const angle =
+        rotation === null
+            ? opposite
+                ? Math.atan2(handle.cy - opposite.cy, handle.cx - opposite.cx)
+                : null
+            : rotation + offsetByHandle[handleType];
+    if (angle === null) return null;
+    const direction = ((Math.round(angle / (Math.PI / 4)) % 4) + 4) % 4;
+    return ['ew-resize', 'nwse-resize', 'ns-resize', 'nesw-resize'][direction];
+}
+
+/** Computes a one-axis resize factor from pointer movement along the object's local axes. */
+export function sideHandleScaleFactors(
+    handleType: string,
+    origin: Point,
+    start: Point,
+    current: Point,
+    axisX: Point,
+    axisY: Point
+): { scaleX: number; scaleY: number } {
+    const axis = handleType === 'scale-e' || handleType === 'scale-w' ? axisX : axisY;
+    const startProjection = (start.x - origin.x) * axis.x + (start.y - origin.y) * axis.y;
+    const currentProjection = (current.x - origin.x) * axis.x + (current.y - origin.y) * axis.y;
+    const factor = Math.max(0.001, currentProjection / (Math.abs(startProjection) > 1e-8 ? startProjection : 1));
+    return handleType === 'scale-e' || handleType === 'scale-w'
+        ? { scaleX: factor, scaleY: 1 }
+        : { scaleX: 1, scaleY: factor };
+}
+
+/** Builds a world-space scale aligned to an object's local x/y axes. */
+export function orientedScaleMatrix(scaleX: number, scaleY: number, axisX: Point) {
+    const angle = Math.atan2(axisX.y, axisX.x);
+    return multiplyMatrices(
+        rotationMatrix(angle),
+        multiplyMatrices(scaleMatrix(scaleX, scaleY), rotationMatrix(-angle))
+    );
 }
 
 function selectedSubtreeElementIds(): string[] {
@@ -200,14 +279,33 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
     const pivot = useSelectionStore.getState().selectionPivot ?? selection.pivot;
     const b = selection.bounds;
     const corners = selection.corners;
+    const axisX = corners?.length === 4 ? unitVector(corners[0], corners[1]) : { x: 1, y: 0 };
+    const axisY = corners?.length === 4 ? unitVector(corners[0], corners[3]) : { x: 0, y: 1 };
+    const midpoint = (first: Point, second: Point) => ({
+        x: (first.x + second.x) / 2,
+        y: (first.y + second.y) / 2,
+    });
     const oppositeByHandle: Record<string, { x: number; y: number }> =
         corners?.length === 4
-            ? { 'scale-nw': corners[2], 'scale-ne': corners[3], 'scale-se': corners[0], 'scale-sw': corners[1] }
+            ? {
+                  'scale-nw': corners[2],
+                  'scale-ne': corners[3],
+                  'scale-se': corners[0],
+                  'scale-sw': corners[1],
+                  'scale-n': midpoint(corners[2], corners[3]),
+                  'scale-e': midpoint(corners[0], corners[3]),
+                  'scale-s': midpoint(corners[0], corners[1]),
+                  'scale-w': midpoint(corners[1], corners[2]),
+              }
             : {
                   'scale-nw': { x: b.x + b.width, y: b.y + b.height },
                   'scale-ne': { x: b.x, y: b.y + b.height },
                   'scale-se': { x: b.x, y: b.y },
                   'scale-sw': { x: b.x + b.width, y: b.y },
+                  'scale-n': { x: b.x + b.width / 2, y: b.y + b.height },
+                  'scale-e': { x: b.x, y: b.y + b.height / 2 },
+                  'scale-s': { x: b.x + b.width / 2, y: b.y },
+                  'scale-w': { x: b.x + b.width, y: b.y + b.height / 2 },
               };
     const scaleOrigin = oppositeByHandle[handleHit.type] ?? pivot;
     vis._dragMeta = {
@@ -219,6 +317,8 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
         startDistance: Math.hypot(x - scaleOrigin.x, y - scaleOrigin.y) || 1,
         startAngle: Math.atan2(y - pivot.y, x - pivot.x),
         scaleOrigin,
+        scaleAxisX: axisX,
+        scaleAxisY: axisY,
         nodeIds: [...nodeIds],
         originalGraph: graphWithDisplayedNodeTransforms(vis, nodeIds),
         pivotRecord: nodeIds.length === 1 ? selection.records?.[0] : null,
@@ -335,15 +435,31 @@ function processDrag(
             );
         } else if (meta.mode?.startsWith('scale') && meta.pivot) {
             const origin = altKey ? meta.pivot : (meta.scaleOrigin ?? meta.pivot);
-            const startDistance = Math.hypot(meta.startX - origin.x, meta.startY - origin.y) || 1;
-            const distance = Math.hypot(x - origin.x, y - origin.y);
-            const factor = Math.max(0.001, distance / startDistance);
+            const isSideHandle = ['scale-n', 'scale-e', 'scale-s', 'scale-w'].includes(meta.mode);
+            let scaleX: number;
+            let scaleY: number;
+            if (isSideHandle) {
+                const factors = sideHandleScaleFactors(
+                    meta.mode,
+                    origin,
+                    { x: meta.startX, y: meta.startY },
+                    { x, y },
+                    meta.scaleAxisX,
+                    meta.scaleAxisY
+                );
+                scaleX = factors.scaleX;
+                scaleY = factors.scaleY;
+            } else {
+                const startDistance = Math.hypot(meta.startX - origin.x, meta.startY - origin.y) || 1;
+                const distance = Math.hypot(x - origin.x, y - origin.y);
+                scaleX = scaleY = Math.max(0.001, distance / startDistance);
+            }
             applyGraphDragUpdate(
                 meta,
                 transformSceneNodes(
                     meta.originalGraph,
                     meta.nodeIds,
-                    matrixAroundPoint(scaleMatrix(factor), origin.x, origin.y)
+                    matrixAroundPoint(orientedScaleMatrix(scaleX, scaleY, meta.scaleAxisX), origin.x, origin.y)
                 )
             );
         } else if (meta.mode === 'rotate' && meta.pivot) {
@@ -410,19 +526,13 @@ function updateHover(vis: any, x: number, y: number) {
         const handleHover = findHandleUnderPoint(handles, x, y) as any;
         if (handleHover) {
             const cursors: Record<string, string> = {
-                'scale-nw': 'nwse-resize',
-                'scale-se': 'nwse-resize',
-                'scale-ne': 'nesw-resize',
-                'scale-sw': 'nesw-resize',
-                'scale-n': 'ns-resize',
-                'scale-s': 'ns-resize',
-                'scale-e': 'ew-resize',
-                'scale-w': 'ew-resize',
                 rotate: 'crosshair',
                 pivot: 'crosshair',
                 anchor: 'crosshair',
             };
-            if (vis.canvas) vis.canvas.style.cursor = cursors[handleHover.type] ?? 'move';
+            if (vis.canvas)
+                vis.canvas.style.cursor =
+                    resizeCursorForHandle(handleHover.type, handles) ?? cursors[handleHover.type] ?? 'move';
             if (vis._interactionState.activeHandle !== handleHover.id)
                 vis.setInteractionState({ activeHandle: handleHover.id });
             return; // don't update element hover while over handle
