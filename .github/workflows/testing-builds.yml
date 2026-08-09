@@ -19,6 +19,10 @@ jobs:
                   node-version: 22
                   cache: npm
             - run: npm install
+            - name: Report module dependencies and cycles
+              run: npm run architecture:modules
+            - name: Report module size and type debt
+              run: npm run architecture:health
             - run: npx prettier --write .
             - run: npm run test
             - run: npm run build

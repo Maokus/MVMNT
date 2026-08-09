@@ -34,6 +34,12 @@ import type { AutomationChannel, AutomationKeyframe, SegmentInterpolation, Handl
 import { DEFAULT_SEGMENT_INTERPOLATION } from '@automation/interpolation-defaults';
 import InterpolationPicker from './InterpolationPicker';
 import { AUTOMATION_ROW_HEIGHT } from '../constants';
+import {
+    buildKeyframeShapePath,
+    getKeyframeHalfShape,
+    KEYFRAME_DIAMOND_SIZE,
+    type KeyframeHalfShape,
+} from './keyframeShape';
 
 function focusChannelOwner(channel: AutomationChannel) {
     if (channel.target.owner.kind === 'element') {
@@ -46,99 +52,6 @@ function focusChannelOwner(channel: AutomationChannel) {
 interface AutomationLaneRowProps {
     channel: AutomationChannel;
     width: number;
-}
-
-const DIAMOND_SIZE = 7;
-
-// ---------------------------------------------------------------------------
-// Keyframe half-shape types
-// ---------------------------------------------------------------------------
-
-type KfHalfShape = 'diamond' | 'square' | 'hourglass' | 'circle';
-
-const DYNAMIC_EASING_MODES = new Set(['back', 'bounce', 'elastic']);
-
-/**
- * Determine the visual shape for one half of a keyframe icon.
- *
- * @param segInterp  The SegmentInterpolation of the segment adjacent to this half.
- * @param handleType The bezier handle type relevant to this half (left or right).
- * @param side       'right' = this keyframe is the outgoing/source of the segment.
- *                   'left'  = this keyframe is the incoming/destination of the segment.
- */
-function getKfHalfShape(
-    segInterp: SegmentInterpolation | undefined | null,
-    handleType: HandleType | undefined,
-    side: 'left' | 'right'
-): KfHalfShape {
-    if (!segInterp) return 'diamond';
-    const { mode } = segInterp;
-    if (mode === 'constant') return 'square';
-    if (mode === 'linear') return 'diamond';
-    if (mode === 'bezier') return 'circle';
-    // Semantic easing — resolve 'auto' direction
-    const resolvedDir =
-        segInterp.direction === 'auto'
-            ? DYNAMIC_EASING_MODES.has(mode)
-                ? 'ease_out'
-                : 'ease_in_out'
-            : segInterp.direction;
-
-    if (resolvedDir === 'ease_in_out') return 'hourglass';
-    if (resolvedDir === 'ease_in') {
-        // Source (right half) = soft start → hourglass; destination (left half) = sharp end → diamond
-        return side === 'right' ? 'hourglass' : 'diamond';
-    }
-    // ease_out: source = sharp start → diamond; destination = soft end → hourglass
-    return side === 'right' ? 'diamond' : 'hourglass';
-}
-
-/**
- * Build a unified SVG path string for a keyframe icon at position (x, cy).
- * Traces the left half downward from (x,t) to (x,b), then the right half
- * upward back to (x,t), forming a single closed path.
- */
-function shapePath(leftShape: KfHalfShape, rightShape: KfHalfShape, x: number, cy: number, size: number): string {
-    const l = x - size,
-        r = x + size,
-        t = cy - size,
-        b = cy + size;
-
-    // Left half: segments from (x,t) down to (x,b)
-    let leftSeg: string;
-    switch (leftShape) {
-        case 'diamond':
-            leftSeg = `L${l},${cy} L${x},${b}`;
-            break;
-        case 'hourglass':
-            leftSeg = `L${l},${t} L${x},${cy} L${l},${b} L${x},${b}`;
-            break;
-        case 'square':
-            leftSeg = `L${l},${t} L${l},${b} L${x},${b}`;
-            break;
-        default:
-            leftSeg = `A${size},${size} 0 0,0 ${x},${b}`;
-            break; // circle: left semicircle (x,t)→(x,b)
-    }
-
-    // Right half: segments from (x,b) back up to (x,t)
-    let rightSeg: string;
-    switch (rightShape) {
-        case 'diamond':
-            rightSeg = `L${r},${cy} L${x},${t}`;
-            break;
-        case 'hourglass':
-            rightSeg = `L${r},${b} L${x},${cy} L${r},${t} L${x},${t}`;
-            break;
-        case 'square':
-            rightSeg = `L${r},${b} L${r},${t} L${x},${t}`;
-            break;
-        default:
-            rightSeg = `A${size},${size} 0 0,0 ${x},${t}`;
-            break; // circle: right semicircle (x,b)→(x,t)
-    }
-
-    return `M${x},${t} ${leftSeg} ${rightSeg} Z`;
 }
 
 // ---------------------------------------------------------------------------
@@ -224,8 +137,8 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
         const diamonds: Array<{
             kf: AutomationKeyframe;
             x: number;
-            leftShape: KfHalfShape;
-            rightShape: KfHalfShape;
+            leftShape: KeyframeHalfShape;
+            rightShape: KeyframeHalfShape;
         }> = [];
         const segments: Array<{ x1: number; x2: number; tick: number }> = [];
 
@@ -236,23 +149,23 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             const nextKf = i < kfs.length - 1 ? kfs[i + 1] : null;
 
             // Left half: shape determined by the PREVIOUS segment's interpolation
-            const leftShape: KfHalfShape =
+            const leftShape: KeyframeHalfShape =
                 channel.valueType === 'string' || channel.valueType === 'boolean'
                     ? prevKf
                         ? 'square'
                         : 'diamond'
                     : prevKf
-                      ? getKfHalfShape(prevKf.segmentInterpolation, kf.leftHandleType, 'left')
+                      ? getKeyframeHalfShape(prevKf.segmentInterpolation, kf.leftHandleType, 'left')
                       : 'diamond';
 
             // Right half: shape determined by THIS keyframe's outgoing segment
-            const rightShape: KfHalfShape =
+            const rightShape: KeyframeHalfShape =
                 channel.valueType === 'string' || channel.valueType === 'boolean'
                     ? nextKf
                         ? 'square'
                         : 'diamond'
                     : nextKf
-                      ? getKfHalfShape(kf.segmentInterpolation, kf.rightHandleType, 'right')
+                      ? getKeyframeHalfShape(kf.segmentInterpolation, kf.rightHandleType, 'right')
                       : 'diamond';
 
             diamonds.push({ kf, x, leftShape, rightShape });
@@ -794,7 +707,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 {elements.diamonds.map(({ kf, x, leftShape, rightShape }) => {
                     const sel = isSelected(kf.tick);
                     const atPlayhead = Math.abs(kf.tick - currentTick) < 0.5;
-                    const dSize = sel ? DIAMOND_SIZE + 2 : DIAMOND_SIZE;
+                    const dSize = sel ? KEYFRAME_DIAMOND_SIZE + 2 : KEYFRAME_DIAMOND_SIZE;
                     const fill = sel ? '#ffffff' : 'rgba(96,165,250,0.6)';
                     const stroke = sel ? '#60a5fa' : 'rgba(96,165,250,0.5)';
                     const strokeWidth = sel ? 2 : 1;
@@ -818,7 +731,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                             }}
                         >
                             <path
-                                d={shapePath(leftShape, rightShape, x, cy, dSize)}
+                                d={buildKeyframeShapePath(leftShape, rightShape, x, cy, dSize)}
                                 fill={fill}
                                 stroke={stroke}
                                 strokeWidth={strokeWidth}
@@ -941,32 +854,5 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
         </div>
     );
 };
-
-/** Simple linear interpolation at a tick from surrounding keyframes. */
-function interpolateAtTick(channel: AutomationChannel, tick: number): unknown {
-    const kfs = channel.keyframes;
-    if (kfs.length === 0) return 0;
-    if (kfs.length === 1) return kfs[0].value;
-
-    // Before first
-    if (tick <= kfs[0].tick) return kfs[0].value;
-    // After last
-    if (tick >= kfs[kfs.length - 1].tick) return kfs[kfs.length - 1].value;
-
-    // Find surrounding pair
-    for (let i = 0; i < kfs.length - 1; i++) {
-        const a = kfs[i];
-        const b = kfs[i + 1];
-        if (tick >= a.tick && tick <= b.tick) {
-            if (typeof a.value === 'number' && typeof b.value === 'number') {
-                const t = (tick - a.tick) / Math.max(1, b.tick - a.tick);
-                return a.value + (b.value - a.value) * t;
-            }
-            // Non-numeric: use nearest
-            return tick - a.tick <= b.tick - tick ? a.value : b.value;
-        }
-    }
-    return kfs[kfs.length - 1].value;
-}
 
 export default AutomationLaneRow;

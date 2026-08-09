@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { beatsToSeconds, secondsToBeats } from '../tempo-utils';
 import type { TempoMapEntry } from '../types';
 
-describe('tempo-utils basic', () => {
+describe('tempo utility behavior', () => {
     it('fallback only (no map): round-trip seconds<->beats', () => {
         const spb = 0.5; // 120 bpm
         const s = 12.34;

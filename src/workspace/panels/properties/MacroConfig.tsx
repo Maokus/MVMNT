@@ -606,7 +606,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                     <FontInput
                         id={`macro-font-${macro.name}`}
                         value={macro.value || 'Arial|400'}
-                        schema={{ default: 'Arial|400' }}
+                        schema={{ default: 'BuiltIn:inter|400' }}
                         onChange={(val: string) => handleUpdateMacroValue(macro.name, val)}
                     />
                 );
@@ -841,7 +841,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                                 <FontInput
                                     id="newMacroFont"
                                     value={newMacro.value || 'Arial|400'}
-                                    schema={{ default: 'Arial|400' }}
+                                    schema={{ default: 'BuiltIn:inter|400' }}
                                     onChange={(val: string) => setNewMacro((prev) => ({ ...prev, value: val }))}
                                 />
                             </div>

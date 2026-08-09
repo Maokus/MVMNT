@@ -148,7 +148,7 @@ export const prop = {
         };
     },
 
-    /** A font family picker (Google Fonts supported). Stored as a `Family|weight` string. */
+    /** A source-aware font picker. Google selections are embedded by the host before this value changes. */
     font(key: string, label: string, defaultValue: string, opts?: CommonOpts): PropertyDefinition {
         return {
             key,

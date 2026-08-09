@@ -194,6 +194,11 @@ describe('SDK v2 runtime', () => {
     });
 
     it('loads schema-declared fonts before the appearance inspector is opened', async () => {
+        const load = vi.fn().mockResolvedValue([]);
+        Object.defineProperty(document, 'fonts', {
+            value: { load, check: vi.fn().mockReturnValue(true) },
+            configurable: true,
+        });
         const host = installHost();
         const definition = definePluginElement({
             type: 'font-load-test',
@@ -208,7 +213,7 @@ describe('SDK v2 runtime', () => {
                                 id: 'typography',
                                 label: 'Typography',
                                 properties: [
-                                    { key: 'fontFamily', label: 'Font', type: 'font', default: 'SDK Runtime Font|600' },
+                                    { key: 'fontFamily', label: 'Font', type: 'font', default: 'BuiltIn:inter|600' },
                                 ],
                             },
                         ],
@@ -230,12 +235,11 @@ describe('SDK v2 runtime', () => {
         const ElementClass = scope.createElementClass();
         const instance = new ElementClass('font-test', {});
 
-        const link = document.getElementById('gf-SDK+Runtime+Font') as HTMLLinkElement | null;
-        expect(link?.href).toContain('family=SDK+Runtime+Font:wght@600');
+        await vi.waitFor(() => expect(load).toHaveBeenCalledWith("600 32px 'Inter'"));
+        expect(document.querySelector('link[href*="fonts.googleapis.com"]')).toBeNull();
 
         instance.dispose();
         await scope.dispose();
-        link?.remove();
     });
 
     it('keeps undeclared operations away from internal services', async () => {

@@ -896,11 +896,11 @@ function contentType(filePath: string): string {
 const contentSecurityPolicy = [
     "default-src 'self'",
     "script-src 'self' 'unsafe-eval'",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "media-src 'self' data: blob: https:",
     "font-src 'self' data: blob: https://fonts.gstatic.com",
-    "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://www.googleapis.com https://fonts.googleapis.com https://fonts.gstatic.com",
+    "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://www.googleapis.com https://fonts.gstatic.com",
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",

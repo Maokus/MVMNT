@@ -197,6 +197,12 @@ export function applySceneStoreCommand(store: SceneStoreState, command: SceneCom
         case 'loadSerializedScene':
             store.importScene(command.payload);
             break;
+        case 'registerFontAsset':
+            store.registerFontAsset(command.asset);
+            break;
+        case 'deleteFontAsset':
+            store.deleteFontAsset(command.assetId);
+            break;
         case 'importSubtreeBundle': {
             const { payload } = buildSceneSubtreeImport(store, command.bundle, {
                 parentId: command.parentId,

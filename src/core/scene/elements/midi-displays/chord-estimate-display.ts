@@ -232,7 +232,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                         id: 'darkStage',
                         label: 'Dark Stage',
                         values: {
-                            fontFamily: 'Inter|600',
+                            fontFamily: 'BuiltIn:inter|600',
                             chordFontSize: 54,
                             color: '#f8fafc',
                             lineSpacing: 8,
@@ -242,7 +242,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                         id: 'glassOverlay',
                         label: 'Glass Overlay',
                         values: {
-                            fontFamily: 'Inter|400',
+                            fontFamily: 'BuiltIn:inter|400',
                             chordFontSize: 42,
                             color: '#cbd5f5',
                             lineSpacing: 4,
@@ -252,7 +252,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                         id: 'boldBroadcast',
                         label: 'Broadcast Bold',
                         values: {
-                            fontFamily: 'Inter|700',
+                            fontFamily: 'BuiltIn:inter|700',
                             chordFontSize: 60,
                             color: '#f97316',
                             lineSpacing: 10,
@@ -383,7 +383,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                         label: 'Typography',
                         collapsed: false,
                         properties: [
-                            prop.font('fontFamily', 'Font Family', 'Inter'),
+                            prop.font('fontFamily', 'Font Family', 'BuiltIn:inter|400'),
                             {
                                 key: 'chordFontSize',
                                 type: 'number',

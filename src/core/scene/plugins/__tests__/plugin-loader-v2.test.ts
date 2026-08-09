@@ -91,13 +91,13 @@ describe('v2 plugin loader fixture', () => {
             archive.buffer.slice(archive.byteOffset, archive.byteOffset + archive.byteLength) as ArrayBuffer
         );
         expect(result.success).toBe(false);
-        expect(result.error).toContain('Capability declaration mismatch');
+        expect('error' in result ? result.error : '').toContain('Capability declaration mismatch');
     });
 
     it('rejects SDK 1 archives after compatibility removal', async () => {
         const result = await loadPlugin(sdk1Bundle());
         expect(result).toMatchObject({ success: false });
-        expect(result.error).toContain('MVMNT requires ^2.0.0');
+        expect('error' in result ? result.error : '').toContain('MVMNT requires ^2.0.0');
     });
 
     it('keeps development bundles session-only', async () => {

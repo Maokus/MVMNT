@@ -5,6 +5,8 @@ export {
     disablePlugin,
     enablePlugin,
     type PluginLoadResult,
+    type PluginHostError,
+    type PluginHostErrorCode,
 } from './plugin-loader';
 export {
     withRenderSafety,

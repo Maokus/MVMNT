@@ -10,7 +10,7 @@ async function makeValidEnvelope(): Promise<any> {
     return structuredClone(exp.envelope);
 }
 
-describe('Persistence validation extended', () => {
+describe('persistence validation behavior', () => {
     it('accepts nested groups in schema v12 without persisting editor scope', async () => {
         const env = await makeValidEnvelope();
         const graph = env.scene.graph;

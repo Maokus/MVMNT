@@ -190,7 +190,7 @@ export const notesPlayingDisplay = definePluginElement<Props, undefined>({
                         label: 'Typography',
                         collapsed: false,
                         properties: [
-                            { key: 'fontFamily', label: 'Font Family', type: 'font', default: 'Inter|400' },
+                            { key: 'fontFamily', label: 'Font Family', type: 'font', default: 'BuiltIn:inter|400' },
                             num('fontSize', 'Font Size', 30),
                             {
                                 key: 'textAlign',

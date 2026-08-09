@@ -40,6 +40,7 @@ import { useTemplateStatusStore } from '@state/templateStatusStore';
 import { CacheDiagnosticsPopup } from '@workspace/components/CacheDiagnosticsPopup';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import AssetManagerPanel from '@workspace/panels/asset-manager/AssetManagerPanel';
+import { MissingFontsBanner } from '@workspace/components/MissingFontsBanner';
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const SIDE_MIN_WIDTH = 320;
@@ -383,6 +384,7 @@ const MidiVisualizerInner: React.FC = () => {
         <div className="app-container">
             <TemplateLoadingOverlay />
             <MenuBar onHelp={() => setShowOnboarding(true)} />
+            <MissingFontsBanner />
             <SceneSelectionProvider>
                 <>
                     <InsertKeyframeController />

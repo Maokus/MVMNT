@@ -108,7 +108,7 @@ export const propGroup = {
             label: 'Typography',
             collapsed: false,
             properties: [
-                prop.font('fontFamily', 'Font Family', 'Inter|400'),
+                prop.font('fontFamily', 'Font Family', 'BuiltIn:inter|400'),
                 prop.number('fontSize', 'Font Size', 24, { min: 4, max: 400, step: 1 }),
                 prop.select('textAlign', 'Alignment', 'center', [
                     { value: 'left', label: 'Left' },

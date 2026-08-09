@@ -28,7 +28,7 @@ describe('scene import font preloading', () => {
             type: 'addElement',
             elementType: 'textOverlay',
             elementId: 'text',
-            config: { fontFamily: { type: 'constant', value: 'Meddon|400' } },
+            config: { fontFamily: { type: 'constant', value: 'BuiltIn:inter|400' } },
         });
         const exported = await exportScene();
         if (!exported.ok) throw new Error('Expected a packaged scene export');
@@ -37,7 +37,8 @@ describe('scene import font preloading', () => {
         await expect(importScene(exported.zip)).resolves.toMatchObject({ ok: true });
         expect(ensureSceneFontsLoaded).toHaveBeenCalledWith(
             expect.objectContaining({ text: expect.any(Object) }),
-            undefined
+            undefined,
+            { automation: undefined }
         );
     });
 });

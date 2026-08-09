@@ -33,7 +33,7 @@ describe('collectFontAssets', () => {
     it('reports missing binaries', async () => {
         useSceneStore.getState().registerFontAsset(baseAsset);
         const result = await collectFontAssets();
-        expect(result.missing).toContain(baseAsset.id);
+        expect(result.missing).toContain(`${baseAsset.id}/regular`);
         expect(Object.keys(result.byId)).toHaveLength(0);
     });
 
@@ -45,6 +45,6 @@ describe('collectFontAssets', () => {
         expect(result.missing).toEqual([]);
         expect(result.byId[baseAsset.id]).toBeDefined();
         expect(result.byId[baseAsset.id].byteLength).toBe(payload.byteLength);
-        expect(result.assetPayloads.get(baseAsset.id)?.bytes.byteLength).toBe(payload.byteLength);
+        expect(result.assetPayloads.get(`${baseAsset.id}/regular`)?.bytes.byteLength).toBe(payload.byteLength);
     });
 });

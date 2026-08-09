@@ -17,7 +17,7 @@ function makeMidi(events: MIDIEvent[], opts?: Partial<MIDIData>): MIDIData {
     } as MIDIData;
 }
 
-describe('Central note queries (store version)', () => {
+describe('central timeline note queries', () => {
     it('merges multiple tracks and respects offsets', async () => {
         const store = useTimelineStore.getState();
         const idA = await store.addMidiTrack({ name: 'A', offsetTicks: 0 });

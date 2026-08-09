@@ -31,7 +31,7 @@ export const textDisplay = definePluginElement({
                                 max: 160,
                                 step: 1,
                             },
-                            { key: 'fontFamily', label: 'Font Family', type: 'font', default: 'Inter' },
+                            { key: 'fontFamily', label: 'Font Family', type: 'font', default: 'BuiltIn:inter|400' },
                         ],
                     },
                     {

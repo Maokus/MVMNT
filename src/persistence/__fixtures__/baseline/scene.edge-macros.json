@@ -14,7 +14,7 @@
                 "elementSkewX": { "type": "constant", "value": 0 },
                 "elementSkewY": { "type": "constant", "value": 0 },
                 "text": { "type": "constant", "value": "Baseline Scene" },
-                "fontFamily": { "type": "constant", "value": "Inter|400" },
+                "fontFamily": { "type": "constant", "value": "BuiltIn:inter|400" },
                 "fontSize": { "type": "macro", "macroId": "macro.fontSize" },
                 "color": { "type": "macro", "macroId": "macro.color.primary" },
                 "letterSpacing": { "type": "constant", "value": 0 },

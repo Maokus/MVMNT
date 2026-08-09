@@ -8,8 +8,13 @@ export interface FontAssetRecord {
     family: string;
     originalFileName: string;
     byteLength: number;
-    sourceFormat: FontAsset['variants'][number]['sourceFormat'];
-    hash: string;
+    variants: Array<{
+        id: string;
+        byteLength: number;
+        sourceFormat: FontAsset['variants'][number]['sourceFormat'];
+        hash: string;
+        filename: string;
+    }>;
 }
 
 export interface CollectedFontAssets {
@@ -26,16 +31,15 @@ const MIME_BY_FORMAT: Record<string, string> = {
     woff2: 'font/woff2',
 };
 
-function resolveMimeType(asset: FontAsset): string {
-    const variant = asset.variants[0];
-    if (!variant) return 'application/octet-stream';
+function resolveMimeType(variant: FontAsset['variants'][number]): string {
     return MIME_BY_FORMAT[variant.sourceFormat] ?? 'application/octet-stream';
 }
 
-function inferFilename(asset: FontAsset): string {
-    const fallback = `${asset.family || 'font'}-${asset.id}.${asset.variants[0]?.sourceFormat ?? 'bin'}`;
-    if (!asset.originalFileName) return fallback;
-    const sanitized = asset.originalFileName.replace(/[\\/:*?"<>|]+/g, '_');
+function inferFilename(asset: FontAsset, variant: FontAsset['variants'][number]): string {
+    const fallback = `${asset.family || 'font'}-${variant.weight}-${variant.style}.${variant.sourceFormat ?? 'bin'}`;
+    const requested = variant.originalFileName || (asset.variants.length === 1 ? asset.originalFileName : '');
+    if (!requested) return fallback;
+    const sanitized = requested.replace(/[\\/:*?"<>|]+/g, '_');
     return sanitized || fallback;
 }
 
@@ -49,25 +53,38 @@ export async function collectFontAssets(): Promise<CollectedFontAssets> {
 
     for (const asset of Object.values(assets)) {
         if (!asset) continue;
-        const buffer = await FontBinaryStore.get(asset.id);
-        if (!buffer) {
-            missing.push(asset.id);
-            continue;
+        const variantRecords: FontAssetRecord['variants'] = [];
+        let assetBytes = 0;
+        for (const variant of asset.variants ?? []) {
+            const binaryId = variant.binaryId || variant.hash || asset.id;
+            const buffer = await FontBinaryStore.get(binaryId);
+            if (!buffer) {
+                missing.push(`${asset.id}/${variant.id}`);
+                continue;
+            }
+            const bytes = new Uint8Array(buffer);
+            const hash = await sha256Hex(bytes);
+            const mimeType = resolveMimeType(variant);
+            const filename = inferFilename(asset, variant);
+            variantRecords.push({
+                id: variant.id,
+                byteLength: bytes.byteLength,
+                sourceFormat: variant.sourceFormat,
+                hash,
+                filename,
+            });
+            payloads.set(`${asset.id}/${variant.id}`, { bytes, filename, mimeType });
+            assetBytes += bytes.byteLength;
         }
-        const bytes = new Uint8Array(buffer);
-        const hash = await sha256Hex(bytes);
-        const mimeType = resolveMimeType(asset);
-        const filename = inferFilename(asset);
+        if (!variantRecords.length) continue;
         byId[asset.id] = {
             id: asset.id,
             family: asset.family,
             originalFileName: asset.originalFileName,
-            byteLength: bytes.byteLength,
-            sourceFormat: asset.variants[0]?.sourceFormat ?? 'ttf',
-            hash,
+            byteLength: assetBytes,
+            variants: variantRecords,
         };
-        payloads.set(asset.id, { bytes, filename, mimeType });
-        totalBytes += bytes.byteLength;
+        totalBytes += assetBytes;
     }
 
     return { byId, assetPayloads: payloads, missing, totalBytes };

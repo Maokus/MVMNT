@@ -19,7 +19,6 @@ import {
     nodePropertyTarget,
     rebuildAutomationTargetIndex,
 } from '@automation/types';
-import { automationEvaluator } from '@automation/automation-evaluator';
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { useTimelineStore } from '@state/timelineStore';
@@ -50,7 +49,7 @@ import {
 } from '@state/scene-graph';
 import { createSceneSnapshot } from './snapshot';
 import { exportSceneDraft, normalizeSceneImportState } from './importExportAdapter';
-import { createAutomationMacrosSlice } from './slices/automationMacrosSlice';
+import { createAutomationChannelActions, createAutomationMacrosSlice } from './slices/automationMacrosSlice';
 import { createElementsBindingsSlice } from './slices/elementsBindingsSlice';
 import { computeFontBytes, createFontsAssetsSlice, normalizeFontAssetInput } from './slices/fontsAssetsSlice';
 import { createGraphNodeBindingsSlice } from './slices/graphNodeBindingsSlice';
@@ -1883,50 +1882,7 @@ const createUncomposedSceneStoreState = (
         }));
     },
 
-    setAutomationChannel: (channel) => {
-        set((state) => ({
-            ...state,
-            automation: {
-                channels: { ...state.automation.channels, [channel.id]: channel },
-                channelIdByTarget: {
-                    ...state.automation.channelIdByTarget,
-                    [encodePropertyTarget(channel.target)]: channel.id,
-                },
-            },
-            runtimeMeta: markDirty(state, 'updateAutomation'),
-        }));
-    },
-
-    removeAutomationChannel: (channelId) => {
-        automationEvaluator.invalidateChannel(channelId);
-        set((state) => {
-            const { [channelId]: _removed, ...remaining } = state.automation.channels;
-            return {
-                ...state,
-                automation: { channels: remaining, channelIdByTarget: rebuildAutomationTargetIndex(remaining) },
-                runtimeMeta: markDirty(state, 'updateAutomation'),
-            };
-        });
-    },
-
-    updateAutomationKeyframes: (channelId, keyframes) => {
-        automationEvaluator.invalidateChannel(channelId);
-        set((state) => {
-            const channel = state.automation.channels[channelId];
-            if (!channel) return state;
-            return {
-                ...state,
-                automation: {
-                    channels: {
-                        ...state.automation.channels,
-                        [channelId]: { ...channel, keyframes },
-                    },
-                    channelIdByTarget: state.automation.channelIdByTarget,
-                },
-                runtimeMeta: markDirty(state, 'updateAutomation'),
-            };
-        });
-    },
+    ...createAutomationChannelActions(set, (state) => markDirty(state, 'updateAutomation')),
 });
 
 const createSceneStoreState = (

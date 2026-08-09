@@ -93,8 +93,9 @@ export const FontBinaryStore = {
             await runTransaction('readwrite', async (store) => {
                 store.put(buffer, id);
             });
-        } catch {
-            /* ignore – we already cached the buffer in-memory */
+        } catch (error) {
+            memoryCache.delete(id);
+            throw new Error(`Unable to persist font data: ${(error as Error).message}`);
         }
     },
 

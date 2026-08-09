@@ -3,7 +3,7 @@ import { exportScene, importScene, createPatchUndoController } from '../';
 
 // These tests assert initial placeholder semantics; they will be superseded / expanded later.
 
-describe('Persistence skeleton', () => {
+describe('persistence core behavior', () => {
     it('exportScene returns success result', async () => {
         const result = await exportScene();
         expect(result.ok).toBe(true);

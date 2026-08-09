@@ -7,6 +7,7 @@
 - **community/** – Community API integration and sharing UI.
 - **core/** – Runtime engine: scene model, rendering pipeline, timing, MIDI parsing, resource management, and the plugin SDK. See subsystems below.
 - **export/** – Video/image exporters and audio mixdown.
+- **fonts/** – Offline-first built-in, device, embedded Project, and Google acquisition flow. See [font-system.md](font-system.md).
 - **math/** – Generic math, geometry, and numeric helpers.
 - **persistence/** – Import/export, document gateway, local save service, and scene packaging.
 - **state/** – Zustand stores, selectors, and middleware. Hosts the canonical timeline and scene stores plus command/undo infrastructure.

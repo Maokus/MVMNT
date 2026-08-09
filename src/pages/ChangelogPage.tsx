@@ -27,7 +27,12 @@ const ChangelogPage: React.FC = () => {
                         date="21-7-26"
                         notes={[
                             'MVMNT IS A NATIVE APP NOW!',
-                            ['Rendering speed ++', 'Streams renders directly to disk', 'Hidden-window CLI rendering'],
+                            [
+                                'Rendering speed ++',
+                                'Streams renders directly to disk',
+                                'Hidden-window CLI rendering',
+                                'fonts now embed in scene files so that they work offline',
+                            ],
                             'Overhauled clip timeline',
                             [
                                 'Track-clip seperation for both midi and audio (more than one clip per track!)',

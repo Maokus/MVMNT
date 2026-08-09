@@ -1,9 +1,10 @@
-import { ensureSceneFontsLoaded } from '@fonts/font-loader';
 import { validateSceneEnvelope } from '../validate';
 import { migrateSceneV8 } from '../migrations/sceneV8';
+import { migrateSceneFontsV9 } from '../migrations/fontsV9';
 import { migrateSceneRotationUnitsV7 } from '../migrations/rotationUnitsV7';
 import { prepareTextBoundsMigrationFonts } from '../migrations/textBoundsV11';
 import { throwIfImportAborted } from '../import-abort';
+import { resolveLegacyGoogleFonts } from './fontMigration';
 
 export async function migrateAndValidateScene(
     envelope: any,
@@ -12,11 +13,15 @@ export async function migrateAndValidateScene(
 ) {
     await prepareTextBoundsMigrationFonts(envelope, fontPayloads);
     throwIfImportAborted(signal);
-    const envelopeAfterMigrations = migrateSceneV8(migrateSceneRotationUnitsV7(envelope));
+    const staticallyMigrated = migrateSceneFontsV9(migrateSceneV8(migrateSceneRotationUnitsV7(envelope)));
+    const fontUpgrade = await resolveLegacyGoogleFonts(staticallyMigrated, fontPayloads, signal);
+    const envelopeAfterMigrations = fontUpgrade.envelope;
     const validation = validateSceneEnvelope(envelopeAfterMigrations);
-    if (validation.ok) {
-        await ensureSceneFontsLoaded(envelopeAfterMigrations.scene?.elements, envelopeAfterMigrations.scene?.macros);
-        throwIfImportAborted(signal);
-    }
-    return { envelope: envelopeAfterMigrations, validation };
+    if (validation.ok) throwIfImportAborted(signal);
+    return {
+        envelope: envelopeAfterMigrations,
+        validation,
+        fontUpgradeWarnings: fontUpgrade.warnings,
+        fontUpgradePerformed: fontUpgrade.upgraded,
+    };
 }

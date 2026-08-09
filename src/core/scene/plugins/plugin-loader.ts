@@ -30,15 +30,42 @@ import {
 } from './plugin-contract';
 import { createPluginHostServices } from './host-api/plugin-api';
 
-export interface PluginLoadResult {
-    success: boolean;
+export type PluginHostErrorCode =
+    'unsafe-archive' | 'invalid-manifest' | 'plugin-conflict' | 'element-registration' | 'storage' | 'host-runtime';
+
+export interface PluginHostError {
+    code: PluginHostErrorCode;
+    message: string;
+}
+
+interface PluginLoadSuccess {
+    success: true;
+    error?: undefined;
+    failure?: undefined;
     pluginId?: string;
-    /** Manifest is populated even on failure once the bundle has been parsed. */
     manifest?: PluginManifest;
-    error?: string;
     registeredTypes?: string[];
     /** Element types that failed to register (collision or code error), but did not abort the load. */
     skippedElements?: string[];
+}
+
+interface PluginLoadFailure {
+    success: false;
+    pluginId?: string;
+    /** Manifest is populated once the bundle has been parsed. */
+    manifest?: PluginManifest;
+    error: string;
+    failure: PluginHostError;
+}
+
+export type PluginLoadResult = PluginLoadSuccess | PluginLoadFailure;
+
+function pluginLoadFailure(
+    code: PluginHostErrorCode,
+    message: string,
+    context: Pick<PluginLoadFailure, 'pluginId' | 'manifest'> = {}
+): PluginLoadFailure {
+    return { success: false, ...context, error: message, failure: { code, message } };
 }
 
 export interface LoadPluginOptions {
@@ -232,12 +259,12 @@ export async function loadPlugin(bundleData: ArrayBuffer, options: LoadPluginOpt
         const uint8Data = new Uint8Array(bundleData);
         const files = unzipSync(uint8Data);
         const archivePathErrors = validateArchivePaths(Object.keys(files));
-        if (archivePathErrors.length > 0) return { success: false, error: archivePathErrors.join('; ') };
+        if (archivePathErrors.length > 0) return pluginLoadFailure('unsafe-archive', archivePathErrors.join('; '));
 
         // Read manifest
         const manifestData = files['manifest.json'];
         if (!manifestData) {
-            return { success: false, error: 'Missing manifest.json in plugin bundle' };
+            return pluginLoadFailure('invalid-manifest', 'Missing manifest.json in plugin bundle');
         }
 
         const manifestText = new TextDecoder().decode(manifestData);
@@ -246,7 +273,7 @@ export async function loadPlugin(bundleData: ArrayBuffer, options: LoadPluginOpt
         // Validate manifest
         const validationErrors = validatePluginManifest(manifest);
         if (validationErrors.length > 0) {
-            return { success: false, error: validationErrors.join('; ') };
+            return pluginLoadFailure('invalid-manifest', validationErrors.join('; '));
         }
 
         // validatePluginManifest already enforces the supported SDK 2 range.
@@ -254,26 +281,22 @@ export async function loadPlugin(bundleData: ArrayBuffer, options: LoadPluginOpt
         // Check if plugin is already loaded
         const existingPlugin = usePluginStore.getState().plugins[manifest.id];
         if (existingPlugin && !options.allowExistingPlugin) {
-            return {
-                success: false,
+            return pluginLoadFailure('plugin-conflict', `Plugin '${manifest.id}' is already loaded`, {
                 manifest,
                 pluginId: manifest.id,
-                error: `Plugin '${manifest.id}' is already loaded`,
-            };
+            });
         }
 
         // Downgrade guard: reject if the incoming bundle is older than what's installed
         if (existingPlugin && !options.allowDowngrade) {
             if (!satisfiesVersion(manifest.version, `>=${existingPlugin.manifest.version}`)) {
-                return {
-                    success: false,
-                    manifest,
-                    pluginId: manifest.id,
-                    error:
-                        `Cannot install plugin '${manifest.id}' v${manifest.version}: ` +
+                return pluginLoadFailure(
+                    'plugin-conflict',
+                    `Cannot install plugin '${manifest.id}' v${manifest.version}: ` +
                         `installed version v${existingPlugin.manifest.version} is newer. ` +
                         `Use upgradePlugin() to upgrade.`,
-                };
+                    { manifest, pluginId: manifest.id }
+                );
             }
         }
 
@@ -376,12 +399,11 @@ export async function loadPlugin(bundleData: ArrayBuffer, options: LoadPluginOpt
             await disposePluginDefinitionScopes(manifest.id);
             revokePluginAssets(manifest.id);
             if (persist) await PluginBinaryStore.delete(manifest.id);
-            return {
-                success: false,
-                manifest,
-                pluginId: manifest.id,
-                error: `No elements could be loaded. Errors: ${loadErrors.join('; ')}`,
-            };
+            return pluginLoadFailure(
+                'element-registration',
+                `No elements could be loaded. Errors: ${loadErrors.join('; ')}`,
+                { manifest, pluginId: manifest.id }
+            );
         }
 
         // Add to plugin store
@@ -409,10 +431,7 @@ export async function loadPlugin(bundleData: ArrayBuffer, options: LoadPluginOpt
         return result;
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        return {
-            success: false,
-            error: `Failed to load plugin: ${errorMsg}`,
-        };
+        return pluginLoadFailure('host-runtime', `Failed to load plugin: ${errorMsg}`);
     }
 }
 
@@ -458,7 +477,7 @@ export async function unloadPlugin(
         return { success: true };
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        return { success: false, error: errorMsg };
+        return pluginLoadFailure('host-runtime', errorMsg);
     }
 }
 
@@ -501,7 +520,7 @@ export async function enablePlugin(pluginId: string): Promise<PluginLoadResult> 
         return await reloadPluginFromStorage(pluginId, { allowExistingPlugin: true });
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        return { success: false, error: errorMsg };
+        return pluginLoadFailure('storage', errorMsg, { pluginId });
     }
 }
 
@@ -518,11 +537,11 @@ export async function upgradePlugin(bundleData: ArrayBuffer): Promise<PluginLoad
         const uint8Data = new Uint8Array(bundleData);
         const files = unzipSync(uint8Data);
         const archivePathErrors = validateArchivePaths(Object.keys(files));
-        if (archivePathErrors.length > 0) return { success: false, error: archivePathErrors.join('; ') };
+        if (archivePathErrors.length > 0) return pluginLoadFailure('unsafe-archive', archivePathErrors.join('; '));
 
         const manifestData = files['manifest.json'];
         if (!manifestData) {
-            return { success: false, error: 'Missing manifest.json in plugin bundle' };
+            return pluginLoadFailure('invalid-manifest', 'Missing manifest.json in plugin bundle');
         }
 
         const manifestText = new TextDecoder().decode(manifestData);
@@ -530,22 +549,20 @@ export async function upgradePlugin(bundleData: ArrayBuffer): Promise<PluginLoad
 
         const validationErrors = validatePluginManifest(manifest);
         if (validationErrors.length > 0) {
-            return { success: false, manifest, error: validationErrors.join('; ') };
+            return pluginLoadFailure('invalid-manifest', validationErrors.join('; '), { manifest });
         }
 
         const existingPlugin = usePluginStore.getState().plugins[manifest.id];
         if (existingPlugin) {
             const isNewer = satisfiesVersion(manifest.version, `>${existingPlugin.manifest.version}`);
             if (!isNewer) {
-                return {
-                    success: false,
-                    manifest,
-                    pluginId: manifest.id,
-                    error:
-                        `Cannot upgrade '${manifest.id}': ` +
+                return pluginLoadFailure(
+                    'plugin-conflict',
+                    `Cannot upgrade '${manifest.id}': ` +
                         `incoming version v${manifest.version} is not newer than ` +
                         `installed v${existingPlugin.manifest.version}`,
-                };
+                    { manifest, pluginId: manifest.id }
+                );
             }
             // Unload the old version before installing the new one
             await unloadPlugin(manifest.id);
@@ -554,7 +571,7 @@ export async function upgradePlugin(bundleData: ArrayBuffer): Promise<PluginLoad
         return await loadPlugin(bundleData);
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        return { success: false, error: `Failed to upgrade plugin: ${errorMsg}` };
+        return pluginLoadFailure('host-runtime', `Failed to upgrade plugin: ${errorMsg}`);
     }
 }
 
@@ -568,7 +585,7 @@ export async function reloadPluginFromStorage(
     try {
         const bundleData = await PluginBinaryStore.get(pluginId);
         if (!bundleData) {
-            return { success: false, error: `Plugin '${pluginId}' not found in storage` };
+            return pluginLoadFailure('storage', `Plugin '${pluginId}' not found in storage`, { pluginId });
         }
 
         return await loadPlugin(bundleData, {
@@ -577,7 +594,7 @@ export async function reloadPluginFromStorage(
         });
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        return { success: false, error: errorMsg };
+        return pluginLoadFailure('storage', errorMsg, { pluginId });
     }
 }
 

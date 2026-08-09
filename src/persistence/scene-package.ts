@@ -70,8 +70,12 @@ function collectScenePayloads(archive: Record<string, Uint8Array>): {
             const parts = path.split('/');
             if (parts.length >= 3) {
                 const assetId = parts[2];
-                if (!fontPayloads.has(assetId)) {
-                    fontPayloads.set(assetId, archive[path]);
+                // Schema v9 stores one payload per variant. Older packages have
+                // one file directly below the asset directory.
+                const variantId = parts.length >= 5 ? parts[3] : undefined;
+                const key = variantId ? `${assetId}/${variantId}` : assetId;
+                if (!fontPayloads.has(key)) {
+                    fontPayloads.set(key, archive[path]);
                 }
             }
         } else if (path.startsWith('assets/visual/')) {

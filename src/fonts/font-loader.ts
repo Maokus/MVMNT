@@ -1,19 +1,11 @@
-// Lightweight dynamic font loader with Google Fonts + custom asset support
-// Inspired by font-picker-react but simplified for this project
+// Offline-first font registry for built-in, device, and project font assets.
 import type { FontAsset, FontVariant, ParsedFontSelection } from '@state/scene/fonts';
 import { parseFontSelectionToken } from '@state/scene/fonts';
 import { FontBinaryStore } from '@persistence/font-binary-store';
 
-const loadedFamilies: Map<string, Set<number>> = new Map();
-const pendingGoogleLoads = new Map<string, Promise<boolean>>();
-const unavailableGoogleLoads = new Map<string, number>();
 const customAssets: Map<string, FontAsset> = new Map();
 const customVariantStatus: Map<string, Set<string>> = new Map();
 const customBinaryCache: Map<string, ArrayBuffer> = new Map();
-
-function familyToURLParam(family: string): string {
-    return family.trim().replace(/\s+/g, '+');
-}
 
 /** Fonts supplied by the operating system. They must never require a network request. */
 const SYSTEM_FONT_FAMILIES = new Set(
@@ -55,20 +47,25 @@ function rememberAsset(asset: FontAsset) {
     customAssets.set(asset.id, normalized);
 }
 
-async function getCustomBinary(assetId: string): Promise<ArrayBuffer | undefined> {
-    const cached = customBinaryCache.get(assetId);
+function binaryIdFor(asset: FontAsset, variant: FontVariant): string {
+    return variant.binaryId || variant.hash || asset.id;
+}
+
+async function getCustomBinary(asset: FontAsset, variant: FontVariant): Promise<ArrayBuffer | undefined> {
+    const binaryId = binaryIdFor(asset, variant);
+    const cached = customBinaryCache.get(binaryId);
     if (cached) {
         return cached.slice(0);
     }
-    const payload = await FontBinaryStore.get(assetId);
+    const payload = await FontBinaryStore.get(binaryId);
     if (!payload) return undefined;
     const clone = payload.slice(0);
-    customBinaryCache.set(assetId, clone);
+    customBinaryCache.set(binaryId, clone);
     return clone.slice(0);
 }
 
-function cacheCustomBinary(assetId: string, data: ArrayBuffer) {
-    customBinaryCache.set(assetId, data.slice(0));
+function cacheCustomBinary(asset: FontAsset, variant: FontVariant, data: ArrayBuffer) {
+    customBinaryCache.set(binaryIdFor(asset, variant), data.slice(0));
 }
 
 function isArrayBuffer(data: unknown): data is ArrayBuffer {
@@ -103,45 +100,27 @@ function resolveVariant(asset: FontAsset, weight?: number, italic?: boolean): Fo
     return cloneVariant(candidates[0]);
 }
 
-export interface LoadFontOptions {
-    weights?: number[];
-    italics?: boolean;
-    display?: 'auto' | 'swap' | 'block' | 'fallback' | 'optional';
-}
-
 export interface RegisterCustomFontVariantOptions {
     asset: FontAsset;
     variant: FontVariant;
     data: ArrayBuffer | ArrayBufferView;
 }
 
-function dispatchFontLoaded(family: string, weights: number[], source: 'google' | 'custom' = 'google') {
-    try {
-        window.dispatchEvent(new CustomEvent('font-loaded', { detail: { family, weights, source } }));
-    } catch {
-        /* ignore environments without window events */
-    }
-}
-
 async function installFontFace(asset: FontAsset, variant: FontVariant, buffer: ArrayBuffer): Promise<void> {
     if (typeof document === 'undefined' || typeof (window as any).FontFace === 'undefined') {
         return;
     }
-    try {
-        const descriptors: FontFaceDescriptors = {
-            weight: `${variant.weight}`,
-            style: variant.style,
-            display: 'swap',
-        };
-        if (variant.variationSettings) {
-            (descriptors as any).variationSettings = variant.variationSettings;
-        }
-        const face = new FontFace(asset.family, buffer, descriptors);
-        const loaded = await face.load();
-        (document as any).fonts?.add(loaded);
-    } catch (error) {
-        console.warn('[font-loader] failed to install custom font face', error);
+    const descriptors: FontFaceDescriptors = {
+        weight: `${variant.weight}`,
+        style: variant.style,
+        display: 'swap',
+    };
+    if (variant.variationSettings) {
+        (descriptors as any).variationSettings = variant.variationSettings;
     }
+    const face = new FontFace(asset.family, buffer, descriptors);
+    const loaded = await face.load();
+    (document as any).fonts?.add(loaded);
 }
 
 export async function registerCustomFontVariant(options: RegisterCustomFontVariantOptions): Promise<void> {
@@ -154,11 +133,11 @@ export async function registerCustomFontVariant(options: RegisterCustomFontVaria
     if (existing.has(key)) {
         return;
     }
+    const buffer = toArrayBuffer(options.data);
+    cacheCustomBinary(asset, normalizedVariant, buffer);
+    await installFontFace(asset, normalizedVariant, buffer);
     existing.add(key);
     customVariantStatus.set(asset.id, existing);
-    const buffer = toArrayBuffer(options.data);
-    cacheCustomBinary(asset.id, buffer);
-    await installFontFace(asset, normalizedVariant, buffer);
     try {
         window.dispatchEvent(
             new CustomEvent('font-loaded', {
@@ -181,150 +160,12 @@ export async function ensureFontVariantsRegistered(asset: FontAsset, variants: F
     const registry = customVariantStatus.get(asset.id) ?? new Set<string>();
     const missing = variants.filter((variant) => !registry.has(variantKey(variant)));
     if (!missing.length) return;
-    const payload = await getCustomBinary(asset.id);
-    if (!payload) return;
-    await Promise.all(missing.map((variant) => registerCustomFontVariant({ asset, variant, data: payload })));
-}
-
-/**
- * Injects (or updates) a Google Fonts stylesheet link for the given family/weights.
- * Returns a list of the cumulative loaded weights after this call (synchronous part only).
- */
-export function loadGoogleFont(family: string, options: LoadFontOptions = {}): number[] {
-    if (!family) return [];
-    const weights = options.weights?.length ? options.weights : [400, 700];
-    const italics = options.italics ? true : false;
-    const display = options.display || 'swap';
-    const existing = loadedFamilies.get(family) || new Set<number>();
-    const allWeights = Array.from(new Set([...existing, ...weights])).sort((a, b) => a - b);
-    let variantParam = '';
-    if (italics) {
-        const combos: string[] = [];
-        allWeights.forEach((w) => {
-            combos.push(`0,${w}`);
-            combos.push(`1,${w}`);
-        });
-        variantParam = `ital,wght@${combos.join(';')}`;
-    } else {
-        variantParam = `wght@${allWeights.join(';')}`;
-    }
-    const href = `https://fonts.googleapis.com/css2?family=${familyToURLParam(
-        family
-    )}:${variantParam}&display=${display}`;
-    if (typeof document !== 'undefined') {
-        const id = `gf-${familyToURLParam(family)}`;
-        // Re-use a single link element per family so we don't spam <head>
-        let link = document.getElementById(id) as HTMLLinkElement | null;
-        if (!link) {
-            link = document.createElement('link');
-            link.id = id;
-            link.rel = 'stylesheet';
-            document.head.appendChild(link);
-        }
-        link.href = href;
-    }
-    return allWeights;
-}
-
-function waitForGoogleStylesheet(family: string, options: LoadFontOptions): Promise<boolean> {
-    if (typeof document === 'undefined') return Promise.resolve(false);
-    const weights = options.weights?.length ? options.weights : [400, 700];
-    const id = `gf-${familyToURLParam(family)}`;
-    const link = document.getElementById(id) as HTMLLinkElement | null;
-    if (!link) return Promise.resolve(false);
-
-    return new Promise((resolve) => {
-        let settled = false;
-        const finish = (available: boolean) => {
-            if (settled) return;
-            settled = true;
-            window.clearTimeout(timeout);
-            link.removeEventListener('load', onLoad);
-            link.removeEventListener('error', onError);
-            if (!available) link.dataset.fontLoadFailed = 'true';
-            resolve(available);
-        };
-        const onLoad = () => finish(true);
-        const onError = () => finish(false);
-        // A blocked network request may never emit error. Keep rendering with the
-        // CSS fallback instead of leaving controls in a loading state indefinitely.
-        const timeout = window.setTimeout(() => finish(false), 2000);
-        link.addEventListener('load', onLoad, { once: true });
-        link.addEventListener('error', onError, { once: true });
-        // Force a fresh request after a previous failure. Assigning the same href
-        // is not consistently retried by browsers, so clear it first.
-        if (link.dataset.fontLoadFailed === 'true') {
-            link.dataset.fontLoadFailed = 'false';
-            const href = link.href;
-            link.href = '';
-            link.href = href;
-        }
-    });
-}
-
-/**
- * Loads a font family (and optional weights) and resolves once the browser reports the fonts are available.
- * Gracefully resolves after a timeout even if the Font Loading API isn't supported.
- */
-export async function loadGoogleFontAsync(family: string, options: LoadFontOptions = {}): Promise<boolean> {
-    const normalizedFamily = family.trim();
-    if (
-        !normalizedFamily ||
-        isSystemFontFamily(normalizedFamily) ||
-        (typeof navigator !== 'undefined' && !navigator.onLine)
-    ) {
-        return isSystemFontFamily(normalizedFamily);
-    }
-    const weights = options.weights?.length ? options.weights : [400, 700];
-    const loaded = loadedFamilies.get(normalizedFamily);
-    if (loaded && weights.every((weight) => loaded.has(weight))) return true;
-
-    const requestKey = `${normalizedFamily}|${weights
-        .slice()
-        .sort((a, b) => a - b)
-        .join(',')}|${Boolean(options.italics)}`;
-    if ((unavailableGoogleLoads.get(requestKey) ?? 0) > Date.now()) return false;
-    const pending = pendingGoogleLoads.get(requestKey);
-    if (pending) return pending;
-
-    const request = (async () => {
-        loadGoogleFont(normalizedFamily, options);
-        const stylesheetAvailable = await waitForGoogleStylesheet(normalizedFamily, options);
-        if (!stylesheetAvailable) {
-            // Rendering may call ensureFontLoaded repeatedly. Avoid repeatedly
-            // attempting a blocked remote request while offline, but allow a retry
-            // soon after connectivity returns.
-            unavailableGoogleLoads.set(requestKey, Date.now() + 30_000);
-            return false;
-        }
-
-        const fontFaceSet =
-            typeof document !== 'undefined' ? ((document as any).fonts as FontFaceSet | undefined) : undefined;
-        if (fontFaceSet) {
-            await Promise.all(
-                weights.map(async (weight) => {
-                    try {
-                        await fontFaceSet.load(`${weight} 32px '${normalizedFamily}'`);
-                    } catch {
-                        // The stylesheet loaded but an individual face did not.
-                        // Keep the browser fallback rather than failing rendering.
-                    }
-                })
-            );
-        }
-        const completed = loadedFamilies.get(normalizedFamily) ?? new Set<number>();
-        weights.forEach((weight) => completed.add(weight));
-        loadedFamilies.set(normalizedFamily, completed);
-        unavailableGoogleLoads.delete(requestKey);
-        dispatchFontLoaded(normalizedFamily, weights);
-        return true;
-    })();
-    pendingGoogleLoads.set(requestKey, request);
-    try {
-        return await request;
-    } finally {
-        pendingGoogleLoads.delete(requestKey);
-    }
+    await Promise.all(
+        missing.map(async (variant) => {
+            const payload = await getCustomBinary(asset, variant);
+            if (payload) await registerCustomFontVariant({ asset, variant, data: payload });
+        })
+    );
 }
 
 // Normalizes a weight string (e.g. 'normal','bold',' 100 ') to a numeric weight the API expects
@@ -344,23 +185,33 @@ function normalizeWeight(weight?: string | number): number | undefined {
  */
 export async function ensureFontLoaded(selection: string, weight?: string | number): Promise<void> {
     const parsed = parseFontSelection(selection);
+    if (parsed.missing) throw new Error(`Missing project font: ${parsed.family}`);
     if (parsed.isCustom && parsed.assetId) {
-        const asset = customAssets.get(parsed.assetId);
-        if (!asset) return;
+        let asset = customAssets.get(parsed.assetId);
+        if (!asset) {
+            const { useSceneStore } = await import('@state/sceneStore');
+            asset = useSceneStore.getState().fonts.assets[parsed.assetId];
+            if (asset) rememberAsset(asset);
+        }
+        if (!asset) throw new Error(`Missing project font asset: ${parsed.assetId}`);
         const resolvedWeight = normalizeWeight(weight ?? parsed.weight);
         const variant = resolveVariant(asset, resolvedWeight, parsed.italic);
         if (!variant) return;
         const registry = customVariantStatus.get(asset.id);
         if (registry?.has(variantKey(variant))) return;
-        const payload = await getCustomBinary(asset.id);
-        if (!payload) return;
+        const payload = await getCustomBinary(asset, variant);
+        if (!payload) throw new Error(`Missing embedded font payload: ${asset.family} ${variant.weight}`);
         await registerCustomFontVariant({ asset, variant, data: payload });
         return;
     }
     const family = parsed.family || selection;
     const normalized = normalizeWeight(weight ?? parsed.weight);
-    const weights = normalized ? [normalized] : [400, 500, 600, 700];
-    await loadGoogleFontAsync(family, { weights, italics: Boolean(parsed.italic), display: 'swap' });
+    if (!family || typeof document === 'undefined') return;
+    try {
+        await (document as any).fonts?.load(`${normalized ?? 400} 32px '${family.replace(/'/g, '')}'`);
+    } catch {
+        // Device fonts may not exist on this machine. Rendering will use its fallback.
+    }
 }
 
 export function isFontLoaded(selection: string): boolean {
@@ -380,7 +231,9 @@ export function isFontLoaded(selection: string): boolean {
         }
         return registry.size > 0;
     }
-    return loadedFamilies.has(parsed.family || selection);
+    if (parsed.missing) return false;
+    const fontSet = typeof document !== 'undefined' ? (document as any).fonts : undefined;
+    return fontSet?.check?.(`${normalizeWeight(parsed.weight) ?? 400} 16px '${parsed.family}'`) ?? true;
 }
 
 export function parseFontSelection(value?: string): ParsedFontSelection {
@@ -413,7 +266,8 @@ function fontSelectionFromBinding(binding: unknown, macros: Record<string, unkno
  */
 export async function ensureSceneFontsLoaded(
     elements: Record<string, { properties?: Record<string, unknown> }> | undefined,
-    sceneMacros: unknown
+    sceneMacros: unknown,
+    options: { strict?: boolean; automation?: unknown } = {}
 ): Promise<void> {
     const macroRoot = isRecord(sceneMacros) ? sceneMacros : {};
     const macros = isRecord(macroRoot.macros)
@@ -422,14 +276,39 @@ export async function ensureSceneFontsLoaded(
           ? macroRoot.byId
           : macroRoot;
     const selections = new Set<string>();
+    const automationRoot = isRecord(options.automation) ? options.automation : {};
+    const channels = isRecord(automationRoot.channels) ? automationRoot.channels : automationRoot;
 
     for (const element of Object.values(elements ?? {})) {
         for (const [key, binding] of Object.entries(element?.properties ?? {})) {
-            if (!/fontfamily$/i.test(key)) continue;
+            if (!/(?:font|fontfamily)$/i.test(key)) continue;
             const selection = fontSelectionFromBinding(binding, macros);
             if (selection) selections.add(selection);
+            if (isRecord(binding) && binding.type === 'keyframes' && typeof binding.channelId === 'string') {
+                const channel = channels[binding.channelId];
+                if (isRecord(channel) && Array.isArray(channel.keyframes)) {
+                    for (const keyframe of channel.keyframes) {
+                        if (isRecord(keyframe) && typeof keyframe.value === 'string') selections.add(keyframe.value);
+                    }
+                }
+            }
         }
     }
 
-    await Promise.all([...selections].map((selection) => ensureFontLoaded(selection)));
+    const errors: string[] = [];
+    await Promise.all(
+        [...selections].map(async (selection) => {
+            const parsed = parseFontSelection(selection);
+            if (options.strict && parsed.source === 'legacy') {
+                errors.push(`Unresolved legacy font selection: ${parsed.family}`);
+                return;
+            }
+            try {
+                await ensureFontLoaded(selection);
+            } catch (error) {
+                errors.push(error instanceof Error ? error.message : String(error));
+            }
+        })
+    );
+    if (options.strict && errors.length) throw new Error(`Font preflight failed: ${errors.join('; ')}`);
 }

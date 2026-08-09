@@ -347,7 +347,10 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 setShowProgressOverlay(true);
                 setExportKind(job.kind);
                 const document = DocumentGateway.build();
-                await ensureSceneFontsLoaded(document.scene?.elements, document.scene?.macros);
+                await ensureSceneFontsLoaded(document.scene?.elements, document.scene?.macros, {
+                    strict: true,
+                    automation: document.scene?.automation,
+                });
                 if (controller.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
                 const rangeLabel = settings.fullDuration ? 'full' : `${settings.startTime}-${settings.endTime}s`;
                 const filename = expandExportFilename(settings.filename, {

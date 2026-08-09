@@ -33,9 +33,10 @@ export function computeFontBytes(assets: Record<string, FontAsset>): number {
 
 export function normalizeFontAssetInput(input: FontAsset, existing?: FontAsset): FontAsset {
     const now = Date.now();
-    return cloneFontAsset({
+    const normalized = cloneFontAsset({
         ...existing,
         ...input,
+        source: input.source ?? existing?.source ?? 'upload',
         createdAt: existing?.createdAt ?? input.createdAt ?? now,
         updatedAt: input.updatedAt ?? now,
         licensingAcknowledged:
@@ -43,6 +44,14 @@ export function normalizeFontAssetInput(input: FontAsset, existing?: FontAsset):
                 ? input.licensingAcknowledged
                 : (existing?.licensingAcknowledged ?? false),
     });
+    normalized.variants = normalized.variants.map((variant) => ({
+        ...variant,
+        binaryId: variant.binaryId || variant.hash || normalized.hash || normalized.id,
+        byteLength: variant.byteLength ?? normalized.fileSize,
+        hash: variant.hash || normalized.hash,
+        originalFileName: variant.originalFileName || normalized.originalFileName,
+    }));
+    return normalized;
 }
 
 function markFontsDirty(state: SceneStoreState): SceneStoreState['runtimeMeta'] {

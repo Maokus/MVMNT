@@ -79,7 +79,7 @@ export const notesPlayedTracker = definePluginElement<Props, undefined>({
                         label: 'Typography',
                         collapsed: false,
                         properties: [
-                            { key: 'fontFamily', label: 'Font Family', type: 'font', default: 'Inter|400' },
+                            { key: 'fontFamily', label: 'Font Family', type: 'font', default: 'BuiltIn:inter|400' },
                             { key: 'fontSize', label: 'Font Size', type: 'number', default: 30 },
                             {
                                 key: 'textAlign',

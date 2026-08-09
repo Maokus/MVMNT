@@ -8,6 +8,7 @@
 # testing
 /coverage
 /test_assets
+/.cache
 
 # production
 /dist/renderer

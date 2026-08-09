@@ -48,7 +48,7 @@ function normalizeNodeAppearance<T extends Record<string, any>>(envelope: T): T 
 
 /** Upgrade any released scene to the single document shape introduced with MVMNT 0.16. */
 export function migrateSceneV8<T extends Record<string, any>>(envelope: T): T {
-    if (envelope.schemaVersion === SCENE_SCHEMA_VERSION && envelope.scene?.graph) {
+    if (Number(envelope.schemaVersion) >= SCENE_SCHEMA_VERSION && envelope.scene?.graph) {
         return normalizeNodeAppearance(envelope);
     }
     const migrated = migrateAutomationTargetsV13(

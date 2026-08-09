@@ -13,13 +13,10 @@ import {
 } from '@audio/features/audioFeatureAnalysis';
 import { AudioAssetStore, createAudioAssetId } from './audio-asset-store';
 import { sha256Hex } from '@utils/hash/sha256';
-import { FontBinaryStore } from './font-binary-store';
 import { PluginBinaryStore } from './plugin-binary-store';
 import { loadPlugin, satisfiesVersion } from '@core/scene/plugins';
 import { clearSpectrogramTileCache } from '@core/scene/elements/audio-displays/spectrogram-tiles';
 import { usePluginStore } from '@state/pluginStore';
-import { ensureFontVariantsRegistered, ensureSceneFontsLoaded } from '@fonts/font-loader';
-import type { FontAsset } from '@state/scene/fonts';
 import { decodeSceneText, parseScenePackage, ScenePackageError } from './scene-package';
 import { isTestEnvironment } from '@utils/env';
 import { useVisualAssetRegistryStore, type ProjectAsset } from '@state/visualAssetRegistryStore';
@@ -46,49 +43,21 @@ import {
 import { hydrateAudioAssets } from './import/audioHydration';
 import { migrateAndValidateScene } from './import/migrationOrchestration';
 import { applyImportedDocument } from './import/documentApplication';
+import { hydrateSceneFonts } from './import/fontHydration';
+import type { ImportSceneInput, ImportSceneOptions, ImportSceneResult } from './import/contracts';
+export type {
+    ImportError,
+    ImportResultFailure,
+    ImportResultSuccess,
+    ImportSceneInput,
+    ImportSceneOptions,
+    ImportSceneResult,
+    ImportWarning,
+} from './import/contracts';
 
 const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
 const INLINE_ORIGINAL_FILE_LIMIT_BYTES = 16 * 1024 * 1024;
-
-export interface ImportError {
-    code?: string;
-    message: string;
-    path?: string;
-}
-
-export interface ImportResultSuccess {
-    ok: true;
-    errors: [];
-    warnings: { message: string }[];
-}
-
-export interface ImportResultFailureEnabled {
-    ok: false;
-    errors: ImportError[];
-    warnings: { message: string }[];
-}
-
-export type ImportSceneResult = ImportResultSuccess | ImportResultFailureEnabled;
-export type ImportSceneInput = ArrayBuffer | Uint8Array | Blob;
-export interface ImportSceneOptions {
-    signal?: AbortSignal;
-    onProgress?: (progress: number, text?: string) => void;
-    /** Install embedded dependencies without prompting (used by isolated background exports). */
-    autoInstallEmbeddedPlugins?: boolean;
-}
-
-interface ParsedArtifact {
-    envelope: any;
-    warnings: { message: string }[];
-    audioPayloads: Map<string, Uint8Array>;
-    midiPayloads: Map<string, Uint8Array>;
-    fontPayloads: Map<string, Uint8Array>;
-    visualPayloads: Map<string, Uint8Array>;
-    waveformPayloads: Map<string, Map<string, Uint8Array>>;
-    audioFeaturePayloads: Map<string, Map<string, Uint8Array>>;
-    pluginPayloads: Map<string, Uint8Array>;
-}
 
 export async function importScene(
     input: ImportSceneInput,
@@ -113,11 +82,12 @@ export async function importScene(
         pluginPayloads,
     } = parsed;
     options.onProgress?.(0.35, 'Validating scene…');
-    const { envelope: migratedEnvelope, validation } = await migrateAndValidateScene(
-        envelope,
-        fontPayloads,
-        options.signal
-    );
+    const {
+        envelope: migratedEnvelope,
+        validation,
+        fontUpgradeWarnings,
+        fontUpgradePerformed,
+    } = await migrateAndValidateScene(envelope, fontPayloads, options.signal);
     if (!validation.ok) {
         return {
             ok: false,
@@ -181,6 +151,9 @@ export async function importScene(
         options
     );
 
+    options.onProgress?.(0.68, 'Restoring fonts…');
+    const fontWarnings = await hydrateSceneFonts(migratedEnvelope, fontPayloads, options.signal);
+
     throwIfAborted(options.signal);
     options.onProgress?.(0.72, 'Applying scene…');
     const importTimelineGeneration = applyImportedDocument(
@@ -191,14 +164,14 @@ export async function importScene(
     );
 
     let hydrationWarnings: string[] = [];
-    const fontWarnings: string[] = [];
     if (
         (migratedEnvelope.schemaVersion === 2 ||
             migratedEnvelope.schemaVersion === 4 ||
             migratedEnvelope.schemaVersion === 5 ||
             migratedEnvelope.schemaVersion === 6 ||
             migratedEnvelope.schemaVersion === 7 ||
-            migratedEnvelope.schemaVersion === 8) &&
+            migratedEnvelope.schemaVersion === 8 ||
+            migratedEnvelope.schemaVersion === 9) &&
         migratedEnvelope.assets
     ) {
         options.onProgress?.(0.82, 'Restoring audio assets…');
@@ -209,26 +182,6 @@ export async function importScene(
             options,
             importTimelineGeneration
         );
-    }
-
-    if (migratedEnvelope.scene?.fontAssets && typeof migratedEnvelope.scene.fontAssets === 'object') {
-        options.onProgress?.(0.9, 'Restoring fonts…');
-        const fontAssets = migratedEnvelope.scene.fontAssets as Record<string, FontAsset>;
-        for (const asset of Object.values(fontAssets)) {
-            throwIfAborted(options.signal);
-            if (!asset || !asset.id) continue;
-            const payload = fontPayloads.get(asset.id);
-            if (!payload) {
-                fontWarnings.push(`Missing font payload for asset ${asset.id}`);
-                continue;
-            }
-            try {
-                await FontBinaryStore.put(asset.id, payload);
-                await ensureFontVariantsRegistered(asset, asset.variants ?? []);
-            } catch (error) {
-                fontWarnings.push(`Failed to hydrate font ${asset.id}: ${(error as Error).message}`);
-            }
-        }
     }
 
     // Audio cache is runtime-only. Retain only sources referenced by the newly
@@ -257,6 +210,7 @@ export async function importScene(
         ...visualWarnings.map((message) => ({ message })),
         ...hydrationWarnings.map((message) => ({ message })),
         ...fontWarnings.map((message) => ({ message })),
+        ...fontUpgradeWarnings.map((message) => ({ message })),
         ...pluginWarnings.map((message) => ({ message })),
     ];
     // Runtime elements are rebuilt before visual files are restored into the
@@ -265,6 +219,16 @@ export async function importScene(
     // the new registry rather than the scene that was just replaced.
     if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('mvmnt-scene-import-complete'));
+    }
+    if (fontUpgradePerformed) {
+        useSceneStore.setState((state) => ({
+            runtimeMeta: {
+                ...state.runtimeMeta,
+                persistentDirty: true,
+                lastMutationSource: 'updateFonts',
+                lastMutatedAt: Date.now(),
+            },
+        }));
     }
     options.onProgress?.(1, 'Scene loaded.');
     return { ok: true, errors: [], warnings };

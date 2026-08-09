@@ -10,7 +10,7 @@
 
 import { validateSceneGraph, type SceneGraphState } from '@state/scene-graph';
 
-export const CURRENT_SCHEMA_VERSION = 8;
+export const CURRENT_SCHEMA_VERSION = 9;
 
 /**
  * Maps schema version to the minimum app version required to open files at that version.
@@ -25,6 +25,7 @@ export const SCHEMA_TO_MIN_APP_VERSION: Record<number, string> = {
     6: '0.15.0',
     7: '0.15.4',
     8: '0.16.0',
+    9: '0.16.0',
 };
 
 export type ValidationErrorCode =
@@ -59,7 +60,8 @@ export type ValidationErrorCode =
     | 'ERR_ROW_HEIGHT_RANGE'
     | 'ERR_GLOBAL_BPM_RANGE'
     | 'ERR_ASSETS_MISSING'
-    | 'ERR_AUDIO_ASSET_SHAPE';
+    | 'ERR_AUDIO_ASSET_SHAPE'
+    | 'ERR_FONT_ASSET_SHAPE';
 
 export interface ValidationError {
     code: ValidationErrorCode;
@@ -109,7 +111,7 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
     }
     if (!root.scene || typeof root.scene !== 'object') {
         errors.push(err('ERR_SCENE_MISSING', 'Missing scene object', 'scene'));
-    } else if (schemaVersion === 8) {
+    } else if (schemaVersion === 8 || schemaVersion === 9) {
         if (
             typeof root.scene.elements !== 'object' ||
             root.scene.elements === null ||
@@ -195,6 +197,46 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
             }
         }
     }
+    if (schemaVersion >= 9 && root.scene?.fontAssets !== undefined) {
+        const assets = root.scene.fontAssets;
+        if (!assets || typeof assets !== 'object' || Array.isArray(assets)) {
+            errors.push(err('ERR_FONT_ASSET_SHAPE', 'scene.fontAssets must be an object', 'scene.fontAssets'));
+        } else {
+            for (const [assetId, asset] of Object.entries(assets) as [string, any][]) {
+                const validAsset =
+                    asset &&
+                    typeof asset === 'object' &&
+                    typeof asset.id === 'string' &&
+                    asset.id === assetId &&
+                    typeof asset.family === 'string' &&
+                    (asset.source === 'upload' || asset.source === 'google') &&
+                    Array.isArray(asset.variants) &&
+                    asset.variants.length > 0;
+                const validVariants =
+                    validAsset &&
+                    asset.variants.every(
+                        (variant: any) =>
+                            variant &&
+                            typeof variant.id === 'string' &&
+                            Number.isFinite(variant.weight) &&
+                            (variant.style === 'normal' || variant.style === 'italic') &&
+                            ['ttf', 'otf', 'woff', 'woff2'].includes(variant.sourceFormat) &&
+                            typeof variant.binaryId === 'string' &&
+                            variant.binaryId.length > 0
+                    );
+                if (!validAsset || !validVariants) {
+                    errors.push(
+                        err(
+                            'ERR_FONT_ASSET_SHAPE',
+                            `Invalid project font asset '${assetId}'`,
+                            `scene.fontAssets.${assetId}`
+                        )
+                    );
+                    break;
+                }
+            }
+        }
+    }
     if (root.plugins !== undefined) {
         if (!Array.isArray(root.plugins)) {
             errors.push(err('ERR_PLUGINS_SHAPE', 'plugins must be array when present', 'plugins'));
@@ -263,11 +305,11 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
                     errors.push(err('ERR_TRACK_SHAPE', 'Invalid track shape for id ' + k, 'timeline.tracks.' + k));
                     break;
                 }
-                if (schemaVersion === 8 && tr.type === 'midi') {
+                if (schemaVersion >= 8 && tr.type === 'midi') {
                     validateMidiTrackClips(tr, tl.midiCache, `timeline.tracks.${k}`, errors);
                     if (errors.length) break;
                 }
-                if (schemaVersion === 8 && tr.type === 'audio') {
+                if (schemaVersion >= 8 && tr.type === 'audio') {
                     validateAudioTrackClips(tr, `timeline.tracks.${k}`, errors);
                     if (errors.length) break;
                 }
@@ -292,14 +334,14 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
         schemaVersion === 5 ||
         schemaVersion === 6 ||
         schemaVersion === 7 ||
-        schemaVersion === 8
+        schemaVersion >= 8
     ) {
         if (!root.assets || typeof root.assets !== 'object') {
             errors.push(err('ERR_ASSETS_MISSING', 'Missing assets block', 'assets'));
         } else {
             const storage = root.assets.storage;
             if (
-                (schemaVersion === 8 && storage !== 'zip-package') ||
+                (schemaVersion >= 8 && storage !== 'zip-package') ||
                 (schemaVersion < 8 && storage !== 'inline-json' && storage !== 'zip-package')
             ) {
                 errors.push(err('ERR_ASSETS_MISSING', 'Invalid assets.storage value', 'assets.storage'));

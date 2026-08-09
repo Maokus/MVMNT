@@ -11,7 +11,8 @@ export function ensureEightDigitHex(color: string): string {
 }
 
 export function parseFontSelection(value: string): { family: string; weight?: string } {
-    const [family, weight] = String(value || 'Inter').split('|');
+    const [rawFamily, weight] = String(value || 'BuiltIn:inter|400').split('|');
+    const family = rawFamily === 'BuiltIn:inter' ? 'Inter' : rawFamily.replace(/^Device:/, '');
     return { family: family.trim(), ...(weight ? { weight: weight.trim() } : {}) };
 }
 

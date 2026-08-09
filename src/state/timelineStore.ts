@@ -32,7 +32,6 @@ import type { TempoMapEntry, NoteRaw, CCEventRaw, MidiCacheBounds } from '@state
 import type { TempoKeyframe } from '@core/timing/types';
 import { resolveTempoKeyframes } from '@core/timing/tempo-automation-resolver';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
-import { quantizeSettingToBeats, type QuantizeSetting } from './timeline/quantize';
 import {
     createTimingContext,
     secondsToTicks as timingSecondsToTicks,
@@ -73,9 +72,10 @@ import type {
 } from './timeline/commands/audioClipCommands';
 import type { HybridCacheFallbackEvent, TimelineState, TimelineTrack } from './timeline/storeTypes';
 import { createInitialTimelineSlice } from './timeline/storeComposition';
-import { normalizePlaybackRange, normalizeTimelineRowHeight, normalizeTimelineView } from './timeline/viewState';
 import { createClearedTimelinePersistenceState } from './timeline/persistenceAdapter';
 import { applyTempoAutomation } from './timeline/transportTiming';
+import { createTransportSlice } from './timeline/transportSlice';
+import { createViewSlice } from './timeline/viewSlice';
 
 export type { HybridCacheFallbackEvent, TimelineState, TimelineTrack } from './timeline/storeTypes';
 
@@ -425,6 +425,8 @@ const TEMPO_KF_TICK_TOLERANCE = 1;
 
 const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     ...createInitialTimelineSlice(),
+    ...createTransportSlice({ set, get, markAllAudioFeatureStatuses }),
+    ...createViewSlice(set),
 
     async addMidiTrack(input: { name: string; file?: File; midiData?: MIDIData; offsetTicks?: number }) {
         const result = await timelineCommandGateway.dispatchById<AddTrackCommandResult>(
@@ -700,205 +702,6 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         state.setMidiPreviewEnabled(id, !state.midiPreviewTrackIds[id]);
     },
 
-    setMasterTempoMap(map?: TempoMapEntry[]) {
-        // When tempo map changes, recompute real-time seconds for beat-based notes in cache
-        set((s: TimelineState) => {
-            const next: TimelineState = { ...s } as any;
-            next.timeline = { ...s.timeline, masterTempoMap: map };
-            if (Object.keys(s.audioFeatureCacheStatus).length) {
-                next.audioFeatureCacheStatus = markAllAudioFeatureStatuses(
-                    s.audioFeatureCacheStatus,
-                    'stale',
-                    'tempo map updated'
-                );
-            }
-            // Propagate tempo map to shared timing manager for immediate effect in playback clock & UI
-            try {
-                getSharedTimingManager().setTempoMap(map, 'seconds');
-            } catch {
-                /* noop */
-            }
-            // Notes no longer store seconds; conversions happen in selectors.
-            // Audio source metadata is media time and must never be rescaled for tempo changes.
-            return next;
-        });
-    },
-
-    setGlobalBpm(bpm: number) {
-        const v = isFinite(bpm) && bpm > 0 ? bpm : 120;
-        // Update global bpm and rescale note seconds if no tempo map (uniform tempo case)
-        set((s: TimelineState) => {
-            const hadMap = (s.timeline.masterTempoMap?.length || 0) > 0;
-            const next: TimelineState = { ...s } as any;
-            next.timeline = { ...s.timeline, globalBpm: v };
-            if (s.timeline.globalBpm !== v && Object.keys(s.audioFeatureCacheStatus).length) {
-                next.audioFeatureCacheStatus = markAllAudioFeatureStatuses(
-                    s.audioFeatureCacheStatus,
-                    'stale',
-                    'tempo updated'
-                );
-            }
-            // Propagate BPM to shared timing manager so playback rate updates immediately
-            try {
-                getSharedTimingManager().setBPM(v);
-            } catch {
-                /* ignore */
-            }
-            // If a tempo map is present we keep its segment BPMs; only fallback bpm changes effect conversions when map empty.
-            // Seconds no longer stored on notes; real-time updates occur via selectors.
-            // Audio source metadata is media time and must never be rescaled for BPM changes.
-            return next;
-        });
-    },
-
-    setBeatsPerBar(n: number) {
-        const v = Math.max(1, Math.floor(n || 4));
-        set((s: TimelineState) => ({ timeline: { ...s.timeline, beatsPerBar: v } }));
-    },
-
-    setCurrentTick(tick: number, authority: 'tick' | 'seconds' | 'clock' | 'user' = 'tick') {
-        set((s: TimelineState) => {
-            // Behavior goals:
-            // 1. While paused, passive advancement originating from the running render loop / clock.update should not move the store tick.
-            // 2. Explicit repositioning (seek/loop wrap) coming from the clock authority SHOULD update even while paused (e.g. tests calling setCurrentTick(500,'clock')).
-            // Implementation: if paused and authority==='clock' but tick is identical to currentTick (passive frame), ignore; otherwise apply.
-            let nextTick = Math.max(0, tick);
-            if (authority === 'clock' && !s.transport.isPlaying && s.transport.state === 'paused') {
-                if (nextTick === s.timeline.currentTick) {
-                    return { timeline: { ...s.timeline } } as TimelineState; // no-op passive frame
-                }
-                // Allow change-through for explicit reposition while paused.
-            }
-            if (
-                s.transport.loopEnabled &&
-                typeof s.transport.loopStartTick === 'number' &&
-                typeof s.transport.loopEndTick === 'number'
-            ) {
-                if (nextTick > s.transport.loopEndTick) {
-                    nextTick = s.transport.loopStartTick;
-                }
-            }
-            return {
-                timeline: { ...s.timeline, currentTick: nextTick, playheadAuthority: authority },
-            } as TimelineState;
-        });
-    },
-
-    play() {
-        set((s: TimelineState) => {
-            // Only apply bar quantization when entering play from a non-playing state AND not immediately after a pause.
-            // Previous logic snapped on every play(), so toggling pause/play could shift the playhead forward a bar
-            // (observed as a one-bar jump when pausing due to tick->seconds mirror race). We guard by detecting if
-            // current tick is already aligned or if we were just playing.
-            let curTick = s.timeline.currentTick;
-            const wasPlaying = s.transport.isPlaying;
-            const quantizeSetting = s.transport.quantize;
-            if (!wasPlaying && quantizeSetting !== 'off') {
-                const beatLength = quantizeSettingToBeats(quantizeSetting, s.timeline.beatsPerBar);
-                const ticksPerUnit = beatLength
-                    ? Math.max(1, Math.round(beatsToTicks(createTimelineTimingContext(s), beatLength)))
-                    : null;
-                if (!ticksPerUnit) {
-                    return {
-                        timeline: { ...s.timeline, currentTick: curTick },
-                        transport: { ...s.transport, isPlaying: true, state: 'playing' },
-                    } as TimelineState;
-                }
-                // Use floor so we never jump the playhead forward past the user's chosen position;
-                // this eliminates the visible half-bar forward jump experienced with Math.round.
-                const snapped = Math.floor(curTick / ticksPerUnit) * ticksPerUnit;
-                if (snapped !== curTick) {
-                    curTick = snapped;
-                    // Notify runtime (VisualizerContext) to align playback clock
-                    // VisualizerContext listens for 'timeline-play-snapped' and issues clock.setTick(snappedTick)
-                    // ensuring the PlaybackClock fractional accumulator is cleared.
-                    try {
-                        window.dispatchEvent(new CustomEvent('timeline-play-snapped', { detail: { tick: curTick } }));
-                    } catch {
-                        /* ignore */
-                    }
-                }
-            }
-            return {
-                timeline: { ...s.timeline, currentTick: curTick },
-                transport: { ...s.transport, isPlaying: true, state: 'playing' },
-            } as TimelineState;
-        });
-    },
-    pause() {
-        set((s: TimelineState) => ({ transport: { ...s.transport, isPlaying: false, state: 'paused' } }));
-    },
-    togglePlay() {
-        const wasPlaying = get().transport.isPlaying;
-        // Resume from the current playhead position; do NOT jump to view start.
-        // This preserves the user's last seek/paused position when starting playback.
-        set((s: TimelineState) => ({
-            transport: { ...s.transport, isPlaying: !wasPlaying, state: !wasPlaying ? 'playing' : 'paused' },
-        }));
-    },
-    seekTick(tick: number) {
-        set((s: TimelineState) => ({
-            timeline: { ...s.timeline, currentTick: Math.max(0, tick), playheadAuthority: 'user' },
-            transport: { ...s.transport, isPlaying: false, state: s.transport.isPlaying ? 'paused' : 'seeking' },
-        }));
-    },
-    scrubTick(tick: number) {
-        get().setCurrentTick(tick, 'user');
-    },
-
-    setRate(rate: number) {
-        const r = isFinite(rate) && rate > 0 ? rate : 1.0;
-        set((s: TimelineState) => ({ transport: { ...s.transport, rate: r } }));
-    },
-
-    setQuantize(q: QuantizeSetting) {
-        const allowed: QuantizeSetting[] = [
-            'off',
-            'bar',
-            'quarter',
-            'quarter-triplet',
-            'eighth',
-            'eighth-triplet',
-            'sixteenth',
-            'sixteenth-triplet',
-            'thirty-second',
-            'sixty-fourth',
-            'arbitrary',
-        ];
-        const next = allowed.includes(q) ? q : 'off';
-        set((s: TimelineState) => ({ transport: { ...s.transport, quantize: next } }));
-    },
-
-    setArbitrarySnapN(n: number) {
-        const safe = Number.isFinite(n) && n >= 1 ? Math.round(n) : 8;
-        set((s: TimelineState) => ({ transport: { ...s.transport, arbitrarySnapN: safe } }));
-    },
-
-    setAdaptiveSnap(v: boolean) {
-        set((s: TimelineState) => ({ transport: { ...s.transport, adaptiveSnap: v } }));
-    },
-
-    setAutoKeying(v: boolean) {
-        set((s: TimelineState) => ({ transport: { ...s.transport, autoKeying: v } }));
-    },
-
-    setLoopEnabled(enabled: boolean) {
-        set((s: TimelineState) => ({ transport: { ...s.transport, loopEnabled: enabled } }));
-    },
-    setLoopRangeTicks(startTick?: number, endTick?: number) {
-        set((s: TimelineState) => ({
-            transport: {
-                ...s.transport,
-                loopStartTick: startTick ?? s.transport.loopStartTick,
-                loopEndTick: endTick ?? s.transport.loopEndTick,
-            },
-        }));
-    },
-
-    toggleLoop() {
-        set((s: TimelineState) => ({ transport: { ...s.transport, loopEnabled: !s.transport.loopEnabled } }));
-    },
-
     async reorderTracks(order: string[]) {
         try {
             await timelineCommandGateway.dispatchById(
@@ -910,18 +713,6 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             console.error('[timelineStore] reorderTracks command failed', error);
             throw error;
         }
-    },
-
-    setTimelineViewTicks(startTick: number, endTick: number) {
-        set(() => ({ timelineView: normalizeTimelineView(startTick, endTick) }));
-    },
-
-    _setClipGroupDrag(drag) {
-        set(() => ({ _clipGroupDrag: drag }));
-    },
-
-    _setCrossTrackDrag(drag) {
-        set(() => ({ _crossTrackDrag: drag }));
     },
 
     ingestMidiToCache(
@@ -1532,22 +1323,6 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             delete next[sourceId];
             return { tempoAlignedDiagnostics: next } as TimelineState;
         });
-    },
-
-    setPlaybackRangeTicks(startTick?: number, endTick?: number) {
-        set(() => ({
-            playbackRange: normalizePlaybackRange(startTick, endTick),
-        }));
-    },
-    setPlaybackRangeExplicitTicks(startTick?: number, endTick?: number) {
-        set(() => ({
-            playbackRange: normalizePlaybackRange(startTick, endTick),
-            playbackRangeUserDefined: true,
-        }));
-    },
-
-    setRowHeight(h: number) {
-        set(() => ({ rowHeight: normalizeTimelineRowHeight(h) }));
     },
 
     // ── Tempo automation actions ──

@@ -74,49 +74,33 @@ describe('font-loader', () => {
         expect(module.isFontLoaded(token)).toBe(true);
     });
 
-    it('uses installed system fonts without adding a Google stylesheet', async () => {
-        const { loadGoogleFontAsync } = await import('../font-loader');
+    it('loads built-in and device fonts without adding a remote stylesheet', async () => {
+        const { ensureFontLoaded } = await import('../font-loader');
 
-        await expect(loadGoogleFontAsync('Arial', { weights: [700] })).resolves.toBe(true);
-        expect(document.querySelector('link[id^="gf-"]')).toBeNull();
-    });
-
-    it('marks a Google font loaded only after its stylesheet has loaded', async () => {
-        const { loadGoogleFontAsync, isFontLoaded } = await import('../font-loader');
-
-        const loading = loadGoogleFontAsync('Inter', { weights: [400] });
-        expect(isFontLoaded('Inter')).toBe(false);
-        const link = document.getElementById('gf-Inter');
-        expect(link).not.toBeNull();
-        link?.dispatchEvent(new Event('load'));
-
-        await expect(loading).resolves.toBe(true);
-        expect(isFontLoaded('Inter')).toBe(true);
-    });
-
-    it('keeps Google fonts retryable after an unavailable stylesheet', async () => {
-        const { loadGoogleFontAsync, isFontLoaded } = await import('../font-loader');
-
-        const loading = loadGoogleFontAsync('Inter', { weights: [400] });
-        document.getElementById('gf-Inter')?.dispatchEvent(new Event('error'));
-
-        await expect(loading).resolves.toBe(false);
-        expect(isFontLoaded('Inter')).toBe(false);
+        await expect(ensureFontLoaded('BuiltIn:inter|700')).resolves.toBeUndefined();
+        await expect(ensureFontLoaded('Device:Arial|400')).resolves.toBeUndefined();
+        expect(document.querySelector('link[href*="fonts.googleapis.com"]')).toBeNull();
     });
 
     it('loads serialized font selections before an export begins', async () => {
         const { ensureSceneFontsLoaded } = await import('../font-loader');
         const pending = ensureSceneFontsLoaded(
             {
-                text: { properties: { fontFamily: { type: 'constant', value: 'Inter|700' } } },
+                text: { properties: { fontFamily: { type: 'constant', value: 'BuiltIn:inter|700' } } },
                 labels: { properties: { noteLabelFontFamily: { type: 'macro', macroId: 'label-font' } } },
+                animated: { properties: { titleFont: { type: 'keyframes', channelId: 'font-channel' } } },
             },
-            { macros: { 'label-font': { value: 'Meddon|400' } } }
+            { macros: { 'label-font': { value: 'Device:Arial|400' } } },
+            {
+                automation: {
+                    channels: {
+                        'font-channel': { keyframes: [{ tick: 0, value: 'BuiltIn:inter|600' }] },
+                    },
+                },
+            }
         );
 
-        document.getElementById('gf-Inter')?.dispatchEvent(new Event('load'));
-        document.getElementById('gf-Meddon')?.dispatchEvent(new Event('load'));
-
         await expect(pending).resolves.toBeUndefined();
+        expect(document.querySelector('link[href*="fonts.googleapis.com"]')).toBeNull();
     });
 });

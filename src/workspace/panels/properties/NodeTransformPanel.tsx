@@ -41,6 +41,8 @@ import {
     transformNodesCommand,
     updateTargetBindingCommand,
 } from './nodeTransformCommands';
+import { NodeStateRows } from './NodeStateRows';
+import { TransformSection } from './TransformSection';
 
 const fields = HOST_NODE_PROPERTY_SCHEMA.filter(
     (field): field is (typeof HOST_NODE_PROPERTY_SCHEMA)[number] & { path: keyof NodeTransform } =>
@@ -220,48 +222,6 @@ function NodeMacroControl({
                 </div>
             ) : null}
         </div>
-    );
-}
-
-function TransformSection({
-    title,
-    children,
-    ownerKey,
-}: {
-    title: string;
-    children: React.ReactNode;
-    ownerKey?: string;
-}) {
-    const [localCollapsed, setLocalCollapsed] = useState(false);
-    const storedCollapsed = useSceneStore((state) =>
-        ownerKey ? state.interaction.expandedPropertyGroups[ownerKey]?.[title] : undefined
-    );
-    const setPropertyGroupCollapseState = useSceneStore((state) => state.setPropertyGroupCollapseState);
-    const collapsed = storedCollapsed ?? localCollapsed;
-    const toggle = () => {
-        if (ownerKey) setPropertyGroupCollapseState(ownerKey, title, !collapsed);
-        else setLocalCollapsed(!collapsed);
-    };
-    return (
-        <section className="ae-property-group">
-            <button
-                type="button"
-                className="ae-group-header"
-                onClick={toggle}
-                aria-expanded={!collapsed}
-                aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${title} group`}
-            >
-                <span className={`ae-collapse-trigger ${collapsed ? 'collapsed' : 'expanded'}`} aria-hidden="true">
-                    <span className={`ae-collapse-icon ${collapsed ? 'collapsed' : 'expanded'}`}>▼</span>
-                </span>
-                <div className="ae-group-meta">
-                    <div className="ae-group-title-row">
-                        <span className="ae-group-label">{title}</span>
-                    </div>
-                </div>
-            </button>
-            {!collapsed ? <div className="ae-property-list">{children}</div> : null}
-        </section>
     );
 }
 
@@ -657,48 +617,6 @@ export function NodeTransformPanel() {
             />
         );
     }
-}
-
-function NodeStateRows({
-    nodes,
-    common,
-    dispatchForAll,
-}: {
-    nodes: SceneNode[];
-    common: <T>(read: (node: (typeof nodes)[number]) => T) => T | undefined;
-    dispatchForAll: (commands: SceneCommand[], mergeKey?: string) => void;
-}) {
-    return (
-        <TransformSection title="Node State">
-            {(['localVisible', 'localLocked'] as const).map((key) => {
-                const value = common((node) => node[key]);
-                return (
-                    <PropertyControlRow key={key} label={key === 'localVisible' ? 'Visible' : 'Locked'}>
-                        <input
-                            type="checkbox"
-                            checked={value ?? false}
-                            ref={(input) => {
-                                if (input) input.indeterminate = value === undefined;
-                            }}
-                            onChange={(event) =>
-                                dispatchForAll(
-                                    nodes.map((node) =>
-                                        key === 'localVisible'
-                                            ? {
-                                                  type: 'setNodeVisibility',
-                                                  nodeId: node.id,
-                                                  visible: event.target.checked,
-                                              }
-                                            : { type: 'setNodeLocked', nodeId: node.id, locked: event.target.checked }
-                                    )
-                                )
-                            }
-                        />
-                    </PropertyControlRow>
-                );
-            })}
-        </TransformSection>
-    );
 }
 
 /** Optional bulk-local editor for extensions; the main inspector omits it because those host fields are shown above. */

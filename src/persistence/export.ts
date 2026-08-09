@@ -30,16 +30,9 @@ import type { AudioFeatureCacheStatus } from '@audio/features/audioFeatureTypes'
 import { estimateFeatureCacheBytes, formatBytes } from '@audio/audioMemoryDiagnostics';
 import { recordAudioMemoryDiagnostic } from '@state/audioMemoryDiagnosticsStore';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
-import { migrateTimelineTrackMidiClipsV8, stripLegacyMidiPlacementFields } from './migrations/midiClipsV8';
 import { packageScene } from './scene-packager';
-
-/** Converts an exact plugin version to a ^major.minor.0 semver range for scene exports.
- *  e.g. "1.2.3" → "^1.2.0", so any compatible 1.x install >= 1.2.0 opens the scene without warnings. */
-function toPluginVersionRange(version: string): string {
-    const match = /^(\d+)\.(\d+)\./.exec(version);
-    if (!match) return version; // unknown format — leave as-is
-    return `^${match[1]}.${match[2]}.0`;
-}
+import { serializeTimelineTracks } from './export/documentShaping';
+import { buildCompatibilityWarnings, toPluginVersionRange } from './export/manifestEmission';
 
 import type { PropertyBindingData } from '@bindings/property-bindings';
 
@@ -147,13 +140,18 @@ export interface SceneExportEnvelopeV8 extends Omit<SceneExportEnvelopeV6, 'sche
     };
 }
 
+export interface SceneExportEnvelopeV9 extends Omit<SceneExportEnvelopeV8, 'schemaVersion'> {
+    schemaVersion: 9;
+}
+
 export type SceneExportEnvelope =
     | SceneExportEnvelopeV2
     | SceneExportEnvelopeV4
     | SceneExportEnvelopeV5
     | SceneExportEnvelopeV6
     | SceneExportEnvelopeV7
-    | SceneExportEnvelopeV8;
+    | SceneExportEnvelopeV8
+    | SceneExportEnvelopeV9;
 
 interface AudioFeatureCacheAssetReference {
     assetId: string;
@@ -178,7 +176,7 @@ interface ExportResultBase {
 export interface ExportSceneResultZip extends ExportResultBase {
     ok: true;
     mode: 'zip-package';
-    envelope: SceneExportEnvelopeV8;
+    envelope: SceneExportEnvelopeV9;
     zip: Uint8Array<ArrayBuffer>;
     /** SHA-256 digest of the package, used to suppress duplicate recovery versions. */
     digest: string;
@@ -192,44 +190,6 @@ export interface ExportSceneResultFailure extends ExportResultBase {
 
 export type ExportSceneResult = ExportSceneResultZip | ExportSceneResultFailure;
 const DEFAULT_MAX_AUDIO_FEATURE_CACHE_BYTES = 128 * 1024 * 1024;
-
-function buildCompatibilityWarnings(messages: string[]): { warnings: { message: string }[] } | undefined {
-    if (!messages.length) return undefined;
-    return { warnings: messages.map((message) => ({ message })) };
-}
-
-function serializeTimelineTracksV8(tracks: Record<string, any>): Record<string, any> {
-    const next: Record<string, any> = {};
-    for (const [id, track] of Object.entries(tracks || {})) {
-        if (track?.type === 'midi') {
-            next[id] = stripLegacyMidiPlacementFields(migrateTimelineTrackMidiClipsV8(track));
-            continue;
-        }
-        if (track?.type === 'audio') {
-            const {
-                offsetTicks: _offsetTicks,
-                regionStartTick: _regionStartTick,
-                regionEndTick: _regionEndTick,
-                audioSourceId: _audioSourceId,
-                ...audioTrack
-            } = track;
-            next[id] = {
-                ...audioTrack,
-                clips: (Array.isArray(track.clips) ? track.clips : []).map((clip: any) => {
-                    const {
-                        regionStartTick: _clipRegionStartTick,
-                        regionEndTick: _clipRegionEndTick,
-                        ...currentClip
-                    } = clip ?? {};
-                    return currentClip;
-                }),
-            };
-            continue;
-        }
-        next[id] = track;
-    }
-    return next;
-}
 
 function buildVisualAssetRegistry(): SceneExportEnvelopeBase['visualAssetRegistry'] {
     const registry = useVisualAssetRegistryStore.getState();
@@ -762,7 +722,7 @@ export async function exportScene(
         }
     }
 
-    const envelope: SceneExportEnvelopeV8 = {
+    const envelope: SceneExportEnvelopeV9 = {
         schemaVersion: CURRENT_SCHEMA_VERSION,
         format: 'mvmnt.scene',
         metadata,
@@ -779,7 +739,7 @@ export async function exportScene(
         },
         timeline: {
             timeline: doc.timeline,
-            tracks: serializeTimelineTracksV8(doc.tracks),
+            tracks: serializeTimelineTracks(doc.tracks),
             tracksOrder: doc.tracksOrder,
             playbackRange: doc.playbackRange,
             playbackRangeUserDefined: doc.playbackRangeUserDefined,

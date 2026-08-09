@@ -2,6 +2,7 @@ import type { AutomationKeyframe, AutomationValueType, PropertyTarget } from '@a
 import type { NodeTransform, SceneGraphState, DuplicateMappings, Matrix2D } from '@state/scene-graph';
 import type { BindingState, SceneImportPayload, SceneMacroDefinition, SceneSerializedMacros } from '@state/sceneStore';
 import type { SceneSubtreeBundle, SceneSubtreeImportOptions } from './subtreeBundle';
+import type { FontAsset } from './fonts';
 
 export type SceneCommand =
     | { type: 'batch'; commands: SceneCommand[] }
@@ -23,6 +24,8 @@ export type SceneCommand =
     | { type: 'resetSceneSettings' }
     | { type: 'updateSceneSettings'; patch: Record<string, unknown> }
     | { type: 'loadSerializedScene'; payload: SceneImportPayload }
+    | { type: 'registerFontAsset'; asset: FontAsset }
+    | { type: 'deleteFontAsset'; assetId: string }
     | ({ type: 'importSubtreeBundle'; bundle: SceneSubtreeBundle } & SceneSubtreeImportOptions)
     | { type: 'createMacro'; macroId: string; definition: SceneMacroDefinition }
     | { type: 'updateMacroValue'; macroId: string; value: unknown }

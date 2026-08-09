@@ -4,9 +4,7 @@ import { FontBinaryStore } from '@persistence/font-binary-store';
 import { sha256Hex } from '@utils/hash/sha256';
 import { useSceneStore } from '@state/sceneStore';
 import type { FontAsset, FontSourceFormat, FontVariant } from '@state/scene/fonts';
-
-const MAX_FONT_BYTES = 10 * 1024 * 1024;
-const TOTAL_FONT_LIMIT_BYTES = 40 * 1024 * 1024;
+import { dispatchSceneCommand } from '@state/scene';
 
 function sourceFormat(name: string): FontSourceFormat | null {
     const extension = name.split('.').pop()?.toLowerCase();
@@ -15,14 +13,11 @@ function sourceFormat(name: string): FontSourceFormat | null {
         : null;
 }
 
-/** Import a font through the same validation and scene budget used by the font manager. */
+/** Import a font into the current project. Storage failures are reported by the caller. */
 export async function importFontFile(file: File): Promise<FontAsset> {
     const format = sourceFormat(file.name);
     if (!format) throw new Error('Unsupported font format. Use TTF, OTF, WOFF, or WOFF2.');
-    if (file.size > MAX_FONT_BYTES) throw new Error('Font exceeds the 10 MB upload limit.');
     const state = useSceneStore.getState();
-    if (state.fonts.totalBytes + file.size > TOTAL_FONT_LIMIT_BYTES)
-        throw new Error('Adding this font would exceed the 40 MB scene font budget.');
     const buffer = await file.arrayBuffer();
     const hash = await sha256Hex(new Uint8Array(buffer));
     const duplicate = state.fonts.order.map((id) => state.fonts.assets[id]).find((asset) => asset?.hash === hash);
@@ -36,6 +31,10 @@ export async function importFontFile(file: File): Promise<FontAsset> {
         sourceFormat: format,
         postscriptName: metadata.postscriptName,
         variationSettings: metadata.variationAxes,
+        binaryId: hash,
+        byteLength: file.size,
+        hash,
+        originalFileName: file.name,
     };
     const asset: FontAsset = {
         id: assetId,
@@ -47,10 +46,16 @@ export async function importFontFile(file: File): Promise<FontAsset> {
         updatedAt: Date.now(),
         licensingAcknowledged: true,
         hash,
+        source: 'upload',
     };
-    await FontBinaryStore.put(assetId, buffer);
+    await FontBinaryStore.put(hash, buffer);
+    try {
+        await registerCustomFontVariant({ asset, variant, data: buffer });
+    } catch (error) {
+        await FontBinaryStore.delete(hash);
+        throw error;
+    }
     state.acknowledgeFontLicensing(Date.now());
-    state.registerFontAsset(asset);
-    await registerCustomFontVariant({ asset, variant, data: buffer });
+    dispatchSceneCommand({ type: 'registerFontAsset', asset });
     return asset;
 }

@@ -6,7 +6,7 @@ import { describe, expect, it, test } from 'vitest';
 import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
 
-describe('Persistence', () => {
+describe('persistence round-trip behavior', () => {
     test('Stable stringify deterministic for object key order', () => {
         const a = { b: 1, a: 2, c: { y: 1, x: 2 } };
         const s1 = serializeStable(a);
@@ -29,7 +29,7 @@ describe('Persistence', () => {
         const first = await exportScene();
         if (!first.ok) throw new Error('First export failed');
         expect(first.ok).toBe(true);
-        expect(first.envelope.schemaVersion).toBe(8);
+        expect(first.envelope.schemaVersion).toBe(9);
         const json1 = serializeStable(first.envelope);
         const imp = await importScene(first.zip);
         expect(imp.ok).toBe(true);

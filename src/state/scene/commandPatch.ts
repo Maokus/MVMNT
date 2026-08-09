@@ -169,6 +169,13 @@ export function buildSceneCommandPatch(state: SceneStoreState, command: SceneCom
                 ],
             };
         }
+        case 'registerFontAsset':
+        case 'deleteFontAsset': {
+            return {
+                redo: [cloneCommand(command)],
+                undo: [{ type: 'loadSerializedScene', payload: captureSceneSnapshot(state) }],
+            };
+        }
         case 'resetSceneSettings': {
             const previous = { ...state.settings };
             return {
