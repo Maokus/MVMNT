@@ -7,7 +7,7 @@ import type {
     SceneSerializedElement,
     SceneStoreComputedExport,
     SceneStoreState,
-} from '../sceneStore';
+} from './storeTypes';
 
 /** Canonical persistent representation of the scene store. */
 export type SceneSnapshot = SceneStoreComputedExport;

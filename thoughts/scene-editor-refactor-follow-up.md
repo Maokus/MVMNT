@@ -16,6 +16,14 @@ types now live in `scene/commandTypes.ts`; graph mutations and their validation 
 `scene/sceneGraphCommands.ts`; transaction metadata is validated before dispatch. Store startup
 subscriptions and resolver registration are composed by `scene/sceneStoreRuntimeWiring.ts`.
 
+Scene-store composition is now split across dedicated creators for elements/bindings,
+graph/node bindings, fonts/assets, and automation/macros in `state/scene/slices/`. The internal
+`scene/storeTypes.ts` boundary keeps slice modules independent of the application singleton.
+Record/array element normalization and graph-order preservation live in
+`scene/importExportAdapter.ts`, alongside the `exportSceneDraft` compatibility adapter. Runtime
+subscriptions and selection/automation resolver registration remain isolated in
+`scene/sceneStoreRuntimeWiring.ts`, outside the side-effect-free slice creators.
+
 The package-level contract now covers snapshot, undo, document application, packaged export/import,
 recovery storage, subtree transfer, and failed transactional rollback for all persistent slices where
 the boundary applies. Node-transform aggregate gesture state
@@ -25,20 +33,20 @@ listeners.
 
 ## Remaining implementation work
 
-### Scene store slices
+### Scene store slices (complete)
 
-`src/state/sceneStore.ts` is now the stable application-facing compatibility facade. Store
-construction, state contracts, and mutations live in `scene/storeComposition.ts`; this keeps
-existing consumers on the facade while making the composition boundary explicit.
+`src/state/sceneStore.ts` remains the stable application-facing compatibility facade.
 
-- Split `scene/storeComposition.ts` into slice creators and their state/action types for
-  elements/bindings, graph/node bindings, fonts/assets, and automation/macros.
-- Move scene import normalization into an import/export adapter module. `createSceneSnapshot` is
-  already extracted. Keep `useSceneStore`, `createSceneStore`, `SceneStoreState`, `importScene`, and
-  `exportSceneDraft` as compatibility facades.
-- Keep store wiring subscriptions and selection/automation resolver registration in the existing
-  composition module so future slice modules remain free of startup side effects.
-- Preserve the current scene migration behavior and fixture baseline during the move.
+- [x] Add slice creators and state/action contracts for elements/bindings, graph/node bindings,
+      fonts/assets, and automation/macros, composed by `scene/storeComposition.ts`.
+- [x] Move record/array import normalization and graph-order preservation into
+      `scene/importExportAdapter.ts`; keep `createSceneSnapshot` as the canonical persistence adapter.
+- [x] Keep `useSceneStore`, `createSceneStore`, `SceneStoreState`, `importScene`, and
+      `exportSceneDraft` stable for existing consumers.
+- [x] Keep store subscriptions and selection/automation resolver registration in
+      `sceneStoreRuntimeWiring.ts`, leaving slice construction free of startup side effects.
+- [x] Preserve existing store-boundary migrations and fixture behavior. Direct adapter coverage
+      guards graph-ordered record normalization through both the adapter and compatibility facade.
 
 ### Canonical persistence contract
 

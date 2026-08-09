@@ -2,7 +2,7 @@ import { automationEvaluator } from '@automation/automation-evaluator';
 import { useTimelineStore } from '@state/timelineStore';
 import { setSelectionChannelTargetResolver, setSelectionSceneResolvers } from '@state/selectionStore';
 import type { StoreApi } from 'zustand';
-import type { SceneStoreState } from '../sceneStore';
+import type { SceneStoreState } from './storeTypes';
 
 /**
  * Binds runtime services to a composed scene store. Keeping this outside the
