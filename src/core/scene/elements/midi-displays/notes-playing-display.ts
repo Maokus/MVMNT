@@ -1,14 +1,13 @@
-import { definePluginElement } from '@mvmnt-app/plugin-sdk';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import { applyOpacity } from '@utils/color';
-import { createBuiltInDefinitionElementClass } from '@core/scene/plugins/built-in-definition';
+import { createBuiltInDefinitionElementClass, defineBuiltInElement } from '@core/scene/plugins/built-in-definition';
 import { parseFontSelection } from '@fonts/font-loader';
 
 interface Props extends Readonly<Record<string, any>> {}
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = (note: number) => `${NAMES[note % 12]}${Math.floor(note / 12) - 1}`;
 const num = (key: string, label: string, value: number) => ({ key, label, type: 'number', default: value });
-export const notesPlayingDisplay = definePluginElement<Props, undefined>({
+export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
     type: 'notesPlayingDisplay',
     metadata: {
         name: 'Notes Playing Display',

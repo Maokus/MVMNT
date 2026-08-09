@@ -1,7 +1,6 @@
-import { definePluginElement } from '@mvmnt-app/plugin-sdk';
 import { Arc, Line, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import { applyOpacity } from '@utils/color';
-import { createBuiltInDefinitionElementClass } from '@core/scene/plugins/built-in-definition';
+import { createBuiltInDefinitionElementClass, defineBuiltInElement } from '@core/scene/plugins/built-in-definition';
 import { parseFontSelection } from '@fonts/font-loader';
 
 const NAMES: Record<number, string> = {
@@ -23,7 +22,7 @@ const NAMES: Record<number, string> = {
 };
 const label = (controller: number) => (NAMES[controller] ? `${NAMES[controller]} (${controller})` : `CC ${controller}`);
 interface Props extends Readonly<Record<string, any>> {}
-export const ccMonitor = definePluginElement<Props, undefined>({
+export const ccMonitor = defineBuiltInElement<Props, undefined>({
     type: 'ccMonitor',
     metadata: {
         name: 'CC Monitor',

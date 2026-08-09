@@ -1,7 +1,6 @@
-import { definePluginElement } from '@mvmnt-app/plugin-sdk';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import { applyOpacity } from '@utils/color';
-import { createBuiltInDefinitionElementClass } from '@core/scene/plugins/built-in-definition';
+import { createBuiltInDefinitionElementClass, defineBuiltInElement } from '@core/scene/plugins/built-in-definition';
 import { parseFontSelection } from '@fonts/font-loader';
 
 const measureLineWidth = (text: string, font: string, spacing: number): number => {
@@ -39,7 +38,7 @@ interface Props extends Readonly<Record<string, unknown>> {
     readonly backgroundPaddingY: number;
     readonly backgroundCornerRadius: number;
 }
-export const textOverlay = definePluginElement<Props, undefined>({
+export const textOverlay = defineBuiltInElement<Props, undefined>({
     type: 'textOverlay',
     metadata: { name: 'Text', description: 'Multi-line text display', category: 'Misc' },
     schema: {

@@ -26,6 +26,7 @@ const hashTree = (path) => {
     hash.update(readFileSync(path));
 };
 hashTree(resolve(projectRoot, 'packages/plugin-sdk'));
+hashTree(resolve(projectRoot, 'packages/plugin-tools'));
 hashTree(resolve(projectRoot, 'fixtures/plugin-sdk-v2'));
 hashTree(resolve(projectRoot, 'scripts/build-plugin.mjs'));
 const cacheDirectory = resolve(projectRoot, '.cache/plugin-sdk-pack');
@@ -44,14 +45,26 @@ execFileSync('npm', ['pack', resolve(projectRoot, 'packages/plugin-sdk'), '--pac
     stdio: 'inherit',
     env: npmEnvironment,
 });
+execFileSync('npm', ['pack', resolve(projectRoot, 'packages/plugin-tools'), '--pack-destination', work], {
+    stdio: 'inherit',
+    env: npmEnvironment,
+});
 const packedTarballs = readdirSync(work).filter((entry) => entry.endsWith('.tgz'));
-if (packedTarballs.length !== 1) {
-    throw new Error(`Expected npm pack to create one tarball, found ${packedTarballs.length}`);
+if (packedTarballs.length !== 2) {
+    throw new Error(`Expected npm pack to create two tarballs, found ${packedTarballs.length}`);
 }
-const tarball = join(work, packedTarballs[0]);
+const sdkTarball = join(
+    work,
+    packedTarballs.find((entry) => entry.includes('plugin-sdk'))
+);
+const toolsTarball = join(
+    work,
+    packedTarballs.find((entry) => entry.includes('plugin-tools'))
+);
 const fixturePackagePath = join(fixture, 'package.json');
 const fixturePackage = JSON.parse(readFileSync(fixturePackagePath, 'utf8'));
-fixturePackage.dependencies['@mvmnt-app/plugin-sdk'] = `file:${tarball}`;
+fixturePackage.dependencies['@mvmnt-app/plugin-sdk'] = `file:${sdkTarball}`;
+fixturePackage.devDependencies = { '@mvmnt-app/plugin-tools': `file:${toolsTarball}`, typescript: '^5.9.3' };
 writeFileSync(fixturePackagePath, `${JSON.stringify(fixturePackage, null, 2)}\n`);
 
 execFileSync('npm', ['install', '--ignore-scripts'], { cwd: fixture, stdio: 'inherit', env: npmEnvironment });
@@ -60,11 +73,11 @@ execFileSync(
     [resolve(projectRoot, 'node_modules/typescript/bin/tsc'), '-p', join(fixture, 'tsconfig.json')],
     { stdio: 'inherit' }
 );
-execFileSync(
-    process.execPath,
-    [resolve(projectRoot, 'scripts/build-plugin.mjs'), fixture, '--out', join(work, 'fixture.mvmnt-plugin')],
-    { stdio: 'inherit' }
-);
+execFileSync(join(fixture, 'node_modules/.bin/mvmnt-plugin'), ['check'], { cwd: fixture, stdio: 'inherit' });
+execFileSync(join(fixture, 'node_modules/.bin/mvmnt-plugin'), ['build', '--out', join(work, 'fixture.mvmnt-plugin')], {
+    cwd: fixture,
+    stdio: 'inherit',
+});
 
 mkdirSync(cacheDirectory, { recursive: true });
 writeFileSync(cacheStamp, `${new Date().toISOString()}\n`);

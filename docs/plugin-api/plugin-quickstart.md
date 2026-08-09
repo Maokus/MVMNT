@@ -1,7 +1,8 @@
 # Plugin SDK 2 quickstart
 
 This guide creates an external MVMNT plugin, previews it with hot reload, and packages it for
-import. You need Node.js 18 or newer, npm, and a local MVMNT checkout.
+import. You need Node.js 18 or newer, npm, and MVMNT running locally. Plugin development does not
+require an application source checkout.
 
 ## Create a plugin
 
@@ -11,7 +12,7 @@ Run the generator from the directory where you keep your projects:
 npm create mvmnt-plugin@latest -- --name com.example.pulse --template minimal
 cd pulse
 npm install
-npm run typecheck
+npm run check
 ```
 
 The final part of the plugin ID becomes both the directory and first element type. The generated
@@ -36,14 +37,13 @@ incrementally. Its main parts are:
 
 - `metadata`: the name, description, and picker category.
 - `schema`: editable properties shown by MVMNT. It also determines the TypeScript type of `props`.
-- `capabilities`: host APIs the element uses.
+- `plugin.json` capabilities: host APIs the element uses. They are declared once, in the manifest.
 - `render`: returns the render objects displayed for the current frame.
 
-Keep the element's `type` equal to its entry in `plugin.json`. Capability lists in the source and
-manifest must also match exactly. Run this after editing:
+Keep the element's `type` equal to its entry in `plugin.json`. Run this after editing:
 
 ```sh
-npm run typecheck
+npm run check
 ```
 
 SDK 2 plugins use `definePluginElement()` and imports from `@mvmnt-app/plugin-sdk`. Do not import
@@ -90,21 +90,17 @@ change render cost but never the pixels associated with a content key.
 
 ## Preview with hot reload
 
-Run these commands from the MVMNT checkout:
+Start MVMNT in development mode, then run the watcher from the generated plugin project:
 
 ```sh
-# Terminal 1
+cd /absolute/path/to/pulse
 npm run dev
-
-# Terminal 2
-npm run dev-plugin -- /absolute/path/to/pulse
 ```
 
-Open MVMNT in the browser. The plugin loads automatically and its element appears in the scene
-element picker. Saving a source or asset file rebuilds and reloads the plugin. If the browser was
-opened before the plugin watcher started, refresh it once.
+In MVMNT, open **Scene Settings → Debug** and select **Scan** under Development Plugin Server.
+The element appears in the picker, and saving source, manifest, or asset files rebuilds it.
 
-Restart `dev-plugin` after changing `plugin.json`. See the
+Restart `npm run dev` only after changing the plugin ID. See the
 [development workflow](dev-plugin-workflow.md) for ports, reload behavior, and troubleshooting.
 
 ## Add another element
@@ -114,21 +110,20 @@ Run the generator again from the plugin directory:
 ```sh
 cd /absolute/path/to/pulse
 npm create mvmnt-plugin@latest -- add rings --template minimal
-npm run typecheck
+npm run check
 ```
 
-This creates `src/rings.ts` and adds it to `plugin.json`. Restart `dev-plugin` so it reads the new
-manifest entry.
+This creates `src/rings.ts` and adds its capabilities to `plugin.json`. The watcher reloads it.
 
 ## Package and import
 
-From the MVMNT checkout, build the distributable archive:
+From the plugin project, build the distributable archive:
 
 ```sh
-npm run build-plugin -- /absolute/path/to/pulse
+npm run build
 ```
 
-The bundle is written to `dist/plugins/com.example.pulse-0.1.0.mvmnt-plugin`. In MVMNT, open
+The bundle is written to `dist/com.example.pulse-0.1.0.mvmnt-plugin`. In MVMNT, open
 **Settings → Plugins → Import** and select that file.
 
 ## Where to go next
@@ -142,3 +137,13 @@ The bundle is written to `dist/plugins/com.example.pulse-0.1.0.mvmnt-plugin`. In
   plugins.
 
 Place packaged files under `assets/` and access them through `context.assets`.
+
+## Troubleshooting
+
+| Error or symptom                         | What to do                                                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Generator refuses a type or file         | Use a lowercase kebab-case element type and choose a new file name.                              |
+| `npm run check` reports a private import | Import only the root SDK or a documented SDK subpath; app aliases such as `@core/*` are private. |
+| Manifest capability error                | Declare valid `required` and `optional` arrays once, on the element in `plugin.json`.            |
+| No development plugin appears            | Confirm the plugin-side `npm run dev` is running, then select **Scan** in MVMNT.                 |
+| Build succeeds but load fails            | Check that the exported definition type exactly matches its `plugin.json` element type.          |

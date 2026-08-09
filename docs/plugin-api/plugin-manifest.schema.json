@@ -65,7 +65,7 @@
                     },
                     "capabilities": {
                         "type": "object",
-                        "description": "SDK 2.x capability declaration. It must exactly match definePluginElement().",
+                        "description": "Authoritative SDK 2.x capability declaration for this external element.",
                         "additionalProperties": false,
                         "properties": {
                             "required": { "$ref": "#/definitions/capabilityList" },

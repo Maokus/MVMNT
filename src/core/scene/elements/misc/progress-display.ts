@@ -1,7 +1,6 @@
-import { definePluginElement } from '@mvmnt-app/plugin-sdk';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import { applyOpacity } from '@utils/color';
-import { createBuiltInDefinitionElementClass } from '@core/scene/plugins/built-in-definition';
+import { createBuiltInDefinitionElementClass, defineBuiltInElement } from '@core/scene/plugins/built-in-definition';
 import { parseFontSelection } from '@fonts/font-loader';
 
 interface Props extends Readonly<Record<string, any>> {}
@@ -9,7 +8,7 @@ const formatTime = (seconds: number) =>
     `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60)
         .toString()
         .padStart(2, '0')}`;
-export const progressDisplay = definePluginElement<Props, undefined>({
+export const progressDisplay = defineBuiltInElement<Props, undefined>({
     type: 'progressDisplay',
     metadata: { name: 'Progress Display', description: 'Playback progress bar and statistics', category: 'Misc' },
     schema: {

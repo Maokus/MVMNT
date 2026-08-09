@@ -7,16 +7,16 @@ Plugin-facing elements use SDK 2 definitions from `@mvmnt-app/plugin-sdk`. Start
 
 Runnable examples are maintained as build inputs rather than copied into this guide:
 
-Use an external plugin project with `npm run dev-plugin` to develop and hot-reload custom elements.
+Use an external plugin project with plugin-side `npm run dev` to develop and hot-reload custom elements.
 
 - `fixtures/plugin-sdk-v2` proves the packed public package supports property schemas,
   timeline data, raw audio, feature audio, and bundled assets.
 
-Every source manifest uses `"apiVersion": "^2.0.0"`, and each element repeats the exact required
-and optional capability lists from its definition. Build an example with:
+Every source manifest uses `"apiVersion": "^2.0.0"`, and each element declares required and optional
+capabilities once in that manifest. Build a generated project from its own directory with:
 
 ```sh
-npm run build-plugin -- /absolute/path/to/my-plugin
+npm run build
 ```
 
 The [SDK 1 to SDK 2 migration guide](plugin-api/plugin-v1-to-v2.md) lists replacements for removed

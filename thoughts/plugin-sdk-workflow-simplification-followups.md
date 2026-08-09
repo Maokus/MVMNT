@@ -1,6 +1,12 @@
 # Plugin SDK and workflow simplification follow-ups
 
-Status: proposed follow-up work after SDK 2.2 property sampling.
+Status: completed in SDK 2.2. See `docs/plugin-api/plugin-quickstart.md` for the canonical author
+workflow and `docs/plugin-api/plugin-sdk-api-inventory.md` for the resulting surface.
+
+Implementation outcome: generated projects own `dev`, `build`, `check`, and `typecheck` scripts through the
+standalone `@mvmnt-app/plugin-tools` package; external capabilities live only in `plugin.json`; the SDK root and
+callback API have one primary path; and every generator template uses typed `prop`, `group`, and `tab` builders and
+is covered by generation, compilation, bundle, and definition smoke tests.
 
 The implemented property API intentionally stays narrow: plugin instances can sample and integrate their own
 effective property values, while binding and automation internals remain private. The following work would make

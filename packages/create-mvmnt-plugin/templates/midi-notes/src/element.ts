@@ -1,51 +1,22 @@
-import { definePluginElement } from '@mvmnt-app/plugin-sdk';
+import { definePluginElement, group, prop, tab } from '@mvmnt-app/plugin-sdk';
 import { Rectangle, Text } from '@mvmnt-app/plugin-sdk/render';
 export const midiNotes = definePluginElement({
     type: 'midi-notes',
     metadata: { name: 'MIDI Notes', description: 'Display currently playing MIDI notes', category: 'Custom' },
     schema: {
         tabs: [
-            {
-                id: 'content',
-                label: 'Content',
-                groups: [
-                    {
-                        id: 'midiSource',
-                        label: 'MIDI Source',
-                        collapsed: false,
-                        properties: [
-                            {
-                                key: 'midiTrackId',
-                                label: 'MIDI Track',
-                                type: 'timelineTrackRef',
-                                allowedTrackTypes: ['midi'],
-                                default: null,
-                            },
-                        ],
-                    },
-                ],
-            },
-            {
-                id: 'appearance',
-                label: 'Appearance',
-                groups: [
-                    {
-                        id: 'notesAppearance',
-                        label: 'Appearance',
-                        collapsed: false,
-                        properties: [
-                            { key: 'noteWidth', label: 'Note Width', type: 'number', default: 40 },
-                            { key: 'noteHeight', label: 'Note Height', type: 'number', default: 100 },
-                            { key: 'noteSpacing', label: 'Note Spacing', type: 'number', default: 8 },
-                            { key: 'noteColor', label: 'Note Color', type: 'colorAlpha', default: '#10B981FF' },
-                            { key: 'showNoteNames', label: 'Show Note Names', type: 'boolean', default: true },
-                        ],
-                    },
-                ],
-            },
+            tab.content([group('midiSource', 'MIDI Source', [prop.midiTrack('midiTrackId', 'MIDI Track')])]),
+            tab.appearance([
+                group('notesAppearance', 'Appearance', [
+                    prop.number('noteWidth', 'Note Width', 40),
+                    prop.number('noteHeight', 'Note Height', 100),
+                    prop.number('noteSpacing', 'Note Spacing', 8),
+                    prop.colorAlpha('noteColor', 'Note Color', '#10B981FF'),
+                    prop.boolean('showNoteNames', 'Show Note Names', true),
+                ]),
+            ]),
         ],
     },
-    capabilities: { required: ['timeline.read', 'midi.utils'], optional: [] },
     render(props, _state, time, context) {
         if (!props.midiTrackId) return [new Text(0, 0, 'Select a MIDI track', '14px sans-serif')];
         const active = context.timeline!.selectNotes({

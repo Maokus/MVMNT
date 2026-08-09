@@ -1,4 +1,4 @@
-import { definePluginElement } from '@mvmnt-app/plugin-sdk';
+import { definePluginElement, group, prop, tab } from '@mvmnt-app/plugin-sdk';
 import { Rectangle, VisualMedia } from '@mvmnt-app/plugin-sdk/render';
 const COLUMNS = 4,
     ROWS = 2;
@@ -12,31 +12,14 @@ export const gridAtlas = definePluginElement({
     },
     schema: {
         tabs: [
-            {
-                id: 'properties',
-                label: 'Properties',
-                groups: [
-                    {
-                        id: 'atlas',
-                        label: 'Atlas',
-                        collapsed: false,
-                        properties: [
-                            {
-                                key: 'frameIndex',
-                                label: 'Frame Index',
-                                type: 'number',
-                                default: 0,
-                                min: 0,
-                                max: COLUMNS * ROWS - 1,
-                            },
-                            { key: 'size', label: 'Size', type: 'number', default: 128 },
-                        ],
-                    },
-                ],
-            },
+            tab.properties([
+                group('atlas', 'Atlas', [
+                    prop.number('frameIndex', 'Frame Index', 0, { min: 0, max: COLUMNS * ROWS - 1 }),
+                    prop.number('size', 'Size', 128),
+                ]),
+            ]),
         ],
     },
-    capabilities: { required: [], optional: [] },
     create(_props, context) {
         return {
             sheet: context.assets.bundledGridAtlas('sprites.png', {

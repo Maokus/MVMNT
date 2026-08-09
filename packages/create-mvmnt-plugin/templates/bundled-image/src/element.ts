@@ -1,4 +1,4 @@
-import { definePluginElement } from '@mvmnt-app/plugin-sdk';
+import { definePluginElement, group, prop, tab } from '@mvmnt-app/plugin-sdk';
 import { VisualMedia } from '@mvmnt-app/plugin-sdk/render';
 // Add assets/image.gif before using this bundled-media template.
 export const bundledImage = definePluginElement({
@@ -10,31 +10,15 @@ export const bundledImage = definePluginElement({
     },
     schema: {
         tabs: [
-            {
-                id: 'properties',
-                label: 'Properties',
-                groups: [
-                    {
-                        id: 'image',
-                        label: 'Image',
-                        collapsed: false,
-                        properties: [
-                            {
-                                key: 'imageSource',
-                                label: 'Override Image',
-                                type: 'assetRef',
-                                allowedAssetTypes: ['image', 'gif'],
-                                default: null,
-                            },
-                            { key: 'width', label: 'Width', type: 'number', default: 200 },
-                            { key: 'height', label: 'Height', type: 'number', default: 200 },
-                        ],
-                    },
-                ],
-            },
+            tab.properties([
+                group('image', 'Image', [
+                    prop.imageAsset('imageSource', 'Override Image'),
+                    prop.number('width', 'Width', 200),
+                    prop.number('height', 'Height', 200),
+                ]),
+            ]),
         ],
     },
-    capabilities: { required: [], optional: [] },
     create(_props, context) {
         return {
             bundled: context.assets.bundledImage('image.gif'),

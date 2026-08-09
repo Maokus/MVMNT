@@ -43,7 +43,6 @@ export const simpleImage = definePluginElement({
             },
         ],
     },
-    capabilities: { required: [], optional: [] },
     create(_props, context) {
         return {
             handle: context.assets.project(),

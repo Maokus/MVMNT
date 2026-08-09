@@ -59,7 +59,6 @@ describe('SDK v2 runtime', () => {
                     },
                 ],
             },
-            capabilities: { required: [], optional: [] },
             create(_props, context) {
                 contexts.push(context);
                 return undefined;
@@ -144,7 +143,6 @@ describe('SDK v2 runtime', () => {
                     },
                 ],
             },
-            capabilities: { required: [], optional: [] },
             create(_props, value) {
                 context = value;
                 return undefined;
@@ -190,7 +188,6 @@ describe('SDK v2 runtime', () => {
             type: 'smoothing-test',
             metadata: { name: 'Smoothing test' },
             schema: { tabs: [] },
-            capabilities: { required: [PLUGIN_CAPABILITIES.audioFeaturesRead], optional: [] },
             load(value) {
                 context = value;
             },
@@ -201,6 +198,7 @@ describe('SDK v2 runtime', () => {
         const scope = createPluginDefinitionScope(definition, {
             pluginId: 'test',
             services: host,
+            capabilities: { required: [PLUGIN_CAPABILITIES.audioFeaturesRead] },
             synchronousInitialization: true,
             loadAsset: async () => 'blob:test',
             report: vi.fn(),
@@ -243,7 +241,6 @@ describe('SDK v2 runtime', () => {
             type: 'raster-test',
             metadata: { name: 'Raster test' },
             schema: { tabs: [] },
-            capabilities: { required: [], optional: [] },
             load(value) {
                 context = value;
             },
@@ -304,7 +301,6 @@ describe('SDK v2 runtime', () => {
                     },
                 ],
             },
-            capabilities: { required: [PLUGIN_CAPABILITIES.audioFeaturesRead], optional: [] },
             load(context) {
                 context.audio!.requireFeatures([
                     { feature: 'plugin.transients', calculatorId: 'test.plugin.transients' },
@@ -318,6 +314,7 @@ describe('SDK v2 runtime', () => {
             pluginId: 'test.plugin',
             runtimeElementType: 'test.plugin:feature-display',
             services: host,
+            capabilities: { required: [PLUGIN_CAPABILITIES.audioFeaturesRead] },
             synchronousInitialization: true,
             loadAsset: async () => 'blob:test',
             report: vi.fn(),
@@ -371,7 +368,6 @@ describe('SDK v2 runtime', () => {
                     },
                 ],
             },
-            capabilities: { required: [], optional: [] },
             render() {
                 return [];
             },
@@ -401,7 +397,6 @@ describe('SDK v2 runtime', () => {
             type: 'capability-test',
             metadata: { name: 'Capability test' },
             schema: { tabs: [] },
-            capabilities: { required: [PLUGIN_CAPABILITIES.audioFeaturesRead], optional: [] },
             load(value) {
                 context = value;
             },
@@ -413,6 +408,7 @@ describe('SDK v2 runtime', () => {
         const scope = createPluginDefinitionScope(definition, {
             pluginId: 'test',
             services: host,
+            capabilities: { required: [PLUGIN_CAPABILITIES.audioFeaturesRead] },
             loadAsset: async () => 'blob:test',
             report: vi.fn(),
         });
@@ -432,7 +428,6 @@ describe('SDK v2 runtime', () => {
             type: 'async-test',
             metadata: { name: 'Async test' },
             schema: { tabs: [] },
-            capabilities: { required: [], optional: [] },
             create: () =>
                 new Promise<void>((resolve) => {
                     finishCreate = resolve;
@@ -472,7 +467,6 @@ describe('SDK v2 runtime', () => {
             type: 'cleanup-test',
             metadata: { name: 'Cleanup test' },
             schema: { tabs: [] },
-            capabilities: { required: [PLUGIN_CAPABILITIES.audioCalculatorsRegister], optional: [] },
             load(context) {
                 context.audioCalculators!.register(calculator);
             },
@@ -483,6 +477,7 @@ describe('SDK v2 runtime', () => {
         const scope = createPluginDefinitionScope(definition, {
             pluginId: 'test',
             services: host,
+            capabilities: { required: [PLUGIN_CAPABILITIES.audioCalculatorsRegister] },
             loadAsset: async () => 'blob:test',
             report: vi.fn(),
         });

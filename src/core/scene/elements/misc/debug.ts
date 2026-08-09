@@ -1,12 +1,11 @@
-import { definePluginElement } from '@mvmnt-app/plugin-sdk';
 import { Rectangle, Text } from '@core/render/render-objects';
-import { createBuiltInDefinitionElementClass } from '@core/scene/plugins/built-in-definition';
+import { createBuiltInDefinitionElementClass, defineBuiltInElement } from '@core/scene/plugins/built-in-definition';
 
 interface Props extends Readonly<Record<string, unknown>> {
     readonly showDots: boolean;
     readonly imageSource: string | null;
 }
-export const debug = definePluginElement<Props, undefined>({
+export const debug = defineBuiltInElement<Props, undefined>({
     type: 'debug',
     metadata: { name: 'Debug', description: 'Debugging information display', category: 'Misc' },
     schema: {

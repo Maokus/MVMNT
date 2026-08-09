@@ -50,30 +50,3 @@ export interface TimelineApi {
     ): Result<readonly MidiCCEvent[]>;
     getSustain(args: Readonly<{ trackIds?: readonly string[]; timeSeconds: number }>): Result<boolean>;
 }
-
-/** Standalone adapters for authors who prefer named imports over method calls. */
-export const getTimelineMetadata = (timeline: TimelineApi): ReturnType<TimelineApi['getMetadata']> =>
-    timeline.getMetadata();
-
-export const getTimelineTrack = (timeline: TimelineApi, trackId: string): ReturnType<TimelineApi['getTrack']> =>
-    timeline.getTrack(trackId);
-
-export const getTimelineTracks = (
-    timeline: TimelineApi,
-    trackIds?: readonly string[]
-): ReturnType<TimelineApi['getTracks']> => timeline.getTracks(trackIds);
-
-export const selectTimelineNotes = (
-    timeline: TimelineApi,
-    args: Parameters<TimelineApi['selectNotes']>[0]
-): ReturnType<TimelineApi['selectNotes']> => timeline.selectNotes(args);
-
-export const selectTimelineCC = (
-    timeline: TimelineApi,
-    args: Parameters<TimelineApi['selectCC']>[0]
-): ReturnType<TimelineApi['selectCC']> => timeline.selectCC(args);
-
-export const getTimelineSustain = (
-    timeline: TimelineApi,
-    args: Parameters<TimelineApi['getSustain']>[0]
-): ReturnType<TimelineApi['getSustain']> => timeline.getSustain(args);

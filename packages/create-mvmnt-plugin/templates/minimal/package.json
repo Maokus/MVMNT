@@ -4,12 +4,16 @@
     "private": true,
     "type": "module",
     "scripts": {
+        "dev": "mvmnt-plugin dev",
+        "build": "mvmnt-plugin build",
+        "check": "mvmnt-plugin check",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
         "@mvmnt-app/plugin-sdk": "^2.2.0"
     },
     "devDependencies": {
+        "@mvmnt-app/plugin-tools": "^0.1.0",
         "typescript": "^5.9.3"
     }
 }

@@ -25,7 +25,6 @@ export const minimal = definePluginElement({
             },
         ],
     },
-    capabilities: { required: [], optional: [] },
     render(props) {
         return [
             new Rectangle(-props.width / 2, -props.height / 2, props.width, props.height, {

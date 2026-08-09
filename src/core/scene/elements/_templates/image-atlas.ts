@@ -35,7 +35,6 @@ export const atlasImage = definePluginElement({
             },
         ],
     },
-    capabilities: { required: [], optional: [] },
     create(_props, context) {
         return {
             atlas: context.assets.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml'),

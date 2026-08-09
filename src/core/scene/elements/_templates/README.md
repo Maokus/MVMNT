@@ -81,8 +81,8 @@ Displays a single frame from a bundled grid-layout spritesheet (no XML required)
 
 ## Template Conventions
 
-All templates use `definePluginElement()`, serializable schemas, explicit capability declarations,
-callback-scoped host facets, and lifecycle-scoped asset handles.
+All templates use `definePluginElement()`, serializable schemas, callback-scoped host facets, and
+lifecycle-scoped asset handles. External capability declarations live in `plugin.json`.
 
 ## Customising a Template
 

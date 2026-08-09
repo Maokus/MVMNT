@@ -47,7 +47,6 @@ export const bundledImage = definePluginElement({
             },
         ],
     },
-    capabilities: { required: [], optional: [] },
     create(_props, context) {
         return {
             bundled: context.assets.bundledImage('cooltext491233707844001.gif'),

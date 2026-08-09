@@ -1,6 +1,6 @@
-import { definePluginElement, type ProjectVisualAssetHandle } from '@mvmnt-app/plugin-sdk';
+import type { ProjectVisualAssetHandle } from '@mvmnt-app/plugin-sdk/visual-assets';
 import { Rectangle, VisualMedia, type RenderObject } from '@core/render/render-objects';
-import { createBuiltInDefinitionElementClass } from '@core/scene/plugins/built-in-definition';
+import { createBuiltInDefinitionElementClass, defineBuiltInElement } from '@core/scene/plugins/built-in-definition';
 
 interface ImageProps extends Readonly<Record<string, unknown>> {
     readonly imageSource: string | null;
@@ -27,7 +27,7 @@ interface ImageState {
     readonly bounds: Rectangle;
 }
 
-export const image = definePluginElement<ImageProps, ImageState>({
+export const image = defineBuiltInElement<ImageProps, ImageState>({
     type: 'image',
     metadata: { name: 'Image', description: 'Display an image with transformations', category: 'Misc' },
     schema: {

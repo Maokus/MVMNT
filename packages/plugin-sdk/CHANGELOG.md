@@ -6,6 +6,11 @@
   times.
 - Added bounded adaptive `context.properties.integrate()` and `average()` helpers for numeric properties without
   exposing automation channels or keyframes.
+- Added the serializable `group()` schema builder and literal-key inference across `prop`, `group`, and `tab`.
+- Made `plugin.json` the sole external capability declaration and moved first-party grants behind a host wrapper.
+- Focused the root barrel on common authoring primitives; advanced runtime types remain available from domain subpaths.
+- Removed the class renderer bridge, host schema insertion helper, and named host-service delegation adapters before
+  the SDK 2 contract freezes.
 
 ## 2.1.0
 

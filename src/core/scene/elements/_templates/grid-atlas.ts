@@ -38,7 +38,6 @@ export const gridAtlas = definePluginElement({
             },
         ],
     },
-    capabilities: { required: [], optional: [] },
     create(_props, context) {
         return {
             sheet: context.assets.bundledGridAtlas('sprites.png', {

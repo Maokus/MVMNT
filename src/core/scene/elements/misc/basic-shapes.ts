@@ -1,7 +1,6 @@
-import { definePluginElement } from '@mvmnt-app/plugin-sdk';
 import { Arc, Line, Poly, Rectangle, type RenderObject } from '@core/render/render-objects';
 import { applyOpacity } from '@utils/color';
-import { createBuiltInDefinitionElementClass } from '@core/scene/plugins/built-in-definition';
+import { createBuiltInDefinitionElementClass, defineBuiltInElement } from '@core/scene/plugins/built-in-definition';
 
 interface Props extends Readonly<Record<string, any>> {}
 const number = (key: string, label: string, value: number, extra: Record<string, unknown> = {}) => ({
@@ -13,7 +12,7 @@ const number = (key: string, label: string, value: number, extra: Record<string,
 });
 const degrees = (value: number) => (value * Math.PI) / 180;
 
-export const basicShapes = definePluginElement<Props, undefined>({
+export const basicShapes = defineBuiltInElement<Props, undefined>({
     type: 'basicShapes',
     metadata: {
         name: 'Basic Shapes',

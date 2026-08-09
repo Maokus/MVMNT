@@ -84,7 +84,6 @@ export const textDisplay = definePluginElement({
             },
         ],
     },
-    capabilities: { required: [], optional: [] },
     render(props) {
         if (!props.textContent.trim()) return [];
         const objects: RenderObject[] = [];

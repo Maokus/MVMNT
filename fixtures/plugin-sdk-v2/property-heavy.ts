@@ -27,7 +27,6 @@ export const propertyHeavy = definePluginElement({
             ]),
         ],
     },
-    capabilities: { required: [], optional: [] },
     render(props) {
         return [new Text(0, 0, props.label, `${props.size}px ${props.font}`)];
     },

@@ -1,4 +1,4 @@
-import { definePluginElement } from '@mvmnt-app/plugin-sdk';
+import { definePluginElement, group, prop, tab } from '@mvmnt-app/plugin-sdk';
 import { VisualMedia } from '@mvmnt-app/plugin-sdk/render';
 // Add assets/atlas.png and assets/atlas.xml before using this bundled-atlas template.
 export const atlasImage = definePluginElement({
@@ -10,31 +10,15 @@ export const atlasImage = definePluginElement({
     },
     schema: {
         tabs: [
-            {
-                id: 'properties',
-                label: 'Properties',
-                groups: [
-                    {
-                        id: 'atlas',
-                        label: 'Atlas',
-                        collapsed: false,
-                        properties: [
-                            {
-                                key: 'atlas',
-                                label: 'Override Atlas',
-                                type: 'assetRef',
-                                allowedAssetTypes: ['sparrow'],
-                                default: null,
-                            },
-                            { key: 'width', label: 'Width', type: 'number', default: 200 },
-                            { key: 'height', label: 'Height', type: 'number', default: 200 },
-                        ],
-                    },
-                ],
-            },
+            tab.properties([
+                group('atlas', 'Atlas', [
+                    prop.sparrowAsset('atlas', 'Override Atlas'),
+                    prop.number('width', 'Width', 200),
+                    prop.number('height', 'Height', 200),
+                ]),
+            ]),
         ],
     },
-    capabilities: { required: [], optional: [] },
     create(_props, context) {
         return {
             atlas: context.assets.bundledSparrow('atlas.png', 'atlas.xml'),

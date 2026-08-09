@@ -1,12 +1,11 @@
-import { definePluginElement } from '@mvmnt-app/plugin-sdk';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import { applyOpacity } from '@utils/color';
-import { createBuiltInDefinitionElementClass } from '@core/scene/plugins/built-in-definition';
+import { createBuiltInDefinitionElementClass, defineBuiltInElement } from '@core/scene/plugins/built-in-definition';
 import { parseFontSelection } from '@fonts/font-loader';
 
 interface Props extends Readonly<Record<string, any>> {}
 const withOpacity = (color: string, opacity: number) => applyOpacity(color, opacity);
-export const timeDisplay = definePluginElement<Props, undefined>({
+export const timeDisplay = defineBuiltInElement<Props, undefined>({
     type: 'timeDisplay',
     metadata: { name: 'Time Display', description: 'Current time and beat position display', category: 'Misc' },
     schema: {

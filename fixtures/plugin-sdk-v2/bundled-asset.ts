@@ -1,11 +1,11 @@
-import { definePluginElement, type BundledVisualAssetHandle } from '@mvmnt-app/plugin-sdk';
+import { definePluginElement } from '@mvmnt-app/plugin-sdk';
 import { VisualMedia } from '@mvmnt-app/plugin-sdk/render';
+import type { BundledVisualAssetHandle } from '@mvmnt-app/plugin-sdk/visual-assets';
 
 export const bundledAsset = definePluginElement<Readonly<Record<string, never>>, BundledVisualAssetHandle>({
     type: 'sdk-v2-bundled-asset',
     metadata: { name: 'Bundled Asset Fixture' },
     schema: { tabs: [] },
-    capabilities: { required: [], optional: [] },
     create(_props, context) {
         return context.assets.bundledImage('fixture.png');
     },

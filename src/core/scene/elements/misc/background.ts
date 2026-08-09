@@ -1,14 +1,13 @@
-import { definePluginElement } from '@mvmnt-app/plugin-sdk';
 import { Rectangle } from '@core/render/render-objects';
 import { applyOpacity } from '@utils/color';
-import { createBuiltInDefinitionElementClass } from '@core/scene/plugins/built-in-definition';
+import { createBuiltInDefinitionElementClass, defineBuiltInElement } from '@core/scene/plugins/built-in-definition';
 
 interface BackgroundProps extends Readonly<Record<string, unknown>> {
     readonly color: string;
     readonly opacity: number;
 }
 
-export const background = definePluginElement<BackgroundProps, undefined>({
+export const background = defineBuiltInElement<BackgroundProps, undefined>({
     type: 'background',
     metadata: { name: 'Background', description: 'Solid background color for the visualization', category: 'Misc' },
     schema: {

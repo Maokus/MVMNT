@@ -52,27 +52,6 @@ export interface AssetApi {
     generatedRaster(request: GeneratedRasterRequest): Result<VisualAssetSnapshot>;
 }
 
-/** Standalone adapters for every scoped asset operation. */
-export const loadAsset = (assets: AssetApi, path: string): ReturnType<AssetApi['load']> => assets.load(path);
-export const createProjectAssetHandle = (assets: AssetApi): ReturnType<AssetApi['project']> => assets.project();
-export const loadBundledImage = (assets: AssetApi, path: string): ReturnType<AssetApi['bundledImage']> =>
-    assets.bundledImage(path);
-export const loadBundledSparrow = (
-    assets: AssetApi,
-    imagePath: string,
-    xmlPath: string,
-    defaultFps?: number
-): ReturnType<AssetApi['bundledSparrow']> => assets.bundledSparrow(imagePath, xmlPath, defaultFps);
-export const loadBundledGridAtlas = (
-    assets: AssetApi,
-    imagePath: string,
-    layout: GridAtlasLayout
-): ReturnType<AssetApi['bundledGridAtlas']> => assets.bundledGridAtlas(imagePath, layout);
-export const createGeneratedRaster = (
-    assets: AssetApi,
-    request: GeneratedRasterRequest
-): ReturnType<AssetApi['generatedRaster']> => assets.generatedRaster(request);
-
 export class VisualMediaPlayback {
     speed = 1;
     startOffset = 0;

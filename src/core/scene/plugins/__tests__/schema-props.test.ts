@@ -45,7 +45,6 @@ describe('schema-inferred plugin props', () => {
             type: 'schema-props',
             metadata: { name: 'Schema Props' },
             schema,
-            capabilities: { required: [], optional: [] },
             create(props, context) {
                 expectTypeOf(props).toEqualTypeOf<PropsFromSchema<typeof schema>>();
                 expectTypeOf(props.size).toEqualTypeOf<number>();
@@ -91,7 +90,6 @@ describe('schema-inferred plugin props', () => {
             type: 'legacy-props',
             metadata: { name: 'Legacy Props' },
             schema: { tabs: [] },
-            capabilities: { required: [], optional: [] },
             create(props) {
                 expectTypeOf(props.label).toEqualTypeOf<string>();
                 return { frames: 0 };

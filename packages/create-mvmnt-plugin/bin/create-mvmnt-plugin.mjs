@@ -293,7 +293,7 @@ function createPlugin(options) {
     console.log('\nNext steps:');
     console.log(`  cd ${targetDir}`);
     console.log('  npm install');
-    console.log('  npm run typecheck');
+    console.log('  npm run check');
 }
 
 function addElement(options) {
@@ -349,7 +349,7 @@ function addElement(options) {
     console.log(`Created ${elementPath}`);
     console.log(`Updated ${manifestPath} (${nextManifest.elements.length} elements)`);
     console.log('\nNext step:');
-    console.log(`  cd ${pluginDir} && npm run typecheck`);
+    console.log(`  cd ${pluginDir} && npm run check`);
 }
 
 async function main() {

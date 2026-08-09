@@ -1,5 +1,6 @@
 import sdkManifest from '../../../../packages/plugin-sdk/sdk-manifest.json';
 import type { PluginElementManifest, PluginManifest } from '@state/pluginStore';
+import type { ElementCapabilities } from '../../../../packages/plugin-sdk/src/scene';
 import { satisfiesVersion } from './version-check';
 
 export const SDK_RUNTIME_MODULE_IDS = Object.freeze([...sdkManifest.runtimeModules]);
@@ -17,13 +18,10 @@ export function supportsPluginApiRange(range: string): boolean {
     return satisfiesVersion(sdkManifest.version, range);
 }
 
-export function normalizeElementCapabilities(element: PluginElementManifest): {
-    required: string[];
-    optional: string[];
-} {
+export function normalizeElementCapabilities(element: PluginElementManifest): ElementCapabilities {
     return {
-        required: [...(element.capabilities?.required ?? [])],
-        optional: [...(element.capabilities?.optional ?? [])],
+        required: [...(element.capabilities?.required ?? [])] as ElementCapabilities['required'],
+        optional: [...(element.capabilities?.optional ?? [])] as ElementCapabilities['optional'],
     };
 }
 
@@ -76,21 +74,4 @@ export function validatePluginManifest(manifest: unknown): string[] {
         errors.push(...validateCapabilityDeclaration(element?.capabilities, label));
     });
     return errors;
-}
-
-export function capabilityDeclarationsMatch(
-    manifest: PluginElementManifest,
-    definition: { capabilities?: { required?: readonly string[]; optional?: readonly string[] } }
-): boolean {
-    const expected = normalizeElementCapabilities(manifest);
-    const actual = {
-        required: [...(definition.capabilities?.required ?? [])],
-        optional: [...(definition.capabilities?.optional ?? [])],
-    };
-    return (
-        expected.required.length === actual.required.length &&
-        expected.optional.length === actual.optional.length &&
-        expected.required.every((value, index) => value === actual.required[index]) &&
-        expected.optional.every((value, index) => value === actual.optional[index])
-    );
 }

@@ -54,7 +54,6 @@ export const basicShape = definePluginElement({
             },
         ],
     },
-    capabilities: { required: [], optional: [] },
     render(props) {
         if (props.shapeType === 'circle') {
             return [

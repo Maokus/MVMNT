@@ -7,17 +7,16 @@ when to fetch it.
 
 ## Start the development loop
 
-Run both commands from the MVMNT checkout:
+Run MVMNT in development mode. In a separate terminal, run the generated plugin's local tooling;
+you do not need to invoke a script from the MVMNT checkout:
 
 ```sh
-# Terminal 1: the MVMNT application in Vite development mode
+# From the generated plugin directory
+cd /absolute/path/to/plugin
 npm run dev
 
-# Terminal 2: watcher/builder for one or more plugin directories
-npm run dev-plugin -- /absolute/path/to/plugin
-
-# Multiple plugins share the same localhost server and hot-reload together.
-npm run dev-plugin -- /absolute/path/to/plugin-a /absolute/path/to/plugin-b
+# Optionally serve multiple plugin directories from one plugin-tools process.
+npx mvmnt-plugin dev /absolute/path/to/plugin-a /absolute/path/to/plugin-b
 ```
 
 The plugin directory must contain a valid SDK 2 `plugin.json`. Element entries may be TypeScript or
@@ -26,27 +25,24 @@ JavaScript accepted by esbuild. SDK 1 source is rejected by the development buil
 The browser-side watcher exists only when `import.meta.env.DEV` is true. A production build or
 `vite preview` will not connect to a development plugin server.
 
-By default `dev-plugin` uses the first available port from `127.0.0.1:7741` through `:7750`.
+By default `mvmnt-plugin dev` uses the first available port from `127.0.0.1:7741` through `:7750`.
 The Vite development build automatically discovers servers in that range, so an occupied default
 port does not interrupt the normal workflow. The command prints the selected URL.
 
-To use a port outside that range, configure both processes before starting Vite:
+To use a specific port, pass it to the plugin process and configure the same port in MVMNT's
+development settings:
 
 ```sh
-# Terminal 1
-VITE_DEV_PLUGIN_PORT=7750 npm run dev
-
-# Terminal 2
-npm run dev-plugin -- /absolute/path/to/plugin --port 7750
+# Plugin terminal
+npx mvmnt-plugin dev --port 7750
 ```
 
-Changing `VITE_DEV_PLUGIN_PORT` requires restarting Vite. An explicit port is exact: if it is in
-use, `dev-plugin` exits with instructions instead of selecting a different one. One server can
+An explicit port is exact: if it is in use, `mvmnt-plugin dev` exits instead of selecting a different one. One server can
 serve any number of plugin directories.
 
 ## What happens on startup
 
-1. `dev-plugin.mjs` reads and validates `plugin.json` and checks every declared entry and import.
+1. `mvmnt-plugin dev` reads and validates `plugin.json` and checks every declared entry and import.
 2. Each element is bundled as readable browser-targeted CommonJS. Public SDK imports remain
    external so MVMNT injects the runtime matching `apiVersion`.
 3. The server copies `assets/`, creates a fast-compressed `.mvmnt-plugin` archive in a temporary
@@ -92,11 +88,11 @@ hot replacement.
 
 - Source and `assets/` changes trigger rebuilds. Assets are copied into every successful archive.
 - Valid `plugin.json` edits are picked up automatically. Changing the plugin ID requires restarting
-  `npm run dev-plugin`; entries, capabilities, assets, and versions hot-reload normally.
+  `npm run dev`; entries, capabilities, assets, and versions hot-reload normally.
 - Development archives are session-only. They are never written to the plugin binary store and are
   removed when the server sends a shutdown event or remains unreachable for five seconds.
-- The development build is kept out of `dist/plugins/`. Use `npm run build-plugin -- <plugin-dir>` to create
-  a distributable, minified archive with its versioned filename.
+- Development archives stay in memory. Use plugin-side `npm run build` to create a distributable,
+  minified archive under the plugin project's `dist/` directory.
 
 ## Failure behavior and troubleshooting
 
@@ -106,12 +102,11 @@ fix the error and save again to restore it.
 
 Common checks:
 
-- No connection: confirm MVMNT is using `npm run dev`. Starting either process first is supported;
+- No connection: confirm MVMNT is running in development mode. Starting either process first is supported;
   the browser reconnects automatically.
 - `EADDRINUSE`: without `--port`, the command tries ports `7741` through `7750`. With `--port`,
   select a free port and configure the same `VITE_DEV_PLUGIN_PORT` value for Vite.
-- Manifest/import rejection: run `npm run build-plugin -- <plugin-dir>` for the same contract
-  validation without starting the watcher.
+- Manifest/import rejection: run plugin-side `npm run check` for type, contract, bundle, and load-smoke validation.
 - Changes do not rebuild: restart the watcher. On platforms without recursive `fs.watch`, the
   command reports that watching is unavailable.
 - Element temporarily becomes “missing”: inspect the browser console for `DevPluginWatcher` or

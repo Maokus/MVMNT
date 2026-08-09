@@ -1,0 +1,32 @@
+{
+    "name": "@mvmnt-app/plugin-tools",
+    "version": "0.1.0",
+    "description": "Build, validate, and hot-reload MVMNT plugins",
+    "license": "MIT",
+    "type": "module",
+    "bin": {
+        "mvmnt-plugin": "bin/mvmnt-plugin.mjs"
+    },
+    "exports": {
+        ".": {
+            "types": "./src/index.d.mts",
+            "import": "./src/index.mjs"
+        }
+    },
+    "files": [
+        "bin",
+        "src",
+        "README.md"
+    ],
+    "engines": {
+        "node": ">=18"
+    },
+    "dependencies": {
+        "esbuild": "^0.21.5",
+        "fflate": "^0.8.2",
+        "typescript": "^5.9.3"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}

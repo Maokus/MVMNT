@@ -29,7 +29,7 @@ Six capabilities are defined in `PLUGIN_CAPABILITIES` (in `host-api/plugin-api.t
 - `midiUtils` — MIDI note utilities (always available)
 - `audioCalculatorsRegister` — register custom audio calculators (always available)
 
-See `docs/plugin-capabilities.md` and `docs/plugin-lifecycle.md` for SDK 2.
+See `docs/plugin-api/plugin-capabilities.md` and `docs/plugin-api/plugin-lifecycle.md` for SDK 2.
 
 ## SDK 2 access pattern
 
@@ -40,7 +40,6 @@ export const element = definePluginElement({
     type: 'example',
     metadata: { name: 'Example' },
     schema: { tabs: [] },
-    capabilities: { required: ['timeline.read'], optional: [] },
     render(_props, _state, _time, context) {
         const notes = context.timeline.selectNotes({ startSeconds: 0, endSeconds: 1 });
         return notes.ok ? [] : [];
@@ -48,14 +47,14 @@ export const element = definePluginElement({
 });
 ```
 
-Manifest and definition capability declarations must match. Required facets are guaranteed after loader validation; optional facets may be absent.
+Declare capabilities once in `plugin.json`. The loader supplies those host-authoritative grants to the definition scope. Required facets are guaranteed after loader validation; optional facets may be absent.
 
 ## Adding a New Capability (checklist)
 
 1. Add key to `PLUGIN_CAPABILITIES` in `host-api/plugin-api.ts`
 2. Add the interface and method definitions in `host-api/plugin-api.ts`
 3. Implement it in `createPluginHostServices()` in `host-api/plugin-api.ts`.
-4. Add the package-owned callback facet type and named adapter in `packages/plugin-sdk/src/`.
+4. Add the package-owned callback facet type in `packages/plugin-sdk/src/`.
 5. Add the export to `packages/plugin-sdk/sdk-manifest.json`; the contract parity test checks the package and injected runtime together.
 
 ## Tests

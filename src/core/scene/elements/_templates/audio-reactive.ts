@@ -70,7 +70,6 @@ export const audioReactive = definePluginElement({
             },
         ],
     },
-    capabilities: { required: ['audio.raw.read'], optional: [] },
     render(props, _state, time, context) {
         const windowSeconds = Math.max(0.025, props.smoothing * 0.01);
         const rms = props.audioTrackId

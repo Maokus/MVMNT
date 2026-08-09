@@ -71,7 +71,6 @@ export const midiNotes = definePluginElement({
             },
         ],
     },
-    capabilities: { required: ['timeline.read', 'midi.utils'], optional: [] },
     render(props, _state, time, context) {
         if (!props.midiTrackId)
             return [new Text(0, 0, 'Select a MIDI track', '14px Inter, sans-serif', { color: '#94a3b8' })];

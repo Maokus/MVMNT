@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import packageManifest from '../../../../../packages/plugin-sdk/package.json';
 import sdkManifest from '../../../../../packages/plugin-sdk/sdk-manifest.json';
+import * as packageRoot from '../../../../../packages/plugin-sdk/src/index';
 import * as packageApi from '../../../../../packages/plugin-sdk/src/api';
 import * as packageAnimation from '../../../../../packages/plugin-sdk/src/animation';
 import * as packageAudio from '../../../../../packages/plugin-sdk/src/audio';
@@ -14,12 +15,15 @@ import * as packageUtils from '../../../../../packages/plugin-sdk/src/utils';
 import * as packageVisualAssets from '../../../../../packages/plugin-sdk/src/visual-assets';
 import {
     SDK_RUNTIME_MODULE_IDS,
-    capabilityDeclarationsMatch,
     supportsPluginApiRange,
     validateArchivePaths,
     validatePluginManifest,
 } from '../plugin-contract';
 import { getPluginRuntimeExportNames, getPluginRuntimeModuleIds } from '../plugin-loader';
+import {
+    SDK_CAPABILITIES as TOOL_CAPABILITIES,
+    SDK_RUNTIME_MODULES as TOOL_RUNTIME_MODULES,
+} from '../../../../../packages/plugin-tools/src/contract.mjs';
 
 const validManifest = () => ({
     id: 'com.example.v2',
@@ -42,6 +46,8 @@ describe('plugin SDK v2 contract', () => {
             .map((key) => (key === '.' ? '@mvmnt-app/plugin-sdk' : `@mvmnt-app/plugin-sdk/${key.slice(2)}`));
         expect(packageSubpaths).toEqual(sdkManifest.runtimeModules);
         expect(SDK_RUNTIME_MODULE_IDS).toEqual(sdkManifest.runtimeModules);
+        expect(TOOL_RUNTIME_MODULES).toEqual(sdkManifest.runtimeModules);
+        expect(TOOL_CAPABILITIES).toEqual(sdkManifest.capabilities);
         expect(getPluginRuntimeModuleIds()).toEqual(sdkManifest.runtimeModules);
         expect(SDK_RUNTIME_MODULE_IDS).toContain('@mvmnt-app/plugin-sdk/visual-assets');
         for (const [subpath, exports] of Object.entries(sdkManifest.publicExports)) {
@@ -50,6 +56,7 @@ describe('plugin SDK v2 contract', () => {
         }
 
         const packageModules: Record<string, object> = {
+            '.': packageRoot,
             api: packageApi,
             animation: packageAnimation,
             audio: packageAudio,
@@ -65,12 +72,6 @@ describe('plugin SDK v2 contract', () => {
                 Object.keys(module).sort()
             );
         }
-        const allSubpathExports = new Set(
-            Object.entries(sdkManifest.publicExports)
-                .filter(([subpath]) => subpath !== '.')
-                .flatMap(([, exports]) => exports)
-        );
-        expect([...sdkManifest.publicExports['.']].sort()).toEqual([...allSubpathExports].sort());
 
         const docs = readFileSync(
             resolve(__dirname, '../../../../../docs/plugin-api/plugin-sdk-api-inventory.md'),
@@ -108,15 +109,5 @@ describe('plugin SDK v2 contract', () => {
         expect(validateArchivePaths(['manifest.json', '../escape.js'])).toEqual([
             "Unsafe plugin archive path '../escape.js'",
         ]);
-    });
-
-    it('requires exact manifest/definition capability parity', () => {
-        const element = validManifest().elements[0] as any;
-        expect(capabilityDeclarationsMatch(element, element)).toBe(true);
-        expect(
-            capabilityDeclarationsMatch(element, {
-                capabilities: { required: ['timeline.read', 'audio.features.read'], optional: [] },
-            })
-        ).toBe(false);
     });
 });

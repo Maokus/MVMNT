@@ -147,7 +147,7 @@ templates through scene import, plugins through the trust prompt, MIDI/audio thr
 images through the asset registry, and fonts through font parsing, licensing acknowledgement, and
 scene storage budgets.
 
-Develop plugins with the localhost `npm run dev-plugin` workflow. The desktop application follows
+Develop plugins with the plugin-side localhost `npm run dev` workflow. The desktop application follows
 the same Vite development-plugin connection as the browser build; see the
 [development workflow](plugin-api/dev-plugin-workflow.md).
 

@@ -9,6 +9,7 @@ import { PLUGIN_CAPABILITIES, type PluginHostServices, type PluginHostCapability
 import type {
     CapabilityContext,
     ElementContext,
+    ElementCapabilities,
     ElementPropertyApi,
     PluginElementDefinition,
     PropertyIntegrationOptions,
@@ -50,6 +51,8 @@ export interface ScopeOptions {
     runtimeElementType?: string;
     /** Engine-private dependency injected at the loader/registry boundary. */
     services: PluginHostServices | null;
+    /** Host-authoritative grants, sourced from plugin.json or the built-in registry. */
+    capabilities?: ElementCapabilities;
     loadAsset(path: string): Promise<string>;
     report(diagnostic: PluginDiagnostic): void;
     synchronousInitialization?: boolean;
@@ -84,10 +87,7 @@ function createContext(
     properties?: ElementPropertyApi<Readonly<Record<string, unknown>>>
 ): CapabilityContext | ElementContext<Readonly<Record<string, unknown>>> {
     const host = options.services;
-    const declared = new Set([
-        ...(definition.capabilities.required ?? []),
-        ...(definition.capabilities.optional ?? []),
-    ]);
+    const declared = new Set([...(options.capabilities?.required ?? []), ...(options.capabilities?.optional ?? [])]);
     const available = new Set(host?.capabilities ?? []);
     const granted = (capability: PluginHostCapability) => declared.has(capability) && available.has(capability);
     const unavailable = <T>(capability: PluginHostCapability, operation: string): Result<T> =>

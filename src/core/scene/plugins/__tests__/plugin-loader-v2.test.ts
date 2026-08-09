@@ -23,14 +23,13 @@ function bundle(id = pluginId): ArrayBuffer {
         ],
     };
     const code = `
-const { CallbackElementRenderer, defineRendererElement } = require('@mvmnt-app/plugin-sdk');
-class LoaderRenderer extends CallbackElementRenderer {
-  static getConfigSchema() { return { name: 'Loader v2', description: '', tabs: [] }; }
-  _buildRenderObjects() { return []; }
-}
-module.exports = defineRendererElement({
-  type: 'loader-v2', capabilities: { required: [], optional: [] }
-}, LoaderRenderer);`;
+const { definePluginElement } = require('@mvmnt-app/plugin-sdk');
+module.exports = definePluginElement({
+  type: 'loader-v2',
+  metadata: { name: 'Loader v2' },
+  schema: { tabs: [] },
+  render() { return []; }
+});`;
     const bytes = zipSync({
         'manifest.json': new TextEncoder().encode(JSON.stringify(manifest)),
         'elements/loader-v2.js': new TextEncoder().encode(code),
@@ -75,23 +74,6 @@ describe('v2 plugin loader fixture', () => {
 
         expect(await unloadPlugin(pluginId)).toEqual({ success: true });
         expect(sceneElementRegistry.hasElement(`${pluginId}:loader-v2`)).toBe(false);
-    });
-
-    it('rejects a manifest/definition capability mismatch', async () => {
-        const bytes = bundle();
-        const archive = await import('fflate').then(({ unzipSync, zipSync }) => {
-            const files = unzipSync(new Uint8Array(bytes));
-            const code = new TextDecoder()
-                .decode(files['elements/loader-v2.js'])
-                .replace('optional: []', "optional: ['midi.utils']");
-            files['elements/loader-v2.js'] = new TextEncoder().encode(code);
-            return zipSync(files);
-        });
-        const result = await loadPlugin(
-            archive.buffer.slice(archive.byteOffset, archive.byteOffset + archive.byteLength) as ArrayBuffer
-        );
-        expect(result.success).toBe(false);
-        expect('error' in result ? result.error : '').toContain('Capability declaration mismatch');
     });
 
     it('rejects SDK 1 archives after compatibility removal', async () => {

@@ -28,7 +28,6 @@ export const featureAudio = definePluginElement({
             },
         ],
     },
-    capabilities: { required: ['audio.features.read'], optional: [] },
     load(context) {
         const result = context.audio!.requireFeatures([{ feature: 'rms' }]);
         if (!result.ok) throw new Error(result.error.message);

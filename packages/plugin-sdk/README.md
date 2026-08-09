@@ -10,16 +10,16 @@ and migration adapters are implemented by the host and injected at plugin load t
 
 Install it with `npm install @mvmnt-app/plugin-sdk`.
 
-Every host operation is available either as a method on its granted callback facet or as a named
-adapter from the root/domain modules:
+Use methods on the granted callback facets for host operations. Advanced DTO types live in domain
+subpaths; the root contains common definition, schema, result, animation, safety, and utility helpers:
 
 ```ts
-import { definePluginElement, selectTimelineNotes } from '@mvmnt-app/plugin-sdk';
+import { definePluginElement } from '@mvmnt-app/plugin-sdk';
 
 export const element = definePluginElement({
-    // metadata, schema, and capability declarations omitted
+    // metadata and schema omitted; capabilities are declared in plugin.json
     render(_props, _state, time, context) {
-        const notes = selectTimelineNotes(context.timeline!, {
+        const notes = context.timeline!.selectNotes({
             startSeconds: time.seconds,
             endSeconds: time.seconds + 1,
         });
@@ -28,8 +28,8 @@ export const element = definePluginElement({
 });
 ```
 
-Passing the callback facet keeps host capability checks and lifecycle ownership intact. The
-`audio`, `timeline`, `timing`, and `visual-assets` subpaths expose the same adapters.
+The `audio`, `timeline`, `timing`, `render`, and `visual-assets` subpaths expose advanced types and
+rendering helpers without duplicating callback methods as named adapters.
 
 Element-instance callbacks also receive `context.properties`. Use `valueAt()` to resolve one of the element's own
 properties at any timeline time, or `integrate()` and `average()` for bounded numeric area calculations. These

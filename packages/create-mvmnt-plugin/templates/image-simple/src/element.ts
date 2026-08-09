@@ -1,47 +1,20 @@
-import { definePluginElement } from '@mvmnt-app/plugin-sdk';
+import { definePluginElement, group, prop, tab } from '@mvmnt-app/plugin-sdk';
 import { Rectangle, VisualMedia } from '@mvmnt-app/plugin-sdk/render';
 export const simpleImage = definePluginElement({
     type: 'simple-image',
     metadata: { name: 'Simple Image', description: 'Displays an image or animated GIF', category: 'Custom' },
     schema: {
         tabs: [
-            {
-                id: 'properties',
-                label: 'Properties',
-                groups: [
-                    {
-                        id: 'imageSource',
-                        label: 'Image',
-                        collapsed: false,
-                        properties: [
-                            {
-                                key: 'imageSource',
-                                label: 'Image',
-                                type: 'assetRef',
-                                allowedAssetTypes: ['image', 'gif'],
-                                default: null,
-                            },
-                            { key: 'width', label: 'Width', type: 'number', default: 200, step: 10 },
-                            { key: 'height', label: 'Height', type: 'number', default: 200, step: 10 },
-                            {
-                                key: 'fitMode',
-                                label: 'Fit Mode',
-                                type: 'select',
-                                default: 'contain',
-                                options: [
-                                    { value: 'contain', label: 'Contain' },
-                                    { value: 'cover', label: 'Cover' },
-                                    { value: 'fill', label: 'Fill' },
-                                    { value: 'clip', label: 'Clip' },
-                                ],
-                            },
-                        ],
-                    },
-                ],
-            },
+            tab.properties([
+                group('imageSource', 'Image', [
+                    prop.imageAsset('imageSource', 'Image'),
+                    prop.number('width', 'Width', 200, { step: 10 }),
+                    prop.number('height', 'Height', 200, { step: 10 }),
+                    prop.select('fitMode', 'Fit Mode', 'contain', ['contain', 'cover', 'fill', 'clip']),
+                ]),
+            ]),
         ],
     },
-    capabilities: { required: [], optional: [] },
     create(_props, context) {
         return {
             handle: context.assets.project(),

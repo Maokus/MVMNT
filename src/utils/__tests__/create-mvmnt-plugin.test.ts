@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -27,6 +27,49 @@ afterEach(() => {
 });
 
 describe('create-mvmnt-plugin CLI', () => {
+    it('generates every template with schema builders and packages them together', async () => {
+        const sdkBuild = spawnSync('npm', ['run', 'build', '--workspace', '@mvmnt-app/plugin-sdk'], {
+            cwd: process.cwd(),
+            encoding: 'utf8',
+        });
+        expect(sdkBuild.status, `${sdkBuild.stdout}\n${sdkBuild.stderr}`).toBe(0);
+        const cwd = temporaryDirectory();
+        const pluginDir = join(cwd, 'all-templates');
+        const templates = [
+            'minimal',
+            'basic-shape',
+            'text-display',
+            'midi-notes',
+            'audio-reactive',
+            'image-simple',
+            'bundled-image',
+            'image-atlas',
+            'grid-atlas',
+        ];
+        expect(
+            runCli(cwd, ['--name', 'com.example.templates', '--template', templates[0], '--dir', pluginDir]).status
+        ).toBe(0);
+        for (const [index, template] of templates.slice(1).entries()) {
+            expect(runCli(pluginDir, ['add', `example-${index + 1}`, '--template', template]).status).toBe(0);
+        }
+        const manifest = JSON.parse(readFileSync(join(pluginDir, 'plugin.json'), 'utf8'));
+        for (const element of manifest.elements) {
+            const source = readFileSync(join(pluginDir, element.entry), 'utf8');
+            expect(source).toContain('group(');
+            expect(source).toMatch(/tab\.[a-z]+\(/);
+            expect(source).toContain('prop.');
+            expect(source).not.toContain('capabilities:');
+        }
+        symlinkSync(resolve(process.cwd(), 'node_modules'), join(pluginDir, 'node_modules'), 'dir');
+        const check = spawnSync(
+            process.execPath,
+            [resolve(process.cwd(), 'packages/plugin-tools/bin/mvmnt-plugin.mjs'), 'check'],
+            { cwd: pluginDir, encoding: 'utf8' }
+        );
+        expect(check.status, `${check.stdout}\n${check.stderr}`).toBe(0);
+        expect(check.stdout).toContain(`(${templates.length} elements)`);
+    }, 30_000);
+
     it('creates a plugin with template capabilities and distinct display names', () => {
         const cwd = temporaryDirectory();
         const pluginDir = join(cwd, 'visuals');

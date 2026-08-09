@@ -22,12 +22,7 @@ import { satisfiesVersion } from './version-check';
 import { registerElementAssetLoader } from './bundled-asset-registry';
 import { isPluginElementDefinition } from '../../../../packages/plugin-sdk/src/scene';
 import { createPluginDefinitionScope, type PluginDefinitionScope } from './v2-runtime';
-import {
-    capabilityDeclarationsMatch,
-    normalizeElementCapabilities,
-    validateArchivePaths,
-    validatePluginManifest,
-} from './plugin-contract';
+import { normalizeElementCapabilities, validateArchivePaths, validatePluginManifest } from './plugin-contract';
 import { createPluginHostServices } from './host-api/plugin-api';
 
 export type PluginHostErrorCode =
@@ -104,17 +99,12 @@ const pluginSdkV2SceneRuntimeModule = Object.freeze({ ...pluginSdkV2SceneModule 
 const pluginSdkV2RootModule = {
     ...pluginSdkV2ApiModule,
     ...pluginSdkV2AnimationModule,
-    ...pluginSdkV2AudioModule,
-    ...pluginSdkV2RenderModule,
     ...pluginSdkV2SceneRuntimeModule,
     ...pluginSdkV2SafetyModule,
-    ...pluginSdkV2TimelineModule,
-    ...pluginSdkV2TimingModule,
     ...pluginSdkV2UtilsRuntimeModule,
-    ...pluginSdkV2VisualAssetsModule,
 };
 const V2_PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
-    '@mvmnt-app/plugin-sdk': Object.freeze({ ...pluginSdkV2RootModule, ...pluginSdkV2RenderModule }),
+    '@mvmnt-app/plugin-sdk': Object.freeze({ ...pluginSdkV2RootModule }),
     '@mvmnt-app/plugin-sdk/api': pluginSdkV2ApiModule,
     '@mvmnt-app/plugin-sdk/animation': pluginSdkV2AnimationModule,
     '@mvmnt-app/plugin-sdk/audio': pluginSdkV2AudioModule,
@@ -318,7 +308,7 @@ export async function loadPlugin(bundleData: ArrayBuffer, options: LoadPluginOpt
             let definitionScope: PluginDefinitionScope | undefined;
             try {
                 const available = new Set(pluginHostServices.capabilities);
-                const missing = normalizeElementCapabilities(elementManifest).required.filter(
+                const missing = (normalizeElementCapabilities(elementManifest).required ?? []).filter(
                     (capability) => !available.has(capability as any)
                 );
                 if (missing.length > 0) {
@@ -351,13 +341,11 @@ export async function loadPlugin(bundleData: ArrayBuffer, options: LoadPluginOpt
                         `Definition type '${loadedExport.type}' does not match manifest type '${elementManifest.type}'`
                     );
                 }
-                if (!capabilityDeclarationsMatch(elementManifest, loadedExport)) {
-                    throw new Error(`Capability declaration mismatch for '${elementManifest.type}'`);
-                }
                 const scope = createPluginDefinitionScope(loadedExport, {
                     pluginId: manifest.id,
                     runtimeElementType: `${manifest.id}:${elementManifest.type}`,
                     services: pluginHostServices,
+                    capabilities: normalizeElementCapabilities(elementManifest),
                     loadAsset: (path) => loadBundledAssetForPlugin(manifest.id, path),
                     report: (diagnostic) =>
                         console.warn(
