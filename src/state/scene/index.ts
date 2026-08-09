@@ -6,3 +6,4 @@ export * from './selectionGeometry';
 export * from './sceneTelemetry';
 export * from './fonts';
 export * from './subtreeBundle';
+export * from './propertyEditing';

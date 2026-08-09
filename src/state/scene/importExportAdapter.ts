@@ -21,7 +21,6 @@ import type {
     SceneBindingsState,
     SceneElementRecord,
     SceneImportPayload,
-    SceneInteractionState,
     SceneMacroState,
     SceneSerializedElement,
     SceneSerializedMacros,
@@ -48,7 +47,6 @@ export interface SceneImportNormalizationContext {
     buildMacroState: (payload?: SceneSerializedMacros | null) => SceneMacroState;
     normalizeFontAssetInput: (input: FontAsset, existing?: FontAsset) => FontAsset;
     computeFontBytes: (assets: Record<string, FontAsset>) => number;
-    createInitialInteractionState: () => SceneInteractionState;
     graphIndexes: (
         graph: SceneStoreState['graph']
     ) => Pick<SceneStoreState, 'graph' | 'nodeIdByElementId' | 'elementIdByNodeId'>;
@@ -107,7 +105,6 @@ export function normalizeSceneImportState(
         buildMacroState,
         normalizeFontAssetInput,
         computeFontBytes,
-        createInitialInteractionState,
         graphIndexes,
     } = context;
     const elements = payload.elements;
@@ -384,10 +381,8 @@ export function normalizeSceneImportState(
             totalBytes: computeFontBytes(normalizedFontAssets),
             licensingAcknowledgedAt: fontLicensingAcknowledgedAt,
         },
-        interaction: createInitialInteractionState(),
         automation,
         nodeBindings: nextNodeBindings,
-        transientNodeTransforms: {},
         runtimeMeta: {
             ...state.runtimeMeta,
             persistentDirty: false,

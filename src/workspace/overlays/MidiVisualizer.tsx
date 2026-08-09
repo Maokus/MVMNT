@@ -4,7 +4,7 @@ import TrackInputAssignPopup from '@workspace/components/TrackInputAssignPopup';
 import { hoveredPropertyRef } from '@workspace/panels/properties/hoveredPropertyRef';
 import { resolveAutomationValueType } from '@workspace/panels/properties/KeyframeControl';
 import { channelForTarget, createKeyframe, elementPropertyTarget, nodePropertyTarget } from '@automation/types';
-import { effectiveValueForTarget } from '@state/scene/propertyEditing';
+import { effectiveValueForTarget } from '@state/scene';
 import { useTimelineStore } from '@state/timelineStore';
 import { deriveElementOrder } from '@state/scene-graph';
 import { useSceneSelection } from '@context/SceneSelectionContext';
@@ -29,6 +29,7 @@ import { useScene } from '@context/SceneContext';
 import { useUndo } from '@context/UndoContext';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useSceneStore } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { clearStoredImportPayload, readStoredImportPayload } from '@utils/importPayloadStorage';
 import { clearPendingDesktopProject, readPendingDesktopProjectName } from '../../desktop/pending-open';
 import { clearPendingRender, hasPendingRender, markPendingRenderImported } from '../../desktop/pending-automation';
@@ -157,7 +158,9 @@ const InsertKeyframeController: React.FC = () => {
                         );
                     }
                     if (hovered.owner.kind === 'node') {
-                        useSceneStore.getState().clearTransientNodeTransforms([hovered.owner.id], [propertyKey as any]);
+                        useSceneEditorStore
+                            .getState()
+                            .clearTransientNodeTransforms([hovered.owner.id], [propertyKey as any]);
                     }
                     return;
                 }
@@ -549,7 +552,7 @@ const TemplateInitializer: React.FC = () => {
             }
         })();
         const hasScene = sceneStoreState ? deriveElementOrder(sceneStoreState.graph).length > 0 : false;
-        const hasInitializedScene = sceneStoreState?.runtimeMeta?.hasInitializedScene ?? false;
+        const hasInitializedScene = useSceneEditorStore.getState().hasInitializedScene;
 
         const shouldImport = Boolean(state.importScene);
         const isNewDocumentImport = Boolean(state.newDocument);
@@ -582,11 +585,11 @@ const TemplateInitializer: React.FC = () => {
                 onAbort: abortController ? () => abortController.abort() : null,
             });
             try {
-                const initialHydration = useSceneStore.getState().runtimeMeta?.lastHydratedAt ?? 0;
-                unsubscribeHydration = useSceneStore.subscribe((state, previousState) => {
+                const initialHydration = useSceneEditorStore.getState().lastHydratedAt ?? 0;
+                unsubscribeHydration = useSceneEditorStore.subscribe((state, previousState) => {
                     if (finished) return;
-                    const nextHydration = state.runtimeMeta?.lastHydratedAt ?? 0;
-                    const prevHydration = previousState.runtimeMeta?.lastHydratedAt ?? 0;
+                    const nextHydration = state.lastHydratedAt ?? 0;
+                    const prevHydration = previousState.lastHydratedAt ?? 0;
                     if (!nextHydration || nextHydration === prevHydration) return;
                     if (prevHydration !== initialHydration) return;
                     finish();

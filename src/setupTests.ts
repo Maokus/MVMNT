@@ -41,3 +41,6 @@ if (typeof HTMLCanvasElement !== 'undefined') {
         return originalGetContext ? originalGetContext.call(this, type, ...args) : null;
     };
 }
+import { initializeSceneState } from '@app/initializeSceneState';
+
+initializeSceneState();

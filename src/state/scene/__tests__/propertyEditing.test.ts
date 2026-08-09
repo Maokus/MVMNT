@@ -3,6 +3,7 @@ import { createChannel, createKeyframe, elementPropertyTarget, nodePropertyTarge
 import { dispatchSceneCommand } from '../commandGateway';
 import { buildPropertyEditCommands, dispatchPropertyEdits, effectiveValueForTarget } from '../propertyEditing';
 import { useSceneStore } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 
 describe('shared property editing', () => {
     beforeEach(() => {
@@ -86,13 +87,13 @@ describe('shared property editing', () => {
         channel.keyframes = [createKeyframe(0, 12)];
         state.setAutomationChannel(channel);
         state.updateNodeBindings(nodeId, { translationX: { type: 'keyframes', channelId: channel.id } });
-        state.setTransientNodeTransform(nodeId, { translationX: 48, rotation: 1 });
+        useSceneEditorStore.getState().setTransientNodeTransform(nodeId, { translationX: 48, rotation: 1 });
 
         expect(effectiveValueForTarget(useSceneStore.getState(), target, 0)).toBe(48);
 
-        useSceneStore.getState().clearTransientNodeTransforms([nodeId], ['translationX']);
+        useSceneEditorStore.getState().clearTransientNodeTransforms([nodeId], ['translationX']);
         expect(effectiveValueForTarget(useSceneStore.getState(), target, 0)).toBe(12);
-        expect(useSceneStore.getState().transientNodeTransforms[nodeId]).toEqual({ rotation: 1 });
+        expect(useSceneEditorStore.getState().transientNodeTransforms[nodeId]).toEqual({ rotation: 1 });
     });
 
     it('creates an uncommitted preview instead of a keyframe for animated transforms when auto-key is off', () => {
@@ -111,6 +112,6 @@ describe('shared property editing', () => {
         });
 
         expect(useSceneStore.getState().automation.channels[channel.id].keyframes).toEqual([createKeyframe(24, 0.25)]);
-        expect(useSceneStore.getState().transientNodeTransforms[nodeId]).toEqual({ rotation: 0.75 });
+        expect(useSceneEditorStore.getState().transientNodeTransforms[nodeId]).toEqual({ rotation: 0.75 });
     });
 });

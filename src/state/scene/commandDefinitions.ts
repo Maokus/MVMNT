@@ -38,7 +38,7 @@ export const sceneCommandDefinitions: Record<SceneCommandType, SceneCommandDefin
     moveElement: snapshot(),
     duplicateElement: snapshot(),
     updateElementId: snapshot(),
-    clearScene: snapshot(),
+    clearScene: transaction('scene', 'timeline', 'metadata', 'assets', 'runtime'),
     resetSceneSettings: inverse(),
     updateSceneSettings: inverse(),
     loadSerializedScene: transaction('scene', 'runtime'),

@@ -6,7 +6,7 @@ import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useScene } from '@context/SceneContext';
 import { useSceneStore } from '@state/sceneStore';
-import { dispatchSceneCommand } from '@state/scene/commandGateway';
+import { dispatchSceneCommand } from '@state/scene';
 import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 import { deriveElementOrder } from '@state/scene-graph';
 import SceneFontManager from '../scene-settings/SceneFontManager';

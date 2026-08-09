@@ -8,7 +8,7 @@
  * lightweight "checkpoint" from the three stores that make up the persistent
  * document:
  *
- *   • sceneStore.runtimeMeta.lastMutatedAt   – any element / property mutation
+ *   • sceneEditorStore.documentRevision      – any authored scene mutation
  *   • sceneMetadataStore.metadata.modifiedAt – name / author / description edits
  *   • Structural fields of timelineStore      – tracks, MIDI cache, tempo, etc.
  *                                               (NOT currentTick / transport /
@@ -23,13 +23,13 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSceneStore } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useTimelineStore } from '@state/timelineStore';
 
 interface SaveCheckpoint {
-    /** sceneStore.runtimeMeta.lastMutatedAt at the time of the last save */
-    sceneMutatedAt: number;
+    /** Authored scene revision at the time of the last save. */
+    sceneRevision: number;
     /** sceneMetadataStore.metadata.modifiedAt at the time of the last save */
     metadataModifiedAt: string;
     /**
@@ -81,7 +81,7 @@ function timelineRefsDiffer(a: TimelineRefs, b: TimelineRefs): boolean {
 
 function captureCheckpoint(): SaveCheckpoint {
     return {
-        sceneMutatedAt: useSceneStore.getState().runtimeMeta?.lastMutatedAt ?? 0,
+        sceneRevision: useSceneEditorStore.getState().documentRevision,
         metadataModifiedAt: useSceneMetadataStore.getState().metadata.modifiedAt,
         timelineRefs: captureTimelineRefs(),
     };
@@ -118,15 +118,12 @@ export function useDirtyTracking(): DirtyTrackingState {
 
     useEffect(() => {
         // --- Scene element changes ---
-        const unsubScene = useSceneStore.subscribe((state, prev) => {
+        const unsubScene = useSceneEditorStore.subscribe((state) => {
             if (!checkpointRef.current) return;
-            const mutatedAt = state.runtimeMeta?.lastMutatedAt ?? 0;
-            if (mutatedAt !== checkpointRef.current.sceneMutatedAt) {
+            if (state.documentRevision !== checkpointRef.current.sceneRevision) {
                 setIsDirty(true);
                 setDirtyRevision((revision) => revision + 1);
             }
-            // Suppress lint warning: prev is needed for the Zustand callback signature
-            void prev;
         });
 
         // --- Metadata changes (name, author, description) ---

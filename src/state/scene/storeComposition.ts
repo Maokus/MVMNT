@@ -1,7 +1,6 @@
 import { type StateCreator } from 'zustand';
 import { createWithEqualityFn } from 'zustand/traditional';
 import type { Macro } from '@state/scene/macros';
-import type { PropertyBindingData } from '@bindings/property-bindings';
 import type { FontAsset } from '@state/scene/fonts';
 import type {
     AutomationState,
@@ -49,10 +48,9 @@ import {
 } from '@state/scene-graph';
 import { createSceneSnapshot } from './snapshot';
 import { exportSceneDraft, normalizeSceneImportState } from './importExportAdapter';
-import { createAutomationChannelActions, createAutomationMacrosSlice } from './slices/automationMacrosSlice';
-import { createElementsBindingsSlice } from './slices/elementsBindingsSlice';
+import { createAutomationChannelActions } from './slices/automationMacrosSlice';
 import { computeFontBytes, createFontsAssetsSlice, normalizeFontAssetInput } from './slices/fontsAssetsSlice';
-import { createGraphNodeBindingsSlice } from './slices/graphNodeBindingsSlice';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 export { createSceneSnapshot } from './snapshot';
 export type { SceneSnapshot } from './snapshot';
 
@@ -202,27 +200,6 @@ export interface SceneElementRecord {
     createdBy?: string;
 }
 
-export interface SceneInteractionState {
-    hoveredElementId: string | null;
-    editingElementId: string | null;
-    /** Element IDs expanded in the timeline automation section. */
-    automationExpandedOwners: string[];
-    /** Channel IDs with curve editor pane open. */
-    automationExpandedCurves: string[];
-    /** Current search query for filtering automation properties. */
-    automationSearchQuery: string;
-    /** Collapsed state of property groups in the properties panel, keyed by elementId then groupId. */
-    expandedPropertyGroups: Record<string, Record<string, boolean>>;
-    /** Active property tab per element in the properties panel, keyed by elementId. */
-    activePropertyTab: Record<string, string>;
-    propertyClipboard: PropertyClipboard | null;
-}
-
-export interface PropertyClipboard {
-    elementType: string;
-    values: Record<string, any>;
-}
-
 export interface SceneMacroState {
     byId: Record<string, Macro>;
     allIds: string[];
@@ -285,7 +262,7 @@ export interface SceneStoreComputedExport {
 export interface SceneSerializedElement {
     id: string;
     type: string;
-    properties: Record<string, PropertyBindingData>;
+    properties: Record<string, BindingState>;
 }
 
 export interface SceneSerializedMacros {
@@ -346,18 +323,11 @@ export interface SceneStoreActions {
     importScene: (payload: SceneImportPayload) => void;
     exportSceneDraft: () => SceneStoreComputedExport;
     replaceMacros: (payload: SceneSerializedMacros | null | undefined) => void;
-    setInteractionState: (patch: Partial<SceneInteractionState>) => void;
-    setPropertyGroupCollapseState: (elementId: string, groupId: string, collapsed: boolean) => void;
-    setActivePropertyTab: (elementId: string, tabId: string) => void;
-    setPropertyClipboard: (clipboard: PropertyClipboard | null) => void;
     setAutomationChannel: (channel: AutomationChannel) => void;
     removeAutomationChannel: (channelId: string) => void;
     updateAutomationKeyframes: (channelId: string, keyframes: AutomationKeyframe[]) => void;
     replaceGraph: (graph: SceneGraphState) => void;
     updateNodeTransform: (nodeId: string, transform: Partial<NodeTransform>) => void;
-    /** Runtime-only values layered over automated node transforms. Never serialized. */
-    setTransientNodeTransform: (nodeId: string, transform: Partial<NodeTransform>) => void;
-    clearTransientNodeTransforms: (nodeIds?: string[], paths?: Array<keyof NodeTransform>) => void;
     setNodeVisibility: (nodeId: string, visible: boolean) => void;
     setNodeOpacity: (nodeId: string, opacity: number) => void;
     setNodeLocked: (nodeId: string, locked: boolean) => void;
@@ -373,13 +343,10 @@ export interface SceneStoreState extends SceneStoreActions {
     bindings: SceneBindingsState;
     macros: SceneMacroState;
     fonts: SceneFontsState;
-    interaction: SceneInteractionState;
     runtimeMeta: SceneRuntimeMeta;
     automation: AutomationState;
     /** Host node-property bindings keyed by stable node ID. */
     nodeBindings: Record<string, ElementBindings>;
-    /** Manual preview values for automated node transforms while Auto Key is disabled. */
-    transientNodeTransforms: Record<string, Partial<NodeTransform>>;
 }
 
 const INTERNAL_SCENE_STORE_SCHEMA_VERSION = 6;
@@ -391,19 +358,6 @@ export const DEFAULT_SCENE_SETTINGS: SceneSettingsState = {
     tempo: 120,
     beatsPerBar: 4,
 };
-
-function createInitialInteractionState(): SceneInteractionState {
-    return {
-        hoveredElementId: null,
-        editingElementId: null,
-        automationExpandedOwners: [],
-        automationExpandedCurves: [],
-        automationSearchQuery: '',
-        expandedPropertyGroups: {},
-        activePropertyTab: {},
-        propertyClipboard: null,
-    };
-}
 
 function createEmptyBindingsState(): SceneBindingsState {
     return { byElement: {}, byMacro: {} };
@@ -588,7 +542,7 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
               );
     for (const [key, value] of Object.entries(propertiesSource)) {
         if (!value || typeof value !== 'object') continue;
-        const payload = value as Partial<PropertyBindingData>;
+        const payload = value as Partial<BindingState>;
         const type = (value as { type?: string }).type;
 
         const migration = migrateLegacyAudioFeatureBinding(key, payload);
@@ -877,11 +831,9 @@ const createUncomposedSceneStoreState = (
     bindings: createEmptyBindingsState(),
     macros: { byId: {}, allIds: [], exportedAt: undefined },
     ...createFontsAssetsSlice(set),
-    interaction: createInitialInteractionState(),
     runtimeMeta: createRuntimeMeta(),
     automation: createEmptyAutomationState(),
     nodeBindings: {},
-    transientNodeTransforms: {},
 
     addElement: (input) => {
         set((state) => {
@@ -1054,13 +1006,6 @@ const createUncomposedSceneStoreState = (
                 ...graphIndexes(nextGraph),
                 bindings: nextBindings,
                 automation: { channels: nextChannels, channelIdByTarget: rebuildAutomationTargetIndex(nextChannels) },
-                interaction: {
-                    ...state.interaction,
-                    hoveredElementId:
-                        state.interaction.hoveredElementId === elementId ? null : state.interaction.hoveredElementId,
-                    editingElementId:
-                        state.interaction.editingElementId === elementId ? null : state.interaction.editingElementId,
-                },
                 runtimeMeta: markDirty(state, 'removeElement'),
             };
         });
@@ -1104,13 +1049,6 @@ const createUncomposedSceneStoreState = (
                 }
             }
 
-            const nextInteraction: SceneInteractionState = {
-                ...state.interaction,
-                hoveredElementId:
-                    state.interaction.hoveredElementId === currentId ? nextId : state.interaction.hoveredElementId,
-                editingElementId:
-                    state.interaction.editingElementId === currentId ? nextId : state.interaction.editingElementId,
-            };
             const nextGraph = cloneSceneGraph(state.graph);
             const nodeId = state.nodeIdByElementId[currentId];
             const node = nodeId ? nextGraph.nodesById[nodeId] : undefined;
@@ -1126,7 +1064,6 @@ const createUncomposedSceneStoreState = (
                 ...graphIndexes(nextGraph),
                 bindings: nextBindings,
                 automation: { channels: nextChannels, channelIdByTarget: rebuildAutomationTargetIndex(nextChannels) },
-                interaction: nextInteraction,
                 runtimeMeta: markDirty(state, 'updateElementId'),
             };
         });
@@ -1614,10 +1551,8 @@ const createUncomposedSceneStoreState = (
             bindings: createEmptyBindingsState(),
             macros: { byId: {}, allIds: [], exportedAt: undefined },
             fonts: { assets: {}, order: [], totalBytes: 0, licensingAcknowledgedAt: undefined },
-            interaction: createInitialInteractionState(),
             automation: createEmptyAutomationState(),
             nodeBindings: {},
-            transientNodeTransforms: {},
             runtimeMeta: markDirty(state, 'clearScene'),
         }));
     },
@@ -1633,10 +1568,10 @@ const createUncomposedSceneStoreState = (
                 buildMacroState,
                 normalizeFontAssetInput,
                 computeFontBytes,
-                createInitialInteractionState,
                 graphIndexes,
             })
         );
+        useSceneEditorStore.getState().markHydrated();
     },
 
     exportSceneDraft: () => exportSceneDraft(get()),
@@ -1680,49 +1615,6 @@ const createUncomposedSceneStoreState = (
         });
     },
 
-    setTransientNodeTransform: (nodeId, transform) => {
-        set((state) => ({
-            ...state,
-            transientNodeTransforms: {
-                ...state.transientNodeTransforms,
-                [nodeId]: { ...state.transientNodeTransforms[nodeId], ...transform },
-            },
-        }));
-    },
-
-    clearTransientNodeTransforms: (nodeIds, paths) => {
-        set((state) => {
-            if (!nodeIds) {
-                if (!Object.keys(state.transientNodeTransforms).length) return state;
-                return { ...state, transientNodeTransforms: {} };
-            }
-            const next = { ...state.transientNodeTransforms };
-            let changed = false;
-            for (const nodeId of nodeIds) {
-                const current = next[nodeId];
-                if (!current) continue;
-                if (!paths?.length) {
-                    delete next[nodeId];
-                    changed = true;
-                    continue;
-                }
-                const remaining = { ...current };
-                let nodeChanged = false;
-                for (const path of paths) {
-                    if (path in remaining) {
-                        delete remaining[path];
-                        nodeChanged = true;
-                    }
-                }
-                if (!nodeChanged) continue;
-                changed = true;
-                if (Object.keys(remaining).length) next[nodeId] = remaining;
-                else delete next[nodeId];
-            }
-            return changed ? { ...state, transientNodeTransforms: next } : state;
-        });
-    },
-
     setNodeVisibility: (nodeId, visible) => {
         set((state) => {
             const current = state.graph.nodesById[nodeId];
@@ -1730,24 +1622,9 @@ const createUncomposedSceneStoreState = (
             const graph = cloneSceneGraph(state.graph);
             graph.nodesById[nodeId] = { ...graph.nodesById[nodeId], localVisible: visible } as typeof current;
             graph.revision += 1;
-            const elementId = current.kind === 'element' ? current.elementId : null;
             return {
                 ...state,
                 ...graphIndexes(graph),
-                interaction:
-                    !visible && elementId
-                        ? {
-                              ...state.interaction,
-                              hoveredElementId:
-                                  state.interaction.hoveredElementId === elementId
-                                      ? null
-                                      : state.interaction.hoveredElementId,
-                              editingElementId:
-                                  state.interaction.editingElementId === elementId
-                                      ? null
-                                      : state.interaction.editingElementId,
-                          }
-                        : state.interaction,
                 runtimeMeta: markDirty(state, 'setNodeVisibility'),
             };
         });
@@ -1773,24 +1650,9 @@ const createUncomposedSceneStoreState = (
             const graph = cloneSceneGraph(state.graph);
             graph.nodesById[nodeId] = { ...graph.nodesById[nodeId], localLocked: locked } as typeof current;
             graph.revision += 1;
-            const elementId = current.kind === 'element' ? current.elementId : null;
             return {
                 ...state,
                 ...graphIndexes(graph),
-                interaction:
-                    locked && elementId
-                        ? {
-                              ...state.interaction,
-                              hoveredElementId:
-                                  state.interaction.hoveredElementId === elementId
-                                      ? null
-                                      : state.interaction.hoveredElementId,
-                              editingElementId:
-                                  state.interaction.editingElementId === elementId
-                                      ? null
-                                      : state.interaction.editingElementId,
-                          }
-                        : state.interaction,
                 runtimeMeta: markDirty(state, 'setNodeLocked'),
             };
         });
@@ -1809,98 +1671,9 @@ const createUncomposedSceneStoreState = (
         });
     },
 
-    setInteractionState: (patch) => {
-        set((state) => {
-            const next: SceneInteractionState = { ...state.interaction };
-
-            if ('hoveredElementId' in patch) {
-                const hovered = patch.hoveredElementId ?? null;
-                const resolved = hovered && state.elements[hovered] ? hovered : null;
-                if (resolved !== next.hoveredElementId) {
-                    next.hoveredElementId = resolved;
-                }
-            }
-
-            if ('editingElementId' in patch) {
-                const editing = patch.editingElementId ?? null;
-                const resolved = editing && state.elements[editing] ? editing : null;
-                if (resolved !== next.editingElementId) {
-                    next.editingElementId = resolved;
-                }
-            }
-
-            if (
-                next.hoveredElementId === state.interaction.hoveredElementId &&
-                next.editingElementId === state.interaction.editingElementId
-            ) {
-                return state;
-            }
-
-            return {
-                ...state,
-                interaction: next,
-            };
-        });
-    },
-
-    setPropertyGroupCollapseState: (elementId, groupId, collapsed) => {
-        set((state) => ({
-            ...state,
-            interaction: {
-                ...state.interaction,
-                expandedPropertyGroups: {
-                    ...state.interaction.expandedPropertyGroups,
-                    [elementId]: {
-                        ...(state.interaction.expandedPropertyGroups[elementId] ?? {}),
-                        [groupId]: collapsed,
-                    },
-                },
-            },
-        }));
-    },
-
-    setActivePropertyTab: (elementId, tabId) => {
-        set((state) => ({
-            ...state,
-            interaction: {
-                ...state.interaction,
-                activePropertyTab: {
-                    ...state.interaction.activePropertyTab,
-                    [elementId]: tabId,
-                },
-            },
-        }));
-    },
-
-    setPropertyClipboard: (clipboard) => {
-        set((state) => ({
-            ...state,
-            interaction: {
-                ...state.interaction,
-                propertyClipboard: clipboard,
-            },
-        }));
-    },
-
     ...createAutomationChannelActions(set, (state) => markDirty(state, 'updateAutomation')),
 });
 
-const createSceneStoreState = (
-    set: (
-        partial: Partial<SceneStoreState> | ((state: SceneStoreState) => Partial<SceneStoreState>),
-        replace?: boolean
-    ) => void,
-    get: () => SceneStoreState
-): SceneStoreState => {
-    const state = createUncomposedSceneStoreState(set, get);
-    return {
-        ...state,
-        ...createElementsBindingsSlice(state),
-        ...createGraphNodeBindingsSlice(state),
-        ...createAutomationMacrosSlice(state),
-    };
-};
-
-const sceneStoreCreator: StateCreator<SceneStoreState> = (set, get) => createSceneStoreState(set, get);
+const sceneStoreCreator: StateCreator<SceneStoreState> = (set, get) => createUncomposedSceneStoreState(set, get);
 
 export const createSceneStore = () => createWithEqualityFn<SceneStoreState>(sceneStoreCreator);

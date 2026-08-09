@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createChannel, elementPropertyTarget, encodePropertyOwner, nodePropertyTarget } from '../types';
 import { selectAutomationSceneNodes, selectVisibleAutomationRowCount } from '../selectors';
-import { dispatchSceneCommand } from '@state/scene/commandGateway';
+import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 
 describe('scene hierarchy automation selectors', () => {
     beforeEach(() => {
@@ -48,12 +49,7 @@ describe('scene hierarchy automation selectors', () => {
         const state = useSceneStore.getState();
         const nodeId = state.nodeIdByElementId.shared;
         state.setAutomationChannel(createChannel(nodePropertyTarget(nodeId, 'translationX'), 'number'));
-        useSceneStore.setState((current) => ({
-            interaction: {
-                ...current.interaction,
-                automationExpandedOwners: [encodePropertyOwner({ kind: 'node', id: nodeId })],
-            },
-        }));
+        useSceneEditorStore.getState().setAutomationExpandedOwners([encodePropertyOwner({ kind: 'node', id: nodeId })]);
         expect(selectVisibleAutomationRowCount(useSceneStore.getState())).toBe(3);
     });
 });

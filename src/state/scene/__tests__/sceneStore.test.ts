@@ -309,7 +309,7 @@ describe('sceneStore', () => {
         expect(macroAfter).toBe(macroInitial);
     });
 
-    it('updates interaction state with normalized selection and guards missing elements', () => {
+    it('keeps hierarchy selection in the selection store', () => {
         importFixture();
 
         // Selection is now in selectionStore
@@ -321,18 +321,6 @@ describe('sceneStore', () => {
             state.nodeIdByElementId.title,
             state.nodeIdByElementId.background,
         ]);
-
-        store.getState().setInteractionState({ hoveredElementId: 'background' });
-        expect(store.getState().interaction.hoveredElementId).toBe('background');
-
-        store.getState().setInteractionState({ hoveredElementId: 'does-not-exist' });
-        expect(store.getState().interaction.hoveredElementId).toBeNull();
-
-        store.getState().setInteractionState({ editingElementId: 'background' });
-        expect(store.getState().interaction.editingElementId).toBe('background');
-
-        store.getState().setInteractionState({ editingElementId: 'missing' });
-        expect(store.getState().interaction.editingElementId).toBeNull();
     });
 
     it('creates, updates, and deletes macros while maintaining bindings', () => {

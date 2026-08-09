@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { shallow } from 'zustand/shallow';
 import { sceneSelectors } from './selectors';
 import { useSceneStore } from '@state/sceneStore';
-import type { ElementBindings, SceneInteractionState, SceneStoreState } from '@state/sceneStore';
+import type { ElementBindings, SceneStoreState } from '@state/sceneStore';
 import type { Macro } from '@state/scene/macros';
 import { useSelectionStore } from '@state/selectionStore';
 
@@ -94,10 +94,6 @@ export function useSceneMacros(): Macro[] {
                 .map((macro) => ({ ...macro, options: cloneMacroOptions(macro.options) })),
         [macroState]
     );
-}
-
-export function useInteractionState(): SceneInteractionState {
-    return useSceneStore((state) => state.interaction, shallow);
 }
 
 export function useSceneElementRecord(elementId: string | null) {

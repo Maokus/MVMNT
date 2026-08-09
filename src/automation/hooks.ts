@@ -7,6 +7,7 @@
 
 import { useCallback, useMemo } from 'react';
 import { useSceneStore } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { useTimelineStore } from '@state/timelineStore';
 import {
     channelForTarget,
@@ -101,11 +102,10 @@ export function useAutomationSceneNodes() {
 /** Returns whether an owner is expanded in the automation section. */
 export function useAutomationExpanded(owner: PropertyOwner): boolean {
     const ownerKey = encodePropertyOwner(owner);
-    return useSceneStore(
+    return useSceneEditorStore(
         useCallback(
             (state) =>
-                state.interaction.automationExpandedOwners.includes(ownerKey) ||
-                state.interaction.automationExpandedOwners.includes(owner.id),
+                state.automationExpandedOwners.includes(ownerKey) || state.automationExpandedOwners.includes(owner.id),
             [ownerKey, owner.id]
         )
     );
@@ -113,7 +113,5 @@ export function useAutomationExpanded(owner: PropertyOwner): boolean {
 
 /** Returns whether a channel's curve editor is expanded. */
 export function useCurveEditorExpanded(channelId: string): boolean {
-    return useSceneStore(
-        useCallback((state) => state.interaction.automationExpandedCurves.includes(channelId), [channelId])
-    );
+    return useSceneEditorStore(useCallback((state) => state.automationExpandedCurves.includes(channelId), [channelId]));
 }

@@ -1,4 +1,24 @@
-import type { SceneCommandMergeContext, SceneCommandOptions, SceneCommandResult } from './commandGateway';
+import type { SceneCommandPatch } from './commandPatch';
+import type { SceneCommand } from './commandTypes';
+
+export interface SceneCommandResult {
+    success: boolean;
+    durationMs: number;
+    command: SceneCommand;
+    error?: Error;
+    patch?: SceneCommandPatch | null;
+}
+
+export interface SceneCommandMergeContext extends SceneCommandResult {
+    source: string;
+}
+
+export interface SceneCommandOptions {
+    source?: string;
+    mergeKey?: string;
+    transient?: boolean;
+    canMergeWith?: (other: SceneCommandMergeContext) => boolean;
+}
 
 export interface SceneCommandTelemetryEvent extends SceneCommandMergeContext {
     mergeKey?: string;

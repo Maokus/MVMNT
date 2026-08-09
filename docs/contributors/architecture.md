@@ -21,12 +21,15 @@ preview, audio/MIDI playback, and export
 
 ## Authority
 
-- `useSceneStore` owns element records, the scene graph, bindings, macros, automation, fonts, and
-  scene interaction state.
+- `useSceneStore` owns the authored scene document: elements, graph, bindings, macros, automation,
+  settings, and font assets.
+- `useSceneEditorStore` owns scene-specific transient editor/session state. Its document revision is
+  the dirty-tracking signal; panel state and transform previews never enter scene snapshots.
 - `useTimelineStore` owns tempo, transport, tracks, clips, source caches, and the timeline viewport.
 - `dispatchSceneCommand` is the canonical persistent scene mutation path.
 - `timelineCommandGateway` is the canonical persistent timeline mutation path.
-- `SceneRuntimeAdapter` resolves authored scene state into paint records and editor geometry.
+- `SceneRuntimeAdapter` resolves authored scene state plus editor previews into paint records and
+  editor geometry.
 - `TimingManager` owns tick, beat, and second conversion against the current tempo map.
 
 Undo observes command telemetry from both domains and stores canonical domain snapshots or patches.

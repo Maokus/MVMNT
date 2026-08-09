@@ -1,4 +1,4 @@
-import type { SceneCommand, SceneCommandOptions, SceneCommandResult } from '@state/scene/commandGateway';
+import type { SceneCommand, SceneCommandOptions, SceneCommandResult } from '@state/scene';
 import { dispatchSceneCommand, registerSceneCommandListener } from '@state/scene';
 import { createSceneSnapshot, useSceneStore } from '@state/sceneStore';
 import { dispatchTimelineCommandDescriptor, useTimelineStore } from '@state/timelineStore';

@@ -16,9 +16,10 @@ import {
     type SnapGuide,
 } from '@core/interaction/snapping';
 import { useSceneStore } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 import type { SceneCommandOptions } from '@state/scene';
 import type { SceneCommand } from '@state/scene';
-import { dispatchSceneCommand } from '@state/scene/commandGateway';
+import { dispatchSceneCommand } from '@state/scene';
 import { useSelectionStore } from '@state/selectionStore';
 import { marqueeNodeIds } from '@state/scene';
 import { createKeyframe, findKeyframeAtTick, nodePropertyTarget } from '@automation/types';
@@ -157,7 +158,8 @@ function applyGraphDragUpdate(meta: any, graph: ReturnType<typeof cloneSceneGrap
         if (Object.keys(staticPatch).length) {
             commands.push({ type: 'updateNodeTransform', nodeId, transform: staticPatch });
         }
-        if (Object.keys(transientPatch).length) store.setTransientNodeTransform(nodeId, transientPatch);
+        if (Object.keys(transientPatch).length)
+            useSceneEditorStore.getState().setTransientNodeTransform(nodeId, transientPatch);
     }
     if (commands.length) {
         dispatchSceneCommand(commands.length === 1 ? commands[0] : { type: 'batch', commands }, {

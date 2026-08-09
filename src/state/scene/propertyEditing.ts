@@ -7,6 +7,7 @@ import {
     type PropertyTarget,
 } from '@automation/types';
 import { useSceneStore, type BindingState, type SceneStoreState } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { dispatchSceneCommand, type SceneCommand, type SceneCommandOptions } from './commandGateway';
 import { resolveBindingStateValue } from '@bindings/resolve-binding-state';
 
@@ -74,10 +75,8 @@ export function authoredValueForTarget(state: SceneStoreState, target: PropertyT
 
 export function effectiveValueForTarget(state: SceneStoreState, target: PropertyTarget, tick: number): unknown {
     if (target.owner.kind === 'node') {
-        const preview =
-            state.transientNodeTransforms[target.owner.id]?.[
-                target.propertyPath as keyof (typeof state.transientNodeTransforms)[string]
-            ];
+        const previews = useSceneEditorStore.getState().transientNodeTransforms;
+        const preview = previews[target.owner.id]?.[target.propertyPath as keyof (typeof previews)[string]];
         if (typeof preview === 'number') return preview;
     }
     const binding = bindingForTarget(state, target);
@@ -158,7 +157,7 @@ export function dispatchPropertyEdits(edits: readonly PropertyEdit[], context: P
     const state = useSceneStore.getState();
     for (const edit of edits) {
         if (!isUncommittedTransformPreview(state, edit, context)) continue;
-        state.setTransientNodeTransform(edit.target.owner.id, {
+        useSceneEditorStore.getState().setTransientNodeTransform(edit.target.owner.id, {
             [edit.target.propertyPath]: edit.value as number,
         });
     }

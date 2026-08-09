@@ -30,6 +30,7 @@ if (import.meta.env.DEV) {
     void import('@devtools/registerWindowTools');
 }
 import { setCanonicalPPQ } from '@core/timing/ppq';
+import { initializeSceneState } from './initializeSceneState';
 
 (globalThis as any).React = React;
 (globalThis as any).ReactDOM = ReactDOM;
@@ -65,6 +66,7 @@ try {
     console.warn('[timing] Failed to initialize canonical PPQ from env', e);
 }
 
+initializeSceneState();
 registerBuiltInAudioFeatureCalculators();
 
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);

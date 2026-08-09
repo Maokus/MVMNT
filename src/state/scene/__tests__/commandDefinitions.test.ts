@@ -10,9 +10,9 @@ describe('scene command definitions', () => {
         const definition = sceneCommandDefinition({ type: 'clearScene' });
 
         expect(definition).toEqual({
-            persistenceImpact: 'scene',
-            rollback: 'snapshot',
-            boundaries: ['scene'],
+            persistenceImpact: 'multi-store',
+            rollback: 'transaction',
+            boundaries: ['scene', 'timeline', 'metadata', 'assets', 'runtime'],
         });
     });
 

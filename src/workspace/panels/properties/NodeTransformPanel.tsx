@@ -11,6 +11,7 @@ import { automationEvaluator } from '@automation/automation-evaluator';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 import FormInput, { type FormInputChange } from '@workspace/forms/inputs/FormInput';
 import { useSceneStore } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { useSelectionStore } from '@state/selectionStore';
 import { dispatchSceneCommand, type SceneCommand } from '@state/scene';
 import {
@@ -27,8 +28,7 @@ import { HOST_NODE_PROPERTY_SCHEMA } from '@state/scene/nodePropertySchema';
 import { useTimelineStore } from '@state/timelineStore';
 import KeyframeControl from './KeyframeControl';
 import { PropertyControlRow } from './PropertyControlRow';
-import { dispatchPropertyEdits, propertyEditMergeKey } from '@state/scene/propertyEditing';
-import { effectiveValueForTarget } from '@state/scene/propertyEditing';
+import { dispatchPropertyEdits, propertyEditMergeKey, effectiveValueForTarget } from '@state/scene';
 import { elementPropertyDescriptors, hostPropertyDescriptors } from '@state/scene/propertyCatalog';
 import { resolveAutomationValueType } from './KeyframeControl';
 import { AggregateTransformSession } from './aggregateTransformSession';
@@ -231,7 +231,7 @@ export function NodeTransformPanel() {
     const setSelectionPivot = useSelectionStore((state) => state.setSelectionPivot);
     const graph = useSceneStore((state) => state.graph);
     const nodeBindings = useSceneStore((state) => state.nodeBindings);
-    const transientNodeTransforms = useSceneStore((state) => state.transientNodeTransforms);
+    const transientNodeTransforms = useSceneEditorStore((state) => state.transientNodeTransforms);
     const macros = useSceneStore((state) => state.macros);
     const tick = useTimelineStore((state) => state.timeline.currentTick);
     const autoKeying = useTimelineStore((state) => state.transport.autoKeying);
@@ -772,7 +772,7 @@ export function MultiSelectionCommonProperties({ nodes }: { nodes: SceneNode[] }
                             { type: 'batch', commands },
                             { source: 'NodeTransformPanel.common.keyframe' }
                         );
-                        useSceneStore.getState().clearTransientNodeTransforms(
+                        useSceneEditorStore.getState().clearTransientNodeTransforms(
                             selectedNodes.map((node) => node.id),
                             [path as keyof NodeTransform]
                         );
@@ -782,7 +782,7 @@ export function MultiSelectionCommonProperties({ nodes }: { nodes: SceneNode[] }
                         targets.map((target, index) => ({ target, value: values[index], valueType })),
                         { tick, autoKey: true, source: 'NodeTransformPanel.common.keyframe' }
                     );
-                    useSceneStore.getState().clearTransientNodeTransforms(
+                    useSceneEditorStore.getState().clearTransientNodeTransforms(
                         selectedNodes.map((node) => node.id),
                         [path as keyof NodeTransform]
                     );

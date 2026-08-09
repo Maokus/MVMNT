@@ -1,51 +1,13 @@
-import type { SceneStoreState } from '@state/sceneStore';
-
-export type FontSourceFormat = 'ttf' | 'otf' | 'woff' | 'woff2';
-export type FontAssetSource = 'upload' | 'google';
-export type FontSelectionSource = 'project' | 'built-in' | 'device' | 'missing' | 'legacy';
-
-export interface FontVariant {
-    id: string;
-    weight: number;
-    style: 'normal' | 'italic';
-    sourceFormat: FontSourceFormat;
-    variationSettings?: Record<string, number>;
-    postscriptName?: string;
-    /** Content-addressed key used by FontBinaryStore and scene packages. */
-    binaryId?: string;
-    byteLength?: number;
-    hash?: string;
-    originalFileName?: string;
-}
-
-export interface FontAsset {
-    id: string;
-    family: string;
-    variants: FontVariant[];
-    fileSize: number;
-    originalFileName: string;
-    createdAt: number;
-    updatedAt: number;
-    licensingAcknowledged: boolean;
-    hash?: string;
-    source?: FontAssetSource;
-    google?: {
-        family: string;
-        version?: string;
-        lastModified?: string;
-    };
-}
-
-export interface ParsedFontSelection {
-    family: string;
-    weight?: string;
-    italic?: boolean;
-    assetId?: string;
-    isCustom?: boolean;
-    source: FontSelectionSource;
-    missing?: boolean;
-    token: string;
-}
+import type { SceneDocumentState } from './storeTypes';
+import type { FontAsset, ParsedFontSelection } from '@fonts/types';
+export type {
+    FontAsset,
+    FontAssetSource,
+    FontSelectionSource,
+    FontSourceFormat,
+    FontVariant,
+    ParsedFontSelection,
+} from '@fonts/types';
 
 const CUSTOM_PREFIX = 'Custom:';
 const PROJECT_PREFIX = 'Project:';
@@ -156,6 +118,6 @@ export function parseFontSelectionToken(
     };
 }
 
-export function getSceneFontAssets(state: SceneStoreState): Record<string, FontAsset> {
+export function getSceneFontAssets(state: SceneDocumentState): Record<string, FontAsset> {
     return state.fonts?.assets ?? {};
 }

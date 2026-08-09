@@ -17,7 +17,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useFloating, autoUpdate, flip, shift, offset, FloatingPortal } from '@floating-ui/react';
 import { useTickScale } from '../hooks/useTickScale';
 import { useCurveRange, useCurveRangeControls } from '../context/curveRangeContext';
-import { dispatchSceneCommand } from '@state/scene/commandGateway';
+import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
 import { useSelectionStore } from '@state/selectionStore';
 import InterpolationPicker from './InterpolationPicker';

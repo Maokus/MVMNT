@@ -10,13 +10,14 @@ import type { FormInputChange } from '@workspace/forms/inputs/FormInput';
 import { useCurrentTick } from '@automation/hooks';
 import { findKeyframeAtTick, elementPropertyTarget } from '@automation/types';
 import { useSceneStore } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { shallow } from 'zustand/shallow';
-import { dispatchSceneCommand } from '@state/scene/commandGateway';
+import { dispatchSceneCommand } from '@state/scene';
 import { automationEvaluator } from '@automation/automation-evaluator';
 import { resolveAutomationValueType } from './KeyframeControl';
 import { NodeTransformPanel } from './NodeTransformPanel';
-import { dispatchPropertyEdits, propertyEditMergeKey } from '@state/scene/propertyEditing';
+import { dispatchPropertyEdits, propertyEditMergeKey } from '@state/scene';
 
 const NODE_TRANSFORM_TAB_ID = '__node-transform';
 
@@ -68,7 +69,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         // currently active tab, switch to it. Otherwise fall back to the stored tab for the new element.
         // Read the old element's active tab ID directly from the store (activeTabId is not yet
         // initialized at this point — it's a useMemo declared further down).
-        const oldTabId = useSceneStore.getState().interaction.activePropertyTab[lastRenderedElementId];
+        const oldTabId = useSceneEditorStore.getState().activePropertyTab[lastRenderedElementId];
         const prevTabLabel =
             oldTabId === NODE_TRANSFORM_TAB_ID
                 ? 'Transform'
@@ -80,7 +81,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                     ? { id: NODE_TRANSFORM_TAB_ID }
                     : newTabs.find((t) => t.label === prevTabLabel);
             if (matchingTab) {
-                useSceneStore.getState().setActivePropertyTab(elementId, matchingTab.id);
+                useSceneEditorStore.getState().setActivePropertyTab(elementId, matchingTab.id);
             }
         }
         setLastRenderedElementId(elementId);
@@ -99,16 +100,14 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     );
     const currentTick = useCurrentTick();
     const autoKeying = useTimelineStore((s) => s.transport.autoKeying);
-    const groupCollapseState = useSceneStore(
-        useCallback((s) => s.interaction.expandedPropertyGroups[elementId] ?? {}, [elementId])
+    const groupCollapseState = useSceneEditorStore(
+        useCallback((s) => s.expandedPropertyGroups[elementId] ?? {}, [elementId])
     );
-    const setPropertyGroupCollapseState = useSceneStore((s) => s.setPropertyGroupCollapseState);
-    const storedActiveTabId = useSceneStore(
-        useCallback((s) => s.interaction.activePropertyTab[elementId], [elementId])
-    );
-    const setActivePropertyTab = useSceneStore((s) => s.setActivePropertyTab);
-    const propertyClipboard = useSceneStore(useCallback((s) => s.interaction.propertyClipboard, []));
-    const setPropertyClipboard = useSceneStore((s) => s.setPropertyClipboard);
+    const setPropertyGroupCollapseState = useSceneEditorStore((s) => s.setPropertyGroupCollapseState);
+    const storedActiveTabId = useSceneEditorStore(useCallback((s) => s.activePropertyTab[elementId], [elementId]));
+    const setActivePropertyTab = useSceneEditorStore((s) => s.setActivePropertyTab);
+    const propertyClipboard = useSceneEditorStore(useCallback((s) => s.propertyClipboard, []));
+    const setPropertyClipboard = useSceneEditorStore((s) => s.setPropertyClipboard);
 
     // Fast property-type lookup used by auto-keying logic
     const propertyTypeMap = useMemo(() => {
@@ -235,7 +234,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         setMacroAssignments(nextAssignments);
 
         // Initialize any groups that don't yet have a stored collapse state
-        const currentGroupState = useSceneStore.getState().interaction.expandedPropertyGroups[elementId] ?? {};
+        const currentGroupState = useSceneEditorStore.getState().expandedPropertyGroups[elementId] ?? {};
         groupedSchema.tabs
             .flatMap((t) => t.groups)
             .forEach((group) => {
@@ -308,7 +307,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
 
     const handleCollapseToggle = useCallback(
         (groupId: string) => {
-            const current = useSceneStore.getState().interaction.expandedPropertyGroups[elementId] ?? {};
+            const current = useSceneEditorStore.getState().expandedPropertyGroups[elementId] ?? {};
             setPropertyGroupCollapseState(elementId, groupId, !current[groupId]);
         },
         [elementId, setPropertyGroupCollapseState]

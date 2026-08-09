@@ -14,7 +14,11 @@ import { useSceneStore, type ElementBindings, type SceneStoreState } from '@stat
 import type { SceneCommand } from './commandTypes';
 
 /** Applies graph-only commands and reports whether the command was handled. */
-export function applySceneGraphCommand(store: SceneStoreState, command: SceneCommand): boolean {
+export function applySceneGraphCommand(
+    store: SceneStoreState,
+    command: SceneCommand,
+    getState: () => SceneStoreState = () => useSceneStore.getState()
+): boolean {
     switch (command.type) {
         case 'replaceGraph':
             if (command.expectedRevision != null && store.graph.revision !== command.expectedRevision) {
@@ -46,7 +50,7 @@ export function applySceneGraphCommand(store: SceneStoreState, command: SceneCom
             return true;
         case 'ungroupNode':
             store.replaceGraph(ungroupSceneNode(store.graph, command.nodeId));
-            useSceneStore.getState().removeNodeBindings([command.nodeId]);
+            getState().removeNodeBindings([command.nodeId]);
             return true;
         case 'reorderNodes':
             store.replaceGraph(reorderSceneNodes(store.graph, command.parentId, command.nodeIds, command.targetIndex));
@@ -83,16 +87,16 @@ export function applySceneGraphCommand(store: SceneStoreState, command: SceneCom
                 .filter((node): node is Extract<typeof node, { kind: 'element' }> => node?.kind === 'element')
                 .map((node) => node.elementId);
             const nextGraph = removeSubtrees(graph, command.nodeIds);
-            useSceneStore.getState().removeNodeBindings([...removedIds]);
-            for (const elementId of elementIds) useSceneStore.getState().removeElement(elementId);
-            useSceneStore.getState().replaceGraph(nextGraph);
+            getState().removeNodeBindings([...removedIds]);
+            for (const elementId of elementIds) getState().removeElement(elementId);
+            getState().replaceGraph(nextGraph);
             return true;
         }
         case 'duplicateSubtrees': {
             for (const [sourceElementId, newElementId] of Object.entries(command.mappings.elementIdMap)) {
-                useSceneStore.getState().duplicateElement(sourceElementId, newElementId);
+                getState().duplicateElement(sourceElementId, newElementId);
             }
-            const current = useSceneStore.getState();
+            const current = getState();
             const base = cloneSceneGraph(current.graph);
             for (const newElementId of Object.values(command.mappings.elementIdMap)) {
                 const generatedNodeId = current.nodeIdByElementId[newElementId];
@@ -105,7 +109,7 @@ export function applySceneGraphCommand(store: SceneStoreState, command: SceneCom
                 }
             }
             current.replaceGraph(cloneSubtrees(base, command.nodeIds, command.mappings));
-            const afterGraph = useSceneStore.getState();
+            const afterGraph = getState();
             const occupied = new Set(Object.keys(afterGraph.automation.channels));
             for (const [sourceNodeId, clonedNodeId] of Object.entries(command.mappings.nodeIdMap)) {
                 const sourceBindings = store.nodeBindings[sourceNodeId];
@@ -120,10 +124,10 @@ export function applySceneGraphCommand(store: SceneStoreState, command: SceneCom
                     if (!sourceChannel) continue;
                     const clonedChannel = cloneChannel(sourceChannel, nodePropertyTarget(clonedNodeId, path), occupied);
                     occupied.add(clonedChannel.id);
-                    useSceneStore.getState().setAutomationChannel(clonedChannel);
+                    getState().setAutomationChannel(clonedChannel);
                     clonedBindings[path] = { type: 'keyframes', channelId: clonedChannel.id };
                 }
-                useSceneStore.getState().updateNodeBindings(clonedNodeId, clonedBindings);
+                getState().updateNodeBindings(clonedNodeId, clonedBindings);
             }
             return true;
         }

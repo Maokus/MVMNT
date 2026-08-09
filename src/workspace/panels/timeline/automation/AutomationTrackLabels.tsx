@@ -9,8 +9,9 @@ import {
     FaSearch,
 } from 'react-icons/fa';
 import { useSceneStore } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { useTimelineStore } from '@state/timelineStore';
-import { dispatchSceneCommand } from '@state/scene/commandGateway';
+import { dispatchSceneCommand } from '@state/scene';
 import { useAutomationSceneNodes, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
 import { useSelectionStore } from '@state/selectionStore';
 import { encodePropertyOwner } from '@automation/types';
@@ -213,13 +214,12 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
         : null;
 
     const toggleCurve = useCallback(() => {
-        useSceneStore.setState((state) => {
-            const list = state.interaction.automationExpandedCurves;
+        const editor = useSceneEditorStore.getState();
+        {
+            const list = editor.automationExpandedCurves;
             const next = curveExpanded ? list.filter((id) => id !== channelId) : [...list, channelId];
-            return {
-                interaction: { ...state.interaction, automationExpandedCurves: next },
-            };
-        });
+            editor.setAutomationExpandedCurves(next);
+        }
     }, [channelId, curveExpanded]);
 
     const goPrevKeyframe = useCallback(() => {
@@ -316,20 +316,19 @@ const SceneNodeAutomationGroup: React.FC<{ row: AutomatedSceneNodeView }> = ({ r
     const ownerKey = encodePropertyOwner(owner);
     const expanded = useAutomationExpanded(owner);
     const channels = [...row.hostChannels, ...row.contentChannels];
-    const searchQuery = useSceneStore((s) => s.interaction.automationSearchQuery);
+    const searchQuery = useSceneEditorStore((s) => s.automationSearchQuery);
     const treeExpanded = useSelectionStore((state) => state.expandedNodeIds[row.nodeId] !== false);
     const toggleTreeExpanded = useSelectionStore((state) => state.toggleNodeExpanded);
 
     const toggleExpanded = useCallback(() => {
-        useSceneStore.setState((state) => {
-            const list = state.interaction.automationExpandedOwners;
+        const editor = useSceneEditorStore.getState();
+        {
+            const list = editor.automationExpandedOwners;
             const next = expanded
                 ? list.filter((id) => id !== ownerKey && id !== row.nodeId)
                 : [...list.filter((id) => id !== row.nodeId), ownerKey];
-            return {
-                interaction: { ...state.interaction, automationExpandedOwners: next },
-            };
-        });
+            editor.setAutomationExpandedOwners(next);
+        }
     }, [expanded, ownerKey, row.nodeId]);
 
     const lowerQuery = searchQuery.toLowerCase().trim();
@@ -414,7 +413,7 @@ const SceneNodeAutomationGroup: React.FC<{ row: AutomatedSceneNodeView }> = ({ r
 const AutomationTrackLabels: React.FC = () => {
     const automationRows = useAutomationSceneNodes();
     const expandedSceneNodes = useSelectionStore((state) => state.expandedNodeIds);
-    const searchQuery = useSceneStore((s) => s.interaction.automationSearchQuery);
+    const searchQuery = useSceneEditorStore((s) => s.automationSearchQuery);
     const visibleAutomationRows = searchQuery.trim()
         ? automationRows
         : automationRows.filter((row) =>
@@ -424,9 +423,7 @@ const AutomationTrackLabels: React.FC = () => {
     if (automationRows.length === 0) return null;
 
     const setSearchQuery = (q: string) => {
-        useSceneStore.setState((s) => ({
-            interaction: { ...s.interaction, automationSearchQuery: q },
-        }));
+        useSceneEditorStore.getState().setAutomationSearchQuery(q);
     };
 
     return (

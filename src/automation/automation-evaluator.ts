@@ -8,17 +8,6 @@
 import { AutomationCurve } from './automation-curve';
 import type { AutomationChannel } from './types';
 
-// Lazy reference to avoid circular dependency: sceneStore → automationEvaluator → sceneStore
-let _useSceneStore: { getState(): { automation: { channels: Record<string, AutomationChannel> } } } | null = null;
-function getSceneStore() {
-    if (!_useSceneStore) {
-        import('@state/sceneStore').then((m) => {
-            _useSceneStore = m.useSceneStore;
-        });
-    }
-    return _useSceneStore;
-}
-
 /** Function that retrieves a channel from the scene store. */
 type ChannelProvider = (channelId: string) => AutomationChannel | undefined;
 
@@ -69,12 +58,7 @@ export class AutomationEvaluatorImpl {
             return this.channelProvider(channelId);
         }
 
-        // Fallback: try to import the store directly (lazy to avoid circular deps at module load)
-        try {
-            return getSceneStore()?.getState().automation.channels[channelId];
-        } catch {
-            return undefined;
-        }
+        return undefined;
     }
 }
 

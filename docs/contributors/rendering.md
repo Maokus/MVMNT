@@ -6,6 +6,8 @@
 It indexes the scene graph by revision, evaluates visible elements once per frame, resolves host
 node bindings parent-first, and returns ordered paint records with world transforms, opacity,
 bounds, hulls, and render payloads.
+Runtime invalidation and uncommitted transform previews come from `useSceneEditorStore`; neither is
+part of the authored scene document or persistence snapshot.
 
 The transform relationship is:
 

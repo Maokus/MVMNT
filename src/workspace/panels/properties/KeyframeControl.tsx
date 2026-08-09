@@ -10,11 +10,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useCurrentTick, useAutomationTargetChannel, useKeyframeAtTick } from '@automation/hooks';
-import { dispatchSceneCommand, type SceneCommandOptions } from '@state/scene/commandGateway';
+import { dispatchSceneCommand, type SceneCommandOptions } from '@state/scene';
 import { createKeyframe, elementPropertyTarget, encodePropertyOwner } from '@automation/types';
 import type { AutomationValueType, PropertyTarget } from '@automation/types';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneStore } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 
 interface KeyframeControlProps {
     target?: PropertyTarget;
@@ -66,7 +67,7 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
     const keyframeAtTick = useKeyframeAtTick(channelId, tick);
     const hasUncommittedPreview = useSceneStore((state) => {
         if (target.owner.kind !== 'node') return false;
-        const preview = state.transientNodeTransforms[target.owner.id];
+        const preview = useSceneEditorStore.getState().transientNodeTransforms[target.owner.id];
         return Boolean(preview && typeof preview[target.propertyPath as keyof typeof preview] === 'number');
     });
 
@@ -123,7 +124,9 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                 );
             }
             if (target.owner.kind === 'node') {
-                useSceneStore.getState().clearTransientNodeTransforms([target.owner.id], [target.propertyPath as any]);
+                useSceneEditorStore
+                    .getState()
+                    .clearTransientNodeTransforms([target.owner.id], [target.propertyPath as any]);
             }
         },
         [isAutomated, hasKeyframeHere, channelId, tick, currentValue, target, propertyType]
@@ -167,18 +170,12 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
         const nodeId = target.owner.kind === 'node' ? target.owner.id : state.nodeIdByElementId[target.owner.id];
         if (nodeId) {
             const ownerKey = encodePropertyOwner({ kind: 'node', id: nodeId });
-            useSceneStore.setState((current) => ({
-                interaction: {
-                    ...current.interaction,
-                    automationExpandedOwners: [
-                        ...current.interaction.automationExpandedOwners.filter(
-                            (key) => key !== nodeId && key !== ownerKey
-                        ),
-                        ownerKey,
-                    ],
-                    automationSearchQuery: '',
-                },
-            }));
+            const editor = useSceneEditorStore.getState();
+            editor.setAutomationExpandedOwners([
+                ...editor.automationExpandedOwners.filter((key) => key !== nodeId && key !== ownerKey),
+                ownerKey,
+            ]);
+            editor.setAutomationSearchQuery('');
             requestAnimationFrame(() =>
                 document.querySelector<HTMLElement>(`[data-channel-id="${channel.id}"]`)?.scrollIntoView({
                     block: 'nearest',

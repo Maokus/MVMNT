@@ -4,8 +4,9 @@
 
 `useSceneStore` is composed in `src/state/scene/` and exposed through `src/state/sceneStore.ts`.
 Persistent scene state includes element records, the graph, element and node bindings, macros,
-automation, scene settings, and font assets. Transient scene interaction state includes hierarchy
-selection, hover, tree expansion, and automation editor selection.
+automation, scene settings, and font assets. `useSceneEditorStore` separately owns automation and
+property-panel state, the property clipboard, transform previews, runtime invalidation, and the
+authored-document revision. Hierarchy selection remains in `useSelectionStore`.
 
 `useTimelineStore` is exposed through `src/state/timelineStore.ts`; action implementations live in
 `src/state/timeline/`. It owns transport, timing, tracks, MIDI and audio clips, media caches, and
@@ -24,6 +25,11 @@ Property commands cover constants, macros, automation, and compound edits.
 Use `batch` when several scene mutations form one user action. A failed child restores the scene
 snapshot captured before the batch. Continuous pointer gestures must use a stable merge session so
 intermediate updates collapse into one undo entry.
+
+`createSceneCommandGateway(dependencies)` binds the command behavior to an isolated store for tests
+and alternate runtimes. Application consumers import commands from `@state/scene`; handler modules
+are not application entrypoints. Runtime services are wired by the application composition root,
+not as a side effect of importing `sceneStore.ts`.
 
 ## Timeline commands
 

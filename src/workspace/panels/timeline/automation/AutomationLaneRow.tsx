@@ -23,8 +23,9 @@ import { useFloating, autoUpdate, flip, shift, offset, FloatingPortal } from '@f
 import { useTickScale } from '../hooks/useTickScale';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneStore } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { useSelectionStore } from '@state/selectionStore';
-import { dispatchSceneCommand } from '@state/scene/commandGateway';
+import { dispatchSceneCommand } from '@state/scene';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { quantizeSettingToBeats, type QuantizeSetting } from '@state/timeline/quantize';
 import { copyChannel, getClipboard } from '@automation/clipboard';
@@ -114,11 +115,12 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     // Toggle curve pane (same behavior as double-clicking the label)
     const curveExpanded = useCurveEditorExpanded(channel.id);
     const toggleCurve = useCallback(() => {
-        useSceneStore.setState((state) => {
-            const list = state.interaction.automationExpandedCurves;
+        const editor = useSceneEditorStore.getState();
+        {
+            const list = editor.automationExpandedCurves;
             const next = curveExpanded ? list.filter((id) => id !== channel.id) : [...list, channel.id];
-            return { interaction: { ...state.interaction, automationExpandedCurves: next } };
-        });
+            editor.setAutomationExpandedCurves(next);
+        }
     }, [channel.id, curveExpanded]);
 
     const isSelected = useCallback(

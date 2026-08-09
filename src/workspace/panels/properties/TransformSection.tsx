@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useSceneStore } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 
 export function TransformSection({
     title,
@@ -11,10 +11,10 @@ export function TransformSection({
     ownerKey?: string;
 }) {
     const [localCollapsed, setLocalCollapsed] = useState(false);
-    const storedCollapsed = useSceneStore((state) =>
-        ownerKey ? state.interaction.expandedPropertyGroups[ownerKey]?.[title] : undefined
+    const storedCollapsed = useSceneEditorStore((state) =>
+        ownerKey ? state.expandedPropertyGroups[ownerKey]?.[title] : undefined
     );
-    const setPropertyGroupCollapseState = useSceneStore((state) => state.setPropertyGroupCollapseState);
+    const setPropertyGroupCollapseState = useSceneEditorStore((state) => state.setPropertyGroupCollapseState);
     const collapsed = storedCollapsed ?? localCollapsed;
     const toggle = () => {
         if (ownerKey) setPropertyGroupCollapseState(ownerKey, title, !collapsed);

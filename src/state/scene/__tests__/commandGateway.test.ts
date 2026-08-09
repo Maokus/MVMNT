@@ -9,6 +9,8 @@ import {
 import { loadDefaultScene } from '@core/default-scene-loader';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
+import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 import { deriveElementOrder } from '@state/scene-graph';
 import { elementPropertyTarget, nodePropertyTarget } from '@automation/types';
 import type { FontAsset } from '@state/scene/fonts';
@@ -143,6 +145,27 @@ describe('scene command gateway', () => {
         });
         expect(result.success).toBe(false);
         expect(useSceneStore.getState().exportSceneDraft()).toEqual(before);
+    });
+
+    it('rolls back declared external boundaries when a transaction fails', () => {
+        dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'atomic-document' });
+        useSceneMetadataStore.getState().setName('Before transaction');
+        useTimelineStore.setState({ playbackRange: { startTick: 10, endTick: 20 }, playbackRangeUserDefined: true });
+        useVisualAssetRegistryStore.getState().addPluginEntry('asset:one', 'Asset', 'blob:asset', 'image');
+
+        const result = dispatchSceneCommand({
+            type: 'batch',
+            commands: [
+                { type: 'clearScene' },
+                { type: 'updateElementConfig', elementId: 'missing-element', patch: { text: 'fail' } },
+            ],
+        });
+
+        expect(result.success).toBe(false);
+        expect(useSceneStore.getState().elements['atomic-document']).toBeDefined();
+        expect(useSceneMetadataStore.getState().metadata.name).toBe('Before transaction');
+        expect(useTimelineStore.getState().playbackRange).toEqual({ startTick: 10, endTick: 20 });
+        expect(useVisualAssetRegistryStore.getState().assets['asset:one']).toBeDefined();
     });
 
     it('removes elements and clears store state', () => {

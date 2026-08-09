@@ -1,110 +1,60 @@
-import { createEmptyAutomationState } from '@automation/types';
-import { createFlatSceneGraph } from '@state/scene-graph';
-import { describe, expect, it, vi } from 'vitest';
-import { createAutomationMacrosSlice } from '../slices/automationMacrosSlice';
-import { createElementsBindingsSlice } from '../slices/elementsBindingsSlice';
-import { createGraphNodeBindingsSlice } from '../slices/graphNodeBindingsSlice';
-import type { SceneStoreState } from '../storeTypes';
+import { describe, expect, it } from 'vitest';
+import { createSceneStore } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
+import { createChannel, nodePropertyTarget } from '@automation/types';
 
-function capabilityFixture(): SceneStoreState {
-    const action = vi.fn();
-    return {
-        settings: { fps: 60, width: 1920, height: 1080, tempo: 120, beatsPerBar: 4 },
-        elements: {},
-        graph: createFlatSceneGraph([]),
-        nodeIdByElementId: {},
-        elementIdByNodeId: {},
-        bindings: { byElement: {}, byMacro: {} },
-        macros: { byId: {}, allIds: [] },
-        fonts: { assets: {}, order: [], totalBytes: 0 },
-        interaction: {
-            hoveredElementId: null,
-            editingElementId: null,
-            automationExpandedOwners: [],
-            automationExpandedCurves: [],
-            automationSearchQuery: '',
-            expandedPropertyGroups: {},
-            activePropertyTab: {},
-            propertyClipboard: null,
-        },
-        runtimeMeta: {
-            schemaVersion: 1,
-            initializedAt: 0,
-            persistentDirty: false,
-            hasInitializedScene: false,
-        },
-        automation: createEmptyAutomationState(),
-        nodeBindings: {},
-        transientNodeTransforms: {},
-        addElement: action,
-        moveElement: action,
-        duplicateElement: action,
-        removeElement: action,
-        updateElementId: action,
-        updateSettings: action,
-        updateBindings: action,
-        updateNodeBindings: action,
-        removeNodeBindings: action,
-        createMacro: action,
-        updateMacroValue: action,
-        renameMacro: action,
-        reorderMacros: action,
-        deleteMacro: action,
-        registerFontAsset: action,
-        updateFontAsset: action,
-        deleteFontAsset: action,
-        acknowledgeFontLicensing: action,
-        clearScene: action,
-        importScene: action,
-        exportSceneDraft: vi.fn(),
-        replaceMacros: action,
-        setInteractionState: action,
-        setPropertyGroupCollapseState: action,
-        setActivePropertyTab: action,
-        setPropertyClipboard: action,
-        setAutomationChannel: action,
-        removeAutomationChannel: action,
-        updateAutomationKeyframes: action,
-        replaceGraph: action,
-        updateNodeTransform: action,
-        setTransientNodeTransform: action,
-        clearTransientNodeTransforms: action,
-        setNodeVisibility: action,
-        setNodeOpacity: action,
-        setNodeLocked: action,
-        setNodeName: action,
-    } as SceneStoreState;
-}
+describe('scene state ownership contracts', () => {
+    it('keeps transient editor state out of the scene document store', () => {
+        const document = createSceneStore().getState();
 
-describe('scene capability slice creators', () => {
-    it('constructs element/binding capability without application wiring', () => {
-        expect(Object.keys(createElementsBindingsSlice(capabilityFixture())).sort()).toEqual(
-            [
-                'settings',
-                'elements',
-                'bindings',
-                'addElement',
-                'moveElement',
-                'duplicateElement',
-                'removeElement',
-                'updateElementId',
-                'updateSettings',
-                'updateBindings',
-            ].sort()
-        );
+        expect(document).not.toHaveProperty('interaction');
+        expect(document).not.toHaveProperty('transientNodeTransforms');
+        expect(document).not.toHaveProperty('setPropertyClipboard');
     });
 
-    it('constructs graph/node-binding capability without application wiring', () => {
-        const slice = createGraphNodeBindingsSlice(capabilityFixture());
-        expect(slice.graph.rootId).toBeTruthy();
-        expect(slice.updateNodeTransform).toBeTypeOf('function');
-        expect(slice.updateNodeBindings).toBeTypeOf('function');
+    it('owns panel and transform-preview state in the editor store', () => {
+        const editor = useSceneEditorStore.getState();
+        editor.resetEditorState();
+        editor.setAutomationSearchQuery('opacity');
+        editor.setTransientNodeTransform('node:one', { translationX: 42 });
+
+        expect(useSceneEditorStore.getState()).toMatchObject({
+            automationSearchQuery: 'opacity',
+            transientNodeTransforms: { 'node:one': { translationX: 42 } },
+        });
     });
 
-    it('constructs automation/macro capability without application wiring', () => {
-        const slice = createAutomationMacrosSlice(capabilityFixture());
-        expect(slice.automation.channels).toEqual({});
-        expect(slice.createMacro).toBeTypeOf('function');
-        expect(slice.setAutomationChannel).toBeTypeOf('function');
+    it('constructs automation mutations as a real store capability', () => {
+        const store = createSceneStore();
+        const rootId = store.getState().graph.rootId;
+        const graph = structuredClone(store.getState().graph);
+        graph.nodesById.group = {
+            id: 'group',
+            kind: 'group',
+            name: 'Group',
+            parentId: rootId,
+            children: [],
+            localVisible: true,
+            localOpacity: 1,
+            localLocked: false,
+            userNodeTransform: {
+                translationX: 0,
+                translationY: 0,
+                rotation: 0,
+                scaleX: 1,
+                scaleY: 1,
+                pivotX: 0,
+                pivotY: 0,
+            },
+            parentCompensation: [1, 0, 0, 1, 0, 0],
+        };
+        const root = graph.nodesById[rootId];
+        if (!root || !('children' in root)) throw new Error('missing scene root');
+        root.children.push('group');
+        store.getState().replaceGraph(graph);
+        const channel = createChannel(nodePropertyTarget('group', 'translationX'), 'number');
+        store.getState().setAutomationChannel(channel);
+
+        expect(store.getState().automation.channels[channel.id]).toEqual(channel);
     });
 });

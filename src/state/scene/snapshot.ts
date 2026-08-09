@@ -1,4 +1,3 @@
-import type { PropertyBindingData } from '@bindings/property-bindings';
 import { cloneSceneGraph, deriveElementOrder } from '@state/scene-graph';
 import type { FontAsset } from './fonts';
 import type {
@@ -33,7 +32,7 @@ function cloneFontAsset(asset: FontAsset): FontAsset {
 }
 
 function serializeElement(id: string, type: string, bindings: ElementBindings): SceneSerializedElement {
-    const properties: Record<string, PropertyBindingData> = {};
+    const properties: Record<string, BindingState> = {};
     for (const [key, binding] of Object.entries(bindings)) {
         if (key === 'zIndex') continue;
         if (binding.type === 'constant') properties[key] = { type: 'constant', value: structuredClone(binding.value) };

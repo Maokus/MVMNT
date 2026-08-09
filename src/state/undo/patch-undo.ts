@@ -1,5 +1,5 @@
 import { dispatchSceneCommand, registerSceneCommandListener, type SceneCommandPatch } from '@state/scene';
-import type { SceneCommandTelemetryEvent } from '@state/scene/sceneTelemetry';
+import type { SceneCommandTelemetryEvent } from '@state/scene';
 import { registerTimelineCommandListener, type TimelineCommandTelemetryEvent } from '@state/timeline/timelineTelemetry';
 import type { TimelineCommandPatch } from '@state/timeline/patches';
 import { applyTimelinePatchActions } from '@state/timeline/patches';

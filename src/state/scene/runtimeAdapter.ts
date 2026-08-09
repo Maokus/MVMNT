@@ -24,6 +24,7 @@ import {
     type SceneStructureIndex,
 } from './resolvedScene';
 import { deriveElementOrder } from '@state/scene-graph';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 
 type SceneStoreBinding = typeof useSceneStore;
 
@@ -95,6 +96,7 @@ export class SceneRuntimeAdapter {
     private adapterVersion = 0;
     private settingsVersion = 0;
     private unsubscribe?: () => void;
+    private unsubscribeEditor?: () => void;
     private disposed = false;
     private resolvedFrame: ResolvedSceneFrame | null = null;
     private structureIndex: SceneStructureIndex | null = null;
@@ -155,6 +157,11 @@ export class SceneRuntimeAdapter {
         this.unsubscribe = this.store.subscribe((next: SceneStoreState, prev: SceneStoreState) => {
             this.handleStateChange(next, prev);
         });
+        this.unsubscribeEditor = useSceneEditorStore.subscribe((next, prev) => {
+            if (next.runtimeRevision === prev.runtimeRevision) return;
+            this.resolvedFrame = null;
+            this.adapterVersion += 1;
+        });
         if (typeof window !== 'undefined') {
             window.addEventListener('font-loaded', this.handleFontLoaded as EventListener);
             window.addEventListener('mvmnt-plugin-installed', this.handlePluginInstalled as EventListener);
@@ -176,6 +183,7 @@ export class SceneRuntimeAdapter {
             );
         }
         this.unsubscribe?.();
+        this.unsubscribeEditor?.();
         this.cache.forEach((entry) => {
             try {
                 entry.element.dispose?.();
@@ -242,7 +250,7 @@ export class SceneRuntimeAdapter {
             structure: this.structureIndex,
             evaluateNode: (node) => {
                 const bindings = state.nodeBindings[node.id];
-                const transientTransform = state.transientNodeTransforms[node.id];
+                const transientTransform = useSceneEditorStore.getState().transientNodeTransforms[node.id];
                 if (!bindings && !transientTransform) return node;
                 const evaluated = {
                     ...node,
@@ -401,12 +409,7 @@ export class SceneRuntimeAdapter {
             this.orderedIds = deriveElementOrder(next.graph);
             mutated = true;
         }
-        if (
-            next.graph !== prev.graph ||
-            next.nodeBindings !== prev.nodeBindings ||
-            next.transientNodeTransforms !== prev.transientNodeTransforms ||
-            next.macros !== prev.macros
-        )
+        if (next.graph !== prev.graph || next.nodeBindings !== prev.nodeBindings || next.macros !== prev.macros)
             mutated = true;
 
         const nextOrder = deriveElementOrder(next.graph);

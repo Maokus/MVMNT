@@ -126,12 +126,16 @@ function extractNodeAxis(
     return { value: Math.abs(anchorValue - 0.5) <= 1e-4 ? fallback : 0 };
 }
 
-export function applySceneStoreCommand(store: SceneStoreState, command: SceneCommand) {
-    if (applySceneGraphCommand(store, command)) return;
+export function applySceneStoreCommand(
+    store: SceneStoreState,
+    command: SceneCommand,
+    getState: () => SceneStoreState = () => useSceneStore.getState()
+) {
+    if (applySceneGraphCommand(store, command, getState)) return;
 
     switch (command.type) {
         case 'batch':
-            command.commands.forEach((child) => applySceneStoreCommand(store, child));
+            command.commands.forEach((child) => applySceneStoreCommand(getState(), child, getState));
             break;
         case 'addElement': {
             const input = createSceneElementInputFromSchema({
@@ -147,7 +151,7 @@ export function applySceneStoreCommand(store: SceneStoreState, command: SceneCom
             const x = extractNodeAxis('X', { config: command.config, bindings, sceneSize: settings.width });
             const y = extractNodeAxis('Y', { config: command.config, bindings, sceneSize: settings.height });
             store.addElement({ ...input, bindings });
-            const current = useSceneStore.getState();
+            const current = getState();
             const nodeId = current.nodeIdByElementId[command.elementId];
             if (nodeId) {
                 if (x.value !== 0 || y.value !== 0) {
@@ -237,7 +241,7 @@ export function applySceneStoreCommand(store: SceneStoreState, command: SceneCom
                 channel.keyframes = [...command.initialKeyframes];
             }
             store.setAutomationChannel(channel);
-            updateTargetBinding(useSceneStore.getState(), target, { type: 'keyframes', channelId: channel.id });
+            updateTargetBinding(getState(), target, { type: 'keyframes', channelId: channel.id });
             break;
         }
         case 'disablePropertyAutomation': {
@@ -269,7 +273,7 @@ export function applySceneStoreCommand(store: SceneStoreState, command: SceneCom
                 }
             }
             store.removeAutomationChannel(channelId);
-            updateTargetBinding(useSceneStore.getState(), target, { type: 'constant', value: fallback });
+            updateTargetBinding(getState(), target, { type: 'constant', value: fallback });
             break;
         }
         case 'updatePropertyTargetBinding':
@@ -291,7 +295,7 @@ export function applySceneStoreCommand(store: SceneStoreState, command: SceneCom
                 const removed = channel.keyframes.find((kf) => Math.abs(kf.tick - command.tick) < 0.5);
                 const fallback: unknown = removed?.value ?? 0;
                 store.removeAutomationChannel(command.channelId);
-                updateTargetBinding(useSceneStore.getState(), channel.target, { type: 'constant', value: fallback });
+                updateTargetBinding(getState(), channel.target, { type: 'constant', value: fallback });
             } else {
                 store.updateAutomationKeyframes(command.channelId, nextKeyframes);
             }

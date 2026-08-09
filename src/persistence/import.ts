@@ -21,6 +21,7 @@ import { decodeSceneText, parseScenePackage, ScenePackageError } from './scene-p
 import { isTestEnvironment } from '@utils/env';
 import { useVisualAssetRegistryStore, type ProjectAsset } from '@state/visualAssetRegistryStore';
 import { useSceneStore } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 import {
     advanceTimelineMutationGeneration,
     getTimelineMutationGeneration,
@@ -227,6 +228,7 @@ export async function importScene(
         window.dispatchEvent(new Event('mvmnt-scene-import-complete'));
     }
     if (fontUpgradePerformed) {
+        useSceneEditorStore.getState().markDocumentChanged('updateFonts');
         useSceneStore.setState((state) => ({
             runtimeMeta: {
                 ...state.runtimeMeta,

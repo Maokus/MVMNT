@@ -10,7 +10,12 @@ describe('state facade stability', () => {
     it('keeps sceneStore as a composition facade', () => {
         const facade = source('src/state/sceneStore.ts');
         expect(facade).toContain("from './scene/storeComposition'");
-        expect(facade).toContain("from './scene/sceneStoreRuntimeWiring'");
+        expect(facade).not.toContain("export * from './scene/storeComposition'");
+        expect(facade).not.toContain('wireSceneStoreRuntime');
+        expect(source('src/app/initializeSceneState.ts')).toContain('wireSceneStoreRuntime(useSceneStore)');
+        expect(source('src/state/scene/storeTypes.ts')).not.toContain('storeComposition');
+        expect(source('src/state/scene/storeComposition.ts')).not.toContain('transientNodeTransforms');
+        expect(source('src/state/scene/storeComposition.ts')).not.toContain('interaction:');
     });
 
     it('keeps the timeline command descriptor gateway public', () => {

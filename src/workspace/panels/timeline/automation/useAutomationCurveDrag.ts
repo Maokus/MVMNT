@@ -7,7 +7,7 @@
  */
 
 import { useCallback, useRef, useState } from 'react';
-import { dispatchSceneCommand } from '@state/scene/commandGateway';
+import { dispatchSceneCommand } from '@state/scene';
 import { useSelectionStore } from '@state/selectionStore';
 import { buildHandlePatch, yCoordToValue } from './automationCurveUtils';
 import type { AutomationChannel, HandleType } from '@automation/types';

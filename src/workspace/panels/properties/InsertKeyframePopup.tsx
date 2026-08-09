@@ -16,14 +16,14 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FloatingPortal } from '@floating-ui/react';
-import { dispatchSceneCommand } from '@state/scene/commandGateway';
+import { dispatchSceneCommand } from '@state/scene';
 import { channelForTarget, createKeyframe, elementPropertyTarget } from '@automation/types';
 import type { AutomationValueType, PropertyTarget } from '@automation/types';
 import { useCurrentTick } from '@automation/hooks';
 import { useSceneStore } from '@state/sceneStore';
 import { resolveAutomationValueType } from './KeyframeControl';
 import type { EnhancedConfigSchema } from '@core/types';
-import { effectiveValueForTarget } from '@state/scene/propertyEditing';
+import { effectiveValueForTarget } from '@state/scene';
 import { hostPropertyDescriptors } from '@state/scene/propertyCatalog';
 
 // ---------------------------------------------------------------------------

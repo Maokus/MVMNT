@@ -7,12 +7,13 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSceneStore } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 import { useTickScale } from '../hooks/useTickScale';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import { useAutomationSceneNodes, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
-import { dispatchSceneCommand } from '@state/scene/commandGateway';
+import { dispatchSceneCommand } from '@state/scene';
 import { copySelectedKeyframes, getKeyframeSelClipboard } from '@automation/clipboard';
 import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, AUTOMATION_SEARCH_HEIGHT } from '../constants';
 import { useCurveHeight } from '../context/curveHeightContext';
@@ -60,12 +61,8 @@ const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ 
     const curveHeight = useCurveHeight(channel.id);
 
     const handleCurveDoubleClick = useCallback(() => {
-        useSceneStore.setState((state) => ({
-            interaction: {
-                ...state.interaction,
-                automationExpandedCurves: state.interaction.automationExpandedCurves.filter((id) => id !== channel.id),
-            },
-        }));
+        const editor = useSceneEditorStore.getState();
+        editor.setAutomationExpandedCurves(editor.automationExpandedCurves.filter((id) => id !== channel.id));
     }, [channel.id]);
 
     return (
@@ -90,7 +87,7 @@ const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ 
 const SceneNodeAutomationLanes: React.FC<{ row: AutomatedSceneNodeView; width: number }> = ({ row, width }) => {
     const expanded = useAutomationExpanded({ kind: 'node', id: row.nodeId });
     const channels = [...row.hostChannels, ...row.contentChannels];
-    const searchQuery = useSceneStore((s) => s.interaction.automationSearchQuery);
+    const searchQuery = useSceneEditorStore((s) => s.automationSearchQuery);
     const { toX, toTick } = useTickScale();
     const snapTick = useSnapTicks();
 
@@ -379,7 +376,7 @@ interface AutomationLanesProps {
 const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
     const automationRows = useAutomationSceneNodes();
     const expandedSceneNodes = useSelectionStore((state) => state.expandedNodeIds);
-    const hierarchySearch = useSceneStore((state) => state.interaction.automationSearchQuery.trim());
+    const hierarchySearch = useSceneEditorStore((state) => state.automationSearchQuery.trim());
     const visibleAutomationRows = hierarchySearch
         ? automationRows
         : automationRows.filter((row) =>

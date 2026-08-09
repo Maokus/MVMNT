@@ -3,6 +3,7 @@ import { useTimelineStore } from '@state/timelineStore';
 import { setSelectionChannelTargetResolver, setSelectionSceneResolvers } from '@state/selectionStore';
 import type { StoreApi } from 'zustand';
 import type { SceneStoreState } from './storeTypes';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 
 /**
  * Binds runtime services to a composed scene store. Keeping this outside the
@@ -21,7 +22,7 @@ export function wireSceneStoreRuntime(sceneStore: StoreApi<SceneStoreState>): vo
     useTimelineStore.subscribe((state) => {
         const tick = state.timeline.currentTick;
         if (tick !== lastOverrideClearTick) {
-            if (lastOverrideClearTick !== null) sceneStore.getState().clearTransientNodeTransforms();
+            if (lastOverrideClearTick !== null) useSceneEditorStore.getState().clearTransientNodeTransforms();
             lastOverrideClearTick = tick;
         }
     });

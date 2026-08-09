@@ -2,6 +2,7 @@ import React, { createContext, useContext, useCallback, useEffect, useRef, useSt
 import { useVisualizer } from './VisualizerContext';
 import { useMenuBar } from '@context/useMenuBar';
 import { useSceneStore } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { SaveSceneModal } from '@workspace/modals/SaveSceneModal';
 import { LocalSaveService } from '@persistence/local-save-service';
@@ -97,14 +98,9 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         [sceneName, updateSceneName]
     );
 
-    // Bump the store runtime metadata to notify all components about scene changes
+    // Invalidate runtime projections without mutating the authored document.
     const refreshSceneUI = useCallback(() => {
-        useSceneStore.setState((prev) => ({
-            runtimeMeta: {
-                ...prev.runtimeMeta,
-                lastMutatedAt: Date.now(),
-            },
-        }));
+        useSceneEditorStore.getState().invalidateRuntime();
     }, []);
 
     const chooseUnsavedChangesDecision = useCallback((decision: 'save' | 'discard' | 'cancel') => {

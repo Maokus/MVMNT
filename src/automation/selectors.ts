@@ -5,16 +5,13 @@
 import type { AutomationChannel } from './types';
 import { encodePropertyOwner } from './types';
 import { traverseSceneGraph, type SceneGraphState } from '@state/scene-graph';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 
 /** Minimal store shape needed by these selectors (avoids importing the full store type). */
 interface AutomationStoreSlice {
     automation: { channels: Record<string, AutomationChannel> };
     elements: Record<string, { id: string; type: string }>;
     graph: SceneGraphState;
-    interaction: {
-        automationExpandedOwners: string[];
-        automationExpandedCurves: string[];
-    };
 }
 
 export interface AutomatedOwnerView {
@@ -140,7 +137,8 @@ export function selectVisibleAutomationRowCount(state: AutomationStoreSlice): nu
     if (rows.length === 0) return 0;
 
     let count = 0; // No section header row — we use a simple divider
-    const expanded = new Set(state.interaction.automationExpandedOwners);
+    const editor = useSceneEditorStore.getState();
+    const expanded = new Set(editor.automationExpandedOwners);
 
     for (const row of rows) {
         count += 1; // Element header row
@@ -150,7 +148,7 @@ export function selectVisibleAutomationRowCount(state: AutomationStoreSlice): nu
             count += channels.length; // Channel rows
             // Count expanded curve editors
             for (const ch of channels) {
-                if (state.interaction.automationExpandedCurves.includes(ch.id)) {
+                if (editor.automationExpandedCurves.includes(ch.id)) {
                     count += 4; // Curve editor takes ~4x the space of a regular row
                 }
             }
