@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { calculateAutoBitrate, estimateFileSize } from '@export/fileSizeEstimator';
-import type { EstimationParams, FileSizeEstimate } from '@export/fileSizeEstimator';
-import type { ExportSettings } from '@context/visualizer/types';
+import { calculateAutoBitrate, estimateFileSize } from '@export/planning';
+import type { EstimationParams, FileSizeEstimate } from '@export/planning';
+import type { ExportSettings } from '@export/contracts';
 import type { FormState, VideoBitrateSetting } from './types';
 
 export interface ExportEstimates {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-vi.mock('../mp3-encoder-optional-fallback', () => ({
+vi.mock('../codecs/mp3-encoder-optional-fallback', () => ({
     registerMp3Encoder: vi.fn(),
     reportMissingEncoder: vi.fn(),
 }));
@@ -14,7 +14,7 @@ describe('mp3-encoder-loader', () => {
         vi.doMock('@mediabunny/mp3-encoder', () => ({
             registerMp3Encoder: vi.fn(),
         }));
-        const { ensureMp3EncoderRegistered } = await import('../mp3-encoder-loader');
+        const { ensureMp3EncoderRegistered } = await import('../codecs/mp3-encoder-loader');
         await expect(ensureMp3EncoderRegistered()).resolves.toBeUndefined();
         await expect(ensureMp3EncoderRegistered()).resolves.toBeUndefined();
     });
@@ -23,9 +23,9 @@ describe('mp3-encoder-loader', () => {
         vi.doMock('@mediabunny/mp3-encoder', () => {
             throw new TypeError('module missing');
         });
-        const { ensureMp3EncoderRegistered } = await import('../mp3-encoder-loader');
+        const { ensureMp3EncoderRegistered } = await import('../codecs/mp3-encoder-loader');
         await expect(ensureMp3EncoderRegistered()).resolves.toBeUndefined();
-        const fallback = await import('../mp3-encoder-optional-fallback');
+        const fallback = await import('../codecs/mp3-encoder-optional-fallback');
         expect(fallback.reportMissingEncoder).toHaveBeenCalled();
     });
 
@@ -33,13 +33,13 @@ describe('mp3-encoder-loader', () => {
         vi.doMock('@mediabunny/mp3-encoder', () => {
             throw new TypeError('missing');
         });
-        const { ensureMp3EncoderRegistered } = await import('../mp3-encoder-loader');
+        const { ensureMp3EncoderRegistered } = await import('../codecs/mp3-encoder-loader');
         await ensureMp3EncoderRegistered();
         vi.doMock('@mediabunny/mp3-encoder', () => ({
             registerMp3Encoder: vi.fn(),
         }));
         vi.resetModules();
-        const { ensureMp3EncoderRegistered: retry } = await import('../mp3-encoder-loader');
+        const { ensureMp3EncoderRegistered: retry } = await import('../codecs/mp3-encoder-loader');
         await expect(retry()).resolves.toBeUndefined();
     });
 });

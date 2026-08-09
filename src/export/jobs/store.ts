@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ExportSettings } from '@context/visualizer/types';
+import type { ExportSettings } from '../contracts';
 
 export type ExportJobKind = 'video' | 'png';
 export type ExportJobStatus =

@@ -1,5 +1,5 @@
-import type { ExportJobKind } from '@export/export-job-store';
-import type { ExportSettings } from './types';
+import type { ExportJobKind } from './store';
+import type { ExportSettings } from '../contracts';
 
 export const BACKGROUND_EXPORT_KEY = 'mvmnt.desktop.background-export.v1';
 

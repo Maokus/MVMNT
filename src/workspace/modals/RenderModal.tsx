@@ -1,15 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FaEllipsisV } from 'react-icons/fa';
 import { useVisualizer } from '@context/VisualizerContext';
-import type { ExportSettings } from '@context/visualizer/types';
-import { ensureMp3EncoderRegistered } from '@export/mp3-encoder-loader';
-import { ensureAacEncoderRegistered } from '@export/aac-encoder-loader';
+import type { ExportSettings } from '@export/contracts';
+import { ensureAacEncoderRegistered, ensureMp3EncoderRegistered } from '@export/codecs';
 import type { FpsMode, ExportFormat, VideoContainer, VideoBitrateSetting, FormState } from './render-modal/types';
 import { deriveInitialFormState } from './render-modal/initialFormState';
 import { useCodecCapabilities } from './render-modal/useCodecCapabilities';
 import { useExportEstimates } from './render-modal/useExportEstimates';
 import { FormField, inputCls } from './render-modal/FormField';
-import { loadExportPresets, type ExportPreset } from '@export/export-presets';
+import { loadExportPresets, type ExportPreset } from '@export/presets';
 import { updateDestinationExtension } from './render-modal/exportDestination';
 import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 

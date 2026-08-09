@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ExportClock } from './export-clock';
+import { ExportClock } from '../timing';
 
 describe('SimulatedClock', () => {
     it('produces deterministic times with playRangeStart (no padding)', () => {

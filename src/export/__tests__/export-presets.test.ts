@@ -5,7 +5,7 @@ import {
     expandExportFilename,
     loadExportPresets,
     saveExportPreset,
-} from '../export-presets';
+} from '../presets';
 
 describe('export presets', () => {
     it('provides built-in presets for the supported video formats', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createExportManifest } from '../export-manifest';
-import type { ExportJob } from '../export-job-store';
+import { createExportManifest } from '../outputs';
+import type { ExportJob } from '../jobs';
 
 describe('export manifest', () => {
     it('records deterministic settings and range-derived frame count', () => {

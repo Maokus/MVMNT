@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ExportPerformanceTracker, createExportDiagnostics } from '../export-performance';
+import { ExportPerformanceTracker, createExportDiagnostics } from '../diagnostics';
 
 describe('export performance diagnostics', () => {
     it('records bounded stage metrics without project content', () => {

@@ -1,4 +1,4 @@
-import type { ExportSettings } from '@context/visualizer/types';
+import type { ExportSettings } from '../contracts';
 
 export type ExportPresetSettings = Partial<ExportSettings> & {
     /** The output kind is local to the render dialog, rather than persisted export settings. */

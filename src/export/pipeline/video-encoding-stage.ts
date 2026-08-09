@@ -1,7 +1,5 @@
 /**
- * AV Exporter
- * ---------------------------------------------
- * Produces an MP4 (or future alternative container) by combining a deterministic offline audio mix with
+ * Encodes a video container by combining a deterministic offline audio mix with
  * video frames rendered from the existing visualizer pipeline (canvas → WebCodecs via mediabunny).
  *
  * Key Guarantees:
@@ -9,21 +7,13 @@
  *  - Provides a reproducibility hash derived from canonical track + timing serialization.
  *  - Streams the encoded container to Electron's native export destination.
  *
- * Design Notes:
- *  - All bitrate / codec heuristics are encapsulated here to keep callers simple.
- *  - The class is intentionally stateful only during an active export (guarded by `isExporting`).
- *  - Future extensions (multi‑audio track, alternative containers) should isolate branching inside
- *    local helper sections instead of leaking flags into public API.
- *
  * Limitations / Current Assumptions:
  *  - Single mixed audio track (stereo) fed as one `AudioBuffer` (no per‑track metadata in container).
  *  - Canvas rendering assumed synchronous & side‑effect free for a given render time.
  *  - Audio master and stem artifacts are passed to the desktop export sink separately.
  */
 import { offlineMix } from '@audio/offline-audio-mixer';
-import { computeReproHash, normalizeTracksForHash } from './repro-hash';
-import { ExportClock } from './export-clock';
-import { createExportTimingSnapshot } from './export-timing-snapshot';
+import { computeReproHash, normalizeTracksForHash } from '../diagnostics/repro-hash';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import {
     Output,
@@ -37,8 +27,9 @@ import {
     getEncodableVideoCodecs,
     getEncodableAudioCodecs,
 } from 'mediabunny';
-import { ensureMp3EncoderRegistered } from './mp3-encoder-loader';
-import { ensureAacEncoderRegistered } from './aac-encoder-loader';
+import { ensureMp3EncoderRegistered } from '../codecs/mp3-encoder-loader';
+import { ensureAacEncoderRegistered } from '../codecs/aac-encoder-loader';
+import { beginExportSurface, driveFrames } from './frame-driver';
 
 // NOTE: MP3 encoder registration has been moved to a lazy path (`ensureMp3EncoderRegistered`) to avoid
 // loading the WASM + encoder code during initial app load. See `mp3-encoder-loader.ts`.
@@ -49,7 +40,7 @@ function toEncodeTimestamp(absSeconds: number, exportStartSeconds: number): numb
     return rel < 0 ? 0 : rel;
 }
 
-export interface AVExportOptions {
+export interface VideoEncodingOptions {
     fps?: number;
     width?: number;
     height?: number;
@@ -60,7 +51,7 @@ export interface AVExportOptions {
     deterministicTiming?: boolean;
     sampleRate?: number; // audio mix sample rate (default 48000)
     onProgress?: (p: number, text?: string) => void;
-    onComplete?: (result: AVExportResult) => void;
+    onComplete?: (result: VideoEncodingResult) => void;
     bitrate?: number;
     // Container & codec overrides. "auto" selects the best supported implementation (currently mp4/avc fallback).
     container?: 'auto' | 'mp4' | 'webm';
@@ -80,23 +71,24 @@ export interface AVExportOptions {
     transparentBackground?: boolean;
 }
 
-export interface AVExportArtifact {
+export interface VideoEncodingArtifact {
     filename: string;
     blob: Blob;
 }
 
-export interface AVExportResult {
+export interface VideoEncodingResult {
     videoBlob: Blob | null;
     audioBlob: Blob | null; // WAV or inside MP4
     combinedBlob?: Blob; // MP4 with audio when successful
     reproducibilityHash: string | null;
     mixPeak: number | null;
     durationSeconds: number;
+    frameCount: number;
     writtenToTarget: boolean;
-    artifacts: AVExportArtifact[];
+    artifacts: VideoEncodingArtifact[];
 }
 
-export class AVExporter {
+export class VideoEncodingStage {
     private canvas: HTMLCanvasElement;
     private visualizer: any;
     private isExporting = false;
@@ -110,9 +102,9 @@ export class AVExporter {
         return this.isExporting;
     }
 
-    async export(options: AVExportOptions): Promise<AVExportResult> {
-        console.log('[AVExporter] Starting export with options', options);
-        if (this.isExporting) throw new Error('AV export already in progress');
+    async run(options: VideoEncodingOptions): Promise<VideoEncodingResult> {
+        console.log('[VideoEncodingStage] Starting export with options', options);
+        if (this.isExporting) throw new Error('Video encoding already in progress');
         this.isExporting = true;
         const {
             fps = 60,
@@ -122,7 +114,7 @@ export class AVExporter {
             startTick,
             endTick,
             includeAudio = true,
-            deterministicTiming = true,
+            deterministicTiming: _deterministicTiming = true,
             sampleRate = 48000,
             onProgress = () => {},
             onComplete = () => {},
@@ -144,19 +136,14 @@ export class AVExporter {
             transparentBackground = false,
         } = options;
 
-        const originalWidth = this.canvas.width;
-        const originalHeight = this.canvas.height;
+        const restoreSurface = beginExportSurface(this.canvas, this.visualizer, width, height, transparentBackground);
 
         try {
-            this.canvas.width = width;
-            this.canvas.height = height;
-            this.visualizer.resize(width, height);
             onProgress(0, 'Preparing export...');
 
             const tm = getSharedTimingManager();
             const ticksPerSecond = (tm.bpm * tm.ticksPerQuarter) / 60; // kept for reproducibility hash
             const t2s = (ticks: number) => tm.ticksToSeconds(ticks);
-            const snapshot = deterministicTiming ? createExportTimingSnapshot(tm) : undefined;
 
             // Prepare audio mix
             let mixBlob: Blob | null = null; // separate WAV fallback / download
@@ -167,9 +154,9 @@ export class AVExporter {
             const desiredMixChannels = (typeof audioChannels === 'number' ? audioChannels : 2) === 1 ? 1 : 2;
             const desiredMixSampleRate = audioSampleRate === 'auto' ? sampleRate : audioSampleRate;
             let mixedAudioChannels: 1 | 2 = desiredMixChannels;
-            const artifacts: AVExportArtifact[] = [];
+            const artifacts: VideoEncodingArtifact[] = [];
             if (includeAudio) {
-                console.log('[AVExporter] Mixing audio for export range', startTick, 'to', endTick);
+                console.log('[VideoEncodingStage] Mixing audio for export range', startTick, 'to', endTick);
                 onProgress(3, 'Mixing audio...');
                 const s = useTimelineStore.getState();
                 const mixRes = await offlineMix({
@@ -190,7 +177,7 @@ export class AVExporter {
                 mixedAudioChannels = mixRes.channels === 1 ? 1 : 2;
                 if (mixRes.buffer.length === 0 || mixDuration === 0) {
                     console.warn(
-                        '[AVExporter] Mixed audio buffer is empty (no audible tracks or zero-duration range). Video will have no audio.'
+                        '[VideoEncodingStage] Mixed audio buffer is empty (no audible tracks or zero-duration range). Video will have no audio.'
                     );
                 }
                 try {
@@ -200,7 +187,14 @@ export class AVExporter {
                 } catch (e) {
                     console.warn('Failed to create WAV blob from mixed audio', e);
                 }
-                console.log('[AVExporter] Mixed audio buffer', mixRes.buffer, 'duration', mixDuration, 'peak', mixPeak);
+                console.log(
+                    '[VideoEncodingStage] Mixed audio buffer',
+                    mixRes.buffer,
+                    'duration',
+                    mixDuration,
+                    'peak',
+                    mixPeak
+                );
 
                 if (exportAudioStems) {
                     let stemIndex = 0;
@@ -242,7 +236,7 @@ export class AVExporter {
                 const audioDuration = mixedAudioBuffer.duration; // high precision duration from WebAudio buffer
                 if (Math.abs(audioDuration - nominalDurationSeconds) > 0.01) {
                     console.warn(
-                        '[AVExporter] Adjusting video duration to match mixed audio duration',
+                        '[VideoEncodingStage] Adjusting video duration to match mixed audio duration',
                         'nominal=',
                         nominalDurationSeconds.toFixed(3),
                         'audio=',
@@ -252,7 +246,6 @@ export class AVExporter {
                 }
             }
             const totalFrames = Math.ceil(videoDurationSeconds * fps);
-            const clock = new ExportClock({ fps, timingSnapshot: snapshot as any });
 
             // Setup mediabunny output
             onProgress(8, 'Configuring video encoder...');
@@ -288,8 +281,7 @@ export class AVExporter {
             const outputFormat = resolvedContainer === 'webm' ? new WebMOutputFormat() : new Mp4OutputFormat();
             const output = new Output({ format: outputFormat, target });
             // Bitrate handling:
-            // Primary source is now the numeric bitrate resolved upstream (RenderModal). We keep heuristic fallback to
-            // protect other legacy call sites that might not provide an explicit value yet.
+            // Prefer the numeric bitrate resolved by export planning, with a defensive fallback for direct stage use.
             const MIN_FALLBACK = 500_000; // 0.5 Mbps lower bound
             const MAX_FALLBACK = 80_000_000; // 80 Mbps upper bound to protect from runaway huge canvases
             const BPPPF = 0.09; // heuristic bits per pixel per frame
@@ -308,7 +300,7 @@ export class AVExporter {
                 resolvedBitrate = upstreamBitrateCandidate;
             } else {
                 resolvedBitrate = computeHeuristicBitrate(width, height, fps);
-                console.log('[AVExporter] Using heuristic video bitrate', Math.round(resolvedBitrate), 'bps');
+                console.log('[VideoEncodingStage] Using heuristic video bitrate', Math.round(resolvedBitrate), 'bps');
             }
             resolvedBitrate = Math.round(Math.min(Math.max(resolvedBitrate, MIN_FALLBACK), MAX_FALLBACK));
             const videoSourceConfig: any = {
@@ -318,7 +310,7 @@ export class AVExporter {
             };
             if (resolvedBitrate <= 1_000_000) {
                 console.warn(
-                    '[AVExporter] Selected video bitrate is quite low (<=1 Mbps). Expect visible compression. bitrate=',
+                    '[VideoEncodingStage] Selected video bitrate is quite low (<=1 Mbps). Expect visible compression. bitrate=',
                     resolvedBitrate
                 );
             }
@@ -351,7 +343,7 @@ export class AVExporter {
                         capabilityOptions
                     ).catch(() => false);
                     console.log(
-                        '[AVExporter] Audio codec',
+                        '[VideoEncodingStage] Audio codec',
                         resolvedAudioCodec,
                         'supported=',
                         supportedPreferred,
@@ -418,20 +410,19 @@ export class AVExporter {
 
             onProgress(10, 'Rendering frames...');
             const exportStartSeconds = t2s(startTick);
-            // Preserve transparent pixels in the source canvas as well as the VP9 alpha channel.
-            if (transparentBackground) this.visualizer.setTransparentMode?.(true);
-            try {
-                for (let i = 0; i < totalFrames; i++) {
-                    if (signal?.aborted) throw new DOMException('Export cancelled', 'AbortError');
-                    const renderTime = clock.timeForFrame(i) + exportStartSeconds; // absolute scene time
-                    this.visualizer.renderAtTime(renderTime);
-                    const encodeTime = toEncodeTimestamp(renderTime, exportStartSeconds);
-                    await canvasSource.add(encodeTime, 1 / fps);
-                    if (i % 10 === 0) onProgress(10 + (i / totalFrames) * 80, 'Rendering frames...');
-                }
-            } finally {
-                if (transparentBackground) this.visualizer.setTransparentMode?.(false);
-            }
+            await driveFrames(
+                {
+                    startSeconds: exportStartSeconds,
+                    fps,
+                    frameCount: totalFrames,
+                    signal,
+                    renderAtTime: (seconds) => this.visualizer.renderAtTime(seconds),
+                },
+                async (_frameIndex, renderTime, _encodeTime, frameDuration) => {
+                    await canvasSource.add(toEncodeTimestamp(renderTime, exportStartSeconds), frameDuration);
+                },
+                (completed) => onProgress(10 + (completed / totalFrames) * 80, 'Rendering frames...')
+            );
             canvasSource.close();
 
             onProgress(92, 'Finalizing container...');
@@ -441,7 +432,7 @@ export class AVExporter {
             if (includeAudio && !audioAdded) {
                 const containerLabel = resolvedContainer.toUpperCase();
                 console.warn(
-                    `[AVExporter] Audio track not muxed into ${containerLabel}. Providing separate WAV blob instead.`
+                    `[VideoEncodingStage] Audio track not muxed into ${containerLabel}. Providing separate WAV blob instead.`
                 );
             }
 
@@ -463,13 +454,14 @@ export class AVExporter {
                 console.warn('Failed to compute reproducibility hash', e);
             }
 
-            const result: AVExportResult = {
+            const result: VideoEncodingResult = {
                 videoBlob,
                 audioBlob: mixBlob,
                 combinedBlob,
                 reproducibilityHash,
                 mixPeak,
                 durationSeconds: mixDuration,
+                frameCount: totalFrames,
                 writtenToTarget: true,
                 artifacts,
             };
@@ -477,9 +469,7 @@ export class AVExporter {
             onComplete(result);
             return result;
         } finally {
-            this.canvas.width = originalWidth;
-            this.canvas.height = originalHeight;
-            this.visualizer.resize(originalWidth, originalHeight);
+            restoreSurface();
             this.isExporting = false;
         }
     }
@@ -551,10 +541,3 @@ export function audioBufferToWavBlob(buffer: AudioBuffer, bitsPerSample: 16 | 24
     }
     return new Blob([buf], { type: 'audio/wav' });
 }
-
-declare global {
-    interface Window {
-        AVExporter: typeof AVExporter;
-    }
-}
-(window as any).AVExporter = AVExporter;

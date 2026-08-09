@@ -31,6 +31,22 @@ Video chunks and image frames are written to temporary targets and validated bef
 finalization swap. Cancellation, failure, application exit, and interrupted-launch cleanup remove
 known temporary output. Browser builds retain the foreground Blob/ZIP path.
 
+### Renderer export architecture
+
+The renderer-side export domain is organized by responsibility under `src/export`:
+
+- `contracts` defines export requests, resolved plans, environments, output sessions, and results.
+- `planning` validates a request and resolves its range, frame count, codecs, bitrate, filename, and estimate once.
+- `jobs` owns the persistent job store, single-job coordinator, cancellation, and background bootstrap contract.
+- `pipeline` owns deterministic frame rendering and the PNG/video/audio encoding stages.
+- `outputs` adapts the format-neutral output session to the capability-based Electron bridge.
+- `codecs`, `timing`, `diagnostics`, and `presets` contain their corresponding focused support code.
+
+Foreground UI actions, the hidden background renderer, and command-line automation submit the same export request to
+the coordinator. React context only exposes the small submit/cancel/reveal facade; it does not own encoder or sink
+logic. Export modules must not depend on React context or workspace UI, and exporter constructors must not be placed
+on `window`.
+
 ## Command-line rendering
 
 Build the desktop application before invoking the hidden renderer:

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { isExportJobActive, useExportJobStore } from '@export/export-job-store';
-import { createExportDiagnostics } from '@export/export-performance';
+import { isExportJobActive, useExportJobStore } from '@export/jobs';
+import { createExportDiagnostics } from '@export/diagnostics';
 
 interface ProgressOverlayProps {
     progress: number;

@@ -1,4 +1,4 @@
-import type { ExportJob } from './export-job-store';
+import type { ExportJob } from '../jobs/store';
 
 export interface ExportManifest extends Record<string, unknown> {
     schemaVersion: 1;

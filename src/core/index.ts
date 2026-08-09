@@ -5,7 +5,6 @@
 // ==========================================
 export { MIDIParser, parseMIDI } from '@core/midi/midi-parser';
 export { NoteEvent } from '@core/midi/note-event';
-export { ImageSequenceGenerator } from '@export/image-sequence-generator';
 // ==========================================
 // Property Binding System Exports
 // ==========================================

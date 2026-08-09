@@ -1,12 +1,9 @@
 import { useEffect } from 'react';
-import type { VideoExporter } from '@export/video-exporter.js';
 import { useSceneStore } from '@state/sceneStore';
-import type { ExportSettings } from './types';
+import type { ExportSettings } from '@export/contracts';
 
 type VisualizerModules = {
     MIDIVisualizerCore: typeof import('@core/visualizer-core.js').MIDIVisualizerCore;
-    ImageSequenceGenerator: typeof import('@export/image-sequence-generator.js').ImageSequenceGenerator;
-    VideoExporter: typeof import('@export/video-exporter.js').VideoExporter;
 };
 
 let visualizerModulesPromise: Promise<VisualizerModules> | null = null;
@@ -14,16 +11,9 @@ let visualizerModulesPromise: Promise<VisualizerModules> | null = null;
 const loadVisualizerModules = async (): Promise<VisualizerModules> => {
     if (!visualizerModulesPromise) {
         visualizerModulesPromise = (async () => {
-            const [core, sequence, video] = await Promise.all([
-                import('@core/visualizer-core.js'),
-                import('@export/image-sequence-generator.js'),
-                import('@export/video-exporter.js'),
-                import('@export/av-exporter.js'),
-            ]);
+            const core = await import('@core/visualizer-core.js');
             return {
                 MIDIVisualizerCore: core.MIDIVisualizerCore,
-                ImageSequenceGenerator: sequence.ImageSequenceGenerator,
-                VideoExporter: video.VideoExporter,
             };
         })();
     }
@@ -33,8 +23,6 @@ const loadVisualizerModules = async (): Promise<VisualizerModules> => {
 interface UseVisualizerBootstrapArgs {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
     setVisualizer: (visualizer: any) => void;
-    setImageSequenceGenerator: (generator: any) => void;
-    setVideoExporter: (exporter: VideoExporter | null) => void;
     setExportSettings: React.Dispatch<React.SetStateAction<ExportSettings>>;
     sceneNameRef: React.MutableRefObject<string>;
     setSceneNameState: React.Dispatch<React.SetStateAction<string>>;
@@ -43,8 +31,6 @@ interface UseVisualizerBootstrapArgs {
 export function useVisualizerBootstrap({
     canvasRef,
     setVisualizer,
-    setImageSequenceGenerator,
-    setVideoExporter,
     setExportSettings,
     sceneNameRef,
     setSceneNameState,
@@ -69,7 +55,7 @@ export function useVisualizerBootstrap({
         let createdVisualizer: InstanceType<VisualizerModules['MIDIVisualizerCore']> | null = null;
         (async () => {
             try {
-                const { MIDIVisualizerCore, ImageSequenceGenerator, VideoExporter } = await loadVisualizerModules();
+                const { MIDIVisualizerCore } = await loadVisualizerModules();
                 if (cancelled || !canvasRef.current) {
                     return;
                 }
@@ -81,10 +67,6 @@ export function useVisualizerBootstrap({
                 }
                 vis.render();
                 setVisualizer(vis);
-                const gen = new ImageSequenceGenerator(canvasRef.current, vis);
-                setImageSequenceGenerator(gen);
-                const vid = new VideoExporter(canvasRef.current, vis);
-                setVideoExporter(vid);
                 (window as any).debugVisualizer = vis;
                 try {
                     const settings = useSceneStore.getState().settings;
@@ -106,5 +88,5 @@ export function useVisualizerBootstrap({
             createdVisualizer?.cleanup();
             createdVisualizer = null;
         };
-    }, [canvasRef, setVisualizer, setImageSequenceGenerator, setVideoExporter, setExportSettings]);
+    }, [canvasRef, setVisualizer, setExportSettings]);
 }

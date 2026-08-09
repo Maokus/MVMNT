@@ -41,8 +41,9 @@ vi.mock('@context/VisualizerContext', () => ({
     }),
 }));
 
-vi.mock('@export/mp3-encoder-loader', () => ({
+vi.mock('@export/codecs', () => ({
     ensureMp3EncoderRegistered: mockEnsureMp3EncoderRegistered,
+    ensureAacEncoderRegistered: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('mediabunny', () => ({

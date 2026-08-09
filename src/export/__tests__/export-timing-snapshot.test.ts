@@ -1,12 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { TimingManager } from '@core/timing/timing-manager';
-import {
-    createExportTimingSnapshot,
-    snapshotSecondsToTicks,
-    snapshotTicksToSeconds,
-} from '@export/export-timing-snapshot';
-import { ExportClock } from '@export/export-clock';
+import { createExportTimingSnapshot, snapshotSecondsToTicks, snapshotTicksToSeconds } from '@export/timing';
+import { ExportClock } from '@export/timing';
 
 describe('ExportTimingSnapshot', () => {
     it('roundtrip seconds->ticks->seconds stable fixed tempo', () => {

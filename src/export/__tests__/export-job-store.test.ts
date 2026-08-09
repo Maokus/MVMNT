@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createExportJob, isExportJobActive, useExportJobStore } from '../export-job-store';
+import { createExportJob, isExportJobActive, useExportJobStore } from '../jobs';
 
 describe('export job store', () => {
     beforeEach(() => {

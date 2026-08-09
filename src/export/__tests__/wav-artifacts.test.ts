@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { audioBufferToWavBlob } from '../av-exporter';
+import { audioBufferToWavBlob } from '../pipeline/video-encoding-stage';
 
 describe('WAV artifact encoding', () => {
     const buffer = {

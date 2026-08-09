@@ -1,4 +1,4 @@
-import type { ExportKind, ExportSettings } from '@context/visualizer/types';
+import type { ExportKind, ExportSettings } from '@export/contracts';
 import type { ExportFormat, VideoContainer } from './types';
 
 export function destinationExtension(
@@ -25,7 +25,7 @@ export function updateDestinationExtension(
 export function initialOutputPath(
     outputPath: string | undefined,
     sceneName: string,
-    exportKind: ExportKind,
+    exportKind: ExportKind | null,
     exportSettings: ExportSettings
 ): string {
     if (!outputPath) return '';

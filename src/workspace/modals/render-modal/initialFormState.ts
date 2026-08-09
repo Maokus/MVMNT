@@ -1,10 +1,10 @@
-import type { ExportSettings, ExportKind } from '@context/visualizer/types';
+import type { ExportSettings, ExportKind } from '@export/contracts';
 import type { FormState, FpsMode, VideoContainer, VideoBitrateSetting } from './types';
 import { initialOutputPath } from './exportDestination';
 
 export function deriveInitialFormState(
     exportSettings: ExportSettings,
-    exportKind: ExportKind,
+    exportKind: ExportKind | null,
     sceneName: string
 ): FormState {
     const initialFps = exportSettings.fps || 60;

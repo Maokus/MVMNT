@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BACKGROUND_EXPORT_KEY, readBackgroundExportBootstrap } from './backgroundExportBootstrap';
+import { BACKGROUND_EXPORT_KEY, readBackgroundExportBootstrap } from '../jobs';
 
 describe('background export bootstrap', () => {
     it('accepts valid persisted jobs and rejects malformed values', () => {
