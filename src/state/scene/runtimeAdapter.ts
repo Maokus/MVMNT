@@ -161,6 +161,11 @@ export class SceneRuntimeAdapter {
             if (next.runtimeRevision === prev.runtimeRevision) return;
             this.resolvedFrame = null;
             this.adapterVersion += 1;
+            // Transient inspector edits do not mutate the persisted scene store,
+            // so explicitly wake the paused preview renderer as well.
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('mvmnt-scene-runtime-updated'));
+            }
         });
         if (typeof window !== 'undefined') {
             window.addEventListener('font-loaded', this.handleFontLoaded as EventListener);

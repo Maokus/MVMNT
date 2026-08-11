@@ -4,6 +4,7 @@ import { createSceneStore } from '@state/sceneStore';
 import { resetMacroStoreBinding, setMacroStoreBinding } from '@state/scene/macroSyncService';
 import { SceneRuntimeAdapter } from '@state/scene/runtimeAdapter';
 import { deriveElementOrder, groupSceneNodes } from '@state/scene-graph';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 
 describe('SceneRuntimeAdapter', () => {
     let store: ReturnType<typeof createSceneStore>;
@@ -58,6 +59,18 @@ describe('SceneRuntimeAdapter', () => {
 
         expect(listener).toHaveBeenCalledTimes(1);
         window.removeEventListener('mvmnt-scene-runtime-updated', listener);
+    });
+
+    it('notifies the visualizer when a transient transform preview changes', () => {
+        const listener = vi.fn();
+        const nodeId = store.getState().nodeIdByElementId.title;
+        window.addEventListener('mvmnt-scene-runtime-updated', listener);
+
+        useSceneEditorStore.getState().setTransientNodeTransform(nodeId, { translationX: 42 });
+
+        expect(listener).toHaveBeenCalledTimes(1);
+        window.removeEventListener('mvmnt-scene-runtime-updated', listener);
+        useSceneEditorStore.getState().clearTransientNodeTransforms();
     });
 
     it('rebuilds a resolved frame after an external resource update', () => {

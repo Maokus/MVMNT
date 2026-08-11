@@ -88,7 +88,9 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
         (e: React.MouseEvent) => {
             e.stopPropagation();
 
-            if (isAutomated && hasKeyframeHere) {
+            // A pending pose is an explicit request to key the displayed value,
+            // even if this control has not yet re-rendered after a scrub.
+            if (isAutomated && hasKeyframeHere && !hasUncommittedPreview) {
                 // Remove keyframe at current tick
                 dispatchSceneCommand(
                     {
@@ -104,7 +106,7 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                 insertPropertyKeyframe(target, valueType, tick, 'keyframe-control', currentValue);
             }
         },
-        [isAutomated, hasKeyframeHere, channelId, tick, currentValue, target, propertyType]
+        [isAutomated, hasKeyframeHere, hasUncommittedPreview, channelId, tick, currentValue, target, propertyType]
     );
 
     const handleContextMenu = useCallback(
