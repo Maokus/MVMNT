@@ -102,7 +102,9 @@ function capabilities(definition: PropertyDefinition, owner: PropertyOwner) {
     return {
         automatable:
             definition.key !== 'localLocked' &&
-            ['number', 'boolean', 'color', 'colorAlpha', 'string', 'longString', 'font'].includes(definition.type),
+            ['number', 'boolean', 'color', 'colorAlpha', 'string', 'longString', 'select', 'font'].includes(
+                definition.type
+            ),
         macroAssignable: definition.key !== 'localLocked' && macroTypes.has(definition.type),
         bulkEditable: true,
     };

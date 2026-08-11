@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { estimateChordPB } from '@core/midi/music-theory/chord-estimator';
-import { ChordEstimateDisplayElement } from '../midi-displays/chord-estimate-display';
+import { ChordEstimateDisplayElement, formatScaleDegree } from '../midi-displays/chord-estimate-display';
 
 function makeChroma(indices: number[]): Float32Array {
     const v = new Float32Array(12);
@@ -54,6 +54,34 @@ describe('Chord estimation (via @math/midi)', () => {
 });
 
 describe('Chord Estimate Display controls', () => {
+    it('formats chord roots as degrees of the selected major scale', () => {
+        expect(formatScaleDegree(2, 'C')).toBe('II');
+        expect(formatScaleDegree(5, 'C')).toBe('IV');
+        expect(formatScaleDegree(2, 'D')).toBe('I');
+        expect(formatScaleDegree(1, 'C')).toBe('♭II');
+    });
+
+    it('uses scale degrees for chord roots and inversions when enabled', () => {
+        const element = new ChordEstimateDisplayElement() as any;
+
+        expect(element._formatChordLabel({ root: 2, quality: '7' }, false, 'sharps', true, 'C')).toBe('II7');
+        expect(element._formatChordLabel({ root: 5, quality: 'maj', bassPc: 0 }, true, 'sharps', true, 'C')).toBe(
+            'IV/I'
+        );
+    });
+
+    it('shows the scale-root selector only in scale degree mode', () => {
+        const schema = ChordEstimateDisplayElement.getConfigSchema() as any;
+        const content = schema.tabs.find((tab: any) => tab.id === 'content');
+        const estimation = content.groups.find((group: any) => group.id === 'estimation');
+        const degreeMode = estimation.properties.find((property: any) => property.key === 'scaleDegreeMode');
+        const scaleRoot = estimation.properties.find((property: any) => property.key === 'scaleRoot');
+
+        expect(degreeMode.default).toBe(false);
+        expect(scaleRoot.default).toBe('C');
+        expect(scaleRoot.visibleWhen).toEqual([{ key: 'scaleDegreeMode', equals: true }]);
+    });
+
     it('hides allow-quality controls for pattern scoring and musicpy', () => {
         const schema = ChordEstimateDisplayElement.getConfigSchema() as any;
         const content = schema.tabs.find((tab: any) => tab.id === 'content');

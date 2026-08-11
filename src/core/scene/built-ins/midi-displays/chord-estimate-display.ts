@@ -58,6 +58,8 @@ type ChordEstimateRuntimeProps = {
     includeSevenths: boolean;
     preferBassRoot: boolean;
     accidentalStyle?: 'sharps' | 'flats';
+    scaleDegreeMode?: boolean;
+    scaleRoot?: string;
     showInversion: boolean;
     smoothingMs: number;
     fontFamily: string;
@@ -149,6 +151,29 @@ const CHORD_TYPE_SYMBOL: Record<string, string> = {
 
 const ROOT_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const ROOT_NAMES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+const SCALE_ROOT_CHOICES = [
+    { value: 'C', label: 'C' },
+    { value: 'C#', label: 'C♯ / D♭' },
+    { value: 'D', label: 'D' },
+    { value: 'D#', label: 'D♯ / E♭' },
+    { value: 'E', label: 'E' },
+    { value: 'F', label: 'F' },
+    { value: 'F#', label: 'F♯ / G♭' },
+    { value: 'G', label: 'G' },
+    { value: 'G#', label: 'G♯ / A♭' },
+    { value: 'A', label: 'A' },
+    { value: 'A#', label: 'A♯ / B♭' },
+    { value: 'B', label: 'B' },
+];
+const CHROMATIC_SCALE_DEGREES = ['I', '♭II', 'II', '♭III', 'III', 'IV', '♭V', 'V', '♭VI', 'VI', '♭VII', 'VII'];
+
+/** Formats a pitch class relative to a major scale root, including chromatic degrees. */
+export function formatScaleDegree(pitchClass: number, scaleRoot: string = 'C'): string {
+    const scaleRootPitchClass = ROOT_NAMES.indexOf(scaleRoot);
+    const root = scaleRootPitchClass === -1 ? 0 : scaleRootPitchClass;
+    const offset = (((pitchClass - root) % 12) + 12) % 12;
+    return CHROMATIC_SCALE_DEGREES[offset];
+}
 
 export class ChordEstimateDisplayElement extends BoundSceneElement {
     constructor(id: string = 'chordEstimateDisplay', config: { [key: string]: any } = {}) {
@@ -353,6 +378,12 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
                                 { value: 'sharps', label: 'Sharps (C#, D#…)' },
                                 { value: 'flats', label: 'Flats (Db, Eb…)' },
                             ]),
+                            prop.boolean('scaleDegreeMode', 'Scale Degree Mode', false, {
+                                description: 'Show chord roots as degrees of the selected major scale.',
+                            }),
+                            prop.select('scaleRoot', 'Scale Root', 'C', SCALE_ROOT_CHOICES, {
+                                visibleWhen: [{ key: 'scaleDegreeMode', equals: true }],
+                            }),
                             {
                                 key: 'smoothingMs',
                                 type: 'number',
@@ -449,6 +480,8 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
             includeSevenths,
             preferBassRoot,
             showInversion,
+            scaleDegreeMode,
+            scaleRoot,
             smoothingMs,
             fontFamily: configuredFont,
             chordFontSize: chordFontSizeRaw,
@@ -584,11 +617,29 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
         if (!chord) {
             label = 'N.C.';
         } else if (method === 'musicpy' && rawMusicpy) {
-            label = this._formatMusicpyChordLabel(rawMusicpy, showInversion, props.accidentalStyle ?? 'sharps');
+            label = this._formatMusicpyChordLabel(
+                rawMusicpy,
+                showInversion,
+                props.accidentalStyle ?? 'sharps',
+                scaleDegreeMode,
+                scaleRoot
+            );
         } else if (method === 'pattern-scoring' && rawPattern) {
-            label = this._formatPatternChordLabel(rawPattern, showInversion, props.accidentalStyle ?? 'sharps');
+            label = this._formatPatternChordLabel(
+                rawPattern,
+                showInversion,
+                props.accidentalStyle ?? 'sharps',
+                scaleDegreeMode,
+                scaleRoot
+            );
         } else {
-            label = this._formatChordLabel(chord, showInversion, props.accidentalStyle ?? 'sharps');
+            label = this._formatChordLabel(
+                chord,
+                showInversion,
+                props.accidentalStyle ?? 'sharps',
+                scaleDegreeMode,
+                scaleRoot
+            );
         }
 
         // When a layout box is active, anchor text within it so alignment matches the visible box.
@@ -676,22 +727,32 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
     private _formatMusicpyChordLabel(
         raw: MusicpyChordResult,
         showInversion: boolean,
-        accidentalStyle: 'sharps' | 'flats' = 'sharps'
+        accidentalStyle: 'sharps' | 'flats' = 'sharps',
+        scaleDegreeMode = false,
+        scaleRoot = 'C'
     ): string {
         const rootNames = accidentalStyle === 'flats' ? ROOT_NAMES_FLAT : ROOT_NAMES;
+        const formatRoot = (pitchClass: number) =>
+            scaleDegreeMode ? formatScaleDegree(pitchClass, scaleRoot) : rootNames[pitchClass];
         if (raw.isPolychord && raw.upperChord) {
-            const upper = this._formatMusicpyChordLabel(raw.upperChord, false, accidentalStyle);
-            const lowerRoot = rootNames[raw.root];
+            const upper = this._formatMusicpyChordLabel(
+                raw.upperChord,
+                false,
+                accidentalStyle,
+                scaleDegreeMode,
+                scaleRoot
+            );
+            const lowerRoot = formatRoot(raw.root);
             const lowerSymbol = CHORD_TYPE_SYMBOL[raw.chordType] ?? raw.chordType;
             return `${upper}/${lowerRoot}${lowerSymbol}`;
         }
 
-        const root = rootNames[raw.root];
+        const root = formatRoot(raw.root);
         const symbol = CHORD_TYPE_SYMBOL[raw.chordType] ?? raw.chordType;
         let label = `${root}${symbol}`;
 
         if (showInversion && raw.bassNote !== null) {
-            label += `/${rootNames[raw.bassNote]}`;
+            label += `/${formatRoot(raw.bassNote)}`;
         }
 
         const suffixes: string[] = [];
@@ -705,10 +766,14 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
     private _formatChordLabel(
         ch: EstimatedChord,
         showInversion: boolean,
-        accidentalStyle: 'sharps' | 'flats' = 'sharps'
+        accidentalStyle: 'sharps' | 'flats' = 'sharps',
+        scaleDegreeMode = false,
+        scaleRoot = 'C'
     ): string {
         const rootNames = accidentalStyle === 'flats' ? ROOT_NAMES_FLAT : ROOT_NAMES;
-        const root = rootNames[ch.root];
+        const formatRoot = (pitchClass: number) =>
+            scaleDegreeMode ? formatScaleDegree(pitchClass, scaleRoot) : rootNames[pitchClass];
+        const root = formatRoot(ch.root);
         let qual: string = '';
         switch (ch.quality) {
             case 'maj':
@@ -750,7 +815,7 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
         }
         let label = `${root}${qual}`;
         if (showInversion && ch.bassPc !== undefined && ch.bassPc !== ch.root) {
-            label += `/${rootNames[ch.bassPc]}`;
+            label += `/${formatRoot(ch.bassPc)}`;
         }
         return label;
     }
@@ -758,12 +823,16 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
     private _formatPatternChordLabel(
         result: PatternChordResult,
         showInversion: boolean,
-        accidentalStyle: 'sharps' | 'flats' = 'sharps'
+        accidentalStyle: 'sharps' | 'flats' = 'sharps',
+        scaleDegreeMode = false,
+        scaleRoot = 'C'
     ): string {
         const rootNames = accidentalStyle === 'flats' ? ROOT_NAMES_FLAT : ROOT_NAMES;
-        let label = `${rootNames[result.chord.root]}${result.symbol}`;
+        const formatRoot = (pitchClass: number) =>
+            scaleDegreeMode ? formatScaleDegree(pitchClass, scaleRoot) : rootNames[pitchClass];
+        let label = `${formatRoot(result.chord.root)}${result.symbol}`;
         if (showInversion && result.chord.bassPc !== undefined && result.chord.bassPc !== result.chord.root) {
-            label += `/${rootNames[result.chord.bassPc]}`;
+            label += `/${formatRoot(result.chord.bassPc)}`;
         }
         return label;
     }

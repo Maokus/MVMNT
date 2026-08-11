@@ -27,7 +27,16 @@ interface KeyframeControlProps {
     isDelinked?: boolean;
 }
 
-const AUTOMATABLE_TYPES = new Set(['number', 'boolean', 'color', 'colorAlpha', 'string', 'longString', 'font']);
+const AUTOMATABLE_TYPES = new Set([
+    'number',
+    'boolean',
+    'color',
+    'colorAlpha',
+    'string',
+    'longString',
+    'select',
+    'font',
+]);
 
 /** Map a PropertyDefinition.type to an AutomationValueType. Returns null if not automatable. */
 export function resolveAutomationValueType(propertyType: string): AutomationValueType | null {
@@ -41,6 +50,7 @@ export function resolveAutomationValueType(propertyType: string): AutomationValu
             return 'color';
         case 'string':
         case 'longString':
+        case 'select':
         case 'font':
             return 'string';
         default:

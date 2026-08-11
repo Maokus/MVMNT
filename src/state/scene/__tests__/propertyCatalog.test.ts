@@ -30,6 +30,14 @@ describe('property catalog', () => {
         expect(text?.tab.order).toBeGreaterThanOrEqual(1);
     });
 
+    it('marks schema select fields as automatable stepped-string properties', () => {
+        const descriptors = elementPropertyDescriptors('element:one', 'textOverlay');
+        const blendMode = descriptors.find((descriptor) => descriptor.definition.key === 'blendMode');
+
+        expect(blendMode?.definition.type).toBe('select');
+        expect(blendMode?.capabilities.automatable).toBe(true);
+    });
+
     it('provides safe metadata for unknown properties', () => {
         const target = nodePropertyTarget('missing', 'futureProperty');
         expect(descriptorForTarget(target)).toBeNull();

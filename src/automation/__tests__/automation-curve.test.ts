@@ -132,6 +132,21 @@ describe('AutomationCurve', () => {
         });
     });
 
+    describe('string values (always stepped)', () => {
+        it('holds the selected option until the next keyframe', () => {
+            const curve = new AutomationCurve(
+                makeChannel([kf(0, 'left'), kf(100, 'right')], {
+                    valueType: 'string',
+                })
+            );
+
+            expect(curve.evaluate(0)).toBe('left');
+            expect(curve.evaluate(50)).toBe('left');
+            expect(curve.evaluate(99)).toBe('left');
+            expect(curve.evaluate(100)).toBe('right');
+        });
+    });
+
     describe('color interpolation', () => {
         it('interpolates hex colors between keyframes', () => {
             const curve = new AutomationCurve(
