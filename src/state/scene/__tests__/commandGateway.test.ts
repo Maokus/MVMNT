@@ -133,6 +133,65 @@ describe('scene command gateway', () => {
         });
     });
 
+    it('resolves matching missing font tokens everywhere when a font is registered', () => {
+        const asset: FontAsset = {
+            id: 'reconnected-font',
+            family: 'Noto Sans',
+            originalFileName: 'NotoSans.ttf',
+            fileSize: 1024,
+            createdAt: 1,
+            updatedAt: 1,
+            licensingAcknowledged: true,
+            variants: [
+                { id: 'regular', weight: 400, style: 'normal', sourceFormat: 'ttf' },
+                { id: 'bold-italic', weight: 700, style: 'italic', sourceFormat: 'ttf' },
+            ],
+        };
+        dispatchSceneCommand({
+            type: 'addElement',
+            elementType: 'textOverlay',
+            elementId: 'font-element',
+            config: { fontFamily: 'MissingGoogle:Noto Sans|700i' },
+        });
+        dispatchSceneCommand({
+            type: 'createMacro',
+            macroId: 'font-macro',
+            definition: { type: 'font', value: 'MissingProject:Noto Sans|400' },
+        });
+        dispatchSceneCommand({
+            type: 'enablePropertyAutomation',
+            target: elementPropertyTarget('font-element', 'fontFamily'),
+            valueType: 'string',
+            initialKeyframes: [
+                {
+                    tick: 0,
+                    value: 'MissingGoogle:Noto Sans|700i',
+                    segmentInterpolation: { mode: 'constant', direction: 'auto' },
+                },
+            ],
+        });
+
+        const result = dispatchSceneCommand({
+            type: 'batch',
+            commands: [
+                { type: 'registerFontAsset', asset },
+                { type: 'resolveMissingFontTokens', asset },
+            ],
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.patch?.undo).toHaveLength(1);
+        const state = useSceneStore.getState();
+        expect(state.macros.byId['font-macro'].value).toBe('Project:reconnected-font|400');
+        const fontAutomation = Object.values(state.automation.channels).find(
+            (channel) => channel.target.owner.kind === 'element' && channel.target.owner.id === 'font-element'
+        );
+        expect(fontAutomation?.keyframes[0].value).toBe('Project:reconnected-font|700i');
+
+        expect(dispatchSceneCommand(result.patch!.undo[0]).success).toBe(true);
+        expect(useSceneStore.getState().macros.byId['font-macro'].value).toBe('MissingProject:Noto Sans|400');
+    });
+
     it('rolls back every persistent change when a batch child fails', () => {
         dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'atomic-element' });
         const before = useSceneStore.getState().exportSceneDraft();

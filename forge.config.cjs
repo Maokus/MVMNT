@@ -87,10 +87,6 @@ module.exports = {
             config: {
                 name: 'MVMNT',
                 format: 'ULFO',
-                // appdmg's HFS+ path runs `bless` before cleanup, which can remove the
-                // mount path on current GitHub-hosted macOS runners. APFS skips that
-                // obsolete step and is supported by the macOS 14 CI runner.
-                additionalDMGOptions: { filesystem: 'APFS' },
             },
             platforms: ['darwin'],
         },

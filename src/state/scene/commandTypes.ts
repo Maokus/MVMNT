@@ -25,6 +25,7 @@ export type SceneCommand =
     | { type: 'updateSceneSettings'; patch: Record<string, unknown> }
     | { type: 'loadSerializedScene'; payload: SceneImportPayload }
     | { type: 'registerFontAsset'; asset: FontAsset }
+    | { type: 'resolveMissingFontTokens'; asset: FontAsset }
     | { type: 'deleteFontAsset'; assetId: string }
     | ({ type: 'importSubtreeBundle'; bundle: SceneSubtreeBundle } & SceneSubtreeImportOptions)
     | { type: 'createMacro'; macroId: string; definition: SceneMacroDefinition }

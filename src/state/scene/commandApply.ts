@@ -5,6 +5,7 @@ import {
     type BindingState,
     type ElementBindings,
     type ElementBindingsPatch,
+    type SceneImportPayload,
     type SceneSettingsState,
     type SceneStoreState,
 } from '@state/sceneStore';
@@ -21,6 +22,8 @@ import { getMacroSnapshot, replaceMacrosFromSnapshot } from './macroSyncService'
 import { buildSceneSubtreeImport } from './subtreeBundle';
 import type { SceneCommand } from './commandTypes';
 import { applySceneGraphCommand } from './sceneGraphCommands';
+import { resolveMissingFontTokens } from './fonts';
+import { createSceneSnapshot } from './snapshot';
 
 function targetBinding(state: SceneStoreState, target: PropertyTarget): BindingState | undefined {
     return target.owner.kind === 'element'
@@ -204,6 +207,12 @@ export function applySceneStoreCommand(
         case 'registerFontAsset':
             store.registerFontAsset(command.asset);
             break;
+        case 'resolveMissingFontTokens': {
+            const snapshot = createSceneSnapshot(getState());
+            const resolved = resolveMissingFontTokens(snapshot, command.asset);
+            if (resolved !== snapshot) store.importScene(resolved as SceneImportPayload);
+            break;
+        }
         case 'deleteFontAsset':
             store.deleteFontAsset(command.assetId);
             break;

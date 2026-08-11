@@ -43,6 +43,7 @@ export const sceneCommandDefinitions: Record<SceneCommandType, SceneCommandDefin
     updateSceneSettings: inverse(),
     loadSerializedScene: transaction('scene', 'runtime'),
     registerFontAsset: snapshot(),
+    resolveMissingFontTokens: snapshot(),
     deleteFontAsset: snapshot(),
     importSubtreeBundle: transaction('scene', 'runtime'),
     createMacro: inverse(),

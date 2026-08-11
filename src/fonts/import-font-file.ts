@@ -21,7 +21,10 @@ export async function importFontFile(file: File): Promise<FontAsset> {
     const buffer = await file.arrayBuffer();
     const hash = await sha256Hex(new Uint8Array(buffer));
     const duplicate = state.fonts.order.map((id) => state.fonts.assets[id]).find((asset) => asset?.hash === hash);
-    if (duplicate) return duplicate;
+    if (duplicate) {
+        dispatchSceneCommand({ type: 'resolveMissingFontTokens', asset: duplicate });
+        return duplicate;
+    }
     const metadata = await parseFontMetadata(buffer);
     const assetId = crypto.randomUUID();
     const variant: FontVariant = {
@@ -56,6 +59,12 @@ export async function importFontFile(file: File): Promise<FontAsset> {
         throw error;
     }
     state.acknowledgeFontLicensing(Date.now());
-    dispatchSceneCommand({ type: 'registerFontAsset', asset });
+    dispatchSceneCommand({
+        type: 'batch',
+        commands: [
+            { type: 'registerFontAsset', asset },
+            { type: 'resolveMissingFontTokens', asset },
+        ],
+    });
     return asset;
 }

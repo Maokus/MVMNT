@@ -20,6 +20,11 @@ const BUILT_IN_FAMILIES: Record<string, string> = {
     inter: 'Inter',
 };
 
+export interface MissingFontReference {
+    family: string;
+    source: 'google' | 'project';
+}
+
 export function encodeCustomFontToken(assetId: string, weight?: number, italic?: boolean): string {
     const weightPart = typeof weight === 'number' && Number.isFinite(weight) ? String(Math.round(weight)) : '';
     const suffix = italic ? 'i' : '';
@@ -116,6 +121,69 @@ export function parseFontSelectionToken(
         source: 'project',
         token,
     };
+}
+
+function resolvedProjectFontToken(token: string, asset: FontAsset): string | undefined {
+    const parsed = parseFontSelectionToken(token);
+    if (!parsed.missing || parsed.family.localeCompare(asset.family, undefined, { sensitivity: 'accent' }) !== 0) {
+        return undefined;
+    }
+    const requestedWeight = Number.parseInt(parsed.weight || '400', 10) || 400;
+    const requestedStyle = parsed.italic ? 'italic' : 'normal';
+    const variant =
+        asset.variants.find((entry) => entry.weight === requestedWeight && entry.style === requestedStyle) ??
+        asset.variants
+            .filter((entry) => entry.style === requestedStyle)
+            .sort((a, b) => Math.abs(a.weight - requestedWeight) - Math.abs(b.weight - requestedWeight))[0] ??
+        asset.variants[0];
+    return variant ? encodeProjectFontToken(asset.id, variant.weight, variant.style === 'italic') : undefined;
+}
+
+/** Replace missing-font tokens for an imported family while preserving each requested face where possible. */
+export function resolveMissingFontTokens(value: unknown, asset: FontAsset): unknown {
+    if (typeof value === 'string') return resolvedProjectFontToken(value, asset) ?? value;
+    if (Array.isArray(value)) {
+        let changed = false;
+        const next = value.map((entry) => {
+            const resolved = resolveMissingFontTokens(entry, asset);
+            changed ||= resolved !== entry;
+            return resolved;
+        });
+        return changed ? next : value;
+    }
+    if (!value || typeof value !== 'object') return value;
+    let changed = false;
+    const next = Object.fromEntries(
+        Object.entries(value).map(([key, entry]) => {
+            const resolved = resolveMissingFontTokens(entry, asset);
+            changed ||= resolved !== entry;
+            return [key, resolved];
+        })
+    );
+    return changed ? next : value;
+}
+
+/** Collect unique unresolved font families from any serializable scene value. */
+export function collectMissingFontReferences(value: unknown): MissingFontReference[] {
+    const references = new Map<string, MissingFontReference>();
+    const visit = (entry: unknown) => {
+        if (typeof entry === 'string') {
+            const parsed = parseFontSelectionToken(entry);
+            if (parsed.missing && parsed.family) {
+                const source = entry.startsWith(MISSING_GOOGLE_PREFIX) ? 'google' : 'project';
+                const key = `${source}:${parsed.family.toLocaleLowerCase()}`;
+                if (!references.has(key)) references.set(key, { family: parsed.family, source });
+            }
+        } else if (Array.isArray(entry)) {
+            entry.forEach(visit);
+        } else if (entry && typeof entry === 'object') {
+            Object.values(entry).forEach(visit);
+        }
+    };
+    visit(value);
+    return [...references.values()].sort(
+        (a, b) => a.family.localeCompare(b.family) || a.source.localeCompare(b.source)
+    );
 }
 
 export function getSceneFontAssets(state: SceneDocumentState): Record<string, FontAsset> {

@@ -1,0 +1,20 @@
+import { createRequire } from 'node:module';
+import { describe, expect, it } from 'vitest';
+
+import packageManifest from '../../package.json';
+
+const require = createRequire(import.meta.url);
+const forgeConfig = require('../../forge.config.cjs');
+
+describe('macOS packaging dependencies', () => {
+    it('installs appdmg for Electron Forge’s DMG maker', () => {
+        expect(packageManifest.devDependencies.appdmg).toBeDefined();
+        expect(require.resolve('appdmg')).toContain('node_modules/appdmg');
+    });
+
+    it('only passes appdmg-supported options to the DMG maker', () => {
+        const dmgMaker = forgeConfig.makers.find((maker: { name: string }) => maker.name.includes('maker-dmg'));
+
+        expect(dmgMaker?.config.additionalDMGOptions).toBeUndefined();
+    });
+});

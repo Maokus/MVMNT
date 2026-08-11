@@ -168,7 +168,10 @@ export async function addGoogleFontFamilyToProject(
             asset.google?.family === family.family &&
             (!family.version || asset.google.version === family.version)
     );
-    if (existing) return existing;
+    if (existing) {
+        dispatchSceneCommand({ type: 'resolveMissingFontTokens', asset: existing });
+        return existing;
+    }
 
     const acquired = await acquireGoogleFontFamily(family, options);
     const stored: string[] = [];
@@ -193,6 +196,12 @@ export async function addGoogleFontFamilyToProject(
         await Promise.all(stored.map((binaryId) => FontBinaryStore.delete(binaryId)));
         throw error;
     }
-    dispatchSceneCommand({ type: 'registerFontAsset', asset: acquired.asset });
+    dispatchSceneCommand({
+        type: 'batch',
+        commands: [
+            { type: 'registerFontAsset', asset: acquired.asset },
+            { type: 'resolveMissingFontTokens', asset: acquired.asset },
+        ],
+    });
     return acquired.asset;
 }
