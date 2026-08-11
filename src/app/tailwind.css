@@ -666,6 +666,14 @@
         @apply min-w-0 flex-1 rounded border border-[#4a4a4a] bg-[#151515] px-2 py-1 text-[11px] text-[#f4f4f5] outline-none placeholder:text-[#71717a] focus:border-accent;
     }
 
+    .ae-search-leading-icon {
+        @apply h-3 w-3 shrink-0 text-[#71717a];
+    }
+
+    .ae-multi-selection-search .ae-search-close {
+        @apply h-6 w-6 shrink-0;
+    }
+
     .ae-empty-search {
         @apply px-4 py-6 text-center text-[12px] text-[#a3a3a3];
     }

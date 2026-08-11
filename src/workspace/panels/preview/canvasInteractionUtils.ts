@@ -26,14 +26,17 @@ import { createKeyframe, findKeyframeAtTick, nodePropertyTarget } from '@automat
 import { useTimelineStore } from '@state/timelineStore';
 import {
     cloneSceneGraph,
+    createDuplicateMappings,
     applyMatrixToPoint,
     invertMatrix,
+    isNodeAncestor,
     matrixToNodeTransform,
     matrixAroundPoint,
     multiplyMatrices,
     nodeTransformToMatrix,
     rotationMatrix,
     scaleMatrix,
+    normalizeNodeSelection,
     subtreeNodeIds,
     transformSceneNodes,
     translationMatrix,
@@ -166,12 +169,23 @@ function ensureDragCommandOptions(meta: any, elementId: string): DragCommandOpti
         mergeKey: `${mode}:${sessionId}`,
         canMergeWith: (other) => {
             if (other.command.type === 'batch') return true;
-            if (other.command.type === 'updateElementConfig') return other.command.elementId === elementId;
+            if (other.command.type === 'updateElementConfig') {
+                return other.command.elementId === elementId || other.command.elementId === meta.dragElementId;
+            }
             if (other.command.type === 'updateNodeTransform') {
-                return useSceneStore.getState().nodeIdByElementId[elementId] === other.command.nodeId;
+                return (
+                    meta.nodeIds?.includes(other.command.nodeId) ||
+                    useSceneStore.getState().nodeIdByElementId[elementId] === other.command.nodeId
+                );
             }
             if (other.command.type === 'replaceGraph') return true;
-            if (other.command.type === 'addKeyframe') return other.command.channelId.startsWith(`${elementId}.`);
+            if (other.command.type === 'duplicateSubtrees') return true;
+            if (other.command.type === 'addKeyframe') {
+                return (
+                    other.command.channelId.startsWith(`${elementId}.`) ||
+                    other.command.channelId.startsWith(`${meta.dragElementId}.`)
+                );
+            }
             return false;
         },
     };
@@ -261,6 +275,45 @@ function graphWithDisplayedNodeTransforms(vis: any, nodeIds: readonly string[]) 
             graph.nodesById[nodeId] = { ...graph.nodesById[nodeId], userNodeTransform: { ...displayed } } as any;
     }
     return graph;
+}
+
+function duplicateDragSelection(vis: any, meta: any): boolean {
+    if (!meta.duplicateOnDrag || meta.didDuplicate) return true;
+    const scene = useSceneStore.getState();
+    const sourceNodeIds = normalizeNodeSelection(scene.graph, meta.nodeIds ?? []);
+    if (!sourceNodeIds.length) return false;
+    const mappings = createDuplicateMappings(scene.graph, Object.keys(scene.elements), sourceNodeIds);
+    const baseOptions = ensureDragCommandOptions(meta, meta.dragElementId ?? sourceNodeIds[0]);
+    const result = dispatchSceneCommand(
+        { type: 'duplicateSubtrees', nodeIds: sourceNodeIds, mappings },
+        {
+            source: 'canvas.altDragDuplicate',
+            ...baseOptions,
+            transient: true,
+        }
+    );
+    if (!result.success) return false;
+
+    const duplicatedNodeIds = sourceNodeIds.map((nodeId) => mappings.nodeIdMap[nodeId]).filter(Boolean);
+    const duplicatedGraph = cloneSceneGraph(useSceneStore.getState().graph);
+    for (const sourceNodeId of sourceNodeIds) {
+        const duplicatedNodeId = mappings.nodeIdMap[sourceNodeId];
+        const displayedSource = meta.originalGraph?.nodesById[sourceNodeId]?.userNodeTransform;
+        if (duplicatedNodeId && displayedSource && duplicatedGraph.nodesById[duplicatedNodeId]) {
+            duplicatedGraph.nodesById[duplicatedNodeId].userNodeTransform = { ...displayedSource };
+        }
+    }
+
+    const duplicatedElementId = mappings.elementIdMap[meta.dragElementId] ?? meta.dragElementId;
+    meta.nodeIds = duplicatedNodeIds;
+    meta.originalGraph = duplicatedGraph;
+    meta.dragElementId = duplicatedElementId;
+    meta.didDuplicate = true;
+    useSelectionStore.getState().selectSceneNodes(duplicatedNodeIds, duplicatedNodeIds.at(-1) ?? null);
+    vis.setInteractionState({ draggingElementId: duplicatedElementId, selectedElementId: duplicatedElementId });
+    meta.snapTargets = buildSnapTargets(vis, selectedSubtreeElementIds());
+    vis.invalidateRender?.();
+    return true;
 }
 
 // ----- Helper functions -----
@@ -362,8 +415,13 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
         const nodeTransform =
             ownerRecord?.node?.userNodeTransform ??
             (hit.nodeId ? useSceneStore.getState().graph.nodesById[hit.nodeId]?.userNodeTransform : undefined);
+        const selectedBeforeHit = useSelectionStore.getState().selectedNodeIds;
+        const hitBelongsToSelection = selectedBeforeHit.some(
+            (selectedNodeId) =>
+                selectedNodeId === ownerNodeId || isNodeAncestor(scene.graph, selectedNodeId, ownerNodeId)
+        );
         if (toggle && deps.selectNode) deps.selectNode(ownerNodeId, { toggle: true });
-        else selectElement(hit.id);
+        else if (!hitBelongsToSelection) selectElement(hit.id);
         const nodeIds = useSelectionStore.getState().selectedNodeIds;
         const selection = nodeIds.length ? vis.getNodeSelectionAtTime?.(nodeIds, vis.getCurrentTime?.() ?? 0) : null;
         vis.setInteractionState({ draggingElementId: hit.id, activeHandle: 'move', snapGuides: [] });
@@ -384,6 +442,7 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
             ),
             snapTolerance: DEFAULT_SNAP_TOLERANCE,
             dragElementId: hit.id,
+            duplicateOnDrag: false,
             ...(nodeIds.length
                 ? {
                       nodeIds: [...nodeIds],
@@ -392,11 +451,11 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
                   }
                 : {}),
         };
-        return true;
+        return hit;
     } else {
         selectElement(null);
         vis.setInteractionState({ hoverElementId: null, draggingElementId: null, activeHandle: null, snapGuides: [] });
-        return false;
+        return null;
     }
 }
 
@@ -415,6 +474,10 @@ function processDrag(
     let guides: SnapGuide[] = [];
     if (meta.nodeIds?.length && meta.originalGraph) {
         if (meta.mode === 'move') {
+            if (meta.duplicateOnDrag && !meta.didDuplicate) {
+                if (x === meta.startX && y === meta.startY) return true;
+                if (!duplicateDragSelection(vis, meta)) return false;
+            }
             let dx = x - meta.startX;
             let dy = y - meta.startY;
             const snapped = disableSnap
@@ -603,14 +666,16 @@ export function onCanvasMouseDown(e: CanvasMouseEvent, deps: InteractionDeps) {
     // 1) If an element selected, attempt handle drag
     if (attemptHandleHit(vis, x, y)) return;
     // 2) Otherwise element hit test
-    const beforeSelected = vis._interactionState?.selectedElementId || null;
     const hit = performElementHitTest(vis, x, y, deps, e.shiftKey);
+    if (hit && e.altKey && vis._dragMeta?.mode === 'move') {
+        vis._dragMeta.duplicateOnDrag = true;
+    }
     if (!hit) {
         vis._marqueeMeta = { start: { x, y }, end: { x, y } };
         vis.setInteractionState({ marqueeBounds: { x, y, width: 0, height: 0 } });
     }
 
-    const afterSelected = vis._interactionState?.selectedElementId || null;
+    const clickedElementId = hit?.id ?? null;
 
     // --- Double click detection for in-canvas text editing ---
     // We store last click timestamp + element id on the visualizer instance to avoid module globals.
@@ -619,22 +684,24 @@ export function onCanvasMouseDown(e: CanvasMouseEvent, deps: InteractionDeps) {
     const lastClickTime: number | undefined = vis.__lastCanvasClickTime;
     const lastClickElement: string | null | undefined = vis.__lastCanvasClickElementId;
     const isDouble =
-        afterSelected &&
-        lastClickElement === afterSelected &&
+        clickedElementId &&
+        lastClickElement === clickedElementId &&
         typeof lastClickTime === 'number' &&
         now - lastClickTime < DOUBLE_CLICK_MS;
 
     // Update stored click info early (will be used next time unless we early-return)
     vis.__lastCanvasClickTime = now;
-    vis.__lastCanvasClickElementId = afterSelected;
+    vis.__lastCanvasClickElementId = clickedElementId;
 
-    if (isDouble && afterSelected) {
+    if (isDouble && clickedElementId) {
         try {
-            const bindings = useSceneStore.getState().bindings.byElement[afterSelected] ?? {};
+            const bindings = useSceneStore.getState().bindings.byElement[clickedElementId] ?? {};
             const hasTextProperty = Object.prototype.hasOwnProperty.call(bindings, 'text');
             if (hasTextProperty) {
+                deps.selectElement(clickedElementId);
                 // Prevent initiating a drag after double-click
                 vis.setInteractionState({ draggingElementId: null, activeHandle: null });
+                vis._dragMeta = null;
 
                 // Force property panel refresh (in case value cached)
                 deps.incrementPropertyPanelRefresh();

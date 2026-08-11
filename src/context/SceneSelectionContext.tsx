@@ -227,8 +227,8 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
             visualizer.setInteractionState({ selectedElementId: selectedElementId || null });
         }
         visualizer.setInteractionState({ selectedNodeIds, selectionPivot });
-        // When selection cleared, also clear dragging state if it references the previous element
-        if (!selectedElementId && visualizer._interactionState?.draggingElementId) {
+        // Groups have no selected element ID, but remain valid draggable node selections.
+        if (selectedNodeIds.length === 0 && visualizer._interactionState?.draggingElementId) {
             visualizer.setInteractionState({ draggingElementId: null });
         }
     }, [visualizer, selectedElementId, selectedNodeIds, selectionPivot]);

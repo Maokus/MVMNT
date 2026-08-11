@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FaLink } from 'react-icons/fa';
+import { FaLink, FaSearch, FaTimes } from 'react-icons/fa';
 import {
     channelForTarget,
     elementPropertyTarget,
@@ -43,11 +43,45 @@ import {
 } from './nodeTransformCommands';
 import { NodeStateRows } from './NodeStateRows';
 import { TransformSection } from './TransformSection';
+import { propertySearchMatches, propertyVisibleForSearch, sectionVisibleForSearch } from './propertySearch';
 
 const fields = HOST_NODE_PROPERTY_SCHEMA.filter(
     (field): field is (typeof HOST_NODE_PROPERTY_SCHEMA)[number] & { path: keyof NodeTransform } =>
         field.path !== 'localVisible' && field.path !== 'localOpacity'
 );
+
+const AGGREGATE_SECTIONS = {
+    position: { title: 'Position & Bounds', properties: ['X', 'Y', 'Width', 'Height'] },
+    rotation: { title: 'Rotation & Scale', properties: ['Rotate by', 'Scale by'] },
+    pivot: { title: 'Selection Pivot', properties: ['Pivot X', 'Pivot Y'] },
+} as const;
+
+function MultiSelectionPropertySearch({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+    return (
+        <div className="ae-search-bar ae-multi-selection-search">
+            <FaSearch className="ae-search-leading-icon" aria-hidden="true" />
+            <input
+                className="ae-search-input"
+                type="search"
+                aria-label="Search selected properties"
+                placeholder="Search selected properties…"
+                value={value}
+                onChange={(event) => onChange(event.target.value)}
+            />
+            {value ? (
+                <button
+                    type="button"
+                    className="ae-search-close"
+                    onClick={() => onChange('')}
+                    title="Clear property search"
+                    aria-label="Clear property search"
+                >
+                    <FaTimes aria-hidden="true" />
+                </button>
+            ) : null}
+        </div>
+    );
+}
 
 interface TransformRowProps {
     label: string;
@@ -238,6 +272,7 @@ export function NodeTransformPanel() {
     const { visualizer } = useSceneSelection();
     const aggregateSession = useRef(new AggregateTransformSession());
     const [aggregateInputRevision, setAggregateInputRevision] = useState(0);
+    const [multiSelectionSearch, setMultiSelectionSearch] = useState('');
     const nodes = nodeIds.map((id) => graph.nodesById[id]).filter(Boolean);
     const selectedNodeKey = nodeIds.join('|');
 
@@ -325,11 +360,17 @@ export function NodeTransformPanel() {
                     <span>{nodes.length} nodes selected</span>
                     <small>No visible bounds</small>
                 </div>
+                <MultiSelectionPropertySearch value={multiSelectionSearch} onChange={setMultiSelectionSearch} />
                 <p className="node-transform-empty-geometry">
                     Show at least one selected node to use aggregate position, rotation, scale, and pivot controls.
                 </p>
-                <NodeStateRows nodes={nodes} common={common} dispatchForAll={dispatchForAll} />
-                <MultiSelectionCommonContent nodes={nodes} />
+                <NodeStateRows
+                    nodes={nodes}
+                    common={common}
+                    dispatchForAll={dispatchForAll}
+                    searchTerm={multiSelectionSearch}
+                />
+                <MultiSelectionCommonContent nodes={nodes} searchTerm={multiSelectionSearch} />
             </div>
         );
     }
@@ -341,89 +382,147 @@ export function NodeTransformPanel() {
                     <span>{nodes.length} nodes selected</span>
                     <small>World selection</small>
                 </div>
-                <TransformSection title="Position & Bounds" ownerKey={inspectorOwnerKey}>
-                    <TransformRow
-                        label="X"
-                        id="node-selection-x"
-                        value={geometry.pivot.x}
-                        onChange={(next, change) =>
-                            applyWorldDelta(
-                                translationMatrix(next - geometry.pivot.x, 0),
-                                `selection-x:${nodeIds.join(',')}`,
-                                change
-                            )
-                        }
-                    />
-                    <TransformRow
-                        label="Y"
-                        id="node-selection-y"
-                        value={geometry.pivot.y}
-                        onChange={(next, change) =>
-                            applyWorldDelta(
-                                translationMatrix(0, next - geometry.pivot.y),
-                                `selection-y:${nodeIds.join(',')}`,
-                                change
-                            )
-                        }
-                    />
-                    <TransformRow label="Width" id="node-selection-width" value={geometry.bounds.width} readOnly />
-                    <TransformRow label="Height" id="node-selection-height" value={geometry.bounds.height} readOnly />
-                </TransformSection>
-                <TransformSection title="Rotation & Scale" ownerKey={inspectorOwnerKey}>
-                    <TransformRow
-                        key={`rotation-${aggregateInputRevision}`}
-                        label="Rotate by"
-                        id="node-selection-rotation"
-                        value={0}
-                        suffix="°"
-                        onChange={(degrees, change) =>
-                            applyWorldDelta(
-                                matrixAroundPoint(
-                                    rotationMatrix((aggregateDelta(degrees, 0, change, 'add') * Math.PI) / 180),
-                                    pivot.x,
-                                    pivot.y
-                                ),
-                                `selection-rotation:${nodeIds.join(',')}`,
-                                change
-                            )
-                        }
-                    />
-                    <TransformRow
-                        key={`scale-${aggregateInputRevision}`}
-                        label="Scale by"
-                        id="node-selection-scale"
-                        value={100}
-                        suffix="%"
-                        schema={{ step: 1 }}
-                        onChange={(percent, change) =>
-                            applyWorldDelta(
-                                matrixAroundPoint(
-                                    scaleMatrix(aggregateDelta(percent, 100, change, 'multiply')),
-                                    pivot.x,
-                                    pivot.y
-                                ),
-                                `selection-scale:${nodeIds.join(',')}`,
-                                change
-                            )
-                        }
-                    />
-                </TransformSection>
-                <TransformSection title="Selection Pivot" ownerKey={inspectorOwnerKey}>
-                    <TransformRow
-                        label="Pivot X"
-                        id="node-selection-pivot-x"
-                        value={pivot.x}
-                        onChange={(x) => setSelectionPivot({ x, y: pivot.y })}
-                    />
-                    <TransformRow
-                        label="Pivot Y"
-                        id="node-selection-pivot-y"
-                        value={pivot.y}
-                        onChange={(y) => setSelectionPivot({ x: pivot.x, y })}
-                    />
-                </TransformSection>
-                <NodeStateRows nodes={nodes} common={common} dispatchForAll={dispatchForAll} />
-                <MultiSelectionCommonContent nodes={nodes} />
+                <MultiSelectionPropertySearch value={multiSelectionSearch} onChange={setMultiSelectionSearch} />
+                {sectionVisibleForSearch(
+                    multiSelectionSearch,
+                    AGGREGATE_SECTIONS.position.title,
+                    AGGREGATE_SECTIONS.position.properties
+                ) ? (
+                    <TransformSection title={AGGREGATE_SECTIONS.position.title} ownerKey={inspectorOwnerKey}>
+                        {propertyVisibleForSearch(multiSelectionSearch, AGGREGATE_SECTIONS.position.title, 'X') ? (
+                            <TransformRow
+                                label="X"
+                                id="node-selection-x"
+                                value={geometry.pivot.x}
+                                onChange={(next, change) =>
+                                    applyWorldDelta(
+                                        translationMatrix(next - geometry.pivot.x, 0),
+                                        `selection-x:${nodeIds.join(',')}`,
+                                        change
+                                    )
+                                }
+                            />
+                        ) : null}
+                        {propertyVisibleForSearch(multiSelectionSearch, AGGREGATE_SECTIONS.position.title, 'Y') ? (
+                            <TransformRow
+                                label="Y"
+                                id="node-selection-y"
+                                value={geometry.pivot.y}
+                                onChange={(next, change) =>
+                                    applyWorldDelta(
+                                        translationMatrix(0, next - geometry.pivot.y),
+                                        `selection-y:${nodeIds.join(',')}`,
+                                        change
+                                    )
+                                }
+                            />
+                        ) : null}
+                        {propertyVisibleForSearch(multiSelectionSearch, AGGREGATE_SECTIONS.position.title, 'Width') ? (
+                            <TransformRow
+                                label="Width"
+                                id="node-selection-width"
+                                value={geometry.bounds.width}
+                                readOnly
+                            />
+                        ) : null}
+                        {propertyVisibleForSearch(multiSelectionSearch, AGGREGATE_SECTIONS.position.title, 'Height') ? (
+                            <TransformRow
+                                label="Height"
+                                id="node-selection-height"
+                                value={geometry.bounds.height}
+                                readOnly
+                            />
+                        ) : null}
+                    </TransformSection>
+                ) : null}
+                {sectionVisibleForSearch(
+                    multiSelectionSearch,
+                    AGGREGATE_SECTIONS.rotation.title,
+                    AGGREGATE_SECTIONS.rotation.properties
+                ) ? (
+                    <TransformSection title={AGGREGATE_SECTIONS.rotation.title} ownerKey={inspectorOwnerKey}>
+                        {propertyVisibleForSearch(
+                            multiSelectionSearch,
+                            AGGREGATE_SECTIONS.rotation.title,
+                            'Rotate by'
+                        ) ? (
+                            <TransformRow
+                                key={`rotation-${aggregateInputRevision}`}
+                                label="Rotate by"
+                                id="node-selection-rotation"
+                                value={0}
+                                suffix="°"
+                                onChange={(degrees, change) =>
+                                    applyWorldDelta(
+                                        matrixAroundPoint(
+                                            rotationMatrix((aggregateDelta(degrees, 0, change, 'add') * Math.PI) / 180),
+                                            pivot.x,
+                                            pivot.y
+                                        ),
+                                        `selection-rotation:${nodeIds.join(',')}`,
+                                        change
+                                    )
+                                }
+                            />
+                        ) : null}
+                        {propertyVisibleForSearch(
+                            multiSelectionSearch,
+                            AGGREGATE_SECTIONS.rotation.title,
+                            'Scale by'
+                        ) ? (
+                            <TransformRow
+                                key={`scale-${aggregateInputRevision}`}
+                                label="Scale by"
+                                id="node-selection-scale"
+                                value={100}
+                                suffix="%"
+                                schema={{ step: 1 }}
+                                onChange={(percent, change) =>
+                                    applyWorldDelta(
+                                        matrixAroundPoint(
+                                            scaleMatrix(aggregateDelta(percent, 100, change, 'multiply')),
+                                            pivot.x,
+                                            pivot.y
+                                        ),
+                                        `selection-scale:${nodeIds.join(',')}`,
+                                        change
+                                    )
+                                }
+                            />
+                        ) : null}
+                    </TransformSection>
+                ) : null}
+                {sectionVisibleForSearch(
+                    multiSelectionSearch,
+                    AGGREGATE_SECTIONS.pivot.title,
+                    AGGREGATE_SECTIONS.pivot.properties
+                ) ? (
+                    <TransformSection title={AGGREGATE_SECTIONS.pivot.title} ownerKey={inspectorOwnerKey}>
+                        {propertyVisibleForSearch(multiSelectionSearch, AGGREGATE_SECTIONS.pivot.title, 'Pivot X') ? (
+                            <TransformRow
+                                label="Pivot X"
+                                id="node-selection-pivot-x"
+                                value={pivot.x}
+                                onChange={(x) => setSelectionPivot({ x, y: pivot.y })}
+                            />
+                        ) : null}
+                        {propertyVisibleForSearch(multiSelectionSearch, AGGREGATE_SECTIONS.pivot.title, 'Pivot Y') ? (
+                            <TransformRow
+                                label="Pivot Y"
+                                id="node-selection-pivot-y"
+                                value={pivot.y}
+                                onChange={(y) => setSelectionPivot({ x: pivot.x, y })}
+                            />
+                        ) : null}
+                    </TransformSection>
+                ) : null}
+                <NodeStateRows
+                    nodes={nodes}
+                    common={common}
+                    dispatchForAll={dispatchForAll}
+                    searchTerm={multiSelectionSearch}
+                />
+                <MultiSelectionCommonContent nodes={nodes} searchTerm={multiSelectionSearch} />
             </div>
         );
     }
@@ -839,7 +938,7 @@ export function MultiSelectionCommonProperties({ nodes }: { nodes: SceneNode[] }
     }
 }
 
-function MultiSelectionCommonContent({ nodes }: { nodes: SceneNode[] }) {
+function MultiSelectionCommonContent({ nodes, searchTerm = '' }: { nodes: SceneNode[]; searchTerm?: string }) {
     const elements = useSceneStore((state) => state.elements);
     const bindings = useSceneStore((state) => state.bindings.byElement);
     const macros = useSceneStore((state) => state.macros);
@@ -865,123 +964,139 @@ function MultiSelectionCommonContent({ nodes }: { nodes: SceneNode[] }) {
 
     return (
         <>
-            {[...groups.entries()].map(([groupKey, groupDescriptors]) => (
-                <TransformSection key={groupKey} title={`Common Content · ${groupDescriptors[0].group.label}`}>
-                    {groupDescriptors.map((template) => {
-                        const targets = elementNodes.map((node) =>
-                            elementPropertyTarget(node.elementId, template.definition.key)
-                        );
-                        const values = targets.map((target) =>
-                            effectiveValueForTarget(useSceneStore.getState(), target, tick)
-                        );
-                        const shared = values.every((value) => Object.is(value, values[0])) ? values[0] : undefined;
-                        const targetBindings = elementNodes.map(
-                            (node) => bindings[node.elementId]?.[template.definition.key]
-                        );
-                        const firstBinding = targetBindings[0];
-                        const commonMacroId =
-                            firstBinding?.type === 'macro' &&
-                            targetBindings.every(
-                                (binding) => binding?.type === 'macro' && binding.macroId === firstBinding.macroId
-                            )
-                                ? firstBinding.macroId
-                                : undefined;
-                        const valueType = resolveAutomationValueType(template.definition.type);
-                        const inputType = template.definition.type === 'string' ? 'text' : template.definition.type;
-                        const write = (payload: unknown) => {
-                            const change =
-                                payload && typeof payload === 'object' && 'value' in payload
-                                    ? (payload as FormInputChange)
-                                    : null;
-                            const value = change ? change.value : payload;
-                            const session = change?.meta?.mergeSession;
-                            dispatchPropertyEdits(
-                                targets.map((target) => ({ target, value, valueType })),
-                                {
-                                    tick,
-                                    autoKey,
-                                    source: 'NodeTransformPanel.commonContent',
-                                    mergeKey: session ? propertyEditMergeKey(targets, session.id) : undefined,
-                                    transient: session ? !session.finalize : undefined,
-                                }
+            {[...groups.entries()].map(([groupKey, groupDescriptors]) => {
+                const sectionTitle = `Common Content · ${groupDescriptors[0].group.label}`;
+                const visibleDescriptors = propertySearchMatches(searchTerm, sectionTitle)
+                    ? groupDescriptors
+                    : groupDescriptors.filter((descriptor) =>
+                          propertySearchMatches(
+                              searchTerm,
+                              descriptor.definition.label,
+                              descriptor.definition.key,
+                              descriptor.definition.description
+                          )
+                      );
+                if (!visibleDescriptors.length) return null;
+                return (
+                    <TransformSection key={groupKey} title={sectionTitle}>
+                        {visibleDescriptors.map((template) => {
+                            const targets = elementNodes.map((node) =>
+                                elementPropertyTarget(node.elementId, template.definition.key)
                             );
-                        };
+                            const values = targets.map((target) =>
+                                effectiveValueForTarget(useSceneStore.getState(), target, tick)
+                            );
+                            const shared = values.every((value) => Object.is(value, values[0])) ? values[0] : undefined;
+                            const targetBindings = elementNodes.map(
+                                (node) => bindings[node.elementId]?.[template.definition.key]
+                            );
+                            const firstBinding = targetBindings[0];
+                            const commonMacroId =
+                                firstBinding?.type === 'macro' &&
+                                targetBindings.every(
+                                    (binding) => binding?.type === 'macro' && binding.macroId === firstBinding.macroId
+                                )
+                                    ? firstBinding.macroId
+                                    : undefined;
+                            const valueType = resolveAutomationValueType(template.definition.type);
+                            const inputType = template.definition.type === 'string' ? 'text' : template.definition.type;
+                            const write = (payload: unknown) => {
+                                const change =
+                                    payload && typeof payload === 'object' && 'value' in payload
+                                        ? (payload as FormInputChange)
+                                        : null;
+                                const value = change ? change.value : payload;
+                                const session = change?.meta?.mergeSession;
+                                dispatchPropertyEdits(
+                                    targets.map((target) => ({ target, value, valueType })),
+                                    {
+                                        tick,
+                                        autoKey,
+                                        source: 'NodeTransformPanel.commonContent',
+                                        mergeKey: session ? propertyEditMergeKey(targets, session.id) : undefined,
+                                        transient: session ? !session.finalize : undefined,
+                                    }
+                                );
+                            };
 
-                        return (
-                            <PropertyControlRow
-                                key={template.definition.key}
-                                label={template.definition.label}
-                                description={template.definition.description}
-                                animationControl={
-                                    valueType ? (
-                                        <BulkTargetKeyframeControl
-                                            targets={targets}
-                                            values={values}
-                                            valueType={valueType}
-                                        />
-                                    ) : null
-                                }
-                                macroControl={
-                                    template.capabilities.macroAssignable ? (
-                                        <NodeMacroControl
-                                            path={template.definition.key}
-                                            bindingMacroId={commonMacroId}
-                                            hasAssignment={targetBindings.some((binding) => binding?.type === 'macro')}
-                                            macros={macros}
-                                            options={macros.allIds.filter(
-                                                (id) => macros.byId[id]?.type === template.definition.type
-                                            )}
-                                            onAssign={(macroId) => {
-                                                const commands: SceneCommand[] = targets.map((target, index) => ({
-                                                    type: 'updatePropertyTargetBinding',
-                                                    target,
-                                                    binding: macroId
-                                                        ? { type: 'macro', macroId }
-                                                        : { type: 'constant', value: values[index] },
-                                                }));
-                                                dispatchSceneCommand(
-                                                    { type: 'batch', commands },
-                                                    { source: 'NodeTransformPanel.commonContent.macro' }
+                            return (
+                                <PropertyControlRow
+                                    key={template.definition.key}
+                                    label={template.definition.label}
+                                    description={template.definition.description}
+                                    animationControl={
+                                        valueType ? (
+                                            <BulkTargetKeyframeControl
+                                                targets={targets}
+                                                values={values}
+                                                valueType={valueType}
+                                            />
+                                        ) : null
+                                    }
+                                    macroControl={
+                                        template.capabilities.macroAssignable ? (
+                                            <NodeMacroControl
+                                                path={template.definition.key}
+                                                bindingMacroId={commonMacroId}
+                                                hasAssignment={targetBindings.some(
+                                                    (binding) => binding?.type === 'macro'
+                                                )}
+                                                macros={macros}
+                                                options={macros.allIds.filter(
+                                                    (id) => macros.byId[id]?.type === template.definition.type
+                                                )}
+                                                onAssign={(macroId) => {
+                                                    const commands: SceneCommand[] = targets.map((target, index) => ({
+                                                        type: 'updatePropertyTargetBinding',
+                                                        target,
+                                                        binding: macroId
+                                                            ? { type: 'macro', macroId }
+                                                            : { type: 'constant', value: values[index] },
+                                                    }));
+                                                    dispatchSceneCommand(
+                                                        { type: 'batch', commands },
+                                                        { source: 'NodeTransformPanel.commonContent.macro' }
+                                                    );
+                                                }}
+                                            />
+                                        ) : null
+                                    }
+                                >
+                                    {shared === undefined && template.definition.type !== 'boolean' ? (
+                                        <input
+                                            className="node-transform-mixed"
+                                            defaultValue=""
+                                            placeholder="Mixed"
+                                            disabled={targetBindings.some((binding) => binding?.type === 'macro')}
+                                            onBlur={(event) => {
+                                                if (!event.currentTarget.value.trim()) return;
+                                                write(
+                                                    template.definition.type === 'number'
+                                                        ? Number(event.currentTarget.value)
+                                                        : event.currentTarget.value
                                                 );
+                                                event.currentTarget.value = '';
+                                            }}
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Enter') event.currentTarget.blur();
                                             }}
                                         />
-                                    ) : null
-                                }
-                            >
-                                {shared === undefined && template.definition.type !== 'boolean' ? (
-                                    <input
-                                        className="node-transform-mixed"
-                                        defaultValue=""
-                                        placeholder="Mixed"
-                                        disabled={targetBindings.some((binding) => binding?.type === 'macro')}
-                                        onBlur={(event) => {
-                                            if (!event.currentTarget.value.trim()) return;
-                                            write(
-                                                template.definition.type === 'number'
-                                                    ? Number(event.currentTarget.value)
-                                                    : event.currentTarget.value
-                                            );
-                                            event.currentTarget.value = '';
-                                        }}
-                                        onKeyDown={(event) => {
-                                            if (event.key === 'Enter') event.currentTarget.blur();
-                                        }}
-                                    />
-                                ) : (
-                                    <FormInput
-                                        id={`common-content-${template.definition.key}`}
-                                        type={inputType}
-                                        value={shared ?? false}
-                                        schema={template.definition}
-                                        disabled={targetBindings.some((binding) => binding?.type === 'macro')}
-                                        onChange={write}
-                                    />
-                                )}
-                            </PropertyControlRow>
-                        );
-                    })}
-                </TransformSection>
-            ))}
+                                    ) : (
+                                        <FormInput
+                                            id={`common-content-${template.definition.key}`}
+                                            type={inputType}
+                                            value={shared ?? false}
+                                            schema={template.definition}
+                                            disabled={targetBindings.some((binding) => binding?.type === 'macro')}
+                                            onChange={write}
+                                        />
+                                    )}
+                                </PropertyControlRow>
+                            );
+                        })}
+                    </TransformSection>
+                );
+            })}
         </>
     );
 }
