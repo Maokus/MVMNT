@@ -33,6 +33,12 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
     private _cameraViewport: PerspectiveViewport | null = null;
     private _linkCameraPivotToNode = false;
     private _resolvedNodePivot: PerspectivePoint | null = null;
+    /**
+     * A blend mode shared by the element's direct visual children. Perspective
+     * rendering rasterizes those children into an isolated surface, so this is
+     * applied only when the warped surface is composited onto the scene.
+     */
+    private _outputBlendMode: GlobalCompositeOperation | null = null;
 
     constructor(
         elementId: string | null,
@@ -63,6 +69,15 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
 
     get isPerspectiveEdgeOn(): boolean {
         return this._isPerspectiveEdgeOn;
+    }
+
+    get outputBlendMode(): GlobalCompositeOperation | null {
+        return this._outputBlendMode;
+    }
+
+    setOutputBlendMode(mode: GlobalCompositeOperation | null): this {
+        this._outputBlendMode = mode;
+        return this;
     }
 
     configureCamera(

@@ -437,7 +437,7 @@ export class PerspectiveCompositor {
             const compositeStart = now();
             target.save();
             target.globalAlpha *= root.opacity;
-            target.globalCompositeOperation = 'source-over';
+            target.globalCompositeOperation = root.outputBlendMode ?? 'source-over';
             target.drawImage(
                 this.scratchCanvas,
                 0,

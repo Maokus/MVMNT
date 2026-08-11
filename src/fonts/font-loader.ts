@@ -22,6 +22,9 @@ const SYSTEM_FONT_FAMILIES = new Set(
     ].map((family) => family.toLowerCase())
 );
 
+/** Legacy scenes stored the bundled default as `Inter|<weight>` before font-source tokens existed. */
+const LEGACY_BUILT_IN_FAMILIES = new Set(['inter']);
+
 export function isSystemFontFamily(family: string): boolean {
     return SYSTEM_FONT_FAMILIES.has(family.trim().toLowerCase());
 }
@@ -299,7 +302,9 @@ export async function ensureSceneFontsLoaded(
     await Promise.all(
         [...selections].map(async (selection) => {
             const parsed = parseFontSelection(selection);
-            if (options.strict && parsed.source === 'legacy') {
+            const resolvedLegacyBuiltIn =
+                parsed.source === 'legacy' && LEGACY_BUILT_IN_FAMILIES.has(parsed.family.trim().toLowerCase());
+            if (options.strict && parsed.source === 'legacy' && !resolvedLegacyBuiltIn) {
                 errors.push(`Unresolved legacy font selection: ${parsed.family}`);
                 return;
             }

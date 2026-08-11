@@ -115,6 +115,17 @@ describe('PerspectiveCompositor', () => {
         expect(target.drawImage).toHaveBeenCalledWith(scratch, 0, 0, 121, 101, 10, 20, 121, 101);
     });
 
+    it('preserves a shared appearance blend mode when compositing a tilted element', () => {
+        const { compositor, target } = createWorkingHarness();
+        const root = rootAt(0).setOutputBlendMode('multiply');
+
+        expect(
+            compositor.renderElement(root, target, { canvas: { width: 200, height: 200 } as HTMLCanvasElement }, 0)
+        ).toBe(true);
+
+        expect(target.globalCompositeOperation).toBe('multiply');
+    });
+
     it('falls back during context loss and recompiles after restoration', () => {
         const { compositor, scratch, target } = createWorkingHarness();
         compositor.beginFrame();

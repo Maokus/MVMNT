@@ -103,4 +103,28 @@ describe('font-loader', () => {
         await expect(pending).resolves.toBeUndefined();
         expect(document.querySelector('link[href*="fonts.googleapis.com"]')).toBeNull();
     });
+
+    it('accepts the legacy Inter default during strict export preflight', async () => {
+        const { ensureSceneFontsLoaded } = await import('../font-loader');
+
+        await expect(
+            ensureSceneFontsLoaded(
+                { text: { properties: { fontFamily: { type: 'constant', value: 'Inter|700' } } } },
+                undefined,
+                { strict: true }
+            )
+        ).resolves.toBeUndefined();
+    });
+
+    it('still rejects unknown legacy font selections during strict export preflight', async () => {
+        const { ensureSceneFontsLoaded } = await import('../font-loader');
+
+        await expect(
+            ensureSceneFontsLoaded(
+                { text: { properties: { fontFamily: { type: 'constant', value: 'Unresolved Legacy|400' } } } },
+                undefined,
+                { strict: true }
+            )
+        ).rejects.toThrow('Unresolved legacy font selection: Unresolved Legacy');
+    });
 });
