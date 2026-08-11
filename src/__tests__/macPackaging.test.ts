@@ -7,9 +7,12 @@ const require = createRequire(import.meta.url);
 const forgeConfig = require('../../forge.config.cjs');
 
 describe('macOS packaging dependencies', () => {
-    it('installs appdmg for Electron Forge’s DMG maker', () => {
-        expect(packageManifest.devDependencies.appdmg).toBeDefined();
-        expect(require.resolve('appdmg')).toContain('node_modules/appdmg');
+    it('makes appdmg optional so Linux verification installs succeed', () => {
+        expect(packageManifest.optionalDependencies.appdmg).toBeDefined();
+
+        if (process.platform === 'darwin') {
+            expect(require.resolve('appdmg')).toContain('node_modules/appdmg');
+        }
     });
 
     it('only passes appdmg-supported options to the DMG maker', () => {
