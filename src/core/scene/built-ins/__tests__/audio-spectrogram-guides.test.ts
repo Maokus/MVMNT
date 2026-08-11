@@ -5,6 +5,21 @@ import {
 } from '@core/scene/built-ins/audio-displays/audio-spectrogram';
 
 describe('audio spectrogram guide schema', () => {
+    it('shows three color controls only when the custom color map is selected', () => {
+        const spectrogram = AudioSpectrogramElement.getConfigSchema()
+            .tabs.flatMap((tab) => tab.groups)
+            .find((group) => group.id === 'spectrogram');
+        const properties = new Map(spectrogram?.properties.map((property) => [property.key, property]));
+
+        expect(properties.get('colorMap')?.options).toContainEqual({ label: 'Custom', value: 'custom' });
+        for (const key of ['customLowColor', 'customMidColor', 'customHighColor']) {
+            expect(properties.get(key)).toMatchObject({
+                type: 'color',
+                visibleWhen: [{ key: 'colorMap', equals: 'custom' }],
+            });
+        }
+    });
+
     it('groups guide controls and exposes independent note origins', () => {
         const guides = AudioSpectrogramElement.getConfigSchema()
             .tabs.flatMap((tab) => tab.groups)

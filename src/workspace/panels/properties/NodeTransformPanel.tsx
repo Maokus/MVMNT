@@ -239,6 +239,13 @@ export function NodeTransformPanel() {
     const aggregateSession = useRef(new AggregateTransformSession());
     const [aggregateInputRevision, setAggregateInputRevision] = useState(0);
     const nodes = nodeIds.map((id) => graph.nodesById[id]).filter(Boolean);
+    const selectedNodeKey = nodeIds.join('|');
+
+    // Pending poses belong only to the frame and selection where they were made.
+    // Seeking or selecting elsewhere restores the authored animation evaluation.
+    useEffect(() => {
+        useSceneEditorStore.getState().clearTransientNodeTransforms();
+    }, [tick, selectedNodeKey]);
     const geometry = useMemo(
         () => visualizer?.getNodeSelectionAtTime?.(nodeIds, visualizer.getCurrentTime?.() ?? 0) ?? null,
         [visualizer, nodeIds, graph.revision]

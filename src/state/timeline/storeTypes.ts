@@ -110,7 +110,13 @@ export type TimelineState = {
     midiPreviewTrackIds: Record<string, true>;
 
     // Actions
-    addMidiTrack: (input: { name: string; file?: File; midiData?: MIDIData; offsetTicks?: number }) => Promise<string>;
+    addMidiTrack: (input: {
+        name: string;
+        file?: File;
+        midiData?: MIDIData;
+        offsetTicks?: number;
+        clipName?: string;
+    }) => Promise<string>;
     addMidiClip: (input: AddMidiClipPayload) => Promise<string>;
     removeMidiClips: (input: RemoveMidiClipsPayload) => Promise<void>;
     updateMidiClip: (input: UpdateMidiClipsPayload['updates'][number]) => Promise<void>;
@@ -128,6 +134,7 @@ export type TimelineState = {
         file?: File;
         buffer?: AudioBuffer;
         offsetTicks?: number;
+        clipName?: string;
     }) => Promise<string>;
     removeTrack: (id: string) => void;
     removeTracks: (ids: string[]) => void; // batch removal (single undo snapshot)

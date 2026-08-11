@@ -3,9 +3,10 @@ import InsertKeyframePopup from '@workspace/panels/properties/InsertKeyframePopu
 import TrackInputAssignPopup from '@workspace/components/TrackInputAssignPopup';
 import { hoveredPropertyRef } from '@workspace/panels/properties/hoveredPropertyRef';
 import { resolveAutomationValueType } from '@workspace/panels/properties/KeyframeControl';
-import { channelForTarget, createKeyframe, elementPropertyTarget, nodePropertyTarget } from '@automation/types';
-import { effectiveValueForTarget } from '@state/scene';
+import { elementPropertyTarget, nodePropertyTarget } from '@automation/types';
+import { insertPropertyKeyframe } from '@state/scene';
 import { useTimelineStore } from '@state/timelineStore';
+import { isTextEditingTarget, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 import { deriveElementOrder } from '@state/scene-graph';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -108,69 +109,44 @@ const InsertKeyframeController: React.FC = () => {
         return () => window.removeEventListener('mousemove', onMove);
     }, []);
 
-    useEffect(() => {
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== 'i') return;
-            const target = e.target as HTMLElement | null;
-            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable))
-                return;
-            if (!activeNodeId) return;
-            e.preventDefault();
-
-            const hovered = hoveredPropertyRef.current;
-            if (hovered) {
-                const { propertyKey, propertyType } = hovered;
-                const valueType = resolveAutomationValueType(propertyType);
-                if (valueType) {
-                    const propertyTarget =
+    useGlobalShortcut({
+        id: 'scene.insert-keyframe',
+        domain: 'focused-control',
+        matches: (event) => {
+            if (event.key.toLowerCase() !== 'i' || event.altKey || event.ctrlKey || event.metaKey || !activeNodeId)
+                return false;
+            // Let ordinary text fields receive "i". Number fields are explicit property targets.
+            return !isTextEditingTarget(event.target) || hoveredPropertyRef.current?.propertyType === 'number';
+        },
+        handle: (event) => {
+            event.preventDefault();
+            const apply = () => {
+                const hovered = hoveredPropertyRef.current;
+                const valueType = hovered && resolveAutomationValueType(hovered.propertyType);
+                if (hovered && valueType) {
+                    const target =
                         hovered.owner.kind === 'node'
-                            ? nodePropertyTarget(hovered.owner.id, propertyKey)
-                            : elementPropertyTarget(hovered.owner.id, propertyKey);
-                    const channelId = channelForTarget(useSceneStore.getState().automation, propertyTarget)?.id;
-                    const sceneState = useSceneStore.getState();
-                    const tick = useTimelineStore.getState().timeline.currentTick;
-                    const isAutomated = !!channelId;
-                    const currentValue = effectiveValueForTarget(sceneState, propertyTarget, tick);
-
-                    if (!isAutomated) {
-                        dispatchSceneCommand(
-                            {
-                                type: 'enablePropertyAutomation',
-                                target: propertyTarget,
-                                valueType,
-                                initialKeyframes: [createKeyframe(tick > 0 ? tick : 0, currentValue)],
-                            },
-                            { source: 'keyframe-hotkey' }
-                        );
-                    } else {
-                        const existing = sceneState.automation.channels[channelId!]?.keyframes.find(
-                            (keyframe) => Math.abs(keyframe.tick - tick) < 0.5
-                        );
-                        dispatchSceneCommand(
-                            {
-                                type: 'addKeyframe',
-                                channelId,
-                                keyframe: existing
-                                    ? { ...existing, tick, value: currentValue }
-                                    : createKeyframe(tick, currentValue),
-                            },
-                            { source: 'keyframe-hotkey' }
-                        );
-                    }
-                    if (hovered.owner.kind === 'node') {
-                        useSceneEditorStore
-                            .getState()
-                            .clearTransientNodeTransforms([hovered.owner.id], [propertyKey as any]);
-                    }
-                    return;
+                            ? nodePropertyTarget(hovered.owner.id, hovered.propertyKey)
+                            : elementPropertyTarget(hovered.owner.id, hovered.propertyKey);
+                    insertPropertyKeyframe(
+                        target,
+                        valueType,
+                        useTimelineStore.getState().timeline.currentTick,
+                        'keyframe-hotkey'
+                    );
+                } else {
+                    setPopupPos({ x: mousePos.current.x, y: mousePos.current.y });
                 }
+            };
+            if (isTextEditingTarget(event.target)) {
+                (event.target as HTMLElement).blur();
+                window.setTimeout(apply, 0);
+            } else {
+                apply();
             }
-
-            setPopupPos({ x: mousePos.current.x, y: mousePos.current.y });
-        };
-        document.addEventListener('keydown', onKeyDown);
-        return () => document.removeEventListener('keydown', onKeyDown);
-    }, [activeNodeId, selectedElement, selectedElementSchema]);
+            return true;
+        },
+    });
 
     if (!popupPos || !activeNodeId) return null;
 

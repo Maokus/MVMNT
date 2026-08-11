@@ -44,7 +44,7 @@ import {
 import { hydrateAudioAssets } from './import/audioHydration';
 import { migrateAndValidateScene } from './import/migrationOrchestration';
 import { applyImportedDocument } from './import/documentApplication';
-import { hydrateSceneFonts, preloadImportedSceneFonts } from './import/fontHydration';
+import { hydrateSceneFonts, preloadImportedSceneFonts, reconcileHydratedFontTokens } from './import/fontHydration';
 import type { ImportSceneInput, ImportSceneOptions, ImportSceneResult } from './import/contracts';
 export type {
     ImportError,
@@ -140,20 +140,28 @@ export async function importScene(
 
     throwIfAborted(options.signal);
     options.onProgress?.(0.5, 'Restoring timeline data…');
-    const { doc, featureWarnings } = buildDocumentShape(migratedEnvelope, audioFeaturePayloads);
     const midiRestoration = await restoreMidiCache(migratedEnvelope?.timeline?.midiCache, midiPayloads, options);
+
+    options.onProgress?.(0.62, 'Restoring fonts…');
+    const { warnings: fontWarnings, hydratedAssets } = await hydrateSceneFonts(
+        migratedEnvelope,
+        fontPayloads,
+        options.signal
+    );
+    const reconciledScene = reconcileHydratedFontTokens(migratedEnvelope.scene, hydratedAssets);
+    const fontReconciliationPerformed = reconciledScene !== migratedEnvelope.scene;
+    if (fontReconciliationPerformed) migratedEnvelope.scene = reconciledScene;
+
+    const { doc, featureWarnings } = buildDocumentShape(migratedEnvelope, audioFeaturePayloads);
     doc.midiCache = midiRestoration.cache;
 
-    options.onProgress?.(0.62, 'Restoring visual assets…');
+    options.onProgress?.(0.68, 'Restoring visual assets…');
     const { warnings: visualWarnings, fileById } = restoreVisualAssets(
         doc.scene,
         migratedEnvelope.assets?.visual,
         visualPayloads,
         options
     );
-
-    options.onProgress?.(0.68, 'Restoring fonts…');
-    const fontWarnings = await hydrateSceneFonts(migratedEnvelope, fontPayloads, options.signal);
 
     throwIfAborted(options.signal);
     options.onProgress?.(0.72, 'Applying scene…');
@@ -227,7 +235,7 @@ export async function importScene(
     if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('mvmnt-scene-import-complete'));
     }
-    if (fontUpgradePerformed) {
+    if (fontUpgradePerformed || fontReconciliationPerformed) {
         useSceneEditorStore.getState().markDocumentChanged('updateFonts');
         useSceneStore.setState((state) => ({
             runtimeMeta: {

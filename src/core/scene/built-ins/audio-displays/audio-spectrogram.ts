@@ -14,13 +14,15 @@ import type { AudioSpectrumScale } from './audio-spectrum';
 import {
     getSpectrogramTile,
     getSpectrogramTileRange,
+    DEFAULT_SPECTROGRAM_CUSTOM_COLORS,
     SPECTROGRAM_COLOR_MAPS,
     SPECTROGRAM_TILE_COLUMNS,
     SpectrogramTileRenderObject,
     type SpectrogramColorMap,
+    type SpectrogramCustomColors,
 } from './spectrogram-tiles';
 
-export { buildSpectrogramPixels } from './spectrogram-tiles';
+export { buildSpectrogramPixels, resolveSpectrogramColorStops } from './spectrogram-tiles';
 
 const DEFAULT_BACKGROUND_COLOR = '#0F172A';
 const DEFAULT_PLAYHEAD_COLOR = '#E2E8F0';
@@ -43,6 +45,14 @@ function normalizeScale(value: unknown): AudioSpectrumScale {
 
 function normalizeColorMap(value: unknown): SpectrogramColorMap {
     return SPECTROGRAM_COLOR_MAPS.includes(value as SpectrogramColorMap) ? (value as SpectrogramColorMap) : 'viridis';
+}
+
+function resolveCustomColors(props: Record<string, unknown>): SpectrogramCustomColors {
+    return [
+        typeof props.customLowColor === 'string' ? props.customLowColor : DEFAULT_SPECTROGRAM_CUSTOM_COLORS[0],
+        typeof props.customMidColor === 'string' ? props.customMidColor : DEFAULT_SPECTROGRAM_CUSTOM_COLORS[1],
+        typeof props.customHighColor === 'string' ? props.customHighColor : DEFAULT_SPECTROGRAM_CUSTOM_COLORS[2],
+    ];
 }
 
 function selectedPreset(value: unknown, options: readonly number[]): number | null {
@@ -261,6 +271,15 @@ export class AudioSpectrogramElement extends BoundSceneElement {
                                 })),
                                 runtime: { transform: (value) => normalizeColorMap(value), defaultValue: 'viridis' },
                             },
+                            prop.color('customLowColor', 'Custom Low Color', DEFAULT_SPECTROGRAM_CUSTOM_COLORS[0], {
+                                visibleWhen: [{ key: 'colorMap', equals: 'custom' }],
+                            }),
+                            prop.color('customMidColor', 'Custom Mid Color', DEFAULT_SPECTROGRAM_CUSTOM_COLORS[1], {
+                                visibleWhen: [{ key: 'colorMap', equals: 'custom' }],
+                            }),
+                            prop.color('customHighColor', 'Custom High Color', DEFAULT_SPECTROGRAM_CUSTOM_COLORS[2], {
+                                visibleWhen: [{ key: 'colorMap', equals: 'custom' }],
+                            }),
                         ],
                         layout: [
                             { kind: 'control', control: 'slider', bindings: { value: 'playheadPosition' } },
@@ -434,6 +453,7 @@ export class AudioSpectrogramElement extends BoundSceneElement {
                 maxDecibels: props.maxDecibels ?? 0,
                 gain,
                 colorMap: normalizeColorMap(props.colorMap),
+                customColors: resolveCustomColors(props),
             });
             if (!resource) continue;
             hasData = true;

@@ -8,6 +8,7 @@ import { useSceneEditorStore } from '@state/sceneEditorStore';
 describe('shared property editing', () => {
     beforeEach(() => {
         useSceneStore.getState().clearScene();
+        useSceneEditorStore.getState().resetEditorState();
         dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'element' });
     });
 
@@ -96,7 +97,7 @@ describe('shared property editing', () => {
         expect(useSceneEditorStore.getState().transientNodeTransforms[nodeId]).toEqual({ rotation: 1 });
     });
 
-    it('creates an uncommitted preview instead of a keyframe for animated transforms when auto-key is off', () => {
+    it('updates an existing transform key when auto-key is off', () => {
         const state = useSceneStore.getState();
         const nodeId = state.nodeIdByElementId.element;
         const target = nodePropertyTarget(nodeId, 'rotation');
@@ -111,7 +112,26 @@ describe('shared property editing', () => {
             source: 'test',
         });
 
-        expect(useSceneStore.getState().automation.channels[channel.id].keyframes).toEqual([createKeyframe(24, 0.25)]);
+        expect(useSceneStore.getState().automation.channels[channel.id].keyframes).toEqual([createKeyframe(24, 0.75)]);
+        expect(useSceneEditorStore.getState().transientNodeTransforms[nodeId]).toBeUndefined();
+    });
+
+    it('creates a transform preview between keys when auto-key is off', () => {
+        const state = useSceneStore.getState();
+        const nodeId = state.nodeIdByElementId.element;
+        const target = nodePropertyTarget(nodeId, 'rotation');
+        const channel = createChannel(target, 'number');
+        channel.keyframes = [createKeyframe(0, 0.25), createKeyframe(48, 1)];
+        state.setAutomationChannel(channel);
+        state.updateNodeBindings(nodeId, { rotation: { type: 'keyframes', channelId: channel.id } });
+
+        dispatchPropertyEdits([{ target, value: 0.75, valueType: 'number' }], {
+            tick: 24,
+            autoKey: false,
+            source: 'test',
+        });
+
+        expect(useSceneStore.getState().automation.channels[channel.id].keyframes).toEqual(channel.keyframes);
         expect(useSceneEditorStore.getState().transientNodeTransforms[nodeId]).toEqual({ rotation: 0.75 });
     });
 });

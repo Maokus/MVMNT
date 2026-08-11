@@ -136,6 +136,7 @@ export class ExportCoordinator {
             await output?.abort().catch(() => undefined);
             const cancelled =
                 controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError');
+            if (!cancelled) console.error('Export job failed', error);
             const failedJob: ExportJob = {
                 ...job,
                 status: cancelled ? 'cancelled' : 'failed',

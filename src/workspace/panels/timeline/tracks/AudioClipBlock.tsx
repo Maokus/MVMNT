@@ -350,7 +350,7 @@ const AudioClipBlock: React.FC<Props> = ({
             true
         );
         const desiredBaseSeconds = ticksToSeconds(timingContext, desiredTrimmedStart) - sourceBounds.startSeconds;
-        const snapped = Math.round(secondsToTicks(timingContext, Math.max(0, desiredBaseSeconds)));
+        const snapped = Math.round(secondsToTicks(timingContext, desiredBaseSeconds));
         setDragTick(snapped);
         onHoverSnapX(toX(desiredTrimmedStart, laneWidth));
         if (Math.abs(dx) > 2 || Math.abs(dy) > 2) setDidMove(true);

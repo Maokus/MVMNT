@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     buildSpectrogramPixels,
     getSpectrogramFrequencyPosition,
+    resolveSpectrogramColorStops,
 } from '@core/scene/built-ins/audio-displays/audio-spectrogram';
 import {
     buildVectorscopePoints,
@@ -26,6 +27,27 @@ describe('audio spectrogram display helpers', () => {
         const pixels = buildSpectrogramPixels([[-80, -60, -40, -20, 0]], 8, -80, 0, 'viridis', 'mel', 44100, 20, 20000);
         expect(pixels).toHaveLength(8 * 4);
         for (let index = 3; index < pixels.length; index += 4) expect(pixels[index]).toBe(255);
+    });
+
+    it('maps custom low, mid, and high intensity colors across the gradient', () => {
+        const blackPixels = buildSpectrogramPixels([[-80, 0]], 2, -80, 0, 'custom', 'linear', 44100, 0, 22050, [
+            '#000000',
+            '#000000',
+            '#000000',
+        ]);
+        const whitePixels = buildSpectrogramPixels([[-80, 0]], 2, -80, 0, 'custom', 'linear', 44100, 0, 22050, [
+            '#ffffff',
+            '#ffffff',
+            '#ffffff',
+        ]);
+
+        expect(resolveSpectrogramColorStops('custom', ['#102030', '#405060', '#708090'])).toEqual([
+            [16, 32, 48],
+            [64, 80, 96],
+            [112, 128, 144],
+        ]);
+        expect(blackPixels.filter((_value, index) => index % 4 !== 3).every((value) => value === 0)).toBe(true);
+        expect(whitePixels.filter((_value, index) => index % 4 !== 3).every((value) => value === 255)).toBe(true);
     });
 
     it('places frequency guides using the active spectrogram scale', () => {

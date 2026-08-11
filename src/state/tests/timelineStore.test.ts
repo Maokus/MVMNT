@@ -34,6 +34,27 @@ describe('timelineStore', () => {
         expect(s.tracksOrder.includes(id)).toBe(true);
     });
 
+    it('keeps an imported file name on its MIDI clip while using the supplied numbered track name', async () => {
+        const midi = {
+            events: [{ type: 'noteOn', time: 0, note: 60, channel: 0, velocity: 100, tick: 0 }],
+            duration: 1,
+            tempo: 500000,
+            ticksPerQuarter: CANONICAL_PPQ,
+            timeSignature: { numerator: 4, denominator: 4, clocksPerClick: 24, thirtysecondNotesPerBeat: 8 },
+            trimmedTicks: 0,
+        } as any;
+
+        const id = await getState().addMidiTrack({
+            name: 'MIDI Track 1',
+            clipName: 'lead melody.mid',
+            midiData: midi,
+        });
+
+        const track = getState().tracks[id] as TimelineTrack;
+        expect(track.name).toBe('MIDI Track 1');
+        expect(track.clips?.[0]?.name).toBe('lead melody.mid');
+    });
+
     it('updates track properties and selection', async () => {
         const id = Object.keys(getState().tracks)[0];
         await act(async () => {

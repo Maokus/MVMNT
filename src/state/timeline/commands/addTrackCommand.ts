@@ -26,6 +26,7 @@ export type AddTrackCommandPayload =
           midiData?: MIDIData;
           file?: File;
           offsetTicks?: number;
+          clipName?: string;
           trackId?: string;
       }
     | {
@@ -34,6 +35,7 @@ export type AddTrackCommandPayload =
           buffer?: AudioBuffer;
           file?: File;
           offsetTicks?: number;
+          clipName?: string;
           trackId?: string;
       };
 
@@ -76,7 +78,7 @@ function buildInitialAudioClip(trackId: string, name: string, offsetTicks: numbe
 async function ingestMidiSource(
     context: TimelineCommandContext,
     trackId: string,
-    payload: { midiData?: MIDIData; file?: File }
+    payload: { midiData?: MIDIData; file?: File; clipName?: string }
 ): Promise<void> {
     const store = context.getState();
     if (payload.midiData) {
@@ -91,7 +93,7 @@ async function ingestMidiSource(
                     clips: [
                         buildInitialMidiClip(
                             trackId,
-                            state.tracks[trackId]?.name ?? 'MIDI Track',
+                            payload.clipName ?? state.tracks[trackId]?.name ?? 'MIDI Track',
                             (state.tracks[trackId] as TimelineTrack)?.offsetTicks ?? 0
                         ),
                     ],
@@ -114,7 +116,7 @@ async function ingestMidiSource(
                         clips: [
                             buildInitialMidiClip(
                                 trackId,
-                                state.tracks[trackId]?.name ?? 'MIDI Track',
+                                payload.clipName ?? state.tracks[trackId]?.name ?? 'MIDI Track',
                                 (state.tracks[trackId] as TimelineTrack)?.offsetTicks ?? 0
                             ),
                         ],
@@ -356,7 +358,11 @@ export function createAddTrackCommand(
                     tracks: { ...state.tracks, [id]: track },
                     tracksOrder: [...state.tracksOrder, id],
                 }));
-                await ingestMidiSource(context, id, { midiData: payload.midiData, file: payload.file });
+                await ingestMidiSource(context, id, {
+                    midiData: payload.midiData,
+                    file: payload.file,
+                    clipName: payload.clipName,
+                });
             } else {
                 let prepared: PreparedAudioSource;
                 try {
@@ -372,7 +378,13 @@ export function createAddTrackCommand(
                     enabled: true,
                     mute: false,
                     solo: false,
-                    clips: [buildInitialAudioClip(id, payload.name || 'Audio Track', payload.offsetTicks ?? 0)],
+                    clips: [
+                        buildInitialAudioClip(
+                            id,
+                            (payload.clipName ?? payload.name) || 'Audio Track',
+                            payload.offsetTicks ?? 0
+                        ),
+                    ],
                     gain: 1,
                 };
                 context.setState((state) => ({

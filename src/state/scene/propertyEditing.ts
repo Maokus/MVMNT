@@ -39,7 +39,7 @@ const PREVIEWABLE_NODE_TRANSFORM_PATHS = new Set([
 function isUncommittedTransformPreview(
     state: SceneStoreState,
     edit: PropertyEdit,
-    context: Pick<PropertyEditContext, 'autoKey'>
+    context: Pick<PropertyEditContext, 'autoKey' | 'tick'>
 ): boolean {
     if (
         context.autoKey ||
@@ -48,11 +48,12 @@ function isUncommittedTransformPreview(
     ) {
         return false;
     }
-    return (
-        bindingForTarget(state, edit.target)?.type === 'keyframes' &&
-        typeof edit.value === 'number' &&
-        Number.isFinite(edit.value)
-    );
+    const binding = bindingForTarget(state, edit.target);
+    if (binding?.type !== 'keyframes' || typeof edit.value !== 'number' || !Number.isFinite(edit.value)) return false;
+    const channel = state.automation.channels[binding.channelId];
+    // Auto Key off still edits a key that already exists at the playhead. Only
+    // in-between poses are previews waiting for an explicit keying action.
+    return !findKeyframeAtTick(channel?.keyframes ?? [], context.tick);
 }
 
 export function bindingForTarget(state: SceneStoreState, target: PropertyTarget): BindingState | undefined {
@@ -170,6 +171,42 @@ export function dispatchPropertyEdits(edits: readonly PropertyEdit[], context: P
         transient: context.transient,
     };
     return dispatchSceneCommand(command, options);
+}
+
+/** Explicit keying shared by the property diamond and the I shortcut. */
+export function insertPropertyKeyframe(
+    target: PropertyTarget,
+    valueType: AutomationValueType,
+    tick: number,
+    source: string,
+    fallbackValue?: unknown
+) {
+    const state = useSceneStore.getState();
+    const resolvedValue = effectiveValueForTarget(state, target, tick);
+    const value = resolvedValue === undefined ? fallbackValue : resolvedValue;
+    const channel = channelForTarget(state.automation, target);
+    const segmentInterpolation =
+        valueType === 'string' ? { mode: 'constant' as const, direction: 'auto' as const } : undefined;
+    const command: SceneCommand = channel
+        ? {
+              type: 'addKeyframe',
+              channelId: channel.id,
+              keyframe: (() => {
+                  const existing = findKeyframeAtTick(channel.keyframes, tick);
+                  return existing ? { ...existing, tick, value } : createKeyframe(tick, value, segmentInterpolation);
+              })(),
+          }
+        : {
+              type: 'enablePropertyAutomation',
+              target,
+              valueType,
+              initialKeyframes: [createKeyframe(tick, value, segmentInterpolation)],
+          };
+    const result = dispatchSceneCommand(command, { source });
+    if (result.success && target.owner.kind === 'node') {
+        useSceneEditorStore.getState().clearTransientNodeTransforms([target.owner.id], [target.propertyPath as any]);
+    }
+    return result;
 }
 
 export function buildSetAutomationCommands(

@@ -68,6 +68,7 @@ export function useAudioImport() {
                 await addAudioTrack({
                     name: getNextImportedTrackName('audio', useTimelineStore.getState().tracks),
                     file,
+                    clipName: file.name,
                 });
                 return true;
             } catch (error) {

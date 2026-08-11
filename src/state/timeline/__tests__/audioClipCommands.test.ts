@@ -90,6 +90,16 @@ describe('audio clip timeline commands', () => {
         expect(clips[0].sourceEndSeconds).toBeCloseTo(0.25);
     });
 
+    it('keeps a negative audio clip offset when moving before scene start', async () => {
+        seedTrack();
+
+        await timelineCommandGateway.dispatchById('timeline.setMultipleAudioClipOffsets', {
+            offsets: [{ trackId: 'track1', clipId: 'clip1', offsetTicks: -CANONICAL_PPQ }],
+        });
+
+        expect((useTimelineStore.getState().tracks.track1 as any).clips[0].offsetTicks).toBe(-CANONICAL_PPQ);
+    });
+
     it('removes audio clips without deleting shared source data until the final reference is gone', async () => {
         seedTrack();
         await timelineCommandGateway.dispatchById('timeline.addAudioClip', {

@@ -14,10 +14,14 @@ import { getHostAudioFeatureMatrixRevision, readHostAudioFeatureMatrix } from '@
 export const SPECTROGRAM_TILE_COLUMNS = 128;
 const SPECTROGRAM_TILE_CACHE_BYTES = 64 * 1024 * 1024;
 
-export const SPECTROGRAM_COLOR_MAPS = ['viridis', 'magma', 'inferno', 'grayscale'] as const;
+export const SPECTROGRAM_COLOR_MAPS = ['viridis', 'magma', 'inferno', 'grayscale', 'custom'] as const;
 export type SpectrogramColorMap = (typeof SPECTROGRAM_COLOR_MAPS)[number];
+type PresetSpectrogramColorMap = Exclude<SpectrogramColorMap, 'custom'>;
+export type SpectrogramCustomColors = readonly [string, string, string];
 
-const COLOR_STOPS: Record<SpectrogramColorMap, readonly [number, number, number][]> = {
+export const DEFAULT_SPECTROGRAM_CUSTOM_COLORS: SpectrogramCustomColors = ['#440154', '#21918C', '#FDE725'];
+
+const COLOR_STOPS: Record<PresetSpectrogramColorMap, readonly [number, number, number][]> = {
     viridis: [
         [68, 1, 84],
         [59, 82, 139],
@@ -64,6 +68,26 @@ function interpolateColor(stops: readonly [number, number, number][], amount: nu
     ];
 }
 
+function parseHexColor(value: string): [number, number, number] | null {
+    const match = /^#?([0-9a-f]{6})(?:[0-9a-f]{2})?$/i.exec(value.trim());
+    if (!match) return null;
+    const hex = match[1]!;
+    return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
+}
+
+function customColorStops(colors: SpectrogramCustomColors): readonly [number, number, number][] {
+    return colors.map(
+        (color, index) => parseHexColor(color) ?? parseHexColor(DEFAULT_SPECTROGRAM_CUSTOM_COLORS[index])!
+    ) as [number, number, number][];
+}
+
+export function resolveSpectrogramColorStops(
+    colorMap: SpectrogramColorMap,
+    customColors: SpectrogramCustomColors = DEFAULT_SPECTROGRAM_CUSTOM_COLORS
+): readonly [number, number, number][] {
+    return colorMap === 'custom' ? customColorStops(customColors) : COLOR_STOPS[colorMap];
+}
+
 export function buildSpectrogramPixels(
     frames: Array<readonly number[] | undefined>,
     rows: number,
@@ -73,12 +97,13 @@ export function buildSpectrogramPixels(
     scale: AudioSpectrumScale,
     sampleRate: number,
     minFrequency: number,
-    maxFrequency: number
+    maxFrequency: number,
+    customColors?: SpectrogramCustomColors
 ): Uint8ClampedArray {
     const safeRows = Math.max(1, Math.floor(rows));
     const pixels = new Uint8ClampedArray(frames.length * safeRows * 4);
     const range = Math.max(1e-6, maxDecibels - minDecibels);
-    const stops = COLOR_STOPS[colorMap];
+    const stops = resolveSpectrogramColorStops(colorMap, customColors);
 
     frames.forEach((frame, column) => {
         if (!frame?.length) return;
@@ -192,6 +217,7 @@ export interface SpectrogramTileRequest {
     maxDecibels: number;
     gain: number;
     colorMap: SpectrogramColorMap;
+    customColors?: SpectrogramCustomColors;
 }
 
 export function getSpectrogramTileRange(
@@ -258,6 +284,7 @@ export function buildSpectrogramTileKey(revision: string, request: SpectrogramTi
         stableNumber(request.maxDecibels),
         stableNumber(request.gain),
         request.colorMap,
+        ...(request.colorMap === 'custom' ? (request.customColors ?? DEFAULT_SPECTROGRAM_CUSTOM_COLORS) : []),
     ].join('|');
 }
 
@@ -279,7 +306,8 @@ export function getSpectrogramTile(request: SpectrogramTileRequest): Spectrogram
             request.scale,
             request.sampleRate,
             request.minFrequency,
-            request.maxFrequency
+            request.maxFrequency,
+            request.customColors
         );
     });
 }

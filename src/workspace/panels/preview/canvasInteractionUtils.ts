@@ -201,11 +201,13 @@ function applyGraphDragUpdate(meta: any, graph: ReturnType<typeof cloneSceneGrap
             }
             const binding = store.nodeBindings[nodeId]?.[path];
             if (binding?.type === 'keyframes') {
-                if (autoKeying) {
-                    const existing = findKeyframeAtTick(
-                        store.automation.channels[binding.channelId]?.keyframes ?? [],
-                        tick
-                    );
+                const existing = findKeyframeAtTick(
+                    store.automation.channels[binding.channelId]?.keyframes ?? [],
+                    tick
+                );
+                // A key at this frame is always the authored value being edited.
+                // Auto Key controls creation of *new* keys, not updates to an existing one.
+                if (autoKeying || existing) {
                     commands.push({
                         type: 'addKeyframe',
                         channelId: binding.channelId,

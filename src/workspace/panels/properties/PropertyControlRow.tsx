@@ -30,6 +30,7 @@ export function PropertyControlRow({
             className={`ae-property-row${nested ? ' ae-property-row-nested' : ''}${delinked ? ' ae-property-delinked' : ''}${className ? ` ${className}` : ''}`}
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
+            onFocusCapture={onMouseEnter}
         >
             <div className="ae-property-label">
                 <span className="ae-property-animation-slot">{animationControl}</span>

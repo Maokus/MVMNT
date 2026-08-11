@@ -13,6 +13,7 @@ import TrackRowBlock from './TrackRowBlock';
 import { getMidiClipLocalBounds } from '@state/timeline/midiClips';
 import { getAudioClipTimelineBounds } from '@state/timeline/audioClips';
 import { createTimingContext } from '@state/timelineTime';
+import { getNextImportedTrackName } from '../hooks/importTrackName';
 
 type Props = {
     trackIds: string[];
@@ -43,15 +44,21 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
             const { category, file } = (event as CustomEvent<{ category: string; file: File }>).detail ?? {};
             if (!file) return;
             if (category === 'midi')
-                void addMidiTrack({ name: file.name.replace(/\.[^/.]+$/, ''), file, offsetTicks: 0 });
+                void addMidiTrack({
+                    name: getNextImportedTrackName('midi', useTimelineStore.getState().tracks),
+                    file,
+                    offsetTicks: 0,
+                    clipName: file.name,
+                });
             if (category === 'audio') {
-                void addAudioTrack({ name: file.name.replace(/\.[^/.]+$/, ''), file, offsetTicks: 0 }).catch(
-                    (error) => {
-                        alert(
-                            `Unable to import ${file.name}. ${error instanceof Error ? error.message : String(error)}`
-                        );
-                    }
-                );
+                void addAudioTrack({
+                    name: getNextImportedTrackName('audio', useTimelineStore.getState().tracks),
+                    file,
+                    offsetTicks: 0,
+                    clipName: file.name,
+                }).catch((error) => {
+                    alert(`Unable to import ${file.name}. ${error instanceof Error ? error.message : String(error)}`);
+                });
             }
         };
         window.addEventListener('mvmnt-dropped-media', handleDesktopDrop);
@@ -232,11 +239,21 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
             const ignored = unique.length - midiFiles.length - audioFiles.length;
 
             for (const midi of midiFiles) {
-                await addMidiTrack({ name: midi.name.replace(/\.[^/.]+$/, ''), file: midi, offsetTicks });
+                await addMidiTrack({
+                    name: getNextImportedTrackName('midi', useTimelineStore.getState().tracks),
+                    file: midi,
+                    offsetTicks,
+                    clipName: midi.name,
+                });
             }
             for (const audio of audioFiles) {
                 try {
-                    await addAudioTrack({ name: audio.name.replace(/\.[^/.]+$/, ''), file: audio, offsetTicks });
+                    await addAudioTrack({
+                        name: getNextImportedTrackName('audio', useTimelineStore.getState().tracks),
+                        file: audio,
+                        offsetTicks,
+                        clipName: audio.name,
+                    });
                 } catch (error) {
                     console.error('Failed to import audio track', error);
                     const reason =

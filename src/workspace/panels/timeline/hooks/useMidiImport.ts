@@ -63,6 +63,7 @@ export function useMidiImport({ requestImportMode, requestTempoImport }: UseMidi
                 await addMidiTrack({
                     name: getNextImportedTrackName('midi', useTimelineStore.getState().tracks),
                     midiData,
+                    clipName: file.name,
                 });
                 return true;
             }
@@ -76,6 +77,7 @@ export function useMidiImport({ requestImportMode, requestTempoImport }: UseMidi
                 await addMidiTrack({
                     name: getNextImportedTrackName('midi', useTimelineStore.getState().tracks),
                     midiData,
+                    clipName: file.name,
                 });
                 return true;
             }
@@ -84,6 +86,7 @@ export function useMidiImport({ requestImportMode, requestTempoImport }: UseMidi
                 await addMidiTrack({
                     name: getNextImportedTrackName('midi', useTimelineStore.getState().tracks),
                     midiData,
+                    clipName: file.name,
                 });
                 return true;
             }
@@ -91,6 +94,7 @@ export function useMidiImport({ requestImportMode, requestTempoImport }: UseMidi
                 await addMidiTrack({
                     name: getNextImportedTrackName('midi', useTimelineStore.getState().tracks),
                     midiData: entry.data,
+                    clipName: file.name,
                 });
             }
             return true;

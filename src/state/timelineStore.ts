@@ -429,7 +429,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     ...createTransportSlice({ set, get, markAllAudioFeatureStatuses }),
     ...createViewSlice(set),
 
-    async addMidiTrack(input: { name: string; file?: File; midiData?: MIDIData; offsetTicks?: number }) {
+    async addMidiTrack(input: {
+        name: string;
+        file?: File;
+        midiData?: MIDIData;
+        offsetTicks?: number;
+        clipName?: string;
+    }) {
         const result = await timelineCommandGateway.dispatchById<AddTrackCommandResult>(
             'timeline.addTrack',
             {
@@ -438,6 +444,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 file: input.file,
                 midiData: input.midiData,
                 offsetTicks: input.offsetTicks,
+                clipName: input.clipName,
             },
             { source: 'timeline-store' }
         );
@@ -501,7 +508,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             source: 'timeline-store',
         });
     },
-    async addAudioTrack(input: { name: string; file?: File; buffer?: AudioBuffer; offsetTicks?: number }) {
+    async addAudioTrack(input: {
+        name: string;
+        file?: File;
+        buffer?: AudioBuffer;
+        offsetTicks?: number;
+        clipName?: string;
+    }) {
         const result = await timelineCommandGateway.dispatchById<AddTrackCommandResult>(
             'timeline.addTrack',
             {
@@ -510,6 +523,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 file: input.file,
                 buffer: input.buffer,
                 offsetTicks: input.offsetTicks,
+                clipName: input.clipName,
             },
             { source: 'timeline-store' }
         );

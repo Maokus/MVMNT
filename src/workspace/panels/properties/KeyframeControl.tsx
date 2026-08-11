@@ -10,8 +10,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useCurrentTick, useAutomationTargetChannel, useKeyframeAtTick } from '@automation/hooks';
-import { dispatchSceneCommand, type SceneCommandOptions } from '@state/scene';
-import { createKeyframe, elementPropertyTarget, encodePropertyOwner } from '@automation/types';
+import { dispatchSceneCommand, insertPropertyKeyframe } from '@state/scene';
+import { elementPropertyTarget, encodePropertyOwner } from '@automation/types';
 import type { AutomationValueType, PropertyTarget } from '@automation/types';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneStore } from '@state/sceneStore';
@@ -88,25 +88,7 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
         (e: React.MouseEvent) => {
             e.stopPropagation();
 
-            if (!isAutomated) {
-                // Enable automation with no initial keyframes
-                const valueType = resolveAutomationValueType(propertyType);
-                if (!valueType) return;
-
-                const segInterp =
-                    valueType === 'string' ? { mode: 'constant' as const, direction: 'auto' as const } : undefined;
-                const initialKeyframes = [createKeyframe(tick > 0 ? tick : 0, currentValue, segInterp)];
-
-                dispatchSceneCommand(
-                    {
-                        type: 'enablePropertyAutomation',
-                        target,
-                        valueType,
-                        initialKeyframes,
-                    },
-                    { source: 'keyframe-control' }
-                );
-            } else if (hasKeyframeHere) {
+            if (isAutomated && hasKeyframeHere) {
                 // Remove keyframe at current tick
                 dispatchSceneCommand(
                     {
@@ -117,26 +99,9 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                     { source: 'keyframe-control' }
                 );
             } else {
-                // Add keyframe at current tick with current value
-                dispatchSceneCommand(
-                    {
-                        type: 'addKeyframe',
-                        channelId: channelId!,
-                        keyframe: createKeyframe(
-                            tick,
-                            currentValue,
-                            channel?.valueType === 'string'
-                                ? { mode: 'constant' as const, direction: 'auto' as const }
-                                : undefined
-                        ),
-                    },
-                    { source: 'keyframe-control' }
-                );
-            }
-            if (target.owner.kind === 'node') {
-                useSceneEditorStore
-                    .getState()
-                    .clearTransientNodeTransforms([target.owner.id], [target.propertyPath as any]);
+                const valueType = resolveAutomationValueType(propertyType);
+                if (!valueType) return;
+                insertPropertyKeyframe(target, valueType, tick, 'keyframe-control', currentValue);
             }
         },
         [isAutomated, hasKeyframeHere, channelId, tick, currentValue, target, propertyType]

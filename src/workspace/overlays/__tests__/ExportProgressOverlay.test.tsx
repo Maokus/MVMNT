@@ -54,4 +54,16 @@ describe('ExportProgressOverlay', () => {
 
         expect(onClose).toHaveBeenCalledTimes(1);
     });
+
+    it('shows the recorded failure reason for a failed job', () => {
+        act(() =>
+            useExportJobStore.setState({
+                jobs: [{ ...activeJob, status: 'failed', error: 'Video encoder is unavailable.' }],
+            })
+        );
+
+        render(<ExportProgressOverlay progress={0} text="Export failed" onClose={vi.fn()} />);
+
+        expect(screen.getByText('Video encoder is unavailable.')).toBeInTheDocument();
+    });
 });

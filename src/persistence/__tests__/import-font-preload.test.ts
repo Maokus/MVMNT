@@ -16,12 +16,16 @@ vi.mock('@fonts/font-loader', async (importOriginal) => ({
 
 import { exportScene, importScene } from '@persistence/index';
 import { dispatchSceneCommand } from '@state/scene';
+import { elementPropertyTarget } from '@automation/types';
+import { FontBinaryStore } from '@persistence/font-binary-store';
+import { collectMissingFontReferences, type FontAsset } from '@state/scene/fonts';
 import { useSceneStore } from '@state/sceneStore';
 
 describe('scene import font preloading', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         ensureSceneFontsLoaded.mockClear();
         useSceneStore.getState().clearScene();
+        await FontBinaryStore.clear();
     });
 
     it('loads selected fonts after applying the imported scene', async () => {
@@ -75,5 +79,71 @@ describe('scene import font preloading', () => {
             undefined,
             { automation: undefined }
         );
+    });
+
+    it('repairs missing references when their embedded font is restored from the package', async () => {
+        const asset: FontAsset = {
+            id: 'brand-sans',
+            family: 'Brand Sans',
+            originalFileName: 'BrandSans.woff2',
+            fileSize: 4,
+            createdAt: 1,
+            updatedAt: 1,
+            licensingAcknowledged: true,
+            variants: [
+                {
+                    id: 'regular',
+                    weight: 400,
+                    style: 'normal',
+                    sourceFormat: 'woff2',
+                    binaryId: 'brand-sans-regular',
+                    byteLength: 4,
+                },
+            ],
+        };
+        await FontBinaryStore.put('brand-sans-regular', new Uint8Array([1, 2, 3, 4]));
+        useSceneStore.getState().registerFontAsset(asset);
+        dispatchSceneCommand({
+            type: 'addElement',
+            elementType: 'textOverlay',
+            elementId: 'title',
+            config: { fontFamily: 'MissingProject:Brand Sans|400' },
+        });
+        dispatchSceneCommand({
+            type: 'createMacro',
+            macroId: 'heading-font',
+            definition: { type: 'font', value: 'MissingGoogle:Brand Sans|400' },
+        });
+        dispatchSceneCommand({
+            type: 'enablePropertyAutomation',
+            target: elementPropertyTarget('title', 'fontFamily'),
+            valueType: 'string',
+            initialKeyframes: [
+                {
+                    tick: 0,
+                    value: 'MissingProject:Brand Sans|400',
+                    segmentInterpolation: { mode: 'constant', direction: 'auto' },
+                },
+            ],
+        });
+        const exported = await exportScene();
+        if (!exported.ok) throw new Error('Expected a packaged scene export');
+
+        useSceneStore.getState().clearScene();
+        await FontBinaryStore.clear();
+        await expect(importScene(exported.zip)).resolves.toMatchObject({ ok: true });
+
+        const state = useSceneStore.getState();
+        expect(state.macros.byId['heading-font'].value).toBe('Project:brand-sans|400');
+        expect(state.bindings.byElement.title.fontFamily).toMatchObject({ type: 'keyframes' });
+        expect(Object.values(state.automation.channels)[0]?.keyframes[0]?.value).toBe('Project:brand-sans|400');
+        expect(
+            collectMissingFontReferences({
+                bindings: state.bindings.byElement,
+                macros: state.macros.byId,
+                automation: state.automation.channels,
+            })
+        ).toEqual([]);
+        expect(state.runtimeMeta.persistentDirty).toBe(true);
     });
 });

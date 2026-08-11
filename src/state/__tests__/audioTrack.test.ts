@@ -41,6 +41,16 @@ describe('Audio Track', () => {
         expect(track.gain).toBe(1);
     });
 
+    it('keeps an imported file name on its clip while using the supplied numbered track name', async () => {
+        const id = await useTimelineStore
+            .getState()
+            .addAudioTrack({ name: 'Audio Track 1', clipName: 'intro mix.wav', buffer: makeTestAudioBuffer(1) });
+
+        const track = useTimelineStore.getState().tracks[id] as any;
+        expect(track.name).toBe('Audio Track 1');
+        expect(track.clips[0].name).toBe('intro mix.wav');
+    });
+
     it('updates gain via setTrackGain', async () => {
         const buffer = makeTestAudioBuffer(1.0);
         const id = await useTimelineStore.getState().addAudioTrack({ name: 'Gain Track', buffer });

@@ -135,24 +135,31 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                     {!isCollapsed && visibleJobs.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-neutral-700 space-y-1">
                             {visibleJobs.map((job) => (
-                                <div key={job.id} className="flex items-center justify-between gap-2 text-xs">
-                                    <span className="truncate">{job.outputName ?? job.snapshot.sceneName}</span>
-                                    <span className="opacity-60 capitalize">{job.status}</span>
-                                    {job.outputId && onReveal && (
-                                        <button
-                                            className="text-sky-300 hover:text-sky-200"
-                                            onClick={() => onReveal(job.outputId!)}
-                                        >
-                                            Reveal
-                                        </button>
-                                    )}
-                                    {!isExportJobActive(job.status) && onRemove && (
-                                        <button
-                                            className="opacity-60 hover:opacity-100"
-                                            onClick={() => onRemove(job.id)}
-                                        >
-                                            ×
-                                        </button>
+                                <div key={job.id} className="min-w-0 text-xs">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="truncate">{job.outputName ?? job.snapshot.sceneName}</span>
+                                        <span className="opacity-60 capitalize">{job.status}</span>
+                                        {job.outputId && onReveal && (
+                                            <button
+                                                className="text-sky-300 hover:text-sky-200"
+                                                onClick={() => onReveal(job.outputId!)}
+                                            >
+                                                Reveal
+                                            </button>
+                                        )}
+                                        {!isExportJobActive(job.status) && onRemove && (
+                                            <button
+                                                className="opacity-60 hover:opacity-100"
+                                                onClick={() => onRemove(job.id)}
+                                            >
+                                                ×
+                                            </button>
+                                        )}
+                                    </div>
+                                    {job.status === 'failed' && job.error && (
+                                        <div className="mt-1 truncate text-red-300" title={job.error}>
+                                            {job.error}
+                                        </div>
                                     )}
                                 </div>
                             ))}

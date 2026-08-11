@@ -131,6 +131,19 @@ describe('spectrogram tile resources', () => {
         ] as const) {
             expect(buildSpectrogramTileKey('revision-a', { ...request, [key]: value })).not.toBe(base);
         }
+        expect(
+            buildSpectrogramTileKey('revision-a', {
+                ...request,
+                colorMap: 'custom',
+                customColors: ['#000000', '#111111', '#222222'],
+            })
+        ).not.toBe(
+            buildSpectrogramTileKey('revision-a', {
+                ...request,
+                colorMap: 'custom',
+                customColors: ['#000000', '#111111', '#333333'],
+            })
+        );
     });
 
     it('invalidates cached tiles when the backing feature track is replaced', () => {
