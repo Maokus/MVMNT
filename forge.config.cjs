@@ -2,6 +2,17 @@ const path = require('node:path');
 const packageManifest = require('./package.json');
 const { nativePackageVersions } = require('./scripts/native-package-version.cjs');
 
+// @electron/get otherwise downloads SHASUMS256.txt from GitHub every time it uses a cached
+// archive. Keep the checksums for the Electron version locked in package-lock.json here so
+// `make:mac` can validate its cached universal-build archives when GitHub is temporarily
+// unreachable. New Electron versions deliberately fall back to @electron/get's normal remote
+// checksum lookup until their official checksums are added below.
+const electronChecksums = {
+    'electron-v43.3.0-darwin-arm64.zip': 'ee939d1564d83d61032b3b3cb23af4e46005a4900c91f0695f7ed793f0ce6e83',
+    'electron-v43.3.0-darwin-x64.zip': '7347bbd5fb529eea64f9c2d148bb1c19222d98946ff234ffe27953a1bbcb9dae',
+    'electron-v43.3.0-win32-x64.zip': '18528bedc6a9b04bdc5efb7b803cbc3cb0e5ea6415d54046e23d464d89a00da9',
+};
+
 const isNightly = process.env.MVMNT_BUILD_CHANNEL === 'nightly';
 const productName = isNightly ? 'MVMNT Nightly' : 'MVMNT';
 const executableName = isNightly ? 'MVMNT Nightly' : 'MVMNT';
@@ -36,6 +47,9 @@ module.exports = {
         asar: true,
         prune: false,
         electronZipDir: process.env.ELECTRON_ZIP_DIR || undefined,
+        download: {
+            checksums: electronChecksums,
+        },
         // CI can explicitly disable signing for builds that do not have release certificates.
         osxSign: process.env.CI && !process.env.MVMNT_SKIP_MAC_SIGNING ? {} : undefined,
         osxNotarize: notarize,
