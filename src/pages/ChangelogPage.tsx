@@ -1,4 +1,5 @@
 import React from 'react';
+import { BUILD_INFO } from '@app/build-info';
 // Using Tailwind component classes defined in tailwind.css
 import { Link } from 'react-router-dom';
 
@@ -13,7 +14,7 @@ const ChangelogPage: React.FC = () => {
                     <div>
                         <h1 className="text-4xl font-extrabold tracking-tight text-white">Changelog</h1>
                         <p className="mt-3 text-neutral-400 text-sm">
-                            Recent updates for MVMNT v{(import.meta as any).env?.VITE_VERSION}.
+                            Recent updates for MVMNT v{BUILD_INFO.displayVersion}.
                         </p>
                     </div>
                     <Link to="/" className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium">

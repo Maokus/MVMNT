@@ -8,6 +8,10 @@ on:
 permissions:
     contents: write
 
+env:
+    MVMNT_BUILD_CHANNEL: stable
+    MVMNT_BUILD_SHA: ${{ github.sha }}
+
 jobs:
     verify:
         runs-on: ubuntu-latest
@@ -17,6 +21,14 @@ jobs:
               with:
                   node-version: 22
                   cache: npm
+            - name: Verify tag matches package version
+              shell: bash
+              run: |
+                  expected="v$(node -p "require('./package.json').version")"
+                  test "$GITHUB_REF_NAME" = "$expected" || {
+                      echo "Release tag $GITHUB_REF_NAME does not match package version $expected."
+                      exit 1
+                  }
             - run: npm install
             - name: Report module dependencies and cycles
               run: npm run architecture:modules
@@ -41,25 +53,9 @@ jobs:
             - run: npm install
             - run: npm run build
             - run: npm run test:electron
-            - name: Import signing certificate
-              env:
-                  CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-                  CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-              run: |
-                  CERTIFICATE_PATH="$RUNNER_TEMP/mvmnt-signing.p12"
-                  KEYCHAIN_PATH="$RUNNER_TEMP/mvmnt-signing.keychain-db"
-                  echo "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
-                  security create-keychain -p runner "$KEYCHAIN_PATH"
-                  security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-                  security unlock-keychain -p runner "$KEYCHAIN_PATH"
-                  security import "$CERTIFICATE_PATH" -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-                  security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k runner "$KEYCHAIN_PATH"
-                  security list-keychain -d user -s "$KEYCHAIN_PATH"
             - run: npm run make:mac
               env:
-                  APPLE_ID: ${{ secrets.APPLE_ID }}
-                  APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+                  MVMNT_SKIP_MAC_SIGNING: '1'
             - uses: actions/upload-artifact@v4
               with:
                   name: macos-release

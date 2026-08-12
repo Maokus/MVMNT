@@ -2,6 +2,19 @@ import React from 'react';
 // Using Tailwind component classes defined in tailwind.css
 import { Link } from 'react-router-dom';
 import './aboutpage.css';
+import { BUILD_INFO } from '@app/build-info';
+
+const channelLabels = {
+    development: 'Development',
+    nightly: 'Nightly',
+    stable: 'Stable',
+} as const;
+
+function updatePolicy(): string {
+    if (BUILD_INFO.channel === 'development') return 'Development build — update checks disabled.';
+    if (BUILD_INFO.channel === 'nightly') return 'Testing build — install newer testing artifacts manually.';
+    return 'Stable build — checks GitHub for new releases; updates are downloaded manually.';
+}
 
 /**
  * About / Getting Started page.
@@ -14,7 +27,7 @@ const AboutPage: React.FC = () => {
                 <div className="flex justify-between items-start mb-10">
                     <div>
                         <h1 className="text-4xl font-extrabold tracking-tight text-white">
-                            MVMNT <span className="text-indigo-400">v{(import.meta as any).env?.VITE_VERSION}</span>
+                            MVMNT <span className="text-indigo-400">v{BUILD_INFO.displayVersion}</span>
                         </h1>
                         <p className=" text-neutral-400 leading-relaxed max-w-2xl text-sm">
                             Music Visualization & Motion eNgineering Tools
@@ -37,6 +50,22 @@ const AboutPage: React.FC = () => {
                 </div>
 
                 <div className="about-body">
+                    <section className="mb-8 rounded-lg border border-neutral-700 bg-neutral-900/50 p-4">
+                        <h2 className="mb-3 text-lg font-semibold text-white">Build information</h2>
+                        <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[8rem_1fr]">
+                            <dt className="text-neutral-500">Version</dt>
+                            <dd>{BUILD_INFO.displayVersion}</dd>
+                            <dt className="text-neutral-500">Channel</dt>
+                            <dd>{channelLabels[BUILD_INFO.channel]}</dd>
+                            <dt className="text-neutral-500">Commit</dt>
+                            <dd className="font-mono">{BUILD_INFO.commit}</dd>
+                            <dt className="text-neutral-500">Build date</dt>
+                            <dd>
+                                <time dateTime={BUILD_INFO.builtAt}>{BUILD_INFO.builtAt}</time>
+                            </dd>
+                        </dl>
+                        <p className="mt-3 text-sm text-neutral-400">{updatePolicy()}</p>
+                    </section>
                     <div className="acknowledgements-boxes">
                         <section>
                             <h3>Inspirations</h3>

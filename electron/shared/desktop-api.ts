@@ -4,6 +4,7 @@ import type {
     DesktopDeepLinkCommand,
     DesktopRenderRequest,
 } from './automation.js';
+import type { BuildInfo, UpdateCheckResult } from './build-info.js';
 
 export type DesktopMenuCommand = 'new' | 'open' | 'save' | 'save-as' | 'undo' | 'redo' | 'recovery' | 'storage';
 
@@ -173,6 +174,8 @@ export interface MvmntDesktopApi {
     };
     app: {
         getVersion(): Promise<string>;
+        getBuildInfo(): Promise<BuildInfo>;
+        checkForUpdates(): Promise<UpdateCheckResult>;
         notify(title: string, body: string): void;
     };
     exports: {

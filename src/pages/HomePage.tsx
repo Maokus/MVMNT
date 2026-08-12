@@ -7,6 +7,8 @@ import { stageDesktopProjectOpen } from '../desktop/pending-open';
 import { writeStoredImportPayload } from '@utils/importPayloadStorage';
 import { easyModeTemplates } from '@workspace/templates/easyModeTemplates';
 import type { TemplateDefinition } from '@workspace/templates/types';
+import { BUILD_INFO } from '@app/build-info';
+import type { UpdateCheckResult } from '../../electron/shared/build-info';
 
 const PENDING_DESKTOP_NAME_KEY = 'mvmnt.desktop.pending-open-name';
 
@@ -15,6 +17,7 @@ const HomePage: React.FC = () => {
     const inputRef = useRef<HTMLInputElement>(null);
     const [recentFiles, setRecentFiles] = useState<DesktopRecentDocument[]>([]);
     const [isOpening, setIsOpening] = useState(false);
+    const [update, setUpdate] = useState<UpdateCheckResult | null>(null);
 
     useEffect(() => {
         const desktop = window.mvmntDesktop;
@@ -23,6 +26,15 @@ const HomePage: React.FC = () => {
             .listRecent()
             .then(setRecentFiles)
             .catch(() => setRecentFiles([]));
+    }, []);
+
+    useEffect(() => {
+        const desktop = window.mvmntDesktop;
+        if (!desktop) return;
+        void desktop.app
+            .checkForUpdates()
+            .then(setUpdate)
+            .catch(() => setUpdate({ status: 'error' }));
     }, []);
 
     const openStagedProject = (bytes: Uint8Array, name: string, options: { newDocument?: boolean } = {}) => {
@@ -110,11 +122,26 @@ const HomePage: React.FC = () => {
                         <span className="text-8xl font-extrabold tracking-tight text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.15)]">
                             MVMNT
                         </span>
-                        <span>v{(import.meta as any).env?.VITE_VERSION}</span>
+                        <span className="ml-2 text-sm text-neutral-400">v{BUILD_INFO.displayVersion}</span>
                     </p>
                     <p className="mt-4 max-w-2xl text-lg text-neutral-400">
                         Open-source, flexible MIDI visualization & rendering workspace.
                     </p>
+                    {update?.status === 'available' ? (
+                        <div
+                            className="mt-5 flex max-w-2xl flex-wrap items-center justify-between gap-3 rounded-lg border border-indigo-400/40 bg-indigo-950/50 px-4 py-3"
+                            role="status"
+                        >
+                            <span className="text-sm text-indigo-100">MVMNT v{update.latestVersion} is available.</span>
+                            <button
+                                type="button"
+                                className="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500"
+                                onClick={() => void window.mvmntDesktop?.external.openHttps(update.downloadUrl)}
+                            >
+                                Download
+                            </button>
+                        </div>
+                    ) : null}
                     <div className="mt-6 flex flex-wrap gap-4">
                         <button
                             type="button"

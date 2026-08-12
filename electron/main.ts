@@ -22,6 +22,7 @@ import {
     dialog,
     ipcMain,
     Menu,
+    net,
     Notification,
     protocol,
     session,
@@ -30,7 +31,7 @@ import {
     type MenuItemConstructorOptions,
 } from 'electron';
 import started from 'electron-squirrel-startup';
-import { UpdateSourceType, updateElectronApp } from 'update-electron-app';
+import { createBuildInfo, resolveUpdateAvailability, type UpdateCheckResult } from './shared/build-info.js';
 import type {
     CloseRequestResult,
     DesktopMenuCommand,
@@ -76,6 +77,18 @@ import {
 const APP_SCHEME = 'mvmnt';
 const APP_ORIGIN = `${APP_SCHEME}://app`;
 const isDevelopment = Boolean(process.env.MVMNT_RENDERER_URL);
+const RELEASES_LATEST_URL = 'https://github.com/Maokus/MVMNT/releases/latest';
+const GITHUB_LATEST_RELEASE_API = 'https://api.github.com/repos/Maokus/MVMNT/releases/latest';
+const buildInfo = createBuildInfo({
+    version: __MVMNT_VERSION__,
+    channel: __MVMNT_BUILD_CHANNEL__,
+    commit: __MVMNT_BUILD_SHA__,
+    builtAt: __MVMNT_BUILD_DATE__,
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+});
+if (buildInfo.channel === 'nightly') app.setName('MVMNT Nightly');
+let updateCheck: Promise<UpdateCheckResult> | null = null;
 let renderCommand: ParsedRenderCommand | null = null;
 let renderArgumentError: string | null = null;
 try {
@@ -1073,6 +1086,32 @@ async function renameDocument(value: unknown): Promise<DesktopRenameResult> {
     }
 }
 
+async function fetchLatestRelease(): Promise<UpdateCheckResult> {
+    if (!buildInfo.updateChecksEnabled) return { status: 'disabled' };
+
+    try {
+        const response = await net.fetch(GITHUB_LATEST_RELEASE_API, {
+            headers: {
+                Accept: 'application/vnd.github+json',
+                'User-Agent': `MVMNT/${buildInfo.version}`,
+                'X-GitHub-Api-Version': '2022-11-28',
+            },
+            signal: AbortSignal.timeout(8_000),
+        });
+        if (!response.ok) throw new Error(`GitHub release check returned HTTP ${response.status}.`);
+        const release = (await response.json()) as { tag_name?: unknown; draft?: unknown; prerelease?: unknown };
+        return resolveUpdateAvailability(buildInfo.version, release, RELEASES_LATEST_URL);
+    } catch (error) {
+        console.warn('Could not check GitHub for MVMNT updates:', error);
+        return { status: 'error' };
+    }
+}
+
+function checkForUpdates(): Promise<UpdateCheckResult> {
+    updateCheck ??= fetchLatestRelease();
+    return updateCheck;
+}
+
 function installIpcHandlers(): void {
     ipcMain.handle('documents:open', chooseOpenPath);
     ipcMain.handle('documents:list-recent', listRecentDocuments);
@@ -1105,6 +1144,8 @@ function installIpcHandlers(): void {
         updateWindowTitle();
     });
     ipcMain.handle('app:get-version', () => app.getVersion());
+    ipcMain.handle('app:get-build-info', () => buildInfo);
+    ipcMain.handle('app:check-for-updates', checkForUpdates);
     ipcMain.on('app:notify', (_event, title, body) => {
         if (typeof title !== 'string' || typeof body !== 'string') return;
         if (!Notification.isSupported()) return;
@@ -1452,7 +1493,7 @@ if (!hasSingleInstanceLock) {
         await cleanupInterruptedExports();
         await restoreDocumentState();
         await restoreRecentDocuments();
-        if (app.isPackaged) {
+        if (app.isPackaged && buildInfo.channel === 'stable') {
             app.setAsDefaultProtocolClient(APP_SCHEME);
             await updateWindowsFileAssociations(false).catch((error) => {
                 console.warn('Could not register Windows file associations:', error);
@@ -1468,13 +1509,6 @@ if (!hasSingleInstanceLock) {
         if (startupLink && !renderCommand) {
             if (rendererReady) mainWindow?.webContents.send('automation:deep-link', startupLink);
             else pendingDeepLink = startupLink;
-        }
-        if (app.isPackaged && (process.platform === 'darwin' || process.platform === 'win32')) {
-            updateElectronApp({
-                updateSource: { type: UpdateSourceType.ElectronPublicUpdateService, repo: 'Maokus/MVMNT' },
-                updateInterval: '10 minutes',
-                notifyUser: true,
-            });
         }
     });
     app.on('activate', () => {

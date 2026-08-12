@@ -10,14 +10,38 @@ permissions:
     contents: read
 
 jobs:
-    verify:
+    metadata:
         runs-on: ubuntu-latest
+        outputs:
+            version: ${{ steps.build.outputs.version }}
+            short_sha: ${{ steps.build.outputs.short_sha }}
+            built_at: ${{ steps.build.outputs.built_at }}
+        steps:
+            - uses: actions/checkout@v4
+            - id: build
+              shell: bash
+              run: |
+                  base_version="$(node -p "require('./package.json').version")"
+                  build_date="$(date -u +%Y%m%d)"
+                  built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                  echo "version=${base_version}-nightly.${build_date}.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+                  echo "short_sha=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+                  echo "built_at=${built_at}" >> "$GITHUB_OUTPUT"
+
+    verify:
+        needs: metadata
+        runs-on: ubuntu-latest
+        env:
+            MVMNT_BUILD_CHANNEL: nightly
+            MVMNT_BUILD_SHA: ${{ github.sha }}
+            MVMNT_BUILD_DATE: ${{ needs.metadata.outputs.built_at }}
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v4
               with:
                   node-version: 22
                   cache: npm
+            - run: npm version "${{ needs.metadata.outputs.version }}" --no-git-tag-version --workspaces=false
             - run: npm install
             - name: Report module dependencies and cycles
               run: npm run architecture:modules
@@ -31,9 +55,13 @@ jobs:
             - run: npm run compile
 
     package:
-        needs: verify
+        needs: [metadata, verify]
         name: Package ${{ matrix.name }}
         runs-on: ${{ matrix.runner }}
+        env:
+            MVMNT_BUILD_CHANNEL: nightly
+            MVMNT_BUILD_SHA: ${{ github.sha }}
+            MVMNT_BUILD_DATE: ${{ needs.metadata.outputs.built_at }}
         strategy:
             fail-fast: false
             matrix:
@@ -41,24 +69,25 @@ jobs:
                     - name: macOS
                       runner: macos-14
                       command: npm run make:mac
-                      artifact: macos-testing-build
+                      artifact_suffix: macOS-universal
                     - name: Windows
                       runner: windows-latest
                       command: npm run make:win
-                      artifact: windows-testing-build
+                      artifact_suffix: windows-x64
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v4
               with:
                   node-version: 22
                   cache: npm
+            - run: npm version "${{ needs.metadata.outputs.version }}" --no-git-tag-version --workspaces=false
             - run: npm install
             - run: ${{ matrix.command }}
               env:
-                  # Testing artifacts are intentionally unsigned; release signing is tag-only.
+                  # Testing artifacts are intentionally unsigned.
                   MVMNT_SKIP_MAC_SIGNING: '1'
             - uses: actions/upload-artifact@v4
               with:
-                  name: ${{ matrix.artifact }}
+                  name: MVMNT-Nightly-${{ needs.metadata.outputs.version }}-${{ needs.metadata.outputs.short_sha }}-${{ matrix.artifact_suffix }}
                   path: out/make/**/*
                   if-no-files-found: error

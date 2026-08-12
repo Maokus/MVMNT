@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react-swc';
 import path from 'path';
 import tsconfigPaths from 'vite-tsconfig-paths';
+import { buildMetadataDefines } from './scripts/build-metadata.mjs';
 
 export default defineConfig(() => {
     return {
@@ -18,7 +19,7 @@ export default defineConfig(() => {
             outDir: 'dist/renderer',
             sourcemap: true,
         },
-        define: { 'process.env': {} }, // lightweight shim
+        define: { 'process.env': {}, ...buildMetadataDefines() }, // lightweight shim
         test: {
             environment: 'jsdom',
             setupFiles: ['./src/setupTests.ts'],

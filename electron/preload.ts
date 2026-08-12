@@ -54,6 +54,8 @@ const api: MvmntDesktopApi = {
     },
     app: {
         getVersion: () => ipcRenderer.invoke('app:get-version'),
+        getBuildInfo: () => ipcRenderer.invoke('app:get-build-info'),
+        checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
         notify: (title: string, body: string) => ipcRenderer.send('app:notify', title, body),
     },
     exports: {

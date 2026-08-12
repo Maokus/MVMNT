@@ -9,6 +9,7 @@ import { easyModeTemplates } from '@workspace/templates/easyModeTemplates';
 import { useTemplateApply } from '@workspace/templates/useTemplateApply';
 import type { TemplateDefinition } from '@workspace/templates/types';
 import { isTextEditingTarget, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
+import { BUILD_INFO } from '@app/build-info';
 
 interface MenuBarProps {
     onHelp?: () => void;
@@ -24,7 +25,6 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
     const [showSceneMenu, setShowSceneMenu] = useState(false);
     const sceneMenuRef = useRef<HTMLDivElement>(null);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
-    const isBetaMode = import.meta.env.VITE_APP_MODE === 'beta';
     const templates = useMemo(() => easyModeTemplates, []);
     const hasTemplates = templates.length > 0;
     const applyTemplate = useTemplateApply();
@@ -125,7 +125,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                             style={{ textDecoration: 'none', color: 'inherit' }}
                             title="Go to Home"
                         >
-                            MVMNT v{(import.meta as any).env?.VITE_VERSION} {isBetaMode ? '(beta)' : ''}
+                            MVMNT v{BUILD_INFO.displayVersion}
                         </Link>
                     </h3>
                     <nav style={{ display: 'flex', gap: 10, fontSize: 12 }} aria-label="Utility navigation">

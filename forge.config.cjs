@@ -1,4 +1,10 @@
 const path = require('node:path');
+const packageManifest = require('./package.json');
+
+const isNightly = process.env.MVMNT_BUILD_CHANNEL === 'nightly';
+const productName = isNightly ? 'MVMNT Nightly' : 'MVMNT';
+const executableName = isNightly ? 'MVMNT Nightly' : 'MVMNT';
+const packageVersion = packageManifest.version;
 
 const notarize =
     process.env.APPLE_ID && process.env.APPLE_APP_SPECIFIC_PASSWORD && process.env.APPLE_TEAM_ID
@@ -11,33 +17,35 @@ const notarize =
 
 module.exports = {
     packagerConfig: {
-        name: 'MVMNT',
-        executableName: 'MVMNT',
-        appBundleId: 'us.maok.mvmnt',
+        name: productName,
+        executableName,
+        appBundleId: isNightly ? 'us.maok.mvmnt.nightly' : 'us.maok.mvmnt',
         appCategoryType: 'public.app-category.graphics-design',
         icon: path.resolve(__dirname, 'src/assets/Icon'),
         asar: true,
         prune: false,
         electronZipDir: process.env.ELECTRON_ZIP_DIR || undefined,
-        // Testing builds run in CI without release certificates; release builds retain signing.
+        // CI can explicitly disable signing for builds that do not have release certificates.
         osxSign: process.env.CI && !process.env.MVMNT_SKIP_MAC_SIGNING ? {} : undefined,
         osxNotarize: notarize,
-        protocols: [{ name: 'MVMNT Project', schemes: ['mvmnt'] }],
+        protocols: isNightly ? [] : [{ name: 'MVMNT Project', schemes: ['mvmnt'] }],
         extendInfo: {
-            CFBundleDocumentTypes: [
-                {
-                    CFBundleTypeName: 'MVMNT Project',
-                    CFBundleTypeExtensions: ['mvt'],
-                    CFBundleTypeRole: 'Editor',
-                    LSHandlerRank: 'Owner',
-                },
-                {
-                    CFBundleTypeName: 'MVMNT Plugin',
-                    CFBundleTypeExtensions: ['mvmnt-plugin'],
-                    CFBundleTypeRole: 'Viewer',
-                    LSHandlerRank: 'Owner',
-                },
-            ],
+            CFBundleDocumentTypes: isNightly
+                ? []
+                : [
+                      {
+                          CFBundleTypeName: 'MVMNT Project',
+                          CFBundleTypeExtensions: ['mvt'],
+                          CFBundleTypeRole: 'Editor',
+                          LSHandlerRank: 'Owner',
+                      },
+                      {
+                          CFBundleTypeName: 'MVMNT Plugin',
+                          CFBundleTypeExtensions: ['mvmnt-plugin'],
+                          CFBundleTypeRole: 'Viewer',
+                          LSHandlerRank: 'Owner',
+                      },
+                  ],
         },
         ignore: [
             /^\/\.git($|\/)/,
@@ -74,8 +82,10 @@ module.exports = {
         {
             name: '@electron-forge/maker-squirrel',
             config: {
-                name: 'mvmnt',
-                setupExe: 'MVMNT-Setup.exe',
+                name: isNightly ? 'mvmnt-nightly' : 'mvmnt',
+                setupExe: isNightly
+                    ? `MVMNT-Nightly-Setup-${packageVersion}-windows-x64.exe`
+                    : `MVMNT-Setup-${packageVersion}-windows-x64.exe`,
                 setupIcon: path.resolve(__dirname, 'src/assets/Icon.ico'),
                 certificateFile: process.env.WINDOWS_CERTIFICATE_FILE,
                 certificatePassword: process.env.WINDOWS_CERTIFICATE_PASSWORD,
@@ -85,7 +95,7 @@ module.exports = {
         {
             name: '@electron-forge/maker-dmg',
             config: {
-                name: 'MVMNT',
+                name: `${productName.replaceAll(' ', '-')}-${packageVersion}-macOS-universal`,
                 format: 'ULFO',
             },
             platforms: ['darwin'],

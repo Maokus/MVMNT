@@ -22,6 +22,8 @@ start with the [plugin quickstart](plugin-api/quickstart.md).
   sampling.
 - [Desktop and export](contributors/desktop-and-export.md) — Electron boundaries, background jobs,
   packaging, and command-line rendering.
+- [Versioning and releases](versioning-and-releases.md) — build channels, artifact naming, releases,
+  and update notifications.
 - [Local backend](contributors/local-backend.md) — running the Supabase community backend locally.
 
 ## Plugin authors
