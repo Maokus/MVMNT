@@ -14,7 +14,11 @@ version. Change them only when their own contracts change.
 - Testing builds display `<version>-nightly.<UTC-date>.<GitHub-run-number>`.
 
 The About page also reports the channel, commit, and build timestamp. Export diagnostics continue to
-record the machine-readable native application version.
+record the exact application build version.
+
+Nightlies retain their full SemVer prerelease in application metadata and diagnostics. Native macOS
+and Windows version resources receive the numeric base version plus the GitHub run number because
+those platform fields do not accept SemVer prerelease labels.
 
 ## Testing builds
 

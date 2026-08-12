@@ -1143,7 +1143,7 @@ function installIpcHandlers(): void {
         documentDirty = value === true;
         updateWindowTitle();
     });
-    ipcMain.handle('app:get-version', () => app.getVersion());
+    ipcMain.handle('app:get-version', () => buildInfo.version);
     ipcMain.handle('app:get-build-info', () => buildInfo);
     ipcMain.handle('app:check-for-updates', checkForUpdates);
     ipcMain.on('app:notify', (_event, title, body) => {

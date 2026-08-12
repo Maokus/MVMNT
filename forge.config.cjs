@@ -1,10 +1,17 @@
 const path = require('node:path');
 const packageManifest = require('./package.json');
+const { nativePackageVersions } = require('./scripts/native-package-version.cjs');
 
 const isNightly = process.env.MVMNT_BUILD_CHANNEL === 'nightly';
 const productName = isNightly ? 'MVMNT Nightly' : 'MVMNT';
 const executableName = isNightly ? 'MVMNT Nightly' : 'MVMNT';
 const packageVersion = packageManifest.version;
+const nightlyBuildNumber = process.env.MVMNT_NIGHTLY_BUILD_NUMBER || '0';
+const { appVersion: nativeAppVersion, buildVersion: nativeBuildVersion } = nativePackageVersions(
+    packageVersion,
+    isNightly ? 'nightly' : 'stable',
+    nightlyBuildNumber
+);
 
 const notarize =
     process.env.APPLE_ID && process.env.APPLE_APP_SPECIFIC_PASSWORD && process.env.APPLE_TEAM_ID
@@ -20,6 +27,10 @@ module.exports = {
         name: productName,
         executableName,
         appBundleId: isNightly ? 'us.maok.mvmnt.nightly' : 'us.maok.mvmnt',
+        // Native Windows/macOS version resources only accept numeric components.
+        // The full SemVer prerelease remains in package.json and injected build metadata.
+        appVersion: nativeAppVersion,
+        buildVersion: nativeBuildVersion,
         appCategoryType: 'public.app-category.graphics-design',
         icon: path.resolve(__dirname, 'src/assets/Icon'),
         asar: true,
@@ -95,7 +106,6 @@ module.exports = {
         {
             name: '@electron-forge/maker-dmg',
             config: {
-                name: `${productName.replaceAll(' ', '-')}-${packageVersion}-macOS-universal`,
                 format: 'ULFO',
             },
             platforms: ['darwin'],
