@@ -7,6 +7,9 @@ import { writeStoredImportPayload } from '@utils/importPayloadStorage';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 import { DesktopWorkspaceTools } from '../desktop/DesktopWorkspaceTools';
 import { importFontFile } from '@fonts/import-font-file';
+import { AnalyticsBootstrap } from './AnalyticsBootstrap';
+import { AnalyticsConsentBanner } from './AnalyticsConsentBanner';
+import { analytics, stagePendingDocumentAnalytics } from './analytics';
 
 // Tailwind styles are loaded via index.tsx
 const MidiVisualizer = lazy(() => import('@workspace/overlays/MidiVisualizer'));
@@ -16,6 +19,7 @@ const ChangelogPage = lazy(() => import('@pages/ChangelogPage'));
 const HomePage = lazy(() => import('@pages/HomePage'));
 const CommunityPage = lazy(() => import('../community/CommunityPage'));
 const ContributePage = lazy(() => import('@pages/ContributePage'));
+const PrivacyPage = lazy(() => import('@pages/PrivacyPage').then((module) => ({ default: module.PrivacyPage })));
 
 const DeveloperOverlayLazy = lazy(() =>
     import('@workspace/dev/DeveloperOverlay').then((module) => ({
@@ -131,6 +135,7 @@ export function App() {
         if (!desktop || location.pathname === '/workspace') return;
         return desktop.documents.onOpenPathRequest((result) => {
             if (result.kind === 'project' && stageDesktopProjectOpen(result)) {
+                stagePendingDocumentAnalytics({ source: 'os_open' });
                 navigate('/workspace', { state: { importScene: true } });
                 return;
             }
@@ -154,12 +159,14 @@ export function App() {
         return desktop.menu.onCommand((command) => {
             if (command === 'new') {
                 void desktop.documents.clearActivePath().then(() => {
+                    stagePendingDocumentAnalytics({ createdEntryPoint: 'desktop_menu' });
                     navigate('/workspace', { state: { template: 'blank', desktopNew: true } });
                 });
             }
             if (command === 'open') {
                 void desktop.documents.open().then((result) => {
                     if (stageDesktopProjectOpen(result)) {
+                        stagePendingDocumentAnalytics({ source: 'file_picker' });
                         navigate('/workspace', { state: { importScene: true } });
                     }
                 });
@@ -233,6 +240,10 @@ export function App() {
                         writeStoredImportPayload(file.bytes);
                         sessionStorage.setItem('mvmnt.desktop.pending-open-name', file.name);
                         await window.mvmntDesktop?.documents.clearActivePath();
+                        stagePendingDocumentAnalytics({
+                            source: 'drag_drop',
+                            ...(file.category === 'template' ? { templateEntryPoint: 'workspace' as const } : {}),
+                        });
                         navigate('/workspace', { state: { importScene: true } });
                     } else if (file.category === 'plugin') {
                         const trusted = window.confirm(
@@ -253,12 +264,17 @@ export function App() {
                         ) as ArrayBuffer;
                         const blob = new Blob([arrayBuffer]);
                         const browserFile = new File([blob], file.name);
-                        if (file.category === 'image') useVisualAssetRegistryStore.getState().addAsset(browserFile);
-                        else if (file.category === 'font') {
+                        if (file.category === 'image') {
+                            useVisualAssetRegistryStore.getState().addAsset(browserFile);
+                            void analytics.captureMilestone('media_imported', { media_type: 'image' });
+                        } else if (file.category === 'font') {
                             const licensed = window.confirm(
                                 'Confirm that you have the rights to use and distribute this font within the scene.'
                             );
-                            if (licensed) await importFontFile(browserFile);
+                            if (licensed) {
+                                await importFontFile(browserFile);
+                                void analytics.captureMilestone('media_imported', { media_type: 'font' });
+                            }
                         } else
                             window.dispatchEvent(
                                 new CustomEvent('mvmnt-dropped-media', {
@@ -300,6 +316,7 @@ export function App() {
 
     return (
         <div className="App">
+            <AnalyticsBootstrap />
             {isScreenSmall && !isScreenWarningDismissed ? (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
                     <div className="w-[min(90vw,24rem)] rounded-3xl border border-rose-400/60 bg-neutral-900/95 px-8 py-9 text-center shadow-[0_45px_120px_-35px_rgba(244,63,94,0.55)]">
@@ -325,12 +342,14 @@ export function App() {
                     <Route path="/changelog" element={<ChangelogPage />} />
                     <Route path="/community" element={<CommunityPage />} />
                     <Route path="/contribute" element={<ContributePage />} />
+                    <Route path="/privacy" element={<PrivacyPage />} />
                 </Routes>
             </Suspense>
             <Suspense fallback={null}>
                 <DeveloperOverlayLazy />
             </Suspense>
             <DesktopWorkspaceTools />
+            <AnalyticsConsentBanner />
         </div>
     );
 }

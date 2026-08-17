@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
-import { posthog } from '@app/posthog';
+import { analytics } from '@app/analytics';
 import { supabase } from '../lib/supabase';
 
 interface CommunityAuthBarProps {
@@ -29,7 +29,7 @@ const CommunityAuthBar: React.FC<CommunityAuthBarProps> = ({ user, onAuthChange 
             onAuthChange(authenticatedUser);
 
             if (event === 'SIGNED_OUT') {
-                posthog.reset();
+                analytics.reset();
                 identifiedUserIdRef.current = null;
                 return;
             }
@@ -37,16 +37,12 @@ const CommunityAuthBar: React.FC<CommunityAuthBarProps> = ({ user, onAuthChange 
             if (!authenticatedUser || (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN')) return;
 
             if (identifiedUserIdRef.current && identifiedUserIdRef.current !== authenticatedUser.id) {
-                posthog.reset();
+                analytics.reset();
             }
 
-            const username = authenticatedUser.user_metadata?.username;
-            posthog.identify(authenticatedUser.id, {
-                email: authenticatedUser.email,
-                ...(typeof username === 'string' ? { username } : {}),
-            });
+            void analytics.identify(authenticatedUser.id);
             identifiedUserIdRef.current = authenticatedUser.id;
-            if (event === 'SIGNED_IN') posthog.capture('community_sign_in_completed');
+            if (event === 'SIGNED_IN') void analytics.capture('community_sign_in_completed', {});
         });
         return () => subscription.unsubscribe();
     }, [onAuthChange]);
@@ -99,6 +95,7 @@ const CommunityAuthBar: React.FC<CommunityAuthBarProps> = ({ user, onAuthChange 
                     }
                     throw error;
                 }
+                void analytics.capture('community_signup_submitted', {});
                 setSignupSuccess(true);
             }
             setLoginInput('');
@@ -113,7 +110,7 @@ const CommunityAuthBar: React.FC<CommunityAuthBarProps> = ({ user, onAuthChange 
     };
 
     const handleSignOut = async () => {
-        posthog.capture('community_sign_out');
+        await analytics.capture('community_sign_out', {});
         await supabase.auth.signOut();
     };
 

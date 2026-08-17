@@ -6,7 +6,7 @@ import { useTemplateStatusStore } from '@state/templateStatusStore';
 import { useUndo } from '@context/UndoContext';
 import { useScene } from '@context/SceneContext';
 import { useVisualizer } from '@context/VisualizerContext';
-import { posthog } from '@app/posthog';
+import { analytics } from '@app/analytics';
 import type { LoadedTemplateArtifact, TemplateDefinition } from './types';
 
 export function useTemplateApply() {
@@ -75,7 +75,7 @@ export function useTemplateApply() {
                 // Don't persist to IDB — this is a new unsaved remix, not a saved file.
                 localStorage.setItem('mvmnt.desktop.recovery-state', 'dirty');
                 markDirty();
-                posthog.capture('template_applied');
+                void analytics.capture('template_applied', { entry_point: 'workspace' });
                 return true;
             } finally {
                 finishTemplateLoading();

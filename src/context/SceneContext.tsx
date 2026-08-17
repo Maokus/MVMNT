@@ -19,9 +19,9 @@ interface SceneContextValue {
     /** Rename the scene title and, for saved desktop projects, its file atomically. */
     renameScene: (name: string) => Promise<boolean>;
     /** Save to the native project path. */
-    saveToLocal: () => Promise<void>;
+    saveToLocal: () => Promise<boolean>;
     /** Save the current project to a newly selected path. */
-    saveAs: () => Promise<void>;
+    saveAs: () => Promise<boolean>;
     /** Open project metadata and Save As options. */
     exportAsFile: () => void;
     /** Whether the in-memory state differs from the last IndexedDB save. */
@@ -32,7 +32,7 @@ interface SceneContextValue {
     markDirty: () => void;
     loadScene: () => void;
     clearScene: () => void;
-    createNewDefaultScene: () => void;
+    createNewDefaultScene: () => Promise<boolean>;
     /** Resolve unsaved changes and close the active document before leaving the editor. */
     leaveWorkspace: () => Promise<boolean>;
     refreshSceneUI: () => void;
@@ -133,11 +133,11 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     // Native project save
     // -------------------------------------------------------------------------
     const saveToLocal = useCallback(async () => {
-        await menuBarActions.saveProject(false);
+        return menuBarActions.saveProject(false);
     }, [menuBarActions]);
 
     const saveAs = useCallback(async () => {
-        await menuBarActions.saveProject(true);
+        return menuBarActions.saveProject(true);
     }, [menuBarActions]);
 
     // Expose markClean so TemplateInitializer can call it after loading from IDB

@@ -18,6 +18,8 @@ import { beginDesktopOutput } from '@export/outputs';
 import { createExportManifest } from '@export/outputs';
 import { BUILTIN_EXPORT_PRESETS } from '@export/presets';
 import { isPendingRenderImported, takePendingRender } from '../../desktop/pending-automation';
+import { analytics } from '@app/analytics';
+import { takeExportTerminalAnalytics, type ExportExecutionMode, type ExportTerminalStatus } from '@app/exportAnalytics';
 
 interface UseExportLifecycleArgs {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -45,6 +47,24 @@ export function useExportLifecycle({
     const backgroundJobRef = useRef<string | null>(null);
     const automationJobRef = useRef<string | null>(null);
     const coordinatorRef = useRef<ExportCoordinator | null>(null);
+    const reportedTerminalJobsRef = useRef(new Set<string>());
+
+    const reportTerminalJob = useCallback(
+        (job: ExportJob, status: ExportTerminalStatus, executionMode: ExportExecutionMode) => {
+            const outcome = takeExportTerminalAnalytics(
+                reportedTerminalJobsRef.current,
+                job.id,
+                job.kind,
+                status,
+                executionMode
+            );
+            if (!outcome) return;
+            if (outcome.event === 'export_completed') void analytics.capture(outcome.event, outcome.properties);
+            else if (outcome.event === 'export_cancelled') void analytics.capture(outcome.event, outcome.properties);
+            else void analytics.capture(outcome.event, outcome.properties);
+        },
+        []
+    );
 
     coordinatorRef.current ??= new ExportCoordinator({
         sceneDuration: () =>
@@ -102,7 +122,8 @@ export function useExportLifecycle({
         },
         onCompleted(job) {
             window.mvmntDesktop?.app.notify('MVMNT export complete', job.outputName ?? job.snapshot.sceneName);
-            if (automationJobRef.current === job.id) {
+            const executionMode = automationJobRef.current === job.id ? 'automation' : 'foreground';
+            if (executionMode === 'automation') {
                 automationJobRef.current = null;
                 window.mvmntDesktop?.automation.reportResult({
                     type: 'complete',
@@ -115,14 +136,16 @@ export function useExportLifecycle({
                     jobId: job.id,
                     patch: job as unknown as Record<string, unknown>,
                 });
+            if (backgroundJobRef.current !== job.id) reportTerminalJob(job, 'completed', executionMode);
         },
         onFailed(job, error, cancelled) {
+            const executionMode = automationJobRef.current === job.id ? 'automation' : 'foreground';
             if (!cancelled)
                 window.mvmntDesktop?.app.notify(
                     'MVMNT export failed',
                     error instanceof Error ? error.message : String(error)
                 );
-            if (automationJobRef.current === job.id) {
+            if (executionMode === 'automation') {
                 automationJobRef.current = null;
                 window.mvmntDesktop?.automation.reportResult({
                     type: 'error',
@@ -135,6 +158,8 @@ export function useExportLifecycle({
                     jobId: job.id,
                     patch: job as unknown as Record<string, unknown>,
                 });
+            if (backgroundJobRef.current !== job.id)
+                reportTerminalJob(job, cancelled ? 'cancelled' : 'failed', executionMode);
         },
     });
     const coordinator = coordinatorRef.current;
@@ -146,7 +171,14 @@ export function useExportLifecycle({
     }, []);
 
     const submit = useCallback(
-        (kind: ExportKind, override?: Partial<ExportSettings>, presetName?: string): ExportJob => {
+        (
+            kind: ExportKind,
+            override?: Partial<ExportSettings>,
+            presetName?: string,
+            executionMode: 'foreground' | 'background' | 'automation' = window.mvmntDesktop
+                ? 'background'
+                : 'foreground'
+        ): ExportJob => {
             const settings = { ...latestRef.current.exportSettings, ...(override ?? {}) } as ExportSettings;
             const request: ExportRequest = { kind, sceneName: sceneNameRef.current, settings, presetName };
             const duration = Number(
@@ -156,6 +188,12 @@ export function useExportLifecycle({
             const [sceneElementCount, trackCount] = counts();
             setShowProgressOverlay(true);
             setExportKind(kind);
+            void analytics.capture('export_started', {
+                export_format: kind,
+                includes_audio: kind === 'video' && Boolean(settings.includeAudio),
+                transparent_background: Boolean(settings.transparentBackground),
+                execution_mode: executionMode,
+            });
 
             if (window.mvmntDesktop && !readBackgroundExportBootstrap()) {
                 const job = createExportJob(kind, request.sceneName, plan.settings, sceneElementCount, trackCount);
@@ -192,6 +230,7 @@ export function useExportLifecycle({
                             error: error instanceof Error ? error.message : String(error),
                             finishedAt: new Date().toISOString(),
                         });
+                        reportTerminalJob(job, 'failed', executionMode);
                     }
                 })();
                 return job;
@@ -199,7 +238,7 @@ export function useExportLifecycle({
 
             return coordinator.submit(request, sceneElementCount, trackCount);
         },
-        [coordinator, counts, sceneNameRef, setExportKind, setProgressData, setShowProgressOverlay]
+        [coordinator, counts, reportTerminalJob, sceneNameRef, setExportKind, setProgressData, setShowProgressOverlay]
     );
 
     useEffect(() => {
@@ -239,6 +278,8 @@ export function useExportLifecycle({
         if (!window.mvmntDesktop || readBackgroundExportBootstrap()) return;
         return window.mvmntDesktop.background.onUpdate(({ jobId, patch }) => {
             useExportJobStore.getState().update(jobId, patch as Partial<ExportJob>);
+            const updatedJob = useExportJobStore.getState().jobs.find((job) => job.id === jobId);
+            const executionMode = automationJobRef.current === jobId ? 'automation' : 'background';
             if (typeof patch.progress === 'number' || typeof patch.text === 'string') {
                 const progress = typeof patch.progress === 'number' ? patch.progress : 0;
                 const text = typeof patch.text === 'string' ? patch.text : 'Exporting in background…';
@@ -262,8 +303,14 @@ export function useExportLifecycle({
                         message: typeof patch.error === 'string' ? patch.error : 'Export failed.',
                     });
             }
+            if (
+                updatedJob &&
+                (patch.status === 'completed' || patch.status === 'failed' || patch.status === 'cancelled')
+            ) {
+                reportTerminalJob(updatedJob, patch.status, executionMode);
+            }
         });
-    }, [setProgressData, setShowProgressOverlay]);
+    }, [reportTerminalJob, setProgressData, setShowProgressOverlay]);
 
     useEffect(() => {
         if (!window.mvmntDesktop || !visualizer || !canvasRef.current) return;
@@ -287,7 +334,7 @@ export function useExportLifecycle({
                         ? { fullDuration: false, startTime: request.range.start, endTime: request.range.end }
                         : { fullDuration: true }),
                 };
-                const job = submit(request.kind, settings, preset?.name);
+                const job = submit(request.kind, settings, preset?.name, 'automation');
                 automationJobRef.current = job.id;
             } catch (error) {
                 window.mvmntDesktop?.automation.reportResult({

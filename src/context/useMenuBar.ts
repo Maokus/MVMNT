@@ -5,6 +5,8 @@ import { LocalFileStore } from '@persistence/local-file-store';
 import type { ImportError } from '@persistence/import';
 import { loadPlugin } from '@core/scene/plugins';
 import type { DesktopOpenResult } from '../../electron/shared/desktop-api';
+import { analytics } from '@app/analytics';
+import { runTrackedDocumentSave } from '@app/documentAnalytics';
 
 function humanReadableImportError(error: ImportError): string {
     switch (error.code) {
@@ -50,7 +52,7 @@ interface MenuBarActions {
     loadScene: () => void;
     openDesktopFile: (result: DesktopOpenResult) => Promise<void>;
     clearScene: () => void;
-    createNewDefaultScene: () => void;
+    createNewDefaultScene: () => Promise<boolean>;
 }
 
 export const useMenuBar = ({
@@ -137,25 +139,38 @@ export const useMenuBar = ({
         let canonicalName = sceneName;
         const desktop = window.mvmntDesktop;
         if (!desktop) return false;
-        const document = await desktop.documents.getState();
-        if (forceSaveAs || document.status !== 'saved') {
-            const selection = await desktop.documents.chooseSaveAs({
-                suggestedName: `${canonicalName || 'Untitled'}.mvt`,
-            });
-            if (selection.status === 'canceled') return false;
-            if (selection.status === 'error' || !selection.selectionId || !selection.displayName) {
-                alert(`Save As failed: ${selection.error || 'Unknown error'}`);
-                return false;
+        try {
+            const document = await desktop.documents.getState();
+            if (forceSaveAs || document.status !== 'saved') {
+                const selection = await desktop.documents.chooseSaveAs({
+                    suggestedName: `${canonicalName || 'Untitled'}.mvt`,
+                });
+                if (selection.status === 'canceled') return false;
+                if (selection.status === 'error' || !selection.selectionId || !selection.displayName) {
+                    void analytics.capture('document_operation_failed', {
+                        operation: 'save',
+                        failure_category: 'save',
+                    });
+                    alert(`Save As failed: ${selection.error || 'Unknown error'}`);
+                    return false;
+                }
+                canonicalName = selection.displayName.replace(/\.mvt$/i, '');
+                onSceneNameChange(canonicalName);
+                return runTrackedDocumentSave(
+                    () => saveScene(canonicalName, { saveAsSelectionId: selection.selectionId }),
+                    'save_as'
+                );
             }
-            canonicalName = selection.displayName.replace(/\.mvt$/i, '');
-            onSceneNameChange(canonicalName);
-            return saveScene(canonicalName, { saveAsSelectionId: selection.selectionId });
+            if (document.displayName) {
+                canonicalName = document.displayName.replace(/\.mvt$/i, '');
+                if (canonicalName !== sceneName) onSceneNameChange(canonicalName);
+            }
+            return runTrackedDocumentSave(() => saveScene(canonicalName), forceSaveAs ? 'save_as' : 'save');
+        } catch (error) {
+            console.error('Save failed:', error);
+            void analytics.capture('document_operation_failed', { operation: 'save', failure_category: 'save' });
+            return false;
         }
-        if (document.displayName) {
-            canonicalName = document.displayName.replace(/\.mvt$/i, '');
-            if (canonicalName !== sceneName) onSceneNameChange(canonicalName);
-        }
-        return saveScene(canonicalName);
     };
 
     const openDesktopFile = async (result: DesktopOpenResult): Promise<void> => {
@@ -191,6 +206,10 @@ export const useMenuBar = ({
                     }),
             });
             if (!imported.ok) {
+                void analytics.capture('document_operation_failed', {
+                    operation: 'open',
+                    failure_category: 'import',
+                });
                 alert(
                     'Import failed: ' + (imported.errors.map(humanReadableImportError).join('\n') || 'Unknown error')
                 );
@@ -206,9 +225,14 @@ export const useMenuBar = ({
             await LocalFileStore.save(result.bytes).catch(() => undefined);
             localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
             markSaveClean();
+            void analytics.capture('document_opened', { source: 'file_picker' });
         } catch (error) {
             if ((error as Error)?.name !== 'AbortError') {
                 console.error('Desktop open failed:', error);
+                void analytics.capture('document_operation_failed', {
+                    operation: 'open',
+                    failure_category: 'import',
+                });
                 alert('Error loading scene.');
             }
         } finally {
@@ -250,44 +274,44 @@ export const useMenuBar = ({
         console.log('Scene cleared - all elements removed');
     };
 
-    const createNewDefaultScene = () => {
-        void (async () => {
-            if (isDirty) {
-                const decision = await requestUnsavedChangesDecision(
-                    'Your current scene has unsaved changes. Save them before creating a new blank scene?'
-                );
-                if (decision === 'cancel') return;
-                if (decision === 'save') {
-                    const saved = await saveProject(false);
-                    if (!saved) return;
-                }
-            }
-
-            // A blank scene is a new document, never an edit of the opened file.
-            if (window.mvmntDesktop) await window.mvmntDesktop.documents.clearActivePath();
-            const result = dispatchSceneCommand(
-                { type: 'clearScene', clearMacros: true },
-                { source: 'useMenuBar.createNewBlankScene' }
+    const createNewDefaultScene = async (): Promise<boolean> => {
+        if (isDirty) {
+            const decision = await requestUnsavedChangesDecision(
+                'Your current scene has unsaved changes. Save them before creating a new blank scene?'
             );
-            if (!result.success) {
-                console.warn('Failed to create blank scene', result.error);
-                return;
+            if (decision === 'cancel') return false;
+            if (decision === 'save') {
+                const saved = await saveProject(false);
+                if (!saved) return false;
             }
-            try {
-                useTimelineStore.getState().resetTimeline();
-            } catch {}
-            onSceneNameChange(SceneNameGenerator.generate());
-            try {
-                const settings = useSceneStore.getState().settings;
-                visualizer?.canvas?.dispatchEvent(
-                    new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } })
-                );
-            } catch {}
-            visualizer?.invalidateRender?.();
-            onSceneRefresh?.();
-            localStorage.setItem('mvmnt.desktop.recovery-state', 'dirty');
-            markDirty();
-        })();
+        }
+
+        // A blank scene is a new document, never an edit of the opened file.
+        if (window.mvmntDesktop) await window.mvmntDesktop.documents.clearActivePath();
+        const result = dispatchSceneCommand(
+            { type: 'clearScene', clearMacros: true },
+            { source: 'useMenuBar.createNewBlankScene' }
+        );
+        if (!result.success) {
+            console.warn('Failed to create blank scene', result.error);
+            return false;
+        }
+        try {
+            useTimelineStore.getState().resetTimeline();
+        } catch {}
+        onSceneNameChange(SceneNameGenerator.generate());
+        try {
+            const settings = useSceneStore.getState().settings;
+            visualizer?.canvas?.dispatchEvent(
+                new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } })
+            );
+        } catch {}
+        visualizer?.invalidateRender?.();
+        onSceneRefresh?.();
+        localStorage.setItem('mvmnt.desktop.recovery-state', 'dirty');
+        markDirty();
+        void analytics.capture('document_created', { entry_point: 'menu' });
+        return true;
     };
 
     return {

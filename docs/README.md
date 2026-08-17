@@ -25,6 +25,8 @@ start with the [plugin quickstart](plugin-api/quickstart.md).
 - [Versioning and releases](versioning-and-releases.md) — build channels, artifact naming, releases,
   and update notifications.
 - [Local backend](contributors/local-backend.md) — running the Supabase community backend locally.
+- [Analytics and privacy](contributors/analytics-and-privacy.md) — consent, event contracts,
+  PostHog configuration, dashboards, and data requests.
 
 ## Plugin authors
 

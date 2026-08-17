@@ -8,7 +8,7 @@ import { writeStoredImportPayload } from '@utils/importPayloadStorage';
 import { easyModeTemplates } from '@workspace/templates/easyModeTemplates';
 import type { TemplateDefinition } from '@workspace/templates/types';
 import { BUILD_INFO } from '@app/build-info';
-import { posthog } from '@app/posthog';
+import { stagePendingDocumentAnalytics } from '@app/analytics';
 import type { UpdateCheckResult } from '../../electron/shared/build-info';
 
 const PENDING_DESKTOP_NAME_KEY = 'mvmnt.desktop.pending-open-name';
@@ -49,7 +49,7 @@ const HomePage: React.FC = () => {
         setIsOpening(true);
         try {
             await window.mvmntDesktop?.documents.clearActivePath();
-            posthog.capture('document_created', { entry_point: 'home' });
+            stagePendingDocumentAnalytics({ createdEntryPoint: 'home' });
             navigate('/workspace', { state: { template: 'blank', desktopNew: true } });
         } finally {
             setIsOpening(false);
@@ -66,7 +66,7 @@ const HomePage: React.FC = () => {
         try {
             const result = await desktop.documents.open();
             if (stageDesktopProjectOpen(result)) {
-                posthog.capture('document_opened', { source: 'file_picker' });
+                stagePendingDocumentAnalytics({ source: 'file_picker' });
                 navigate('/workspace', { state: { importScene: true } });
             }
         } finally {
@@ -80,8 +80,9 @@ const HomePage: React.FC = () => {
         if (!file) return;
         setIsOpening(true);
         try {
-            openStagedProject(new Uint8Array(await file.arrayBuffer()), file.name);
-            posthog.capture('document_opened', { source: 'browser_file_picker' });
+            const bytes = new Uint8Array(await file.arrayBuffer());
+            stagePendingDocumentAnalytics({ source: 'browser_file_picker' });
+            openStagedProject(bytes, file.name);
         } finally {
             setIsOpening(false);
         }
@@ -92,8 +93,8 @@ const HomePage: React.FC = () => {
         try {
             const artifact = await template.loadArtifact();
             await window.mvmntDesktop?.documents.clearActivePath();
+            stagePendingDocumentAnalytics({ createdEntryPoint: 'home', templateEntryPoint: 'home' });
             openStagedProject(artifact.data, `${template.name}.mvt`, { newDocument: true });
-            posthog.capture('template_selected', { entry_point: 'home' });
         } catch (error) {
             alert(`Could not open ${template.name}: ${error instanceof Error ? error.message : String(error)}`);
         } finally {
@@ -108,7 +109,7 @@ const HomePage: React.FC = () => {
         try {
             const result = await desktop.documents.openRecent(index);
             if (stageDesktopProjectOpen(result)) {
-                posthog.capture('document_opened', { source: 'recent_documents' });
+                stagePendingDocumentAnalytics({ source: 'recent_documents' });
                 navigate('/workspace', { state: { importScene: true } });
             } else setRecentFiles(await desktop.documents.listRecent());
         } finally {
@@ -191,6 +192,12 @@ const HomePage: React.FC = () => {
                             className="rounded bg-neutral-800 px-5 py-2.5 text-sm font-medium hover:bg-neutral-700"
                         >
                             Community
+                        </Link>
+                        <Link
+                            to="/privacy"
+                            className="rounded bg-neutral-800 px-5 py-2.5 text-sm font-medium hover:bg-neutral-700"
+                        >
+                            Privacy
                         </Link>
                     </div>
                 </div>

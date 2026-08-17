@@ -44,6 +44,11 @@ jobs:
     macos:
         needs: verify
         runs-on: macos-14
+        env:
+            VITE_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_EU_PROJECT_TOKEN }}
+            VITE_PUBLIC_POSTHOG_HOST: https://eu.i.posthog.com
+            POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+            POSTHOG_PROJECT_ID: ${{ vars.POSTHOG_PROJECT_ID }}
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v4
@@ -64,6 +69,11 @@ jobs:
     windows:
         needs: verify
         runs-on: windows-latest
+        env:
+            VITE_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_EU_PROJECT_TOKEN }}
+            VITE_PUBLIC_POSTHOG_HOST: https://eu.i.posthog.com
+            POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+            POSTHOG_PROJECT_ID: ${{ vars.POSTHOG_PROJECT_ID }}
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v4

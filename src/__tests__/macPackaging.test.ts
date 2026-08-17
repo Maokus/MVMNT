@@ -74,4 +74,24 @@ describe('macOS packaging dependencies', () => {
         expect(releaseWorkflow).toContain('Verify tag matches package version');
         expect(releaseWorkflow).toContain("MVMNT_SKIP_MAC_SIGNING: '1'");
     });
+
+    it('restricts packaged analytics to EU ingestion and keeps source-map credentials out of the app', () => {
+        const environment = readFileSync(resolve(process.cwd(), '.env'), 'utf8');
+        const electronMain = readFileSync(resolve(process.cwd(), 'electron/main.ts'), 'utf8');
+        const releaseWorkflow = readFileSync(resolve(process.cwd(), '.github/workflows/desktop-release.yml'), 'utf8');
+        const testingWorkflow = readFileSync(resolve(process.cwd(), '.github/workflows/testing-builds.yml'), 'utf8');
+
+        expect(environment).toContain('VITE_PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com');
+        expect(environment).not.toContain('us.i.posthog.com');
+        expect(environment).not.toMatch(/VITE_PUBLIC_POSTHOG_PROJECT_TOKEN=phc_/);
+        expect(electronMain).toContain("\"script-src 'self' 'unsafe-eval'\"");
+        expect(electronMain).not.toContain('__POSTHOG_CSP_SCRIPT_SRC__');
+        expect(electronMain).toContain('__POSTHOG_CSP_CONNECT_SRC__');
+
+        for (const workflow of [releaseWorkflow, testingWorkflow]) {
+            expect(workflow).toContain('VITE_PUBLIC_POSTHOG_HOST: https://eu.i.posthog.com');
+            expect(workflow).toContain('POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}');
+            expect(workflow).toContain('POSTHOG_PROJECT_ID: ${{ vars.POSTHOG_PROJECT_ID }}');
+        }
+    });
 });

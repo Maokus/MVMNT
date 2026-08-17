@@ -12,7 +12,6 @@ export default defineConfig(({ mode }) => {
     return {
         define: {
             ...buildMetadataDefines(),
-            __POSTHOG_CSP_SCRIPT_SRC__: JSON.stringify(env.POSTHOG_CSP_SCRIPT_SRC),
             __POSTHOG_CSP_CONNECT_SRC__: JSON.stringify(env.VITE_PUBLIC_POSTHOG_HOST),
         },
         publicDir: false,

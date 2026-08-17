@@ -78,7 +78,6 @@ const APP_SCHEME = 'mvmnt';
 const APP_ORIGIN = `${APP_SCHEME}://app`;
 const isDevelopment = Boolean(process.env.MVMNT_RENDERER_URL);
 const RELEASES_LATEST_URL = 'https://github.com/Maokus/MVMNT/releases/latest';
-const postHogCspScriptSrc = __POSTHOG_CSP_SCRIPT_SRC__;
 const postHogCspConnectSrc = __POSTHOG_CSP_CONNECT_SRC__;
 const GITHUB_LATEST_RELEASE_API = 'https://api.github.com/repos/Maokus/MVMNT/releases/latest';
 const buildInfo = createBuildInfo({
@@ -910,7 +909,7 @@ function contentType(filePath: string): string {
 
 const contentSecurityPolicy = [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-eval'${postHogCspScriptSrc ? ` ${postHogCspScriptSrc}` : ''}`,
+    "script-src 'self' 'unsafe-eval'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "media-src 'self' data: blob: https:",

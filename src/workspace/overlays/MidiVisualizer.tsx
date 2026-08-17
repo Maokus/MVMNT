@@ -38,6 +38,7 @@ import { LocalSaveService } from '@persistence/local-save-service';
 import { LocalFileStore } from '@persistence/local-file-store';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { TemplateLoadingOverlay } from '../../components/TemplateLoadingOverlay';
+import { failPendingDocumentAnalytics } from '@app/analytics';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
 import { CacheDiagnosticsPopup } from '@workspace/components/CacheDiagnosticsPopup';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
@@ -603,6 +604,7 @@ const TemplateInitializer: React.FC = () => {
                             if (!result.ok) {
                                 const msg = result.errors.map((e) => e.message).join('\n');
                                 console.warn('[Import] Failed:', msg);
+                                void failPendingDocumentAnalytics();
                                 alert('Failed to load scene: ' + msg);
                             } else {
                                 const metadataStore = useSceneMetadataStore.getState();
@@ -651,6 +653,7 @@ const TemplateInitializer: React.FC = () => {
                                 throw e;
                             }
                             console.error('Failed to import scene payload', e);
+                            void failPendingDocumentAnalytics();
                             const message = e instanceof Error ? e.message : String(e);
                             if (hasPendingRender()) {
                                 clearPendingRender();
@@ -787,14 +790,17 @@ const TemplateInitializer: React.FC = () => {
                 }
                 if (didChange) {
                     visualizer.invalidateRender?.();
+                    window.dispatchEvent(new Event('mvmnt-project-imported'));
                     if (!shouldImport) {
                         navigate('/workspace', { replace: true });
                     }
                 }
             } catch (e) {
                 if ((e as Error)?.name === 'AbortError') {
+                    void failPendingDocumentAnalytics();
                     clearSceneAfterAbort();
                 } else {
+                    void failPendingDocumentAnalytics();
                     console.error('Template initialization error', e);
                 }
             } finally {

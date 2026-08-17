@@ -10,7 +10,6 @@ import { useTemplateApply } from '@workspace/templates/useTemplateApply';
 import type { TemplateDefinition } from '@workspace/templates/types';
 import { isTextEditingTarget, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 import { BUILD_INFO } from '@app/build-info';
-import { posthog } from '@app/posthog';
 
 interface MenuBarProps {
     onHelp?: () => void;
@@ -88,12 +87,10 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
     };
 
     const handleSave = () => {
-        posthog.capture('document_save_requested', { save_mode: 'save' });
         void saveToLocal();
         setShowSceneMenu(false);
     };
     const handleSaveAs = () => {
-        posthog.capture('document_save_requested', { save_mode: 'save_as' });
         void saveAs();
         setShowSceneMenu(false);
     };
@@ -102,7 +99,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
         setShowSceneMenu(false);
     };
     const handleNew = () => {
-        createNewDefaultScene();
+        void createNewDefaultScene();
         setShowSceneMenu(false);
     };
     const handleGoHome = async (event: React.MouseEvent<HTMLAnchorElement>) => {
@@ -112,6 +109,10 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
     const handleGoCommunity = async (event: React.MouseEvent<HTMLAnchorElement>) => {
         event.preventDefault();
         if (await leaveWorkspace()) navigate('/community');
+    };
+    const handleGoPrivacy = async (event: React.MouseEvent<HTMLAnchorElement>) => {
+        event.preventDefault();
+        if (await leaveWorkspace()) navigate('/privacy');
     };
 
     return (
@@ -163,6 +164,23 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                             title="Browse community templates & plugins"
                         >
                             community
+                        </Link>
+                        <Link
+                            to="/privacy"
+                            onClick={handleGoPrivacy}
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#cccccc',
+                                cursor: 'pointer',
+                                padding: '4px 6px',
+                                borderRadius: 4,
+                                textDecoration: 'none',
+                                fontSize: 12,
+                            }}
+                            title="Privacy and analytics settings"
+                        >
+                            privacy
                         </Link>
                     </nav>
                 </div>

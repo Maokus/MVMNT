@@ -31,7 +31,6 @@ if (import.meta.env.DEV) {
 }
 import { setCanonicalPPQ } from '@core/timing/ppq';
 import { initializeSceneState } from './initializeSceneState';
-import './posthog';
 
 (globalThis as any).React = React;
 (globalThis as any).ReactDOM = ReactDOM;

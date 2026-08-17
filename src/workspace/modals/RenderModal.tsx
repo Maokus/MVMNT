@@ -11,7 +11,6 @@ import { FormField, inputCls } from './render-modal/FormField';
 import { loadExportPresets, type ExportPreset } from '@export/presets';
 import { updateDestinationExtension } from './render-modal/exportDestination';
 import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
-import { posthog } from '@app/posthog';
 
 interface RenderModalProps {
     onClose: () => void;
@@ -270,11 +269,6 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             resolvedVideoBitrate != null ? { ...baseOverrides, videoBitrate: resolvedVideoBitrate } : baseOverrides;
 
         setExportSettings((prev) => ({ ...prev, ...overrides }));
-        posthog.capture('export_started', {
-            export_format: form.format,
-            includes_audio: form.format === 'video' && form.includeAudio,
-            transparent_background: form.transparentBackground,
-        });
         setIsExporting(true);
         try {
             if (form.format !== 'video') {

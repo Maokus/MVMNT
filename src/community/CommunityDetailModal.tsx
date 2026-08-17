@@ -19,7 +19,7 @@ import { writeStoredImportPayload } from '../utils/importPayloadStorage';
 import { usePluginStore } from '../state/pluginStore';
 import { CURRENT_SCHEMA_VERSION } from '@persistence/validate';
 import pkg from '../../package.json';
-import { posthog } from '@app/posthog';
+import { analytics, stagePendingDocumentAnalytics } from '@app/analytics';
 
 interface CompatBadge {
     level: 'red';
@@ -114,7 +114,7 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
         try {
             const url = await downloadItem(item, user?.id ?? null);
             window.open(url, '_blank');
-            posthog.capture('community_item_downloaded', { item_type: item.type });
+            void analytics.capture('community_item_downloaded', { item_type: item.type });
             onItemChanged();
         } catch (err: any) {
             setError(err.message ?? 'Download failed');
@@ -134,7 +134,8 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
             }
             const buffer = await response.arrayBuffer();
             writeStoredImportPayload(buffer);
-            posthog.capture('community_template_opened');
+            stagePendingDocumentAnalytics({ source: 'community', templateEntryPoint: 'community' });
+            void analytics.capture('community_template_opened', {});
             onItemChanged();
             navigate('/workspace', { state: { importScene: true } });
         } catch (err: any) {
@@ -153,7 +154,7 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
             const buffer = await response.arrayBuffer();
             const result = await loadPlugin(buffer);
             if (!result.success) throw new Error(result.error ?? 'Installation failed');
-            posthog.capture('community_plugin_installed');
+            void analytics.capture('community_plugin_installed', {});
             onItemChanged();
         } catch (err: any) {
             setError(err.message ?? 'Installation failed');
@@ -201,7 +202,7 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
             setError(null);
             try {
                 await rateItem(item.id, user.id, rating);
-                posthog.capture('community_item_rated', { rating });
+                void analytics.capture('community_item_rated', { rating });
                 setUserRating(rating);
                 onItemChanged();
             } catch (err: any) {

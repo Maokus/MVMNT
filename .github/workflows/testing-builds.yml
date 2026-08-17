@@ -64,6 +64,10 @@ jobs:
             MVMNT_BUILD_SHA: ${{ github.sha }}
             MVMNT_BUILD_DATE: ${{ needs.metadata.outputs.built_at }}
             MVMNT_NIGHTLY_BUILD_NUMBER: ${{ github.run_number }}
+            VITE_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_EU_PROJECT_TOKEN }}
+            VITE_PUBLIC_POSTHOG_HOST: https://eu.i.posthog.com
+            POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+            POSTHOG_PROJECT_ID: ${{ vars.POSTHOG_PROJECT_ID }}
         strategy:
             fail-fast: false
             matrix:
