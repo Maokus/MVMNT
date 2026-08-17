@@ -8,6 +8,7 @@ import { writeStoredImportPayload } from '@utils/importPayloadStorage';
 import { easyModeTemplates } from '@workspace/templates/easyModeTemplates';
 import type { TemplateDefinition } from '@workspace/templates/types';
 import { BUILD_INFO } from '@app/build-info';
+import { posthog } from '@app/posthog';
 import type { UpdateCheckResult } from '../../electron/shared/build-info';
 
 const PENDING_DESKTOP_NAME_KEY = 'mvmnt.desktop.pending-open-name';
@@ -48,6 +49,7 @@ const HomePage: React.FC = () => {
         setIsOpening(true);
         try {
             await window.mvmntDesktop?.documents.clearActivePath();
+            posthog.capture('document_created', { entry_point: 'home' });
             navigate('/workspace', { state: { template: 'blank', desktopNew: true } });
         } finally {
             setIsOpening(false);
@@ -63,7 +65,10 @@ const HomePage: React.FC = () => {
         setIsOpening(true);
         try {
             const result = await desktop.documents.open();
-            if (stageDesktopProjectOpen(result)) navigate('/workspace', { state: { importScene: true } });
+            if (stageDesktopProjectOpen(result)) {
+                posthog.capture('document_opened', { source: 'file_picker' });
+                navigate('/workspace', { state: { importScene: true } });
+            }
         } finally {
             setIsOpening(false);
         }
@@ -76,6 +81,7 @@ const HomePage: React.FC = () => {
         setIsOpening(true);
         try {
             openStagedProject(new Uint8Array(await file.arrayBuffer()), file.name);
+            posthog.capture('document_opened', { source: 'browser_file_picker' });
         } finally {
             setIsOpening(false);
         }
@@ -87,6 +93,7 @@ const HomePage: React.FC = () => {
             const artifact = await template.loadArtifact();
             await window.mvmntDesktop?.documents.clearActivePath();
             openStagedProject(artifact.data, `${template.name}.mvt`, { newDocument: true });
+            posthog.capture('template_selected', { entry_point: 'home' });
         } catch (error) {
             alert(`Could not open ${template.name}: ${error instanceof Error ? error.message : String(error)}`);
         } finally {
@@ -100,8 +107,10 @@ const HomePage: React.FC = () => {
         setIsOpening(true);
         try {
             const result = await desktop.documents.openRecent(index);
-            if (stageDesktopProjectOpen(result)) navigate('/workspace', { state: { importScene: true } });
-            else setRecentFiles(await desktop.documents.listRecent());
+            if (stageDesktopProjectOpen(result)) {
+                posthog.capture('document_opened', { source: 'recent_documents' });
+                navigate('/workspace', { state: { importScene: true } });
+            } else setRecentFiles(await desktop.documents.listRecent());
         } finally {
             setIsOpening(false);
         }

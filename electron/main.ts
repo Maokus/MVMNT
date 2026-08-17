@@ -78,6 +78,8 @@ const APP_SCHEME = 'mvmnt';
 const APP_ORIGIN = `${APP_SCHEME}://app`;
 const isDevelopment = Boolean(process.env.MVMNT_RENDERER_URL);
 const RELEASES_LATEST_URL = 'https://github.com/Maokus/MVMNT/releases/latest';
+const postHogCspScriptSrc = __POSTHOG_CSP_SCRIPT_SRC__;
+const postHogCspConnectSrc = __POSTHOG_CSP_CONNECT_SRC__;
 const GITHUB_LATEST_RELEASE_API = 'https://api.github.com/repos/Maokus/MVMNT/releases/latest';
 const buildInfo = createBuildInfo({
     version: __MVMNT_VERSION__,
@@ -908,12 +910,12 @@ function contentType(filePath: string): string {
 
 const contentSecurityPolicy = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-eval'",
+    `script-src 'self' 'unsafe-eval'${postHogCspScriptSrc ? ` ${postHogCspScriptSrc}` : ''}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "media-src 'self' data: blob: https:",
     "font-src 'self' data: blob: https://fonts.gstatic.com",
-    "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://www.googleapis.com https://fonts.gstatic.com",
+    `connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://www.googleapis.com https://fonts.gstatic.com${postHogCspConnectSrc ? ` ${postHogCspConnectSrc}` : ''}`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",

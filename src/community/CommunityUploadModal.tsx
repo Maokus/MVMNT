@@ -3,6 +3,7 @@ import { FaXmark, FaUpload } from 'react-icons/fa6';
 import type { User } from '@supabase/supabase-js';
 import { uploadItem, parsePluginManifest, setItemTags, findPluginUidConflict } from './communityApi';
 import CommunityTagInput from './CommunityTagInput';
+import { posthog } from '@app/posthog';
 
 interface CommunityUploadModalProps {
     user: User;
@@ -96,6 +97,7 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({
                 if (tags.length > 0) {
                     await setItemTags(itemId, tags);
                 }
+                posthog.capture('community_item_uploaded', { item_type: type });
                 onUploaded();
                 onClose();
             } catch (err: any) {

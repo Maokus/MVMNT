@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
+import { posthog } from '@app/posthog';
 import { supabase } from '../lib/supabase';
 
 interface CommunityAuthBarProps {
@@ -18,12 +19,34 @@ const CommunityAuthBar: React.FC<CommunityAuthBarProps> = ({ user, onAuthChange 
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [signupSuccess, setSignupSuccess] = useState(false);
+    const identifiedUserIdRef = useRef<string | null>(null);
 
     useEffect(() => {
         const {
             data: { subscription },
-        } = supabase.auth.onAuthStateChange((_event, session) => {
-            onAuthChange(session?.user ?? null);
+        } = supabase.auth.onAuthStateChange((event, session) => {
+            const authenticatedUser = session?.user ?? null;
+            onAuthChange(authenticatedUser);
+
+            if (event === 'SIGNED_OUT') {
+                posthog.reset();
+                identifiedUserIdRef.current = null;
+                return;
+            }
+
+            if (!authenticatedUser || (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN')) return;
+
+            if (identifiedUserIdRef.current && identifiedUserIdRef.current !== authenticatedUser.id) {
+                posthog.reset();
+            }
+
+            const username = authenticatedUser.user_metadata?.username;
+            posthog.identify(authenticatedUser.id, {
+                email: authenticatedUser.email,
+                ...(typeof username === 'string' ? { username } : {}),
+            });
+            identifiedUserIdRef.current = authenticatedUser.id;
+            if (event === 'SIGNED_IN') posthog.capture('community_sign_in_completed');
         });
         return () => subscription.unsubscribe();
     }, [onAuthChange]);
@@ -90,6 +113,7 @@ const CommunityAuthBar: React.FC<CommunityAuthBarProps> = ({ user, onAuthChange 
     };
 
     const handleSignOut = async () => {
+        posthog.capture('community_sign_out');
         await supabase.auth.signOut();
     };
 

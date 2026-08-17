@@ -3,6 +3,8 @@
 interface ImportMetaEnv {
     readonly VITE_BINDING_VERSION: string;
     readonly VITE_VERBOSE_LOGS?: string;
+    readonly VITE_PUBLIC_POSTHOG_PROJECT_TOKEN?: string;
+    readonly VITE_PUBLIC_POSTHOG_HOST?: string;
     readonly REACT_APP_VERSION?: string;
     readonly REACT_APP_BINDING_VERSION?: string;
     readonly REACT_APP_VERBOSE_LOGS?: string;

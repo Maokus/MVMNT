@@ -10,6 +10,7 @@ import { useTemplateApply } from '@workspace/templates/useTemplateApply';
 import type { TemplateDefinition } from '@workspace/templates/types';
 import { isTextEditingTarget, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 import { BUILD_INFO } from '@app/build-info';
+import { posthog } from '@app/posthog';
 
 interface MenuBarProps {
     onHelp?: () => void;
@@ -87,10 +88,12 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
     };
 
     const handleSave = () => {
+        posthog.capture('document_save_requested', { save_mode: 'save' });
         void saveToLocal();
         setShowSceneMenu(false);
     };
     const handleSaveAs = () => {
+        posthog.capture('document_save_requested', { save_mode: 'save_as' });
         void saveAs();
         setShowSceneMenu(false);
     };
