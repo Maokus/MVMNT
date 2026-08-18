@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaFileCirclePlus, FaFolderOpen, FaRegClock } from 'react-icons/fa6';
 import type { DesktopRecentDocument } from '../../electron/shared/desktop-api';
-import pfp from '@assets/Logo_Pfp_white.png';
 import { stageDesktopProjectOpen } from '../desktop/pending-open';
 import { writeStoredImportPayload } from '@utils/importPayloadStorage';
 import { easyModeTemplates } from '@workspace/templates/easyModeTemplates';
@@ -278,52 +277,7 @@ const HomePage: React.FC = () => {
                     Opening document…
                 </div>
             ) : null}
-            <DonationNotice />
         </main>
-    );
-};
-
-const DonationNotice: React.FC = () => {
-    const [dismissed, setDismissed] = useState(false);
-    if (dismissed) return null;
-
-    return (
-        <div className="fixed bottom-4 right-4 z-50 flex items-end gap-2">
-            <div className="relative">
-                <div className="max-w-xs rounded-lg border border-neutral-800 bg-neutral-900/85 p-3 text-neutral-100 shadow-lg backdrop-blur-sm">
-                    <div className="text-sm">
-                        <div className="font-medium">Welcome!!</div>
-                        <div className="mt-1 text-neutral-300">
-                            I develop and host this project at my own expense. If you enjoy the app, please check out
-                            how you can support it!
-                        </div>
-                        <div className="mt-2 flex gap-2">
-                            <Link
-                                to="/contribute"
-                                className="rounded bg-indigo-600 px-2 py-1 text-xs hover:bg-indigo-500"
-                            >
-                                Support MVMNT
-                            </Link>
-                            <button
-                                onClick={() => setDismissed(true)}
-                                className="rounded bg-neutral-800 px-2 py-1 text-xs hover:bg-neutral-700"
-                            >
-                                Dismiss
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div
-                    className="absolute -right-2 bottom-3 h-3 w-3 rotate-45 border border-neutral-800 bg-neutral-900/85"
-                    aria-hidden="true"
-                />
-            </div>
-            <img
-                src={pfp}
-                alt="Maokus avatar"
-                className="h-10 w-10 rounded-full border-2 border-neutral-800 object-cover"
-            />
-        </div>
     );
 };
 
