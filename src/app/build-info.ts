@@ -1,5 +1,7 @@
 import { createBuildInfo } from '../../electron/shared/build-info';
 
+export { shouldEnableDevelopmentTools } from '../../electron/shared/build-info';
+
 export const BUILD_INFO = createBuildInfo({
     version: __MVMNT_VERSION__,
     channel: __MVMNT_BUILD_CHANNEL__,

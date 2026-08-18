@@ -7,6 +7,7 @@ import HomePage from '../HomePage';
 vi.mock('@app/build-info', () => ({
     BUILD_INFO: {
         version: '0.16.0',
+        releaseLine: '0.16.0',
         displayVersion: '0.16.0',
         channel: 'stable',
         commit: '61ed441360d49f9647c975afed40ef920c2c93b4',

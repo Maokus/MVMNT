@@ -9,12 +9,21 @@ version. Change them only when their own contracts change.
 
 ## Build channels
 
+`MVMNT_BUILD_CHANNEL` is the only channel authority. Omitting it produces a development build;
+supplying any value other than `development`, `nightly`, or `stable` fails the build. Feature and
+debug gating must use the injected `BUILD_INFO.channel`, not a separate Vite mode variable.
+
 - Development builds display `<version>-dev+<short-sha>` and never check for updates.
 - Stable builds display the package version exactly, such as `0.16.0`.
 - Testing builds display `<version>-nightly.<UTC-date>.<GitHub-run-number>`.
 
 The About page also reports the channel, commit, and build timestamp. Export diagnostics continue to
 record the exact application build version.
+
+Analytics records the exact version as `app_version`, the base `major.minor.patch` as
+`app_release_line`, plus channel and commit. Stable and nightly builds share the production analytics
+project and are separated by channel; local development analytics remains disabled unless explicitly
+enabled against a separate development project.
 
 Nightlies retain their full SemVer prerelease in application metadata and diagnostics. Native macOS
 and Windows version resources receive the numeric base version plus the GitHub run number because

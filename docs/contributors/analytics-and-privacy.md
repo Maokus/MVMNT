@@ -16,23 +16,31 @@ PostHog identifier, or make a PostHog request.
 - Development builds stay disabled unless `VITE_PUBLIC_POSTHOG_ENABLE_DEVELOPMENT=true` and a
   separate development project token is configured.
 
-All instrumentation goes through `src/app/analytics.ts`. Do not import `posthog-js` elsewhere.
-Add new event names and typed properties to `AnalyticsEventMap`, keep properties categorical, and
-extend the sanitizer tests whenever a new data category is introduced.
+All instrumentation goes through the provider-neutral `analytics` service exported by
+`src/app/analytics.ts`. Application and domain code must not import `posthog-js` or depend on
+PostHog event shapes. The service owns consent, runtime event validation, common build context,
+milestone deduplication, and consent-gated renderer exception listeners. Provider adapters own SDK
+loading, transport, provider persistence, and final wire-format defenses.
+
+Add new event names, typed properties, and matching runtime validators together. Properties must be
+categorical or bounded numeric values. Events with unknown properties or invalid values are rejected before they reach a
+provider. A replacement provider implements `AnalyticsProvider`; application call sites and consent
+behavior remain unchanged.
 
 ## Event catalog
 
-| Area       | Events                                                                                             | Safe properties                                                           |
-| ---------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Consent    | `analytics_consent_granted`, `analytics_consent_withdrawn`                                         | policy version                                                            |
-| Navigation | `app_opened`, `screen_viewed`                                                                      | allowlisted screen                                                        |
-| Activation | `document_created`, `document_opened`, `media_imported`, `scene_element_added`, `playback_started` | entry point, source, media type, built-in element type or `plugin`        |
-| Creation   | `template_applied`, `document_saved`, `document_operation_failed`                                  | entry point, save mode, operation, failure category                       |
-| Export     | `export_started`, `export_completed`, `export_failed`, `export_cancelled`                          | format, audio/transparency flags, execution mode, failure category        |
-| Community  | sign-up/sign-in/sign-out, item download/open/install/upload/rating                                 | item type and numeric rating only                                         |
-| Errors     | PostHog `$exception`                                                                               | error type, redacted value, sanitized stack coordinates, release metadata |
+| Area       | Events                                                                                             | Safe properties                                                    |
+| ---------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Consent    | `analytics_consent_granted`, `analytics_consent_withdrawn`                                         | policy version                                                     |
+| Navigation | `app_opened`, `screen_viewed`                                                                      | allowlisted screen                                                 |
+| Activation | `document_created`, `document_opened`, `media_imported`, `scene_element_added`, `playback_started` | entry point, source, media type, built-in element type or `plugin` |
+| Creation   | `template_applied`, `document_saved`, `document_operation_failed`                                  | entry point, save mode, operation, failure category                |
+| Export     | `export_started`, `export_completed`, `export_failed`, `export_cancelled`                          | format, audio/transparency flags, execution mode, failure category |
+| Community  | sign-up/sign-in/sign-out, item download/open/install/upload/rating                                 | item type and numeric rating only                                  |
+| Errors     | provider-neutral renderer exception report                                                         | error type, fatal state, mechanism, sanitized stack coordinates    |
 
-Milestone events derived from command telemetry must require success, reject transient commands,
+The PostHog adapter maps renderer exception reports to `$exception` only at its boundary. Milestone
+events derived from command telemetry must require success, reject transient commands,
 and never forward command objects. High-frequency activation events are deduplicated once per app
 session. Document, save, and export outcomes are emitted from their completion boundaries rather
 than button clicks.
@@ -47,13 +55,26 @@ Create an EU Cloud project and configure these repository settings:
 
 In PostHog, discard client IP addresses, disable GeoIP enrichment and all disabled client features,
 set event/error retention to 12 months, require MFA, limit project access, and complete the relevant
-DPA/subprocessor review. The client settings are intentionally restrictive even if a project
-setting is changed later.
+DPA/subprocessor review. Every PostHog event also sets `$geoip_disable=true`; client settings remain
+restrictive even if a project setting changes later. The authorized-URLs health warning is accepted
+as inapplicable while page views and web analytics remain disabled for the Electron renderer.
 
 Stable and nightly packaging uploads renderer source maps under release name `mvmnt-desktop`, using
-the package version and build commit. The upload plugin deletes maps after upload, while its injected
-chunk metadata remains in packaged JavaScript. If CI credentials are absent, builds still succeed
-but source maps are not uploaded.
+the same exact version and commit injected into analytics. The upload plugin uses hidden maps and
+deletes them after upload; packaging also excludes all `.map` files. If CI credentials are absent,
+the build succeeds without emitting renderer maps.
+
+Every event receives these provider-neutral dimensions:
+
+- `app_version`: exact manifest version, including the unique nightly prerelease.
+- `app_release_line`: base `major.minor.patch` used to aggregate a nightly series with its intended release.
+- `build_channel`: `development`, `nightly`, or `stable`.
+- `build_commit`: exact source revision used for the build.
+- `runtime`, coarse `platform`, and `consent_policy_version`.
+
+Stable and opted-in nightly builds use the production EU project. Product views default to stable
+traffic and expose channel/version filters. Development analytics is off by default and must use a
+separate development project when explicitly enabled.
 
 ## Saved views
 
@@ -62,7 +83,8 @@ Create and maintain these PostHog views:
 1. Activation funnel: `app_opened` → document created/opened → `media_imported` →
    `scene_element_added` → `playback_started` → `export_completed`.
 2. Weekly retention: users who reached `export_completed`, returning via `app_opened`.
-3. Adoption: template, media, element, export, and community events by their categorical fields.
+3. Adoption: template, media, element, export, `community_template_opened`, and
+   `community_plugin_installed` events by their categorical fields.
 4. Release health: `$exception`, document failures, and export failures by app version and channel.
 
 ## Access and deletion requests
@@ -78,3 +100,11 @@ placed in Vite variables, application code, logs, or client-accessible Supabase 
 
 Withdrawing consent stops future capture and resets the local analytics identity; it does not imply
 deletion of previously collected events, which follows the verified request process above.
+
+## Administrative acceptance checklist
+
+- GitHub variables: `POSTHOG_EU_PROJECT_TOKEN` and `POSTHOG_PROJECT_ID`.
+- GitHub secret: scoped `POSTHOG_API_KEY`; never expose it to Vite or packaged code.
+- PostHog: enforced 12-month retention, IP/GeoIP controls, restricted access, MFA, and completed DPA review.
+- Releases: one stable and one nightly symbol set verified after CI packaging.
+- Cleanup: remove synthetic smoke events and retire unwanted data in the former US project.

@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -68,11 +68,17 @@ describe('macOS packaging dependencies', () => {
     it('defines traceable testing artifacts and validates stable release tags', () => {
         const testingWorkflow = readFileSync(resolve(process.cwd(), '.github/workflows/testing-builds.yml'), 'utf8');
         const releaseWorkflow = readFileSync(resolve(process.cwd(), '.github/workflows/desktop-release.yml'), 'utf8');
+        const viteConfig = readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8');
 
         expect(testingWorkflow).toContain('-nightly.${build_date}.${GITHUB_RUN_NUMBER}');
         expect(testingWorkflow).toContain('MVMNT-Nightly-${{ needs.metadata.outputs.version }}');
         expect(releaseWorkflow).toContain('Verify tag matches package version');
         expect(releaseWorkflow).toContain("MVMNT_SKIP_MAC_SIGNING: '1'");
+        expect(forgeConfig.packagerConfig.ignore).toContainEqual(/^\/dist\/.*\.map$/);
+        expect(viteConfig).toContain('releaseVersion: buildMetadata.version');
+        expect(viteConfig).toContain('build: buildMetadata.commit');
+        expect(viteConfig).toContain("sourcemap: sourceMapUploadEnabled ? 'hidden' : false");
+        expect(existsSync(resolve(process.cwd(), '.env.beta'))).toBe(false);
     });
 
     it('restricts packaged analytics to EU ingestion and keeps source-map credentials out of the app', () => {

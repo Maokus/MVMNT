@@ -2,6 +2,7 @@ export type BuildChannel = 'development' | 'nightly' | 'stable';
 
 export interface BuildInfo {
     version: string;
+    releaseLine: string;
     displayVersion: string;
     channel: BuildChannel;
     commit: string;
@@ -30,9 +31,18 @@ export function formatDisplayVersion(version: string, channel: BuildChannel, com
     return version;
 }
 
+export function releaseLine(version: string): string {
+    return /^\d+\.\d+\.\d+/.exec(version)?.[0] ?? version;
+}
+
+export function shouldEnableDevelopmentTools(channel: BuildChannel, isViteDevelopment: boolean): boolean {
+    return channel === 'development' && isViteDevelopment;
+}
+
 export function createBuildInfo(input: BuildInfoInput): BuildInfo {
     return {
         version: input.version,
+        releaseLine: releaseLine(input.version),
         displayVersion: formatDisplayVersion(input.version, input.channel, input.commit),
         channel: input.channel,
         commit: input.commit,

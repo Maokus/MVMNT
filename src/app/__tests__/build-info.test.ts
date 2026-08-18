@@ -4,7 +4,10 @@ import {
     createBuildInfo,
     formatDisplayVersion,
     resolveUpdateAvailability,
+    releaseLine,
+    shouldEnableDevelopmentTools,
 } from '../../../electron/shared/build-info';
+import { resolveBuildChannel } from '../../../scripts/build-channel.mjs';
 
 describe('build information', () => {
     it('formats development, nightly, and stable versions consistently', () => {
@@ -13,6 +16,7 @@ describe('build information', () => {
             '0.16.0-nightly.20260812.123'
         );
         expect(formatDisplayVersion('0.16.0', 'stable', '61ed4413')).toBe('0.16.0');
+        expect(releaseLine('0.16.0-nightly.20260812.123')).toBe('0.16.0');
     });
 
     it('only enables update checks for supported packaged stable builds', () => {
@@ -29,6 +33,18 @@ describe('build information', () => {
         expect(
             createBuildInfo({ ...base, channel: 'stable', isPackaged: true, platform: 'linux' }).updateChecksEnabled
         ).toBe(false);
+    });
+
+    it('uses development, nightly, and stable as the only channel authority', () => {
+        expect(resolveBuildChannel(undefined)).toBe('development');
+        expect(resolveBuildChannel('nightly')).toBe('nightly');
+        expect(resolveBuildChannel('stable')).toBe('stable');
+        expect(() => resolveBuildChannel('beta')).toThrow('Invalid MVMNT_BUILD_CHANNEL: beta');
+
+        expect(shouldEnableDevelopmentTools('development', true)).toBe(true);
+        expect(shouldEnableDevelopmentTools('development', false)).toBe(false);
+        expect(shouldEnableDevelopmentTools('nightly', true)).toBe(false);
+        expect(shouldEnableDevelopmentTools('stable', true)).toBe(false);
     });
 
     it('compares stable versions and rejects non-stable input', () => {

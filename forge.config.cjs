@@ -79,6 +79,7 @@ module.exports = {
             /^\/\.env($|\.)/,
             /^\/\.gitignore$/,
             /^\/\.prettierrc$/,
+            /^\/dist\/.*\.map$/,
             /^\/node_modules($|\/)/,
             /^\/docs($|\/)/,
             /^\/devscripts($|\/)/,

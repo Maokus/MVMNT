@@ -9,6 +9,7 @@ import { TransportSection } from './TransportSection';
 import { UndoSection } from './UndoSection';
 import { PerspectiveDiagnosticsSection } from './PerspectiveDiagnosticsSection';
 import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
+import { BUILD_INFO, shouldEnableDevelopmentTools } from '@app/build-info';
 
 const MAX_RECENT_COMMANDS = 5;
 
@@ -44,10 +45,7 @@ const metricsReducer: MetricsReducer = (state, action) => {
 };
 
 export const DeveloperOverlay: React.FC = () => {
-    const isProd = process.env.NODE_ENV === 'production';
-    const appMode = import.meta.env.VITE_APP_MODE;
-    const isBetaMode = appMode === 'beta';
-    const defaultEnabled = !isProd && !isBetaMode;
+    const defaultEnabled = shouldEnableDevelopmentTools(BUILD_INFO.channel, import.meta.env.DEV);
     const transportCoordinator = React.useMemo(() => getTransportCoordinator(), []);
     const [, forceRender] = React.useReducer((x) => x + 1, 0);
     const [enabled, setEnabled] = React.useState(defaultEnabled);

@@ -6,4 +6,4 @@ export interface BuildMetadata {
 }
 
 export function readBuildMetadata(environment?: NodeJS.ProcessEnv): BuildMetadata;
-export function buildMetadataDefines(environment?: NodeJS.ProcessEnv): Record<string, string>;
+export function buildMetadataDefines(environment?: NodeJS.ProcessEnv, metadata?: BuildMetadata): Record<string, string>;

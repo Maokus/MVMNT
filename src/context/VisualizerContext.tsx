@@ -10,6 +10,7 @@ import { useVisualizerBootstrap } from './visualizer/useVisualizerBootstrap';
 import { useRenderLoop } from './visualizer/useRenderLoop';
 import { useTransportBridge } from './visualizer/useTransportBridge';
 import { useExportLifecycle } from './visualizer/useExportLifecycle';
+import { BUILD_INFO, shouldEnableDevelopmentTools } from '@app/build-info';
 
 interface VisualizerContextValue {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -83,10 +84,9 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         audioChannels: 2,
         container: 'mp4',
     });
-    const isBetaMode = import.meta.env.VITE_APP_MODE === 'beta';
     const defaultDebugSettings: DebugSettings = {
         showAnchorPoints: false,
-        showDevelopmentOverlay: import.meta.env.DEV && !isBetaMode,
+        showDevelopmentOverlay: shouldEnableDevelopmentTools(BUILD_INFO.channel, import.meta.env.DEV),
     };
     const [debugSettings, setDebugSettings] = useState<DebugSettings>(defaultDebugSettings);
     const [showProgressOverlay, setShowProgressOverlay] = useState(false);
