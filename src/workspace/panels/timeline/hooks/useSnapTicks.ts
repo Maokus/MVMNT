@@ -1,7 +1,12 @@
 import { useCallback } from 'react';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
-import { getAdaptiveSnapSetting, quantizeSettingToBeats, type QuantizeSetting } from '@state/timeline/quantize';
+import {
+    getAdaptiveSnapSetting,
+    quantizeDivisionToTick,
+    quantizeSettingToExactTicks,
+    type QuantizeSetting,
+} from '@state/timeline/quantize';
 
 /**
  * Shared snap-to-tick hook. Respects adaptive snapping when enabled.
@@ -32,10 +37,16 @@ export function useSnapTicks() {
                 target = quantize;
             }
             if (target === 'off') return clamp(candidateTick);
-            const beatLength = quantizeSettingToBeats(target, bpb, arbitrarySnapN);
-            if (!beatLength) return clamp(candidateTick);
-            const resolution = Math.max(1, Math.round(beatLength * ppq));
-            return clamp(Math.round(candidateTick / resolution) * resolution);
+            const resolution = quantizeSettingToExactTicks(target, bpb, ppq, arbitrarySnapN);
+            if (!resolution) return clamp(candidateTick);
+            const snapped = quantizeDivisionToTick(
+                Math.round(candidateTick / resolution),
+                target,
+                bpb,
+                ppq,
+                arbitrarySnapN
+            );
+            return clamp(snapped ?? candidateTick);
         },
         [quantize, adaptiveSnap, arbitrarySnapN, bpb, ppq, viewStart, viewEnd]
     );

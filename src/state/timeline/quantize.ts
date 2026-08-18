@@ -88,10 +88,40 @@ export function quantizeSettingToTicks(
     ticksPerQuarter: number = CANONICAL_PPQ,
     arbitraryN?: number
 ): number | null {
+    const resolution = quantizeSettingToExactTicks(setting, beatsPerBar, ticksPerQuarter, arbitraryN);
+    if (resolution == null) return null;
+    return resolution > 0 ? Math.round(resolution) : null;
+}
+
+/**
+ * Returns the unrounded interval between quantize divisions in ticks.
+ *
+ * Keep this value fractional until converting an individual grid position to
+ * a tick. Rounding the interval itself makes divisions such as 1/7 drift
+ * further from their bar boundary on every successive subdivision.
+ */
+export function quantizeSettingToExactTicks(
+    setting: QuantizeSetting,
+    beatsPerBar: number,
+    ticksPerQuarter: number = CANONICAL_PPQ,
+    arbitraryN?: number
+): number | null {
     const beatLength = quantizeSettingToBeats(setting, beatsPerBar, arbitraryN);
     if (beatLength == null) return null;
     const resolution = beatLength * ticksPerQuarter;
-    return resolution > 0 ? Math.round(resolution) : null;
+    return resolution > 0 && Number.isFinite(resolution) ? resolution : null;
+}
+
+/** Converts a quantize-division index into the nearest integral timeline tick. */
+export function quantizeDivisionToTick(
+    division: number,
+    setting: QuantizeSetting,
+    beatsPerBar: number,
+    ticksPerQuarter: number = CANONICAL_PPQ,
+    arbitraryN?: number
+): number | null {
+    const resolution = quantizeSettingToExactTicks(setting, beatsPerBar, ticksPerQuarter, arbitraryN);
+    return resolution == null ? null : Math.round(division * resolution);
 }
 
 /**

@@ -31,4 +31,17 @@ describe('transport quantize denominations', () => {
         const after = getState().timeline.currentTick;
         expect(after).toBe(3 * sixteenth);
     });
+
+    it('keeps arbitrary divisions aligned to bar boundaries when starting playback', () => {
+        const api = getState();
+        const divisionsPerBar = 7;
+        const ticksPerBar = 4 * CANONICAL_PPQ;
+        api.setQuantize('arbitrary');
+        api.setArbitrarySnapN(divisionsPerBar);
+        api.setCurrentTick(ticksPerBar * 100 + 100, 'user');
+
+        api.play();
+
+        expect(getState().timeline.currentTick).toBe(ticksPerBar * 100);
+    });
 });

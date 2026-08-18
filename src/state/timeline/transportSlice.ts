@@ -1,8 +1,7 @@
 import type { AudioFeatureCacheStatus, AudioFeatureCacheStatusState } from '@audio/features/audioFeatureTypes';
 import type { TempoMapEntry } from '@state/timelineTypes';
-import { beatsToTicks } from '../timelineTime';
-import { quantizeSettingToBeats, type QuantizeSetting } from './quantize';
-import { createTimelineTimingContext, getSharedTimingManager } from './timelineShared';
+import { quantizeDivisionToTick, quantizeSettingToExactTicks, type QuantizeSetting } from './quantize';
+import { getSharedTimingManager } from './timelineShared';
 import type { TimelineState } from './storeTypes';
 
 type TransportSlice = Pick<
@@ -115,13 +114,21 @@ export function createTransportSlice({
             set((state) => {
                 let currentTick = state.timeline.currentTick;
                 if (!state.transport.isPlaying && state.transport.quantize !== 'off') {
-                    const beatLength = quantizeSettingToBeats(state.transport.quantize, state.timeline.beatsPerBar);
-                    const ticksPerUnit = beatLength
-                        ? Math.max(1, Math.round(beatsToTicks(createTimelineTimingContext(state), beatLength)))
-                        : null;
+                    const ticksPerUnit = quantizeSettingToExactTicks(
+                        state.transport.quantize,
+                        state.timeline.beatsPerBar,
+                        undefined,
+                        state.transport.arbitrarySnapN
+                    );
                     if (ticksPerUnit) {
-                        const snapped = Math.floor(currentTick / ticksPerUnit) * ticksPerUnit;
-                        if (snapped !== currentTick) {
+                        const snapped = quantizeDivisionToTick(
+                            Math.floor(currentTick / ticksPerUnit),
+                            state.transport.quantize,
+                            state.timeline.beatsPerBar,
+                            undefined,
+                            state.transport.arbitrarySnapN
+                        );
+                        if (snapped != null && snapped !== currentTick) {
                             currentTick = snapped;
                             try {
                                 window.dispatchEvent(

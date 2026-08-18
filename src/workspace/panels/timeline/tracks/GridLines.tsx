@@ -2,7 +2,11 @@ import React, { useMemo } from 'react';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { useTickScale } from '../hooks/useTickScale';
-import { getAdaptiveGridSubdivisions, quantizeSettingToBeats } from '@state/timeline/quantize';
+import {
+    getAdaptiveGridSubdivisions,
+    quantizeDivisionToTick,
+    quantizeSettingToExactTicks,
+} from '@state/timeline/quantize';
 
 type Props = {
     width: number;
@@ -73,14 +77,17 @@ const GridLines: React.FC<Props> = ({ width, height, startTick, endTick }) => {
         }
 
         if (quantize !== 'off') {
-            const beatLen = quantizeSettingToBeats(quantize, bpb, arbitrarySnapN);
-            if (beatLen && beatLen > 0) {
-                const snapIntervalTicks = Math.max(1, Math.round(beatLen * ppq));
+            const snapIntervalTicks = quantizeSettingToExactTicks(quantize, bpb, ppq, arbitrarySnapN);
+            if (snapIntervalTicks) {
                 const firstSnap = Math.floor(startTick / snapIntervalTicks) - 1;
                 const lastSnap = Math.ceil(endTick / snapIntervalTicks) + 1;
                 const TOLERANCE = 2;
                 for (let i = firstSnap; i <= lastSnap; i++) {
-                    const tick = i * snapIntervalTicks;
+                    // Round each absolute division position, not the interval. This
+                    // guarantees that divisions which do not evenly divide PPQ
+                    // still realign exactly with every bar line.
+                    const tick = quantizeDivisionToTick(i, quantize, bpb, ppq, arbitrarySnapN);
+                    if (tick == null) continue;
                     if (tick < 0 || tick < startTick - ppq || tick > endTick + ppq) continue;
                     // Skip if coincides with a bar line
                     if ([...barTicks].some((bt) => Math.abs(tick - bt) <= TOLERANCE)) continue;
