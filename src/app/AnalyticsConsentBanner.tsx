@@ -11,6 +11,7 @@ import {
     dismissAnalyticsPromptForSession,
     getNextAnalyticsPromptImpression,
     getNextAppOpenCount,
+    hasShownAnalyticsPromptThisSession,
     hideAnalyticsPrompt,
     isAnalyticsPromptDismissedForSession,
     isAnalyticsPromptHidden,
@@ -75,14 +76,14 @@ export function AnalyticsConsentBanner() {
                 <div className="mt-3 flex flex-wrap gap-2">
                     <button
                         type="button"
-                        className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium hover:bg-indigo-500"
+                        className="rounded bg-indigo-600 px-2 py-1 text-xs hover:bg-indigo-500"
                         onClick={allowAnalytics}
                     >
                         Allow
                     </button>
                     <button
                         type="button"
-                        className="rounded border border-neutral-600 px-4 py-2 text-sm font-medium hover:bg-neutral-800"
+                        className="rounded bg-neutral-800 px-2 py-1 text-xs hover:bg-neutral-700"
                         onClick={dismissAnalytics}
                     >
                         {dismissStep ? 'Not now' : 'Dismiss'}
@@ -97,7 +98,9 @@ export function AnalyticsConsentBanner() {
             ? SUPPORT_NOTICE_COPY.frequentUserBody.replace('{count}', String(appOpenCount))
             : SUPPORT_NOTICE_COPY.body;
 
-    return pathname === '/' ? <SupportNotice message={supportMessage} /> : null;
+    return pathname === '/' && !hasShownAnalyticsPromptThisSession() ? (
+        <SupportNotice message={supportMessage} />
+    ) : null;
 }
 
 function HomeNotice({ children, ariaLabel }: { children: React.ReactNode; ariaLabel: string }) {

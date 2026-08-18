@@ -64,6 +64,14 @@ export function recordAnalyticsPromptImpression(): number {
     }
 }
 
+export function hasShownAnalyticsPromptThisSession(): boolean {
+    try {
+        return sessionStorage.getItem(ANALYTICS_PROMPT_RECORDED_SESSION_KEY) === 'true';
+    } catch {
+        return false;
+    }
+}
+
 export function isAnalyticsPromptHidden(): boolean {
     try {
         return localStorage.getItem(ANALYTICS_PROMPT_HIDDEN_STORAGE_KEY) === 'true';

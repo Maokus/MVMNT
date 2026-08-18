@@ -27,7 +27,7 @@ describe('AnalyticsConsentBanner', () => {
         await waitFor(() => expect(screen.queryByLabelText('Analytics choice')).not.toBeInTheDocument());
         expect(getAnalyticsConsent()).toBe('unknown');
         expect(localStorage.getItem('mvmnt.analytics-prompt-hidden.v1')).toBe('true');
-        expect(screen.getByLabelText('Support MVMNT')).toBeInTheDocument();
+        expect(screen.queryByLabelText('Support MVMNT')).not.toBeInTheDocument();
     });
 
     it('uses the ignored branch on later home-screen launches and stays hidden outside Home', async () => {
