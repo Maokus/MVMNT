@@ -24,7 +24,7 @@ specific port, pass `--port`; the command exits if that port is unavailable.
 npx mvmnt-plugin dev --port 7750
 ```
 
-Development discovery exists only in a Vite development build. Open **Scene Settings → Debug** and
+Development discovery exists only in a Vite development build. Open **Scene Settings → Developer** and
 scan for a Development Plugin Server. Continue scanning when MVMNT should discover a server that
 starts later.
 

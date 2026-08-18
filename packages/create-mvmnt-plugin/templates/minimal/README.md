@@ -14,7 +14,7 @@ npm run dev
 ```
 
 MVMNT must itself be running through `npm run dev`, not a production build. The default dev-plugin
-port range is 7741 through 7750; in MVMNT, open **Scene Settings → Debug** and select **Scan**
+port range is 7741 through 7750; in MVMNT, open **Scene Settings → Developer** and select **Scan**
 to discover the selected available port. The initial bundle is installed when the browser connects,
 and later successful rebuilds unload and replace it without requiring a version bump. After you
 connect, either server can start first and MVMNT reconnects automatically. Valid `plugin.json` edits hot-reload, except changing the plugin

@@ -368,7 +368,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
         }
     };
 
-    const [activeTab, setActiveTab] = useState<'general' | 'caches' | 'fonts' | 'debug' | 'metadata' | 'plugins'>(
+    const [activeTab, setActiveTab] = useState<'general' | 'caches' | 'fonts' | 'developer' | 'metadata' | 'plugins'>(
         'general'
     );
 
@@ -378,7 +378,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
             { id: 'caches', label: 'Caches' },
             { id: 'fonts', label: 'Fonts' },
             { id: 'plugins', label: 'Plugins' },
-            { id: 'debug', label: 'Debug' },
+            { id: 'developer', label: 'Developer' },
             { id: 'metadata', label: 'Metadata' },
         ],
         []
@@ -401,7 +401,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                 </button>
                 <h2 className="m-0 mb-1 text-lg font-semibold text-white">Scene Settings</h2>
                 <p className="m-0 mb-4 text-[13px] text-neutral-400">
-                    Adjust render dimensions, playback range, and debug tools for the current scene.
+                    Adjust render dimensions, playback range, and developer tools for the current scene.
                 </p>
                 <div className="mb-4 flex gap-2 overflow-x-auto border-b border-neutral-800 pb-2">
                     {tabs.map((tab) => (
@@ -564,9 +564,9 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                         </div>
                     )}
                     {activeTab === 'plugins' && <ScenePluginsTab />}
-                    {activeTab === 'debug' && (
+                    {activeTab === 'developer' && (
                         <div className="flex flex-col gap-3">
-                            <h3 className="m-0 text-[13px] font-semibold text-white">Debug</h3>
+                            <h3 className="m-0 text-[13px] font-semibold text-white">Developer</h3>
                             <label className="flex items-center gap-2 text-[12px] text-neutral-300">
                                 <input
                                     type="checkbox"

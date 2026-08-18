@@ -55,7 +55,7 @@ Start MVMNT in development mode. From the plugin project, run:
 npm run dev
 ```
 
-In MVMNT, open **Scene Settings → Debug** and scan for a Development Plugin Server. Saving source,
+In MVMNT, open **Scene Settings → Developer** and scan for a Development Plugin Server. Saving source,
 manifest, or asset files rebuilds and reloads the plugin. See the
 [development workflow](development-workflow.md) for ports and failure behavior.
 
