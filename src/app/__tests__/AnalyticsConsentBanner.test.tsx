@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AnalyticsConsentBanner } from '../AnalyticsConsentBanner';
+import { ANALYTICS_DIALOGUE_TREE } from '../analytics-dialogue-tree';
 import { getAnalyticsConsent } from '../analytics';
 
 describe('AnalyticsConsentBanner', () => {
@@ -17,9 +18,9 @@ describe('AnalyticsConsentBanner', () => {
             </MemoryRouter>
         );
 
-        expect(await screen.findByText('Help me improve MVMNT?')).toBeInTheDocument();
+        expect(await screen.findByText(ANALYTICS_DIALOGUE_TREE.intro.title)).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
-        expect(screen.getByText('Pretty please??')).toBeInTheDocument();
+        expect(screen.getByText(ANALYTICS_DIALOGUE_TREE.dismissed.title)).toBeInTheDocument();
         fireEvent.click(screen.getByRole('checkbox', { name: 'Do not show again' }));
         fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
 
@@ -27,6 +28,27 @@ describe('AnalyticsConsentBanner', () => {
         expect(getAnalyticsConsent()).toBe('unknown');
         expect(localStorage.getItem('mvmnt.analytics-prompt-hidden.v1')).toBe('true');
         expect(screen.getByLabelText('Support MVMNT')).toBeInTheDocument();
+    });
+
+    it('uses the ignored branch on later home-screen launches and stays hidden outside Home', async () => {
+        localStorage.setItem('mvmnt.analytics-prompt-impressions.v1', '1');
+
+        const { unmount } = render(
+            <MemoryRouter initialEntries={['/']}>
+                <AnalyticsConsentBanner />
+            </MemoryRouter>
+        );
+
+        expect(await screen.findByText(ANALYTICS_DIALOGUE_TREE.returning.title)).toBeInTheDocument();
+
+        unmount();
+        render(
+            <MemoryRouter initialEntries={['/workspace']}>
+                <AnalyticsConsentBanner />
+            </MemoryRouter>
+        );
+        expect(screen.queryByLabelText('Analytics choice')).not.toBeInTheDocument();
+        expect(screen.queryByLabelText('Support MVMNT')).not.toBeInTheDocument();
     });
 
     it('shows the higher-engagement support request after the fifty-first app open', async () => {

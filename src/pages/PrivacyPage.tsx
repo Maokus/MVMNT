@@ -33,7 +33,7 @@ export function PrivacyPage() {
             <div className="mx-auto max-w-3xl">
                 <div className="mb-8 flex items-start justify-between gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold text-white">My privacy promise</h1>
+                        <h1 className="text-3xl font-bold text-white">Privacy</h1>
                         <p className="mt-2 text-sm text-neutral-400">
                             I built MVMNT to be useful without turning your projects into data.
                         </p>
@@ -75,9 +75,7 @@ export function PrivacyPage() {
 
                     <div className="grid gap-4 md:grid-cols-2">
                         <section className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-5">
-                            <h2 className="text-lg font-semibold text-emerald-100">
-                                What I collect — only if you allow it
-                            </h2>
+                            <h2 className="text-lg font-semibold text-emerald-100">I will collect:</h2>
                             <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-neutral-300">
                                 <li>App version, release channel, coarse platform, and runtime.</li>
                                 <li>
@@ -88,7 +86,7 @@ export function PrivacyPage() {
                             </ul>
                         </section>
                         <section className="rounded-xl border border-rose-500/30 bg-rose-950/20 p-5">
-                            <h2 className="text-lg font-semibold text-rose-100">What I never collect</h2>
+                            <h2 className="text-lg font-semibold text-rose-100">I never collect:</h2>
                             <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-neutral-300">
                                 <li>Project names, filenames, paths, URLs, or free-form text.</li>
                                 <li>MIDI, audio, image, font, plugin, or scene contents.</li>
@@ -103,9 +101,9 @@ export function PrivacyPage() {
                     <section className="rounded-xl border border-neutral-700 bg-neutral-900/60 p-5">
                         <h2 className="text-lg font-semibold text-white">Identity, processor, and retention</h2>
                         <p className="mt-2">
-                            I give anonymous use a random analytics identifier. If you sign in to Community after
-                            consenting, I use only your Supabase account UUID to connect events; I never send your email
-                            or username. PostHog processes these events in its EU Cloud for 12 months.
+                            I use random analytics identifiers. If you sign in to Community after consenting, your
+                            Supabase account UUID is used to connect events. PostHog processes these events in its EU
+                            Cloud for 12 months.
                         </p>
                         {identifier ? (
                             <div className="mt-3 rounded border border-neutral-700 bg-neutral-950 p-3 text-sm">

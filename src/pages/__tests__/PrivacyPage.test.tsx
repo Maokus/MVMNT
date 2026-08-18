@@ -14,8 +14,8 @@ describe('PrivacyPage', () => {
         );
 
         expect(container.querySelector('main')).toHaveClass('bg-neutral-800');
-        expect(screen.getByRole('heading', { name: /what i collect/i })).toBeInTheDocument();
-        expect(screen.getByRole('heading', { name: /what i never collect/i })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: /i will collect/i })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: /i never collect/i })).toBeInTheDocument();
         expect(screen.getByText(/contact me through/i)).toBeInTheDocument();
     });
 });

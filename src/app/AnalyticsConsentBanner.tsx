@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import pfp from '@assets/Logo_Pfp_white.png';
 import { analytics } from './analytics';
+import {
+    ANALYTICS_DIALOGUE_TREE,
+    SUPPORT_NOTICE_COPY,
+    analyticsDialogueNodeForImpressions,
+} from './analytics-dialogue-tree';
 import {
     dismissAnalyticsPromptForSession,
     getNextAnalyticsPromptImpression,
@@ -16,6 +21,7 @@ import { useAnalyticsConsent } from './useAnalyticsConsent';
 
 export function AnalyticsConsentBanner() {
     const consent = useAnalyticsConsent();
+    const { pathname } = useLocation();
     const [appOpenCount, setAppOpenCount] = useState(getNextAppOpenCount);
     const [promptImpressions, setPromptImpressions] = useState(getNextAnalyticsPromptImpression);
     const [dismissedForSession, setDismissedForSession] = useState(isAnalyticsPromptDismissedForSession);
@@ -26,7 +32,8 @@ export function AnalyticsConsentBanner() {
         setAppOpenCount(recordAppOpen());
     }, []);
 
-    const showAnalyticsRequest = consent === 'unknown' && !isAnalyticsPromptHidden() && !dismissedForSession;
+    const showAnalyticsRequest =
+        pathname === '/' && consent === 'unknown' && !isAnalyticsPromptHidden() && !dismissedForSession;
 
     useEffect(() => {
         if (showAnalyticsRequest) setPromptImpressions(recordAnalyticsPromptImpression());
@@ -44,20 +51,14 @@ export function AnalyticsConsentBanner() {
     };
 
     if (showAnalyticsRequest) {
-        const returningCopy =
-            promptImpressions === 2
-                ? 'Welcome back! Would you consider helping me understand which parts of MVMNT work well?'
-                : promptImpressions >= 3
-                    ? 'One last small ask: optional, privacy-minimized analytics help me make MVMNT better.'
-                    : 'With your permission, I can learn which parts of MVMNT are useful and where it needs work.';
+        const node =
+            ANALYTICS_DIALOGUE_TREE[dismissStep ? 'dismissed' : analyticsDialogueNodeForImpressions(promptImpressions)];
 
         return (
             <HomeNotice ariaLabel="Analytics choice">
-                <p className="text-sm font-semibold">{dismissStep ? 'Pretty please??' : 'cookie? 🥺'}</p>
+                <p className="text-sm font-semibold">{node.title}</p>
                 <p className="mt-1 text-xs leading-5 text-neutral-300">
-                    {dismissStep
-                        ? 'It really helps me make MVMNT better!!!'
-                        : returningCopy}{' '}
+                    {node.body}{' '}
                     <Link className="underline hover:text-white" to="/privacy">
                         See exactly what I collect
                     </Link>
@@ -93,10 +94,10 @@ export function AnalyticsConsentBanner() {
 
     const supportMessage =
         appOpenCount > 50
-            ? `You've opened MVMNT ${appOpenCount} times. If you enjoy the app, please check out how you can support it!`
-            : 'I develop and host MVMNT at my own expense. If you enjoy the app, please check out how you can support it!';
+            ? SUPPORT_NOTICE_COPY.frequentUserBody.replace('{count}', String(appOpenCount))
+            : SUPPORT_NOTICE_COPY.body;
 
-    return <SupportNotice message={supportMessage} />;
+    return pathname === '/' ? <SupportNotice message={supportMessage} /> : null;
 }
 
 function HomeNotice({ children, ariaLabel }: { children: React.ReactNode; ariaLabel: string }) {
@@ -126,7 +127,7 @@ function SupportNotice({ message }: { message: string }) {
 
     return (
         <HomeNotice ariaLabel="Support MVMNT">
-            <p className="text-sm font-semibold">Support MVMNT</p>
+            <p className="text-sm font-semibold">{SUPPORT_NOTICE_COPY.title}</p>
             <p className="mt-1 text-xs leading-5 text-neutral-300">{message}</p>
             <div className="mt-3 flex gap-2">
                 <Link to="/contribute" className="rounded bg-indigo-600 px-2 py-1 text-xs hover:bg-indigo-500">
