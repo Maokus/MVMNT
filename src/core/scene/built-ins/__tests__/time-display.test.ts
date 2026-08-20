@@ -1,4 +1,3 @@
-import { skip } from 'node:test';
 import { describe, it, expect, vi } from 'vitest';
 import { sceneElementRegistry } from '@core/scene/registry';
 import type { EmptyRenderObject } from '@core/render/render-objects';
@@ -37,7 +36,7 @@ describe('TimeDisplayElement offsetBars', () => {
         expect(barTextWithOffset).toBe('002'); // +2 bars => 1 -> 3
     });
 
-    skip('applies negative offset', () => {
+    it.skip('applies negative offset', () => {
         const el = sceneElementRegistry.createElement('timeDisplay', { id: 'testTimeNeg', offsetBars: -1 });
         const ros = (el?.buildRenderObjects({ offsetBars: -1 }, 0)[0] as EmptyRenderObject).getChildren();
         const barText = (ros[3] as any).text;
