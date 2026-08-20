@@ -97,29 +97,4 @@ describe('FeatureSubscriptionController', () => {
         controller.updateTrack(null);
         expect(clearSpy).toHaveBeenCalledWith('controller-element');
     });
-
-    it('re-publishes an unchanged custom-profile request after scene restoration', () => {
-        const publishSpy = vi.spyOn(analysisIntents, 'publishAnalysisIntent').mockImplementation(() => undefined);
-        const controller = getFeatureSubscriptionController(element);
-        const custom = createFeatureDescriptor({
-            feature: 'spectrogram',
-            profileParams: { windowSize: 4096, hopSize: 256 },
-        });
-
-        controller.setStaticRequirements([
-            { feature: 'spectrogram', profileParams: { windowSize: 4096, hopSize: 256 } },
-        ]);
-        controller.updateTrack('track-1');
-        publishSpy.mockClear();
-
-        controller.republish();
-
-        expect(publishSpy).toHaveBeenCalledTimes(1);
-        const [, , trackRef, descriptors, options] = publishSpy.mock.calls[0]!;
-        expect(trackRef).toBe('track-1');
-        expect(descriptors).toEqual([
-            expect.objectContaining({ analysisProfileId: custom.descriptor.analysisProfileId }),
-        ]);
-        expect(options).toMatchObject({ force: true, profileRegistryDelta: custom.profileRegistryDelta });
-    });
 });

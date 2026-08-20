@@ -18,6 +18,19 @@ export function buildFeatureTrackKey(featureKey: string, analysisProfileId: stri
     return `${resolvedFeature}${FEATURE_TRACK_KEY_SEPARATOR}${sanitizedProfile}`;
 }
 
+/** Stable identity for one analyzed artifact, independent of its map key. */
+export function buildFeatureArtifactId(
+    featureKey: string,
+    calculatorId: string,
+    analysisProfileId: string | null | undefined
+): string {
+    return [
+        `feature:${encodeURIComponent(featureKey.trim())}`,
+        `calculator:${encodeURIComponent(calculatorId.trim())}`,
+        `profile:${encodeURIComponent(sanitizeAnalysisProfileId(analysisProfileId) ?? DEFAULT_ANALYSIS_PROFILE_ID)}`,
+    ].join('|');
+}
+
 export function parseFeatureTrackKey(key: string | null | undefined): {
     featureKey: string;
     analysisProfileId: string;

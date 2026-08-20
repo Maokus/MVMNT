@@ -840,7 +840,7 @@ export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsSta
             };
         });
         const descriptorRequestKeys = new Set(Object.keys(descriptors));
-        const requirementDiagnostics: RequirementDiagnostic[] = normalizedRequirements.map((entry) => ({
+        let requirementDiagnostics: RequirementDiagnostic[] = normalizedRequirements.map((entry) => ({
             requirement: entry.requirement,
             descriptor: entry.descriptor,
             matchKey: entry.matchKey,
@@ -850,10 +850,27 @@ export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsSta
             satisfied: descriptorRequestKeys.has(entry.requestKey),
         }));
         const requirementKeys = new Set(normalizedRequirements.map((entry) => entry.requestKey));
-        const unexpectedDescriptors = Object.values(descriptors)
+        let unexpectedDescriptors = Object.values(descriptors)
             .map((entry) => entry.requestKey)
             .filter((key) => !requirementKeys.has(key));
-        const autoManaged = requirementDiagnostics.length > 0;
+        if (intent.declarative) {
+            requirementDiagnostics = Object.values(descriptors).map((entry) => ({
+                requirement: {
+                    feature: entry.descriptor.featureKey,
+                    ...(entry.descriptor.calculatorId ? { calculatorId: entry.descriptor.calculatorId } : {}),
+                    ...(entry.descriptor.bandIndex != null ? { bandIndex: entry.descriptor.bandIndex } : {}),
+                    ...(entry.profileId ? { profile: entry.profileId } : {}),
+                },
+                descriptor: entry.descriptor,
+                matchKey: entry.matchKey,
+                identityKey: entry.identityKey,
+                profileKey: entry.profileKey,
+                requestKey: entry.requestKey,
+                satisfied: true,
+            }));
+            unexpectedDescriptors = [];
+        }
+        const autoManaged = intent.declarative === true || requirementDiagnostics.length > 0;
         set((state) => {
             const previousRecord = state.intentsByElement[intent.elementId];
             const previousPublishedTrack = previousRecord?.lastPublishedTrackRef ?? previousRecord?.trackRef ?? null;

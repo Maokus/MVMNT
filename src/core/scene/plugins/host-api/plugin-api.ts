@@ -284,7 +284,7 @@ export interface PluginAudioCalculator {
     id: string;
     /** Increment to bust existing caches when output format or algorithm changes. */
     version: number;
-    /** Feature key elements request via `registerFeatureRequirements`. */
+    /** Feature key elements request through their declarative audio feature demands. */
     featureKey: string;
     /** Optional friendly label for UI display. */
     label?: string;

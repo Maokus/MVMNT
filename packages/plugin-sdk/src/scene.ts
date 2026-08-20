@@ -1,5 +1,5 @@
 import { PluginContractError, type DiagnosticsApi, type PluginCapability, type Result } from './api.js';
-import type { AudioApi, AudioCalculatorsApi } from './audio.js';
+import type { AudioApi, AudioCalculatorsApi, AudioFeatureDemand } from './audio.js';
 import type { RenderObject, RenderTime } from './render.js';
 import type { TimelineApi } from './timeline.js';
 import type { TimingApi } from './timing.js';
@@ -379,6 +379,8 @@ export interface PluginElementDefinition<
     readonly type: string;
     readonly metadata: ElementMetadata;
     readonly schema: Schema;
+    /** Declaratively describes every analyzed audio artifact required by this instance. */
+    audioFeatureDemands?(props: Props): readonly AudioFeatureDemand[];
     load?(context: CapabilityContext): void | Promise<void>;
     create?(props: Props, context: ElementContext<Props>): State | Promise<State>;
     render(props: Props, state: State, time: RenderTime, context: ElementContext<Props>): readonly RenderObject[];

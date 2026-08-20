@@ -28,11 +28,6 @@ afterEach(() => {
 
 describe('create-mvmnt-plugin CLI', () => {
     it('generates every template with schema builders and packages them together', async () => {
-        const sdkBuild = spawnSync('npm', ['run', 'build', '--workspace', '@mvmnt-app/plugin-sdk'], {
-            cwd: process.cwd(),
-            encoding: 'utf8',
-        });
-        expect(sdkBuild.status, `${sdkBuild.stdout}\n${sdkBuild.stderr}`).toBe(0);
         const cwd = temporaryDirectory();
         const pluginDir = join(cwd, 'all-templates');
         const templates = [

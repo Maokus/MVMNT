@@ -11,8 +11,12 @@ export interface AudioFeatureRequirement {
     readonly profileParams?: Readonly<Record<string, number | string | boolean | null>>;
 }
 
-export interface ScopedFeatureRequirements {
-    dispose(): void;
+/** One stable, instance-level request for an analyzed audio artifact. */
+export interface AudioFeatureDemand extends AudioFeatureRequirement {
+    /** Stable within this element definition; used to replace the request when props change. */
+    readonly id: string;
+    /** Timeline audio track whose placed sources should satisfy this request. */
+    readonly trackId: string | null;
 }
 
 export interface AudioChannelMetadata {
@@ -46,8 +50,6 @@ export interface AudioFeatureMatrix {
 }
 
 export interface AudioApi {
-    /** Registers analysis requirements for this element instance and is automatically disposed with its lifecycle scope. */
-    requireFeatures(requirements: readonly AudioFeatureRequirement[]): Result<ScopedFeatureRequirements>;
     getChannelMetadata(trackId: string): Result<AudioChannelMetadata>;
     sampleFeature(
         args: Readonly<{

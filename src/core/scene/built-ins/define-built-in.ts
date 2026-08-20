@@ -4,8 +4,7 @@ import { createPluginDefinitionScope } from '@core/scene/runtime/definition-runt
 import { definePluginElement, type PluginElementDefinitionInput } from '../../../../packages/plugin-sdk/src/scene';
 import { createPluginHostServices } from '@core/scene/plugins/host-api/plugin-api';
 import type { CapabilityContext } from '../../../../packages/plugin-sdk/src/scene';
-import type { AudioFeatureRequirement } from '../../../../packages/plugin-sdk/src/audio';
-import { registerScopedFeatureRequirements } from '@audio/audioElementMetadata';
+import type { AudioFeatureDemand, AudioFeatureRequirement } from '../../../../packages/plugin-sdk/src/audio';
 import type { SceneElementRegistration } from '@core/scene/runtime/types';
 
 // Built-ins receive the same private services as external SDK 2 definitions.
@@ -60,15 +59,20 @@ export function defineHostAdaptedBuiltIn(
     HostAdapter: any
 ): PluginElementDefinition<Readonly<Record<string, unknown>>, any> {
     const schema = HostAdapter.getConfigSchema();
-    let unregisterRequirements: (() => void) | undefined;
     const { capabilities, featureRequirements, ...definitionInput } = input;
+    const declaredDemands = definitionInput.audioFeatureDemands;
     return defineBuiltInElement({
         ...definitionInput,
         capabilities,
         schema,
-        load() {
-            if (featureRequirements?.length)
-                unregisterRequirements = registerScopedFeatureRequirements(input.type, featureRequirements);
+        audioFeatureDemands(props): readonly AudioFeatureDemand[] {
+            if (declaredDemands) return declaredDemands(props);
+            const trackId = typeof props.audioTrackId === 'string' ? props.audioTrackId : null;
+            return (featureRequirements ?? []).map((requirement, index) => ({
+                ...requirement,
+                id: `${requirement.feature}:${index}`,
+                trackId,
+            }));
         },
         create(props, context: CapabilityContext) {
             const adapter = new HostAdapter(input.type, { ...props });
@@ -81,10 +85,6 @@ export function defineHostAdaptedBuiltIn(
         },
         dispose(adapter) {
             adapter.dispose();
-        },
-        unload() {
-            unregisterRequirements?.();
-            unregisterRequirements = undefined;
         },
     });
 }

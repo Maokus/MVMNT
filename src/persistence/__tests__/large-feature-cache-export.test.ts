@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { exportScene } from '@persistence/export';
+import { DEFAULT_MAX_AUDIO_FEATURE_CACHE_BYTES, exportScene } from '@persistence/export';
 import { useTimelineStore } from '@state/timelineStore';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
+import { publishAnalysisIntent, resetAnalysisIntentStateForTests } from '@audio/features/analysisIntents';
+import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 
 function makeBuffer(): AudioBuffer {
     return {
@@ -47,7 +49,12 @@ function makeFeatureCache(sourceId: string): AudioFeatureCache {
 
 describe('large feature cache export', () => {
     beforeEach(() => {
+        resetAnalysisIntentStateForTests();
         useTimelineStore.getState().resetTimeline();
+    });
+
+    it('uses a 512 MiB default export cap', () => {
+        expect(DEFAULT_MAX_AUDIO_FEATURE_CACHE_BYTES).toBe(512 * 1024 * 1024);
     });
 
     it('omits feature caches above the configured export cap and marks them stale', async () => {
@@ -87,6 +94,18 @@ describe('large feature cache export', () => {
                 audio1: { state: 'ready', updatedAt: 1 },
             },
         } as any);
+        const descriptor = createFeatureDescriptor({ feature: 'spectrogram' });
+        publishAnalysisIntent(
+            'element-1::audio-feature::spectrogram',
+            'audioSpectrogram',
+            'audio1',
+            [descriptor.descriptor],
+            {
+                ownerElementId: 'element-1',
+                requestId: 'spectrogram',
+                declarative: true,
+            }
+        );
 
         const result = await exportScene(undefined, { maxAudioFeatureCacheBytes: 1 });
         expect(result.ok).toBe(true);
@@ -94,5 +113,6 @@ describe('large feature cache export', () => {
         expect(result.warnings.some((warning) => warning.includes('Skipped 1 large audio analysis cache'))).toBe(true);
         expect(result.envelope.timeline.audioFeatureCaches).toBeUndefined();
         expect(result.envelope.timeline.audioFeatureCacheStatus?.audio1?.state).toBe('stale');
+        expect(result.envelope.timeline.audioFeatureDemands).toHaveLength(1);
     });
 });

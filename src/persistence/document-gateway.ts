@@ -9,6 +9,12 @@ import { migrateSceneAudioSystemV5 } from './migrations/audioSystemV5';
 import { useSceneMetadataStore, type SceneMetadataState } from '@state/sceneMetadataStore';
 import { hydrateRuntimeMidiPlacementFields } from './migrations/midiClipsV8';
 import { createFlatSceneGraph, deriveElementOrder, type SceneGraphState } from '@state/scene-graph';
+import {
+    beginAnalysisIntentRestore,
+    getAnalysisIntentSnapshot,
+    mergePersistedAnalysisIntents,
+    type PersistedAnalysisIntent,
+} from '@audio/features/analysisIntents';
 
 /** Fields stripped from sceneSettings when persisting (padding concepts removed). */
 const STRIP_SCENE_SETTINGS_KEYS = new Set(['prePadding', 'postPadding']);
@@ -61,6 +67,7 @@ export interface PersistentDocumentV1 {
     midiCache: any;
     audioFeatureCaches?: Record<string, any>;
     audioFeatureCacheStatus?: Record<string, any>;
+    audioFeatureDemands?: PersistedAnalysisIntent[];
     scene: {
         elements: Record<string, any>;
         graph: SceneGraphState;
@@ -155,6 +162,7 @@ export const DocumentGateway = {
             midiCache: state.midiCache,
             audioFeatureCaches: state.audioFeatureCaches,
             audioFeatureCacheStatus: state.audioFeatureCacheStatus,
+            audioFeatureDemands: getAnalysisIntentSnapshot(),
             scene: {
                 elements,
                 graph,
@@ -251,6 +259,9 @@ export const DocumentGateway = {
             /* non-fatal */
         }
 
+        // Runtime declarations replace these fallbacks while the new scene is instantiated.
+        beginAnalysisIntentRestore();
+
         // Scene & macros (note: sceneSettings tempo/meter SHOULD NOT override timeline if timeline already specified).
         const rawSceneData = {
             elements: normalizeElements(doc.scene),
@@ -268,6 +279,8 @@ export const DocumentGateway = {
         try {
             useSceneStore.getState().importScene(sceneData);
         } catch {}
+
+        mergePersistedAnalysisIntents(doc.audioFeatureDemands);
 
         try {
             replaceMacrosFromSnapshot(sceneData.macros);

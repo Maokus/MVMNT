@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createPluginHostServices, PLUGIN_CAPABILITIES } from '../host-api/plugin-api';
 import { createPluginDefinitionScope } from '@core/scene/runtime/definition-runtime';
 import { definePluginElement, type CapabilityContext } from '../../../../../packages/plugin-sdk/src/scene';
-import { getElementSubscriptionSnapshot } from '@audio/features/sceneApi';
+import { getAnalysisIntentSnapshot, resetAnalysisIntentStateForTests } from '@audio/features/analysisIntents';
 import { renderResourceManager } from '@core/render/render-resource-manager';
 import type { ElementContext } from '../../../../../packages/plugin-sdk/src/scene';
 import { KeyframeBinding } from '@bindings/keyframe-binding';
@@ -10,6 +10,7 @@ import { KeyframeBinding } from '@bindings/keyframe-binding';
 afterEach(() => {
     document.querySelectorAll('link[id^="gf-"]').forEach((link) => link.remove());
     renderResourceManager.clear();
+    resetAnalysisIntentStateForTests();
     vi.unstubAllGlobals();
 });
 
@@ -301,10 +302,15 @@ describe('SDK v2 runtime', () => {
                     },
                 ],
             },
-            load(context) {
-                context.audio!.requireFeatures([
-                    { feature: 'plugin.transients', calculatorId: 'test.plugin.transients' },
-                ]);
+            audioFeatureDemands(props) {
+                return [
+                    {
+                        id: 'transients',
+                        trackId: typeof props.audioTrackId === 'string' ? props.audioTrackId : null,
+                        feature: 'plugin.transients',
+                        calculatorId: 'test.plugin.transients',
+                    },
+                ];
             },
             render() {
                 return [];
@@ -324,21 +330,94 @@ describe('SDK v2 runtime', () => {
             .create({ id: 'feature-display' });
 
         expect(instance.type).toBe('test.plugin:feature-display');
-        expect(getElementSubscriptionSnapshot(instance)).toEqual([]);
+        expect(getAnalysisIntentSnapshot()).toEqual([]);
 
         instance.updateConfig({ audioTrackId: 'audio-track' });
 
-        expect(getElementSubscriptionSnapshot(instance)).toEqual([
-            {
-                trackId: 'audio-track',
-                descriptor: expect.objectContaining({
-                    featureKey: 'plugin.transients',
-                    calculatorId: 'test.plugin.transients',
-                }),
-            },
+        expect(getAnalysisIntentSnapshot()).toEqual([
+            expect.objectContaining({
+                ownerElementId: 'feature-display',
+                requestId: 'transients',
+                trackRef: 'audio-track',
+                descriptors: [
+                    expect.objectContaining({
+                        descriptor: expect.objectContaining({
+                            featureKey: 'plugin.transients',
+                            calculatorId: 'test.plugin.transients',
+                        }),
+                    }),
+                ],
+            }),
         ]);
 
         instance.dispose();
+        await scope.dispose();
+    });
+
+    it('keeps custom profile demands isolated per element instance', async () => {
+        const host = installHost();
+        const definition = definePluginElement({
+            type: 'profile-display',
+            metadata: { name: 'Profile display' },
+            schema: {
+                tabs: [
+                    {
+                        id: 'audio',
+                        label: 'Audio',
+                        groups: [
+                            {
+                                id: 'analysis',
+                                label: 'Analysis',
+                                properties: [
+                                    {
+                                        key: 'audioTrackId',
+                                        label: 'Audio track',
+                                        type: 'timelineTrackRef',
+                                        default: null,
+                                    },
+                                    { key: 'windowSize', label: 'Window', type: 'number', default: 2048 },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+            audioFeatureDemands(props) {
+                return [
+                    {
+                        id: 'spectrogram',
+                        trackId: props.audioTrackId,
+                        feature: 'spectrogram',
+                        profileParams: { windowSize: props.windowSize },
+                    },
+                ];
+            },
+            render() {
+                return [];
+            },
+        });
+        const scope = createPluginDefinitionScope(definition, {
+            pluginId: 'test.plugin',
+            services: host,
+            capabilities: { required: [PLUGIN_CAPABILITIES.audioFeaturesRead] },
+            synchronousInitialization: true,
+            loadAsset: async () => 'blob:test',
+            report: vi.fn(),
+        });
+        const registration = scope.createRegistration({ kind: 'plugin', pluginId: 'test.plugin' });
+        const first = registration.create({ id: 'first', audioTrackId: 'audio-a', windowSize: 4096 });
+        const second = registration.create({ id: 'second', audioTrackId: 'audio-b', windowSize: 8192 });
+
+        const snapshot = getAnalysisIntentSnapshot();
+        expect(snapshot).toHaveLength(2);
+        expect(snapshot.map((intent) => intent.ownerElementId).sort()).toEqual(['first', 'second']);
+        expect(snapshot.map((intent) => intent.descriptors[0]?.descriptor.profileOverrides?.windowSize).sort()).toEqual(
+            [4096, 8192]
+        );
+
+        first.dispose();
+        expect(getAnalysisIntentSnapshot().map((intent) => intent.ownerElementId)).toEqual(['second']);
+        second.dispose();
         await scope.dispose();
     });
 

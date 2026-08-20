@@ -64,26 +64,23 @@ function buildDescriptor(feature: FeatureInput): FeatureDescriptorBuildResult {
  * @see ../../../docs/audio/audio-cache-system.md
  */
 export function getFeatureData(
-    element: SceneFeatureElementRef | object,
+    _element: SceneFeatureElementRef | object,
     trackId: string | null | undefined,
     feature: FeatureInput,
     time: number,
     samplingOptions?: AudioSamplingOptions | null
 ): FeatureDataResult | null {
     const builtDescriptor = buildDescriptor(feature);
-    const controller = getFeatureSubscriptionController(element);
-    const normalizedTrackId = controller.updateTrack(trackId);
-
-    if (!normalizedTrackId) {
-        controller.clear();
-        releaseFeatureSubscriptionController(element);
-        return null;
-    }
-
-    const descriptor = controller.resolveDescriptorForSampling(
-        builtDescriptor.descriptor,
-        builtDescriptor.descriptor.analysisProfileId ?? builtDescriptor.profile ?? null
-    );
+    const normalizedTrackId = normalizeTrackId(trackId);
+    if (!normalizedTrackId) return null;
+    const controller = peekFeatureSubscriptionController(_element);
+    const descriptor = controller
+        ? controller.resolveDescriptorForSampling(
+              builtDescriptor.descriptor,
+              builtDescriptor.descriptor.analysisProfileId ?? builtDescriptor.profile ?? null,
+              false
+          )
+        : builtDescriptor.descriptor;
 
     const sample = sampleFeatureFrame(normalizedTrackId, descriptor, time, samplingOptions ?? undefined);
     if (!sample) {
@@ -111,7 +108,7 @@ export function getFeatureData(
  * @see getFeatureData for single-frame sampling
  */
 export function getFeatureDataRange(
-    element: SceneFeatureElementRef | object,
+    _element: SceneFeatureElementRef | object,
     trackId: string | null | undefined,
     feature: FeatureInput,
     startTime: number,
@@ -122,19 +119,16 @@ export function getFeatureDataRange(
     if (stepSec <= 0 || endTime < startTime) return [];
 
     const builtDescriptor = buildDescriptor(feature);
-    const controller = getFeatureSubscriptionController(element);
-    const normalizedTrackId = controller.updateTrack(trackId);
-
-    if (!normalizedTrackId) {
-        controller.clear();
-        releaseFeatureSubscriptionController(element);
-        return [];
-    }
-
-    const descriptor = controller.resolveDescriptorForSampling(
-        builtDescriptor.descriptor,
-        builtDescriptor.descriptor.analysisProfileId ?? builtDescriptor.profile ?? null
-    );
+    const normalizedTrackId = normalizeTrackId(trackId);
+    if (!normalizedTrackId) return [];
+    const controller = peekFeatureSubscriptionController(_element);
+    const descriptor = controller
+        ? controller.resolveDescriptorForSampling(
+              builtDescriptor.descriptor,
+              builtDescriptor.descriptor.analysisProfileId ?? builtDescriptor.profile ?? null,
+              false
+          )
+        : builtDescriptor.descriptor;
 
     const opts = samplingOptions ?? undefined;
     const results: FeatureDataRangeResult[] = [];

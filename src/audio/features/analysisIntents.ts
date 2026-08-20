@@ -10,6 +10,12 @@ export interface AnalysisIntentDescriptor {
 
 export interface AnalysisIntent {
     elementId: string;
+    /** Scene element that owns this request. Defaults to elementId for legacy publishers. */
+    ownerElementId?: string;
+    /** Stable request ID within ownerElementId. */
+    requestId?: string;
+    /** True when the element definition, rather than a sampling call, owns this request. */
+    declarative?: boolean;
     elementType: string;
     trackRef: string;
     analysisProfileId: string | null;
@@ -48,6 +54,9 @@ class AnalysisIntentBus {
 const bus = new AnalysisIntentBus();
 
 const lastIntentHashes = new Map<string, string>();
+const activeIntents = new Map<string, AnalysisIntent>();
+
+export type PersistedAnalysisIntent = Omit<AnalysisIntent, 'requestedAt'>;
 
 type DescriptorList = (AudioFeatureDescriptor | null | undefined)[];
 
@@ -56,6 +65,9 @@ export interface PublishAnalysisIntentOptions {
     profileRegistryDelta?: Record<string, AudioFeatureAnalysisProfileDescriptor> | null;
     /** Re-emit an unchanged intent after its scene runtime has been restored. */
     force?: boolean;
+    ownerElementId?: string;
+    requestId?: string;
+    declarative?: boolean;
 }
 
 function stableStringify(value: unknown): string {
@@ -129,7 +141,7 @@ function hashIntentPayload(intent: Omit<AnalysisIntent, 'requestedAt'>): string 
         .sort()
         .join(';');
     const registrySignature = hashRegistryDelta(intent.profileRegistryDelta ?? null);
-    return `${intent.elementType}|${intent.trackRef}|${
+    return `${intent.ownerElementId ?? intent.elementId}|${intent.requestId ?? 'default'}|${intent.elementType}|${intent.trackRef}|${
         intent.analysisProfileId ?? 'null'
     }|${descriptors}|${registrySignature}`;
 }
@@ -177,6 +189,9 @@ export function publishAnalysisIntent(
     }
     const payload: Omit<AnalysisIntent, 'requestedAt'> = {
         elementId,
+        ownerElementId: options?.ownerElementId ?? elementId,
+        requestId: options?.requestId ?? 'default',
+        declarative: options?.declarative === true,
         elementType,
         trackRef,
         analysisProfileId: resolvedProfile,
@@ -188,7 +203,9 @@ export function publishAnalysisIntent(
         return;
     }
     lastIntentHashes.set(elementId, fingerprint);
-    bus.publish({ ...payload, requestedAt: new Date().toISOString() });
+    const intent = { ...payload, requestedAt: new Date().toISOString() };
+    activeIntents.set(elementId, intent);
+    bus.publish(intent);
 }
 
 export function clearAnalysisIntent(elementId: string | null | undefined): void {
@@ -196,15 +213,58 @@ export function clearAnalysisIntent(elementId: string | null | undefined): void 
         return;
     }
     lastIntentHashes.delete(elementId);
+    activeIntents.delete(elementId);
     bus.clear(elementId);
 }
 
 export function subscribeToAnalysisIntents(listener: AnalysisIntentListener): () => void {
-    return bus.subscribe(listener);
+    const unsubscribe = bus.subscribe(listener);
+    for (const intent of activeIntents.values()) listener({ type: 'publish', intent: cloneIntent(intent) });
+    return unsubscribe;
 }
 
 export function resetAnalysisIntentStateForTests(): void {
     lastIntentHashes.clear();
+    activeIntents.clear();
+}
+
+function cloneIntent(intent: AnalysisIntent): AnalysisIntent {
+    return structuredClone(intent);
+}
+
+/** Returns the retained source of truth used by scene persistence. */
+export function getAnalysisIntentSnapshot(): PersistedAnalysisIntent[] {
+    return [...activeIntents.values()]
+        .filter((intent) => !(intent.ownerElementId ?? intent.elementId).startsWith('__feature:'))
+        .map(({ requestedAt: _requestedAt, ...intent }) => structuredClone(intent));
+}
+
+/** Clears the previous scene's demands before runtime instances are reconciled. */
+export function beginAnalysisIntentRestore(): void {
+    const ids = [...activeIntents.keys()];
+    activeIntents.clear();
+    lastIntentHashes.clear();
+    for (const id of ids) bus.clear(id);
+}
+
+/** Adds persisted demands only for elements that did not publish an authoritative runtime declaration. */
+export function mergePersistedAnalysisIntents(snapshot: readonly PersistedAnalysisIntent[] | null | undefined): void {
+    if (!Array.isArray(snapshot)) return;
+    const runtimeOwners = new Set(
+        [...activeIntents.values()].map((intent) => intent.ownerElementId ?? intent.elementId)
+    );
+    for (const raw of snapshot) {
+        if (!raw || typeof raw !== 'object' || !raw.elementId || !raw.trackRef) continue;
+        const ownerElementId = raw.ownerElementId ?? raw.elementId;
+        if (runtimeOwners.has(ownerElementId) || activeIntents.has(raw.elementId)) continue;
+        const intent: AnalysisIntent = {
+            ...cloneIntent({ ...raw, requestedAt: new Date().toISOString() }),
+            ownerElementId,
+        };
+        activeIntents.set(intent.elementId, intent);
+        lastIntentHashes.set(intent.elementId, hashIntentPayload(raw));
+        bus.publish(intent);
+    }
 }
 
 export function buildDescriptorLabel(descriptor: AudioFeatureDescriptor | null | undefined): string {

@@ -27,6 +27,17 @@ export function hydrateAudioFeatureCacheFromAssets(
                 warnings.push(`Missing audio feature data file for ${cacheId}:${trackKey}`);
                 includeTrack = false;
             } else {
+                if (hydrated.payloadByteLength != null && binary.byteLength !== hydrated.payloadByteLength) {
+                    warnings.push(
+                        `Audio feature payload size mismatch for ${cacheId}:${trackKey} (expected ${hydrated.payloadByteLength}, got ${binary.byteLength})`
+                    );
+                    includeTrack = false;
+                }
+                if (!includeTrack) {
+                    delete (hydrated as { dataRef?: SerializedAudioFeatureTrackDataRef }).dataRef;
+                    complete = false;
+                    continue;
+                }
                 const buffer = binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength);
                 if (ref.kind === 'typed-array') {
                     let values: Float32Array | Uint8Array | Int16Array;
@@ -130,13 +141,28 @@ export function buildDocumentShape(
             }
         }
     }
-    const audioFeatureCacheStatus = { ...(tl.audioFeatureCacheStatus || {}) };
+    const restoredAt = Date.now();
+    const audioFeatureCacheStatus = Object.fromEntries(
+        Object.entries(tl.audioFeatureCacheStatus || {}).map(([id, raw]) => {
+            const status = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+            const state = status.state === 'ready' && featureCaches[id] ? 'ready' : 'stale';
+            return [
+                id,
+                {
+                    state,
+                    updatedAt: restoredAt,
+                    ...(typeof status.sourceHash === 'string' ? { sourceHash: status.sourceHash } : {}),
+                    ...(typeof status.message === 'string' ? { message: status.message } : {}),
+                },
+            ];
+        })
+    );
     for (const id of incompleteFeatureCacheIds) {
         audioFeatureCacheStatus[id] = {
             ...(audioFeatureCacheStatus[id] || {}),
             state: 'stale',
             message: 'analysis cache incomplete after restore',
-            updatedAt: Date.now(),
+            updatedAt: restoredAt,
         };
     }
     return {
@@ -150,6 +176,7 @@ export function buildDocumentShape(
             midiCache: tl.midiCache || {},
             audioFeatureCaches: featureCaches,
             audioFeatureCacheStatus,
+            audioFeatureDemands: Array.isArray(tl.audioFeatureDemands) ? tl.audioFeatureDemands : [],
             scene: { ...envelope.scene },
             metadata: envelope.metadata,
         },

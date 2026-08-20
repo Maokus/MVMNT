@@ -82,6 +82,8 @@ export interface ChannelLayoutMeta {
 export interface AudioFeatureTrack<Data = AudioFeatureTrackData> {
     /** Feature identifier (e.g., `spectrogram`). */
     key: string;
+    /** Canonical persisted identity including calculator and analysis profile. */
+    artifactId?: string;
     /** Calculator source that produced the track. */
     calculatorId: string;
     /** Calculator version used to produce the track. */

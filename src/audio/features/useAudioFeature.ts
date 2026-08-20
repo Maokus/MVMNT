@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
     clearFeatureData,
     getFeatureData,
+    syncElementFeatureIntents,
     type FeatureDataResult,
     type FeatureInput,
     type SceneFeatureElementRef,
 } from './sceneApi';
 import type { AudioSamplingOptions } from './audioFeatureTypes';
+import { createFeatureDescriptor } from './descriptorBuilder';
 
 interface HookState {
     element: SceneFeatureElementRef;
@@ -65,6 +67,26 @@ export function useAudioFeature(
     useEffect(() => {
         stateRef.current!.lastResult = null;
     }, [normalizedTrackId, featureKey, samplingKey]);
+
+    useEffect(() => {
+        const element = stateRef.current!.element;
+        if (!normalizedTrackId) {
+            clearFeatureData(element);
+            return;
+        }
+        const built =
+            typeof feature === 'string'
+                ? createFeatureDescriptor({ feature })
+                : { descriptor: feature, profile: feature.analysisProfileId ?? null, profileRegistryDelta: null };
+        syncElementFeatureIntents(
+            element,
+            normalizedTrackId,
+            [built.descriptor],
+            built.profile,
+            built.profileRegistryDelta
+        );
+        return () => clearFeatureData(element);
+    }, [normalizedTrackId, featureKey, feature]);
 
     useEffect(
         () => () => {

@@ -26,7 +26,7 @@ import {
     type SerializedAudioFeatureTrack,
     type SerializedAudioFeatureTrackDataRef,
 } from '@audio/features/audioFeatureAnalysis';
-import type { AudioFeatureCacheStatus } from '@audio/features/audioFeatureTypes';
+import type { PersistedAnalysisIntent } from '@audio/features/analysisIntents';
 import { estimateFeatureCacheBytes, formatBytes } from '@audio/audioMemoryDiagnostics';
 import { recordAudioMemoryDiagnostic } from '@state/audioMemoryDiagnosticsStore';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
@@ -82,7 +82,8 @@ interface SceneExportEnvelopeBase {
         rowHeight?: number;
         midiCache: Record<string, any>;
         audioFeatureCaches?: Record<string, SerializedAudioFeatureCache | AudioFeatureCacheAssetReference>;
-        audioFeatureCacheStatus?: Record<string, AudioFeatureCacheStatus>;
+        audioFeatureCacheStatus?: Record<string, { state: 'ready' | 'stale'; sourceHash?: string; message?: string }>;
+        audioFeatureDemands?: PersistedAnalysisIntent[];
     };
     assets: {
         storage: AssetStorageMode;
@@ -189,7 +190,7 @@ export interface ExportSceneResultFailure extends ExportResultBase {
 }
 
 export type ExportSceneResult = ExportSceneResultZip | ExportSceneResultFailure;
-const DEFAULT_MAX_AUDIO_FEATURE_CACHE_BYTES = 128 * 1024 * 1024;
+export const DEFAULT_MAX_AUDIO_FEATURE_CACHE_BYTES = 512 * 1024 * 1024;
 
 function buildVisualAssetRegistry(): SceneExportEnvelopeBase['visualAssetRegistry'] {
     const registry = useVisualAssetRegistryStore.getState();
@@ -428,13 +429,15 @@ function prepareAudioFeatureCaches(
     assetPayloads: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>;
     omittedSourceIds: string[];
     omittedBytes: number;
+    failedSourceIds: string[];
 } {
     const timelineCaches: Record<string, SerializedAudioFeatureCache | AudioFeatureCacheAssetReference> = {};
     const assetPayloads = new Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>();
     const omittedSourceIds: string[] = [];
+    const failedSourceIds: string[] = [];
     let omittedBytes = 0;
     if (!caches) {
-        return { timelineCaches, assetPayloads, omittedSourceIds, omittedBytes };
+        return { timelineCaches, assetPayloads, omittedSourceIds, omittedBytes, failedSourceIds };
     }
 
     const toTypedArray = (
@@ -540,6 +543,7 @@ function prepareAudioFeatureCaches(
                                 filename,
                             };
                             metadataTrack.dataRef = dataRef;
+                            metadataTrack.payloadByteLength = combined.byteLength;
                             assetPayloads.set(`${assetId}/${filename}`, {
                                 bytes: toUint8Array(combined),
                                 filename,
@@ -557,6 +561,7 @@ function prepareAudioFeatureCaches(
                                 filename,
                             };
                             metadataTrack.dataRef = dataRef;
+                            metadataTrack.payloadByteLength = typed.byteLength;
                             assetPayloads.set(`${assetId}/${filename}`, {
                                 bytes: toUint8Array(typed),
                                 filename,
@@ -579,10 +584,11 @@ function prepareAudioFeatureCaches(
             }
         } catch (error) {
             console.warn('[exportScene] failed to serialize audio feature cache', sourceId, error);
+            failedSourceIds.push(sourceId);
         }
     }
 
-    return { timelineCaches, assetPayloads, omittedSourceIds, omittedBytes };
+    return { timelineCaches, assetPayloads, omittedSourceIds, omittedBytes, failedSourceIds };
 }
 
 export async function exportScene(
@@ -707,19 +713,26 @@ export async function exportScene(
             } (${formatBytes(featureAssets.omittedBytes)}). Analysis can be regenerated after opening.`
         );
     }
-    const exportedFeatureStatus =
-        doc.audioFeatureCacheStatus && Object.keys(doc.audioFeatureCacheStatus).length
-            ? { ...doc.audioFeatureCacheStatus }
-            : undefined;
-    if (exportedFeatureStatus) {
-        for (const sourceId of featureAssets.omittedSourceIds) {
-            exportedFeatureStatus[sourceId] = {
-                ...(exportedFeatureStatus[sourceId] ?? { state: 'stale', updatedAt: Date.now() }),
-                state: 'stale',
-                updatedAt: Date.now(),
-                message: 'analysis cache omitted during export',
-            };
-        }
+    if (featureAssets.failedSourceIds.length) {
+        warnings.push(
+            `Could not save audio analysis cache${featureAssets.failedSourceIds.length === 1 ? '' : 's'} for: ${featureAssets.failedSourceIds.join(', ')}. Analysis can be regenerated after opening.`
+        );
+    }
+    const exportedFeatureStatus: Record<string, { state: 'ready' | 'stale'; sourceHash?: string; message?: string }> =
+        {};
+    for (const sourceId of Object.keys(featureAssets.timelineCaches)) {
+        const runtimeStatus = doc.audioFeatureCacheStatus?.[sourceId];
+        exportedFeatureStatus[sourceId] = {
+            state: runtimeStatus?.state === 'ready' ? 'ready' : 'stale',
+            ...(runtimeStatus?.sourceHash ? { sourceHash: runtimeStatus.sourceHash } : {}),
+            ...(runtimeStatus?.state === 'ready' ? {} : { message: runtimeStatus?.message ?? 'analysis required' }),
+        };
+    }
+    for (const sourceId of featureAssets.omittedSourceIds) {
+        exportedFeatureStatus[sourceId] = {
+            state: 'stale',
+            message: 'analysis cache omitted during export',
+        };
     }
 
     const envelope: SceneExportEnvelopeV9 = {
@@ -748,8 +761,8 @@ export async function exportScene(
             audioFeatureCaches: Object.keys(featureAssets.timelineCaches).length
                 ? featureAssets.timelineCaches
                 : undefined,
-            audioFeatureCacheStatus:
-                exportedFeatureStatus && Object.keys(exportedFeatureStatus).length ? exportedFeatureStatus : undefined,
+            audioFeatureCacheStatus: Object.keys(exportedFeatureStatus).length ? exportedFeatureStatus : undefined,
+            audioFeatureDemands: doc.audioFeatureDemands?.length ? doc.audioFeatureDemands : undefined,
         },
         assets: assetsSection,
         references: Object.keys(collectResult.audioIdMap).length ? { audioIdMap: collectResult.audioIdMap } : undefined,

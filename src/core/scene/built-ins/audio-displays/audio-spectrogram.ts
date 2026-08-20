@@ -5,7 +5,6 @@ import { applyOpacity } from '@utils/color';
 import { prop, insertElementConfig } from '@core/scene/runtime/schema-builders';
 import { propGroup, tab } from '@core/scene/built-ins/schema-groups';
 import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/built-ins/define-built-in';
-import { getFeatureSubscriptionController } from '@audio/features/featureSubscriptionController';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { getBaseAnalysisProfile } from '@audio/features/analysisProfileRegistry';
 import type { AudioAnalysisProfileOverrides } from '@audio/features/audioFeatureTypes';
@@ -588,21 +587,6 @@ export class AudioSpectrogramElement extends BoundSceneElement {
         }
         return objects;
     }
-
-    protected override onPropertyChanged(key: string, oldValue: unknown, newValue: unknown): void {
-        super.onPropertyChanged(key, oldValue, newValue);
-        if (oldValue !== newValue && (key === 'analysisWindowSize' || key === 'analysisHopSize')) {
-            this._subscribeToRequiredFeatures();
-        }
-    }
-
-    protected override _subscribeToRequiredFeatures(): void {
-        const props = this.getSchemaProps();
-        const analysis = resolveSpectrogramAnalysis(props);
-        const controller = getFeatureSubscriptionController(this);
-        controller.setStaticRequirements([analysis.requirement]);
-        controller.updateTrack(typeof props.audioTrackId === 'string' ? props.audioTrackId : null);
-    }
 }
 
 export const audioSpectrogram = defineHostAdaptedBuiltIn(
@@ -610,6 +594,16 @@ export const audioSpectrogram = defineHostAdaptedBuiltIn(
         type: 'audioSpectrogram',
         metadata: { name: 'Audio Spectrogram', description: 'Scrolling frequency heatmap', category: 'Audio Displays' },
         capabilities: { required: ['audio.features.read'], optional: ['timing.conversion'] },
+        audioFeatureDemands(props) {
+            const analysis = resolveSpectrogramAnalysis(props);
+            return [
+                {
+                    ...analysis.requirement,
+                    id: 'spectrogram',
+                    trackId: typeof props.audioTrackId === 'string' ? props.audioTrackId : null,
+                },
+            ];
+        },
     },
     AudioSpectrogramElement
 );

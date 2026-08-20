@@ -107,10 +107,12 @@ export class BoundSceneElement implements SceneElementInstance {
     private _setupMacroListener(): void {
         this._macroUnsubscribe = subscribeToMacroEvents((event: MacroEvent) => {
             let requiresFeatureResubscribe = false;
+            let propertiesInvalidated = false;
             if (event.type === 'macroValueChanged') {
                 this.bindings.forEach((binding, key) => {
                     if (binding instanceof MacroBinding && binding.getMacroId() === event.macroId) {
                         this._cacheValid.set(key, false);
+                        propertiesInvalidated = true;
                         this._invalidateBoundsCache();
                         if (this._isTrackRefProperty(key)) {
                             requiresFeatureResubscribe = true;
@@ -123,6 +125,7 @@ export class BoundSceneElement implements SceneElementInstance {
                         const currentValue = binding.getValue();
                         this.bindings.set(key, new ConstantBinding(currentValue));
                         this._cacheValid.set(key, false);
+                        propertiesInvalidated = true;
                         this._invalidateBoundsCache();
                         if (this._isTrackRefProperty(key)) {
                             requiresFeatureResubscribe = true;
@@ -135,6 +138,7 @@ export class BoundSceneElement implements SceneElementInstance {
                 this.bindings.forEach((binding, key) => {
                     if (binding instanceof MacroBinding) {
                         this._cacheValid.set(key, false);
+                        propertiesInvalidated = true;
                     }
                 });
                 this._invalidateBoundsCache();
@@ -146,8 +150,12 @@ export class BoundSceneElement implements SceneElementInstance {
             if (requiresFeatureResubscribe) {
                 this._subscribeToRequiredFeatures();
             }
+            if (propertiesInvalidated) this.onPropertyBindingsInvalidated();
         });
     }
+
+    /** Called when effective macro-backed props may have changed. */
+    protected onPropertyBindingsInvalidated(): void {}
 
     protected onPropertyChanged(key: string, oldValue: unknown, newValue: unknown): void {
         if (oldValue !== newValue && this._isTrackRefProperty(key)) {

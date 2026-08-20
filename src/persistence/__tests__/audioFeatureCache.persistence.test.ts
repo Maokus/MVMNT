@@ -7,6 +7,12 @@ import { parseScenePackage } from '@persistence/scene-package';
 import { buildFeatureTrackKey, DEFAULT_ANALYSIS_PROFILE_ID } from '@audio/features/featureTrackIdentity';
 import { deserializeAudioFeatureCache, serializeAudioFeatureCache } from '@audio/features/audioFeatureAnalysis';
 import { unzipSync, zipSync } from 'fflate';
+import {
+    getAnalysisIntentSnapshot,
+    publishAnalysisIntent,
+    resetAnalysisIntentStateForTests,
+} from '@audio/features/analysisIntents';
+import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 
 function createFeatureCache(sourceId: string): AudioFeatureCache {
     const frameCount = 10;
@@ -68,6 +74,7 @@ async function exportZippedScene(): Promise<ExportSceneResultZip> {
 }
 
 beforeEach(() => {
+    resetAnalysisIntentStateForTests();
     useTimelineStore.getState().resetTimeline();
     useTimelineStore.setState((state) => ({
         ...state,
@@ -79,6 +86,47 @@ beforeEach(() => {
 });
 
 describe('audio feature cache persistence', () => {
+    it('restores a custom-profile demand snapshot without relying on element selection', async () => {
+        const custom = createFeatureDescriptor({
+            feature: 'spectrogram',
+            profileParams: { windowSize: 4096, hopSize: 256 },
+        });
+        publishAnalysisIntent(
+            'missing-plugin-element::audio-feature::spectrogram',
+            'plugin:spectrogram',
+            'audio-track',
+            [custom.descriptor],
+            {
+                ownerElementId: 'missing-plugin-element',
+                requestId: 'spectrogram',
+                declarative: true,
+                profile: custom.profile,
+                profileRegistryDelta: custom.profileRegistryDelta,
+            }
+        );
+
+        const exported = await exportZippedScene();
+        expect(exported.envelope.timeline.audioFeatureDemands).toHaveLength(1);
+        resetAnalysisIntentStateForTests();
+
+        const imported = await importScene(exported.zip);
+
+        expect(imported.ok).toBe(true);
+        expect(getAnalysisIntentSnapshot()).toEqual([
+            expect.objectContaining({
+                ownerElementId: 'missing-plugin-element',
+                trackRef: 'audio-track',
+                descriptors: [
+                    expect.objectContaining({
+                        descriptor: expect.objectContaining({
+                            profileOverridesHash: custom.descriptor.profileOverridesHash,
+                        }),
+                    }),
+                ],
+            }),
+        ]);
+    });
+
     it('exports and imports serialized caches with calculator metadata', async () => {
         const trackId = 'aud_persist';
         useTimelineStore.setState((state) => ({
@@ -100,7 +148,10 @@ describe('audio feature cache persistence', () => {
         const cache = createFeatureCache(trackId);
         useTimelineStore.getState().ingestAudioFeatureCache(trackId, cache);
         const serialized = serializeAudioFeatureCache(cache);
-        expect(serialized.version).toBe(4);
+        expect(serialized.version).toBe(5);
+        expect(
+            serialized.featureTracks[buildFeatureTrackKey('spectrogram', DEFAULT_ANALYSIS_PROFILE_ID)]?.artifactId
+        ).toContain('calculator:mvmnt.spectrogram');
         expect(serialized.startTimeSeconds).toBe(0);
         expect(serialized.tempoProjection?.hopTicks).toBe(120);
         expect(serialized.analysisParams.windowSize).toBe(2048);
@@ -135,7 +186,7 @@ describe('audio feature cache persistence', () => {
         expect(restored?.tempoProjection?.hopTicks).toBe(120);
     });
 
-    it('reads V3 aliases into channelLayout and re-emits a V4-only shape', () => {
+    it('reads V3 aliases into channelLayout and re-emits a V5-only shape', () => {
         const cache = createFeatureCache('legacy-source');
         const legacy: any = serializeAudioFeatureCache(cache);
         legacy.version = 3;
@@ -150,7 +201,7 @@ describe('audio feature cache persistence', () => {
         expect(restored.featureTracks[key].channelLayout?.aliases).toEqual(['Mid', 'Side']);
 
         const upgraded: any = serializeAudioFeatureCache(restored);
-        expect(upgraded.version).toBe(4);
+        expect(upgraded.version).toBe(5);
         expect(upgraded.channelAliases).toBeUndefined();
         expect(upgraded.featureTracks[key].channelAliases).toBeUndefined();
     });
@@ -292,6 +343,13 @@ describe('audio feature cache persistence', () => {
         const featurePayloads = parsed.audioFeaturePayloads.get(encodeURIComponent(trackId));
         expect(featurePayloads).toBeInstanceOf(Map);
         expect(featurePayloads?.get('feature_caches.json')).toBeInstanceOf(Uint8Array);
+        const featureMetadata = JSON.parse(
+            new TextDecoder().decode(featurePayloads?.get('feature_caches.json'))
+        ) as any;
+        const metadataTrack = Object.values(featureMetadata.featureTracks)[0] as any;
+        expect(featureMetadata.version).toBe(5);
+        expect(metadataTrack.payloadByteLength).toBeGreaterThan(0);
+        expect(metadataTrack.artifactId).toContain('calculator:mvmnt.spectrogram');
         const featureBinaryKeys = featurePayloads
             ? Array.from(featurePayloads.keys()).filter((key) => key !== 'feature_caches.json')
             : [];

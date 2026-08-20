@@ -20,7 +20,10 @@ import type {
     PropertyTimeRange,
 } from '../../../../packages/plugin-sdk/src/scene';
 import { err, ok, type PluginDiagnostic, type Result } from '../../../../packages/plugin-sdk/src/api';
-import { registerScopedFeatureRequirements } from '@audio/audioElementMetadata';
+import {
+    clearDeclarativeAudioFeatureDemands,
+    syncDeclarativeAudioFeatureDemands,
+} from '@audio/features/declarativeDemands';
 import { ensureFontLoaded } from '@fonts/font-loader';
 import { renderResourceManager } from '@core/render/render-resource-manager';
 import { integratePropertySampler } from '@core/scene/runtime/property-integration';
@@ -304,35 +307,6 @@ function createContext(
 
     if (host && (granted(PLUGIN_CAPABILITIES.audioFeaturesRead) || granted(PLUGIN_CAPABILITIES.audioRawRead))) {
         (context as any).audio = Object.freeze({
-            requireFeatures(requirements: readonly any[]) {
-                if (!granted(PLUGIN_CAPABILITIES.audioFeaturesRead))
-                    return unavailable(PLUGIN_CAPABILITIES.audioFeaturesRead, 'audio.requireFeatures');
-                if (
-                    !Array.isArray(requirements) ||
-                    requirements.some((requirement) => !requirement || typeof requirement.feature !== 'string')
-                ) {
-                    return err(
-                        diagnostic(
-                            'INVALID_ARGUMENT',
-                            'Feature requirements must contain a feature key',
-                            'audio.requireFeatures'
-                        )
-                    );
-                }
-                const unregister = registerScopedFeatureRequirements(
-                    options.runtimeElementType ?? definition.type,
-                    requirements
-                );
-                let disposed = false;
-                const dispose = () => {
-                    if (disposed) return;
-                    disposed = true;
-                    unregister();
-                    cleanups.delete(dispose);
-                };
-                cleanups.add(dispose);
-                return ok(Object.freeze({ dispose }));
-            },
             getChannelMetadata(trackId: string) {
                 if (!granted(PLUGIN_CAPABILITIES.audioRawRead))
                     return unavailable(PLUGIN_CAPABILITIES.audioRawRead, 'audio.getChannelMetadata');
@@ -658,6 +632,32 @@ export function createPluginDefinitionScope(
         private initialized = false;
         private initializationFailed = false;
         private readonly requestedFonts = new Map<string, string>();
+        private demandSyncEnabled = false;
+
+        private syncDefinitionAudioDemands(): void {
+            if (!this.demandSyncEnabled || !definition.audioFeatureDemands) return;
+            const hasFeatureGrant =
+                [...(options.capabilities?.required ?? []), ...(options.capabilities?.optional ?? [])].includes(
+                    PLUGIN_CAPABILITIES.audioFeaturesRead
+                ) && !!options.services?.capabilities.includes(PLUGIN_CAPABILITIES.audioFeaturesRead);
+            if (!hasFeatureGrant) {
+                clearDeclarativeAudioFeatureDemands(this);
+                return;
+            }
+            try {
+                const demands = definition.audioFeatureDemands(this.getDefinitionProps());
+                syncDeclarativeAudioFeatureDemands(this, Array.isArray(demands) ? demands : []);
+            } catch (error) {
+                clearDeclarativeAudioFeatureDemands(this);
+                options.report(
+                    diagnostic(
+                        'INVALID_ARGUMENT',
+                        error instanceof Error ? error.message : String(error),
+                        'element.audioFeatureDemands'
+                    )
+                );
+            }
+        }
 
         private createPropertyApi(): ElementPropertyApi<Readonly<Record<string, unknown>>> {
             const valueAt = (key: string, timeSeconds: number): Result<unknown> => {
@@ -800,6 +800,8 @@ export function createPluginDefinitionScope(
                 ...(definitionSchema?.defaultConfig ?? {}),
                 ...config,
             });
+            this.demandSyncEnabled = true;
+            this.syncDefinitionAudioDemands();
             this.requestDefinitionFonts(this.getDefinitionProps());
             if (options.synchronousInitialization && synchronouslyReady) {
                 try {
@@ -880,10 +882,22 @@ export function createPluginDefinitionScope(
             return [...definition.render(props, this.state, time, this.instanceContext)] as RenderObject[];
         }
 
+        protected override onPropertyChanged(key: string, oldValue: unknown, newValue: unknown): void {
+            super.onPropertyChanged(key, oldValue, newValue);
+            if (oldValue !== newValue) this.syncDefinitionAudioDemands();
+        }
+
+        protected override onPropertyBindingsInvalidated(): void {
+            super.onPropertyBindingsInvalidated();
+            this.syncDefinitionAudioDemands();
+        }
+
         protected override onDestroy(): void {
+            clearDeclarativeAudioFeatureDemands(this);
             this.instanceController.abort();
             for (const cleanup of [...this.instanceCleanups]) cleanup();
             void definition.dispose?.(this.state, this.instanceContext);
+            super.onDestroy();
         }
     }
 

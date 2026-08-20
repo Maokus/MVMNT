@@ -227,7 +227,11 @@ export class FeatureSubscriptionController {
         return descriptor;
     }
 
-    resolveDescriptorForSampling(descriptor: AudioFeatureDescriptor, profile: string | null): AudioFeatureDescriptor {
+    resolveDescriptorForSampling(
+        descriptor: AudioFeatureDescriptor,
+        profile: string | null,
+        registerMissing = true
+    ): AudioFeatureDescriptor {
         this.ensureNotDisposed();
         if (!descriptor || !descriptor.featureKey || !this.normalizedTrackId) {
             return descriptor;
@@ -266,7 +270,7 @@ export class FeatureSubscriptionController {
             }
         }
 
-        return this.registerAdHocDescriptor(descriptor, profile) ?? descriptor;
+        return registerMissing ? (this.registerAdHocDescriptor(descriptor, profile) ?? descriptor) : descriptor;
     }
 
     syncExplicitDescriptors(
@@ -303,20 +307,6 @@ export class FeatureSubscriptionController {
 
     getSubscriptionSnapshot(): AudioFeatureDescriptor[] {
         return [...this.currentDescriptors];
-    }
-
-    /**
-     * Re-publish the active request even when its descriptor payload is unchanged.
-     * Scene import can restore an element with the same ID and settings as the
-     * previous scene, while the request consumer has moved to a new timeline.
-     */
-    republish(): void {
-        this.ensureNotDisposed();
-        if (!this.normalizedTrackId || !this.currentDescriptors.length) {
-            return;
-        }
-        this.forceNextPublish = true;
-        this.flush();
     }
 
     clear(trackId?: string | null): void {
@@ -581,13 +571,6 @@ export function resetFeatureSubscriptionControllersForTests(): void {
     controllerElements.clear();
     fallbackElementIds = new WeakMap();
     fallbackElementIdCounter = 0;
-}
-
-/** Re-publish all live element requests after replacing the active scene document. */
-export function republishFeatureSubscriptionIntents(): void {
-    for (const controller of controllerStrongRefs) {
-        controller.republish();
-    }
 }
 
 function buildRegistrySignature(delta: Record<string, AudioFeatureAnalysisProfileDescriptor> | null): string {

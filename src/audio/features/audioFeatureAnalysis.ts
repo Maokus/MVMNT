@@ -1,5 +1,6 @@
 import { audioFeatureCalculatorRegistry } from './audioFeatureRegistry';
 import {
+    buildFeatureArtifactId,
     DEFAULT_ANALYSIS_PROFILE_ID,
     buildFeatureTrackKey,
     normalizeFeatureTrackEntry,
@@ -61,6 +62,7 @@ type SerializedTempoProjection = {
 
 export type SerializedAudioFeatureTrack = {
     key: string;
+    artifactId?: string;
     calculatorId: string;
     version: number;
     frameCount: number;
@@ -77,10 +79,11 @@ export type SerializedAudioFeatureTrack = {
     channelLayout?: ChannelLayoutMeta | null;
     analysisProfileId?: string | null;
     dataRef?: SerializedAudioFeatureTrackDataRef;
+    payloadByteLength?: number;
 };
 
 export interface SerializedAudioFeatureCache {
-    version: 3 | 4;
+    version: 3 | 4 | 5;
     audioSourceId: string;
     hopSeconds: number;
     startTimeSeconds: number;
@@ -414,6 +417,13 @@ function serializeTrack(track: AudioFeatureTrack): SerializedAudioFeatureTrack {
     }
     return {
         key: track.key,
+        artifactId:
+            track.artifactId ??
+            buildFeatureArtifactId(
+                parseFeatureTrackKey(track.key).featureKey,
+                track.calculatorId,
+                track.analysisProfileId
+            ),
         calculatorId: track.calculatorId,
         version: track.version,
         frameCount: track.frameCount,
@@ -461,6 +471,13 @@ function deserializeTrack(track: SerializedAudioFeatureTrack): AudioFeatureTrack
     const hopTicks = Math.max(1, Math.round(track.hopTicks ?? track.tempoProjection?.hopTicks ?? 1));
     const rawTrack: AudioFeatureTrack = {
         key: track.key,
+        artifactId:
+            track.artifactId ??
+            buildFeatureArtifactId(
+                parseFeatureTrackKey(track.key).featureKey,
+                track.calculatorId,
+                track.analysisProfileId
+            ),
         calculatorId: track.calculatorId,
         version: track.version,
         frameCount: track.frameCount,
@@ -504,7 +521,7 @@ export function serializeAudioFeatureCache(cache: AudioFeatureCache): Serialized
             ? cache.defaultAnalysisProfileId
             : DEFAULT_ANALYSIS_PROFILE_ID;
     const serialized: SerializedAudioFeatureCache = {
-        version: 4,
+        version: 5,
         audioSourceId: cache.audioSourceId,
         hopSeconds: cache.hopSeconds,
         startTimeSeconds: cache.startTimeSeconds ?? 0,
@@ -524,7 +541,7 @@ export function deserializeAudioFeatureCache(serialized: SerializedAudioFeatureC
         throw new Error('Invalid audio feature cache payload');
     }
     const serializedVersion = Number(serialized.version);
-    if (serializedVersion !== 3 && serializedVersion !== 4) {
+    if (serializedVersion !== 3 && serializedVersion !== 4 && serializedVersion !== 5) {
         throw new Error(`Unsupported audio feature cache version: ${serialized.version}`);
     }
     const featureTracks: Record<string, AudioFeatureTrack> = {};
@@ -544,7 +561,7 @@ export function deserializeAudioFeatureCache(serialized: SerializedAudioFeatureC
         hopSeconds: serialized.hopSeconds,
     });
     return {
-        version: 4,
+        version: 5,
         audioSourceId: serialized.audioSourceId,
         hopTicks,
         hopSeconds: serialized.hopSeconds,
@@ -755,7 +772,7 @@ export async function analyzeAudioBufferFeatures(
     const channelLayout = { aliases: inferChannelAliases(options.audioBuffer.numberOfChannels || 1) };
     return {
         cache: {
-            version: 4,
+            version: 5,
             audioSourceId: options.audioSourceId,
             hopTicks,
             hopSeconds,

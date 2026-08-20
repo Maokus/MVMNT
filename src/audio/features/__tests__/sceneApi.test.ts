@@ -50,30 +50,27 @@ describe('sceneApi', () => {
     });
 
     describe('getFeatureData', () => {
-        it('publishes an analysis intent the first time data is requested and reuses it afterwards', () => {
+        it('reads feature data without creating an analysis demand', () => {
             const first = getFeatureData(element, 'track-1', 'rms', 0);
             expect(first?.values).toEqual([0.5]);
-            expect(publishSpy).toHaveBeenCalledTimes(1);
+            expect(publishSpy).not.toHaveBeenCalled();
 
             const second = getFeatureData(element, 'track-1', 'rms', 1.5);
             expect(second?.values).toEqual([0.5]);
-            expect(publishSpy).toHaveBeenCalledTimes(1);
+            expect(publishSpy).not.toHaveBeenCalled();
         });
 
-        it('republishes intents when the target track changes', () => {
+        it('does not publish demands when the sampled track changes', () => {
             getFeatureData(element, 'track-1', 'rms', 0);
-            expect(publishSpy).toHaveBeenCalledTimes(1);
-
-            publishSpy.mockClear();
             getFeatureData(element, 'track-2', 'rms', 0);
-            expect(publishSpy).toHaveBeenCalledTimes(1);
+            expect(publishSpy).not.toHaveBeenCalled();
         });
 
-        it('clears analysis intents when clearFeatureData is called', () => {
+        it('does not create subscription state that must be cleared', () => {
             getFeatureData(element, 'track-1', 'rms', 0);
             clearFeatureData(element);
 
-            expect(clearSpy).toHaveBeenCalledWith('element-1');
+            expect(clearSpy).not.toHaveBeenCalled();
         });
 
         it('accepts explicit sampling options parameter', () => {
@@ -89,7 +86,7 @@ describe('sceneApi', () => {
         it('does not republish descriptors when only sampling options change', () => {
             const first = getFeatureData(element, 'track-1', 'rms', 0.25, { smoothing: 0 });
             expect(first?.values).toEqual([0.5]);
-            expect(publishSpy).toHaveBeenCalledTimes(1);
+            expect(publishSpy).not.toHaveBeenCalled();
 
             publishSpy.mockClear();
             const second = getFeatureData(element, 'track-1', 'rms', 0.5, { smoothing: 12 });
@@ -99,20 +96,17 @@ describe('sceneApi', () => {
 
         it('shares descriptor identity across elements regardless of sampling options', () => {
             getFeatureData(element, 'track-1', 'rms', 0.1, { smoothing: 1 });
-            expect(publishSpy).toHaveBeenCalledTimes(1);
+            expect(publishSpy).not.toHaveBeenCalled();
 
             const sibling = { id: 'element-2', type: 'testElement' };
             const sample = getFeatureData(sibling, 'track-1', 'rms', 0.1, { smoothing: 24 });
             expect(sample?.values).toEqual([0.5]);
-            expect(publishSpy).toHaveBeenCalledTimes(2);
-
-            const firstDescriptors = publishSpy.mock.calls[0]?.[3] ?? [];
-            const secondDescriptors = publishSpy.mock.calls[1]?.[3] ?? [];
-            expect(firstDescriptors).toHaveLength(1);
-            expect(secondDescriptors).toHaveLength(1);
-            const firstId = analysisIntents.buildDescriptorId(firstDescriptors[0] as any);
-            const secondId = analysisIntents.buildDescriptorId(secondDescriptors[0] as any);
-            expect(secondId).toBe(firstId);
+            expect(publishSpy).not.toHaveBeenCalled();
+            const firstDescriptor = sampleSpy.mock.calls[0]?.[1];
+            const secondDescriptor = sampleSpy.mock.calls[1]?.[1];
+            expect(analysisIntents.buildDescriptorId(secondDescriptor as any)).toBe(
+                analysisIntents.buildDescriptorId(firstDescriptor as any)
+            );
         });
 
         it('preserves existing descriptor profiles when sampling', () => {

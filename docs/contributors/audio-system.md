@@ -4,8 +4,8 @@
 
 Timeline tracks and clips own placement, gain, mute state, and immutable source IDs. `audioCache`
 entries own decoded `AudioBuffer` data, waveform metadata, and references to original imported
-bytes. Feature caches are keyed by source and analysis profile so clips can reuse analysis without
-duplicating work.
+bytes. Feature caches are keyed by source and canonical artifact identity (feature, calculator, and
+analysis profile) so clips can reuse analysis without duplicating work.
 
 Original bytes and decoded PCM are separate resources. Small originals may remain inline; large
 ones use `AudioAssetStore` in IndexedDB. A process-local memory fallback keeps the current session
@@ -19,7 +19,9 @@ asset lengths and hashes.
 
 Export collects only referenced sources, preferring original bytes and falling back to generated
 float32 WAV data. Content hashes deduplicate package assets. Waveforms and optional feature caches
-are packaged separately.
+are packaged separately. Cache payload v5 records canonical artifact IDs and byte lengths. Scene
+files also retain an element-level demand snapshot so a missing plugin or omitted cache can still
+explain what analysis is required.
 
 ## Feature analysis
 
@@ -27,14 +29,17 @@ Registered calculators transform decoded PCM into feature tracks such as spectro
 waveform, peaks, and pitch guidance. A track records its calculator/version, frame layout, hop
 duration, analysis profile, format, and channel metadata.
 
-Requirements from active element definitions and instances flow through the analysis intent bus.
-The subscription controller deduplicates equivalent requests and keeps track references in sync as
-clips or bindings change. The scheduler runs required calculators, reports progress, supports
+Each SDK element definition exposes `audioFeatureDemands(props)`. The runtime atomically replaces
+that instance's requests when its props or macros change and removes them on disposal. The retained
+intent registry is the source of truth for diagnostics and persistence; imported snapshots are
+fallbacks only until an available plugin publishes its authoritative declaration. Sampling never
+creates a request. The scheduler runs requested calculators, reports progress, supports
 cancellation, and merges completed tracks into caches.
 
 Feature cache status is `idle`, `pending`, `ready`, `failed`, or `stale`. Calculator-version,
 profile, source, or tempo-projection changes can invalidate cached tracks. The diagnostics store
-owns user-facing status and reanalysis actions.
+derives user-facing status and reanalysis actions from retained demands, validated cache artifacts,
+and runtime jobs. Missing analysis remains an explicit user action after load.
 
 ## Sampling
 
