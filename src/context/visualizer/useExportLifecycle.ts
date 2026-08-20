@@ -69,6 +69,7 @@ export function useExportLifecycle({
     coordinatorRef.current ??= new ExportCoordinator({
         sceneDuration: () =>
             Number(latestRef.current.visualizer?.getCurrentDuration?.() ?? latestRef.current.totalDuration),
+        sceneStartSeconds: () => Number(latestRef.current.visualizer?.getPlayRange?.()?.startSec ?? 0),
         createEnvironment: () => {
             const renderer = latestRef.current.visualizer;
             const canvas = canvasRef.current;
@@ -184,7 +185,8 @@ export function useExportLifecycle({
             const duration = Number(
                 latestRef.current.visualizer?.getCurrentDuration?.() ?? latestRef.current.totalDuration
             );
-            const plan: ResolvedExportPlan = resolveExportPlan(request, duration);
+            const sceneStart = Number(latestRef.current.visualizer?.getPlayRange?.()?.startSec ?? 0);
+            const plan: ResolvedExportPlan = resolveExportPlan(request, duration, sceneStart);
             const [sceneElementCount, trackCount] = counts();
             setShowProgressOverlay(true);
             setExportKind(kind);

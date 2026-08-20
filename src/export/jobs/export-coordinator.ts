@@ -5,6 +5,7 @@ import { ExportPerformanceTracker } from '../diagnostics';
 
 export interface ExportCoordinatorDependencies {
     sceneDuration(): number;
+    sceneStartSeconds?(): number;
     createEnvironment(): ExportEnvironment;
     beginOutput(plan: ResolvedExportPlan): Promise<ExportOutputSession | null>;
     createManifest?(
@@ -26,7 +27,11 @@ export class ExportCoordinator {
     constructor(private readonly dependencies: ExportCoordinatorDependencies) {}
 
     submit(request: ExportRequest, sceneElementCount: number, trackCount: number, id?: string): ExportJob {
-        const plan = resolveExportPlan(request, this.dependencies.sceneDuration());
+        const plan = resolveExportPlan(
+            request,
+            this.dependencies.sceneDuration(),
+            this.dependencies.sceneStartSeconds?.() ?? 0
+        );
         const job = createExportJob(request.kind, request.sceneName, plan.settings, sceneElementCount, trackCount, id);
         useExportJobStore.getState().enqueue(job);
         this.plans.set(job.id, plan);

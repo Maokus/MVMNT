@@ -463,8 +463,6 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps() as ChordEstimateRuntimeProps;
 
-        if (!props.visible) return [];
-
         const {
             windowSeconds,
             windowFuturePercent,

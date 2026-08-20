@@ -2,7 +2,11 @@ import { calculateAutoBitrate, estimateFileSize } from './file-size-estimator';
 import { expandExportFilename } from '../presets';
 import type { ExportRequest, ResolvedExportPlan } from '../contracts';
 
-export function resolveExportPlan(request: ExportRequest, sceneDuration: number): ResolvedExportPlan {
+export function resolveExportPlan(
+    request: ExportRequest,
+    sceneDuration: number,
+    sceneStartSeconds = 0
+): ResolvedExportPlan {
     const { settings } = request;
     if (!Number.isFinite(sceneDuration) || sceneDuration <= 0) throw new Error('The scene has no exportable duration.');
     if (!Number.isFinite(settings.fps) || settings.fps <= 0) throw new Error('Export frame rate must be positive.');
@@ -14,8 +18,12 @@ export function resolveExportPlan(request: ExportRequest, sceneDuration: number)
     )
         throw new Error('Export dimensions must be positive.');
 
-    const startSeconds = settings.fullDuration ? 0 : Math.max(0, settings.startTime);
-    const endSeconds = settings.fullDuration ? sceneDuration : Math.min(sceneDuration, settings.endTime);
+    // startTime/endTime are relative to the scene's playback window (0..sceneDuration);
+    // shift by sceneStartSeconds to land on the timeline's absolute time.
+    const relativeStart = settings.fullDuration ? 0 : Math.max(0, settings.startTime);
+    const relativeEnd = settings.fullDuration ? sceneDuration : Math.min(sceneDuration, settings.endTime);
+    const startSeconds = sceneStartSeconds + relativeStart;
+    const endSeconds = sceneStartSeconds + relativeEnd;
     if (endSeconds <= startSeconds) throw new Error('Invalid start/end time for export.');
 
     const transparent = settings.transparentBackground ?? false;
