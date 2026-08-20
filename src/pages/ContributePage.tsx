@@ -116,24 +116,6 @@ const ContributePage: React.FC = () => {
                             </a>
                         </div>
                     </section>
-
-                    {/* Building Plugins */}
-                    <section>
-                        <h2 className="text-xl font-bold text-white mb-1">Building Plugins</h2>
-                        <p className="text-neutral-400 text-sm mb-4">
-                            It literally takes 15 minutes to build a plugin!! Please give it a try, I worked hard on
-                            this :")
-                        </p>
-                        <a
-                            href="https://github.com/Maokus/MVMNT/blob/main/docs/plugin-api/quickstart.md"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
-                        >
-                            <FaGithub />
-                            Read quickstart guide
-                        </a>
-                    </section>
                 </div>
 
                 <div className="mt-12">

@@ -1555,6 +1555,9 @@ const createUncomposedSceneStoreState = (
             nodeBindings: {},
             runtimeMeta: markDirty(state, 'clearScene'),
         }));
+        // An intentionally empty document is still initialized. This prevents
+        // workspace bootstrap from treating a blank scene as a fresh launch.
+        useSceneEditorStore.getState().markHydrated();
     },
 
     importScene: (input) => {

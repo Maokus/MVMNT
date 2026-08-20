@@ -8,6 +8,7 @@ import {
 } from '@state/scene';
 import { loadDefaultScene } from '@core/default-scene-loader';
 import { useSceneStore } from '@state/sceneStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
@@ -29,6 +30,14 @@ describe('scene command gateway', () => {
     afterEach(() => {
         clearSceneCommandListeners();
         useTimelineStore.getState().resetTimeline();
+    });
+
+    it('treats a cleared scene as an initialized blank document', () => {
+        const result = dispatchSceneCommand({ type: 'clearScene' });
+
+        expect(result.success).toBe(true);
+        expect(deriveElementOrder(useSceneStore.getState().graph)).toEqual([]);
+        expect(useSceneEditorStore.getState().hasInitializedScene).toBe(true);
     });
 
     it('adds elements via command and updates store bindings', () => {

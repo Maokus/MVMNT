@@ -9,6 +9,7 @@ import type { TemplateDefinition } from '@workspace/templates/types';
 import { BUILD_INFO } from '@app/build-info';
 import { stagePendingDocumentAnalytics } from '@app/analytics';
 import type { UpdateCheckResult } from '../../electron/shared/build-info';
+import { LocalSaveService } from '@persistence/local-save-service';
 
 const PENDING_DESKTOP_NAME_KEY = 'mvmnt.desktop.pending-open-name';
 
@@ -17,6 +18,7 @@ const HomePage: React.FC = () => {
     const inputRef = useRef<HTMLInputElement>(null);
     const [recentFiles, setRecentFiles] = useState<DesktopRecentDocument[]>([]);
     const [isOpening, setIsOpening] = useState(false);
+    const [hasAutosave, setHasAutosave] = useState(false);
     const [update, setUpdate] = useState<UpdateCheckResult | null>(null);
 
     useEffect(() => {
@@ -26,6 +28,10 @@ const HomePage: React.FC = () => {
             .listRecent()
             .then(setRecentFiles)
             .catch(() => setRecentFiles([]));
+    }, []);
+
+    useEffect(() => {
+        void LocalSaveService.hasSavedFile().then(setHasAutosave);
     }, []);
 
     useEffect(() => {
@@ -50,6 +56,16 @@ const HomePage: React.FC = () => {
             await window.mvmntDesktop?.documents.clearActivePath();
             stagePendingDocumentAnalytics({ createdEntryPoint: 'home' });
             navigate('/workspace', { state: { template: 'blank', desktopNew: true } });
+        } finally {
+            setIsOpening(false);
+        }
+    };
+
+    const handleRecoverAutosave = async () => {
+        setIsOpening(true);
+        try {
+            await window.mvmntDesktop?.documents.clearActivePath();
+            navigate('/workspace', { state: { restoreAutosave: true } });
         } finally {
             setIsOpening(false);
         }
@@ -151,54 +167,69 @@ const HomePage: React.FC = () => {
                             </button>
                         </div>
                     ) : null}
-                    <div className="mt-6 flex flex-wrap gap-4">
-                        <button
-                            type="button"
-                            onClick={() => void handleNewDocument()}
-                            disabled={isOpening}
-                            className="rounded bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 px-5 py-2.5 text-sm font-medium tracking-[0.2rem] text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:ring-offset-1 disabled:opacity-60"
-                        >
-                            NEW DOCUMENT
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => void handleOpen()}
-                            disabled={isOpening}
-                            className="flex items-center gap-2 rounded bg-neutral-700 px-5 py-2.5 text-sm font-medium transition hover:bg-neutral-600 disabled:opacity-60"
-                        >
-                            <FaFolderOpen /> OPEN
-                        </button>
-                        <Link
-                            to="/about"
-                            className="rounded bg-neutral-800 px-5 py-2.5 text-sm font-medium hover:bg-neutral-700"
-                        >
-                            About
-                        </Link>
-                        <Link
-                            to="/contribute"
-                            className="rounded bg-neutral-800 px-5 py-2.5 text-sm font-medium hover:bg-neutral-700"
-                        >
-                            Contribute
-                        </Link>
-                        <Link
-                            to="/changelog"
-                            className="rounded bg-neutral-800 px-5 py-2.5 text-sm font-medium hover:bg-neutral-700"
-                        >
-                            Changelog
-                        </Link>
-                        <Link
-                            to="/community"
-                            className="rounded bg-neutral-800 px-5 py-2.5 text-sm font-medium hover:bg-neutral-700"
-                        >
-                            Community
-                        </Link>
-                        <Link
-                            to="/privacy"
-                            className="rounded bg-neutral-800 px-5 py-2.5 text-sm font-medium hover:bg-neutral-700"
-                        >
-                            Privacy
-                        </Link>
-                    </div>
+                    <nav className="mt-6 space-y-4" aria-label="Home actions">
+                        <div className="flex flex-wrap items-center gap-4" role="group" aria-label="Documents">
+                            <button
+                                type="button"
+                                onClick={() => void handleNewDocument()}
+                                disabled={isOpening}
+                                className="rounded bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 px-5 py-2.5 text-sm font-medium tracking-[0.2rem] text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:ring-offset-1 disabled:opacity-60"
+                            >
+                                NEW DOCUMENT
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => void handleOpen()}
+                                disabled={isOpening}
+                                className="flex items-center gap-2 rounded bg-neutral-700 px-5 py-2.5 text-sm font-medium transition hover:bg-neutral-600 disabled:opacity-60"
+                            >
+                                <FaFolderOpen /> OPEN
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => void handleRecoverAutosave()}
+                                disabled={isOpening || !hasAutosave}
+                                title={hasAutosave ? undefined : 'No autosave is available'}
+                                className="flex items-center gap-2 rounded bg-neutral-700 px-5 py-2.5 text-sm font-medium transition hover:bg-neutral-600 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                <FaRegClock /> RECOVER AUTOSAVE
+                            </button>
+                        </div>
+                        <div className="flex flex-wrap gap-4" role="group" aria-label="Project information">
+                            <Link
+                                to="/about"
+                                className="rounded bg-neutral-800 px-5 py-2.5 text-sm font-medium hover:bg-neutral-700"
+                            >
+                                About
+                            </Link>
+                            <Link
+                                to="/contribute"
+                                className="rounded bg-neutral-800 px-5 py-2.5 text-sm font-medium hover:bg-neutral-700"
+                            >
+                                Contribute
+                            </Link>
+                            <Link
+                                to="/changelog"
+                                className="rounded bg-neutral-800 px-5 py-2.5 text-sm font-medium hover:bg-neutral-700"
+                            >
+                                Changelog
+                            </Link>
+                            <Link
+                                to="/privacy"
+                                className="rounded bg-neutral-800 px-5 py-2.5 text-sm font-medium hover:bg-neutral-700"
+                            >
+                                Privacy
+                            </Link>
+                        </div>
+                        <div className="flex flex-wrap gap-4" role="group" aria-label="Community">
+                            <Link
+                                to="/community"
+                                className="rounded bg-neutral-800 px-5 py-2.5 text-sm font-medium hover:bg-neutral-700"
+                            >
+                                Community
+                            </Link>
+                        </div>
+                    </nav>
                 </div>
 
                 <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(14rem,1fr)]">

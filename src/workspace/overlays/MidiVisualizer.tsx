@@ -533,6 +533,7 @@ const TemplateInitializer: React.FC = () => {
 
         const shouldImport = Boolean(state.importScene);
         const isNewDocumentImport = Boolean(state.newDocument);
+        const shouldRestoreAutosave = Boolean(state.restoreAutosave);
         const shouldLoadTemplate = Boolean(state.template);
         const shouldLoadDefault = !shouldImport && !shouldLoadTemplate && !hasScene && !hasInitializedScene;
         const shouldShowIndicator = shouldImport || shouldLoadTemplate || shouldLoadDefault;
@@ -704,6 +705,7 @@ const TemplateInitializer: React.FC = () => {
                         ? localStorage.getItem('mvmnt.desktop.recovery-state')
                         : null;
                     const restoreRecovery =
+                        shouldRestoreAutosave ||
                         desktopRecoveryState !== 'dirty' ||
                         window.confirm('MVMNT found changes recovered from the previous session. Restore them?');
                     if (!restoreRecovery) {
