@@ -54,6 +54,8 @@ type DescriptorList = (AudioFeatureDescriptor | null | undefined)[];
 export interface PublishAnalysisIntentOptions {
     profile?: string | null;
     profileRegistryDelta?: Record<string, AudioFeatureAnalysisProfileDescriptor> | null;
+    /** Re-emit an unchanged intent after its scene runtime has been restored. */
+    force?: boolean;
 }
 
 function stableStringify(value: unknown): string {
@@ -182,7 +184,7 @@ export function publishAnalysisIntent(
         profileRegistryDelta: options?.profileRegistryDelta ?? null,
     };
     const fingerprint = hashIntentPayload(payload);
-    if (lastIntentHashes.get(elementId) === fingerprint) {
+    if (!options?.force && lastIntentHashes.get(elementId) === fingerprint) {
         return;
     }
     lastIntentHashes.set(elementId, fingerprint);

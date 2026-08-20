@@ -305,6 +305,20 @@ export class FeatureSubscriptionController {
         return [...this.currentDescriptors];
     }
 
+    /**
+     * Re-publish the active request even when its descriptor payload is unchanged.
+     * Scene import can restore an element with the same ID and settings as the
+     * previous scene, while the request consumer has moved to a new timeline.
+     */
+    republish(): void {
+        this.ensureNotDisposed();
+        if (!this.normalizedTrackId || !this.currentDescriptors.length) {
+            return;
+        }
+        this.forceNextPublish = true;
+        this.flush();
+    }
+
     clear(trackId?: string | null): void {
         this.ensureNotDisposed();
         const normalized = normalizeTrackId(trackId);
@@ -461,6 +475,7 @@ export class FeatureSubscriptionController {
             return;
         }
 
+        const forcePublish = this.forceNextPublish;
         this.currentDescriptors = descriptors.slice();
         this.currentProfile = profileOrNull;
         this.currentProfileRegistryDelta = registryOrNull ? { ...registryOrNull } : null;
@@ -474,6 +489,7 @@ export class FeatureSubscriptionController {
         publishAnalysisIntent(identity.id, identity.type, this.normalizedTrackId, descriptors, {
             profile: profileOrNull ?? undefined,
             profileRegistryDelta: registryOrNull ?? undefined,
+            force: forcePublish,
         });
     }
 
@@ -565,6 +581,13 @@ export function resetFeatureSubscriptionControllersForTests(): void {
     controllerElements.clear();
     fallbackElementIds = new WeakMap();
     fallbackElementIdCounter = 0;
+}
+
+/** Re-publish all live element requests after replacing the active scene document. */
+export function republishFeatureSubscriptionIntents(): void {
+    for (const controller of controllerStrongRefs) {
+        controller.republish();
+    }
 }
 
 function buildRegistrySignature(delta: Record<string, AudioFeatureAnalysisProfileDescriptor> | null): string {

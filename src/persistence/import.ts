@@ -42,6 +42,7 @@ import {
     restoreVisualAssets,
 } from './import/assetHydration';
 import { hydrateAudioAssets } from './import/audioHydration';
+import { republishFeatureSubscriptionIntents } from '@audio/features/featureSubscriptionController';
 import { migrateAndValidateScene } from './import/migrationOrchestration';
 import { applyImportedDocument } from './import/documentApplication';
 import { hydrateSceneFonts, preloadImportedSceneFonts, reconcileHydratedFontTokens } from './import/fontHydration';
@@ -197,6 +198,12 @@ export async function importScene(
             importTimelineGeneration
         );
     }
+
+    // Element IDs and feature descriptors are stable across saves. Re-publish
+    // their active requests after the timeline and audio assets have been
+    // replaced so the request bus cannot treat this scene as a duplicate of
+    // the one it just unloaded.
+    republishFeatureSubscriptionIntents();
 
     // Audio cache is runtime-only. Retain only sources referenced by the newly
     // loaded timeline before removing old originals from IndexedDB. Doing this

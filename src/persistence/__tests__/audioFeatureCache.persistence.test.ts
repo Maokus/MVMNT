@@ -155,6 +155,71 @@ describe('audio feature cache persistence', () => {
         expect(upgraded.featureTracks[key].channelAliases).toBeUndefined();
     });
 
+    it('round-trips every cached profile and feature payload through a scene package', async () => {
+        const trackId = 'aud_profiles';
+        const customProfileId = 'adhoc-spectrogram-4096';
+        const cache = createFeatureCache(trackId);
+        const defaultKey = buildFeatureTrackKey('spectrogram', DEFAULT_ANALYSIS_PROFILE_ID);
+        const customKey = buildFeatureTrackKey('spectrogram', customProfileId);
+        const defaultTrack = cache.featureTracks[defaultKey]!;
+        cache.featureTracks[customKey] = {
+            ...defaultTrack,
+            key: customKey,
+            analysisProfileId: customProfileId,
+            data: Float32Array.from(
+                { length: defaultTrack.frameCount * defaultTrack.channels },
+                (_, index) => index + 11
+            ),
+        };
+        cache.analysisProfiles = {
+            default: {
+                id: 'default',
+                windowSize: 2048,
+                hopSize: 512,
+                overlap: 4,
+                sampleRate: 44100,
+            },
+            [customProfileId]: {
+                id: customProfileId,
+                windowSize: 4096,
+                hopSize: 256,
+                overlap: 16,
+                sampleRate: 44100,
+            },
+        };
+        useTimelineStore.setState((state) => ({
+            ...state,
+            tracks: {
+                [trackId]: {
+                    id: trackId,
+                    name: 'Profile cache',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    clips: [{ id: `${trackId}__audio_clip`, type: 'audio', sourceId: trackId, offsetTicks: 0 }],
+                    gain: 1,
+                },
+            },
+            tracksOrder: [trackId],
+            audioFeatureCaches: { [trackId]: cache },
+            audioFeatureCacheStatus: { [trackId]: { state: 'ready', updatedAt: 1 } },
+        }));
+
+        const exported = await exportZippedScene();
+        useTimelineStore.getState().resetTimeline();
+
+        const imported = await importScene(exported.zip);
+        expect(imported.ok).toBe(true);
+        const restored = useTimelineStore.getState().audioFeatureCaches[trackId];
+        expect(restored?.analysisProfiles?.[customProfileId]).toMatchObject({ windowSize: 4096, hopSize: 256 });
+        expect(restored?.featureTracks[customKey]).toMatchObject({ analysisProfileId: customProfileId });
+        expect(Array.from(restored?.featureTracks[customKey]?.data as Float32Array).slice(0, 4)).toEqual([
+            11, 12, 13, 14,
+        ]);
+        expect(restored?.featureTracks[defaultKey]).toBeDefined();
+    });
+
     it('stores audio feature caches and waveforms as external assets in packaged export', async () => {
         const trackId = 'aud_persist';
         const waveformPeaks = Float32Array.from({ length: 8 }, (_, idx) => (idx % 2 === 0 ? 0.5 : -0.5));
