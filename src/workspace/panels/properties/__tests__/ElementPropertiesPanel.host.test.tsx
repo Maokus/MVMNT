@@ -4,9 +4,16 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useSceneEditorStore } from '@state/sceneEditorStore';
 import ElementPropertiesPanel from '../ElementPropertiesPanel';
 
-vi.mock('@context/MacroContext', () => ({
-    useMacros: () => ({ macros: [], assignListener: () => () => {} }),
-}));
+vi.mock('@context/MacroContext', () => {
+    const context = {
+        macros: [],
+        assignListener: () => () => { },
+    };
+
+    return {
+        useMacros: () => context,
+    };
+});
 
 vi.mock('../NodeTransformPanel', () => ({
     NodeTransformPanel: () => <div>Host controls</div>,
