@@ -969,12 +969,12 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     ingestAudioFeatureCache(id: string, cache: AudioFeatureCache) {
         cancelActiveAudioFeatureJob(id);
-        if (cache.version !== 3 && cache.version !== 4) {
+        if (cache.version !== 3 && cache.version !== 4 && cache.version !== 5) {
             throw new Error(`Unsupported audio feature cache version: ${cache.version}`);
         }
         const normalized: AudioFeatureCache = {
             ...cache,
-            version: 4,
+            version: 5,
             featureTracks: { ...cache.featureTracks },
             analysisProfiles: cache.analysisProfiles ? { ...cache.analysisProfiles } : undefined,
             channelLayout: cache.channelLayout
