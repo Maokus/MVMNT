@@ -15,10 +15,7 @@ const sampleFrame = {
 };
 
 describe('useAudioFeature', () => {
-    let clearSpy: MockInstance<
-        Parameters<typeof sceneApi.clearFeatureData>,
-        ReturnType<typeof sceneApi.clearFeatureData>
-    >;
+    let clearSpy: MockInstance<typeof sceneApi.clearFeatureData>;
 
     beforeEach(() => {
         vi.restoreAllMocks();

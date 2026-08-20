@@ -6,8 +6,24 @@ import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import { useTimelineStore } from '@state/timelineStore';
 
 describe('CacheDiagnosticsPopup', () => {
+    // zustand's `set()` copies the current dismissMissingPopup/regenerateAll references forward on every
+    // update (they're never part of the partial state), so once a test spies on them, later `set()` calls
+    // (from reset() or the actions themselves) keep propagating that same spy into future state snapshots.
+    // Restore the pristine functions onto the live state directly so each test spies on an unmocked original.
+    const originalDismissMissingPopup = useAudioDiagnosticsStore.getState().dismissMissingPopup;
+    const originalRegenerateAll = useAudioDiagnosticsStore.getState().regenerateAll;
+
+    function restoreStoreActions() {
+        useAudioDiagnosticsStore.setState({
+            dismissMissingPopup: originalDismissMissingPopup,
+            regenerateAll: originalRegenerateAll,
+        });
+    }
+
     beforeEach(() => {
+        vi.restoreAllMocks();
         act(() => {
+            restoreStoreActions();
             useAudioDiagnosticsStore.getState().reset();
             useTimelineStore.setState({ audioFeatureCacheStatus: {} });
         });
@@ -15,6 +31,7 @@ describe('CacheDiagnosticsPopup', () => {
 
     afterEach(() => {
         act(() => {
+            restoreStoreActions();
             useAudioDiagnosticsStore.getState().reset();
             useTimelineStore.setState({ audioFeatureCacheStatus: {} });
         });

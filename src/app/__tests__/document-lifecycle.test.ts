@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AnalyticsService } from '../analytics/contracts';
+import type { AnalyticsConsentStatus, AnalyticsService } from '../analytics/contracts';
 import {
     completePendingDocumentAnalytics,
     failPendingDocumentAnalytics,
@@ -14,7 +14,7 @@ function createAnalytics(): AnalyticsService {
         identify: vi.fn(async () => undefined),
         reset: vi.fn(),
         setConsent: vi.fn(async () => undefined),
-        getConsent: vi.fn(() => 'granted'),
+        getConsent: vi.fn((): AnalyticsConsentStatus => 'granted'),
         getIdentifier: vi.fn(async () => 'anonymous-id'),
         subscribeToConsent: vi.fn(() => () => undefined),
     };

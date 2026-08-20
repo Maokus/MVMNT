@@ -184,16 +184,18 @@ describe('audio clip source persistence', () => {
 
         let resolveDecode: ((buffer: AudioBuffer) => void) | undefined;
         let decodeCount = 0;
-        (window as any).AudioContext = vi.fn(() => ({
-            decodeAudioData: () => {
-                decodeCount += 1;
-                if (decodeCount > 1) return Promise.resolve(makeAudioBufferStub());
-                return new Promise<AudioBuffer>((resolve) => {
-                    resolveDecode = resolve;
-                });
-            },
-            close: vi.fn(),
-        }));
+        (window as any).AudioContext = vi.fn(function AudioContext() {
+            return {
+                decodeAudioData: () => {
+                    decodeCount += 1;
+                    if (decodeCount > 1) return Promise.resolve(makeAudioBufferStub());
+                    return new Promise<AudioBuffer>((resolve) => {
+                        resolveDecode = resolve;
+                    });
+                },
+                close: vi.fn(),
+            };
+        });
 
         const importPromise = importScene(exported.zip);
         for (let attempts = 0; attempts < 50 && !resolveDecode; attempts += 1) {

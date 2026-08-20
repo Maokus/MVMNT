@@ -20,18 +20,9 @@ const sampleFrame = {
     values: [0.5],
 };
 
-let publishSpy: MockInstance<
-    Parameters<typeof analysisIntents.publishAnalysisIntent>,
-    ReturnType<typeof analysisIntents.publishAnalysisIntent>
->;
-let clearSpy: MockInstance<
-    Parameters<typeof analysisIntents.clearAnalysisIntent>,
-    ReturnType<typeof analysisIntents.clearAnalysisIntent>
->;
-let sampleSpy: MockInstance<
-    Parameters<typeof featureUtils.sampleFeatureFrame>,
-    ReturnType<typeof featureUtils.sampleFeatureFrame>
->;
+let publishSpy: MockInstance<typeof analysisIntents.publishAnalysisIntent>;
+let clearSpy: MockInstance<typeof analysisIntents.clearAnalysisIntent>;
+let sampleSpy: MockInstance<typeof featureUtils.sampleFeatureFrame>;
 
 describe('sceneApi', () => {
     beforeEach(() => {

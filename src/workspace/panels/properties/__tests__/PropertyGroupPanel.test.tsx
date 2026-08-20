@@ -23,7 +23,7 @@ vi.mock('@context/MacroContext', () => ({
 }));
 
 describe('PropertyGroupPanel', () => {
-    let consoleErrorSpy: MockInstance<Parameters<typeof console.error>, ReturnType<typeof console.error>>;
+    let consoleErrorSpy: MockInstance<typeof console.error>;
 
     beforeEach(() => {
         assignListenerMock.mockClear();

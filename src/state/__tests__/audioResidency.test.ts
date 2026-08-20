@@ -49,13 +49,15 @@ describe('audio decoded residency', () => {
     it('does not resurrect an audio cache entry when rehydrate fails after timeline reset', async () => {
         let rejectDecode: ((error: Error) => void) | undefined;
         const close = vi.fn();
-        (window as any).AudioContext = vi.fn(() => ({
-            decodeAudioData: () =>
-                new Promise<AudioBuffer>((_resolve, reject) => {
-                    rejectDecode = reject;
-                }),
-            close,
-        }));
+        (window as any).AudioContext = vi.fn(function AudioContext() {
+            return {
+                decodeAudioData: () =>
+                    new Promise<AudioBuffer>((_resolve, reject) => {
+                        rejectDecode = reject;
+                    }),
+                close,
+            };
+        });
 
         useTimelineStore.setState((state) => ({
             ...state,
