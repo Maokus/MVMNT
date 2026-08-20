@@ -6,6 +6,8 @@ import { onCanvasMouseDown, onCanvasMouseMove, onCanvasMouseUp, onCanvasMouseLea
 import { useTimelineStore } from '@state/timelineStore';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 import { DRAG_ASSET_TYPE } from '../asset-manager/AssetManagerPanel';
+import { CreateElementPopup } from '@workspace/panels/scene-element';
+import { isTextEditingTarget, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 
 interface PreviewPanelProps {
     interactive?: boolean;
@@ -22,6 +24,28 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
     // Sizing state for display (CSS) size of canvas maintaining aspect ratio
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [displaySize, setDisplaySize] = useState<{ w: number; h: number }>({ w: width, h: height });
+    const [createElementPopupPosition, setCreateElementPopupPosition] = useState<{ x: number; y: number } | null>(null);
+    const pointerInsidePreviewRef = useRef(false);
+    const pointerPositionRef = useRef({ x: 0, y: 0 });
+
+    useGlobalShortcut({
+        id: 'scene.add-element-menu',
+        domain: 'focused-control',
+        enabled: interactive,
+        matches: (event) =>
+            pointerInsidePreviewRef.current &&
+            event.shiftKey &&
+            !event.altKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            event.key.toLowerCase() === 'a' &&
+            !isTextEditingTarget(event.target),
+        handle: (event) => {
+            event.preventDefault();
+            setCreateElementPopupPosition({ ...pointerPositionRef.current });
+            return true;
+        },
+    });
 
     useEffect(() => {
         const el = containerRef.current;
@@ -168,7 +192,19 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
     };
 
     return (
-        <div className="preview-panel">
+        <div
+            className="preview-panel"
+            onPointerEnter={(event) => {
+                pointerInsidePreviewRef.current = true;
+                pointerPositionRef.current = { x: event.clientX, y: event.clientY };
+            }}
+            onPointerMove={(event) => {
+                pointerPositionRef.current = { x: event.clientX, y: event.clientY };
+            }}
+            onPointerLeave={() => {
+                pointerInsidePreviewRef.current = false;
+            }}
+        >
             <div className="canvas-container" ref={containerRef}>
                 <canvas
                     id="canvas"
@@ -191,6 +227,14 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
                     onDrop={interactive ? handleDrop : undefined}
                 ></canvas>
             </div>
+
+            {createElementPopupPosition && (
+                <CreateElementPopup
+                    position={createElementPopupPosition}
+                    onAddElement={addElement}
+                    onClose={() => setCreateElementPopupPosition(null)}
+                />
+            )}
 
             {/* Playback controls removed; use Timeline panel controls instead */}
         </div>
