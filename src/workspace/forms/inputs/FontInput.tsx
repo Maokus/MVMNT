@@ -276,7 +276,7 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                             </FontSection>
                             <FontSection label="Google Fonts · downloads entire family">
                                 {catalogState === 'loading' && <EmptyRow>Loading catalog…</EmptyRow>}
-                                {filteredGoogle.slice(0, 150).map((family) => (
+                                {filteredGoogle.map((family) => (
                                     <FontRow
                                         key={family.family}
                                         family={family.family}

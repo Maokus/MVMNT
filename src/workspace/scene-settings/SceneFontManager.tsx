@@ -276,7 +276,7 @@ const SceneFontManager: React.FC = () => {
                     {loadingCatalog && <p className="text-xs text-neutral-500">Loading catalog…</p>}
                     {catalogError && <p className="text-xs text-rose-400">{catalogError}</p>}
                     <div className="max-h-[280px] overflow-y-auto">
-                        {filteredCatalog.slice(0, 250).map((family) => (
+                        {filteredCatalog.map((family) => (
                             <button
                                 key={family.family}
                                 type="button"

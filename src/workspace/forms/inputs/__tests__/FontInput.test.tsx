@@ -73,4 +73,28 @@ describe('FontInput source separation', () => {
         });
         await waitFor(() => expect(onChange).toHaveBeenCalledWith('Project:remote-sans|400'));
     });
+
+    it('shows every family returned by the Google Fonts catalog', async () => {
+        fetchGoogleFontCatalog.mockResolvedValue({
+            fetchedAt: 1,
+            items: Array.from({ length: 251 }, (_, index) => ({
+                family: `Catalog Font ${index + 1}`,
+                variants: ['regular'],
+                files: { regular: `https://fonts.gstatic.com/catalog-${index + 1}.woff2` },
+            })),
+        });
+
+        render(
+            <FontInput
+                id="font"
+                value="BuiltIn:inter|400"
+                schema={{ default: 'BuiltIn:inter|400' }}
+                onChange={vi.fn()}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: /Inter.*built-in/i }));
+
+        expect(await screen.findByRole('button', { name: /Catalog Font 251/i })).toBeInTheDocument();
+    });
 });

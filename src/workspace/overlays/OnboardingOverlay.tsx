@@ -55,7 +55,7 @@ const OnboardingOverlay: React.FC<OnboardingOverlayProps> = ({ onClose }) => {
                     </Link>
                 </div>
                 <p className="text-[11px] opacity-60 mt-[18px]">
-                    (You can open the About page any time via the logo in the top right.)
+                    (Tutorials and more detailed onboarding will be added in the future...)
                 </p>
             </div>
         </div>

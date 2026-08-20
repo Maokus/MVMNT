@@ -43,11 +43,13 @@ const ChangelogPage: React.FC = () => {
                             ],
                             'Scene Element Improvements',
                             [
-                                'Groups and recursive transforms',
+                                'Graph structure allows groups and recursive transforms!',
                                 'Multiselect: transform, edit properties in batches',
                                 'Pseudo-3d perspective transform',
                                 'New builtin elements: Vectorscope and spectrogram',
                                 'Improved chord estimation algorithm',
+                                'Shift+A add element menu',
+                                'System for custom property panel ui elements',
                             ],
                             'API 2.0',
                             [
@@ -68,6 +70,7 @@ const ChangelogPage: React.FC = () => {
                                 'Double click to manually enter tempo values in tempo automation',
                                 'Change duplicate element name behaviour (no more _copy chains, ivlayz req)',
                                 'Analytics',
+                                'Automatic update checking',
                             ],
                             'Audio optimisation',
                             [
