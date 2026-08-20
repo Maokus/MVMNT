@@ -1,14 +1,15 @@
 import { BoundSceneElement, asNumber, type PropertyTransform } from '@core/scene/runtime/bound-scene-element';
-import { Line, Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
+import { ClipLayer, Line, Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/scene/runtime/schema';
 import { applyOpacity } from '@utils/color';
 import { prop, insertElementConfig } from '@core/scene/runtime/schema-builders';
 import { propGroup, tab } from '@core/scene/built-ins/schema-groups';
 import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/built-ins/define-built-in';
+import { parseFontSelection } from '@fonts/font-loader';
 
-const DEFAULT_TRACE_COLOR = '#A78BFA';
+const DEFAULT_TRACE_COLOR = '#FFFFFF';
 const DEFAULT_GRID_COLOR = '#64748B';
-const DEFAULT_BACKGROUND_COLOR = '#0F172A';
+const DEFAULT_BACKGROUND_COLOR = '#000000';
 const ROOT_TWO = Math.sqrt(2);
 const RGB_LOW_CUTOFF_HZ = 200;
 const RGB_HIGH_CUTOFF_HZ = 2_000;
@@ -59,10 +60,8 @@ function normalizeColorMode(value: unknown): VectorscopeColorMode {
 }
 
 /** Values at the labelled scope ticks, expressed in the source-sample domain. */
-export function getVectorscopeScaleMarkers(scale: number, gain: number): number[] {
-    if (gain <= 0) return [];
-    const inputRange = scale / gain;
-    return [-inputRange, -inputRange / 2, -inputRange / 4, 0, inputRange / 4, inputRange / 2, inputRange];
+export function getVectorscopeScaleMarkers(scale: number): number[] {
+    return [-scale, -scale / 2, -scale / 4, 0, scale / 4, scale / 2, scale];
 }
 
 function formatScaleMarker(value: number): string {
@@ -91,7 +90,6 @@ export function buildVectorscopeRgbColors(
     left: Float32Array,
     right: Float32Array,
     sampleRate: number,
-    gain: number,
     pointCount: number
 ): string[] {
     const count = Math.min(left.length, right.length);
@@ -111,7 +109,7 @@ export function buildVectorscopeRgbColors(
     let pointIndex = 0;
 
     for (let index = 0; index < count; index += 1) {
-        const mono = ((left[index] ?? 0) + (right[index] ?? 0)) * 0.5 * gain;
+        const mono = ((left[index] ?? 0) + (right[index] ?? 0)) * 0.5;
         lowPass = lowCoefficient * lowPass + (1 - lowCoefficient) * mono;
         highPassSource = highCoefficient * highPassSource + (1 - highCoefficient) * mono;
         const low = lowPass;
@@ -135,7 +133,6 @@ export function buildVectorscopePoints(
     right: Float32Array,
     width: number,
     height: number,
-    gain: number,
     pointCount: number,
     mode: VectorscopeMode = 'bipolar-scaled',
     scale = 1
@@ -148,11 +145,11 @@ export function buildVectorscopePoints(
         const sourceIndex = sourceIndexForPoint(index, count, target);
         const rawLeft = left[sourceIndex] ?? 0;
         const rawRight = right[sourceIndex] ?? 0;
-        const level = Math.max(Math.abs(rawLeft * gain), Math.abs(rawRight * gain));
-        // Gain is applied before display scaling. A scale of 2 therefore shows ±2 at the edge,
-        // while a scale of 0.5 zooms the same signal in by two.
-        const l = clamp((rawLeft * gain) / scale, -1, 1);
-        const r = clamp((rawRight * gain) / scale, -1, 1);
+        const level = Math.max(Math.abs(rawLeft), Math.abs(rawRight));
+        // Values outside the display range deliberately remain out of bounds so the trace geometry
+        // is preserved and clipped at the element edge.
+        const l = rawLeft / scale;
+        const r = rawRight / scale;
         const side = (l - r) / ROOT_TWO;
         const mid = (l + r) / ROOT_TWO;
         let normalizedX: number;
@@ -167,12 +164,12 @@ export function buildVectorscopePoints(
                 normalizedY = Math.abs(mid) / ROOT_TWO;
                 break;
             case 'unipolar-unscaled':
-                normalizedX = Math.abs(clamp(side, -1, 1));
-                normalizedY = Math.abs(clamp(mid, -1, 1));
+                normalizedX = Math.abs(side);
+                normalizedY = Math.abs(mid);
                 break;
             case 'bipolar-unscaled':
-                normalizedX = clamp(side, -1, 1);
-                normalizedY = clamp(mid, -1, 1);
+                normalizedX = side;
+                normalizedY = mid;
                 break;
             case 'bipolar-scaled':
             default:
@@ -205,6 +202,38 @@ export class AudioVectorscopeElement extends BoundSceneElement {
                 name: 'Audio Vectorscope',
                 description: 'Stereo mid/side XY display drawn from raw audio.',
                 category: 'Audio Displays',
+                presets: [
+                    {
+                        id: 'no-frills',
+                        label: 'No Frills',
+                        description: 'Black background with a white trace and grid.',
+                        values: {
+                            backgroundColor: '#000000',
+                            backgroundOpacity: 1,
+                            color: '#FFFFFF',
+                            opacity: 1,
+                            gridColor: '#FFFFFF',
+                            gridOpacity: 0.5,
+                            labelColor: '#FFFFFF',
+                            labelOpacity: 0.5,
+                            showLabels: true,
+                            traceMode: 'lines',
+                            traceWidth: 1.5,
+                        },
+                    },
+                    {
+                        id: 'just-trace',
+                        label: 'Just Trace',
+                        description: 'White trace without a background, grid, or labels.',
+                        values: {
+                            backgroundOpacity: 0,
+                            gridOpacity: 0,
+                            showLabels: false,
+                            color: '#FFFFFF',
+                            opacity: 1,
+                        },
+                    },
+                ],
             },
             [
                 tab.content([
@@ -235,16 +264,6 @@ export class AudioVectorscopeElement extends BoundSceneElement {
                                 max: 2048,
                                 step: 1,
                                 runtime: { transform: boundedNumber(64, 2048), defaultValue: 1024 },
-                            },
-                            {
-                                key: 'gain',
-                                type: 'number',
-                                label: 'Gain',
-                                default: 1,
-                                min: 0,
-                                max: 10,
-                                step: 0.01,
-                                runtime: { transform: boundedNumber(0, 10), defaultValue: 1 },
                             },
                             {
                                 key: 'scale',
@@ -293,29 +312,16 @@ export class AudioVectorscopeElement extends BoundSceneElement {
                                     { label: 'Solid', value: 'solid' },
                                     { label: 'RGB (Frequency Bands)', value: 'rgb-meter' },
                                 ],
+                                visibleWhen: [{ key: 'traceMode', equals: 'points' }],
                                 runtime: { transform: (value) => normalizeColorMode(value), defaultValue: 'solid' },
                             },
                             prop.number('traceWidth', 'Trace Width (px)', 1.5, { min: 0.25, max: 12, step: 0.25 }),
-                            prop.boolean('showGrid', 'Show Grid', true),
                             prop.boolean('showLabels', 'Show L/R Labels', true),
                         ],
                     },
                 ]),
                 tab.appearance([
-                    propGroup.appearance({ blendMode: true }),
-                    {
-                        id: 'trace',
-                        label: 'Trace',
-                        collapsed: false,
-                        properties: [
-                            prop.color('color', 'Trace Color', DEFAULT_TRACE_COLOR),
-                            prop.number('opacity', 'Trace Opacity', 1, { min: 0, max: 1, step: 0.01 }),
-                        ],
-                        layout: [
-                            { kind: 'control', control: 'slider', bindings: { value: 'opacity' } },
-                            { kind: 'property', propertyKey: 'opacity' },
-                        ],
-                    },
+                    propGroup.appearance({ blendMode: true, label: 'Trace' }),
                     {
                         id: 'grid',
                         label: 'Grid',
@@ -340,6 +346,18 @@ export class AudioVectorscopeElement extends BoundSceneElement {
                         layout: [
                             { kind: 'control', control: 'slider', bindings: { value: 'backgroundOpacity' } },
                             { kind: 'property', propertyKey: 'backgroundOpacity' },
+                        ],
+                    },
+                    {
+                        id: 'labels',
+                        label: 'Labels',
+                        collapsed: true,
+                        properties: [
+                            prop.font('labelFontFamily', 'Font Family', 'BuiltIn:inter|400'),
+                            prop.number('labelFontSize', 'Font Size (px)', 11, { min: 6, max: 72, step: 1 }),
+                            prop.color('labelColor', 'Color', DEFAULT_GRID_COLOR),
+                            prop.number('labelOpacity', 'Opacity', 0.5, { min: 0, max: 1, step: 0.01 }),
+                            prop.number('labelLetterSpacing', 'Letter Spacing', 0, { min: -10, max: 20, step: 0.5 }),
                         ],
                     },
                 ]),
@@ -388,26 +406,27 @@ export class AudioVectorscopeElement extends BoundSceneElement {
         });
         const right = rightResult.ok ? rightResult.value : left.value;
         const mode = normalizeVectorscopeMode(props.mode);
-        const gain = clamp(props.gain ?? 1, 0, 10);
         const scale = clamp(props.scale ?? 1, 0.05, 10);
-        if (props.showGrid !== false)
-            this.addGrid(
-                objects,
-                width,
-                height,
-                props.gridColor ?? DEFAULT_GRID_COLOR,
-                props.gridOpacity ?? 0.5,
-                props.showLabels !== false,
-                mode,
-                scale,
-                gain
-            );
+        this.addGrid(
+            objects,
+            width,
+            height,
+            props.gridColor ?? DEFAULT_GRID_COLOR,
+            props.gridOpacity ?? 0.5,
+            props.showLabels !== false,
+            props.labelFontFamily ?? 'BuiltIn:inter|400',
+            props.labelFontSize ?? 11,
+            props.labelColor ?? DEFAULT_GRID_COLOR,
+            props.labelOpacity ?? 0.5,
+            props.labelLetterSpacing ?? 0,
+            mode,
+            scale
+        );
         const points = buildVectorscopePoints(
             left.value,
             right,
             width,
             height,
-            gain,
             clamp(Math.round(props.pointCount ?? 1024), 64, 2048),
             mode,
             scale
@@ -418,30 +437,30 @@ export class AudioVectorscopeElement extends BoundSceneElement {
         const traceWidth = Math.max(0.25, props.traceWidth ?? 1.5);
         const traceMode = normalizeTraceMode(props.traceMode);
         const colorMode = normalizeColorMode(props.colorMode);
+        const traceLayer = new ClipLayer(width, height, { layoutParticipation: 'exclude' });
         if (traceMode === 'points') {
             const pointSize = Math.max(1, traceWidth);
+            const minimumDotOpacity = colorMode === 'rgb-meter' ? 0.42 : 0.18;
             const channelMetadata = audio.getChannelMetadata(props.audioTrackId);
             const sampleRate = channelMetadata.ok ? channelMetadata.value.sampleRate : 48_000;
             const rgbColors =
                 colorMode === 'rgb-meter'
-                    ? buildVectorscopeRgbColors(left.value, right, sampleRate, gain, points.length)
+                    ? buildVectorscopeRgbColors(left.value, right, sampleRate, points.length)
                     : [];
             for (const [index, point] of points.entries()) {
                 const color = rgbColors[index] ?? traceColor;
                 const dot = new Rectangle(point.x - pointSize / 2, point.y - pointSize / 2, pointSize, pointSize, {
-                    fillColor: applyOpacity(color, traceOpacity * (0.18 + 0.82 * point.age)),
+                    fillColor: applyOpacity(
+                        color,
+                        traceOpacity * (minimumDotOpacity + (1 - minimumDotOpacity) * point.age)
+                    ),
                     layoutParticipation: 'exclude',
                 });
-                // MiniMeters uses additive blending for its RGB stereometer, allowing overlapping
-                // band-colored dots to reveal the full frequency balance.
                 dot.blendMode =
-                    colorMode === 'rgb-meter'
-                        ? 'lighter'
-                        : props.blendMode === 'source-over'
-                          ? null
-                          : (props.blendMode as GlobalCompositeOperation);
-                objects.push(dot);
+                    props.blendMode === 'source-over' ? null : (props.blendMode as GlobalCompositeOperation);
+                traceLayer.addChild(dot);
             }
+            objects.push(traceLayer);
             return objects;
         }
         const segmentCount = 6;
@@ -456,8 +475,9 @@ export class AudioVectorscopeElement extends BoundSceneElement {
             });
             trace.setClosed(false).setLineJoin('round').setLineCap('round');
             trace.blendMode = props.blendMode === 'source-over' ? null : (props.blendMode as GlobalCompositeOperation);
-            objects.push(trace);
+            traceLayer.addChild(trace);
         }
+        objects.push(traceLayer);
         return objects;
     }
 
@@ -468,28 +488,33 @@ export class AudioVectorscopeElement extends BoundSceneElement {
         color: string,
         opacity: number,
         showLabels: boolean,
+        fontSelection: string,
+        fontSize: number,
+        labelColor: string,
+        labelOpacity: number,
+        labelLetterSpacing: number,
         mode: VectorscopeMode,
-        scale: number,
-        gain: number
+        scale: number
     ): void {
         const gridColor = applyOpacity(color, clamp(opacity, 0, 1));
+        const { family, weight } = parseFontSelection(fontSelection);
+        const labelFont = `${weight ?? '400'} ${clamp(fontSize, 6, 72)}px ${family || 'Inter'}, sans-serif`;
+        const resolvedLabelColor = applyOpacity(labelColor, clamp(labelOpacity, 0, 1));
         const addLine = (x: number, y: number, dx: number, dy: number) =>
             objects.push(
                 new Line(x, y, x + dx, y + dy, { color: gridColor, lineWidth: 1, layoutParticipation: 'exclude' })
             );
         const addLabel = (x: number, y: number, text: string, align: CanvasTextAlign = 'left') =>
             objects.push(
-                new Text(x, y, text, '11px Inter, sans-serif', { color: gridColor, align }).setLayoutParticipation(
-                    'exclude'
-                )
+                new Text(x, y, text, labelFont, {
+                    color: resolvedLabelColor,
+                    align,
+                    letterSpacing: clamp(labelLetterSpacing, -10, 20),
+                }).setLayoutParticipation('exclude')
             );
         const addScaleMarkers = (centered: boolean) => {
             if (!showLabels) return;
-            const markerValues = getVectorscopeScaleMarkers(scale, gain);
-            if (!markerValues.length) {
-                addLabel(width - 4, 12, 'Gain 0', 'right');
-                return;
-            }
+            const markerValues = getVectorscopeScaleMarkers(scale);
             const positive = markerValues.filter((value) => value > 0);
             if (centered) {
                 for (const value of positive) {

@@ -761,13 +761,6 @@ export class BoundSceneElement implements SceneElementInstance {
                     label: 'Element',
                     groups: [
                         {
-                            id: 'basicVisibility',
-                            label: 'Visibility & Layer',
-                            collapsed: false,
-                            description: 'Control whether the element is visible and how it blends with other layers.',
-                            properties: [prop.boolean('visible', 'Visible', true)],
-                        },
-                        {
                             id: 'contentAnchor',
                             label: 'Content Anchor',
                             collapsed: false,

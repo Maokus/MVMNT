@@ -219,7 +219,7 @@ export class AudioSpectrogramElement extends BoundSceneElement {
                         collapsed: false,
                         properties: [
                             prop.number('width', 'Width (px)', 800, { min: 1, step: 1 }),
-                            prop.number('height', 'Height (px)', 300, { min: 1, step: 1 }),
+                            prop.number('height', 'Height (px)', 500, { min: 1, step: 1 }),
                             {
                                 key: 'windowSeconds',
                                 type: 'number',
@@ -240,7 +240,7 @@ export class AudioSpectrogramElement extends BoundSceneElement {
                                 step: 0.01,
                                 runtime: { transform: positiveNumber(0.5, 0, 1), defaultValue: 0.5 },
                             },
-                            prop.boolean('seeFuture', 'See Future', false),
+                            prop.boolean('seeFuture', 'See Future', true),
                             prop.boolean('showPlayhead', 'Show Playhead', true),
                             prop.color('playheadColor', 'Playhead Color', DEFAULT_PLAYHEAD_COLOR),
                             {

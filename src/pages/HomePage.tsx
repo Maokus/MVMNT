@@ -220,8 +220,6 @@ const HomePage: React.FC = () => {
                             >
                                 Privacy
                             </Link>
-                        </div>
-                        <div className="flex flex-wrap gap-4" role="group" aria-label="Community">
                             <Link
                                 to="/community"
                                 className="rounded bg-neutral-800 px-5 py-2.5 text-sm font-medium hover:bg-neutral-700"

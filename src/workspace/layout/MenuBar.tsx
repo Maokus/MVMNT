@@ -110,10 +110,6 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
         event.preventDefault();
         if (await leaveWorkspace()) navigate('/community');
     };
-    const handleGoPrivacy = async (event: React.MouseEvent<HTMLAnchorElement>) => {
-        event.preventDefault();
-        if (await leaveWorkspace()) navigate('/privacy');
-    };
 
     return (
         <>
@@ -164,23 +160,6 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                             title="Browse community templates & plugins"
                         >
                             community
-                        </Link>
-                        <Link
-                            to="/privacy"
-                            onClick={handleGoPrivacy}
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#cccccc',
-                                cursor: 'pointer',
-                                padding: '4px 6px',
-                                borderRadius: 4,
-                                textDecoration: 'none',
-                                fontSize: 12,
-                            }}
-                            title="Privacy and analytics settings"
-                        >
-                            privacy
                         </Link>
                     </nav>
                 </div>

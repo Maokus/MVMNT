@@ -72,13 +72,11 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         // initialized at this point — it's a useMemo declared further down).
         const oldTabId = useSceneEditorStore.getState().activePropertyTab[lastRenderedElementId];
         const prevTabLabel =
-            oldTabId === NODE_TRANSFORM_TAB_ID
-                ? 'Transform'
-                : enhancedSchema?.tabs.find((t) => t.id === oldTabId)?.label;
+            oldTabId === NODE_TRANSFORM_TAB_ID ? 'Host' : enhancedSchema?.tabs.find((t) => t.id === oldTabId)?.label;
         if (prevTabLabel && schema) {
             const newTabs = (schema as EnhancedConfigSchema).tabs ?? [];
             const matchingTab =
-                includeNodeTransforms && prevTabLabel === 'Transform'
+                includeNodeTransforms && prevTabLabel === 'Host'
                     ? { id: NODE_TRANSFORM_TAB_ID }
                     : newTabs.find((t) => t.label === prevTabLabel);
             if (matchingTab) {
@@ -123,7 +121,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
 
     const inspectorTabs = useMemo(
         () => [
-            ...(includeNodeTransforms ? [{ id: NODE_TRANSFORM_TAB_ID, label: 'Transform', groups: [] }] : []),
+            ...(includeNodeTransforms ? [{ id: NODE_TRANSFORM_TAB_ID, label: 'Host', groups: [] }] : []),
             ...(enhancedSchema?.tabs ?? []),
         ],
         [enhancedSchema, includeNodeTransforms]
@@ -510,8 +508,8 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 tabs={inspectorTabs}
                 activeTabId={activeTabId}
                 onTabChange={(tabId) => setActivePropertyTab(elementId, tabId)}
-                overflowActions={activeTabId === NODE_TRANSFORM_TAB_ID ? undefined : overflowActions}
-                onSearch={activeTabId === NODE_TRANSFORM_TAB_ID ? undefined : openSearch}
+                overflowActions={overflowActions}
+                onSearch={openSearch}
             />
             {activeTabId === NODE_TRANSFORM_TAB_ID ? <NodeTransformPanel /> : null}
             {activeTabId !== NODE_TRANSFORM_TAB_ID &&

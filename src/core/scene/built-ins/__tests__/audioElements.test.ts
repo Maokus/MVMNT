@@ -2,8 +2,9 @@ import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { AudioVolumeMeterElement } from '@core/scene/built-ins/audio-displays/audio-volume-meter';
 import { AudioLockedOscilloscopeElement } from '@core/scene/built-ins/audio-displays/audio-locked-oscilloscope';
 import { AudioPeaksElement } from '@core/scene/built-ins/audio-displays/audio-peaks';
+import { AudioVectorscopeElement } from '@core/scene/built-ins/audio-displays/audio-vectorscope';
 import { AudioWaveformElement } from '@core/scene/built-ins/audio-displays/audio-waveform';
-import { Line, Poly, Rectangle } from '@core/render/render-objects';
+import { ClipLayer, Line, Poly, Rectangle, Text } from '@core/render/render-objects';
 import * as timelineStore from '@state/timelineStore';
 import * as analysisIntents from '@audio/features/analysisIntents';
 import * as builtInDefinition from '@core/scene/built-ins/define-built-in';
@@ -214,6 +215,84 @@ describe('simplified audio scene elements', () => {
             Poly | undefined;
 
         expect(waveform).toBeInstanceOf(Poly);
+    });
+
+    it('clips vectorscope trace overflow to the element bounds', () => {
+        vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(
+            makeCapabilityContext({ getRawSamples: () => new Float32Array([0, 0.75]) })
+        );
+
+        const element = new AudioVectorscopeElement('vectorscope', {
+            audioTrackId: 'track-1',
+            width: 200,
+            height: 200,
+            scale: 0.5,
+        });
+
+        const [container] = element.buildRenderObjects({}, 1);
+        const traceLayer = (container as any).children.find((child: unknown) => child instanceof ClipLayer) as
+            ClipLayer | undefined;
+
+        expect(traceLayer).toMatchObject({ clipWidth: 200, clipHeight: 200 });
+        const trace = traceLayer?.getChildren().find((child) => child instanceof Poly) as Poly | undefined;
+        expect(trace?.points.some((point) => point.y < 0)).toBe(true);
+    });
+
+    it('uses the selected blend mode and stronger opacity for RGB vectorscope dots', () => {
+        vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(
+            makeCapabilityContext({ getRawSamples: () => new Float32Array([0, 0.75]) })
+        );
+
+        const element = new AudioVectorscopeElement('vectorscope', {
+            audioTrackId: 'track-1',
+            traceMode: 'points',
+            colorMode: 'rgb-meter',
+            blendMode: 'multiply',
+            showLabels: false,
+        });
+
+        const [container] = element.buildRenderObjects({}, 1);
+        const traceLayer = (container as any).children.find(
+            (child: unknown) => child instanceof ClipLayer
+        ) as ClipLayer;
+        const dot = traceLayer.getChildren().find((child) => child instanceof Rectangle) as Rectangle;
+
+        expect(dot.blendMode).toBe('multiply');
+        expect(dot.fillColor).toBe('#0000006B');
+    });
+
+    it('exposes vectorscope visual presets and label typography without legacy controls', () => {
+        const schema = AudioVectorscopeElement.getConfigSchema();
+        const propertyKeys = schema.tabs.flatMap((tab) =>
+            tab.groups.flatMap((group) => group.properties.map((prop) => prop.key))
+        );
+
+        expect(propertyKeys).toContain('labelFontFamily');
+        expect(propertyKeys).toContain('labelFontSize');
+        expect(propertyKeys).toContain('labelColor');
+        expect(propertyKeys).not.toContain('gain');
+        expect(propertyKeys).not.toContain('showGrid');
+        expect(schema.presets?.map((preset) => preset.id)).toEqual(['no-frills', 'just-trace']);
+    });
+
+    it('applies vectorscope label typography to axis and scale labels', () => {
+        vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(
+            makeCapabilityContext({ getRawSamples: () => new Float32Array([0, 0.5]) })
+        );
+
+        const element = new AudioVectorscopeElement('vectorscope', {
+            audioTrackId: 'track-1',
+            labelFontSize: 18,
+            labelColor: '#FF0000',
+            labelLetterSpacing: 2,
+        });
+
+        const [container] = element.buildRenderObjects({}, 1);
+        const label = (container as any).children.find((child: unknown) => child instanceof Text) as Text;
+
+        expect(label.font).toContain('18px');
+        expect(label.color).toBe('#FF000080');
+        expect(label.letterSpacing).toBe(2);
     });
 
     it('samples peak envelopes from discrete analysis windows', () => {

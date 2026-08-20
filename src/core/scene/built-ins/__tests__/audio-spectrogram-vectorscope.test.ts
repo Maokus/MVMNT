@@ -66,7 +66,6 @@ describe('audio vectorscope display helpers', () => {
             new Float32Array([0, 0.5, -0.5]),
             200,
             200,
-            1,
             3
         );
         expect(points).toHaveLength(3);
@@ -80,7 +79,6 @@ describe('audio vectorscope display helpers', () => {
             new Float32Array([-1, -1, -1, -1]),
             200,
             200,
-            1,
             64
         );
         expect(points).toHaveLength(4);
@@ -93,9 +91,9 @@ describe('audio vectorscope display helpers', () => {
     it('supports unipolar, bipolar, and lissajous coordinate modes', () => {
         const left = new Float32Array([0.5, -0.5]);
         const right = new Float32Array([0.5, 0.5]);
-        const bipolar = buildVectorscopePoints(left, right, 200, 200, 1, 2, 'bipolar-scaled');
-        const unipolar = buildVectorscopePoints(left, right, 200, 200, 1, 2, 'unipolar-scaled');
-        const lissajous = buildVectorscopePoints(left, right, 200, 200, 1, 2, 'lissajous');
+        const bipolar = buildVectorscopePoints(left, right, 200, 200, 2, 'bipolar-scaled');
+        const unipolar = buildVectorscopePoints(left, right, 200, 200, 2, 'unipolar-scaled');
+        const lissajous = buildVectorscopePoints(left, right, 200, 200, 2, 'lissajous');
 
         // Unipolar modes use the full positive mid/side quadrant, with a lower-left origin.
         expect(unipolar.every((point) => point.x >= 0 && point.y <= 200)).toBe(true);
@@ -107,27 +105,56 @@ describe('audio vectorscope display helpers', () => {
         expect(lissajous[1]).toMatchObject({ x: 50, y: 50 });
     });
 
-    it('applies display scale after gain, so it can zoom without changing audio gain', () => {
+    it('uses display scale to zoom the signal without altering its level', () => {
         const points = buildVectorscopePoints(
             new Float32Array([0, 0.5]),
             new Float32Array([0, 0.5]),
             200,
             200,
             2,
-            2,
             'bipolar-scaled',
-            2
+            0.5
         );
 
-        // 0.5 × gain 2 ÷ display scale 2 = 0.5, exactly as with unity gain at unity scale.
+        // 0.5 ÷ display scale 0.5 reaches the scope edge while the source level remains 0.5.
         expect(points[1]?.x).toBe(100);
-        expect(points[1]?.y).toBeCloseTo(50);
-        expect(points[1]?.level).toBe(1);
+        expect(points[1]?.y).toBeCloseTo(0);
+        expect(points[1]?.level).toBe(0.5);
     });
 
-    it('derives grid marker values from both display scale and gain', () => {
-        expect(getVectorscopeScaleMarkers(2, 4)).toEqual([-0.5, -0.25, -0.125, 0, 0.125, 0.25, 0.5]);
-        expect(getVectorscopeScaleMarkers(1, 0)).toEqual([]);
+    it('preserves coordinates beyond the display range for edge clipping', () => {
+        const points = buildVectorscopePoints(
+            new Float32Array([0, 0.75]),
+            new Float32Array([0, 0.75]),
+            200,
+            200,
+            2,
+            'bipolar-scaled',
+            0.5
+        );
+
+        // 0.75 ÷ 0.5 = 1.5, so the trace continues 50 px above the element rather than
+        // being clamped to its top edge. The renderer clips this overflow at the element bounds.
+        expect(points[1]?.x).toBe(100);
+        expect(points[1]?.y).toBeCloseTo(-50);
+    });
+
+    it('preserves overflow in unscaled modes too', () => {
+        const points = buildVectorscopePoints(
+            new Float32Array([0, 1]),
+            new Float32Array([0, -1]),
+            200,
+            200,
+            2,
+            'bipolar-unscaled',
+            1
+        );
+
+        expect(points[1]?.x).toBeGreaterThan(200);
+    });
+
+    it('derives grid marker values from display scale', () => {
+        expect(getVectorscopeScaleMarkers(2)).toEqual([-2, -1, -0.5, 0, 0.5, 1, 2]);
     });
 
     it('maps low, mid, and high frequency energy to RGB point components', () => {
@@ -139,7 +166,7 @@ describe('audio vectorscope display helpers', () => {
             );
         const componentsFor = (frequency: number) => {
             const samples = samplesFor(frequency);
-            const color = buildVectorscopeRgbColors(samples, samples, sampleRate, 1, samples.length).at(-1)!;
+            const color = buildVectorscopeRgbColors(samples, samples, sampleRate, samples.length).at(-1)!;
             return color.match(/\d+/g)!.map(Number);
         };
 

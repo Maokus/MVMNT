@@ -51,7 +51,7 @@ const TrackList: React.FC<TrackListProps> = ({ trackIds, activeTab, setActiveTab
                     {tabButton('automation', 'Automation')}
                 </div>
                 <div className="empty-track-list text-sm text-neutral-400 p-3">
-                    No tracks yet. Add a MIDI track using the button above or via the scene editor.
+                    No tracks yet. Add a MIDI track using the button above.
                 </div>
             </div>
         );
