@@ -27,12 +27,7 @@ export default defineConfig(({ mode }) => {
                 fileName: (_format, entryName) => `${entryName}.js`,
             },
             rollupOptions: {
-                external: [
-                    'electron',
-                    'electron-squirrel-startup',
-                    ...builtinModules,
-                    ...builtinModules.map((name) => `node:${name}`),
-                ],
+                external: ['electron', ...builtinModules, ...builtinModules.map((name) => `node:${name}`)],
             },
             target: 'node22',
             sourcemap: true,
