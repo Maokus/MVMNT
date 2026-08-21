@@ -14,7 +14,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFile, execFileSync } from 'node:child_process';
+import { execFile, execFileSync, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
     app,
@@ -30,7 +30,6 @@ import {
     utilityProcess,
     type MenuItemConstructorOptions,
 } from 'electron';
-import started from 'electron-squirrel-startup';
 import { createBuildInfo, resolveUpdateAvailability, type UpdateCheckResult } from './shared/build-info.js';
 import type {
     CloseRequestResult,
@@ -1454,8 +1453,34 @@ function configureSession(): void {
     });
 }
 
+function handleSquirrelStartup(): boolean {
+    if (process.platform !== 'win32') return false;
+
+    const runSquirrelCommand = (args: string[], done: () => void): void => {
+        const updateExe = resolve(dirname(process.execPath), '..', 'Update.exe');
+        spawn(updateExe, args, { detached: true }).on('close', done);
+    };
+
+    const squirrelCommand = process.argv[1];
+    const target = basename(process.execPath);
+    switch (squirrelCommand) {
+        case '--squirrel-install':
+        case '--squirrel-updated':
+            runSquirrelCommand([`--createShortcut=${target}`], () => app.quit());
+            return true;
+        case '--squirrel-uninstall':
+            runSquirrelCommand([`--removeShortcut=${target}`], () => app.quit());
+            return true;
+        case '--squirrel-obsolete':
+            app.quit();
+            return true;
+        default:
+            return false;
+    }
+}
+
 removeWindowsFileAssociationsOnUninstall();
-if (started) app.quit();
+if (handleSquirrelStartup()) app.quit();
 
 const hasSingleInstanceLock = renderCommand ? true : app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
