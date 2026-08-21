@@ -1,7 +1,7 @@
 import { builtinModules } from 'node:module';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig, loadEnv, esmExternalRequirePlugin } from 'vite';
 import { buildMetadataDefines } from '../scripts/build-metadata.mjs';
 
 const electronDirectory = fileURLToPath(new URL('.', import.meta.url));
@@ -10,6 +10,11 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '');
 
     return {
+        plugins: [
+            esmExternalRequirePlugin({
+                external: ['electron', ...builtinModules, ...builtinModules.map((name) => `node:${name}`)],
+            }),
+        ],
         define: {
             ...buildMetadataDefines(),
             __POSTHOG_CSP_CONNECT_SRC__: JSON.stringify(env.VITE_PUBLIC_POSTHOG_HOST),
