@@ -23,6 +23,7 @@ import type { AutomationChannel, AutomationKeyframe } from '@automation/types';
 import type { AutomatedSceneNodeView } from '@automation/selectors';
 import { descriptorForTarget, fallbackDescriptor } from '@state/scene/propertyCatalog';
 import { isTextEditingTarget, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
+import { isCommandSurfaceActive } from '@context/commands/commandContext';
 
 interface KfMove {
     channelId: string;
@@ -646,8 +647,9 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
         id: 'timeline.automation-keyframes',
         domain: 'timeline',
         matches: (event) =>
-            ['j', 'k', 'Delete', 'Backspace'].includes(event.key) ||
-            ((event.metaKey || event.ctrlKey) && ['c', 'd', 'v'].includes(event.key)),
+            isCommandSurfaceActive('timeline-automation', event) &&
+            (['j', 'k', 'Delete', 'Backspace'].includes(event.key) ||
+                ((event.metaKey || event.ctrlKey) && ['c', 'd', 'v'].includes(event.key))),
         handle: (event) => {
             handleAutomationShortcut(event);
             return event.defaultPrevented;

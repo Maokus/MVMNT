@@ -90,7 +90,7 @@ export const timeDisplay = defineBuiltInElement<Props, undefined>({
         ],
     },
     capabilities: { required: [], optional: ['timeline.read', 'timing.conversion'] },
-    render(props, _state, time, context) {
+    render(props, _instanceState, time, context) {
         const metadata = context.timeline?.getMetadata();
         const bpm = metadata?.ok ? metadata.value.tempoBpm : 120;
         const beatsPerBar = metadata?.ok ? metadata.value.timeSignature.numerator : 4;

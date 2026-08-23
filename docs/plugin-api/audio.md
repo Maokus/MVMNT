@@ -17,7 +17,7 @@ export const spectrum = definePluginElement({
     audioFeatureDemands(props) {
         return [{ id: 'spectrogram', trackId: props.audioTrackId, feature: 'spectrogram' }];
     },
-    render(props, _state, time, context) {
+    render(props, _instanceState, time, context) {
         const sample = context.audio!.sampleFeature({
             trackId: props.audioTrackId,
             feature: 'spectrogram',

@@ -124,7 +124,7 @@ export const notesPlayedTracker = defineBuiltInElement<Props, undefined>({
         ],
     },
     capabilities: { required: ['timeline.read'], optional: [] },
-    render(props, _state, time, context) {
+    render(props, _instanceState, time, context) {
         let notes: readonly any[] = [];
         let cc: readonly any[] = [];
         if (props.midiTrackId) {

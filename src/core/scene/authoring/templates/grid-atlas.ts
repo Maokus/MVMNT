@@ -49,16 +49,16 @@ export const gridAtlas = definePluginElement({
             bounds: new Rectangle(0, 0, 128, 128),
         };
     },
-    render(props, state) {
-        state.bounds.width = props.size;
-        state.bounds.height = props.size;
-        const asset = state.sheet.get();
-        state.media
+    render(props, instanceState) {
+        instanceState.bounds.width = props.size;
+        instanceState.bounds.height = props.size;
+        const asset = instanceState.sheet.get();
+        instanceState.media
             .setResource(asset.resource as never, asset.status)
             .setAnimation(null)
             .setLocalTime(props.frameIndex)
             .setDimensions(props.size, props.size)
             .setFitMode('contain');
-        return [state.bounds, state.media];
+        return [instanceState.bounds, instanceState.media];
     },
 });

@@ -14,13 +14,15 @@ const builtInCapabilities = new WeakMap<PluginElementDefinition<any, any>, Eleme
 /** Defines a first-party element and records its grants outside the public SDK contract. */
 export function defineBuiltInElement<
     Props extends Readonly<Record<string, unknown>>,
-    State = undefined,
+    InstanceState = undefined,
     Schema = unknown,
 >(
-    input: PluginElementDefinitionInput<Props, State, Schema> & { capabilities: ElementCapabilities }
-): PluginElementDefinition<Props, State, Schema> {
+    input: PluginElementDefinitionInput<Props, InstanceState, Schema> & { capabilities: ElementCapabilities }
+): PluginElementDefinition<Props, InstanceState, Schema> {
     const { capabilities, ...definitionInput } = input;
-    const definition = definePluginElement(definitionInput as PluginElementDefinitionInput<Props, State, Schema>);
+    const definition = definePluginElement(
+        definitionInput as PluginElementDefinitionInput<Props, InstanceState, Schema>
+    );
     builtInCapabilities.set(definition, capabilities);
     return definition;
 }

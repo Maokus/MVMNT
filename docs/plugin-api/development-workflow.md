@@ -41,8 +41,9 @@ After a successful rebuild MVMNT:
 3. Validates and loads the replacement even when its version is unchanged.
 4. Recreates matching runtime instances from the existing scene properties.
 
-Scene IDs and property values survive. State returned by `create()` does not; the replacement gets
-a fresh instance. This is a lifecycle-accurate reload rather than JavaScript module replacement.
+Scene IDs and property values survive. Instance state returned by `create()` does not; the
+replacement gets a fresh value. This is a lifecycle-accurate reload rather than JavaScript module
+replacement.
 
 Development archives are session-only and are removed when their server shuts down or remains
 unreachable. Use `npm run build` for a distributable archive.

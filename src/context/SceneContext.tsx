@@ -10,7 +10,7 @@ import { LocalFileStore } from '@persistence/local-file-store';
 import { useDirtyTracking } from '@hooks/useDirtyTracking';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
 import { useTimelineStore } from '@state/timelineStore';
-import { isTextEditingTarget, useGlobalShortcut } from './shortcuts/shortcutRegistry';
+import { matchesShortcut, useGlobalShortcut } from './shortcuts/shortcutRegistry';
 
 interface SceneContextValue {
     sceneName: string;
@@ -216,15 +216,24 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         id: 'document.file',
         domain: 'document',
         matches: (event) =>
-            (event.ctrlKey || event.metaKey) &&
-            !isTextEditingTarget(event.target) &&
-            ['s', 'o', 'n'].includes(event.key.toLowerCase()),
+            matchesShortcut(event, { key: 's', primary: true, shift: event.shiftKey }) ||
+            matchesShortcut(event, { key: 'o', primary: true }) ||
+            matchesShortcut(event, { key: 'n', primary: true }),
         handle: (event) => {
             event.preventDefault();
             const key = event.key.toLowerCase();
-            if (key === 's') void (event.shiftKey ? saveAs() : saveToLocal());
-            else if (key === 'o') loadScene();
-            else menuBarActions.createNewDefaultScene();
+            const run = () => {
+                if (key === 's') void (event.shiftKey ? saveAs() : saveToLocal());
+                else if (key === 'o') loadScene();
+                else menuBarActions.createNewDefaultScene();
+            };
+            const active = document.activeElement as HTMLElement | null;
+            if (active?.matches('input, textarea, select, [contenteditable="true"], [role="textbox"]')) {
+                active.blur();
+                queueMicrotask(run);
+            } else {
+                run();
+            }
             return true;
         },
     });

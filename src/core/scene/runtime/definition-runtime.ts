@@ -628,7 +628,7 @@ export function createPluginDefinitionScope(
             this.instanceCleanups,
             this.createPropertyApi()
         );
-        private state: any = undefined;
+        private instanceState: any = undefined;
         private initialized = false;
         private initializationFailed = false;
         private readonly requestedFonts = new Map<string, string>();
@@ -809,7 +809,7 @@ export function createPluginDefinitionScope(
                     if (created && typeof (created as PromiseLike<unknown>).then === 'function') {
                         throw new Error('Built-in definition create() must be synchronous');
                     }
-                    this.state = created;
+                    this.instanceState = created;
                     this.initialized = true;
                 } catch (error) {
                     this.initializationFailed = true;
@@ -827,8 +827,13 @@ export function createPluginDefinitionScope(
                 if (!scopeReady || this.instanceController.signal.aborted) return;
                 try {
                     const props = this.getDefinitionProps();
-                    this.state = await definition.create?.(props, this.instanceContext);
-                    this.initialized = !this.instanceController.signal.aborted;
+                    const instanceState = await definition.create?.(props, this.instanceContext);
+                    if (this.instanceController.signal.aborted) {
+                        definition.dispose?.(instanceState, this.instanceContext);
+                        return;
+                    }
+                    this.instanceState = instanceState;
+                    this.initialized = true;
                 } catch (error) {
                     this.initializationFailed = true;
                     options.report(
@@ -879,7 +884,7 @@ export function createPluginDefinitionScope(
                     : {}),
                 ...(Number.isFinite(_config?.playRangeEndSec) ? { playbackEndSeconds: _config.playRangeEndSec } : {}),
             });
-            return [...definition.render(props, this.state, time, this.instanceContext)] as RenderObject[];
+            return [...definition.render(props, this.instanceState, time, this.instanceContext)] as RenderObject[];
         }
 
         protected override onPropertyChanged(key: string, oldValue: unknown, newValue: unknown): void {
@@ -893,10 +898,11 @@ export function createPluginDefinitionScope(
         }
 
         protected override onDestroy(): void {
+            if (this.instanceController.signal.aborted) return;
             clearDeclarativeAudioFeatureDemands(this);
             this.instanceController.abort();
             for (const cleanup of [...this.instanceCleanups]) cleanup();
-            void definition.dispose?.(this.state, this.instanceContext);
+            if (this.initialized) definition.dispose?.(this.instanceState, this.instanceContext);
             super.onDestroy();
         }
     }

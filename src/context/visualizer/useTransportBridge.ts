@@ -1,6 +1,7 @@
 import { useCallback, useEffect, type Dispatch, type SetStateAction } from 'react';
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 import { isTextEditingTarget, useGlobalShortcut } from '../shortcuts/shortcutRegistry';
+import { isCommandSurfaceActive } from '../commands/commandContext';
 
 interface UseTransportBridgeArgs {
     visualizer: any | null;
@@ -28,7 +29,7 @@ export function useTransportBridge({ visualizer, setIsPlaying }: UseTransportBri
         matches: (event) => {
             if (isTextEditingTarget(event.target)) return false;
             return (
-                event.code === 'Space' ||
+                (event.code === 'Space' && !isCommandSurfaceActive(['timeline-clips', 'timeline-automation'], event)) ||
                 ((event.ctrlKey || event.metaKey) && ['ArrowLeft', 'ArrowRight'].includes(event.code))
             );
         },

@@ -16,6 +16,7 @@ import {
     prepareTimelineClipPaste,
 } from '../clipboard/midiClipClipboard';
 import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
+import { isCommandSurfaceActive } from '@context/commands/commandContext';
 
 /**
  * Provides view preset callbacks (fitAll, zoomToSelection, centerOnPlayhead, frameSelection)
@@ -139,9 +140,20 @@ export function useTimelineNavigation() {
     useGlobalShortcut({
         id: 'timeline.navigation',
         domain: 'timeline',
-        matches: (event) =>
-            !isEditableTarget(event.target as Element | null) &&
-            ['+', '=', '-', '!', '@', 'f', 'F', 's', 'S', 'ArrowLeft', 'ArrowRight'].includes(event.key),
+        matches: (event) => {
+            if (
+                !isCommandSurfaceActive(['timeline-clips', 'timeline-automation'], event) ||
+                isEditableTarget(event.target as Element | null) ||
+                event.altKey ||
+                event.metaKey ||
+                event.ctrlKey
+            ) {
+                return false;
+            }
+            if (event.code === 'Digit1' || event.code === 'Digit2') return event.shiftKey;
+            if (event.code === 'Equal' || event.code === 'Minus') return true;
+            return !event.shiftKey && ['KeyF', 'KeyS', 'ArrowLeft', 'ArrowRight'].includes(event.code);
+        },
         handle: (e) => {
             const ZOOM_STEP = 1.3;
             if (isEditableTarget(document.activeElement)) return;
@@ -149,40 +161,32 @@ export function useTimelineNavigation() {
             const { startTick, endTick } = state.timelineView;
             const center = (startTick + endTick) / 2;
 
-            switch (e.key) {
-                case '+':
-                case '=': {
+            switch (e.code) {
+                case 'Equal': {
                     const { newStart, newEnd } = zoomAround(startTick, endTick, center, 1 / ZOOM_STEP);
                     state.setTimelineViewTicks(newStart, newEnd);
                     e.preventDefault();
                     break;
                 }
-                case '-': {
+                case 'Minus': {
                     const { newStart, newEnd } = zoomAround(startTick, endTick, center, ZOOM_STEP);
                     state.setTimelineViewTicks(newStart, newEnd);
                     e.preventDefault();
                     break;
                 }
-                case '!':
-                    if (e.shiftKey) {
-                        fitAll();
-                        e.preventDefault();
-                    }
+                case 'Digit1':
+                    fitAll();
+                    e.preventDefault();
                     break;
-                case '@':
-                    if (e.shiftKey) {
-                        zoomToSelection();
-                        e.preventDefault();
-                    }
+                case 'Digit2':
+                    zoomToSelection();
+                    e.preventDefault();
                     break;
-                case 'f':
-                case 'F':
+                case 'KeyF':
                     frameSelection();
                     e.preventDefault();
                     break;
-                case 's':
-                case 'S': {
-                    if (e.ctrlKey || e.metaKey) break;
+                case 'KeyS': {
                     const snapState = useTimelineStore.getState();
                     const q = snapState.transport.quantize;
                     snapState.setQuantize(q !== 'off' ? 'off' : lastSnapRef.current);
@@ -213,6 +217,7 @@ export function useTimelineNavigation() {
         id: 'timeline.select-all-clips',
         domain: 'timeline',
         matches: (event) =>
+            isCommandSurfaceActive('timeline-clips', event) &&
             (event.ctrlKey || event.metaKey) &&
             event.key.toLowerCase() === 'a' &&
             !isEditableTarget(event.target as Element | null),
@@ -357,6 +362,7 @@ export function useTimelineNavigation() {
         id: 'timeline.clipboard',
         domain: 'timeline',
         matches: (event) =>
+            isCommandSurfaceActive('timeline-clips', event) &&
             (event.ctrlKey || event.metaKey) &&
             !event.altKey &&
             ['c', 'v'].includes(event.key.toLowerCase()) &&
@@ -399,6 +405,7 @@ export function useTimelineNavigation() {
         id: 'timeline.cut-clips',
         domain: 'timeline',
         matches: (event) =>
+            isCommandSurfaceActive('timeline-clips', event) &&
             (event.ctrlKey || event.metaKey) &&
             !event.altKey &&
             event.key.toLowerCase() === 'x' &&
@@ -428,6 +435,7 @@ export function useTimelineNavigation() {
         id: 'timeline.duplicate-clips',
         domain: 'timeline',
         matches: (event) =>
+            isCommandSurfaceActive('timeline-clips', event) &&
             (event.ctrlKey || event.metaKey) &&
             !event.altKey &&
             event.key.toLowerCase() === 'd' &&
@@ -457,7 +465,9 @@ export function useTimelineNavigation() {
         id: 'timeline.delete-selection',
         domain: 'timeline',
         matches: (event) =>
-            (event.key === 'Delete' || event.key === 'Backspace') && !isEditableTarget(event.target as Element | null),
+            isCommandSurfaceActive(['timeline-clips', 'timeline-automation'], event) &&
+            (event.key === 'Delete' || event.key === 'Backspace') &&
+            !isEditableTarget(event.target as Element | null),
         handle: (e) => {
             const activeTarget = useSelectionStore.getState().getActiveCommandTarget();
             switch (activeTarget) {

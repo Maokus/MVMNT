@@ -33,6 +33,7 @@ import { elementPropertyDescriptors, hostPropertyDescriptors } from '@state/scen
 import { resolveAutomationValueType } from './KeyframeControl';
 import { AggregateTransformSession } from './aggregateTransformSession';
 import { hoveredPropertyRef } from './hoveredPropertyRef';
+import { CommandContextMenu } from '@workspace/components/CommandContextMenu';
 import { readFiniteTransformInput, unwrapTransformInputValue } from './nodeTransformInput';
 import { resolveNodeTransformValue } from './nodeTransformValue';
 import {
@@ -847,6 +848,7 @@ export function MultiSelectionCommonProperties({ nodes }: { nodes: SceneNode[] }
         values: unknown[];
         valueType: 'number' | 'boolean';
     }) {
+        const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
         const targets = selectedNodes.map((node) => nodePropertyTarget(node.id, path));
         const targetChannels = targets.map((target) => channelForTarget({ channels }, target));
         const automatedCount = targetChannels.filter(Boolean).length;
@@ -862,78 +864,100 @@ export function MultiSelectionCommonProperties({ nodes }: { nodes: SceneNode[] }
                   ? 'Remove playhead keys from selection'
                   : `Add playhead keys (${automatedCount}/${targets.length} already automated)`;
 
+        const disableAutomation = () => {
+            const commands: SceneCommand[] = targetChannels.flatMap((channel, index) =>
+                channel
+                    ? [
+                          {
+                              type: 'disablePropertyAutomation' as const,
+                              target: targets[index],
+                              fallbackValue: values[index],
+                          },
+                      ]
+                    : []
+            );
+            if (commands.length) {
+                dispatchSceneCommand(commands.length === 1 ? commands[0] : { type: 'batch', commands }, {
+                    source: 'NodeTransformPanel.common.keyframe',
+                });
+            }
+        };
+
         return (
-            <button
-                type="button"
-                className={`ae-keyframe-toggle ${stateClass}`}
-                title={title}
-                aria-label={title}
-                onClick={(event) => {
-                    event.stopPropagation();
-                    if (allKeyed) {
-                        const commands: SceneCommand[] = targetChannels.flatMap((channel) =>
-                            channel ? [{ type: 'removeKeyframe' as const, channelId: channel.id, tick }] : []
-                        );
-                        dispatchSceneCommand(
-                            { type: 'batch', commands },
-                            { source: 'NodeTransformPanel.common.keyframe' }
+            <>
+                <button
+                    type="button"
+                    className={`ae-keyframe-toggle ${stateClass}`}
+                    title={title}
+                    aria-label={title}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        if (allKeyed) {
+                            const commands: SceneCommand[] = targetChannels.flatMap((channel) =>
+                                channel ? [{ type: 'removeKeyframe' as const, channelId: channel.id, tick }] : []
+                            );
+                            dispatchSceneCommand(
+                                { type: 'batch', commands },
+                                { source: 'NodeTransformPanel.common.keyframe' }
+                            );
+                            useSceneEditorStore.getState().clearTransientNodeTransforms(
+                                selectedNodes.map((node) => node.id),
+                                [path as keyof NodeTransform]
+                            );
+                            return;
+                        }
+                        dispatchPropertyEdits(
+                            targets.map((target, index) => ({ target, value: values[index], valueType })),
+                            { tick, autoKey: true, source: 'NodeTransformPanel.common.keyframe' }
                         );
                         useSceneEditorStore.getState().clearTransientNodeTransforms(
                             selectedNodes.map((node) => node.id),
                             [path as keyof NodeTransform]
                         );
-                        return;
-                    }
-                    dispatchPropertyEdits(
-                        targets.map((target, index) => ({ target, value: values[index], valueType })),
-                        { tick, autoKey: true, source: 'NodeTransformPanel.common.keyframe' }
-                    );
-                    useSceneEditorStore.getState().clearTransientNodeTransforms(
-                        selectedNodes.map((node) => node.id),
-                        [path as keyof NodeTransform]
-                    );
-                }}
-                onContextMenu={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    const commands: SceneCommand[] = targetChannels.flatMap((channel, index) =>
-                        channel
-                            ? [
-                                  {
-                                      type: 'disablePropertyAutomation' as const,
-                                      target: targets[index],
-                                      fallbackValue: values[index],
-                                  },
-                              ]
-                            : []
-                    );
-                    if (commands.length) {
-                        dispatchSceneCommand(commands.length === 1 ? commands[0] : { type: 'batch', commands }, {
-                            source: 'NodeTransformPanel.common.keyframe',
-                        });
-                    }
-                }}
-            >
-                {automatedCount === 0 ? (
-                    <svg
-                        width="10"
-                        height="10"
-                        viewBox="0 0 10 10"
-                        className="ae-keyframe-stopwatch"
-                        aria-hidden="true"
-                    >
-                        <rect x="3.5" y="0.5" width="3" height="1.2" rx="0.6" fill="currentColor" />
-                        <line x1="5" y1="1.7" x2="5" y2="2.8" stroke="currentColor" strokeWidth="1" />
-                        <circle cx="5" cy="6" r="3.2" fill="none" stroke="currentColor" strokeWidth="1" />
-                        <line x1="5" y1="6" x2="5" y2="4" stroke="currentColor" strokeWidth="1" />
-                        <line x1="5" y1="6" x2="7" y2="6" stroke="currentColor" strokeWidth="1" />
-                    </svg>
-                ) : (
-                    <svg width="10" height="10" viewBox="0 0 10 10" className="ae-keyframe-diamond" aria-hidden="true">
-                        <path d="M5 0 L10 5 L5 10 L0 5 Z" />
-                    </svg>
-                )}
-            </button>
+                    }}
+                    onContextMenu={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (automatedCount) setMenuPosition({ x: event.clientX, y: event.clientY });
+                    }}
+                >
+                    {automatedCount === 0 ? (
+                        <svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 10 10"
+                            className="ae-keyframe-stopwatch"
+                            aria-hidden="true"
+                        >
+                            <rect x="3.5" y="0.5" width="3" height="1.2" rx="0.6" fill="currentColor" />
+                            <line x1="5" y1="1.7" x2="5" y2="2.8" stroke="currentColor" strokeWidth="1" />
+                            <circle cx="5" cy="6" r="3.2" fill="none" stroke="currentColor" strokeWidth="1" />
+                            <line x1="5" y1="6" x2="5" y2="4" stroke="currentColor" strokeWidth="1" />
+                            <line x1="5" y1="6" x2="7" y2="6" stroke="currentColor" strokeWidth="1" />
+                        </svg>
+                    ) : (
+                        <svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 10 10"
+                            className="ae-keyframe-diamond"
+                            aria-hidden="true"
+                        >
+                            <path d="M5 0 L10 5 L5 10 L0 5 Z" />
+                        </svg>
+                    )}
+                </button>
+                {menuPosition ? (
+                    <CommandContextMenu
+                        position={menuPosition}
+                        onClose={() => setMenuPosition(null)}
+                        ariaLabel="Transform automation actions"
+                        entries={[
+                            { label: 'Disable automation for selection', danger: true, onSelect: disableAutomation },
+                        ]}
+                    />
+                ) : null}
+            </>
         );
     }
 }
@@ -1110,6 +1134,7 @@ function BulkTargetKeyframeControl({
     values: unknown[];
     valueType: NonNullable<ReturnType<typeof resolveAutomationValueType>>;
 }) {
+    const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
     const tick = useTimelineStore((state) => state.timeline.currentTick);
     const channels = useSceneStore((state) => state.automation.channels);
     const targetChannels = targets.map((target) => channelForTarget({ channels }, target));
@@ -1124,59 +1149,79 @@ function BulkTargetKeyframeControl({
             : allKeyed
               ? 'Remove playhead keys from selection'
               : `Add playhead keys (${automatedCount}/${targets.length} already automated)`;
+    const disableAutomation = () => {
+        const commands: SceneCommand[] = targetChannels.flatMap((channel, index) =>
+            channel
+                ? [
+                      {
+                          type: 'disablePropertyAutomation' as const,
+                          target: targets[index],
+                          fallbackValue: values[index],
+                      },
+                  ]
+                : []
+        );
+        if (commands.length) {
+            dispatchSceneCommand(commands.length === 1 ? commands[0] : { type: 'batch', commands }, {
+                source: 'common-content-keyframe',
+            });
+        }
+    };
     return (
-        <button
-            type="button"
-            className={`ae-keyframe-toggle ${automatedCount === 0 ? 'inactive' : allKeyed ? 'active' : 'automated'}`}
-            title={title}
-            aria-label={title}
-            onClick={(event) => {
-                event.stopPropagation();
-                if (allKeyed) {
-                    const commands: SceneCommand[] = targetChannels.flatMap((channel) =>
-                        channel ? [{ type: 'removeKeyframe' as const, channelId: channel.id, tick }] : []
+        <>
+            <button
+                type="button"
+                className={`ae-keyframe-toggle ${automatedCount === 0 ? 'inactive' : allKeyed ? 'active' : 'automated'}`}
+                title={title}
+                aria-label={title}
+                onClick={(event) => {
+                    event.stopPropagation();
+                    if (allKeyed) {
+                        const commands: SceneCommand[] = targetChannels.flatMap((channel) =>
+                            channel ? [{ type: 'removeKeyframe' as const, channelId: channel.id, tick }] : []
+                        );
+                        dispatchSceneCommand({ type: 'batch', commands }, { source: 'common-content-keyframe' });
+                        return;
+                    }
+                    dispatchPropertyEdits(
+                        targets.map((target, index) => ({ target, value: values[index], valueType })),
+                        { tick, autoKey: true, source: 'common-content-keyframe' }
                     );
-                    dispatchSceneCommand({ type: 'batch', commands }, { source: 'common-content-keyframe' });
-                    return;
-                }
-                dispatchPropertyEdits(
-                    targets.map((target, index) => ({ target, value: values[index], valueType })),
-                    { tick, autoKey: true, source: 'common-content-keyframe' }
-                );
-            }}
-            onContextMenu={(event) => {
-                event.preventDefault();
-                const commands: SceneCommand[] = targetChannels.flatMap((channel, index) =>
-                    channel
-                        ? [
-                              {
-                                  type: 'disablePropertyAutomation' as const,
-                                  target: targets[index],
-                                  fallbackValue: values[index],
-                              },
-                          ]
-                        : []
-                );
-                if (commands.length) {
-                    dispatchSceneCommand(commands.length === 1 ? commands[0] : { type: 'batch', commands }, {
-                        source: 'common-content-keyframe',
-                    });
-                }
-            }}
-        >
-            {automatedCount === 0 ? (
-                <svg width="10" height="10" viewBox="0 0 10 10" className="ae-keyframe-stopwatch" aria-hidden="true">
-                    <rect x="3.5" y="0.5" width="3" height="1.2" rx="0.6" fill="currentColor" />
-                    <line x1="5" y1="1.7" x2="5" y2="2.8" stroke="currentColor" strokeWidth="1" />
-                    <circle cx="5" cy="6" r="3.2" fill="none" stroke="currentColor" strokeWidth="1" />
-                    <line x1="5" y1="6" x2="5" y2="4" stroke="currentColor" strokeWidth="1" />
-                    <line x1="5" y1="6" x2="7" y2="6" stroke="currentColor" strokeWidth="1" />
-                </svg>
-            ) : (
-                <svg width="10" height="10" viewBox="0 0 10 10" className="ae-keyframe-diamond" aria-hidden="true">
-                    <path d="M5 0 L10 5 L5 10 L0 5 Z" />
-                </svg>
-            )}
-        </button>
+                }}
+                onContextMenu={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (automatedCount) setMenuPosition({ x: event.clientX, y: event.clientY });
+                }}
+            >
+                {automatedCount === 0 ? (
+                    <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 10 10"
+                        className="ae-keyframe-stopwatch"
+                        aria-hidden="true"
+                    >
+                        <rect x="3.5" y="0.5" width="3" height="1.2" rx="0.6" fill="currentColor" />
+                        <line x1="5" y1="1.7" x2="5" y2="2.8" stroke="currentColor" strokeWidth="1" />
+                        <circle cx="5" cy="6" r="3.2" fill="none" stroke="currentColor" strokeWidth="1" />
+                        <line x1="5" y1="6" x2="5" y2="4" stroke="currentColor" strokeWidth="1" />
+                        <line x1="5" y1="6" x2="7" y2="6" stroke="currentColor" strokeWidth="1" />
+                    </svg>
+                ) : (
+                    <svg width="10" height="10" viewBox="0 0 10 10" className="ae-keyframe-diamond" aria-hidden="true">
+                        <path d="M5 0 L10 5 L5 10 L0 5 Z" />
+                    </svg>
+                )}
+            </button>
+            {menuPosition ? (
+                <CommandContextMenu
+                    position={menuPosition}
+                    onClose={() => setMenuPosition(null)}
+                    ariaLabel="Property automation actions"
+                    entries={[{ label: 'Disable automation for selection', danger: true, onSelect: disableAutomation }]}
+                />
+            ) : null}
+        </>
     );
 }

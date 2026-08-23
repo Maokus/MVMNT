@@ -26,12 +26,14 @@ export const bundledImage = definePluginElement({
             media: new VisualMedia(0, 0, 200, 200),
         };
     },
-    render(props, state, time) {
-        const asset = props.imageSource ? state.override.update(props.imageSource) : state.bundled.get();
-        state.media
+    render(props, instanceState, time) {
+        const asset = props.imageSource
+            ? instanceState.override.update(props.imageSource)
+            : instanceState.bundled.get();
+        instanceState.media
             .setResource(asset.resource as never, asset.status)
             .setLocalTime(time.seconds)
             .setDimensions(props.width, props.height);
-        return [state.media];
+        return [instanceState.media];
     },
 });

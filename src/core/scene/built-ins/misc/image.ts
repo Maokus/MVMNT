@@ -21,13 +21,13 @@ interface ImageProps extends Readonly<Record<string, unknown>> {
     readonly shadowOffsetX: number;
     readonly shadowOffsetY: number;
 }
-interface ImageState {
+interface ImageInstanceState {
     readonly handle: ProjectVisualAssetHandle;
     readonly media: VisualMedia;
     readonly bounds: Rectangle;
 }
 
-export const image = defineBuiltInElement<ImageProps, ImageState>({
+export const image = defineBuiltInElement<ImageProps, ImageInstanceState>({
     type: 'image',
     metadata: { name: 'Image', description: 'Display an image with transformations', category: 'Misc' },
     schema: {
@@ -178,22 +178,27 @@ export const image = defineBuiltInElement<ImageProps, ImageState>({
             bounds: new Rectangle(0, 0, 200, 200, { fillColor: null }),
         };
     },
-    render(props, state, time) {
-        state.bounds.width = props.width;
-        state.bounds.height = props.height;
-        const asset = state.handle.update(props.imageSource);
-        state.media
+    render(props, instanceState, time) {
+        instanceState.bounds.width = props.width;
+        instanceState.bounds.height = props.height;
+        const asset = instanceState.handle.update(props.imageSource);
+        instanceState.media
             .setResource(asset.resource as never, asset.status)
             .setLocalTime(time.seconds * props.playbackSpeed)
             .setDimensions(props.width, props.height)
             .setFitMode(props.fitMode)
             .setPreserveAspectRatio(props.preserveAspectRatio);
-        state.media.opacity = props.opacity;
-        state.media.blendMode = props.blendMode === 'source-over' ? null : props.blendMode;
+        instanceState.media.opacity = props.opacity;
+        instanceState.media.blendMode = props.blendMode === 'source-over' ? null : props.blendMode;
         if (props.shadowEnabled)
-            state.media.setShadow(props.shadowColor, props.shadowBlur, props.shadowOffsetX, props.shadowOffsetY);
-        else state.media.setShadow(null, 0, 0, 0);
-        const result: RenderObject[] = [state.bounds, state.media];
+            instanceState.media.setShadow(
+                props.shadowColor,
+                props.shadowBlur,
+                props.shadowOffsetX,
+                props.shadowOffsetY
+            );
+        else instanceState.media.setShadow(null, 0, 0, 0);
+        const result: RenderObject[] = [instanceState.bounds, instanceState.media];
         if (props.showBorder && props.borderWidth > 0) {
             const border = new Rectangle(0, 0, props.width, props.height, {
                 fillColor: null,

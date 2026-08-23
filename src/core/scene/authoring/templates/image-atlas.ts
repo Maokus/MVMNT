@@ -45,21 +45,21 @@ export const atlasImage = definePluginElement({
             bounds: new Rectangle(0, 0, 200, 200),
         };
     },
-    render(props, state, time) {
-        state.bounds.width = props.width;
-        state.bounds.height = props.height;
-        const bg = state.background.get();
-        state.bg
+    render(props, instanceState, time) {
+        instanceState.bounds.width = props.width;
+        instanceState.bounds.height = props.height;
+        const bg = instanceState.background.get();
+        instanceState.bg
             .setResource(bg.resource as never, bg.status)
             .setLocalTime(0)
             .setDimensions(props.width, props.height)
             .setFitMode('contain');
-        const atlas = props.atlas ? state.override.update(props.atlas) : state.atlas.get();
-        state.media
+        const atlas = props.atlas ? instanceState.override.update(props.atlas) : instanceState.atlas.get();
+        instanceState.media
             .setResource(atlas.resource as never, atlas.status)
             .setLocalTime(time.seconds)
             .setDimensions(props.width, props.height)
             .setFitMode('contain');
-        return [state.bounds, state.bg, state.media];
+        return [instanceState.bounds, instanceState.bg, instanceState.media];
     },
 });

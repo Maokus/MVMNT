@@ -1566,6 +1566,27 @@
         @apply my-1 border-t border-white/10;
     }
 
+    .command-context-menu {
+        @apply fixed z-[1400] flex min-w-[180px] flex-col rounded-sm border border-[#4a4a4a] bg-[#252526] py-1 text-[11px] shadow-xl;
+    }
+
+    .command-context-menu button {
+        @apply flex h-7 items-center gap-2 bg-transparent px-2.5 text-left text-neutral-300 hover:bg-[#0e639c] hover:text-white focus:bg-[#0e639c] focus:text-white focus:outline-none disabled:pointer-events-none disabled:opacity-30;
+    }
+
+    .command-context-menu button.is-danger:hover,
+    .command-context-menu button.is-danger:focus {
+        @apply bg-red-500/20 text-red-200;
+    }
+
+    .command-context-menu button kbd {
+        @apply ml-auto pl-4 font-sans text-[10px] text-neutral-500;
+    }
+
+    .command-context-menu__separator {
+        @apply my-1 border-t border-white/10;
+    }
+
     .node-properties-shell,
     .node-transform-inspector {
         @apply min-w-0 bg-[#252526] text-[11px] text-neutral-300;

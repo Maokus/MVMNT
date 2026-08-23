@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
     FaChevronDown,
     FaChevronRight,
@@ -29,6 +28,10 @@ import {
     type SceneGraphState,
     type SceneNode,
 } from '@state/scene-graph';
+import { CommandContextMenu, type CommandMenuEntry } from '@workspace/components/CommandContextMenu';
+import { executeCommand } from '@context/commands/commandRegistry';
+import { SCENE_COMMANDS } from '@context/commands/sceneCommands';
+import { activateCommandSurface } from '@context/commands/commandContext';
 
 export type DropPosition = 'before' | 'inside' | 'after';
 
@@ -85,15 +88,7 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const renameRef = useRef<HTMLInputElement>(null);
     const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const {
-        selectNode,
-        groupSelectedNodes,
-        ungroupSelectedNodes,
-        duplicateSelectedNodes,
-        deleteSelectedNodes,
-        reparentSelectedNodes,
-        updateElementId,
-    } = useSceneSelection();
+    const { selectNode, reparentSelectedNodes, updateElementId } = useSceneSelection();
     const rowLabel = node.kind === 'element' ? node.elementId : node.name;
     const elementName =
         node.kind === 'element' && elementType
@@ -113,11 +108,6 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
     const descendantSelected = node.kind === 'group' && hasSelectedDescendant(graph, node.id, selectedNodeIds);
     const effectivelyLocked = isNodeEffectivelyLocked(graph, node.id);
     const inheritedLocked = effectivelyLocked && !node.localLocked;
-    const contextSelection = normalizeNodeSelection(graph, selectedNodeIds);
-    const contextCanGroup =
-        contextSelection.length >= 2 &&
-        new Set(contextSelection.map((id) => graph.nodesById[id]?.parentId)).size === 1 &&
-        contextSelection.every((id) => !isNodeEffectivelyLocked(graph, id));
 
     const isRenaming = renameValue !== null;
     useEffect(() => {
@@ -126,12 +116,6 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
             renameRef.current?.select();
         }
     }, [isRenaming]);
-    useEffect(() => {
-        if (!contextMenu) return;
-        const close = () => setContextMenu(null);
-        window.addEventListener('pointerdown', close);
-        return () => window.removeEventListener('pointerdown', close);
-    }, [contextMenu]);
     useEffect(
         () => () => {
             if (expandTimerRef.current) clearTimeout(expandTimerRef.current);
@@ -203,6 +187,23 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
         expandTimerRef.current = null;
         setDropPosition(null);
     };
+    const contextEntries: CommandMenuEntry[] = [
+        ...(selectedNodeIds.length === 1
+            ? [
+                  {
+                      label: 'Rename',
+                      shortcut: 'F2',
+                      icon: <FaPen />,
+                      onSelect: () => setRenameValue(rowLabel),
+                  },
+              ]
+            : []),
+        { commandId: SCENE_COMMANDS.group, icon: <FaObjectGroup /> },
+        { commandId: SCENE_COMMANDS.ungroup, icon: <FaObjectUngroup /> },
+        { commandId: SCENE_COMMANDS.duplicate, icon: <FaClone /> },
+        { separator: true },
+        { commandId: SCENE_COMMANDS.delete, icon: <FaTrash />, danger: true },
+    ];
 
     return (
         <>
@@ -223,6 +224,13 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
                     event.preventDefault();
                     if (!selected) selectNode(node.id);
                     setContextMenu({ x: event.clientX, y: event.clientY });
+                }}
+                onKeyDown={(event) => {
+                    if ((event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) && active) {
+                        event.preventDefault();
+                        const rect = event.currentTarget.getBoundingClientRect();
+                        setContextMenu({ x: rect.left + 24, y: rect.top + rect.height });
+                    }
                 }}
                 onDragStart={(event) => {
                     if (!selected) selectNode(node.id);
@@ -319,57 +327,14 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
                           />
                       ))
                 : null}
-            {contextMenu
-                ? createPortal(
-                      <div
-                          className="scene-node-context-menu"
-                          role="menu"
-                          style={{ left: contextMenu.x, top: contextMenu.y }}
-                          onPointerDown={(event) => event.stopPropagation()}
-                      >
-                          <button
-                              role="menuitem"
-                              onClick={() => {
-                                  setRenameValue(rowLabel);
-                                  setContextMenu(null);
-                              }}
-                          >
-                              <FaPen /> Rename
-                          </button>
-                          {selectedNodeIds.length >= 2 ? (
-                              <button
-                                  role="menuitem"
-                                  disabled={!contextCanGroup}
-                                  onClick={() => (groupSelectedNodes(), setContextMenu(null))}
-                              >
-                                  <FaObjectGroup /> Group selection
-                              </button>
-                          ) : null}
-                          {node.kind === 'group' ? (
-                              <button role="menuitem" onClick={() => (ungroupSelectedNodes(), setContextMenu(null))}>
-                                  <FaObjectUngroup /> Ungroup
-                              </button>
-                          ) : null}
-                          <button
-                              role="menuitem"
-                              disabled={effectivelyLocked}
-                              onClick={() => (duplicateSelectedNodes(), setContextMenu(null))}
-                          >
-                              <FaClone /> Duplicate
-                          </button>
-                          <div className="scene-node-context-divider" />
-                          <button
-                              role="menuitem"
-                              className="is-danger"
-                              disabled={effectivelyLocked}
-                              onClick={() => (deleteSelectedNodes(), setContextMenu(null))}
-                          >
-                              <FaTrash /> Delete
-                          </button>
-                      </div>,
-                      document.body
-                  )
-                : null}
+            {contextMenu ? (
+                <CommandContextMenu
+                    position={contextMenu}
+                    entries={contextEntries}
+                    onClose={() => setContextMenu(null)}
+                    ariaLabel={`${rowLabel} actions`}
+                />
+            ) : null}
         </>
     );
 }
@@ -379,8 +344,7 @@ export function SceneNodeTree() {
     const selectedNodeIds = useSelectionStore((state) => state.selectedNodeIds);
     const activeNodeId = useSelectionStore((state) => state.activeNodeId);
     const expandedNodeIds = useSelectionStore((state) => state.expandedNodeIds);
-    const { groupSelectedNodes, ungroupSelectedNodes, duplicateSelectedNodes, deleteSelectedNodes, selectNode } =
-        useSceneSelection();
+    const { selectNode } = useSceneSelection();
     const rows = useMemo(() => {
         const root = graph.nodesById[graph.rootId];
         return root && 'children' in root ? [...root.children].reverse() : [];
@@ -439,14 +403,22 @@ export function SceneNodeTree() {
     };
 
     return (
-        <div className="scene-node-tree" role="tree" aria-label="Scene hierarchy" onKeyDown={navigate}>
+        <div
+            className="scene-node-tree"
+            role="tree"
+            aria-label="Scene hierarchy"
+            data-command-surface="scene-tree"
+            onPointerDownCapture={() => activateCommandSurface('scene-tree')}
+            onFocusCapture={() => activateCommandSurface('scene-tree')}
+            onKeyDown={navigate}
+        >
             <div className="scene-node-toolbar" role="toolbar" aria-label="Scene hierarchy actions">
                 <span className="scene-node-selection-count">
                     {selectedNodeIds.length ? `${selectedNodeIds.length} selected` : 'No selection'}
                 </span>
                 <button
                     disabled={!canGroup}
-                    onClick={groupSelectedNodes}
+                    onClick={() => executeCommand(SCENE_COMMANDS.group)}
                     title={canGroup ? 'Group selected siblings (Ctrl/Cmd+G)' : 'Select two or more unlocked siblings'}
                     aria-label="Group selected nodes"
                 >
@@ -454,19 +426,24 @@ export function SceneNodeTree() {
                 </button>
                 <button
                     disabled={!canUngroup}
-                    onClick={ungroupSelectedNodes}
+                    onClick={() => executeCommand(SCENE_COMMANDS.ungroup)}
                     title="Ungroup selected group (Ctrl/Cmd+Shift+G)"
                     aria-label="Ungroup selected group"
                 >
                     <FaObjectUngroup />
                 </button>
-                <button disabled={!canEdit} onClick={duplicateSelectedNodes} title="Duplicate" aria-label="Duplicate">
+                <button
+                    disabled={!canEdit}
+                    onClick={() => executeCommand(SCENE_COMMANDS.duplicate)}
+                    title="Duplicate"
+                    aria-label="Duplicate"
+                >
                     <FaClone />
                 </button>
                 <button
                     className="is-danger"
                     disabled={!canEdit}
-                    onClick={deleteSelectedNodes}
+                    onClick={() => executeCommand(SCENE_COMMANDS.delete)}
                     title="Delete"
                     aria-label="Delete"
                 >

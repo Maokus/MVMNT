@@ -58,6 +58,27 @@ Before adding a keyboard handler, inspect `src/context/shortcuts/`, `SceneSelect
 timeline navigation owner. A command must have one global shortcut owner and must protect editable
 targets consistently.
 
+Application commands are registered in `src/context/commands/`. A command owns its label, default
+shortcut, enablement, and execution handler; menus, toolbars, and shortcuts must call the same
+command ID instead of reproducing the mutation. Command handlers delegate persistent work to the
+scene or timeline command gateway.
+
+Keyboard ownership has two independent inputs:
+
+- `activeSurface` is the editor most recently focused or pointer-activated (`scene-tree`, `preview`,
+  `properties`, `timeline-clips`, or `timeline-automation`). It decides which editor receives
+  unmodified editing keys.
+- `activeTarget` is the actionable selection domain. Inspector context may retain scene nodes while
+  keyframes are selected, so scene commands must still require `activeTarget === "elements"`.
+
+Editable controls keep native typing, selection, clipboard, and undo behavior. Document-level file
+commands may commit the active control before running. Context menus own keyboard navigation and
+Escape while open; Escape must dismiss the top overlay before clearing an editor selection.
+
+Use the shared `CommandContextMenu` for contextual actions. Right-clicking an already selected item
+preserves the selection; right-clicking an unselected item first makes it the sole active selection.
+Menu entries should use command IDs whenever the same action is available elsewhere.
+
 ## Undo and telemetry
 
 Scene and timeline gateways emit command events consumed by undo and development diagnostics.

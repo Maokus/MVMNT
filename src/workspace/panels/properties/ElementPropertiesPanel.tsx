@@ -19,6 +19,7 @@ import { automationEvaluator } from '@automation/automation-evaluator';
 import { resolveAutomationValueType } from './KeyframeControl';
 import { NodeTransformPanel } from './NodeTransformPanel';
 import { dispatchPropertyEdits, propertyEditMergeKey } from '@state/scene';
+import { activateCommandSurface } from '@context/commands/commandContext';
 
 const NODE_TRANSFORM_TAB_ID = '__node-transform';
 
@@ -479,7 +480,14 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     }
 
     return (
-        <div className="element-properties-panel ae-style" ref={panelRef} onKeyDown={handlePanelKeyDown}>
+        <div
+            className="element-properties-panel ae-style"
+            ref={panelRef}
+            data-command-surface="properties"
+            onPointerDownCapture={() => activateCommandSurface('properties')}
+            onFocusCapture={() => activateCommandSurface('properties')}
+            onKeyDown={handlePanelKeyDown}
+        >
             {searchActive && (
                 <div className="ae-search-bar">
                     <input

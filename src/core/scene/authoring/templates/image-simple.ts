@@ -50,15 +50,15 @@ export const simpleImage = definePluginElement({
             bounds: new Rectangle(0, 0, 200, 200, { fillColor: undefined }),
         };
     },
-    render(props, state, time) {
-        state.bounds.width = props.width;
-        state.bounds.height = props.height;
-        const asset = state.handle.update(props.imageSource);
-        state.media
+    render(props, instanceState, time) {
+        instanceState.bounds.width = props.width;
+        instanceState.bounds.height = props.height;
+        const asset = instanceState.handle.update(props.imageSource);
+        instanceState.media
             .setResource(asset.resource as never, asset.status)
             .setLocalTime(time.seconds)
             .setDimensions(props.width, props.height)
             .setFitMode(props.fitMode);
-        return [state.bounds, state.media];
+        return [instanceState.bounds, instanceState.media];
     },
 });

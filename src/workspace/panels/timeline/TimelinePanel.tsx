@@ -24,6 +24,7 @@ import { useTimelineNavigation } from './hooks/useTimelineNavigation';
 import { useTimelinePointerControls } from './hooks/useTimelinePointerControls';
 import { useAutoFollow } from './hooks/useAutoFollow';
 import { formatBytes } from '@audio/audioMemoryDiagnostics';
+import { activateCommandSurface } from '@context/commands/commandContext';
 
 const TimelinePanel: React.FC = () => {
     const { visualizer } = useVisualizer();
@@ -87,6 +88,13 @@ const TimelinePanel: React.FC = () => {
                 className="timeline-panel relative flex h-full flex-col"
                 role="region"
                 aria-label="Timeline panel"
+                data-command-surface={activeTab === 'automation' ? 'timeline-automation' : 'timeline-clips'}
+                onPointerDownCapture={() =>
+                    activateCommandSurface(activeTab === 'automation' ? 'timeline-automation' : 'timeline-clips')
+                }
+                onFocusCapture={() =>
+                    activateCommandSurface(activeTab === 'automation' ? 'timeline-automation' : 'timeline-clips')
+                }
                 onDropCapture={onPanelDropCapture}
                 onDragEnter={onPanelDragEnter}
                 onDragOver={onPanelDragOver}

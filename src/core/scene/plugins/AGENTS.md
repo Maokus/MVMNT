@@ -41,7 +41,7 @@ export const element = definePluginElement({
     type: 'example',
     metadata: { name: 'Example' },
     schema: { tabs: [] },
-    render(_props, _state, _time, context) {
+    render(_props, _instanceState, _time, context) {
         const notes = context.timeline.selectNotes({ startSeconds: 0, endSeconds: 1 });
         return notes.ok ? [] : [];
     },

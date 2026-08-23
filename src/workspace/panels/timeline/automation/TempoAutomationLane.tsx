@@ -3,6 +3,7 @@ import { useTimelineStore } from '@state/timelineStore';
 import { useTickScale } from '../hooks/useTickScale';
 import { AUTOMATION_HEADER_HEIGHT } from '../constants';
 import { useSnapTicks } from '../hooks/useSnapTicks';
+import { CommandContextMenu } from '@workspace/components/CommandContextMenu';
 
 const DIAMOND_SIZE = 7;
 const PADDING_Y = 12;
@@ -360,14 +361,12 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                 </div>
             )}
             {menu && (
-                <button
-                    type="button"
-                    className="fixed z-50 rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-left text-[11px] text-red-300 shadow-xl hover:bg-red-900/40"
-                    style={{ left: menu.x, top: menu.y }}
-                    onClick={deleteSelected}
-                >
-                    Delete tempo change
-                </button>
+                <CommandContextMenu
+                    position={menu}
+                    onClose={() => setMenu(null)}
+                    ariaLabel="Tempo point actions"
+                    entries={[{ label: 'Delete tempo change', danger: true, onSelect: deleteSelected }]}
+                />
             )}
             {status && (
                 <div className="absolute bottom-1 right-2 rounded bg-neutral-900 px-2 py-1 text-[9px] text-amber-200 shadow">

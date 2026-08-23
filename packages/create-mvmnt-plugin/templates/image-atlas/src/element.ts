@@ -26,12 +26,12 @@ export const atlasImage = definePluginElement({
             media: new VisualMedia(0, 0, 200, 200),
         };
     },
-    render(props, state, time) {
-        const asset = props.atlas ? state.override.update(props.atlas) : state.atlas.get();
-        state.media
+    render(props, instanceState, time) {
+        const asset = props.atlas ? instanceState.override.update(props.atlas) : instanceState.atlas.get();
+        instanceState.media
             .setResource(asset.resource as never, asset.status)
             .setLocalTime(time.seconds)
             .setDimensions(props.width, props.height);
-        return [state.media];
+        return [instanceState.media];
     },
 });

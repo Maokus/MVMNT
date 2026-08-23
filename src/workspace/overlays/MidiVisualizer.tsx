@@ -7,6 +7,7 @@ import { elementPropertyTarget, nodePropertyTarget } from '@automation/types';
 import { insertPropertyKeyframe } from '@state/scene';
 import { useTimelineStore } from '@state/timelineStore';
 import { isTextEditingTarget, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
+import { isCommandSurfaceActive } from '@context/commands/commandContext';
 import { deriveElementOrder } from '@state/scene-graph';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -116,8 +117,7 @@ const InsertKeyframeController: React.FC = () => {
         matches: (event) => {
             if (event.key.toLowerCase() !== 'i' || event.altKey || event.ctrlKey || event.metaKey || !activeNodeId)
                 return false;
-            // Let ordinary text fields receive "i". Number fields are explicit property targets.
-            return !isTextEditingTarget(event.target) || hoveredPropertyRef.current?.propertyType === 'number';
+            return !isTextEditingTarget(event.target) && isCommandSurfaceActive(['preview', 'properties'], event);
         },
         handle: (event) => {
             event.preventDefault();
@@ -139,12 +139,7 @@ const InsertKeyframeController: React.FC = () => {
                     setPopupPos({ x: mousePos.current.x, y: mousePos.current.y });
                 }
             };
-            if (isTextEditingTarget(event.target)) {
-                (event.target as HTMLElement).blur();
-                window.setTimeout(apply, 0);
-            } else {
-                apply();
-            }
+            apply();
             return true;
         },
     });

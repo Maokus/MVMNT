@@ -3,6 +3,7 @@ import type { PointerEventHandler } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { zoomAround, isEditableTarget } from '../utils/timelineNavUtils';
 import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
+import { isCommandSurfaceActive } from '@context/commands/commandContext';
 
 /**
  * Handles all pointer and touch gesture interactions on the timeline right pane:
@@ -28,7 +29,7 @@ export function useTimelinePointerControls() {
         null
     );
     const spaceDownRef = useRef(false);
-    const isPointerDownRef = useRef(false);
+    const didSpaceDragRef = useRef(false);
     const spaceDragRef = useRef<{ startClientX: number; startView: { s: number; e: number } } | null>(null);
     const activePointersRef = useRef<Map<number, { clientX: number; clientY: number }>>(new Map());
     const pinchRef = useRef<{ dist: number; startView: { s: number; e: number }; pivotTick: number } | null>(null);
@@ -36,10 +37,14 @@ export function useTimelinePointerControls() {
     useGlobalShortcut({
         id: 'focused-control.timeline-space-drag',
         domain: 'focused-control',
-        matches: (event) => event.code === 'Space' && !isEditableTarget(document.activeElement),
+        matches: (event) =>
+            event.code === 'Space' &&
+            !event.repeat &&
+            isCommandSurfaceActive(['timeline-clips', 'timeline-automation'], event) &&
+            !isEditableTarget(document.activeElement),
         handle: (event) => {
             spaceDownRef.current = true;
-            if (!isPointerDownRef.current) return false;
+            didSpaceDragRef.current = false;
             event.preventDefault();
             return true;
         },
@@ -77,10 +82,10 @@ export function useTimelinePointerControls() {
 
         // Left button + Space held — space-drag pan
         if (e.button === 0) {
-            isPointerDownRef.current = true;
             if (spaceDownRef.current) {
                 (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
                 spaceDragRef.current = { startClientX: e.clientX, startView: { s: view.startTick, e: view.endTick } };
+                didSpaceDragRef.current = true;
                 e.preventDefault();
             }
         }
@@ -144,9 +149,6 @@ export function useTimelinePointerControls() {
         if (activePointersRef.current.size < 2) {
             pinchRef.current = null;
         }
-        if (e.button === 0) {
-            isPointerDownRef.current = false;
-        }
     };
 
     // Non-passive wheel handler: Ctrl/Cmd+scroll zooms; horizontal scroll pans; vertical scroll passes through
@@ -183,8 +185,11 @@ export function useTimelinePointerControls() {
     // Space key tracking — allows space-drag pan while preventing conflict with play/pause
     useEffect(() => {
         const onKeyUp = (e: KeyboardEvent) => {
-            if (e.code !== 'Space') return;
+            if (e.code !== 'Space' || !spaceDownRef.current) return;
+            e.preventDefault();
+            if (!didSpaceDragRef.current) useTimelineStore.getState().togglePlay();
             spaceDownRef.current = false;
+            didSpaceDragRef.current = false;
             spaceDragRef.current = null;
         };
         window.addEventListener('keyup', onKeyUp);

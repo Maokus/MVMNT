@@ -33,6 +33,8 @@ load or own assets.
 
 Built-in and plugin render callbacks should derive output deterministically from properties, time,
 and callback-scoped snapshots. Do not retain canvas contexts or host snapshots between frames.
+Both element kinds share the same [instance-state contract](../plugin-api/instance-state.md): retained
+resources and caches may change rendering cost, but render output cannot depend on call history.
 
 ## Perspective warp
 

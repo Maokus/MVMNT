@@ -7,7 +7,7 @@ import ElementPropertiesPanel from '../ElementPropertiesPanel';
 vi.mock('@context/MacroContext', () => {
     const context = {
         macros: [],
-        assignListener: () => () => { },
+        assignListener: () => () => {},
     };
 
     return {

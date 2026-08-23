@@ -8,6 +8,7 @@ import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 import { DRAG_ASSET_TYPE } from '../asset-manager/AssetManagerPanel';
 import { CreateElementPopup } from '@workspace/panels/scene-element';
 import { isTextEditingTarget, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
+import { activateCommandSurface, isCommandSurfaceActive } from '@context/commands/commandContext';
 
 interface PreviewPanelProps {
     interactive?: boolean;
@@ -25,7 +26,6 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [displaySize, setDisplaySize] = useState<{ w: number; h: number }>({ w: width, h: height });
     const [createElementPopupPosition, setCreateElementPopupPosition] = useState<{ x: number; y: number } | null>(null);
-    const pointerInsidePreviewRef = useRef(false);
     const pointerPositionRef = useRef({ x: 0, y: 0 });
 
     useGlobalShortcut({
@@ -33,7 +33,7 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
         domain: 'focused-control',
         enabled: interactive,
         matches: (event) =>
-            pointerInsidePreviewRef.current &&
+            isCommandSurfaceActive('preview', event) &&
             event.shiftKey &&
             !event.altKey &&
             !event.ctrlKey &&
@@ -194,15 +194,14 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
     return (
         <div
             className="preview-panel"
+            data-command-surface="preview"
+            onPointerDownCapture={() => activateCommandSurface('preview')}
+            onFocusCapture={() => activateCommandSurface('preview')}
             onPointerEnter={(event) => {
-                pointerInsidePreviewRef.current = true;
                 pointerPositionRef.current = { x: event.clientX, y: event.clientY };
             }}
             onPointerMove={(event) => {
                 pointerPositionRef.current = { x: event.clientX, y: event.clientY };
-            }}
-            onPointerLeave={() => {
-                pointerInsidePreviewRef.current = false;
             }}
         >
             <div className="canvas-container" ref={containerRef}>

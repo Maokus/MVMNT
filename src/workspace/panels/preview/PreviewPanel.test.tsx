@@ -60,14 +60,15 @@ describe('PreviewPanel element creation shortcut', () => {
         resetGlobalShortcutsForTest();
     });
 
-    it('opens Shift+A only under the preview pointer and creates the chosen element', () => {
+    it('opens Shift+A only while the preview is the active editor and creates the chosen element', () => {
         const { container } = render(<PreviewPanel />);
         const preview = container.querySelector('.preview-panel')!;
 
-        fireEvent.keyDown(preview, { key: 'A', shiftKey: true });
+        fireEvent.keyDown(window, { key: 'A', shiftKey: true });
         expect(screen.queryByRole('dialog', { name: 'Add Element' })).not.toBeInTheDocument();
 
         fireEvent(preview, pointerEvent('pointerover', 123, 234));
+        fireEvent.pointerDown(preview);
 
         const input = document.createElement('input');
         document.body.appendChild(input);
@@ -75,10 +76,10 @@ describe('PreviewPanel element creation shortcut', () => {
         expect(screen.queryByRole('dialog', { name: 'Add Element' })).not.toBeInTheDocument();
         input.remove();
 
-        fireEvent.keyDown(preview, { key: 'A', shiftKey: true, ctrlKey: true });
+        fireEvent.keyDown(window, { key: 'A', shiftKey: true, ctrlKey: true });
         expect(screen.queryByRole('dialog', { name: 'Add Element' })).not.toBeInTheDocument();
 
-        fireEvent.keyDown(preview, { key: 'A', shiftKey: true });
+        fireEvent.keyDown(window, { key: 'A', shiftKey: true });
         const dialog = screen.getByRole('dialog', { name: 'Add Element' });
         expect(dialog).toHaveStyle({ left: '123px', top: '234px' });
 

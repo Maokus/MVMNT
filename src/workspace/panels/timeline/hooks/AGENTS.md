@@ -65,7 +65,9 @@ View preset callbacks and global keyboard shortcuts.
 | `←` / `→`              | Nudge playhead ±1 beat (±1 bar with Shift) |
 | `Delete` / `Backspace` | Remove selected tracks                     |
 
-All shortcuts skip when focus is in a text-editable element.
+All shortcuts skip when focus is in a text-editable element and run only while the corresponding
+timeline surface is active. A Space tap toggles playback; holding Space and starting a lane drag
+pans without also toggling playback.
 
 ### useAutoFollow.ts
 

@@ -35,6 +35,69 @@ function installHost(getFeatureData: (...args: any[]) => any = () => null) {
 }
 
 describe('SDK v2 runtime', () => {
+    it('retains distinct instance state across arbitrary renders and disposes it once', async () => {
+        const createdStates: Array<{ readonly id: string }> = [];
+        const renderedStates: Array<{ readonly id: string }> = [];
+        const disposedStates: Array<{ readonly id: string }> = [];
+        const definition = definePluginElement({
+            type: 'instance-state-lifecycle-test',
+            metadata: { name: 'Instance state lifecycle test' },
+            schema: {
+                tabs: [
+                    {
+                        id: 'properties',
+                        label: 'Properties',
+                        groups: [
+                            {
+                                id: 'values',
+                                label: 'Values',
+                                properties: [{ key: 'value', type: 'number', label: 'Value', default: 1 }],
+                            },
+                        ],
+                    },
+                ],
+            },
+            create(_props, context) {
+                const instanceState = { id: context.signal.aborted ? 'aborted' : `state-${createdStates.length}` };
+                createdStates.push(instanceState);
+                return instanceState;
+            },
+            render(_props, instanceState) {
+                renderedStates.push(instanceState);
+                return [];
+            },
+            dispose(instanceState) {
+                disposedStates.push(instanceState);
+            },
+        });
+        const scope = createPluginDefinitionScope(definition, {
+            pluginId: 'test',
+            services: installHost(),
+            synchronousInitialization: true,
+            loadAsset: async () => 'blob:test',
+            report: vi.fn(),
+        });
+        const registration = scope.createRegistration({ kind: 'built-in' });
+        const first = registration.create({ id: 'first', value: 1 });
+        const second = registration.create({ id: 'second', value: 2 });
+
+        first.buildRenderObjects({}, 5);
+        first.buildRenderObjects({}, 1);
+        first.updateConfig({ value: 3 });
+        first.buildRenderObjects({}, 5);
+        second.buildRenderObjects({}, 2);
+
+        expect(createdStates).toHaveLength(2);
+        expect(createdStates[0]).not.toBe(createdStates[1]);
+        expect(renderedStates).toEqual([createdStates[0], createdStates[0], createdStates[0], createdStates[1]]);
+
+        first.dispose();
+        first.dispose();
+        second.dispose();
+        expect(disposedStates).toEqual([createdStates[0], createdStates[1]]);
+        await scope.dispose();
+    });
+
     it('provides instance-scoped arbitrary-time property sampling and integration', async () => {
         type Props = Readonly<{ speed: number; label: string }>;
         const contexts: ElementContext<Props>[] = [];
@@ -530,6 +593,49 @@ describe('SDK v2 runtime', () => {
         instance.buildRenderObjects({}, 0);
         expect(render).toHaveBeenCalledTimes(1);
         instance.dispose();
+        await scope.dispose();
+    });
+
+    it('disposes instance state that finishes creating after cancellation', async () => {
+        const host = installHost();
+        const instanceState = { resource: 'late' };
+        let finishCreate!: (value: typeof instanceState) => void;
+        let context!: ElementContext<Readonly<Record<string, never>>>;
+        const dispose = vi.fn();
+        const definition = definePluginElement<Readonly<Record<string, never>>, typeof instanceState>({
+            type: 'cancelled-create-test',
+            metadata: { name: 'Cancelled create test' },
+            schema: { tabs: [] },
+            create(_props, value) {
+                context = value;
+                return new Promise((resolve) => {
+                    finishCreate = resolve;
+                });
+            },
+            render() {
+                return [];
+            },
+            dispose,
+        });
+        const scope = createPluginDefinitionScope(definition, {
+            pluginId: 'test',
+            services: host,
+            loadAsset: async () => 'blob:test',
+            report: vi.fn(),
+        });
+        await scope.ready;
+        const instance = scope.createRegistration({ kind: 'plugin', pluginId: 'test' }).create({ id: 'cancelled' });
+        await Promise.resolve();
+
+        instance.dispose();
+        expect(context.signal.aborted).toBe(true);
+        expect(dispose).not.toHaveBeenCalled();
+
+        finishCreate(instanceState);
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(dispose).toHaveBeenCalledOnce();
+        expect(dispose).toHaveBeenCalledWith(instanceState, context);
         await scope.dispose();
     });
 

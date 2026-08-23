@@ -30,6 +30,8 @@ import {
     normalizeNodeSelection,
 } from '@state/scene-graph';
 import { useSceneShortcuts } from './shortcuts/useSceneShortcuts';
+import { useCommandHandler } from './commands/commandRegistry';
+import { SCENE_COMMANDS } from './commands/sceneCommands';
 export { isTextEditingTarget } from './shortcuts/shortcutRegistry';
 export { isSceneDeletionShortcut } from './shortcuts/useSceneShortcuts';
 
@@ -512,6 +514,54 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
             .setEditingContainerId(useSceneStore.getState().graph.nodesById[parentId] ? parentId : SCENE_ROOT_ID);
         visualizer?.invalidateRender?.();
     }, [runSceneCommand, visualizer]);
+
+    const getSceneCommandState = useCallback((commandId: string) => {
+        const selection = useSelectionStore.getState();
+        const scene = useSceneStore.getState();
+        if (commandId === SCENE_COMMANDS.selectAll) {
+            return { enabled: Object.keys(scene.graph.nodesById).some((id) => id !== scene.graph.rootId) };
+        }
+        if (selection.activeTarget !== 'elements') return { enabled: false };
+        const nodeIds = normalizeNodeSelection(scene.graph, selection.selectedNodeIds);
+        const editable = nodeIds.length > 0 && nodeIds.every((id) => !isNodeEffectivelyLocked(scene.graph, id));
+        if (commandId === SCENE_COMMANDS.group) {
+            return {
+                enabled:
+                    nodeIds.length >= 2 &&
+                    new Set(nodeIds.map((id) => scene.graph.nodesById[id]?.parentId)).size === 1 &&
+                    editable,
+            };
+        }
+        if (commandId === SCENE_COMMANDS.ungroup) {
+            return { enabled: editable && nodeIds.length === 1 && scene.graph.nodesById[nodeIds[0]]?.kind === 'group' };
+        }
+        return { enabled: editable };
+    }, []);
+
+    useCommandHandler(SCENE_COMMANDS.group, {
+        run: groupSelectedNodes,
+        getState: () => getSceneCommandState(SCENE_COMMANDS.group),
+    });
+    useCommandHandler(SCENE_COMMANDS.ungroup, {
+        run: ungroupSelectedNodes,
+        getState: () => getSceneCommandState(SCENE_COMMANDS.ungroup),
+    });
+    useCommandHandler(SCENE_COMMANDS.duplicate, {
+        run: duplicateSelectedNodes,
+        getState: () => getSceneCommandState(SCENE_COMMANDS.duplicate),
+    });
+    useCommandHandler(SCENE_COMMANDS.delete, {
+        run: deleteSelectedNodes,
+        getState: () => getSceneCommandState(SCENE_COMMANDS.delete),
+    });
+    useCommandHandler(SCENE_COMMANDS.selectAll, {
+        run: () => {
+            const scene = useSceneStore.getState();
+            const nodeIds = Object.keys(scene.graph.nodesById).filter((id) => id !== scene.graph.rootId);
+            useSelectionStore.getState().selectSceneNodes(nodeIds, nodeIds.at(-1) ?? null);
+        },
+        getState: () => getSceneCommandState(SCENE_COMMANDS.selectAll),
+    });
 
     const reorderSelectedNodes = useCallback(
         (parentId: string, targetIndex: number) => {

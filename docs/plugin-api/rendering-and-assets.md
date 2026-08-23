@@ -12,10 +12,10 @@ visibility, blend mode, filter, and children. Use chainable setters and return t
 paint order. Layout bounds can exclude decorative children while visual bounds always include
 drawn descendants.
 
-Do not retain canvas contexts or host snapshots. Reusing a render object in instance state is
-appropriate when its own setters fully describe the current frame. For expensive deterministic
-pixel generation, prefer `context.assets.generatedRaster()` with a content key derived from every
-input that affects the pixels.
+Do not retain canvas contexts or host snapshots. Reusing a render object in
+[instance state](instance-state.md) is appropriate when its own setters fully describe the current
+frame. For expensive deterministic pixel generation, prefer `context.assets.generatedRaster()`
+with a content key derived from every input that affects the pixels.
 
 ## Project assets
 
@@ -32,13 +32,13 @@ create(_props, context) {
         media: new VisualMedia(-100, -100, 200, 200),
     };
 },
-render(props, state, time) {
-    const snapshot = state.asset.update(props.image);
-    state.media
+render(props, instanceState, time) {
+    const snapshot = instanceState.asset.update(props.image);
+    instanceState.media
         .setResource(snapshot.resource, snapshot.status)
         .setLocalTime(time.seconds)
         .setFitMode('contain');
-    return [state.media];
+    return [instanceState.media];
 },
 ```
 

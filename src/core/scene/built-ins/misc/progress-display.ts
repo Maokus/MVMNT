@@ -134,7 +134,7 @@ export const progressDisplay = defineBuiltInElement<Props, undefined>({
         ],
     },
     capabilities: { required: [], optional: [] },
-    render(props, _state, time) {
+    render(props, _instanceState, time) {
         const objects: RenderObject[] = [];
         const start = time.playbackStartSeconds ?? 0;
         const duration =

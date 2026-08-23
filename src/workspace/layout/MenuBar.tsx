@@ -8,8 +8,9 @@ import { BrowseTemplatesButton } from '@workspace/templates/BrowseTemplatesButto
 import { easyModeTemplates } from '@workspace/templates/easyModeTemplates';
 import { useTemplateApply } from '@workspace/templates/useTemplateApply';
 import type { TemplateDefinition } from '@workspace/templates/types';
-import { isTextEditingTarget, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
+import { matchesShortcut, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 import { BUILD_INFO } from '@app/build-info';
+import { CommandContextMenu } from '@workspace/components/CommandContextMenu';
 
 interface MenuBarProps {
     onHelp?: () => void;
@@ -23,7 +24,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
     // temporary local state while editing so user can clear the input fully
     const [tempSceneName, setTempSceneName] = useState<string>(sceneName || '');
     const [showSceneMenu, setShowSceneMenu] = useState(false);
-    const sceneMenuRef = useRef<HTMLDivElement>(null);
+    const sceneMenuButtonRef = useRef<HTMLButtonElement>(null);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
     const templates = useMemo(() => easyModeTemplates, []);
     const hasTemplates = templates.length > 0;
@@ -33,32 +34,10 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
         [applyTemplate]
     );
 
-    // Handle clicks outside scene menu to close it
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (sceneMenuRef.current && !sceneMenuRef.current.contains(event.target as Node)) {
-                setShowSceneMenu(false);
-            }
-        };
-
-        if (showSceneMenu) {
-            document.addEventListener('mousedown', handleClickOutside);
-            return () => {
-                document.removeEventListener('mousedown', handleClickOutside);
-            };
-        }
-    }, [showSceneMenu]);
-
     useGlobalShortcut({
         id: 'document.scene-settings',
         domain: 'document',
-        matches: (event) =>
-            event.metaKey &&
-            !event.ctrlKey &&
-            !event.altKey &&
-            !event.shiftKey &&
-            event.key === ',' &&
-            !isTextEditingTarget(event.target),
+        matches: (event) => matchesShortcut(event, { key: ',', primary: true }),
         handle: (event) => {
             event.preventDefault();
             setShowSceneMenu(false);
@@ -211,8 +190,9 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                         >
                             <FaCog />
                         </button>
-                        <div className="relative" ref={sceneMenuRef}>
+                        <div className="relative">
                             <button
+                                ref={sceneMenuButtonRef}
                                 className="bg-transparent border-0 text-neutral-300 cursor-pointer p-1.5 rounded text-sm font-bold transition-colors flex items-center justify-center w-6 h-6 hover:bg-white/10 hover:text-white"
                                 onClick={() => setShowSceneMenu(!showSceneMenu)}
                                 title="Scene options"
@@ -221,40 +201,37 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                             >
                                 <FaEllipsisV />
                             </button>
-                            {showSceneMenu && (
-                                <div
-                                    className={`absolute top-full right-0 border rounded shadow-lg z-[1000] min-w-[180px] mt-1 [background-color:var(--twc-control)] [border-color:#525252] ${showSceneMenu ? 'block' : 'hidden'}`}
-                                >
-                                    <div
-                                        className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b"
-                                        onClick={handleSave}
-                                    >
-                                        <FaSave /> <span>Save</span>
-                                        <span className="ml-auto text-[11px] text-neutral-500">⌘S</span>
-                                    </div>
-                                    <div
-                                        className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b"
-                                        onClick={handleSaveAs}
-                                    >
-                                        <FaFileExport /> <span>Save As…</span>
-                                        <span className="ml-auto text-[11px] text-neutral-500">⌘⇧S</span>
-                                    </div>
-                                    <div
-                                        className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b"
-                                        onClick={handleLoad}
-                                    >
-                                        <FaFolderOpen /> <span>Load from File…</span>
-                                        <span className="ml-auto text-[11px] text-neutral-500">⌘O</span>
-                                    </div>
-                                    <div
-                                        className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b"
-                                        onClick={handleNew}
-                                    >
-                                        <FaMagic /> <span>New Blank Scene</span>
-                                        <span className="ml-auto text-[11px] text-neutral-500">⌘N</span>
-                                    </div>
-                                </div>
-                            )}
+                            {showSceneMenu && sceneMenuButtonRef.current ? (
+                                <CommandContextMenu
+                                    position={{
+                                        x: sceneMenuButtonRef.current.getBoundingClientRect().right - 180,
+                                        y: sceneMenuButtonRef.current.getBoundingClientRect().bottom + 4,
+                                    }}
+                                    onClose={() => setShowSceneMenu(false)}
+                                    ariaLabel="Scene options"
+                                    entries={[
+                                        { label: 'Save', shortcut: 'Mod+S', icon: <FaSave />, onSelect: handleSave },
+                                        {
+                                            label: 'Save As…',
+                                            shortcut: 'Mod+Shift+S',
+                                            icon: <FaFileExport />,
+                                            onSelect: handleSaveAs,
+                                        },
+                                        {
+                                            label: 'Load from File…',
+                                            shortcut: 'Mod+O',
+                                            icon: <FaFolderOpen />,
+                                            onSelect: handleLoad,
+                                        },
+                                        {
+                                            label: 'New Blank Scene',
+                                            shortcut: 'Mod+N',
+                                            icon: <FaMagic />,
+                                            onSelect: handleNew,
+                                        },
+                                    ]}
+                                />
+                            ) : null}
                         </div>
                     </div>
                 </div>

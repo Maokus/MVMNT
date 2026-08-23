@@ -239,7 +239,7 @@ export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
         ],
     },
     capabilities: { required: ['timeline.read'], optional: [] },
-    render(props, _state, time, context) {
+    render(props, _instanceState, time, context) {
         const current = Math.max(0, time.seconds);
         const fade = Math.max(0, props.fadeOutDuration);
         const trackIds = props.midiTrackId ? [props.midiTrackId] : [];

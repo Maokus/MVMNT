@@ -6,6 +6,7 @@ import type { ElementBindings } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
 import type { DebugSettings } from '@context/visualizer/types';
 import { NodeTransformPanel } from './NodeTransformPanel';
+import { activateCommandSurface } from '@context/commands/commandContext';
 
 interface SelectedElementProps {
     id: string;
@@ -37,7 +38,12 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {
     // Show ElementPropertiesPanel when an element is selected, otherwise show GlobalPropertiesPanel
     if (selectedNodeIds.length) {
         return (
-            <div className="node-properties-shell">
+            <div
+                className="node-properties-shell"
+                data-command-surface="properties"
+                onPointerDownCapture={() => activateCommandSurface('properties')}
+                onFocusCapture={() => activateCommandSurface('properties')}
+            >
                 {selectedNodeIds.length === 1 && element && schema ? (
                     <ElementPropertiesPanel
                         elementId={element.id}
@@ -56,17 +62,23 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {
     }
 
     return (
-        <GlobalPropertiesPanel
-            visualizer={visualizer}
-            refreshToken={refreshToken}
-            onExport={props.onExport}
-            exportStatus={props.exportStatus}
-            canExport={props.canExport}
-            exportSettings={props.exportSettings}
-            onExportSettingsChange={props.onExportSettingsChange}
-            debugSettings={props.debugSettings}
-            onDebugSettingsChange={props.onDebugSettingsChange}
-        />
+        <div
+            data-command-surface="properties"
+            onPointerDownCapture={() => activateCommandSurface('properties')}
+            onFocusCapture={() => activateCommandSurface('properties')}
+        >
+            <GlobalPropertiesPanel
+                visualizer={visualizer}
+                refreshToken={refreshToken}
+                onExport={props.onExport}
+                exportStatus={props.exportStatus}
+                canExport={props.canExport}
+                exportSettings={props.exportSettings}
+                onExportSettingsChange={props.onExportSettingsChange}
+                debugSettings={props.debugSettings}
+                onDebugSettingsChange={props.onDebugSettingsChange}
+            />
+        </div>
     );
 };
 

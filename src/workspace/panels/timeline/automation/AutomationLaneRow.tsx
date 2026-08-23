@@ -41,6 +41,7 @@ import {
     KEYFRAME_DIAMOND_SIZE,
     type KeyframeHalfShape,
 } from './keyframeShape';
+import { CommandContextMenu } from '@workspace/components/CommandContextMenu';
 
 function focusChannelOwner(channel: AutomationChannel) {
     if (channel.target.owner.kind === 'element') {
@@ -465,39 +466,13 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     // -----------------------------------------------------------------------
     // Channel context menu (background right-click)
     // -----------------------------------------------------------------------
-    const [contextMenuOpen, setContextMenuOpen] = useState(false);
-    const { refs: ctxRefs, floatingStyles: ctxFloatingStyles } = useFloating({
-        open: contextMenuOpen,
-        onOpenChange: setContextMenuOpen,
-        placement: 'bottom-start',
-        middleware: [offset(4), flip({ padding: 12 }), shift({ padding: 12 })],
-        whileElementsMounted: autoUpdate,
-    });
+    const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
 
-    const handleContextMenu = useCallback(
-        (e: React.MouseEvent<SVGSVGElement>) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const x = e.clientX;
-            const y = e.clientY;
-            ctxRefs.setReference({
-                getBoundingClientRect: () => new DOMRect(x, y, 0, 0),
-            });
-            setContextMenuOpen(true);
-        },
-        [ctxRefs]
-    );
-
-    useEffect(() => {
-        if (!contextMenuOpen) return;
-        const close = (e: PointerEvent) => {
-            const el = ctxRefs.floating.current;
-            if (el && el.contains(e.target as Node)) return;
-            setContextMenuOpen(false);
-        };
-        window.addEventListener('pointerdown', close, true);
-        return () => window.removeEventListener('pointerdown', close, true);
-    }, [contextMenuOpen]);
+    const handleContextMenu = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setContextMenuPosition({ x: e.clientX, y: e.clientY });
+    }, []);
 
     // -----------------------------------------------------------------------
     // Interpolation picker (segment click)
@@ -756,80 +731,54 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             </svg>
 
             {/* Channel context menu (background right-click) */}
-            {contextMenuOpen && (
-                <FloatingPortal>
-                    <div
-                        ref={ctxRefs.setFloating}
-                        className="ae-context-menu z-50"
-                        style={ctxFloatingStyles}
-                        onPointerDown={(e) => e.stopPropagation()}
-                    >
-                        <button
-                            type="button"
-                            className="ae-context-menu-item"
-                            onClick={() => {
-                                copyChannel(channel);
-                                setContextMenuOpen(false);
-                            }}
-                        >
-                            Copy channel
-                        </button>
-                        {getClipboard() && (
-                            <button
-                                type="button"
-                                className="ae-context-menu-item"
-                                onClick={() => {
-                                    const clip = getClipboard();
-                                    if (clip) {
-                                        dispatchSceneCommand(
-                                            {
-                                                type: 'batchUpdateKeyframes',
-                                                channelId: channel.id,
-                                                keyframes: clip.keyframes,
-                                            },
-                                            { source: 'automation-lane' }
-                                        );
-                                    }
-                                    setContextMenuOpen(false);
-                                }}
-                            >
-                                Paste keyframes
-                            </button>
-                        )}
-                        <div className="ae-context-menu-divider" />
-                        <button
-                            type="button"
-                            className="ae-context-menu-item"
-                            onClick={() => {
+            {contextMenuPosition ? (
+                <CommandContextMenu
+                    position={contextMenuPosition}
+                    onClose={() => setContextMenuPosition(null)}
+                    ariaLabel="Automation channel actions"
+                    entries={[
+                        { label: 'Copy channel', onSelect: () => copyChannel(channel) },
+                        ...(getClipboard()
+                            ? [
+                                  {
+                                      label: 'Paste keyframes',
+                                      onSelect: () => {
+                                          const clip = getClipboard();
+                                          if (clip) {
+                                              dispatchSceneCommand(
+                                                  {
+                                                      type: 'batchUpdateKeyframes',
+                                                      channelId: channel.id,
+                                                      keyframes: clip.keyframes,
+                                                  },
+                                                  { source: 'automation-lane' }
+                                              );
+                                          }
+                                      },
+                                  },
+                              ]
+                            : []),
+                        { separator: true },
+                        {
+                            label: 'Clear keyframes',
+                            onSelect: () =>
                                 dispatchSceneCommand(
-                                    {
-                                        type: 'batchUpdateKeyframes',
-                                        channelId: channel.id,
-                                        keyframes: [],
-                                    },
+                                    { type: 'batchUpdateKeyframes', channelId: channel.id, keyframes: [] },
                                     { source: 'automation-lane' }
-                                );
-                                setContextMenuOpen(false);
-                            }}
-                        >
-                            Clear keyframes
-                        </button>
-                        <button
-                            type="button"
-                            className="ae-context-menu-item danger"
-                            onClick={() => {
+                                ),
+                        },
+                        {
+                            label: 'Delete automation',
+                            danger: true,
+                            onSelect: () =>
                                 dispatchSceneCommand({
                                     type: 'disablePropertyAutomation',
                                     target: channel.target,
-                                });
-                                setContextMenuOpen(false);
-                            }}
-                        >
-                            Delete automation
-                        </button>
-                    </div>
-                </FloatingPortal>
-            )}
+                                }),
+                        },
+                    ]}
+                />
+            ) : null}
 
             {/* Interpolation picker popover (segment click) */}
             {interpolationPicker && (

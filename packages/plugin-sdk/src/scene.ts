@@ -372,7 +372,7 @@ export type PropsFromSchema<Schema extends ElementSchema> = Readonly<{
 
 export interface PluginElementDefinition<
     Props extends Readonly<Record<string, unknown>> = Readonly<Record<string, unknown>>,
-    State = undefined,
+    InstanceState = undefined,
     Schema = unknown,
 > {
     readonly kind: 'mvmnt.plugin-element.v2';
@@ -382,30 +382,43 @@ export interface PluginElementDefinition<
     /** Declaratively describes every analyzed audio artifact required by this instance. */
     audioFeatureDemands?(props: Props): readonly AudioFeatureDemand[];
     load?(context: CapabilityContext): void | Promise<void>;
-    create?(props: Props, context: ElementContext<Props>): State | Promise<State>;
-    render(props: Props, state: State, time: RenderTime, context: ElementContext<Props>): readonly RenderObject[];
-    dispose?(state: State, context: ElementContext<Props>): void | Promise<void>;
+    /** Creates ephemeral runtime resources and caches retained for one element instance. */
+    create?(props: Props, context: ElementContext<Props>): InstanceState | Promise<InstanceState>;
+    /**
+     * Produces one random-access frame. Instance state may cache reusable work, but output must not depend on
+     * the order or number of previous render calls.
+     */
+    render(
+        props: Props,
+        instanceState: InstanceState,
+        time: RenderTime,
+        context: ElementContext<Props>
+    ): readonly RenderObject[];
+    /** Releases plugin-owned instance resources synchronously. Asynchronous work stops through context.signal. */
+    dispose?(instanceState: InstanceState, context: ElementContext<Props>): undefined;
     unload?(context: CapabilityContext): void | Promise<void>;
 }
 
 export type PluginElementDefinitionInput<
     Props extends Readonly<Record<string, unknown>>,
-    State,
+    InstanceState,
     Schema = unknown,
-> = Omit<PluginElementDefinition<Props, State, Schema>, 'kind'>;
+> = Omit<PluginElementDefinition<Props, InstanceState, Schema>, 'kind'>;
 
-export function definePluginElement<const Schema extends ElementSchema, State = undefined>(
-    input: PluginElementDefinitionInput<PropsFromSchema<Schema>, State, Schema>
-): PluginElementDefinition<PropsFromSchema<Schema>, State, Schema>;
+export function definePluginElement<const Schema extends ElementSchema, InstanceState = undefined>(
+    input: PluginElementDefinitionInput<PropsFromSchema<Schema>, InstanceState, Schema>
+): PluginElementDefinition<PropsFromSchema<Schema>, InstanceState, Schema>;
 /**
  * Compatibility overload for elements with props that cannot be represented by
  * an inspector schema. New elements normally omit this generic and infer props.
  */
 export function definePluginElement<
     Props extends Readonly<Record<string, unknown>> = Readonly<Record<string, unknown>>,
-    State = undefined,
+    InstanceState = undefined,
     Schema = unknown,
->(input: PluginElementDefinitionInput<Props, State, Schema>): PluginElementDefinition<Props, State, Schema>;
+>(
+    input: PluginElementDefinitionInput<Props, InstanceState, Schema>
+): PluginElementDefinition<Props, InstanceState, Schema>;
 export function definePluginElement(
     input: PluginElementDefinitionInput<Readonly<Record<string, unknown>>, unknown, unknown>
 ): PluginElementDefinition<Readonly<Record<string, unknown>>, unknown, unknown> {

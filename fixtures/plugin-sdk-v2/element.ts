@@ -20,7 +20,7 @@ export const sdkV2Fixture = definePluginElement<{ readonly color: string }, unde
     type: 'sdk-v2-fixture',
     metadata: { name: 'SDK 2 Fixture', category: 'Fixtures' },
     schema: { tabs: [] },
-    render(props, _state, time, context) {
+    render(props, _instanceState, time, context) {
         const metadata = context.timeline!.getMetadata();
         if (!metadata.ok) return [];
         const size = clamp(20 + time.seconds, 20, 100);

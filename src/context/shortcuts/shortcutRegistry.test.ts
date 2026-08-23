@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { registerGlobalShortcut, resetGlobalShortcutsForTest } from './shortcutRegistry';
+import { matchesShortcut, registerGlobalShortcut, resetGlobalShortcutsForTest } from './shortcutRegistry';
 
 afterEach(() => resetGlobalShortcutsForTest());
 
@@ -114,5 +114,53 @@ describe('global shortcut registry', () => {
         expect(remove).toHaveBeenCalledTimes(1);
         add.mockRestore();
         remove.mockRestore();
+    });
+
+    it('matches exact platform-neutral chords and rejects repeats by default', () => {
+        expect(
+            matchesShortcut(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }), { key: 's', primary: true })
+        ).toBe(true);
+        expect(
+            matchesShortcut(new KeyboardEvent('keydown', { key: 's', ctrlKey: true, shiftKey: true }), {
+                key: 's',
+                primary: true,
+            })
+        ).toBe(false);
+        expect(
+            matchesShortcut(new KeyboardEvent('keydown', { key: 'ArrowRight', repeat: true }), {
+                key: 'ArrowRight',
+            })
+        ).toBe(false);
+        expect(
+            matchesShortcut(new KeyboardEvent('keydown', { key: 'ArrowRight', repeat: true }), {
+                key: 'ArrowRight',
+                allowRepeat: true,
+            })
+        ).toBe(true);
+    });
+
+    it('ignores keyboard events during IME composition', () => {
+        const handle = vi.fn(() => true);
+        registerGlobalShortcut({ id: 'scene.any', domain: 'scene', matches: () => true, handle });
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Process', bubbles: true }));
+        expect(handle).not.toHaveBeenCalled();
+    });
+
+    it('gives Escape to the most recently mounted modal', () => {
+        const calls: string[] = [];
+        registerGlobalShortcut({
+            id: 'modal.first',
+            domain: 'modal',
+            matches: (event) => event.key === 'Escape',
+            handle: () => (calls.push('first'), true),
+        });
+        registerGlobalShortcut({
+            id: 'modal.second',
+            domain: 'modal',
+            matches: (event) => event.key === 'Escape',
+            handle: () => (calls.push('second'), true),
+        });
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        expect(calls).toEqual(['second']);
     });
 });

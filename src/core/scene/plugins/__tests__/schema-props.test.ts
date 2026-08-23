@@ -40,7 +40,7 @@ const schema = {
 } as const;
 
 describe('schema-inferred plugin props', () => {
-    it('infers callback props and create state from the schema', () => {
+    it('infers callback props and instance state from the schema', () => {
         const definition = definePluginElement({
             type: 'schema-props',
             metadata: { name: 'Schema Props' },
@@ -68,25 +68,28 @@ describe('schema-inferred plugin props', () => {
                 }
                 return { frames: 0 };
             },
-            render(props, state) {
+            render(props, instanceState) {
                 expectTypeOf(props.align).toEqualTypeOf<'left' | 'right'>();
-                expectTypeOf(state).toEqualTypeOf<{ frames: number }>();
+                expectTypeOf(instanceState).toEqualTypeOf<{ frames: number }>();
                 return [];
+            },
+            dispose(instanceState) {
+                expectTypeOf(instanceState).toEqualTypeOf<{ frames: number }>();
             },
         });
 
         expect(definition.type).toBe('schema-props');
     });
 
-    it('preserves the explicit props and state generic form', () => {
+    it('preserves the explicit props and instance-state generic form', () => {
         interface LegacyProps extends Readonly<Record<string, unknown>> {
             readonly label: string;
         }
-        interface LegacyState {
+        interface ExplicitInstanceState {
             frames: number;
         }
 
-        const definition = definePluginElement<LegacyProps, LegacyState>({
+        const definition = definePluginElement<LegacyProps, ExplicitInstanceState>({
             type: 'legacy-props',
             metadata: { name: 'Legacy Props' },
             schema: { tabs: [] },
@@ -94,13 +97,26 @@ describe('schema-inferred plugin props', () => {
                 expectTypeOf(props.label).toEqualTypeOf<string>();
                 return { frames: 0 };
             },
-            render(props, state) {
+            render(props, instanceState) {
                 expectTypeOf(props.label).toEqualTypeOf<string>();
-                expectTypeOf(state.frames).toEqualTypeOf<number>();
+                expectTypeOf(instanceState.frames).toEqualTypeOf<number>();
                 return [];
             },
         });
 
         expect(definition.type).toBe('legacy-props');
+    });
+
+    it('requires synchronous instance disposal', () => {
+        definePluginElement({
+            type: 'synchronous-disposal',
+            metadata: { name: 'Synchronous disposal' },
+            schema: { tabs: [] },
+            render() {
+                return [];
+            },
+            // @ts-expect-error Instance disposal cannot return a promise.
+            async dispose() {},
+        });
     });
 });

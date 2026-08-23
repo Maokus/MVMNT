@@ -43,7 +43,7 @@ export const background = defineBuiltInElement<BackgroundProps, undefined>({
         ],
     },
     capabilities: { required: [], optional: [] },
-    render(props, _state, time) {
+    render(props, _instanceState, time) {
         const viewport = time.viewport;
         if (!viewport) return [];
         return [

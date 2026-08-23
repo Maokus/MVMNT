@@ -71,6 +71,7 @@ settings.
 ## Continue learning
 
 - [Authoring guide](authoring.md) — schemas, capabilities, lifecycle, and properties.
+- [Instance state](instance-state.md) — retained runtime resources and deterministic caching.
 - [Rendering and assets](rendering-and-assets.md) — render objects and packaged visuals.
 - [Audio](audio.md) — analyzed features, raw PCM, and custom calculators.
 - [API reference](reference.md) — package subpaths and manifest contract.

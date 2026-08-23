@@ -1,8 +1,11 @@
-import { useGlobalShortcut, isTextEditingTarget } from './shortcutRegistry';
+import { useGlobalShortcut, isTextEditingTarget, matchesShortcut } from './shortcutRegistry';
 import type { BindingState, ElementBindings } from '@state/sceneStore';
 import type { SceneCommand, SceneCommandOptions } from '@state/scene';
 import { useSelectionStore } from '@state/selectionStore';
 import { translationMatrix } from '@state/scene-graph';
+import { executeCommand, getCommandState } from '@context/commands/commandRegistry';
+import { SCENE_COMMANDS } from '@context/commands/sceneCommands';
+import { isCommandSurfaceActive } from '@context/commands/commandContext';
 
 type OffsetBindingKey = 'offsetX' | 'offsetY';
 type ArrowKey = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown';
@@ -44,26 +47,50 @@ export function useSceneShortcuts(args: UseSceneShortcutsArgs): void {
         domain: 'scene',
         matches: (event) => {
             if (event.altKey) return false;
-            const selected = useSelectionStore.getState().selectedNodeIds;
-            const isModifier = event.metaKey || event.ctrlKey;
-            if (isModifier && event.key.toLowerCase() === 'g')
-                return selected.length > 0 && !isTextEditingTarget(event.target);
-            if (isSceneDeletionShortcut(event)) return selected.length > 0;
-            if (event.key === 'Escape') return selected.length > 0 && !isTextEditingTarget(event.target);
-            return !isModifier && event.key in ARROW_KEY_TO_OFFSET && !isTextEditingTarget(event.target);
+            const selection = useSelectionStore.getState();
+            if (isTextEditingTarget(event.target)) return false;
+            const inSceneEditor = isCommandSurfaceActive(['scene-tree', 'preview'], event);
+            if (!inSceneEditor) return false;
+            if (isCommandSurfaceActive('scene-tree', event) && matchesShortcut(event, { key: 'a', primary: true })) {
+                return getCommandState(SCENE_COMMANDS.selectAll).enabled;
+            }
+            if (selection.activeTarget !== 'elements') return false;
+            if (matchesShortcut(event, { key: 'g', primary: true }))
+                return getCommandState(SCENE_COMMANDS.group).enabled;
+            if (matchesShortcut(event, { key: 'g', primary: true, shift: true }))
+                return getCommandState(SCENE_COMMANDS.ungroup).enabled;
+            if (matchesShortcut(event, { key: 'd', primary: true }))
+                return getCommandState(SCENE_COMMANDS.duplicate).enabled;
+            if (isSceneDeletionShortcut(event)) return getCommandState(SCENE_COMMANDS.delete).enabled;
+            if (event.key === 'Escape') return selection.selectedNodeIds.length > 0;
+            return (
+                isCommandSurfaceActive('preview', event) &&
+                !event.metaKey &&
+                !event.ctrlKey &&
+                event.key in ARROW_KEY_TO_OFFSET
+            );
         },
         handle: (event) => {
             const selected = useSelectionStore.getState().selectedNodeIds;
-            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'g' && selected.length) {
+            if (matchesShortcut(event, { key: 'a', primary: true })) {
                 event.preventDefault();
-                if (event.shiftKey) args.ungroupSelectedNodes();
-                else args.groupSelectedNodes();
-                return true;
+                return executeCommand(SCENE_COMMANDS.selectAll);
+            }
+            if (matchesShortcut(event, { key: 'g', primary: true, shift: true })) {
+                event.preventDefault();
+                return executeCommand(SCENE_COMMANDS.ungroup);
+            }
+            if (matchesShortcut(event, { key: 'g', primary: true })) {
+                event.preventDefault();
+                return executeCommand(SCENE_COMMANDS.group);
+            }
+            if (matchesShortcut(event, { key: 'd', primary: true })) {
+                event.preventDefault();
+                return executeCommand(SCENE_COMMANDS.duplicate);
             }
             if (isSceneDeletionShortcut(event) && selected.length) {
                 event.preventDefault();
-                args.deleteSelectedNodes();
-                return true;
+                return executeCommand(SCENE_COMMANDS.delete);
             }
             if (event.key === 'Escape' && selected.length) {
                 event.preventDefault();

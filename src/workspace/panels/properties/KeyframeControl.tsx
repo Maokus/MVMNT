@@ -7,8 +7,7 @@
  *  3. Automation, no keyframe at tick (outlined diamond) — click adds keyframe at current tick
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useCallback, useState } from 'react';
 import { useCurrentTick, useAutomationTargetChannel, useKeyframeAtTick } from '@automation/hooks';
 import { dispatchSceneCommand, insertPropertyKeyframe } from '@state/scene';
 import { elementPropertyTarget, encodePropertyOwner } from '@automation/types';
@@ -16,6 +15,7 @@ import type { AutomationValueType, PropertyTarget } from '@automation/types';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneStore } from '@state/sceneStore';
 import { useSceneEditorStore } from '@state/sceneEditorStore';
+import { CommandContextMenu } from '@workspace/components/CommandContextMenu';
 
 interface KeyframeControlProps {
     target?: PropertyTarget;
@@ -119,17 +119,6 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
         [isAutomated]
     );
 
-    useEffect(() => {
-        if (!menuPosition) return;
-        const close = () => setMenuPosition(null);
-        window.addEventListener('pointerdown', close);
-        window.addEventListener('blur', close);
-        return () => {
-            window.removeEventListener('pointerdown', close);
-            window.removeEventListener('blur', close);
-        };
-    }, [menuPosition]);
-
     const seekAdjacent = (direction: -1 | 1) => {
         if (!channel) return;
         const ticks = channel.keyframes.map((keyframe) => keyframe.tick).sort((a, b) => a - b);
@@ -203,42 +192,28 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                     </svg>
                 )}
             </button>
-            {menuPosition
-                ? createPortal(
-                      <div
-                          className="ae-keyframe-menu"
-                          role="menu"
-                          style={{ left: menuPosition.x, top: menuPosition.y }}
-                          onPointerDown={(event) => event.stopPropagation()}
-                      >
-                          <button type="button" role="menuitem" onClick={() => seekAdjacent(-1)}>
-                              Previous keyframe
-                          </button>
-                          <button type="button" role="menuitem" onClick={() => seekAdjacent(1)}>
-                              Next keyframe
-                          </button>
-                          <button type="button" role="menuitem" onClick={revealInTimeline}>
-                              Reveal in timeline
-                          </button>
-                          <div className="ae-keyframe-menu-divider" />
-                          <button
-                              type="button"
-                              role="menuitem"
-                              className="danger"
-                              onClick={() => {
-                                  dispatchSceneCommand(
-                                      { type: 'disablePropertyAutomation', target },
-                                      { source: 'keyframe-control' }
-                                  );
-                                  setMenuPosition(null);
-                              }}
-                          >
-                              Disable automation
-                          </button>
-                      </div>,
-                      document.body
-                  )
-                : null}
+            {menuPosition ? (
+                <CommandContextMenu
+                    position={menuPosition}
+                    onClose={() => setMenuPosition(null)}
+                    ariaLabel="Property automation actions"
+                    entries={[
+                        { label: 'Previous keyframe', onSelect: () => seekAdjacent(-1) },
+                        { label: 'Next keyframe', onSelect: () => seekAdjacent(1) },
+                        { label: 'Reveal in timeline', onSelect: revealInTimeline },
+                        { separator: true },
+                        {
+                            label: 'Disable automation',
+                            danger: true,
+                            onSelect: () =>
+                                dispatchSceneCommand(
+                                    { type: 'disablePropertyAutomation', target },
+                                    { source: 'keyframe-control' }
+                                ),
+                        },
+                    ]}
+                />
+            ) : null}
         </>
     );
 };

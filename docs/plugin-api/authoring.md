@@ -45,9 +45,9 @@ renderer and receive no generic filesystem or IPC access.
 ## Lifecycle
 
 - `load(context)` runs once for a loaded definition.
-- `create(props, context)` runs once per scene instance and may be asynchronous.
-- `render(props, state, time, context)` produces the current render objects.
-- `dispose(state, context)` cleans up one instance.
+- `create(props, context)` runs once per scene instance, may be asynchronous, and returns its instance state.
+- `render(props, instanceState, time, context)` produces the current render objects.
+- `dispose(instanceState, context)` synchronously cleans up one initialized instance.
 - `unload(context)` runs when the definition is disabled, replaced, or removed.
 
 Definition and instance contexts have their own `AbortSignal`. Calculator registrations, feature
@@ -56,6 +56,10 @@ automatically. Stop plugin-owned asynchronous work when the signal aborts.
 
 Until asynchronous initialization finishes, the host renders no objects. Initialization failures
 leave the instance inert and emit a structured diagnostic.
+
+Instance state is ephemeral runtime working data, not persisted or temporal state. See
+[scene element instance state](instance-state.md) for its lifecycle, appropriate uses, and the
+random-access rendering requirement.
 
 ## Effective properties
 
