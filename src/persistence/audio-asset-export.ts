@@ -56,6 +56,7 @@ export interface CollectedAudioAssets {
 
 export interface CollectAssetsOptions {
     onProgress?: (value: number, label?: string) => void;
+    state?: ReturnType<typeof useTimelineStore.getState>;
 }
 
 const MIME_EXT: Record<string, string> = {
@@ -121,7 +122,9 @@ async function resolveBytes(
     if (entry.originalFile?.bytes && entry.originalFile.byteLength > 0) {
         const mimeType = entry.originalFile.mimeType || 'application/octet-stream';
         const filename = inferFilename(sourceId, mimeType, entry.originalFile.name);
-        return { bytes: entry.originalFile.bytes, mimeType, kind: 'original', filename };
+        // Packaging transfers ownership to a worker. Keep the cache's live
+        // source buffer attached by handing the worker a dedicated copy.
+        return { bytes: entry.originalFile.bytes.slice(), mimeType, kind: 'original', filename };
     }
     if (entry.originalFile?.assetId && entry.originalFile.byteLength > 0) {
         const stored = await AudioAssetStore.get(entry.originalFile.assetId);
@@ -141,7 +144,7 @@ async function resolveBytes(
 }
 
 export async function collectAudioAssets(options: CollectAssetsOptions): Promise<CollectedAudioAssets> {
-    const state = useTimelineStore.getState();
+    const state = options.state ?? useTimelineStore.getState();
     const referencedIds = findReferencedAudioSourceIds(state);
 
     const audioById: Record<string, AudioAssetRecord> = {};
@@ -166,10 +169,6 @@ export async function collectAudioAssets(options: CollectAssetsOptions): Promise
         }
         const { bytes, mimeType, kind, filename } = await resolveBytes(entry, audioId);
         const hash = await sha256Hex(bytes);
-        if (entry.originalFile) {
-            entry.originalFile.hash = hash;
-            entry.originalFile.byteLength = entry.originalFile.byteLength || bytes.byteLength;
-        }
         let record = audioById[hash];
         if (!record) {
             record = {

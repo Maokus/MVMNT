@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { dispatchSceneCommand } from '@state/scene';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { exportScene, importScene } from '@persistence/index';
@@ -6,7 +7,8 @@ import type { ImportError } from '@persistence/import';
 import { loadPlugin } from '@core/scene/plugins';
 import type { DesktopOpenResult } from '../../electron/shared/desktop-api';
 import { analytics } from '@app/analytics';
-import { runTrackedDocumentSave } from '@app/documentAnalytics';
+import { writeNativeDocument } from '@persistence/native-document-writer';
+import { useDocumentSaveStatusStore } from '@state/documentSaveStatusStore';
 
 function humanReadableImportError(error: ImportError): string {
     switch (error.code) {
@@ -18,6 +20,7 @@ function humanReadableImportError(error: ImportError): string {
 }
 import { useUndo } from './UndoContext';
 import { useSceneStore } from '@state/sceneStore';
+import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
 
@@ -39,15 +42,13 @@ interface UseMenuBarProps {
     onSceneRefresh?: () => void;
     isDirty: boolean;
     markSaveClean: () => void;
+    captureSaveRevision: () => number;
+    markSaveCleanIfRevision: (revision: number) => boolean;
     markDirty: () => void;
     requestUnsavedChangesDecision: (message: string) => Promise<'save' | 'discard' | 'cancel'>;
 }
 
 interface MenuBarActions {
-    saveScene: (
-        projectName?: string,
-        options?: { embedPlugins?: boolean; saveAsSelectionId?: string }
-    ) => Promise<boolean>;
     saveProject: (forceSaveAs?: boolean) => Promise<boolean>;
     loadScene: () => void;
     openDesktopFile: (result: DesktopOpenResult) => Promise<void>;
@@ -62,9 +63,27 @@ export const useMenuBar = ({
     onSceneRefresh,
     isDirty,
     markSaveClean,
+    captureSaveRevision,
+    markSaveCleanIfRevision,
     markDirty,
     requestUnsavedChangesDecision,
 }: UseMenuBarProps): MenuBarActions => {
+    const sceneNameRef = useRef(sceneName);
+    sceneNameRef.current = sceneName;
+    const saveQueueRef = useRef<{
+        forceSaveAs: boolean;
+        waiters: Array<(saved: boolean) => void>;
+    } | null>(null);
+    const saveDrainActiveRef = useRef(false);
+    const saveDrainPromiseRef = useRef<Promise<void> | null>(null);
+    const successTimerRef = useRef<number | null>(null);
+
+    useEffect(
+        () => () => {
+            if (successTimerRef.current !== null) window.clearTimeout(successTimerRef.current);
+        },
+        []
+    );
     // Access undo (optional if provider disabled)
     let undo: ReturnType<typeof useUndo> | null = null;
     try {
@@ -75,106 +94,178 @@ export const useMenuBar = ({
 
     const saveScene = async (
         projectName?: string,
-        options?: { embedPlugins?: boolean; saveAsSelectionId?: string }
-    ) => {
-        const nameToUse = projectName?.trim() ? projectName.trim() : sceneName;
-        const statusStore = useTemplateStatusStore.getState();
-        statusStore.startLoading(`Saving ${nameToUse || 'scene'}…`, { progress: 0 });
+        options?: { embedPlugins?: boolean; saveAsSelectionId?: string },
+        saveRevision = captureSaveRevision()
+    ): Promise<{ saved: boolean; canceled: boolean; revision: number; warnings: string[] }> => {
+        const nameToUse = projectName?.trim() ? projectName.trim() : sceneNameRef.current;
+        const statusStore = useDocumentSaveStatusStore.getState();
+        statusStore.setSaving(0, `Saving ${nameToUse || 'scene'}…`);
         try {
             const res = await exportScene(nameToUse, {
                 embedPlugins: options?.embedPlugins,
                 onProgress: (progress, message) =>
-                    useTemplateStatusStore.getState().updateLoading({ progress, message }),
+                    useDocumentSaveStatusStore
+                        .getState()
+                        .setSaving(progress * 0.9, message ?? `Saving ${nameToUse || 'scene'}…`),
             });
             if (!res.ok) {
-                alert(res.errors?.map((e) => e.message).join('\n') || 'Export failed.');
-                return false;
+                const errors = res.errors?.map((error) => error.message) ?? ['Export failed.'];
+                statusStore.setResult('error', 'Save failed', errors);
+                return { saved: false, canceled: false, revision: saveRevision, warnings: [] };
             }
-            if (res.warnings?.length) {
-                const elementWarnings = res.warnings.filter((w) => w.includes('could not be exported'));
-                if (elementWarnings.length) {
-                    console.warn('[saveScene] Some elements were skipped during export:', elementWarnings);
-                    alert(
-                        `Scene exported with warnings — ${elementWarnings.length} element(s) could not be exported and were skipped:\n\n` +
-                            elementWarnings.join('\n')
-                    );
-                }
-            }
-            // The desktop filename is the canonical project name. Validation is
-            // performed before user renames, so preserve the human-readable stem.
-            const safeName = nameToUse || 'Untitled';
-            const extension = '.mvt';
             const desktop = window.mvmntDesktop;
             if (!desktop) throw new Error('MVMNT desktop services are unavailable.');
-            useTemplateStatusStore.getState().updateLoading({ progress: 0.95, message: 'Writing project…' });
-            const request = { bytes: res.zip, suggestedName: `${safeName}${extension}` };
-            const saveResult = options?.saveAsSelectionId
-                ? await desktop.documents.writeSaveAs({ selectionId: options.saveAsSelectionId, bytes: res.zip })
-                : await desktop.documents.save(request);
+            statusStore.setSaving(0.9, 'Writing project…');
+            const saveResult = await writeNativeDocument(desktop.documents, res.zip, {
+                selectionId: options?.saveAsSelectionId,
+                onProgress: (progress) =>
+                    useDocumentSaveStatusStore.getState().setSaving(0.9 + progress * 0.08, 'Writing project…'),
+            });
             if (saveResult.status === 'error') {
-                alert(`Save failed: ${saveResult.error || 'Unknown error'}`);
-                return false;
+                const message = saveResult.error || 'Unknown error';
+                statusStore.setResult('error', 'Save failed', [message]);
+                return { saved: false, canceled: false, revision: saveRevision, warnings: [] };
             }
-            if (saveResult.status === 'canceled') return false;
+            if (saveResult.status === 'canceled') {
+                statusStore.clear();
+                return { saved: false, canceled: true, revision: saveRevision, warnings: [] };
+            }
             if (saveResult.displayName) {
-                onSceneNameChange(saveResult.displayName.replace(/\.mvt$/i, ''));
+                const savedName = saveResult.displayName.replace(/\.mvt$/i, '');
+                if (savedName !== useSceneMetadataStore.getState().metadata.name) onSceneNameChange(savedName);
             }
+            statusStore.setSaving(0.99, 'Updating recovery copy…');
             await LocalFileStore.save(res.zip).catch((error) => {
                 console.warn('[saveScene] Recovery snapshot failed:', error);
             });
-            localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
-            markSaveClean();
+            const savedLatestRevision = markSaveCleanIfRevision(saveRevision);
+            localStorage.setItem('mvmnt.desktop.recovery-state', savedLatestRevision ? 'clean' : 'dirty');
             console.log('Scene saved.');
-            return true;
+            return { saved: true, canceled: false, revision: saveRevision, warnings: res.warnings ?? [] };
         } catch (e) {
             console.error('Export error:', e);
-            alert('Error exporting scene. See console.');
-            return false;
-        } finally {
-            useTemplateStatusStore.getState().finishLoading();
+            const message = e instanceof Error ? e.message : String(e);
+            statusStore.setResult('error', 'Save failed', [message]);
+            return { saved: false, canceled: false, revision: saveRevision, warnings: [] };
         }
     };
 
-    const saveProject = async (forceSaveAs = false): Promise<boolean> => {
-        let canonicalName = sceneName;
+    const performSave = async (forceSaveAs: boolean) => {
+        let canonicalName = sceneNameRef.current;
         const desktop = window.mvmntDesktop;
-        if (!desktop) return false;
+        if (!desktop) return { saved: false, canceled: false, revision: captureSaveRevision(), warnings: [] };
         try {
             const document = await desktop.documents.getState();
             if (forceSaveAs || document.status !== 'saved') {
                 const selection = await desktop.documents.chooseSaveAs({
                     suggestedName: `${canonicalName || 'Untitled'}.mvt`,
                 });
-                if (selection.status === 'canceled') return false;
+                if (selection.status === 'canceled') {
+                    useDocumentSaveStatusStore.getState().clear();
+                    return { saved: false, canceled: true, revision: captureSaveRevision(), warnings: [] };
+                }
                 if (selection.status === 'error' || !selection.selectionId || !selection.displayName) {
-                    void analytics.capture('document_operation_failed', {
-                        operation: 'save',
-                        failure_category: 'save',
-                    });
-                    alert(`Save As failed: ${selection.error || 'Unknown error'}`);
-                    return false;
+                    const message = selection.error || 'Unknown error';
+                    useDocumentSaveStatusStore.getState().setResult('error', 'Save As failed', [message]);
+                    return { saved: false, canceled: false, revision: captureSaveRevision(), warnings: [] };
                 }
                 canonicalName = selection.displayName.replace(/\.mvt$/i, '');
                 onSceneNameChange(canonicalName);
-                return runTrackedDocumentSave(
-                    () => saveScene(canonicalName, { saveAsSelectionId: selection.selectionId }),
-                    'save_as'
-                );
+                const revision = captureSaveRevision();
+                return saveScene(canonicalName, { saveAsSelectionId: selection.selectionId }, revision);
             }
             if (document.displayName) {
                 canonicalName = document.displayName.replace(/\.mvt$/i, '');
-                if (canonicalName !== sceneName) onSceneNameChange(canonicalName);
+                if (canonicalName !== sceneNameRef.current) onSceneNameChange(canonicalName);
             }
-            return runTrackedDocumentSave(() => saveScene(canonicalName), forceSaveAs ? 'save_as' : 'save');
+            const revision = captureSaveRevision();
+            return saveScene(canonicalName, undefined, revision);
         } catch (error) {
             console.error('Save failed:', error);
-            void analytics.capture('document_operation_failed', { operation: 'save', failure_category: 'save' });
-            return false;
+            const message = error instanceof Error ? error.message : String(error);
+            useDocumentSaveStatusStore.getState().setResult('error', 'Save failed', [message]);
+            return { saved: false, canceled: false, revision: captureSaveRevision(), warnings: [] };
         }
+    };
+
+    const saveProject = (forceSaveAs = false): Promise<boolean> => {
+        return new Promise<boolean>((resolve) => {
+            const queued = saveQueueRef.current;
+            if (saveDrainActiveRef.current) {
+                if (queued) {
+                    queued.forceSaveAs ||= forceSaveAs;
+                    queued.waiters.push(resolve);
+                } else {
+                    saveQueueRef.current = { forceSaveAs, waiters: [resolve] };
+                }
+                useDocumentSaveStatusStore.getState().setQueued(true);
+                return;
+            }
+
+            saveDrainActiveRef.current = true;
+            const drainPromise = (async () => {
+                let request: {
+                    forceSaveAs: boolean;
+                    waiters: Array<(saved: boolean) => void>;
+                } = { forceSaveAs, waiters: [resolve] };
+                let finalWarnings: string[] = [];
+                try {
+                    while (true) {
+                        const result = await performSave(request.forceSaveAs);
+                        await analytics
+                            .capture(
+                                result.saved ? 'document_saved' : 'document_operation_failed',
+                                result.saved
+                                    ? { save_mode: request.forceSaveAs ? 'save_as' : 'save' }
+                                    : { operation: 'save', failure_category: 'save' }
+                            )
+                            .catch(() => undefined);
+                        request.waiters.forEach((waiter) => waiter(result.saved));
+                        if (!result.saved) {
+                            saveQueueRef.current?.waiters.forEach((waiter) => waiter(false));
+                            saveQueueRef.current = null;
+                            break;
+                        }
+                        finalWarnings = result.warnings;
+                        const next = saveQueueRef.current;
+                        saveQueueRef.current = null;
+                        if (!next) break;
+                        useDocumentSaveStatusStore.getState().setQueued(false);
+                        if (!next.forceSaveAs && captureSaveRevision() <= result.revision) {
+                            next.waiters.forEach((waiter) => waiter(true));
+                            break;
+                        }
+                        request = next;
+                    }
+
+                    if (useDocumentSaveStatusStore.getState().phase !== 'error') {
+                        if (finalWarnings.length > 0) {
+                            useDocumentSaveStatusStore
+                                .getState()
+                                .setResult('warning', 'Saved with warnings', finalWarnings);
+                        } else if (useDocumentSaveStatusStore.getState().phase !== 'idle') {
+                            useDocumentSaveStatusStore.getState().setResult('saved', 'Saved');
+                            if (successTimerRef.current !== null) window.clearTimeout(successTimerRef.current);
+                            successTimerRef.current = window.setTimeout(() => {
+                                if (useDocumentSaveStatusStore.getState().phase === 'saved') {
+                                    useDocumentSaveStatusStore.getState().clear();
+                                }
+                            }, 2_000);
+                        }
+                    }
+                } finally {
+                    saveDrainActiveRef.current = false;
+                    saveDrainPromiseRef.current = null;
+                }
+            })();
+            saveDrainPromiseRef.current = drainPromise;
+            void drainPromise;
+        });
     };
 
     const openDesktopFile = async (result: DesktopOpenResult): Promise<void> => {
         if (result.canceled || !result.bytes) return;
+        await saveDrainPromiseRef.current;
         if (isDirty) {
             const ok = window.confirm('Open this file?\n\nYou have unsaved changes that will be lost. Continue?');
             if (!ok) return;
@@ -246,7 +337,11 @@ export const useMenuBar = ({
             alert('MVMNT must be run through the desktop application.');
             return;
         }
-        void desktop.documents.open().then(openDesktopFile);
+        void (async () => {
+            await saveDrainPromiseRef.current;
+            const result = await desktop.documents.open();
+            await openDesktopFile(result);
+        })();
     };
 
     const clearScene = () => {
@@ -275,6 +370,7 @@ export const useMenuBar = ({
     };
 
     const createNewDefaultScene = async (): Promise<boolean> => {
+        await saveDrainPromiseRef.current;
         if (isDirty) {
             const decision = await requestUnsavedChangesDecision(
                 'Your current scene has unsaved changes. Save them before creating a new blank scene?'
@@ -315,7 +411,6 @@ export const useMenuBar = ({
     };
 
     return {
-        saveScene,
         saveProject,
         loadScene,
         openDesktopFile,

@@ -23,11 +23,6 @@ export interface DesktopSaveResult {
     error?: string;
 }
 
-export interface DesktopSaveRequest {
-    bytes: Uint8Array;
-    suggestedName: string;
-}
-
 export interface DesktopSaveAsSelectionRequest {
     suggestedName: string;
 }
@@ -39,9 +34,22 @@ export interface DesktopSaveAsSelectionResult {
     error?: string;
 }
 
-export interface DesktopWriteSaveAsRequest {
-    selectionId: string;
+export interface DesktopDocumentSaveBeginRequest {
+    expectedBytes: number;
+    selectionId?: string;
+}
+
+export interface DesktopDocumentSaveBeginResult {
+    status: 'ready' | 'canceled' | 'error';
+    sessionId?: string;
+    displayName?: string;
+    error?: string;
+}
+
+export interface DesktopDocumentSaveWriteRequest {
+    sessionId: string;
     bytes: Uint8Array;
+    position: number;
 }
 
 /** Renderer-safe document identity. Filesystem paths remain in the main process. */
@@ -153,9 +161,11 @@ export interface MvmntDesktopApi {
         open(): Promise<DesktopOpenResult>;
         listRecent(): Promise<DesktopRecentDocument[]>;
         openRecent(index: number): Promise<DesktopOpenResult>;
-        save(request: DesktopSaveRequest): Promise<DesktopSaveResult>;
         chooseSaveAs(request: DesktopSaveAsSelectionRequest): Promise<DesktopSaveAsSelectionResult>;
-        writeSaveAs(request: DesktopWriteSaveAsRequest): Promise<DesktopSaveResult>;
+        beginSave(request: DesktopDocumentSaveBeginRequest): Promise<DesktopDocumentSaveBeginResult>;
+        writeSaveChunk(request: DesktopDocumentSaveWriteRequest): Promise<void>;
+        completeSave(sessionId: string): Promise<DesktopSaveResult>;
+        abortSave(sessionId: string): Promise<void>;
         getState(): Promise<DesktopDocumentState>;
         /** Read the current native project without exposing its path. */
         restoreActive(): Promise<DesktopOpenResult>;

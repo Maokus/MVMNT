@@ -11,9 +11,52 @@ import type { TemplateDefinition } from '@workspace/templates/types';
 import { matchesShortcut, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 import { BUILD_INFO } from '@app/build-info';
 import { CommandContextMenu } from '@workspace/components/CommandContextMenu';
+import { useDocumentSaveStatusStore } from '@state/documentSaveStatusStore';
 
 interface MenuBarProps {
     onHelp?: () => void;
+}
+
+export function DocumentSaveStatus() {
+    const { phase, progress, message, details, queued } = useDocumentSaveStatusStore((state) => ({
+        phase: state.phase,
+        progress: state.progress,
+        message: state.message,
+        details: state.details,
+        queued: state.queued,
+    }));
+    if (phase === 'idle') return null;
+
+    const tone =
+        phase === 'error'
+            ? 'border-red-700/70 bg-red-950/70 text-red-200'
+            : phase === 'warning'
+              ? 'border-amber-700/70 bg-amber-950/70 text-amber-200'
+              : 'border-neutral-600/70 bg-neutral-800/80 text-neutral-200';
+    const label = queued && phase === 'saving' ? `${message} · latest queued` : message;
+
+    return (
+        <div
+            className={`relative max-w-52 overflow-hidden rounded border px-2 py-1 text-[11px] leading-none ${tone}`}
+            role="status"
+            aria-live="polite"
+            title={details.length > 0 ? details.join('\n') : label}
+        >
+            <span className="block truncate">{label}</span>
+            {phase === 'saving' && typeof progress === 'number' ? (
+                <span
+                    className="absolute inset-x-0 bottom-0 h-0.5 bg-neutral-700"
+                    role="progressbar"
+                    aria-label="Project save progress"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(progress * 100)}
+                >
+                    <span className="block h-full bg-sky-400" style={{ width: `${progress * 100}%` }} />
+                </span>
+            ) : null}
+        </div>
+    );
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
@@ -177,6 +220,8 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                                 ) : null}
                             </span>
                         )}
+
+                        <DocumentSaveStatus />
 
                         <button
                             className="bg-transparent border-0 text-neutral-300 cursor-pointer p-1.5 rounded text-sm transition-colors flex items-center justify-center w-7 h-7 hover:bg-white/10 hover:text-white"

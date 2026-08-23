@@ -39,11 +39,12 @@ import type {
     DesktopRecentDocument,
     DesktopRenameRequest,
     DesktopRenameResult,
-    DesktopSaveRequest,
     DesktopSaveResult,
     DesktopSaveAsSelectionRequest,
     DesktopSaveAsSelectionResult,
-    DesktopWriteSaveAsRequest,
+    DesktopDocumentSaveBeginRequest,
+    DesktopDocumentSaveBeginResult,
+    DesktopDocumentSaveWriteRequest,
     DesktopExportBeginRequest,
     DesktopExportBeginResult,
     DesktopExportCompleteRequest,
@@ -118,6 +119,15 @@ interface RecentDocumentRecord extends DesktopRecentDocument {
 }
 let recentDocuments: RecentDocumentRecord[] = [];
 let pendingSaveAs: { id: string; targetPath: string } | null = null;
+interface DocumentSaveSession {
+    id: string;
+    targetPath: string;
+    temporaryPath: string;
+    handle: FileHandle;
+    expectedBytes: number;
+    bytesWritten: number;
+}
+const documentSaveSessions = new Map<string, DocumentSaveSession>();
 let documentDirty = false;
 let allowClose = false;
 let closeRequestPending = false;
@@ -441,14 +451,6 @@ async function openRecentDocument(value: unknown): Promise<DesktopOpenResult> {
 
 function openKindForPath(filePath: string): DesktopOpenKind {
     return filePath.toLowerCase().endsWith(PLUGIN_EXTENSION) ? 'plugin' : 'project';
-}
-
-function validateSaveRequest(value: unknown): DesktopSaveRequest {
-    if (!value || typeof value !== 'object') throw new Error('Invalid save request.');
-    const request = value as Partial<DesktopSaveRequest>;
-    if (!(request.bytes instanceof Uint8Array)) throw new Error('Project data must be binary.');
-    if (request.bytes.byteLength === 0) throw new Error('Project data is empty.');
-    return { bytes: request.bytes, suggestedName: sanitizeSuggestedName(request.suggestedName) };
 }
 
 async function atomicWrite(filePath: string, bytes: Uint8Array): Promise<void> {
@@ -962,12 +964,6 @@ async function chooseOpenPath(): Promise<DesktopOpenResult> {
     return readOpenPath(result.filePaths[0]);
 }
 
-function validateBytes(value: unknown): Uint8Array {
-    if (!(value instanceof Uint8Array)) throw new Error('Project data must be binary.');
-    if (value.byteLength === 0) throw new Error('Project data is empty.');
-    return value;
-}
-
 async function chooseSaveAs(value: unknown): Promise<DesktopSaveAsSelectionResult> {
     try {
         if (!value || typeof value !== 'object') throw new Error('Invalid Save As request.');
@@ -990,11 +986,92 @@ async function chooseSaveAs(value: unknown): Promise<DesktopSaveAsSelectionResul
     }
 }
 
-async function saveDocument(value: unknown): Promise<DesktopSaveResult> {
+async function beginDocumentSave(value: unknown): Promise<DesktopDocumentSaveBeginResult> {
     try {
-        const request = validateSaveRequest(value);
-        if (!activeDocumentPath) return { status: 'error', error: 'Choose a destination with Save As first.' };
-        await atomicWrite(activeDocumentPath, request.bytes);
+        if (!value || typeof value !== 'object') throw new Error('Invalid document save request.');
+        const request = value as Partial<DesktopDocumentSaveBeginRequest>;
+        if (!Number.isSafeInteger(request.expectedBytes) || request.expectedBytes! <= 0) {
+            throw new Error('Project data size is invalid.');
+        }
+        const expectedBytes = request.expectedBytes as number;
+        let targetPath = activeDocumentPath;
+        if (request.selectionId !== undefined) {
+            if (!pendingSaveAs || request.selectionId !== pendingSaveAs.id) {
+                throw new Error('The Save As destination is no longer available. Choose a destination again.');
+            }
+            targetPath = pendingSaveAs.targetPath;
+        }
+        if (!targetPath) throw new Error('Choose a destination with Save As first.');
+        if (!(await hasEnoughDiskSpace(dirname(targetPath), expectedBytes))) {
+            throw new Error('The selected destination does not have enough free space.');
+        }
+        const id = randomUUID();
+        const temporaryPath = join(dirname(targetPath), `.${basename(targetPath)}.${id}.tmp`);
+        const handle = await open(temporaryPath, 'w+');
+        documentSaveSessions.set(id, {
+            id,
+            targetPath,
+            temporaryPath,
+            handle,
+            expectedBytes,
+            bytesWritten: 0,
+        });
+        if (request.selectionId !== undefined) pendingSaveAs = null;
+        return { status: 'ready', sessionId: id, displayName: basename(targetPath) };
+    } catch (error) {
+        return { status: 'error', error: error instanceof Error ? error.message : String(error) };
+    }
+}
+
+function requireDocumentSaveSession(sessionId: unknown): DocumentSaveSession {
+    if (typeof sessionId !== 'string') throw new Error('Invalid document save session.');
+    const saveSession = documentSaveSessions.get(sessionId);
+    if (!saveSession) throw new Error('Document save session is no longer active.');
+    return saveSession;
+}
+
+async function writeDocumentSaveChunk(value: unknown): Promise<void> {
+    if (!value || typeof value !== 'object') throw new Error('Invalid document save write.');
+    const request = value as Partial<DesktopDocumentSaveWriteRequest>;
+    const saveSession = requireDocumentSaveSession(request.sessionId);
+    if (!(request.bytes instanceof Uint8Array) || request.bytes.byteLength === 0) {
+        throw new Error('Project chunk must be non-empty binary data.');
+    }
+    if (request.position !== saveSession.bytesWritten) throw new Error('Project chunks must be written in order.');
+    if (saveSession.bytesWritten + request.bytes.byteLength > saveSession.expectedBytes) {
+        throw new Error('Project write exceeds the declared size.');
+    }
+    await saveSession.handle.write(request.bytes, 0, request.bytes.byteLength, request.position);
+    saveSession.bytesWritten += request.bytes.byteLength;
+}
+
+async function abortDocumentSave(sessionId: unknown): Promise<void> {
+    const saveSession = requireDocumentSaveSession(sessionId);
+    documentSaveSessions.delete(saveSession.id);
+    await saveSession.handle.close().catch(() => undefined);
+    await rm(saveSession.temporaryPath, { force: true }).catch(() => undefined);
+}
+
+async function abortAllDocumentSaves(): Promise<void> {
+    await Promise.all(
+        [...documentSaveSessions.keys()].map((sessionId) => abortDocumentSave(sessionId).catch(() => undefined))
+    );
+}
+
+async function completeDocumentSave(sessionId: unknown): Promise<DesktopSaveResult> {
+    let saveSession: DocumentSaveSession | undefined;
+    try {
+        saveSession = requireDocumentSaveSession(sessionId);
+        if (saveSession.bytesWritten !== saveSession.expectedBytes) {
+            throw new Error(
+                `Project write is incomplete: expected ${saveSession.expectedBytes} bytes, received ${saveSession.bytesWritten}.`
+            );
+        }
+        await saveSession.handle.sync();
+        await saveSession.handle.close();
+        await swapIntoPlace(saveSession.temporaryPath, saveSession.targetPath);
+        documentSaveSessions.delete(saveSession.id);
+        activeDocumentPath = saveSession.targetPath;
         pendingOpenPath = null;
         documentDirty = false;
         app.addRecentDocument(activeDocumentPath);
@@ -1003,29 +1080,11 @@ async function saveDocument(value: unknown): Promise<DesktopSaveResult> {
         updateWindowTitle();
         return { status: 'saved', displayName: basename(activeDocumentPath) };
     } catch (error) {
-        return { status: 'error', error: error instanceof Error ? error.message : String(error) };
-    }
-}
-
-async function writeSaveAs(value: unknown): Promise<DesktopSaveResult> {
-    try {
-        if (!value || typeof value !== 'object') throw new Error('Invalid Save As write request.');
-        const request = value as Partial<DesktopWriteSaveAsRequest>;
-        if (!pendingSaveAs || request.selectionId !== pendingSaveAs.id) {
-            throw new Error('The Save As destination is no longer available. Choose a destination again.');
+        if (saveSession) {
+            documentSaveSessions.delete(saveSession.id);
+            await saveSession.handle.close().catch(() => undefined);
+            await rm(saveSession.temporaryPath, { force: true }).catch(() => undefined);
         }
-        const targetPath = pendingSaveAs.targetPath;
-        pendingSaveAs = null;
-        await atomicWrite(targetPath, validateBytes(request.bytes));
-        activeDocumentPath = targetPath;
-        pendingOpenPath = null;
-        documentDirty = false;
-        app.addRecentDocument(targetPath);
-        rememberRecentDocument(targetPath);
-        await persistDocumentState();
-        updateWindowTitle();
-        return { status: 'saved', displayName: basename(targetPath) };
-    } catch (error) {
         return { status: 'error', error: error instanceof Error ? error.message : String(error) };
     }
 }
@@ -1116,9 +1175,11 @@ function installIpcHandlers(): void {
     ipcMain.handle('documents:open', chooseOpenPath);
     ipcMain.handle('documents:list-recent', listRecentDocuments);
     ipcMain.handle('documents:open-recent', (_event, index) => openRecentDocument(index));
-    ipcMain.handle('documents:save', (_event, request) => saveDocument(request));
     ipcMain.handle('documents:choose-save-as', (_event, request) => chooseSaveAs(request));
-    ipcMain.handle('documents:write-save-as', (_event, request) => writeSaveAs(request));
+    ipcMain.handle('documents:save-begin', (_event, request) => beginDocumentSave(request));
+    ipcMain.handle('documents:save-write', (_event, request) => writeDocumentSaveChunk(request));
+    ipcMain.handle('documents:save-complete', (_event, sessionId) => completeDocumentSave(sessionId));
+    ipcMain.handle('documents:save-abort', (_event, sessionId) => abortDocumentSave(sessionId));
     ipcMain.handle('documents:get-state', () => documentState());
     ipcMain.handle('documents:restore-active', () => restoreActiveDocument());
     ipcMain.handle('documents:rename', (_event, request) => renameDocument(request));
@@ -1133,6 +1194,7 @@ function installIpcHandlers(): void {
         updateWindowTitle();
     });
     ipcMain.handle('documents:clear-active-path', async () => {
+        await abortAllDocumentSaves();
         activeDocumentPath = null;
         pendingOpenPath = null;
         pendingSaveAs = null;
@@ -1336,6 +1398,7 @@ async function requestClose(): Promise<void> {
         cancelId: 2,
     });
     if (response === 1) {
+        await abortAllDocumentSaves();
         allowClose = true;
         mainWindow.close();
     } else if (response === 0) {

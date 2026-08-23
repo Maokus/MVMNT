@@ -44,6 +44,26 @@ function getWorker(): Worker | null {
     return worker;
 }
 
+function transferablePackageBuffers(input: ScenePackageInput): Transferable[] {
+    const buffers = new Set<ArrayBuffer>();
+    const add = (bytes: Uint8Array | undefined) => {
+        if (bytes?.buffer instanceof ArrayBuffer) buffers.add(bytes.buffer);
+    };
+    add(input.iconBytes);
+    for (const assets of [
+        input.audioAssets,
+        input.midiAssets,
+        input.fontAssets,
+        input.waveformAssets,
+        input.audioFeatureAssets,
+        input.pluginAssets,
+        input.visualAssets,
+    ]) {
+        for (const [, asset] of assets) add(asset.bytes);
+    }
+    return [...buffers];
+}
+
 /** Packages CPU-heavy JSON serialization and ZIP compression off the renderer thread. */
 export async function packageScene(input: ScenePackageInput): Promise<PackagedScene> {
     const packagingWorker = getWorker();
@@ -54,6 +74,6 @@ export async function packageScene(input: ScenePackageInput): Promise<PackagedSc
     const id = nextRequestId++;
     return new Promise<PackagedScene>((resolve, reject) => {
         pending.set(id, { resolve, reject });
-        packagingWorker.postMessage({ id, input });
+        packagingWorker.postMessage({ id, input }, transferablePackageBuffers(input));
     });
 }

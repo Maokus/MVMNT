@@ -67,8 +67,11 @@ function inferMimeType(filename: string): string {
  *
  * Safe to call when there are no image elements — returns empty collections.
  */
-export async function collectVisualAssets(): Promise<CollectedVisualAssets> {
-    const state = useSceneStore.getState();
+export async function collectVisualAssets(options?: {
+    sceneState?: ReturnType<typeof useSceneStore.getState>;
+    registryState?: ReturnType<typeof useVisualAssetRegistryStore.getState>;
+}): Promise<CollectedVisualAssets> {
+    const state = options?.sceneState ?? useSceneStore.getState();
     const byId: Record<string, VisualAssetRecord> = {};
     const payloads = new Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>();
     const fileKeyToId = new Map<string, string>();
@@ -76,7 +79,7 @@ export async function collectVisualAssets(): Promise<CollectedVisualAssets> {
     let totalBytes = 0;
 
     // Include assets from the visual asset registry (stable IDs preserved)
-    const registry = useVisualAssetRegistryStore.getState();
+    const registry = options?.registryState ?? useVisualAssetRegistryStore.getState();
     for (const assetId of registry.assetsOrder) {
         const entry = registry.assets[assetId];
         if (!entry) continue;

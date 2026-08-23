@@ -52,8 +52,7 @@ interface TimelineRefs {
     bpm: unknown;
 }
 
-function captureTimelineRefs(): TimelineRefs {
-    const s = useTimelineStore.getState();
+function captureTimelineRefs(s = useTimelineStore.getState()): TimelineRefs {
     return {
         tracksOrder: s.tracksOrder,
         tracks: s.tracks,
@@ -91,8 +90,12 @@ export interface DirtyTrackingState {
     isDirty: boolean;
     /** Monotonically increases for each persistent edit while this document is open. */
     dirtyRevision: number;
+    /** Capture the authored revision represented by a save snapshot. */
+    captureSaveRevision: () => number;
     /** Call after a successful save to IndexedDB or a load from IndexedDB. */
     markClean: () => void;
+    /** Mark clean only if no persistent edit happened after the snapshot was captured. */
+    markCleanIfRevision: (revision: number) => boolean;
     /** Explicitly mark the scene as dirty (e.g. after loading a template/remix). */
     markDirty: () => void;
 }
@@ -101,6 +104,12 @@ export function useDirtyTracking(): DirtyTrackingState {
     const checkpointRef = useRef<SaveCheckpoint | null>(null);
     const [isDirty, setIsDirty] = useState(false);
     const [dirtyRevision, setDirtyRevision] = useState(0);
+    const dirtyRevisionRef = useRef(0);
+
+    const advanceDirtyRevision = useCallback(() => {
+        dirtyRevisionRef.current += 1;
+        setDirtyRevision(dirtyRevisionRef.current);
+    }, []);
 
     const markClean = useCallback(() => {
         checkpointRef.current = captureCheckpoint();
@@ -113,25 +122,34 @@ export function useDirtyTracking(): DirtyTrackingState {
             checkpointRef.current = captureCheckpoint();
         }
         setIsDirty(true);
-        setDirtyRevision((revision) => revision + 1);
+        advanceDirtyRevision();
+    }, [advanceDirtyRevision]);
+
+    const captureSaveRevision = useCallback(() => dirtyRevisionRef.current, []);
+
+    const markCleanIfRevision = useCallback((revision: number) => {
+        if (dirtyRevisionRef.current !== revision) return false;
+        checkpointRef.current = captureCheckpoint();
+        setIsDirty(false);
+        return true;
     }, []);
 
     useEffect(() => {
         // --- Scene element changes ---
-        const unsubScene = useSceneEditorStore.subscribe((state) => {
+        const unsubScene = useSceneEditorStore.subscribe((state, prev) => {
             if (!checkpointRef.current) return;
-            if (state.documentRevision !== checkpointRef.current.sceneRevision) {
+            if (state.documentRevision !== prev.documentRevision) {
                 setIsDirty(true);
-                setDirtyRevision((revision) => revision + 1);
+                advanceDirtyRevision();
             }
         });
 
         // --- Metadata changes (name, author, description) ---
         const unsubMeta = useSceneMetadataStore.subscribe((state, prev) => {
             if (!checkpointRef.current) return;
-            if (state.metadata.modifiedAt !== checkpointRef.current.metadataModifiedAt) {
+            if (state.metadata.modifiedAt !== prev.metadata.modifiedAt) {
                 setIsDirty(true);
-                setDirtyRevision((revision) => revision + 1);
+                advanceDirtyRevision();
             }
             void prev;
         });
@@ -140,10 +158,11 @@ export function useDirtyTracking(): DirtyTrackingState {
         // Reference-equality check avoids marking dirty on playhead ticks.
         const unsubTimeline = useTimelineStore.subscribe((state, prev) => {
             if (!checkpointRef.current) return;
-            const currentRefs = captureTimelineRefs();
-            if (timelineRefsDiffer(currentRefs, checkpointRef.current.timelineRefs)) {
+            const currentRefs = captureTimelineRefs(state);
+            const previousRefs = captureTimelineRefs(prev);
+            if (timelineRefsDiffer(currentRefs, previousRefs)) {
                 setIsDirty(true);
-                setDirtyRevision((revision) => revision + 1);
+                advanceDirtyRevision();
             }
             void prev;
         });
@@ -153,7 +172,7 @@ export function useDirtyTracking(): DirtyTrackingState {
             unsubMeta();
             unsubTimeline();
         };
-    }, []);
+    }, [advanceDirtyRevision]);
 
-    return { isDirty, dirtyRevision, markClean, markDirty };
+    return { isDirty, dirtyRevision, captureSaveRevision, markClean, markCleanIfRevision, markDirty };
 }

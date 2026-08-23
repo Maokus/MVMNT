@@ -49,7 +49,8 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     const [unsavedChangesPrompt, setUnsavedChangesPrompt] = useState<{ message: string } | null>(null);
     const unsavedDecisionResolver = useRef<((decision: 'save' | 'discard' | 'cancel') => void) | null>(null);
 
-    const { isDirty, dirtyRevision, markClean, markDirty } = useDirtyTracking();
+    const { isDirty, dirtyRevision, captureSaveRevision, markClean, markCleanIfRevision, markDirty } =
+        useDirtyTracking();
     const recoveryState = useRef({ saving: false, queued: false, savedRevision: -1 });
     const latestDirtyRevision = useRef(dirtyRevision);
     latestDirtyRevision.current = dirtyRevision;
@@ -123,6 +124,8 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         onSceneRefresh: refreshSceneUI,
         isDirty,
         markSaveClean: markClean,
+        captureSaveRevision,
+        markSaveCleanIfRevision: markCleanIfRevision,
         markDirty,
         requestUnsavedChangesDecision,
     });

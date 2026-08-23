@@ -12,13 +12,13 @@ describe('template status store', () => {
         });
     });
 
-    it('tracks save progress and clears it when the operation finishes', () => {
-        useTemplateStatusStore.getState().startLoading('Saving scene…', { progress: 0 });
-        useTemplateStatusStore.getState().updateLoading({ progress: 0.6, message: 'Packaging scene file…' });
+    it('tracks blocking load progress and clears it when the operation finishes', () => {
+        useTemplateStatusStore.getState().startLoading('Loading scene…', { progress: 0 });
+        useTemplateStatusStore.getState().updateLoading({ progress: 0.6, message: 'Hydrating scene assets…' });
 
         expect(useTemplateStatusStore.getState()).toMatchObject({
             isTemplateLoading: true,
-            message: 'Packaging scene file…',
+            message: 'Hydrating scene assets…',
             progress: 0.6,
         });
 

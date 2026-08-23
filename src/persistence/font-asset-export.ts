@@ -43,8 +43,9 @@ function inferFilename(asset: FontAsset, variant: FontAsset['variants'][number])
     return sanitized || fallback;
 }
 
-export async function collectFontAssets(): Promise<CollectedFontAssets> {
-    const state = useSceneStore.getState();
+export async function collectFontAssets(
+    state: ReturnType<typeof useSceneStore.getState> = useSceneStore.getState()
+): Promise<CollectedFontAssets> {
     const assets = state.fonts?.assets ?? {};
     const byId: Record<string, FontAssetRecord> = {};
     const payloads = new Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>();

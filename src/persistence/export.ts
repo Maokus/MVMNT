@@ -30,6 +30,7 @@ import type { PersistedAnalysisIntent } from '@audio/features/analysisIntents';
 import { estimateFeatureCacheBytes, formatBytes } from '@audio/audioMemoryDiagnostics';
 import { recordAudioMemoryDiagnostic } from '@state/audioMemoryDiagnosticsStore';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
+import { useSceneStore } from '@state/sceneStore';
 import { packageScene } from './scene-packager';
 import { serializeTimelineTracks } from './export/documentShaping';
 import { buildCompatibilityWarnings, toPluginVersionRange } from './export/manifestEmission';
@@ -192,8 +193,9 @@ export interface ExportSceneResultFailure extends ExportResultBase {
 export type ExportSceneResult = ExportSceneResultZip | ExportSceneResultFailure;
 export const DEFAULT_MAX_AUDIO_FEATURE_CACHE_BYTES = 512 * 1024 * 1024;
 
-function buildVisualAssetRegistry(): SceneExportEnvelopeBase['visualAssetRegistry'] {
-    const registry = useVisualAssetRegistryStore.getState();
+function buildVisualAssetRegistry(
+    registry: ReturnType<typeof useVisualAssetRegistryStore.getState>
+): SceneExportEnvelopeBase['visualAssetRegistry'] {
     if (registry.assetsOrder.length === 0) return undefined;
     const assets: Record<string, { id: string; name: string; filename: string }> = {};
     const filteredOrder: string[] = [];
@@ -238,7 +240,7 @@ function createBlob(parts: BlobPart[], type: string): Blob | undefined {
 
 async function collectPluginDependencies(
     elements: Array<{ type?: string }> | Record<string, { type?: string }> | undefined,
-    options: { embedPlugins: boolean }
+    options: { embedPlugins: boolean; pluginState: ReturnType<typeof usePluginStore.getState> }
 ): Promise<{
     dependencies: ScenePluginDependency[];
     pluginAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>;
@@ -260,7 +262,7 @@ async function collectPluginDependencies(
         return { dependencies, pluginAssets, warnings };
     }
 
-    const pluginState = usePluginStore.getState();
+    const pluginState = options.pluginState;
     const pluginById = new Map<string, (typeof pluginState.plugins)[string]>();
     const typeToPluginId = new Map<string, string>();
     for (const plugin of Object.values(pluginState.plugins)) {
@@ -299,7 +301,7 @@ async function collectPluginDependencies(
                     ? getDevelopmentPluginBundle(pluginId)
                     : await PluginBinaryStore.get(pluginId);
             if (bundle) {
-                bundleBytes = new Uint8Array(bundle);
+                bundleBytes = new Uint8Array(bundle).slice();
                 hash = await sha256Hex(bundleBytes);
             }
         } catch {
@@ -602,6 +604,9 @@ export async function exportScene(
     const doc = DocumentGateway.build();
     const docWarnings: string[] = (doc as any)._warnings ?? [];
     const state = useTimelineStore.getState();
+    const sceneState = useSceneStore.getState();
+    const visualRegistryState = useVisualAssetRegistryStore.getState();
+    const pluginState = usePluginStore.getState();
     const metadataStore = (() => {
         try {
             return useSceneMetadataStore.getState();
@@ -632,18 +637,15 @@ export async function exportScene(
         metadata.author = author;
     }
 
-    if (metadataStore && options.touchMetadata !== false) {
-        metadataStore.setMetadata({ name: resolvedName, id: resolvedId, modifiedAt: now });
-    }
-
     const collectResult = await collectAudioAssets({
+        state,
         onProgress: (progress, label) => reportProgress(0.05 + progress * 0.5, label ?? 'Preparing audio…'),
     });
 
     reportProgress(0.6, 'Preparing fonts…');
-    const fontResult = await collectFontAssets();
+    const fontResult = await collectFontAssets(sceneState);
     reportProgress(0.66, 'Preparing visual assets…');
-    const visualResult = await collectVisualAssets();
+    const visualResult = await collectVisualAssets({ sceneState, registryState: visualRegistryState });
 
     const warnings: string[] = [...docWarnings, ...collectResult.warnings];
     if (collectResult.missingIds.length) {
@@ -659,6 +661,7 @@ export async function exportScene(
     reportProgress(0.72, 'Preparing plugins…');
     const pluginResult = await collectPluginDependencies(doc.scene?.elements, {
         embedPlugins: options.embedPlugins === true,
+        pluginState,
     });
     warnings.push(...pluginResult.warnings);
 
@@ -766,7 +769,7 @@ export async function exportScene(
         },
         assets: assetsSection,
         references: Object.keys(collectResult.audioIdMap).length ? { audioIdMap: collectResult.audioIdMap } : undefined,
-        visualAssetRegistry: buildVisualAssetRegistry(),
+        visualAssetRegistry: buildVisualAssetRegistry(visualRegistryState),
         compatibility: buildCompatibilityWarnings(warnings),
     };
 
