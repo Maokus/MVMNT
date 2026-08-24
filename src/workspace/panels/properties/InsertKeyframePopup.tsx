@@ -132,7 +132,8 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({ position, nod
                 (descriptor) =>
                     descriptor.capabilities.automatable &&
                     descriptor.target.propertyPath !== 'localVisible' &&
-                    descriptor.target.propertyPath !== 'localLocked'
+                    descriptor.target.propertyPath !== 'localLocked' &&
+                    (descriptor.target.propertyPath !== 'outputBlendMode' || Boolean(elementId))
             )
             .map((descriptor) => ({
                 id: `node:${descriptor.definition.key}`,

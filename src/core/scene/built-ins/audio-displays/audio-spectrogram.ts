@@ -374,7 +374,7 @@ export class AudioSpectrogramElement extends BoundSceneElement {
                     },
                 ]),
                 tab.appearance([
-                    propGroup.appearance({ blendMode: true }),
+                    propGroup.appearance({ blendMode: true, label: 'Spectrogram' }),
                     {
                         id: 'background',
                         label: 'Background',

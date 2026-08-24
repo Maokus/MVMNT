@@ -29,6 +29,7 @@ import type {
     SceneStoreState,
 } from './storeTypes';
 import { createSceneSnapshot } from './snapshot';
+import { normalizeElementOutputBlendMode } from '@utils/blend-modes';
 
 export interface NormalizedSceneImportPayload extends Omit<SceneImportPayload, 'elements' | 'graph'> {
     elements: SceneSerializedElement[];
@@ -137,6 +138,7 @@ export function normalizeSceneImportState(
         if (typeof transform.scaleY !== 'number') transform.scaleY = oldUniformScale;
         delete transform.uniformScale;
         if (typeof node.localOpacity !== 'number') node.localOpacity = 1;
+        if (node.kind === 'element') node.outputBlendMode = normalizeElementOutputBlendMode(node.outputBlendMode);
     }
     const graphValidation = validateSceneGraph(incomingGraph, Object.keys(nextElements));
     if (!graphValidation.ok) {

@@ -140,17 +140,6 @@ export const basicShapes = defineBuiltInElement<Props, undefined>({
                                 max: 1,
                                 step: 0.01,
                             },
-                            {
-                                key: 'blendMode',
-                                label: 'Blend Mode',
-                                type: 'select',
-                                default: 'source-over',
-                                options: [
-                                    { value: 'source-over', label: 'Normal' },
-                                    { value: 'screen', label: 'Screen' },
-                                    { value: 'multiply', label: 'Multiply' },
-                                ],
-                            },
                         ],
                         layout: [
                             { kind: 'control', control: 'slider', bindings: { value: 'opacity' } },
@@ -216,7 +205,6 @@ export const basicShapes = defineBuiltInElement<Props, undefined>({
                 ? applyOpacity(props.strokeColor, props.strokeOpacity)
                 : null;
         const decorate = (object: any) => {
-            object.blendMode = props.blendMode === 'source-over' ? null : props.blendMode;
             object.lineCap = props.lineCap;
             if (props.dashLength > 0) {
                 object.lineDash = [props.dashLength, props.dashGap];

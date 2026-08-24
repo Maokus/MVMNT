@@ -2,8 +2,55 @@ import { describe, expect, it, vi } from 'vitest';
 import { createFlatSceneGraph, groupSceneNodes } from '@state/scene-graph';
 import { resolveSceneFrame } from '@state/scene/resolvedScene';
 import { PerspectiveElementRoot } from '@core/render/render-objects/perspective-element-root';
+import { CompositeLayer, Rectangle } from '@core/render/render-objects';
 
 describe('resolved scene frame', () => {
+    it('isolates the complete element output for a non-normal host blend mode', () => {
+        const graph = createFlatSceneGraph(['shape']);
+        const node = graph.nodesById['element:shape'];
+        if (node.kind !== 'element') throw new Error('invalid fixture');
+        node.outputBlendMode = 'multiply';
+        const first = new Rectangle(0, 0, 10, 10, { fillColor: '#fff' }).setBlendMode('screen');
+        const second = new Rectangle(5, 5, 10, 10, { fillColor: '#fff' });
+        const frame = resolveSceneFrame({
+            graph,
+            time: 0,
+            runtimeVersion: 1,
+            config: {},
+            getElement: () => ({ visible: true, buildRenderObjects: () => [first, second] }) as any,
+        });
+
+        expect(frame.renderObjects[0]).toBeInstanceOf(CompositeLayer);
+        expect(frame.renderObjects[0].layerBlendMode).toBe('multiply');
+        expect(frame.renderObjects[0].getChildren()).toEqual([first, second]);
+        expect(first.blendMode).toBe('screen');
+    });
+
+    it('sets perspective output blending only from the host node', () => {
+        const graph = createFlatSceneGraph(['perspective']);
+        const node = graph.nodesById['element:perspective'];
+        if (node.kind !== 'element') throw new Error('invalid fixture');
+        node.outputBlendMode = 'screen';
+        const payload = new PerspectiveElementRoot('perspective', {
+            topLeft: { x: 0, y: 0 },
+            topRight: { x: 1, y: 0 },
+            bottomRight: { x: 1, y: 1 },
+            bottomLeft: { x: 0, y: 1 },
+        });
+        payload.baseBounds = { x: 0, y: 0, width: 10, height: 10 };
+        payload.addChild(new Rectangle(0, 0, 10, 10, { fillColor: '#fff' }).setBlendMode('multiply'));
+
+        resolveSceneFrame({
+            graph,
+            time: 0,
+            runtimeVersion: 1,
+            config: {},
+            getElement: () => ({ visible: true, buildRenderObjects: () => [payload] }) as any,
+        });
+
+        expect(payload.outputBlendMode).toBe('screen');
+    });
+
     it('multiplies group and element opacity into the render payload', () => {
         let graph = createFlatSceneGraph(['shape']);
         graph = groupSceneNodes(graph, ['element:shape'], 'group');

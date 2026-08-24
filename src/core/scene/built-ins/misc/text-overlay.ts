@@ -87,7 +87,7 @@ export const textOverlay = defineBuiltInElement<Props, undefined>({
                             },
                             {
                                 key: 'blendMode',
-                                label: 'Blend Mode',
+                                label: 'Text Blend Mode',
                                 type: 'select',
                                 default: 'source-over',
                                 options: [

@@ -71,6 +71,7 @@ export function authoredValueForTarget(state: SceneStoreState, target: PropertyT
     if (target.propertyPath === 'localVisible') return node.localVisible;
     if (target.propertyPath === 'localLocked') return node.localLocked;
     if (target.propertyPath === 'localOpacity') return node.localOpacity;
+    if (target.propertyPath === 'outputBlendMode' && node.kind === 'element') return node.outputBlendMode;
     return node.userNodeTransform[target.propertyPath as keyof typeof node.userNodeTransform];
 }
 
@@ -104,6 +105,13 @@ function staticCommand(edit: PropertyEdit, binding: BindingState | undefined): S
     }
     if (target.propertyPath === 'localOpacity') {
         return { type: 'setNodeOpacity', nodeId: target.owner.id, opacity: Number(value) };
+    }
+    if (target.propertyPath === 'outputBlendMode' && typeof value === 'string') {
+        return {
+            type: 'setNodeOutputBlendMode',
+            nodeId: target.owner.id,
+            mode: value as import('@utils/blend-modes').ElementOutputBlendMode,
+        };
     }
     if (typeof value !== 'number' || !Number.isFinite(value)) return null;
     return {

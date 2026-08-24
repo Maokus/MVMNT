@@ -128,6 +128,7 @@ export type SceneMutationSource =
     | 'updateNodeTransform'
     | 'setNodeVisibility'
     | 'setNodeOpacity'
+    | 'setNodeOutputBlendMode'
     | 'setNodeLocked'
     | 'importScene';
 
@@ -171,6 +172,7 @@ export interface SceneStoreActions {
     updateNodeTransform(nodeId: string, transform: Partial<NodeTransform>): void;
     setNodeVisibility(nodeId: string, visible: boolean): void;
     setNodeOpacity(nodeId: string, opacity: number): void;
+    setNodeOutputBlendMode(nodeId: string, mode: import('@utils/blend-modes').ElementOutputBlendMode): void;
     setNodeLocked(nodeId: string, locked: boolean): void;
     setNodeName(nodeId: string, name: string): void;
 }

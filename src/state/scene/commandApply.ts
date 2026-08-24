@@ -46,6 +46,7 @@ function staticNodeProperty(state: SceneStoreState, target: PropertyTarget): unk
     if (target.propertyPath === 'localVisible') return node.localVisible;
     if (target.propertyPath === 'localLocked') return node.localLocked;
     if (target.propertyPath === 'localOpacity') return node.localOpacity;
+    if (target.propertyPath === 'outputBlendMode' && node.kind === 'element') return node.outputBlendMode;
     return node.userNodeTransform[target.propertyPath as keyof NodeTransform];
 }
 

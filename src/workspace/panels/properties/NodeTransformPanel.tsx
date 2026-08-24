@@ -45,6 +45,7 @@ import {
 import { NodeStateRows } from './NodeStateRows';
 import { TransformSection } from './TransformSection';
 import { propertySearchMatches, propertyVisibleForSearch, sectionVisibleForSearch } from './propertySearch';
+import { BLEND_MODE_CHOICES, normalizeElementOutputBlendMode } from '@utils/blend-modes';
 
 const fields = HOST_NODE_PROPERTY_SCHEMA.filter(
     (field): field is (typeof HOST_NODE_PROPERTY_SCHEMA)[number] & { path: keyof NodeTransform } =>
@@ -304,7 +305,10 @@ export function NodeTransformPanel() {
         const first = read(nodes[0]);
         return nodes.every((node) => Object.is(read(node), first)) ? first : undefined;
     };
-    const valueFor = (path: keyof NodeTransform | 'localVisible' | 'localOpacity', fallback: unknown) => {
+    const valueFor = (
+        path: keyof NodeTransform | 'localVisible' | 'localOpacity' | 'outputBlendMode',
+        fallback: unknown
+    ) => {
         if (!singleNode) return fallback;
         return resolveNodeTransformValue({
             transientValue: transientNodeTransforms[singleNode.id]?.[path as keyof NodeTransform],
@@ -316,9 +320,9 @@ export function NodeTransformPanel() {
     };
     const editNodeProperty = (
         nodeId: string,
-        path: keyof NodeTransform | 'localVisible' | 'localOpacity',
+        path: keyof NodeTransform | 'localVisible' | 'localOpacity' | 'outputBlendMode',
         value: unknown,
-        valueType: 'number' | 'boolean',
+        valueType: 'number' | 'boolean' | 'string',
         change?: FormInputChange
     ) => {
         const session = change?.meta?.mergeSession;
@@ -331,7 +335,8 @@ export function NodeTransformPanel() {
             transient: session ? !session.finalize : undefined,
         });
     };
-    const macroOptions = (type: 'number' | 'boolean') => macros.allIds.filter((id) => macros.byId[id]?.type === type);
+    const macroOptions = (type: 'number' | 'boolean' | 'select') =>
+        macros.allIds.filter((id) => macros.byId[id]?.type === type);
     const applyWorldDelta = (
         matrix: ReturnType<typeof translationMatrix>,
         mergeKey: string,
@@ -371,6 +376,7 @@ export function NodeTransformPanel() {
                     dispatchForAll={dispatchForAll}
                     searchTerm={multiSelectionSearch}
                 />
+                <MultiSelectionOutputBlendMode nodes={nodes} searchTerm={multiSelectionSearch} />
                 <MultiSelectionCommonContent nodes={nodes} searchTerm={multiSelectionSearch} />
             </div>
         );
@@ -523,6 +529,7 @@ export function NodeTransformPanel() {
                     dispatchForAll={dispatchForAll}
                     searchTerm={multiSelectionSearch}
                 />
+                <MultiSelectionOutputBlendMode nodes={nodes} searchTerm={multiSelectionSearch} />
                 <MultiSelectionCommonContent nodes={nodes} searchTerm={multiSelectionSearch} />
             </div>
         );
@@ -632,6 +639,47 @@ export function NodeTransformPanel() {
                     />
                 </PropertyControlRow>
             </TransformSection>
+            {nodes[0].kind === 'element' ? (
+                <TransformSection title="Effects" ownerKey={inspectorOwnerKey}>
+                    <PropertyControlRow
+                        label="Element Blend Mode"
+                        description="Blend the flattened output of this element with the scene."
+                        animationControl={
+                            <BindingControls
+                                path="outputBlendMode"
+                                raw={normalizeElementOutputBlendMode(
+                                    valueFor('outputBlendMode', nodes[0].outputBlendMode)
+                                )}
+                                type="string"
+                            />
+                        }
+                        macroControl={macroControlFor(
+                            'outputBlendMode',
+                            normalizeElementOutputBlendMode(valueFor('outputBlendMode', nodes[0].outputBlendMode)),
+                            'select'
+                        )}
+                    >
+                        <FormInput
+                            id={`node-${nodes[0].id}-output-blend-mode`}
+                            type="select"
+                            value={normalizeElementOutputBlendMode(
+                                valueFor('outputBlendMode', nodes[0].outputBlendMode)
+                            )}
+                            schema={{ options: BLEND_MODE_CHOICES }}
+                            disabled={nodeBindings[nodes[0].id]?.outputBlendMode?.type === 'macro'}
+                            onChange={(change) => {
+                                const value = unwrapTransformInputValue(change);
+                                editNodeProperty(
+                                    nodes[0].id,
+                                    'outputBlendMode',
+                                    normalizeElementOutputBlendMode(value),
+                                    'string'
+                                );
+                            }}
+                        />
+                    </PropertyControlRow>
+                </TransformSection>
+            ) : null}
         </div>
     );
 
@@ -691,9 +739,9 @@ export function NodeTransformPanel() {
         raw,
         type,
     }: {
-        path: keyof NodeTransform | 'localVisible' | 'localOpacity';
-        raw: number | boolean;
-        type: 'number' | 'boolean';
+        path: keyof NodeTransform | 'localVisible' | 'localOpacity' | 'outputBlendMode';
+        raw: number | boolean | string;
+        type: 'number' | 'boolean' | 'string';
     }) {
         return (
             <KeyframeControl target={nodePropertyTarget(nodes[0].id, path)} propertyType={type} currentValue={raw} />
@@ -701,9 +749,9 @@ export function NodeTransformPanel() {
     }
 
     function macroControlFor(
-        path: keyof NodeTransform | 'localVisible' | 'localOpacity',
-        raw: number | boolean,
-        type: 'number' | 'boolean'
+        path: keyof NodeTransform | 'localVisible' | 'localOpacity' | 'outputBlendMode',
+        raw: number | boolean | string,
+        type: 'number' | 'boolean' | 'select'
     ) {
         const binding = nodeBindings[nodes[0].id]?.[path];
         return (
@@ -724,6 +772,47 @@ export function NodeTransformPanel() {
             />
         );
     }
+}
+
+function MultiSelectionOutputBlendMode({ nodes, searchTerm = '' }: { nodes: SceneNode[]; searchTerm?: string }) {
+    const tick = useTimelineStore((state) => state.timeline.currentTick);
+    const autoKey = useTimelineStore((state) => state.transport.autoKeying);
+    if (!nodes.length || nodes.some((node) => node.kind !== 'element')) return null;
+    if (!sectionVisibleForSearch(searchTerm, 'Effects', ['Element Blend Mode'])) return null;
+    const values = nodes.map((node) =>
+        normalizeElementOutputBlendMode(
+            effectiveValueForTarget(useSceneStore.getState(), nodePropertyTarget(node.id, 'outputBlendMode'), tick)
+        )
+    );
+    const shared = values.every((value) => value === values[0]) ? values[0] : '';
+    return (
+        <TransformSection title="Effects">
+            <PropertyControlRow
+                label="Element Blend Mode"
+                description="Blend the flattened output of each selected element with the scene."
+            >
+                <FormInput
+                    id="node-multi-output-blend-mode"
+                    type="select"
+                    value={shared}
+                    schema={{
+                        options: shared ? BLEND_MODE_CHOICES : [{ value: '', label: 'Mixed' }, ...BLEND_MODE_CHOICES],
+                    }}
+                    onChange={(change) => {
+                        const value = normalizeElementOutputBlendMode(unwrapTransformInputValue(change));
+                        dispatchPropertyEdits(
+                            nodes.map((node) => ({
+                                target: nodePropertyTarget(node.id, 'outputBlendMode'),
+                                value,
+                                valueType: 'string' as const,
+                            })),
+                            { tick, autoKey, source: 'NodeTransformPanel.outputBlendMode' }
+                        );
+                    }}
+                />
+            </PropertyControlRow>
+        </TransformSection>
+    );
 }
 
 /** Optional bulk-local editor for extensions; the main inspector omits it because those host fields are shown above. */

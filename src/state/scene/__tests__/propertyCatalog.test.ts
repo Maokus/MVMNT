@@ -13,6 +13,7 @@ describe('property catalog', () => {
         const rotation = descriptors.find((descriptor) => descriptor.definition.key === 'rotation')!;
         const scaleX = descriptors.find((descriptor) => descriptor.definition.key === 'scaleX')!;
         const scaleY = descriptors.find((descriptor) => descriptor.definition.key === 'scaleY')!;
+        const outputBlendMode = descriptors.find((descriptor) => descriptor.definition.key === 'outputBlendMode')!;
 
         expect(rotation.target).toEqual(nodePropertyTarget('node:one', 'rotation'));
         expect(rotation.presentation.toDisplay(Math.PI)).toBeCloseTo(180);
@@ -21,6 +22,10 @@ describe('property catalog', () => {
         expect(scaleX.presentation.fromDisplay(50)).toBe(0.5);
         expect(scaleX.presentation.fromDisplay(-50)).toBe(-0.5);
         expect(scaleY.presentation.toDisplay(0.75)).toBe(75);
+        expect(outputBlendMode).toMatchObject({
+            definition: { type: 'select', label: 'Element Blend Mode', default: 'source-over' },
+            group: { id: 'effects', label: 'Effects' },
+        });
     });
 
     it('normalizes registered element schemas without changing plugin ownership', () => {

@@ -25,6 +25,7 @@ import {
 } from './resolvedScene';
 import { deriveElementOrder } from '@state/scene-graph';
 import { useSceneEditorStore } from '@state/sceneEditorStore';
+import { normalizeElementOutputBlendMode } from '@utils/blend-modes';
 
 type SceneStoreBinding = typeof useSceneStore;
 
@@ -277,6 +278,8 @@ export class SceneRuntimeAdapter {
                     else if (path === 'localLocked') evaluated.localLocked = Boolean(value);
                     else if (path === 'localOpacity' && typeof value === 'number' && Number.isFinite(value)) {
                         evaluated.localOpacity = Math.max(0, Math.min(1, value));
+                    } else if (path === 'outputBlendMode' && evaluated.kind === 'element') {
+                        evaluated.outputBlendMode = normalizeElementOutputBlendMode(value);
                     } else if (
                         path in evaluated.userNodeTransform &&
                         typeof value === 'number' &&

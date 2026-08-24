@@ -2,6 +2,7 @@ import type { AutomationValueType, PropertyOwner, PropertyTarget } from '@automa
 import type { ElementPropertyDefinition as PropertyDefinition } from '@mvmnt-app/plugin-sdk';
 import type { RegisteredElementSchema as EnhancedConfigSchema } from '@core/scene/runtime/schema';
 import { sceneElementRegistry } from '@core/scene/registry';
+import { BLEND_MODE_CHOICES } from '@utils/blend-modes';
 
 export interface PropertyPresentationCodec {
     unit?: string;
@@ -80,6 +81,20 @@ const hostGroups = [
             { key: 'localVisible', type: 'boolean', label: 'Visible', default: true },
             { key: 'localOpacity', type: 'number', label: 'Opacity', default: 1, step: 0.01, min: 0, max: 1 },
             { key: 'localLocked', type: 'boolean', label: 'Locked', default: false },
+        ],
+    },
+    {
+        id: 'effects',
+        label: 'Effects',
+        properties: [
+            {
+                key: 'outputBlendMode',
+                type: 'select',
+                label: 'Element Blend Mode',
+                default: 'source-over',
+                options: [...BLEND_MODE_CHOICES],
+                description: 'Blend the flattened output of this element with the scene.',
+            },
         ],
     },
 ] satisfies Array<{ id: string; label: string; properties: PropertyDefinition[] }>;

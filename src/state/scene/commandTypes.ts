@@ -61,6 +61,11 @@ export type SceneCommand =
     | { type: 'updateNodeTransform'; nodeId: string; transform: Partial<NodeTransform> }
     | { type: 'setNodeVisibility'; nodeId: string; visible: boolean }
     | { type: 'setNodeOpacity'; nodeId: string; opacity: number }
+    | {
+          type: 'setNodeOutputBlendMode';
+          nodeId: string;
+          mode: import('@utils/blend-modes').ElementOutputBlendMode;
+      }
     | { type: 'setNodeLocked'; nodeId: string; locked: boolean }
     | { type: 'setNodeName'; nodeId: string; name: string }
     | { type: 'groupNodes'; nodeIds: string[]; groupId: string; name?: string; worldPivot?: { x: number; y: number } }

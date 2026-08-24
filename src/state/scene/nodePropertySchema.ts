@@ -12,7 +12,9 @@ export interface HostNodePropertyDefinition {
 
 /** Public editor schema for host-owned properties, independent of plugin schemas. */
 export const HOST_NODE_PROPERTY_SCHEMA: readonly HostNodePropertyDefinition[] = hostPropertyDescriptors('__schema__')
-    .filter((descriptor) => descriptor.definition.key !== 'localLocked')
+    .filter(
+        (descriptor) => descriptor.definition.key !== 'localLocked' && descriptor.definition.key !== 'outputBlendMode'
+    )
     .map((descriptor) => ({
         path: descriptor.definition.key as keyof NodeTransform | 'localVisible' | 'localOpacity',
         label: descriptor.definition.label,

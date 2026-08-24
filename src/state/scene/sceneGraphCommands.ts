@@ -37,6 +37,9 @@ export function applySceneGraphCommand(
         case 'setNodeOpacity':
             store.setNodeOpacity(command.nodeId, command.opacity);
             return true;
+        case 'setNodeOutputBlendMode':
+            store.setNodeOutputBlendMode(command.nodeId, command.mode);
+            return true;
         case 'setNodeLocked':
             store.setNodeLocked(command.nodeId, command.locked);
             return true;

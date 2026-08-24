@@ -10,6 +10,7 @@ import {
     type SceneNode,
     type SceneNodeId,
 } from './types';
+import { isElementOutputBlendMode } from '@utils/blend-modes';
 
 export type SceneGraphErrorCode =
     | 'ROOT_INVALID'
@@ -113,7 +114,12 @@ export function createFlatSceneGraph(elementIds: readonly string[]): SceneGraphS
         const id = elementNodeId(elementId, occupied);
         occupied.add(id);
         children.push(id);
-        nodesById[id] = { ...createNodeBase(id, SCENE_ROOT_ID, elementId), kind: 'element', elementId };
+        nodesById[id] = {
+            ...createNodeBase(id, SCENE_ROOT_ID, elementId),
+            kind: 'element',
+            elementId,
+            outputBlendMode: 'source-over',
+        };
     }
     nodesById[SCENE_ROOT_ID] = { ...createNodeBase(SCENE_ROOT_ID, null, 'Scene'), kind: 'root', children };
     return { rootId: SCENE_ROOT_ID, nodesById, revision: 0 };
@@ -220,6 +226,13 @@ export function validateSceneGraph(graph: SceneGraphState, elementIds: Iterable<
             errors.push({
                 code: 'NODE_KIND_INVALID',
                 message: 'Element nodes require an elementId and cannot have children.',
+                nodeId: node.id,
+            });
+        }
+        if (node.kind === 'element' && !isElementOutputBlendMode(node.outputBlendMode)) {
+            errors.push({
+                code: 'NODE_KIND_INVALID',
+                message: 'Element output blend mode is invalid.',
                 nodeId: node.id,
             });
         }

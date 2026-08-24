@@ -115,7 +115,7 @@ describe('PerspectiveCompositor', () => {
         expect(target.drawImage).toHaveBeenCalledWith(scratch, 0, 0, 121, 101, 10, 20, 121, 101);
     });
 
-    it('preserves a shared appearance blend mode when compositing a tilted element', () => {
+    it('applies the host output blend mode when compositing a tilted element', () => {
         const { compositor, target } = createWorkingHarness();
         const root = rootAt(0).setOutputBlendMode('multiply');
 

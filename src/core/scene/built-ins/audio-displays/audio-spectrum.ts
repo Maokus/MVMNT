@@ -8,7 +8,7 @@ import { Arc, Poly, Rectangle, Text, type RenderObject } from '@core/render/rend
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/scene/runtime/schema';
 import { applyOpacity } from '@utils/color';
 import { prop, insertElementConfig } from '@core/scene/runtime/schema-builders';
-import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/built-ins/schema-groups';
+import { propGroup, tab } from '@core/scene/built-ins/schema-groups';
 import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/built-ins/define-built-in';
 
 function clamp(value: number, min: number, max: number): number {
@@ -268,7 +268,7 @@ export class AudioSpectrumElement extends BoundSceneElement {
                     },
                 ]),
                 tab.appearance([
-                    propGroup.appearance({ blendMode: true }),
+                    propGroup.appearance(),
                     {
                         id: 'background',
                         label: 'Background',
@@ -358,7 +358,6 @@ export class AudioSpectrumElement extends BoundSceneElement {
         const binCenter = (index: number) => binLeft(index) + actualBarWidth / 2;
         const shapeThickness = Math.max(0.5, props.thickness ?? 1);
         const drawColor = applyOpacity(props.color ?? DEFAULT_BAR_COLOR, props.opacity ?? 1);
-        const blendMode = (props.blendMode ?? 'source-over') as GlobalCompositeOperation;
 
         const renderBars = () => {
             const barWidth = Math.max(1, Math.min(actualBarWidth - gap, shapeThickness));
@@ -367,7 +366,6 @@ export class AudioSpectrumElement extends BoundSceneElement {
                 const barHeight = ratio * props.height;
                 const y = peakY(ratio);
                 const rect = new Rectangle(x, y, barWidth, barHeight, { fillColor: drawColor });
-                if (blendMode !== 'source-over') rect.blendMode = blendMode;
                 objects.push(rect);
             });
         };
@@ -385,7 +383,6 @@ export class AudioSpectrumElement extends BoundSceneElement {
                 layoutParticipation: 'exclude',
             });
             poly.setClosed(false).setLineJoin('round').setLineCap('round');
-            poly.blendMode = blendMode === 'source-over' ? null : blendMode;
             objects.push(poly);
         };
 
@@ -402,7 +399,6 @@ export class AudioSpectrumElement extends BoundSceneElement {
                     strokeColor: '#FFFFFF00',
                 });
                 arc.setLayoutParticipation('exclude');
-                if (blendMode !== 'source-over') arc.blendMode = blendMode;
                 objects.push(arc);
             });
         };

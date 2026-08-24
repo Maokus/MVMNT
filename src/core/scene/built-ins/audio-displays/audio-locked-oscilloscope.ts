@@ -117,7 +117,7 @@ export class AudioLockedOscilloscopeElement extends BoundSceneElement {
                     },
                 ]),
                 tab.appearance([
-                    propGroup.appearance({ blendMode: true }),
+                    propGroup.appearance({ blendMode: true, label: 'Trace' }),
                     {
                         id: 'background',
                         label: 'Background',

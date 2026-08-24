@@ -661,19 +661,6 @@ export class BoundSceneElement implements SceneElementInstance {
             }
         }
 
-        // Perspective rendering isolates an element on an offscreen canvas before
-        // warping it. Preserve a single explicit appearance blend mode for the
-        // final composite onto the scene. Children without a blend mode include
-        // invisible layout/bounds helpers and must not suppress the painted
-        // children's mode.
-        if (containerObject instanceof PerspectiveElementRoot) {
-            const explicitBlendModes = new Set(
-                childRenderObjects.flatMap((child) => (child?.blendMode ? [child.blendMode] : []))
-            );
-            if (explicitBlendModes.size === 1)
-                containerObject.setOutputBlendMode(explicitBlendModes.values().next().value ?? null);
-        }
-
         // Store the untransformed aggregate bounds for later transform math (selection, handles).
         // baseBounds must be set before render/bounds queries so _resolveOriginFractions works.
         (containerObject as any).baseBounds = { ...layoutBounds };

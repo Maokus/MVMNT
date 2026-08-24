@@ -123,7 +123,7 @@ export class AudioVolumeMeterElement extends BoundSceneElement {
                     },
                 ]),
                 tab.appearance([
-                    propGroup.appearance({ blendMode: true }),
+                    propGroup.appearance(),
                     {
                         id: 'background',
                         label: 'Background',

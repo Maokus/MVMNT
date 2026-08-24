@@ -56,6 +56,7 @@ describe('scene graph substrate', () => {
             ...createNodeBase('element:leaf', parentId, 'leaf'),
             kind: 'element' as const,
             elementId: 'leaf',
+            outputBlendMode: 'source-over' as const,
         };
         graph.nodesById[leaf.id] = leaf;
         const parent = graph.nodesById[parentId];

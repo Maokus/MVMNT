@@ -447,6 +447,7 @@ export function buildSceneCommandPatch(state: SceneStoreState, command: SceneCom
         case 'updateNodeTransform':
         case 'setNodeVisibility':
         case 'setNodeOpacity':
+        case 'setNodeOutputBlendMode':
         case 'setNodeLocked':
         case 'setNodeName':
         case 'groupNodes':

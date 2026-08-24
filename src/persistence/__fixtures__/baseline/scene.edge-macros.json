@@ -85,7 +85,8 @@
                     "pivotY": 0
                 },
                 "kind": "element",
-                "elementId": "title"
+                "elementId": "title",
+                "outputBlendMode": "source-over"
             },
             "element:background": {
                 "id": "element:background",
@@ -105,7 +106,8 @@
                     "pivotY": 0
                 },
                 "kind": "element",
-                "elementId": "background"
+                "elementId": "background",
+                "outputBlendMode": "source-over"
             }
         }
     },

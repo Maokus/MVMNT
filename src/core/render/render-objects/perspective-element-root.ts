@@ -20,6 +20,7 @@ import {
     type PerspectiveWarp,
 } from '@math/perspective-warp';
 import type { Matrix2D } from '@state/scene-graph';
+import { renderIsolatedLayer } from './composite-layer';
 
 export class PerspectiveElementRoot extends EmptyRenderObject {
     private _perspectiveWarp: PerspectiveWarp;
@@ -272,6 +273,21 @@ export class PerspectiveElementRoot extends EmptyRenderObject {
 
     override render(ctx: CanvasRenderingContext2D, config: RenderConfig, currentTime: number): void {
         if (this._isPerspectiveEdgeOn) return;
+        if (this._outputBlendMode && this._outputBlendMode !== 'source-over') {
+            const opacity = this.opacity;
+            const rendered = renderIsolatedLayer(ctx, config, this._outputBlendMode, opacity, (offscreenContext) => {
+                offscreenContext.save();
+                offscreenContext.transform(...this._resolvedAncestorTransform);
+                this.opacity = 1;
+                try {
+                    super.render(offscreenContext, config, currentTime);
+                } finally {
+                    this.opacity = opacity;
+                    offscreenContext.restore();
+                }
+            });
+            if (rendered) return;
+        }
         // Direct rendering (including deterministic GPU fallback) retains the old affine result.
         ctx.save();
         ctx.transform(...this._resolvedAncestorTransform);

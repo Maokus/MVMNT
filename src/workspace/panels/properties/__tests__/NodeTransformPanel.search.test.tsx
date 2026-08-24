@@ -41,12 +41,15 @@ describe('NodeTransformPanel multi-selection property search', () => {
         expect(screen.getByText('Width')).toBeInTheDocument();
         expect(screen.getByText('Height')).toBeInTheDocument();
         expect(screen.getByText('Node State')).toBeInTheDocument();
+        expect(screen.getByText('Effects')).toBeInTheDocument();
+        expect(screen.getByText('Element Blend Mode')).toBeInTheDocument();
 
         fireEvent.change(search, { target: { value: 'width' } });
 
         expect(screen.getByText('Width')).toBeInTheDocument();
         expect(screen.queryByText('Height')).not.toBeInTheDocument();
         expect(screen.queryByText('Node State')).not.toBeInTheDocument();
+        expect(screen.queryByText('Effects')).not.toBeInTheDocument();
         expect(screen.queryByText('Rotation & Scale')).not.toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', { name: 'Clear property search' }));
@@ -54,5 +57,6 @@ describe('NodeTransformPanel multi-selection property search', () => {
         expect(search).toHaveValue('');
         expect(screen.getByText('Height')).toBeInTheDocument();
         expect(screen.getByText('Node State')).toBeInTheDocument();
+        expect(screen.getByText('Effects')).toBeInTheDocument();
     });
 });

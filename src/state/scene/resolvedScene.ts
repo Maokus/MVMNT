@@ -1,5 +1,6 @@
 import type { SceneElementInstance } from '@core/scene/runtime/types';
 import { PerspectiveElementRoot } from '@core/render/render-objects/perspective-element-root';
+import { CompositeLayer } from '@core/render/render-objects/composite-layer';
 import {
     applyMatrixToPoint,
     identityMatrix,
@@ -108,6 +109,17 @@ function transformedPayload(source: any, matrix: Matrix2D, nodeTransform: NodeTr
     }
     if (matricesEqual(matrix, identityMatrix()) && opacity === 1) return source;
     return new AffineRenderPayload(source, matrix, opacity);
+}
+
+function applyElementOutputBlendMode(renderObjects: any[], mode: GlobalCompositeOperation): any[] {
+    if (mode === 'source-over' || renderObjects.length === 0) return renderObjects;
+    if (renderObjects.length === 1 && renderObjects[0] instanceof PerspectiveElementRoot) {
+        renderObjects[0].setOutputBlendMode(mode);
+        return renderObjects;
+    }
+    const layer = new CompositeLayer(mode);
+    layer.addChildren(renderObjects);
+    return [layer];
 }
 
 function boundsAndHull(payload: any) {
@@ -226,7 +238,10 @@ export function resolveSceneFrame(options: {
             record.elementId = node.elementId;
             record.element = getElement(node.elementId);
             if (record.effectiveVisible && record.element?.visible) {
-                const content = record.element.buildRenderObjects(config, time) ?? [];
+                const content = applyElementOutputBlendMode(
+                    record.element.buildRenderObjects(config, time) ?? [],
+                    node.outputBlendMode
+                );
                 record.renderObjects = content.map((payload: any) =>
                     transformedPayload(payload, record.nodeWorldTransform, node.userNodeTransform, effectiveOpacity)
                 );

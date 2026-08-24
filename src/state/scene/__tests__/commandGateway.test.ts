@@ -97,6 +97,18 @@ describe('scene command gateway', () => {
         expect(state.bindings.byElement['element-2'].visible).toEqual({ type: 'constant', value: false });
     });
 
+    it('updates and restores the host-owned element output blend mode', () => {
+        dispatchSceneCommand({ type: 'addElement', elementType: 'basicShapes', elementId: 'blend-shape' });
+        const nodeId = useSceneStore.getState().nodeIdByElementId['blend-shape'];
+
+        const result = dispatchSceneCommand({ type: 'setNodeOutputBlendMode', nodeId, mode: 'multiply' });
+
+        expect(result.success).toBe(true);
+        expect(useSceneStore.getState().graph.nodesById[nodeId]).toMatchObject({ outputBlendMode: 'multiply' });
+        dispatchSceneCommand(result.patch!.undo[0]);
+        expect(useSceneStore.getState().graph.nodesById[nodeId]).toMatchObject({ outputBlendMode: 'source-over' });
+    });
+
     it('retains custom font metadata when undoing a text element edit', () => {
         const font: FontAsset = {
             id: 'font-custom',

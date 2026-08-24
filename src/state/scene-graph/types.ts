@@ -43,6 +43,7 @@ export interface SceneGroupNode extends SceneNodeBase {
 export interface SceneElementNode extends SceneNodeBase {
     kind: 'element';
     elementId: SceneElementId;
+    outputBlendMode: import('@utils/blend-modes').ElementOutputBlendMode;
 }
 
 export type SceneNode = SceneRootNode | SceneGroupNode | SceneElementNode;

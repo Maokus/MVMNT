@@ -2,6 +2,31 @@ import { RenderConfig, type LayoutParticipation } from './base';
 import { EmptyRenderObject } from './empty';
 import { renderResourceManager } from '../render-resource-manager';
 
+export function renderIsolatedLayer(
+    ctx: CanvasRenderingContext2D,
+    config: RenderConfig,
+    blendMode: GlobalCompositeOperation,
+    opacity: number,
+    renderSource: (context: CanvasRenderingContext2D) => void
+): boolean {
+    const canvas = config.canvas;
+    if (!canvas) return false;
+    const surface = renderResourceManager.acquireScratch(canvas.width, canvas.height);
+    try {
+        surface.context.setTransform(ctx.getTransform());
+        renderSource(surface.context);
+        ctx.save();
+        ctx.resetTransform();
+        ctx.globalCompositeOperation = blendMode;
+        if (opacity !== 1) ctx.globalAlpha *= opacity;
+        ctx.drawImage(surface.canvas, 0, 0);
+        ctx.restore();
+        return true;
+    } finally {
+        surface.release();
+    }
+}
+
 /**
  * A container that renders its children into an isolated OffscreenCanvas, then
  * composites the result onto the main canvas with a configurable blend mode.
@@ -36,41 +61,16 @@ export class CompositeLayer extends EmptyRenderObject {
     render(ctx: CanvasRenderingContext2D, config: RenderConfig, currentTime: number): void {
         if (!this.visible || this.opacity <= 0) return;
 
-        const canvas = config.canvas;
-        if (!canvas) {
+        if (!config.canvas) {
             // No canvas size info — fall back to normal (non-isolated) render
             super.render(ctx, config, currentTime);
             return;
         }
 
-        const surface = renderResourceManager.acquireScratch(canvas.width, canvas.height);
-        const offscreen = surface.canvas;
-        const offCtx = surface.context;
-
-        try {
-            // Copy the main context's accumulated transform so children land in the
-            // same world-space positions as they would on the main canvas.
-            offCtx.setTransform(ctx.getTransform());
-
-            // Apply this layer's own spatial transform to the offscreen context,
-            // mirroring the anchor-pivot logic in EmptyRenderObject.render.
+        renderIsolatedLayer(ctx, config, this.layerBlendMode, this.opacity, (offCtx) => {
             this._applyLayerTransform(offCtx);
-
-            // Render children into the isolated buffer at full opacity.
-            // Layer opacity is applied when compositing the buffer onto the main canvas.
             for (const child of this.getChildren()) child.render(offCtx, config, currentTime);
-
-            // Composite the isolated layer onto the main canvas.
-            // Reset the transform so drawImage maps 1:1 to canvas pixels.
-            ctx.save();
-            ctx.resetTransform();
-            ctx.globalCompositeOperation = this.layerBlendMode;
-            if (this.opacity !== 1) ctx.globalAlpha *= this.opacity;
-            ctx.drawImage(offscreen, 0, 0);
-            ctx.restore();
-        } finally {
-            surface.release();
-        }
+        });
     }
 
     setLayerBlendMode(mode: GlobalCompositeOperation): this {

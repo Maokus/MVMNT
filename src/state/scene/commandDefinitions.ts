@@ -64,6 +64,7 @@ export const sceneCommandDefinitions: Record<SceneCommandType, SceneCommandDefin
     updateNodeTransform: snapshot(),
     setNodeVisibility: snapshot(),
     setNodeOpacity: snapshot(),
+    setNodeOutputBlendMode: snapshot(),
     setNodeLocked: snapshot(),
     setNodeName: snapshot(),
     groupNodes: transaction('scene', 'runtime'),

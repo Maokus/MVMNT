@@ -5,6 +5,7 @@ import { migrateSceneRotationUnitsV7 } from '../migrations/rotationUnitsV7';
 import { prepareTextBoundsMigrationFonts } from '../migrations/textBoundsV11';
 import { throwIfImportAborted } from '../import-abort';
 import { resolveLegacyGoogleFonts } from './fontMigration';
+import { migrateOutputBlendModeV10 } from '../migrations/outputBlendModeV10';
 
 export async function migrateAndValidateScene(
     envelope: any,
@@ -13,7 +14,9 @@ export async function migrateAndValidateScene(
 ) {
     await prepareTextBoundsMigrationFonts(envelope, fontPayloads);
     throwIfImportAborted(signal);
-    const staticallyMigrated = migrateSceneFontsV9(migrateSceneV8(migrateSceneRotationUnitsV7(envelope)));
+    const staticallyMigrated = migrateOutputBlendModeV10(
+        migrateSceneFontsV9(migrateSceneV8(migrateSceneRotationUnitsV7(envelope)))
+    );
     const fontUpgrade = await resolveLegacyGoogleFonts(staticallyMigrated, fontPayloads, signal);
     const envelopeAfterMigrations = fontUpgrade.envelope;
     const validation = validateSceneEnvelope(envelopeAfterMigrations);

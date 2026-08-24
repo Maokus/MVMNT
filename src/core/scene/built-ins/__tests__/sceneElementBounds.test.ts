@@ -54,19 +54,18 @@ describe('BoundSceneElement bounds', () => {
         expect(root.getVisualBounds()).not.toEqual({ x: -100, y: -50, width: 200, height: 100 });
     });
 
-    it('preserves the painted shape blend mode when an unpainted bounds helper is present', () => {
+    it('leaves output compositing to the host for perspective elements', () => {
         enableFeatureForSession('elementPerspectiveWarp', true);
         const element = sceneElementRegistry.createElement('basicShapes', {
             id: 'perspective-multiply-test',
             warpEnabled: true,
             perspectiveRotationY: 20,
-            blendMode: 'multiply',
         });
         const root = element!.buildRenderObjects({}, 0)[0] as PerspectiveElementRoot;
 
         expect(root.getChildren()).toHaveLength(2);
-        expect(root.getChildren().map((child) => child.blendMode)).toEqual([null, 'multiply']);
-        expect(root.outputBlendMode).toBe('multiply');
+        expect(root.getChildren().map((child) => child.blendMode)).toEqual([null, null]);
+        expect(root.outputBlendMode).toBeNull();
     });
 
     it('keeps a quarter-turn element visible when its projection is not edge-on', () => {

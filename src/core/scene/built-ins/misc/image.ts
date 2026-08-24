@@ -106,7 +106,7 @@ export const image = defineBuiltInElement<ImageProps, ImageInstanceState>({
                             },
                             {
                                 key: 'blendMode',
-                                label: 'Blend Mode',
+                                label: 'Image Blend Mode',
                                 type: 'select',
                                 default: 'source-over',
                                 options: [

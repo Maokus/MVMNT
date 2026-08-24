@@ -51,6 +51,7 @@ import { exportSceneDraft, normalizeSceneImportState } from './importExportAdapt
 import { createAutomationChannelActions } from './slices/automationMacrosSlice';
 import { computeFontBytes, createFontsAssetsSlice, normalizeFontAssetInput } from './slices/fontsAssetsSlice';
 import { useSceneEditorStore } from '@state/sceneEditorStore';
+import { normalizeElementOutputBlendMode } from '@utils/blend-modes';
 export { createSceneSnapshot } from './snapshot';
 export type { SceneSnapshot } from './snapshot';
 
@@ -232,6 +233,7 @@ export type SceneMutationSource =
     | 'updateNodeTransform'
     | 'setNodeVisibility'
     | 'setNodeOpacity'
+    | 'setNodeOutputBlendMode'
     | 'setNodeLocked'
     | 'importScene';
 
@@ -330,6 +332,7 @@ export interface SceneStoreActions {
     updateNodeTransform: (nodeId: string, transform: Partial<NodeTransform>) => void;
     setNodeVisibility: (nodeId: string, visible: boolean) => void;
     setNodeOpacity: (nodeId: string, opacity: number) => void;
+    setNodeOutputBlendMode: (nodeId: string, mode: import('@utils/blend-modes').ElementOutputBlendMode) => void;
     setNodeLocked: (nodeId: string, locked: boolean) => void;
     setNodeName: (nodeId: string, name: string) => void;
 }
@@ -802,7 +805,12 @@ function graphWithInsertedElement(
     const root = next.nodesById[next.rootId];
     if (!root || root.kind !== 'root') throw new Error('SceneStore: graph root is invalid');
     const nodeId = elementNodeId(elementId, new Set(Object.keys(next.nodesById)));
-    next.nodesById[nodeId] = { ...createNodeBase(nodeId, root.id, name), kind: 'element', elementId };
+    next.nodesById[nodeId] = {
+        ...createNodeBase(nodeId, root.id, name),
+        kind: 'element',
+        elementId,
+        outputBlendMode: 'source-over',
+    };
     root.children.splice(normalizeIndex(index, root.children.length), 0, nodeId);
     next.revision += 1;
     return next;
@@ -1643,6 +1651,22 @@ const createUncomposedSceneStoreState = (
             graph.nodesById[nodeId] = { ...graph.nodesById[nodeId], localOpacity: nextOpacity } as typeof current;
             graph.revision += 1;
             return { ...state, ...graphIndexes(graph), runtimeMeta: markDirty(state, 'setNodeOpacity') };
+        });
+    },
+
+    setNodeOutputBlendMode: (nodeId, mode) => {
+        set((state) => {
+            const current = state.graph.nodesById[nodeId];
+            const nextMode = normalizeElementOutputBlendMode(mode);
+            if (current?.kind !== 'element' || current.outputBlendMode === nextMode) return state;
+            const graph = cloneSceneGraph(state.graph);
+            graph.nodesById[nodeId] = { ...current, outputBlendMode: nextMode };
+            graph.revision += 1;
+            return {
+                ...state,
+                ...graphIndexes(graph),
+                runtimeMeta: markDirty(state, 'setNodeOutputBlendMode'),
+            };
         });
     },
 

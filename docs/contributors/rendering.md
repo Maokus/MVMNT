@@ -19,6 +19,10 @@ Host nodes own element translation, rotation, independent scale, pivot, visibili
 Element render objects describe content around a centered local origin. Opacity multiplies through
 ancestry without isolated group compositing.
 
+Element nodes also own `outputBlendMode`. A non-normal mode renders the complete element output to
+an isolated surface and composites that flattened result with the scene once. Render-object blend
+modes remain local to the element and control compositing between its internal parts.
+
 ## Render objects
 
 The public render module exposes `RenderObject`, `BoxRenderObject`, `EmptyRenderObject`, `Rectangle`,

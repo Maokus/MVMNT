@@ -185,7 +185,8 @@ export async function importScene(
             migratedEnvelope.schemaVersion === 6 ||
             migratedEnvelope.schemaVersion === 7 ||
             migratedEnvelope.schemaVersion === 8 ||
-            migratedEnvelope.schemaVersion === 9) &&
+            migratedEnvelope.schemaVersion === 9 ||
+            migratedEnvelope.schemaVersion === 10) &&
         migratedEnvelope.assets
     ) {
         options.onProgress?.(0.82, 'Restoring audio assets…');

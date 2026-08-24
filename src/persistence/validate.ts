@@ -10,7 +10,7 @@
 
 import { validateSceneGraph, type SceneGraphState } from '@state/scene-graph';
 
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 10;
 
 /**
  * Maps schema version to the minimum app version required to open files at that version.
@@ -26,6 +26,7 @@ export const SCHEMA_TO_MIN_APP_VERSION: Record<number, string> = {
     7: '0.15.4',
     8: '0.16.0',
     9: '0.16.0',
+    10: '0.16.0',
 };
 
 export type ValidationErrorCode =
@@ -111,7 +112,7 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
     }
     if (!root.scene || typeof root.scene !== 'object') {
         errors.push(err('ERR_SCENE_MISSING', 'Missing scene object', 'scene'));
-    } else if (schemaVersion === 8 || schemaVersion === 9) {
+    } else if (schemaVersion === 8 || schemaVersion === 9 || schemaVersion === 10) {
         if (
             typeof root.scene.elements !== 'object' ||
             root.scene.elements === null ||
