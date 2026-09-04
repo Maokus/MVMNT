@@ -55,7 +55,7 @@ describe('Scene element + macro persistence', () => {
         expect(useSceneStore.getState().macros.byId['m1']?.value).toBe(5);
     });
 
-    it('round-trips perspective rotation bindings', async () => {
+    it('round-trips perspective bindings with out-of-bounds anchors and pivots', async () => {
         dispatchSceneCommand({
             type: 'addElement',
             elementType: 'textOverlay',
@@ -67,9 +67,11 @@ describe('Scene element + macro persistence', () => {
                 perspectiveRotationX: -20,
                 perspectiveRotationY: 15,
                 perspectiveStrength: 65,
+                contentAnchorX: -0.5,
+                contentAnchorY: 1.5,
                 perspectivePivotLinked: false,
-                perspectivePivotX: 0.25,
-                perspectivePivotY: 0.75,
+                perspectivePivotX: -0.25,
+                perspectivePivotY: 1.25,
                 perspectiveVanishingPointX: 0.4,
                 perspectiveVanishingPointY: 0.6,
             },
@@ -85,9 +87,11 @@ describe('Scene element + macro persistence', () => {
         expect(bindings.perspectiveRotationX).toEqual({ type: 'constant', value: -20 });
         expect(bindings.perspectiveRotationY).toEqual({ type: 'constant', value: 15 });
         expect(bindings.perspectiveStrength).toEqual({ type: 'constant', value: 65 });
+        expect(bindings.contentAnchorX).toEqual({ type: 'constant', value: -0.5 });
+        expect(bindings.contentAnchorY).toEqual({ type: 'constant', value: 1.5 });
         expect(bindings.perspectivePivotLinked).toEqual({ type: 'constant', value: false });
-        expect(bindings.perspectivePivotX).toEqual({ type: 'constant', value: 0.25 });
-        expect(bindings.perspectivePivotY).toEqual({ type: 'constant', value: 0.75 });
+        expect(bindings.perspectivePivotX).toEqual({ type: 'constant', value: -0.25 });
+        expect(bindings.perspectivePivotY).toEqual({ type: 'constant', value: 1.25 });
         expect(bindings.perspectiveVanishingPointX).toEqual({ type: 'constant', value: 0.4 });
         expect(bindings.perspectiveVanishingPointY).toEqual({ type: 'constant', value: 0.6 });
     });

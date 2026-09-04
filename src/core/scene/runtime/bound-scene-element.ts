@@ -762,14 +762,14 @@ export class BoundSceneElement implements SceneElementInstance {
                             description: 'Choose which point of the element content is placed at its local origin.',
                             properties: [
                                 prop.number('contentAnchorX', 'Content Anchor X', 0.5, {
-                                    min: 0,
-                                    max: 1,
                                     step: 0.01,
+                                    description:
+                                        'Horizontal anchor in normalized element coordinates; values outside 0–1 place the anchor beyond the element bounds.',
                                 }),
                                 prop.number('contentAnchorY', 'Content Anchor Y', 0.5, {
-                                    min: 0,
-                                    max: 1,
                                     step: 0.01,
+                                    description:
+                                        'Vertical anchor in normalized element coordinates; values outside 0–1 place the anchor beyond the element bounds.',
                                 }),
                             ],
                             layout: [
@@ -834,24 +834,22 @@ export class BoundSceneElement implements SceneElementInstance {
                                     description: 'Use the host node pivot as the 3D rotation pivot.',
                                 }),
                                 prop.number('perspectivePivotX', '3D Pivot X', 0.5, {
-                                    min: 0,
-                                    max: 1,
                                     step: 0.01,
                                     visibleWhen: [
                                         { key: 'warpEnabled', equals: true },
                                         { key: 'perspectivePivotLinked', equals: false },
                                     ],
-                                    description: 'Horizontal 3D rotation pivot (0 = left, 1 = right).',
+                                    description:
+                                        'Horizontal 3D rotation pivot in normalized element coordinates; values outside 0–1 are supported.',
                                 }),
                                 prop.number('perspectivePivotY', '3D Pivot Y', 0.5, {
-                                    min: 0,
-                                    max: 1,
                                     step: 0.01,
                                     visibleWhen: [
                                         { key: 'warpEnabled', equals: true },
                                         { key: 'perspectivePivotLinked', equals: false },
                                     ],
-                                    description: 'Vertical 3D rotation pivot (0 = top, 1 = bottom).',
+                                    description:
+                                        'Vertical 3D rotation pivot in normalized element coordinates; values outside 0–1 are supported.',
                                 }),
                                 prop.number('perspectiveVanishingPointX', 'Vanishing Point X', 0.5, {
                                     min: -2,
@@ -904,7 +902,13 @@ export class BoundSceneElement implements SceneElementInstance {
                                             kind: 'control',
                                             control: 'point-grid',
                                             bindings: { x: 'perspectivePivotX', y: 'perspectivePivotY' },
-                                            options: { label: '3D pivot' },
+                                            options: {
+                                                label: '3D pivot',
+                                                xMin: 0,
+                                                xMax: 1,
+                                                yMin: 0,
+                                                yMax: 1,
+                                            },
                                             visibleWhen: [{ key: 'perspectivePivotLinked', equals: false }],
                                         },
                                         { kind: 'property', propertyKey: 'perspectivePivotX' },

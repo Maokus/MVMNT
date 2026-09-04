@@ -17,7 +17,7 @@ import { shallow } from 'zustand/shallow';
 import { dispatchSceneCommand } from '@state/scene';
 import { automationEvaluator } from '@automation/automation-evaluator';
 import { resolveAutomationValueType } from './KeyframeControl';
-import { NodeTransformPanel } from './NodeTransformPanel';
+import { NodeTransformPanel, nodeTransformSearchHasMatches } from './NodeTransformPanel';
 import { dispatchPropertyEdits, propertyEditMergeKey } from '@state/scene';
 import { activateCommandSurface } from '@context/commands/commandContext';
 
@@ -284,10 +284,9 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const filteredGroups = useMemo(() => {
         if (!enhancedSchema) return [];
 
-        const sourceGroups =
-            searchActive && searchTerm.trim()
-                ? enhancedSchema.tabs.flatMap((t) => t.groups)
-                : (enhancedSchema.tabs.find((t) => t.id === activeTabId)?.groups ?? []);
+        const sourceGroups = searchActive
+            ? enhancedSchema.tabs.flatMap((t) => t.groups)
+            : (enhancedSchema.tabs.find((t) => t.id === activeTabId)?.groups ?? []);
 
         const term = searchTerm.trim().toLowerCase();
 
@@ -496,14 +495,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                         type="text"
                         placeholder="Search properties…"
                         value={searchTerm}
-                        onChange={(e) => {
-                            const nextTerm = e.target.value;
-                            if (nextTerm === '') {
-                                closeSearch();
-                                return;
-                            }
-                            setSearchTerm(nextTerm);
-                        }}
+                        onChange={(e) => setSearchTerm(e.target.value)}
                         onKeyDown={handleSearchKeyDown}
                         autoFocus
                     />
@@ -512,15 +504,19 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                     </button>
                 </div>
             )}
-            <PropertyTabStrip
-                tabs={inspectorTabs}
-                activeTabId={activeTabId}
-                onTabChange={(tabId) => setActivePropertyTab(elementId, tabId)}
-                overflowActions={overflowActions}
-                onSearch={openSearch}
-            />
-            {activeTabId === NODE_TRANSFORM_TAB_ID ? <NodeTransformPanel /> : null}
-            {activeTabId !== NODE_TRANSFORM_TAB_ID &&
+            {!searchActive ? (
+                <PropertyTabStrip
+                    tabs={inspectorTabs}
+                    activeTabId={activeTabId}
+                    onTabChange={(tabId) => setActivePropertyTab(elementId, tabId)}
+                    overflowActions={overflowActions}
+                    onSearch={openSearch}
+                />
+            ) : null}
+            {includeNodeTransforms && (searchActive || activeTabId === NODE_TRANSFORM_TAB_ID) ? (
+                <NodeTransformPanel searchTerm={searchActive ? searchTerm : ''} />
+            ) : null}
+            {(searchActive || activeTabId !== NODE_TRANSFORM_TAB_ID) &&
                 filteredGroups.map(({ group, properties }) => (
                     <PropertyGroupPanel
                         key={group.id}
@@ -537,9 +533,12 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                         useLayout={!searchActive}
                     />
                 ))}
-            {searchActive && searchTerm.trim() && filteredGroups.length === 0 && (
-                <div className="ae-empty-search">No matching properties.</div>
-            )}
+            {searchActive &&
+                searchTerm.trim() &&
+                filteredGroups.length === 0 &&
+                (!includeNodeTransforms || !nodeTransformSearchHasMatches(searchTerm)) && (
+                    <div className="ae-empty-search">No matching properties.</div>
+                )}
         </div>
     );
 };

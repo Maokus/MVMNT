@@ -58,6 +58,53 @@ const AGGREGATE_SECTIONS = {
     pivot: { title: 'Selection Pivot', properties: ['Pivot X', 'Pivot Y'] },
 } as const;
 
+const SINGLE_NODE_SECTIONS = {
+    position: {
+        title: 'Position',
+        properties: [
+            { key: 'translationX', label: 'X' },
+            { key: 'translationY', label: 'Y' },
+        ],
+    },
+    rotationScale: {
+        title: 'Rotation & Scale',
+        properties: [
+            { key: 'rotation', label: 'Rotation' },
+            { key: 'scaleX', label: 'Scale X' },
+            { key: 'scaleY', label: 'Scale Y' },
+        ],
+    },
+    pivot: {
+        title: 'Transform Pivot',
+        properties: [
+            { key: 'pivotX', label: 'Pivot X' },
+            { key: 'pivotY', label: 'Pivot Y' },
+        ],
+    },
+    nodeState: {
+        title: 'Node State',
+        properties: [
+            { key: 'localVisible', label: 'Visible' },
+            { key: 'localLocked', label: 'Locked' },
+            { key: 'localOpacity', label: 'Opacity' },
+        ],
+    },
+    effects: {
+        title: 'Effects',
+        properties: [{ key: 'outputBlendMode', label: 'Element Blend Mode' }],
+    },
+} as const;
+
+export function nodeTransformSearchHasMatches(searchTerm: string): boolean {
+    return Object.values(SINGLE_NODE_SECTIONS).some((section) =>
+        sectionVisibleForSearch(
+            searchTerm,
+            section.title,
+            section.properties.flatMap((property) => [property.label, property.key])
+        )
+    );
+}
+
 function MultiSelectionPropertySearch({ value, onChange }: { value: string; onChange: (value: string) => void }) {
     return (
         <div className="ae-search-bar ae-multi-selection-search">
@@ -261,7 +308,7 @@ function NodeMacroControl({
     );
 }
 
-export function NodeTransformPanel() {
+export function NodeTransformPanel({ searchTerm = '' }: { searchTerm?: string } = {}) {
     const nodeIds = useSelectionStore((state) => state.selectedNodeIds);
     const selectionPivot = useSelectionStore((state) => state.selectionPivot);
     const setSelectionPivot = useSelectionStore((state) => state.setSelectionPivot);
@@ -535,112 +582,170 @@ export function NodeTransformPanel() {
         );
     }
 
+    const singlePropertyVisible = (
+        section: (typeof SINGLE_NODE_SECTIONS)[keyof typeof SINGLE_NODE_SECTIONS],
+        key: string
+    ) => {
+        const property = section.properties.find((candidate) => candidate.key === key);
+        return propertyVisibleForSearch(searchTerm, section.title, property?.label ?? key, key);
+    };
+
     return (
         <div className="node-transform-inspector ae-style">
-            {(['translationX', 'translationY'] as const).map((path, index) => {
-                const raw = Number(valueFor(path, nodes[0].userNodeTransform[path]));
-                return index === 0 ? (
-                    <TransformSection key="position" title="Position" ownerKey={inspectorOwnerKey}>
-                        {renderSingleField('translationX', raw)}
-                        {renderSingleField(
-                            'translationY',
-                            Number(valueFor('translationY', nodes[0].userNodeTransform.translationY))
-                        )}
-                    </TransformSection>
-                ) : null;
-            })}
-            <TransformSection title="Rotation & Scale" ownerKey={inspectorOwnerKey}>
-                {renderSingleField('rotation', Number(valueFor('rotation', nodes[0].userNodeTransform.rotation)))}
-                {renderSingleField('scaleX', Number(valueFor('scaleX', nodes[0].userNodeTransform.scaleX)))}
-                {renderSingleField('scaleY', Number(valueFor('scaleY', nodes[0].userNodeTransform.scaleY)))}
-            </TransformSection>
-            <TransformSection title="Transform Pivot" ownerKey={inspectorOwnerKey}>
-                {renderSingleField('pivotX', Number(valueFor('pivotX', nodes[0].userNodeTransform.pivotX)))}
-                {renderSingleField('pivotY', Number(valueFor('pivotY', nodes[0].userNodeTransform.pivotY)))}
-            </TransformSection>
-            <TransformSection title="Node State" ownerKey={inspectorOwnerKey}>
-                <PropertyControlRow
-                    label="Visible"
-                    animationControl={
-                        <BindingControls
-                            path="localVisible"
-                            raw={Boolean(valueFor('localVisible', nodes[0].localVisible))}
-                            type="boolean"
-                        />
-                    }
-                    macroControl={macroControlFor(
-                        'localVisible',
-                        Boolean(valueFor('localVisible', nodes[0].localVisible)),
-                        'boolean'
-                    )}
-                >
-                    <FormInput
-                        id={`node-${nodes[0].id}-visible`}
-                        type="boolean"
-                        value={Boolean(valueFor('localVisible', nodes[0].localVisible))}
-                        disabled={nodeBindings[nodes[0].id]?.localVisible?.type === 'macro'}
-                        schema={{}}
-                        onChange={(value) => {
-                            const visible = Boolean(unwrapTransformInputValue(value));
-                            editNodeProperty(nodes[0].id, 'localVisible', visible, 'boolean');
-                        }}
-                    />
-                </PropertyControlRow>
-                <PropertyControlRow label="Locked">
-                    <FormInput
-                        id={`node-${nodes[0].id}-locked`}
-                        type="boolean"
-                        value={nodes[0].localLocked}
-                        schema={{}}
-                        onChange={(value) =>
-                            dispatchForAll([
-                                {
-                                    type: 'setNodeLocked',
-                                    nodeId: nodes[0].id,
-                                    locked: Boolean(unwrapTransformInputValue(value)),
-                                },
-                            ])
-                        }
-                    />
-                </PropertyControlRow>
-                <PropertyControlRow
-                    label="Opacity"
-                    animationControl={
-                        <BindingControls
-                            path="localOpacity"
-                            raw={Number(valueFor('localOpacity', nodes[0].localOpacity))}
-                            type="number"
-                        />
-                    }
-                    macroControl={macroControlFor(
-                        'localOpacity',
-                        Number(valueFor('localOpacity', nodes[0].localOpacity)),
-                        'number'
-                    )}
-                >
-                    <FormInput
-                        id={`node-${nodes[0].id}-opacity`}
-                        type="number"
-                        value={Number(valueFor('localOpacity', nodes[0].localOpacity))}
-                        schema={{ min: 0, max: 1, step: 0.01 }}
-                        disabled={nodeBindings[nodes[0].id]?.localOpacity?.type === 'macro'}
-                        onChange={(change) => {
-                            const opacity = readFiniteTransformInput(change);
-                            if (opacity != null) {
-                                editNodeProperty(
-                                    nodes[0].id,
-                                    'localOpacity',
-                                    opacity,
-                                    'number',
-                                    change as FormInputChange
-                                );
+            {sectionVisibleForSearch(
+                searchTerm,
+                SINGLE_NODE_SECTIONS.position.title,
+                SINGLE_NODE_SECTIONS.position.properties.flatMap((property) => [property.label, property.key])
+            ) ? (
+                <TransformSection title={SINGLE_NODE_SECTIONS.position.title} ownerKey={inspectorOwnerKey}>
+                    {singlePropertyVisible(SINGLE_NODE_SECTIONS.position, 'translationX')
+                        ? renderSingleField(
+                              'translationX',
+                              Number(valueFor('translationX', nodes[0].userNodeTransform.translationX))
+                          )
+                        : null}
+                    {singlePropertyVisible(SINGLE_NODE_SECTIONS.position, 'translationY')
+                        ? renderSingleField(
+                              'translationY',
+                              Number(valueFor('translationY', nodes[0].userNodeTransform.translationY))
+                          )
+                        : null}
+                </TransformSection>
+            ) : null}
+            {sectionVisibleForSearch(
+                searchTerm,
+                SINGLE_NODE_SECTIONS.rotationScale.title,
+                SINGLE_NODE_SECTIONS.rotationScale.properties.flatMap((property) => [property.label, property.key])
+            ) ? (
+                <TransformSection title={SINGLE_NODE_SECTIONS.rotationScale.title} ownerKey={inspectorOwnerKey}>
+                    {singlePropertyVisible(SINGLE_NODE_SECTIONS.rotationScale, 'rotation')
+                        ? renderSingleField(
+                              'rotation',
+                              Number(valueFor('rotation', nodes[0].userNodeTransform.rotation))
+                          )
+                        : null}
+                    {singlePropertyVisible(SINGLE_NODE_SECTIONS.rotationScale, 'scaleX')
+                        ? renderSingleField('scaleX', Number(valueFor('scaleX', nodes[0].userNodeTransform.scaleX)))
+                        : null}
+                    {singlePropertyVisible(SINGLE_NODE_SECTIONS.rotationScale, 'scaleY')
+                        ? renderSingleField('scaleY', Number(valueFor('scaleY', nodes[0].userNodeTransform.scaleY)))
+                        : null}
+                </TransformSection>
+            ) : null}
+            {sectionVisibleForSearch(
+                searchTerm,
+                SINGLE_NODE_SECTIONS.pivot.title,
+                SINGLE_NODE_SECTIONS.pivot.properties.flatMap((property) => [property.label, property.key])
+            ) ? (
+                <TransformSection title={SINGLE_NODE_SECTIONS.pivot.title} ownerKey={inspectorOwnerKey}>
+                    {singlePropertyVisible(SINGLE_NODE_SECTIONS.pivot, 'pivotX')
+                        ? renderSingleField('pivotX', Number(valueFor('pivotX', nodes[0].userNodeTransform.pivotX)))
+                        : null}
+                    {singlePropertyVisible(SINGLE_NODE_SECTIONS.pivot, 'pivotY')
+                        ? renderSingleField('pivotY', Number(valueFor('pivotY', nodes[0].userNodeTransform.pivotY)))
+                        : null}
+                </TransformSection>
+            ) : null}
+            {sectionVisibleForSearch(
+                searchTerm,
+                SINGLE_NODE_SECTIONS.nodeState.title,
+                SINGLE_NODE_SECTIONS.nodeState.properties.flatMap((property) => [property.label, property.key])
+            ) ? (
+                <TransformSection title={SINGLE_NODE_SECTIONS.nodeState.title} ownerKey={inspectorOwnerKey}>
+                    {singlePropertyVisible(SINGLE_NODE_SECTIONS.nodeState, 'localVisible') ? (
+                        <PropertyControlRow
+                            label="Visible"
+                            animationControl={
+                                <BindingControls
+                                    path="localVisible"
+                                    raw={Boolean(valueFor('localVisible', nodes[0].localVisible))}
+                                    type="boolean"
+                                />
                             }
-                        }}
-                    />
-                </PropertyControlRow>
-            </TransformSection>
-            {nodes[0].kind === 'element' ? (
-                <TransformSection title="Effects" ownerKey={inspectorOwnerKey}>
+                            macroControl={macroControlFor(
+                                'localVisible',
+                                Boolean(valueFor('localVisible', nodes[0].localVisible)),
+                                'boolean'
+                            )}
+                        >
+                            <FormInput
+                                id={`node-${nodes[0].id}-visible`}
+                                type="boolean"
+                                value={Boolean(valueFor('localVisible', nodes[0].localVisible))}
+                                disabled={nodeBindings[nodes[0].id]?.localVisible?.type === 'macro'}
+                                schema={{}}
+                                onChange={(value) => {
+                                    const visible = Boolean(unwrapTransformInputValue(value));
+                                    editNodeProperty(nodes[0].id, 'localVisible', visible, 'boolean');
+                                }}
+                            />
+                        </PropertyControlRow>
+                    ) : null}
+                    {singlePropertyVisible(SINGLE_NODE_SECTIONS.nodeState, 'localLocked') ? (
+                        <PropertyControlRow label="Locked">
+                            <FormInput
+                                id={`node-${nodes[0].id}-locked`}
+                                type="boolean"
+                                value={nodes[0].localLocked}
+                                schema={{}}
+                                onChange={(value) =>
+                                    dispatchForAll([
+                                        {
+                                            type: 'setNodeLocked',
+                                            nodeId: nodes[0].id,
+                                            locked: Boolean(unwrapTransformInputValue(value)),
+                                        },
+                                    ])
+                                }
+                            />
+                        </PropertyControlRow>
+                    ) : null}
+                    {singlePropertyVisible(SINGLE_NODE_SECTIONS.nodeState, 'localOpacity') ? (
+                        <PropertyControlRow
+                            label="Opacity"
+                            animationControl={
+                                <BindingControls
+                                    path="localOpacity"
+                                    raw={Number(valueFor('localOpacity', nodes[0].localOpacity))}
+                                    type="number"
+                                />
+                            }
+                            macroControl={macroControlFor(
+                                'localOpacity',
+                                Number(valueFor('localOpacity', nodes[0].localOpacity)),
+                                'number'
+                            )}
+                        >
+                            <FormInput
+                                id={`node-${nodes[0].id}-opacity`}
+                                type="number"
+                                value={Number(valueFor('localOpacity', nodes[0].localOpacity))}
+                                schema={{ min: 0, max: 1, step: 0.01 }}
+                                disabled={nodeBindings[nodes[0].id]?.localOpacity?.type === 'macro'}
+                                onChange={(change) => {
+                                    const opacity = readFiniteTransformInput(change);
+                                    if (opacity != null) {
+                                        editNodeProperty(
+                                            nodes[0].id,
+                                            'localOpacity',
+                                            opacity,
+                                            'number',
+                                            change as FormInputChange
+                                        );
+                                    }
+                                }}
+                            />
+                        </PropertyControlRow>
+                    ) : null}
+                </TransformSection>
+            ) : null}
+            {nodes[0].kind === 'element' &&
+            sectionVisibleForSearch(
+                searchTerm,
+                SINGLE_NODE_SECTIONS.effects.title,
+                SINGLE_NODE_SECTIONS.effects.properties.flatMap((property) => [property.label, property.key])
+            ) ? (
+                <TransformSection title={SINGLE_NODE_SECTIONS.effects.title} ownerKey={inspectorOwnerKey}>
                     <PropertyControlRow
                         label="Element Blend Mode"
                         description="Blend the flattened output of this element with the scene."

@@ -132,6 +132,34 @@ describe('BoundSceneElement bounds', () => {
         expect(container.originX).toBe(0);
         expect(container.originY).toBe(100);
     });
+
+    it('keeps linked perspective anchored beyond every element edge', () => {
+        enableFeatureForSession('elementPerspectiveWarp', true);
+
+        for (const [contentAnchorX, contentAnchorY] of [
+            [-0.5, 0.5],
+            [1.5, 0.5],
+            [0.5, -0.5],
+            [0.5, 1.5],
+        ]) {
+            const root = new BoundsTestElement({
+                warpEnabled: true,
+                perspectiveRotationX: 20,
+                perspectiveRotationY: -15,
+                perspectiveStrength: 25,
+                perspectivePivotLinked: true,
+                contentAnchorX,
+                contentAnchorY,
+            }).buildRenderObjects({ canvas: { width: 1000, height: 500 } }, 0)[0] as PerspectiveElementRoot;
+
+            root.setResolvedNodeTransform([1, 0, 0, 1, 0, 0], { x: 0, y: 0 });
+
+            const projectedAnchor = root.projectNormalizedPoint({ x: contentAnchorX, y: contentAnchorY });
+            expect(projectedAnchor?.x).toBeCloseTo(0, 8);
+            expect(projectedAnchor?.y).toBeCloseTo(0, 8);
+            expect(Object.values(root.getVisualBounds()).every(Number.isFinite)).toBe(true);
+        }
+    });
 });
 
 describe('BasicShapesElement angles', () => {

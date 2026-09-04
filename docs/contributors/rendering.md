@@ -46,6 +46,11 @@ Perspective is a host-owned camera transform controlled by the schema-driven per
 properties. The resolver combines the authored node and ancestor affine matrix with the element
 pivot and canvas-relative vanishing point.
 
+Content anchors and 3D pivots use normalized element coordinates: `0–1` spans the element's
+layout bounds, while finite values outside that range place the point beyond those bounds. When
+the 3D pivot is linked to the node pivot, out-of-bounds content anchors remain continuous rather
+than pinning the perspective hinge to the nearest edge.
+
 Identity projections use Canvas 2D directly. Non-identity projections flatten content into a pooled
 Canvas source, submit it through the renderer-owned WebGL compositor, and copy it back in painter
 order. Invalid inputs and GPU failures use a deterministic affine fallback. Rolling diagnostics are

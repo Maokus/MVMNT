@@ -84,6 +84,44 @@ describe('perspective warp geometry', () => {
         ).toBe(false);
     });
 
+    it('preserves finite perspective pivots outside the element bounds', () => {
+        for (const pivotX of [-0.5, 1.5]) {
+            const result = createPerspectiveCameraWarp(bounds, affine, viewport, {
+                ...projection,
+                rotationY: 20,
+                strength: 25,
+                pivotX,
+            });
+
+            expect(result.kind).toBe('projected');
+            const matrix = createHomography(result.warp)!;
+            const projectedPivot = projectPerspectivePoint(matrix, { x: pivotX, y: projection.pivotY });
+            expect(projectedPivot?.x).toBeCloseTo(pivotX, 8);
+            expect(projectedPivot?.y).toBeCloseTo(projection.pivotY, 8);
+        }
+    });
+
+    it('keeps perspective output continuous as a pivot crosses either element edge', () => {
+        const projectCorner = (pivotX: number) => {
+            const result = createPerspectiveCameraWarp(bounds, affine, viewport, {
+                ...projection,
+                rotationY: 20,
+                strength: 25,
+                pivotX,
+            });
+            expect(result.kind).toBe('projected');
+            return projectPerspectivePoint(createHomography(result.warp)!, { x: 0, y: 0 })!;
+        };
+
+        const beforeLeft = projectCorner(-0.001);
+        const afterLeft = projectCorner(0.001);
+        const beforeRight = projectCorner(0.999);
+        const afterRight = projectCorner(1.001);
+
+        expect(Math.hypot(afterLeft.x - beforeLeft.x, afterLeft.y - beforeLeft.y)).toBeLessThan(0.01);
+        expect(Math.hypot(afterRight.x - beforeRight.x, afterRight.y - beforeRight.y)).toBeLessThan(0.01);
+    });
+
     it('maps perspective strength to a safe camera distance', () => {
         expect(perspectiveStrengthToCameraDistance(0)).toBe(Infinity);
         expect(perspectiveStrengthToCameraDistance(100)).toBeCloseTo(1.1);

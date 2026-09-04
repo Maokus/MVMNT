@@ -33,7 +33,9 @@ export interface PerspectiveCameraProjection {
     rotationX: number;
     rotationY: number;
     strength: number;
+    /** Normalized element coordinate; finite values outside 0–1 are supported. */
     pivotX: number;
+    /** Normalized element coordinate; finite values outside 0–1 are supported. */
     pivotY: number;
     vanishingPointX: number;
     vanishingPointY: number;
@@ -116,8 +118,11 @@ export function createPerspectiveCameraWarp(
     const rotationX = Number.isFinite(projection.rotationX) ? projection.rotationX : 0;
     const rotationY = Number.isFinite(projection.rotationY) ? projection.rotationY : 0;
     const strength = Math.max(0, Math.min(100, Number.isFinite(projection.strength) ? projection.strength : 50));
-    const pivotX = Math.max(0, Math.min(1, Number.isFinite(projection.pivotX) ? projection.pivotX : 0.5));
-    const pivotY = Math.max(0, Math.min(1, Number.isFinite(projection.pivotY) ? projection.pivotY : 0.5));
+    // Normalized pivot coordinates intentionally support points outside the
+    // element rectangle. This keeps a linked perspective pivot continuous
+    // when the content anchor is below 0 or above 1.
+    const pivotX = Number.isFinite(projection.pivotX) ? projection.pivotX : 0.5;
+    const pivotY = Number.isFinite(projection.pivotY) ? projection.pivotY : 0.5;
     const vanishingPointX = Math.max(
         -2,
         Math.min(3, Number.isFinite(projection.vanishingPointX) ? projection.vanishingPointX : 0.5)

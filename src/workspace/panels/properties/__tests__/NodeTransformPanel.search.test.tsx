@@ -59,4 +59,19 @@ describe('NodeTransformPanel multi-selection property search', () => {
         expect(screen.getByText('Node State')).toBeInTheDocument();
         expect(screen.getByText('Effects')).toBeInTheDocument();
     });
+
+    it('filters host properties for a single selected element', () => {
+        useSelectionStore.setState({
+            selectedNodeIds: ['element:one'],
+            selectionPivot: null,
+        });
+
+        render(<NodeTransformPanel searchTerm="opacity" />);
+
+        expect(screen.getByText('Node State')).toBeInTheDocument();
+        expect(screen.getByText('Opacity')).toBeInTheDocument();
+        expect(screen.queryByText('Visible')).not.toBeInTheDocument();
+        expect(screen.queryByText('Position')).not.toBeInTheDocument();
+        expect(screen.queryByText('Effects')).not.toBeInTheDocument();
+    });
 });

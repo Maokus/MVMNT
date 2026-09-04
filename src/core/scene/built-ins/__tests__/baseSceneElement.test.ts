@@ -133,8 +133,17 @@ describe('BoundSceneElement perspective property schema', () => {
 
     it('exposes the enable toggle and conditionally visible X/Y rotation inputs', () => {
         const elementTab = BoundSceneElement.getConfigSchema().tabs.find((tab) => tab.id === 'element');
+        const contentAnchorGroup = elementTab?.groups.find((group) => group.id === 'contentAnchor');
         const perspectiveGroup = elementTab?.groups.find((group) => group.id === 'perspective');
 
+        expect(contentAnchorGroup?.properties).toEqual([
+            expect.objectContaining({ key: 'contentAnchorX', step: 0.01 }),
+            expect.objectContaining({ key: 'contentAnchorY', step: 0.01 }),
+        ]);
+        for (const property of contentAnchorGroup?.properties ?? []) {
+            expect(property).not.toHaveProperty('min');
+            expect(property).not.toHaveProperty('max');
+        }
         expect(perspectiveGroup).toBeDefined();
         expect(perspectiveGroup?.properties.map((property) => property.key)).toEqual([
             'warpEnabled',
@@ -165,11 +174,25 @@ describe('BoundSceneElement perspective property schema', () => {
         expect(perspectiveGroup?.properties.slice(3)).toEqual([
             expect.objectContaining({ key: 'perspectiveStrength', min: 0, max: 100, step: 1 }),
             expect.objectContaining({ key: 'perspectivePivotLinked', type: 'boolean', default: true }),
-            expect.objectContaining({ key: 'perspectivePivotX', min: 0, max: 1, step: 0.01 }),
-            expect.objectContaining({ key: 'perspectivePivotY', min: 0, max: 1, step: 0.01 }),
+            expect.objectContaining({ key: 'perspectivePivotX', step: 0.01 }),
+            expect.objectContaining({ key: 'perspectivePivotY', step: 0.01 }),
             expect.objectContaining({ key: 'perspectiveVanishingPointX', min: -2, max: 3, step: 0.01 }),
             expect.objectContaining({ key: 'perspectiveVanishingPointY', min: -2, max: 3, step: 0.01 }),
         ]);
+        for (const property of perspectiveGroup?.properties.slice(5, 7) ?? []) {
+            expect(property).not.toHaveProperty('min');
+            expect(property).not.toHaveProperty('max');
+        }
+        const advancedSection = perspectiveGroup?.layout?.find(
+            (item) => item.kind === 'section' && item.id === 'perspective-advanced'
+        );
+        expect(advancedSection?.kind === 'section' ? advancedSection.children : []).toContainEqual(
+            expect.objectContaining({
+                control: 'point-grid',
+                bindings: { x: 'perspectivePivotX', y: 'perspectivePivotY' },
+                options: expect.objectContaining({ xMin: 0, xMax: 1, yMin: 0, yMax: 1 }),
+            })
+        );
     });
 });
 

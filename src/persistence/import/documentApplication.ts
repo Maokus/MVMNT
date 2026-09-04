@@ -1,6 +1,6 @@
 import { clearSpectrogramTileCache } from '@core/scene/built-ins/audio-displays/spectrogram-tiles';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
-import { advanceTimelineMutationGeneration } from '@state/timelineStore';
+import { advanceTimelineMutationGeneration, useTimelineStore } from '@state/timelineStore';
 import { DocumentGateway } from '../document-gateway';
 import { hydrateVisualAssetRegistry, migrateStoreAssetRefBindings } from './assetHydration';
 import type { ValidatedCurrentDocument } from './contracts';
@@ -11,6 +11,7 @@ export function applyImportedDocument(
     visualMetadata: unknown,
     persistedRegistry: unknown
 ): number {
+    useTimelineStore.getState().pause();
     useVisualAssetRegistryStore.getState()._clear();
     DocumentGateway.apply(document);
     clearSpectrogramTileCache();
