@@ -32,6 +32,7 @@ import { CommandContextMenu, type CommandMenuEntry } from '@workspace/components
 import { executeCommand } from '@context/commands/commandRegistry';
 import { SCENE_COMMANDS } from '@context/commands/sceneCommands';
 import { activateCommandSurface } from '@context/commands/commandContext';
+import { isTextEditingTarget } from '@context/shortcuts/shortcutRegistry';
 
 export type DropPosition = 'before' | 'inside' | 'after';
 
@@ -125,12 +126,18 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
 
     const commitRename = () => {
         const name = renameValue?.trim();
-        setRenameValue(null);
-        if (!name || name === rowLabel) return;
-        if (node.kind === 'element') {
-            updateElementId(node.elementId, name);
+        if (!name || name === rowLabel) {
+            setRenameValue(null);
             return;
         }
+        if (node.kind === 'element') {
+            updateElementId(node.elementId, name);
+            // updateElementId may show a blocking validation alert. Finish the
+            // controlled input update only after that callback has returned.
+            setRenameValue(null);
+            return;
+        }
+        setRenameValue(null);
         dispatchSceneCommand({ type: 'setNodeName', nodeId: node.id, name }, { source: 'SceneNodeTree.rename' });
     };
     const select = (event: React.MouseEvent) => {
@@ -363,6 +370,7 @@ export function SceneNodeTree() {
     const focusActive = () =>
         requestAnimationFrame(() => document.querySelector<HTMLElement>('.scene-node-row.is-active')?.focus());
     const navigate = (event: React.KeyboardEvent) => {
+        if (isTextEditingTarget(event.target)) return;
         if (!activeNodeId) return;
         const index = visible.indexOf(activeNodeId);
         const active = graph.nodesById[activeNodeId];

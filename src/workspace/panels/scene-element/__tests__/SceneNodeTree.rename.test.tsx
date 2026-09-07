@@ -45,4 +45,34 @@ describe('SceneNodeTree element ID editing', () => {
         fireEvent.blur(input);
         expect(sceneActions.updateElementId).toHaveBeenCalledWith('old-id', 'long-element-id');
     });
+
+    it('allows another element to be renamed after a duplicate ID is rejected', () => {
+        const graph = createFlatSceneGraph(['first', 'second']);
+        const root = graph.nodesById[graph.rootId];
+        if (root.kind !== 'root') throw new Error('invalid fixture');
+        sceneActions.updateElementId.mockReturnValueOnce(false).mockReturnValueOnce(true);
+
+        render(
+            <>
+                <NodeRow graph={graph} node={graph.nodesById['element:first']} siblingIds={root.children} depth={0} />
+                <NodeRow graph={graph} node={graph.nodesById['element:second']} siblingIds={root.children} depth={0} />
+            </>
+        );
+
+        fireEvent.doubleClick(screen.getByText('second'));
+        const duplicateInput = screen.getByDisplayValue('second');
+        fireEvent.change(duplicateInput, { target: { value: 'first' } });
+        fireEvent.blur(duplicateInput);
+
+        expect(sceneActions.updateElementId).toHaveBeenCalledWith('second', 'first');
+        expect(screen.queryByDisplayValue('first')).not.toBeInTheDocument();
+
+        fireEvent.doubleClick(screen.getByText('second'));
+        const retryInput = screen.getByDisplayValue('second');
+        fireEvent.change(retryInput, { target: { value: 'renamed-second' } });
+
+        expect(retryInput).toHaveValue('renamed-second');
+        fireEvent.blur(retryInput);
+        expect(sceneActions.updateElementId).toHaveBeenLastCalledWith('second', 'renamed-second');
+    });
 });
