@@ -19,21 +19,19 @@ export const bundledImage = definePluginElement({
             ]),
         ],
     },
-    create(_props, context) {
+    createResources(context) {
         return {
             bundled: context.assets.bundledImage('image.gif'),
             override: context.assets.project(),
             media: new VisualMedia(0, 0, 200, 200),
         };
     },
-    render(props, instanceState, time) {
-        const asset = props.imageSource
-            ? instanceState.override.update(props.imageSource)
-            : instanceState.bundled.get();
-        instanceState.media
+    render({ props, resources, time }) {
+        const asset = props.imageSource ? resources.override.update(props.imageSource) : resources.bundled.get();
+        resources.media
             .setResource(asset.resource as never, asset.status)
             .setLocalTime(time.seconds)
             .setDimensions(props.width, props.height);
-        return [instanceState.media];
+        return [resources.media];
     },
 });

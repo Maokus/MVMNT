@@ -2,8 +2,10 @@
 
 ## 2.2.0
 
-- Formalized the `create()` return value as ephemeral instance state shared with random-access
-  `render()` calls and synchronous `dispose()`.
+- Render callbacks take a named `RenderInput` with props, time, context, and optional resources.
+- `createResources()` and synchronous `disposeResources()` use allocation-only `ResourceContext`;
+  `onCleanup()` covers partial initialization and cancellation. Removed positional callbacks and
+  the superseded `create`/`dispose` hooks from the pre-release SDK 2 contract.
 - Made instance disposal synchronous so the public contract matches the host lifecycle.
 - Added instance-scoped `context.properties.valueAt()` access to effective property values at arbitrary timeline
   times.

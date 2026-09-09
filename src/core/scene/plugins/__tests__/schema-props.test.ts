@@ -40,12 +40,91 @@ const schema = {
 } as const;
 
 describe('schema-inferred plugin props', () => {
+    it('defaults to stateless named inputs and infers asynchronous resources', () => {
+        definePluginElement({
+            type: 'stateless',
+            metadata: { name: 'Stateless' },
+            schema,
+            render({ props, resources, time }) {
+                expectTypeOf(resources).toEqualTypeOf<undefined>();
+                expectTypeOf(props.size).toEqualTypeOf<number>();
+                expectTypeOf(time.seconds).toEqualTypeOf<number>();
+                return [];
+            },
+        });
+        definePluginElement({
+            type: 'async-resources',
+            metadata: { name: 'Async resources' },
+            schema,
+            async createResources(context) {
+                if (false) {
+                    // @ts-expect-error Cleanup must be synchronous.
+                    context.onCleanup(async () => {});
+                }
+                return { buffer: new Float32Array(4) };
+            },
+            render({ resources }) {
+                expectTypeOf(resources.buffer).toEqualTypeOf<Float32Array<ArrayBuffer>>();
+                return [];
+            },
+        });
+        if (false) {
+            // @ts-expect-error Non-undefined resources require initialization.
+            definePluginElement<{}, { buffer: Float32Array }>({
+                type: 'missing-setup',
+                metadata: { name: 'Missing setup' },
+                schema,
+                render() {
+                    return [];
+                },
+            });
+            // @ts-expect-error Disposal requires initialization, even for undefined resources.
+            definePluginElement<{}, undefined>({
+                type: 'missing-setup',
+                metadata: { name: 'Missing setup' },
+                schema,
+                disposeResources() {
+                    return undefined;
+                },
+                render() {
+                    return [];
+                },
+            });
+        }
+    });
+
+    it('rejects superseded hooks and malformed resource lifecycles at runtime', () => {
+        const base = {
+            type: 'invalid',
+            metadata: { name: 'Invalid' },
+            schema,
+            render() {
+                return [];
+            },
+        };
+        expect(() => definePluginElement({ ...base, create() {} } as any)).toThrow('createResources');
+        expect(() => definePluginElement({ ...base, dispose() {} } as any)).toThrow('disposeResources');
+        expect(() => definePluginElement({ ...base, createResources: 1 } as any)).toThrow('must be a function');
+        expect(() => definePluginElement({ ...base, disposeResources() {} } as any)).toThrow(
+            'requires createResources'
+        );
+    });
+
     it('infers callback props and instance state from the schema', () => {
         const definition = definePluginElement({
             type: 'schema-props',
             metadata: { name: 'Schema Props' },
             schema,
-            create(props, context) {
+            createResources(context) {
+                if (false) {
+                    // @ts-expect-error Setup has no property sampling API.
+                    context.properties;
+                    // @ts-expect-error Setup has no timeline sampling API.
+                    context.timeline;
+                }
+                return { buffer: new Float32Array(4) };
+            },
+            render({ props, resources, context }) {
                 expectTypeOf(props).toEqualTypeOf<PropsFromSchema<typeof schema>>();
                 expectTypeOf(props.size).toEqualTypeOf<number>();
                 expectTypeOf(props.opacity).toEqualTypeOf<number>();
@@ -66,15 +145,12 @@ describe('schema-inferred plugin props', () => {
                     // @ts-expect-error Unknown properties cannot be sampled.
                     context.properties.valueAt('missing', 0);
                 }
-                return { frames: 0 };
-            },
-            render(props, instanceState) {
                 expectTypeOf(props.align).toEqualTypeOf<'left' | 'right'>();
-                expectTypeOf(instanceState).toEqualTypeOf<{ frames: number }>();
+                expectTypeOf(resources).toEqualTypeOf<{ buffer: Float32Array<ArrayBuffer> }>();
                 return [];
             },
-            dispose(instanceState) {
-                expectTypeOf(instanceState).toEqualTypeOf<{ frames: number }>();
+            disposeResources(resources) {
+                expectTypeOf(resources).toEqualTypeOf<{ buffer: Float32Array<ArrayBuffer> }>();
             },
         });
 
@@ -93,13 +169,12 @@ describe('schema-inferred plugin props', () => {
             type: 'legacy-props',
             metadata: { name: 'Legacy Props' },
             schema: { tabs: [] },
-            create(props) {
-                expectTypeOf(props.label).toEqualTypeOf<string>();
+            createResources() {
                 return { frames: 0 };
             },
-            render(props, instanceState) {
+            render({ props, resources }) {
                 expectTypeOf(props.label).toEqualTypeOf<string>();
-                expectTypeOf(instanceState.frames).toEqualTypeOf<number>();
+                expectTypeOf(resources.frames).toEqualTypeOf<number>();
                 return [];
             },
         });
@@ -112,11 +187,14 @@ describe('schema-inferred plugin props', () => {
             type: 'synchronous-disposal',
             metadata: { name: 'Synchronous disposal' },
             schema: { tabs: [] },
+            createResources() {
+                return {};
+            },
             render() {
                 return [];
             },
             // @ts-expect-error Instance disposal cannot return a promise.
-            async dispose() {},
+            async disposeResources() {},
         });
     });
 });

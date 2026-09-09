@@ -29,7 +29,9 @@ const modules = [
     'utils',
     'visual-assets',
 ];
-const sourceRuntimeModules = new Set(['animation', 'audio', 'scene', 'timeline', 'timing', 'utils', 'visual-assets']);
+// Only render constructors need out-of-host stubs. All portable exports share their source
+// with the injected host runtime, including the CommonJS root and SDK version.
+const sourceRuntimeModules = new Set(modules.filter((name) => name !== 'render'));
 for (const moduleName of modules) {
     const entry = sourceRuntimeModules.has(moduleName)
         ? resolve(root, 'src', `${moduleName}.ts`)

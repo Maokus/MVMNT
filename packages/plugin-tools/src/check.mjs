@@ -39,7 +39,9 @@ function smokeLoadDefinition(code, element) {
     if (definition?.kind !== 'mvmnt.plugin-element.v2' || definition.type !== expectedType)
         throw new Error(`${expectedType}: bundled entry did not export its SDK 2 definition`);
     if (typeof definition.render !== 'function') throw new Error(`${expectedType}: definition has no render callback`);
-    if (!definition.create && !(element.capabilities?.required?.length > 0)) {
+    if (definition.create || definition.dispose)
+        throw new Error(`${expectedType}: use createResources/disposeResources and named render inputs`);
+    if (!definition.createResources && !(element.capabilities?.required?.length > 0)) {
         const props = Object.fromEntries(
             (definition.schema?.tabs ?? []).flatMap((tab) =>
                 (tab.groups ?? []).flatMap((group) =>
@@ -47,12 +49,12 @@ function smokeLoadDefinition(code, element) {
                 )
             )
         );
-        const rendered = definition.render(
+        const rendered = definition.render({
             props,
-            undefined,
-            { seconds: 0, beats: 0, ticks: 0, frame: 0 },
-            callableStub
-        );
+            resources: undefined,
+            time: { seconds: 0, beats: 0, ticks: 0, frame: 0 },
+            context: callableStub,
+        });
         if (!Array.isArray(rendered)) throw new Error(`${expectedType}: render smoke test did not return an array`);
     }
 }

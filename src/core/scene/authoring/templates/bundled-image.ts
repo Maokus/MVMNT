@@ -47,7 +47,7 @@ export const bundledImage = definePluginElement({
             },
         ],
     },
-    create(_props, context) {
+    createResources(context) {
         return {
             bundled: context.assets.bundledImage('cooltext491233707844001.gif'),
             override: context.assets.project(),
@@ -55,17 +55,15 @@ export const bundledImage = definePluginElement({
             bounds: new Rectangle(0, 0, 200, 200),
         };
     },
-    render(props, instanceState, time) {
-        instanceState.bounds.width = props.width;
-        instanceState.bounds.height = props.height;
-        const asset = props.imageSource
-            ? instanceState.override.update(props.imageSource)
-            : instanceState.bundled.get();
-        instanceState.media
+    render({ props, resources, time }) {
+        resources.bounds.width = props.width;
+        resources.bounds.height = props.height;
+        const asset = props.imageSource ? resources.override.update(props.imageSource) : resources.bundled.get();
+        resources.media
             .setResource(asset.resource as never, asset.status)
             .setLocalTime(time.seconds)
             .setDimensions(props.width, props.height)
             .setFitMode(props.fitMode);
-        return [instanceState.bounds, instanceState.media];
+        return [resources.bounds, resources.media];
     },
 });

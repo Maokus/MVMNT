@@ -35,7 +35,7 @@ export const atlasImage = definePluginElement({
             },
         ],
     },
-    create(_props, context) {
+    createResources(context) {
         return {
             atlas: context.assets.bundledSparrow('BOYFRIEND.png', 'BOYFRIEND.xml'),
             background: context.assets.bundledImage('BOYFRIEND.png'),
@@ -45,21 +45,21 @@ export const atlasImage = definePluginElement({
             bounds: new Rectangle(0, 0, 200, 200),
         };
     },
-    render(props, instanceState, time) {
-        instanceState.bounds.width = props.width;
-        instanceState.bounds.height = props.height;
-        const bg = instanceState.background.get();
-        instanceState.bg
+    render({ props, resources, time }) {
+        resources.bounds.width = props.width;
+        resources.bounds.height = props.height;
+        const bg = resources.background.get();
+        resources.bg
             .setResource(bg.resource as never, bg.status)
             .setLocalTime(0)
             .setDimensions(props.width, props.height)
             .setFitMode('contain');
-        const atlas = props.atlas ? instanceState.override.update(props.atlas) : instanceState.atlas.get();
-        instanceState.media
+        const atlas = props.atlas ? resources.override.update(props.atlas) : resources.atlas.get();
+        resources.media
             .setResource(atlas.resource as never, atlas.status)
             .setLocalTime(time.seconds)
             .setDimensions(props.width, props.height)
             .setFitMode('contain');
-        return [instanceState.bounds, instanceState.bg, instanceState.media];
+        return [resources.bounds, resources.bg, resources.media];
     },
 });

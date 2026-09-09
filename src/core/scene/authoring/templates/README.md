@@ -96,5 +96,5 @@ lifecycle-scoped asset handles. External capability declarations live in `plugin
 
 - [Plugin rendering and assets](../../../../docs/plugin-api/rendering-and-assets.md)
 - [Plugin authoring guide](../../../../docs/plugin-api/authoring.md)
-- [Scene element instance state](../../../../docs/plugin-api/instance-state.md)
+- [Scene element instance resources](../../../../docs/plugin-api/instance-state.md)
 - [\_examples](../_examples/README.md) — complete worked examples illustrating specific concepts

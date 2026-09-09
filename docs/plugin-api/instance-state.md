@@ -1,99 +1,165 @@
-# Scene element instance state
+# Instance resources and random-access rendering
 
-Scene elements can retain an **instance state** value for runtime resources and reusable work. This
-value is distinct from authored scene state and from temporal simulation state.
+Start with `render({ props, time, context })`. Most elements need no retained values. For equivalent
+current inputs and available source data, requesting the same time must produce equivalent output,
+regardless of render history. Calls may repeat, skip frames, or arrive in any order.
 
-## Lifecycle
+## Choose the right kind of data
 
-`create(props, context)` runs once after one scene element instance is initialized. Its return value
-is retained by the host and passed as `instanceState` to every `render()` call for that instance and
-to its final `dispose()` call.
+| Data                                                            | Where it belongs                               |
+| --------------------------------------------------------------- | ---------------------------------------------- |
+| User choices, automation, asset references, random seeds        | Authored schema properties, persisted by MVMNT |
+| Handles, reusable render objects, buffers, deterministic caches | Optional per-instance resources                |
+| Position or velocity evolved from a previous simulation step    | Not supported by the current SDK               |
+
+Resources have no authored or temporal meaning. They need not be serializable and are absent from
+scene files, undo history, and export inputs. Module variables and definition-level registrations
+are shared across instances; do not store per-instance motion there.
+
+## Derive motion from the requested time
+
+Use current effective props, `time.seconds`, and current host reads. For constant speed, position
+is `props.speed * time.seconds`. For automated speed, integrate the effective property:
 
 ```ts
-export const image = definePluginElement({
-    // type, metadata, and schema omitted
-    create(_props, context) {
-        return {
-            asset: context.assets.project(),
-            media: new VisualMedia(0, 0, 200, 200),
-            controller: new AbortController(),
-        };
+import { definePluginElement, group, prop, tab } from '@mvmnt-app/plugin-sdk';
+import { Rectangle } from '@mvmnt-app/plugin-sdk/render';
+
+export const travel = definePluginElement({
+    type: 'travel',
+    metadata: { name: 'Travel' },
+    schema: {
+        tabs: [tab.properties([group('motion', 'Motion', [prop.number('speed', 'Speed', 20)])])],
     },
-    render(props, instanceState, time) {
-        const asset = instanceState.asset.update(props.imageSource);
-        instanceState.media
-            .setResource(asset.resource, asset.status)
-            .setLocalTime(time.seconds)
-            .setDimensions(props.width, props.height);
-        return [instanceState.media];
-    },
-    dispose(instanceState) {
-        instanceState.controller.abort();
+    render({ time, context }) {
+        const distance = context.properties.integrate('speed', {
+            startSeconds: 0,
+            endSeconds: time.seconds,
+        });
+        return distance.ok ? [new Rectangle(distance.value, 0, 20, 20)] : [];
     },
 });
 ```
 
-Each scene element receives a different value. Property edits do not recreate it. Plugin reload,
-instance replacement, or removal ends its lifetime. The value is runtime-only: it is not included
-in scene files, snapshots, undo history, or export inputs.
+Use `valueAt()` to sample an earlier property value, `average()` for smoothing over a time range,
+and timeline/audio queries for historical windows. Never use `position += speed`, a frame counter,
+`Date.now()`, or `Math.random()` to drive authored motion.
 
-`create()` may be asynchronous. `dispose()` is synchronous; stop pending asynchronous work when
-`context.signal` aborts. Handles and registrations created through the context are scoped and
-cleaned by the host, so manually dispose only resources owned directly by the plugin.
-
-The `props` passed to `create()` are the initial effective values, not a durable property snapshot.
-Always use the current `props` passed to `render()` when producing a frame.
-
-## Appropriate uses
-
-Instance state is appropriate for:
-
-- scoped asset handles and plugin-owned resources;
-- reusable render objects and buffers;
-- memoized deterministic calculations whose keys include every input affecting the result;
-- caches where hits, misses, and eviction change cost but never output.
-
-Instance state does not need to be serializable. It may contain handles, render objects, typed
-arrays, and other runtime values. A render callback may update those objects when it fully describes
-the requested frame before returning them.
-
-## Random-access rendering
-
-`render()` can be called repeatedly, skipped, or evaluated at times in any order. Its output must be
-determined by the current `props`, requested `time`, and callback-scoped snapshots. Instance state
-must not turn rendering into an implicit sequence.
-
-Do not evolve authored motion from earlier render calls:
+For repeatable variation, derive a value from a persisted seed and stable event index. This pure
+helper can be used for particle offsets or note colors without retaining a random generator:
 
 ```ts
-render(props, instanceState) {
-    instanceState.position += props.velocity; // Incorrect: depends on render history.
-    return drawAt(instanceState.position);
+function randomAt(seed: number, index: number): number {
+    let value = (seed | 0) ^ Math.imul(index | 0, 0x9e3779b9);
+    value = Math.imul(value ^ (value >>> 16), 0x21f0aaad);
+    value = Math.imul(value ^ (value >>> 15), 0x735a2d97);
+    return ((value ^ (value >>> 15)) >>> 0) / 4294967296;
 }
 ```
 
-Do not use frame counters, wall-clock time, or uncontrolled randomness as temporal state. For
-cumulative behavior that remains random-access, use `context.properties.valueAt()`, `integrate()`,
-or `average()`, or query the required timeline/audio history:
+Choose the index from stable event identity or an absolute time grid, never from the number of
+render calls. This helper produces visual variation; it is not cryptographic randomness.
+
+## Allocate resources only when needed
+
+`createResources(context)` runs once per instance and may return a promise. Its allocation-only
+context provides assets, calculator registration when granted, diagnostics, `signal`, and
+`onCleanup()`. It has no props or timeline/audio/property sampling. Read those in `render()`.
 
 ```ts
-render(_props, _instanceState, time, context) {
-    const distance = context.properties.integrate('velocity', {
-        startSeconds: 0,
-        endSeconds: time.seconds,
-    });
-    return distance.ok ? drawAt(distance.value) : [];
+import { definePluginElement, group, prop, tab } from '@mvmnt-app/plugin-sdk';
+import { VisualMedia } from '@mvmnt-app/plugin-sdk/render';
+
+export const image = definePluginElement({
+    type: 'image',
+    metadata: { name: 'Image' },
+    schema: {
+        tabs: [tab.properties([group('image', 'Image', [prop.imageAsset('source', 'Image')])])],
+    },
+    createResources(context) {
+        return { image: context.assets.project(), media: new VisualMedia(0, 0, 200, 200) };
+    },
+    render({ props, time, resources }) {
+        const snapshot = resources.image.update(props.source);
+        resources.media.setResource(snapshot.resource, snapshot.status).setLocalTime(time.seconds);
+        return [resources.media];
+    },
+});
+```
+
+Retain the handle, not its snapshot. Each frame reads its current readiness and resource. A loading
+placeholder changing to a ready image is an input change, not temporal simulation. Compare frames
+under equivalent readiness when checking determinism.
+
+Resources survive property edits, playback changes, and seeks. They end on instance removal,
+replacement, or plugin reload. Until asynchronous setup completes, the instance renders nothing.
+If setup fails, the instance stays inert and reports `INITIALIZATION_FAILED`.
+
+## Cleanup and asynchronous work
+
+Host-created handles and registrations are automatically cleaned. For a plugin-owned allocation,
+register cleanup immediately after acquisition, so later initialization failures cannot leak it:
+
+```ts
+createResources(context) {
+    const controller = new AbortController();
+    context.onCleanup(() => controller.abort());
+    return { controller };
 }
 ```
 
-## State terminology
+Use `context.signal` to cancel plugin-owned asynchronous work. `disposeResources(resources, context)`
+is an optional synchronous hook for a successfully initialized value. Do not register the same
+allocation in both that hook and `onCleanup()` unless its own cleanup is idempotent.
 
-- **Authored state** is the persisted scene graph, properties, bindings, automation, and timeline
-  data owned by MVMNT.
-- **Instance state** is the ephemeral value described here. It supports implementation resources
-  and deterministic caches but has no authored temporal meaning.
-- **Simulation state** is temporal data where the next value depends on the previous value. The
-  current SDK does not provide simulation state; it requires a future host-managed clock, reset,
-  seeking, and checkpoint contract.
+On removal the host aborts first, calls `disposeResources()`, then runs registered cleanup. Each
+cleanup is attempted even if another throws. Initialization failure runs registered cleanup without
+calling `disposeResources()` for a value that never existed. A value that resolves after removal is
+disposed once. Registering `onCleanup()` after cancellation executes it immediately. Allocation
+methods cannot create surviving resources after cancellation; `Result` methods return `ABORTED`,
+while synchronous handle factories throw. Cleanup callbacks must not return promises.
 
-Built-in and external plugin elements use the same definition runtime and follow this contract.
+## Reuse and cache correctly
+
+Reusable render objects must fully describe the requested frame, including resetting optional
+effects, visibility, children, and other fields changed by earlier frames. Reuse is an optimization,
+not permission to retain visual history. Returned objects may be reused on the next callback;
+tests must copy observable values or rasterize before requesting another frame.
+
+A small cache can retain deterministic calculations of explicit inputs:
+
+```ts
+createResources() {
+    return { last: null as null | { width: number; height: number; area: number } };
+},
+render({ props, resources }) {
+    if (resources.last?.width !== props.width || resources.last.height !== props.height) {
+        resources.last = { width: props.width, height: props.height, area: props.width * props.height };
+    }
+    // Use resources.last.area exactly as you would props.width * props.height.
+    return [];
+}
+```
+
+This excerpt assumes numeric `width` and `height` schema properties. Prefer computing cheap values
+directly; apply this pattern to measured expensive work. Clearing the cache must not change output.
+Bound retained entries or bytes rather than keeping every visited time forever.
+
+Cache keys must include every input affecting the result. `AudioFeatureMatrix.revision` identifies
+current matrix content and can participate in generated-raster keys alongside dimensions, colors,
+and other rendering inputs. A track ID, asset ID, or object identity is not a general content
+revision. When a host read provides no reliable revision, re-query it each frame and cache only
+subsequent work whose dependencies you can represent completely. Do not retain an unavailable
+result indefinitely. No general timeline revision protocol is exposed by the SDK.
+
+## Verify random access
+
+Compare a fresh instance rendered directly at time `t` with an instance rendered through forward,
+backward, repeated, and shuffled times before `t`. Repeat after property edits, source replacements
+under the same ID, and cache eviction. Use equivalent ready input data and capture output before
+the next callback. Package load-smoke checks do not prove determinism for arbitrary plugin code.
+
+Built-ins follow the same contract. The volume meter derives peak hold from audio history on an
+absolute grid up to 60 Hz, capped at 600 historical reads. Candidates clip to the meter ceiling,
+hold for `peakHoldSec`, then fall at 12 dB/s. Current frame settings govern the sampled window;
+they are not accumulated from previously rendered frames.

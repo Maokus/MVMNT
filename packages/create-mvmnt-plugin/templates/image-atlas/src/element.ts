@@ -19,19 +19,19 @@ export const atlasImage = definePluginElement({
             ]),
         ],
     },
-    create(_props, context) {
+    createResources(context) {
         return {
             atlas: context.assets.bundledSparrow('atlas.png', 'atlas.xml'),
             override: context.assets.project(),
             media: new VisualMedia(0, 0, 200, 200),
         };
     },
-    render(props, instanceState, time) {
-        const asset = props.atlas ? instanceState.override.update(props.atlas) : instanceState.atlas.get();
-        instanceState.media
+    render({ props, resources, time }) {
+        const asset = props.atlas ? resources.override.update(props.atlas) : resources.atlas.get();
+        resources.media
             .setResource(asset.resource as never, asset.status)
             .setLocalTime(time.seconds)
             .setDimensions(props.width, props.height);
-        return [instanceState.media];
+        return [resources.media];
     },
 });

@@ -20,7 +20,7 @@ export const audioReactive = definePluginElement({
             ]),
         ],
     },
-    render(props, _instanceState, time, context) {
+    render({ props, time, context }) {
         const windowSeconds = Math.max(0.025, props.smoothing * 0.01);
         const rms = props.audioTrackId
             ? context.audio!.getRms({

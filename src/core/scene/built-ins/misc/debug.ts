@@ -35,7 +35,7 @@ export const debug = defineBuiltInElement<Props, undefined>({
         ],
     },
     capabilities: { required: [], optional: [] },
-    render(props) {
+    render({ props }) {
         const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff'];
         const objects = props.showDots
             ? colors.map((color, index) => new Rectangle(index * 50, index * 50, 50, 50, { fillColor: color }))

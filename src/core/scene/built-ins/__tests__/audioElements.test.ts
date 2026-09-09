@@ -338,8 +338,70 @@ describe('simplified audio scene elements', () => {
         expect(sampleFeatureRange).toHaveBeenCalledTimes(2);
         const [initialRequest] = sampleFeatureRange.mock.calls[0] as [any];
         const [nextRequest] = sampleFeatureRange.mock.calls[1] as [any];
-        expect(nextRequest.startTime).toBeGreaterThan(initialRequest.endTime);
+        expect(nextRequest.startTime / nextRequest.stepSec).toBeCloseTo(
+            Math.round(nextRequest.startTime / nextRequest.stepSec)
+        );
+        expect(nextRequest.startTime).toBeLessThan(initialRequest.endTime);
     });
+
+    it('refreshes peaks when source content changes under the same track ID', () => {
+        let amplitude = 0.2;
+        const sampleFeatureRange = (args: any) =>
+            Array.from({ length: Math.round((args.endTime - args.startTime) / args.stepSec) + 1 }, () => ({
+                values: [-amplitude, amplitude],
+            }));
+        vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(
+            makeCapabilityContext({ sampleFeatureRange })
+        );
+        const config = { audioTrackId: 'track-1', width: 120, height: 60, windowSeconds: 0.05 };
+        const element = new AudioPeaksElement('peaks', config);
+        const snapshot = (value: AudioPeaksElement, time: number) => {
+            const [container] = value.buildRenderObjects({}, time);
+            return JSON.stringify(container.children.filter((child) => child instanceof Poly));
+        };
+        const before = snapshot(element, 2);
+        amplitude = 0.8;
+        const after = snapshot(element, 2);
+        expect(after).not.toEqual(before);
+        expect(after).toEqual(snapshot(new AudioPeaksElement('fresh', config), 2));
+        for (const time of [5, 0, 2, 1, 2]) {
+            expect(snapshot(element, time)).toEqual(snapshot(new AudioPeaksElement('fresh', config), time));
+        }
+    });
+
+    it.each(['stereo', 'left', 'right', 'mono'])(
+        'derives %s peak hold independently of render order',
+        (channelMode) => {
+            vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(
+                makeCapabilityContext({
+                    getRmsInWindow: (args: any) => {
+                        const time = (args.startSeconds + args.endSeconds) / 2;
+                        return new Float32Array(time >= 1 && time <= 1.2 ? [1, 0.5] : [0.01, 0.02]);
+                    },
+                })
+            );
+            const config = {
+                audioTrackId: 'track-1',
+                channelMode,
+                peakHoldSec: 1,
+                showValue: false,
+                showReferenceLines: false,
+            };
+            const element = new AudioVolumeMeterElement('meter', config);
+            const snapshot = (value: AudioVolumeMeterElement, time: number) => {
+                const [container] = value.buildRenderObjects({}, time);
+                return JSON.stringify(container.children);
+            };
+            for (const time of [1, 2, 5, 0, 2, 2, 1.1, 2]) {
+                expect(snapshot(element, time)).toEqual(snapshot(new AudioVolumeMeterElement('fresh', config), time));
+            }
+            expect(snapshot(element, 2)).not.toEqual(snapshot(element, 5));
+            element.updateConfig({ peakHoldSec: 0, channelMode: 'left' });
+            expect(snapshot(element, 2)).toEqual(
+                snapshot(new AudioVolumeMeterElement('fresh', { ...config, peakHoldSec: 0, channelMode: 'left' }), 2)
+            );
+        }
+    );
 
     it('reduces neighboring peak windows to one min/max envelope bucket', () => {
         const sampleFeatureRange = vi.fn((args: any) => {

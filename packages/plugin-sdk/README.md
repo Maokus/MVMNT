@@ -18,7 +18,7 @@ import { definePluginElement } from '@mvmnt-app/plugin-sdk';
 
 export const element = definePluginElement({
     // metadata and schema omitted; capabilities are declared in plugin.json
-    render(_props, _instanceState, time, context) {
+    render({ time, context }) {
         const notes = context.timeline!.selectNotes({
             startSeconds: time.seconds,
             endSeconds: time.seconds + 1,
@@ -31,10 +31,13 @@ export const element = definePluginElement({
 The `audio`, `timeline`, `timing`, `render`, and `visual-assets` subpaths expose advanced types and
 rendering helpers without duplicating callback methods as named adapters.
 
-Element-instance callbacks also receive `context.properties`. Use `valueAt()` to resolve one of the element's own
+Render callbacks also receive `context.properties`. Use `valueAt()` to resolve one of the element's own
 properties at any timeline time, or `integrate()` and `average()` for bounded numeric area calculations. These
 methods operate on effective property values and do not expose automation channels or keyframes.
 
-The value returned by `create()` is ephemeral per-instance runtime state. It is retained across
-`render()` calls and passed to synchronous `dispose()`, but it must not make output depend on render
-history. See the host documentation's scene element instance-state guide for the full contract.
+Start with `render({ props, time, context })`. Add `createResources(context)` only for handles,
+reusable objects, and deterministic caches. Its return value becomes `resources` in the named
+render input; optional synchronous `disposeResources(resources, context)` releases plugin-owned
+allocations. Setup has an allocation-only `ResourceContext`, without props or temporal reads.
+Use `context.onCleanup()` for partial-initialization cleanup. Resources must not make output depend
+on render history. See the host documentation's instance resources guide for the full contract.

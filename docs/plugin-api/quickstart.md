@@ -31,7 +31,7 @@ export const pulse = definePluginElement({
     schema: {
         tabs: [tab.properties([group('shape', 'Shape', [prop.colorAlpha('color', 'Color', '#FF66CCFF')])])],
     },
-    render(props) {
+    render({ props }) {
         return [new Rectangle(-50, -50, 100, 100, { fillColor: props.color })];
     },
 });
@@ -46,6 +46,25 @@ Run the contract and load-smoke checks after editing:
 ```bash
 npm run check
 ```
+
+## Add motion without retaining state
+
+Replace the render callback with a function of the requested time:
+
+```ts
+render({ props, time }) {
+    const x = 100 * Math.sin(time.seconds * Math.PI);
+    return [new Rectangle(x - 50, -50, 100, 100, { fillColor: props.color })];
+}
+```
+
+Scrubbing, repeated frames, and export all use this same callback. Do not increment position or
+count frames. For MIDI reactions, query notes around `time.seconds` through `context.timeline`;
+for audio reactions, sample a window through `context.audio`. Declare the required capabilities
+in `plugin.json`; see the [authoring guide](authoring.md) and [audio examples](audio.md).
+
+Only introduce [instance resources](instance-state.md) when you need handles, reusable objects,
+or deterministic caching. The load-smoke check validates loading, not render-history independence.
 
 ## Preview with hot reload
 
@@ -71,7 +90,7 @@ settings.
 ## Continue learning
 
 - [Authoring guide](authoring.md) — schemas, capabilities, lifecycle, and properties.
-- [Instance state](instance-state.md) — retained runtime resources and deterministic caching.
+- [Instance resources](instance-state.md) — retained runtime resources and deterministic caching.
 - [Rendering and assets](rendering-and-assets.md) — render objects and packaged visuals.
 - [Audio](audio.md) — analyzed features, raw PCM, and custom calculators.
 - [API reference](reference.md) — package subpaths and manifest contract.

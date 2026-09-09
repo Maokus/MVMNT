@@ -187,9 +187,6 @@ function aggregatePeakSeries(
 }
 
 export class AudioPeaksElement extends BoundSceneElement {
-    private _peakSampleCacheKey: string | null = null;
-    private _peakSamples = new Map<number, FeatureDataResult>();
-
     constructor(id: string = 'audioPeaks', config: Record<string, unknown> = {}) {
         super('audioPeaks', id, config);
     }
@@ -470,15 +467,9 @@ export class AudioPeaksElement extends BoundSceneElement {
         const samplesPerBucket = Math.min(8, Math.max(1, Math.ceil(bucketSeconds * 240)));
         const stepSec = bucketSeconds / samplesPerBucket;
 
-        // Keep peak windows on a fixed absolute-time grid. Previously every render shifted the
-        // sampling grid with the playhead, so every point could select a different peak window
-        // and make the entire envelope flicker. Cached windows now keep their value while their
-        // x position moves smoothly through the viewport.
-        const cacheKey = `${props.audioTrackId}:${stepSec}`;
-        if (this._peakSampleCacheKey !== cacheKey) {
-            this._peakSampleCacheKey = cacheKey;
-            this._peakSamples.clear();
-        }
+        // Absolute-time windows remain stable while the viewport moves. Re-query each frame:
+        // a track ID does not identify the revision of its clips or analyzed source content.
+        const peakSamples = new Map<number, FeatureDataResult>();
         const firstBucketIndex = Math.floor(startSeconds / bucketSeconds);
         const lastBucketIndex = Math.ceil(endSeconds / bucketSeconds);
         const firstSampleIndex = firstBucketIndex * samplesPerBucket;
@@ -489,12 +480,8 @@ export class AudioPeaksElement extends BoundSceneElement {
                 index += 1;
                 continue;
             }
-            if (this._peakSamples.has(index)) {
-                index += 1;
-                continue;
-            }
             const start = index;
-            while (index <= lastSampleIndex && index * stepSec >= 0 && !this._peakSamples.has(index)) index += 1;
+            while (index <= lastSampleIndex && index * stepSec >= 0) index += 1;
             missingRanges.push({ start, end: index - 1 });
         }
 
@@ -512,7 +499,7 @@ export class AudioPeaksElement extends BoundSceneElement {
             samples.forEach((frame, offset) => {
                 const values = Array.isArray(frame.value) ? [...frame.value] : [Number(frame.value) || 0];
                 const channelValues = frame.channelValues?.map((channel) => [...channel]) ?? [values];
-                this._peakSamples.set(range.start + offset, {
+                peakSamples.set(range.start + offset, {
                     values,
                     metadata: {
                         frame: {
@@ -526,7 +513,7 @@ export class AudioPeaksElement extends BoundSceneElement {
 
         const samples: Array<FeatureDataResult | null> = [];
         for (let index = firstSampleIndex; index <= lastSampleIndex; index += 1) {
-            samples.push(index * stepSec < 0 ? null : (this._peakSamples.get(index) ?? null));
+            samples.push(index * stepSec < 0 ? null : (peakSamples.get(index) ?? null));
         }
 
         if (!samples.some((sample) => sample !== null)) {
@@ -639,11 +626,6 @@ export class AudioPeaksElement extends BoundSceneElement {
             );
             playheadLine.setClosed(false).setLineJoin('round').setLineCap('round');
             objects.push(playheadLine);
-        }
-
-        const earliestRetainedIndex = firstSampleIndex - samplesPerBucket * 2;
-        for (const index of this._peakSamples.keys()) {
-            if (index < earliestRetainedIndex) this._peakSamples.delete(index);
         }
 
         return objects;

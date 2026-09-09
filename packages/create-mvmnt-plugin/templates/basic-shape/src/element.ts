@@ -17,7 +17,7 @@ export const basicShape = definePluginElement({
             ]),
         ],
     },
-    render(props) {
+    render({ props }) {
         return props.shapeType === 'circle'
             ? [
                   new Arc(0, 0, props.shapeSize, {

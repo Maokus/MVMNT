@@ -3,11 +3,11 @@
 1. Set `apiVersion` to a compatible SDK 2 range and add required/optional capabilities to every
    element entry in `plugin.json`.
 2. Replace each `SceneElement` subclass with `definePluginElement()` callbacks.
-3. Move module-scope host registrations into `load()` or `create()`.
+3. Move module-scope host registrations into `load()` or `createResources()`.
 4. Replace global accessors, proxies, application imports, and store objects with callback-context
    facets and readonly SDK DTOs.
 5. Handle structured `Result` failures from host services.
-6. Move instance cleanup into `dispose()`, definition cleanup into `unload()`, and stop asynchronous
+6. Move instance cleanup into `disposeResources()`, definition cleanup into `unload()`, and stop asynchronous
    work when the supplied signal aborts.
 
 ## Property schemas

@@ -14,15 +14,13 @@ const builtInCapabilities = new WeakMap<PluginElementDefinition<any, any>, Eleme
 /** Defines a first-party element and records its grants outside the public SDK contract. */
 export function defineBuiltInElement<
     Props extends Readonly<Record<string, unknown>>,
-    InstanceState = undefined,
+    Resources = undefined,
     Schema = unknown,
 >(
-    input: PluginElementDefinitionInput<Props, InstanceState, Schema> & { capabilities: ElementCapabilities }
-): PluginElementDefinition<Props, InstanceState, Schema> {
+    input: PluginElementDefinitionInput<Props, Resources, Schema> & { capabilities: ElementCapabilities }
+): PluginElementDefinition<Props, Resources, Schema> {
     const { capabilities, ...definitionInput } = input;
-    const definition = definePluginElement(
-        definitionInput as PluginElementDefinitionInput<Props, InstanceState, Schema>
-    );
+    const definition = definePluginElement(definitionInput as PluginElementDefinitionInput<Props, Resources, Schema>);
     builtInCapabilities.set(definition, capabilities);
     return definition;
 }
@@ -56,7 +54,7 @@ export function createBuiltInRegistration(definition: PluginElementDefinition<an
 export function defineHostAdaptedBuiltIn(
     input: Omit<
         PluginElementDefinitionInput<Readonly<Record<string, unknown>>, any>,
-        'schema' | 'load' | 'create' | 'render' | 'dispose'
+        'schema' | 'load' | 'createResources' | 'render' | 'disposeResources'
     > & { capabilities: ElementCapabilities; featureRequirements?: readonly AudioFeatureRequirement[] },
     HostAdapter: any
 ): PluginElementDefinition<Readonly<Record<string, unknown>>, any> {
@@ -76,16 +74,15 @@ export function defineHostAdaptedBuiltIn(
                 trackId,
             }));
         },
-        create(props, context: CapabilityContext) {
-            const adapter = new HostAdapter(input.type, { ...props });
-            adapter.__capabilityContext = context;
-            return adapter;
+        createResources() {
+            return new HostAdapter(input.type, {});
         },
-        render(props, adapter, time) {
+        render({ props, resources: adapter, time, context }) {
+            adapter.__capabilityContext = context;
             for (const [key, value] of Object.entries(props)) adapter.setProperty(key, value);
             return adapter._buildRenderObjects({}, time.seconds);
         },
-        dispose(adapter) {
+        disposeResources(adapter) {
             adapter.dispose();
         },
     });

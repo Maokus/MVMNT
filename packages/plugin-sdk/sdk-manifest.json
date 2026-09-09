@@ -2,6 +2,13 @@
     "package": "@mvmnt-app/plugin-sdk",
     "version": "2.2.0",
     "runtimeFormat": "commonjs",
+    "elementContract": {
+        "renderInputType": "RenderInput",
+        "renderInputFields": ["props", "time", "context", "resources"],
+        "resourceContextType": "ResourceContext",
+        "resourceContextFields": ["assets", "audioCalculators", "diagnostics", "signal", "onCleanup"],
+        "lifecycle": ["load", "createResources", "render", "disposeResources", "unload"]
+    },
     "subpaths": [
         ".",
         "api",

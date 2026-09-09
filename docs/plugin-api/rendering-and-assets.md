@@ -13,32 +13,32 @@ paint order. Layout bounds can exclude decorative children while visual bounds a
 drawn descendants.
 
 Do not retain canvas contexts or host snapshots. Reusing a render object in
-[instance state](instance-state.md) is appropriate when its own setters fully describe the current
+[instance resources](instance-state.md) is appropriate when its own setters fully describe the current
 frame. For expensive deterministic pixel generation, prefer `context.assets.generatedRaster()`
 with a content key derived from every input that affects the pixels.
 
 ## Project assets
 
 An `assetRef` property stores a stable project asset ID. Create a scoped project handle in
-`create()`, update it from the property during render, and pass its immutable snapshot to
+`createResources()`, update it from the property during render, and pass its immutable snapshot to
 `VisualMedia`:
 
 ```ts
 import { VisualMedia } from '@mvmnt-app/plugin-sdk/render';
 
-create(_props, context) {
+createResources(context) {
     return {
         asset: context.assets.project(),
         media: new VisualMedia(-100, -100, 200, 200),
     };
 },
-render(props, instanceState, time) {
-    const snapshot = instanceState.asset.update(props.image);
-    instanceState.media
+render({ props, resources, time }) {
+    const snapshot = resources.asset.update(props.image);
+    resources.media
         .setResource(snapshot.resource, snapshot.status)
         .setLocalTime(time.seconds)
         .setFitMode('contain');
-    return [instanceState.media];
+    return [resources.media];
 },
 ```
 

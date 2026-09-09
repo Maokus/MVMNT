@@ -18,6 +18,7 @@ import type {
     PluginElementDefinition,
     PropertyIntegrationOptions,
     PropertyTimeRange,
+    ResourceContext,
 } from '../../../../packages/plugin-sdk/src/scene';
 import { err, ok, type PluginDiagnostic, type Result } from '../../../../packages/plugin-sdk/src/api';
 import {
@@ -87,6 +88,31 @@ function publicSchema(schema: EnhancedConfigSchema): EnhancedConfigSchema {
     };
 }
 
+function runCleanup(callback: () => void, options: ScopeOptions): void {
+    try {
+        callback();
+    } catch (error) {
+        options.report(diagnostic('RESOURCE_UNAVAILABLE', String(error), 'element.cleanup'));
+    }
+}
+
+function drainCleanups(cleanups: Set<() => void>, options: ScopeOptions): void {
+    for (const cleanup of [...cleanups]) {
+        cleanups.delete(cleanup);
+        runCleanup(cleanup, options);
+    }
+}
+
+function resourceContext(context: CapabilityContext): ResourceContext {
+    return Object.freeze({
+        assets: context.assets,
+        audioCalculators: context.audioCalculators,
+        diagnostics: context.diagnostics,
+        signal: context.signal,
+        onCleanup: context.onCleanup,
+    });
+}
+
 function createContext(
     definition: PluginElementDefinition<any, any>,
     controller: AbortController,
@@ -113,20 +139,41 @@ function createContext(
     const granted = (capability: PluginHostCapability) => declared.has(capability) && available.has(capability);
     const unavailable = <T>(capability: PluginHostCapability, operation: string): Result<T> =>
         err(diagnostic('CAPABILITY_UNAVAILABLE', `Capability '${capability}' is unavailable`, operation, capability));
+    const assertActive = () => {
+        if (controller.signal.aborted) throw new Error('Cannot allocate resources in an aborted scope');
+    };
     const trackVisualHandle = <T extends { destroy(): void }>(handle: T) => {
         let disposed = false;
         const dispose = () => {
             if (disposed) return;
             disposed = true;
-            handle.destroy();
             cleanups.delete(dispose);
+            handle.destroy();
         };
         cleanups.add(dispose);
-        return { handle, dispose };
+        return {
+            handle,
+            dispose,
+            assertActive() {
+                assertActive();
+                if (disposed) throw new Error('Cannot use a disposed asset handle');
+            },
+        };
     };
 
     const context: CapabilityContext = {
         signal: controller.signal,
+        onCleanup(callback) {
+            let disposed = false;
+            const cleanup = () => {
+                if (disposed) return;
+                disposed = true;
+                cleanups.delete(cleanup);
+                callback();
+            };
+            if (controller.signal.aborted) runCleanup(cleanup, options);
+            else cleanups.add(cleanup);
+        },
         diagnostics: Object.freeze({ report: options.report }),
         ...(properties ? { properties } : {}),
         assets: Object.freeze({
@@ -140,6 +187,10 @@ function createContext(
                 }
                 try {
                     const url = await options.loadAsset(path);
+                    if (controller.signal.aborted) {
+                        URL.revokeObjectURL(url);
+                        return err(diagnostic('ABORTED', 'Asset load was aborted', 'assets.load'));
+                    }
                     let disposed = false;
                     const dispose = () => {
                         if (disposed) return;
@@ -156,34 +207,48 @@ function createContext(
                 }
             },
             project() {
+                assertActive();
                 const tracked = trackVisualHandle(new VisualResourceHandle());
                 return Object.freeze({
                     update(assetId: string | null) {
+                        tracked.assertActive();
                         return Object.freeze({ ...tracked.handle.update(resolveProjectAssetDescriptor(assetId)) });
                     },
                     dispose: tracked.dispose,
                 });
             },
             bundledImage(path: string) {
-                const tracked = trackVisualHandle(new BundledSprite(path, options.loadAsset));
+                assertActive();
+                const tracked = trackVisualHandle(new BundledSprite(path, loadScopedAsset));
                 return Object.freeze({
-                    get: () => Object.freeze({ ...tracked.handle.get() }),
+                    get: () => {
+                        tracked.assertActive();
+                        return Object.freeze({ ...tracked.handle.get() });
+                    },
                     dispose: tracked.dispose,
                 });
             },
             bundledSparrow(imagePath: string, xmlPath: string, defaultFps?: number) {
+                assertActive();
                 const tracked = trackVisualHandle(
-                    new BundledSparrowHandle(imagePath, xmlPath, options.loadAsset, undefined, defaultFps)
+                    new BundledSparrowHandle(imagePath, xmlPath, loadScopedAsset, undefined, defaultFps)
                 );
                 return Object.freeze({
-                    get: () => Object.freeze({ ...tracked.handle.get() }),
+                    get: () => {
+                        tracked.assertActive();
+                        return Object.freeze({ ...tracked.handle.get() });
+                    },
                     dispose: tracked.dispose,
                 });
             },
             bundledGridAtlas(imagePath: string, layout: { columns: number; rows: number; frameDurationMs?: number }) {
-                const tracked = trackVisualHandle(new BundledGridAtlasHandle(imagePath, layout, options.loadAsset));
+                assertActive();
+                const tracked = trackVisualHandle(new BundledGridAtlasHandle(imagePath, layout, loadScopedAsset));
                 return Object.freeze({
-                    get: () => Object.freeze({ ...tracked.handle.get() }),
+                    get: () => {
+                        tracked.assertActive();
+                        return Object.freeze({ ...tracked.handle.get() });
+                    },
                     dispose: tracked.dispose,
                 });
             },
@@ -219,6 +284,12 @@ function createContext(
             },
         }),
     };
+
+    async function loadScopedAsset(path: string): Promise<string> {
+        const result = await context.assets.load(path);
+        if (!result.ok) throw new Error(result.error.message);
+        return result.value.url;
+    }
 
     if (host && granted(PLUGIN_CAPABILITIES.timelineRead)) {
         (context as any).timeline = Object.freeze({
@@ -546,13 +617,17 @@ function createContext(
     if (host && granted(PLUGIN_CAPABILITIES.audioCalculatorsRegister)) {
         (context as any).audioCalculators = Object.freeze({
             register(calculator: any) {
+                if (controller.signal.aborted)
+                    return err(
+                        diagnostic('ABORTED', 'Calculator registration was aborted', 'audioCalculators.register')
+                    );
                 host.audioCalculators.register(calculator);
                 let disposed = false;
                 const dispose = () => {
                     if (disposed) return;
                     disposed = true;
-                    host.audioCalculators.unregister(calculator.id);
                     cleanups.delete(dispose);
+                    host.audioCalculators.unregister(calculator.id);
                 };
                 cleanups.add(dispose);
                 return ok(Object.freeze({ dispose }));
@@ -569,6 +644,8 @@ export function createPluginDefinitionScope(
     const controller = new AbortController();
     const cleanups = new Set<() => void>();
     const context = createContext(definition, controller, options, cleanups);
+    const setupContext = resourceContext(context);
+    const instances = new Set<V2SceneElement>();
     const fontPropertyKeys = new Set<string>();
     const definitionPropertyKeys = new Set<string>();
     const runtimeSchema =
@@ -588,13 +665,20 @@ export function createPluginDefinitionScope(
     let ready: Promise<boolean>;
     if (options.synchronousInitialization) {
         try {
-            const loaded = definition.load?.(context);
+            const loaded = definition.load?.(setupContext);
             if (loaded && typeof (loaded as PromiseLike<void>).then === 'function') {
+                void Promise.resolve(loaded).catch((error) =>
+                    runCleanup(() => {
+                        throw error;
+                    }, options)
+                );
                 throw new Error('Built-in definition load() must be synchronous');
             }
             synchronouslyReady = true;
             ready = Promise.resolve(true);
         } catch (error) {
+            controller.abort();
+            drainCleanups(cleanups, options);
             failure = diagnostic(
                 'INITIALIZATION_FAILED',
                 error instanceof Error ? error.message : String(error),
@@ -605,9 +689,11 @@ export function createPluginDefinitionScope(
         }
     } else {
         ready = Promise.resolve()
-            .then(() => definition.load?.(context))
-            .then(() => true)
+            .then(() => (controller.signal.aborted ? undefined : definition.load?.(setupContext)))
+            .then(() => !controller.signal.aborted)
             .catch((error) => {
+                controller.abort();
+                drainCleanups(cleanups, options);
                 failure = diagnostic(
                     'INITIALIZATION_FAILED',
                     error instanceof Error ? error.message : String(error),
@@ -628,11 +714,29 @@ export function createPluginDefinitionScope(
             this.instanceCleanups,
             this.createPropertyApi()
         );
-        private instanceState: any = undefined;
+        private readonly setupContext = resourceContext(this.instanceContext);
+        private resources: any = undefined;
         private initialized = false;
         private initializationFailed = false;
         private readonly requestedFonts = new Map<string, string>();
         private demandSyncEnabled = false;
+
+        private failInitialization(error: unknown): void {
+            this.initializationFailed = true;
+            this.instanceController.abort();
+            clearDeclarativeAudioFeatureDemands(this);
+            drainCleanups(this.instanceCleanups, options);
+            options.report(diagnostic('INITIALIZATION_FAILED', String(error), 'element.createResources'));
+        }
+
+        private acceptResources(resources: unknown): void {
+            if (this.instanceController.signal.aborted) {
+                runCleanup(() => definition.disposeResources?.(resources, this.setupContext), options);
+                return;
+            }
+            this.resources = resources;
+            this.initialized = true;
+        }
 
         private syncDefinitionAudioDemands(): void {
             if (!this.demandSyncEnabled || !definition.audioFeatureDemands) return;
@@ -800,49 +904,44 @@ export function createPluginDefinitionScope(
                 ...(definitionSchema?.defaultConfig ?? {}),
                 ...config,
             });
+            if (controller.signal.aborted) {
+                this.instanceController.abort();
+                return;
+            }
+            instances.add(this);
             this.demandSyncEnabled = true;
             this.syncDefinitionAudioDemands();
             this.requestDefinitionFonts(this.getDefinitionProps());
             if (options.synchronousInitialization && synchronouslyReady) {
                 try {
-                    const created = definition.create?.(this.getDefinitionProps(), this.instanceContext);
+                    const created = definition.createResources?.(this.setupContext);
                     if (created && typeof (created as PromiseLike<unknown>).then === 'function') {
-                        throw new Error('Built-in definition create() must be synchronous');
+                        void Promise.resolve(created).then(
+                            (resources) => this.acceptResources(resources),
+                            (error) =>
+                                runCleanup(() => {
+                                    throw error;
+                                }, options)
+                        );
+                        throw new Error('Built-in definition createResources() must be synchronous');
                     }
-                    this.instanceState = created;
-                    this.initialized = true;
+                    this.acceptResources(created);
                 } catch (error) {
-                    this.initializationFailed = true;
-                    options.report(
-                        diagnostic(
-                            'INITIALIZATION_FAILED',
-                            error instanceof Error ? error.message : String(error),
-                            'element.create'
-                        )
-                    );
+                    this.failInitialization(error);
                 }
                 return;
             }
             void ready.then(async (scopeReady) => {
-                if (!scopeReady || this.instanceController.signal.aborted) return;
+                if (this.instanceController.signal.aborted) return;
+                if (!scopeReady) {
+                    this.failInitialization('Definition initialization failed');
+                    return;
+                }
                 try {
-                    const props = this.getDefinitionProps();
-                    const instanceState = await definition.create?.(props, this.instanceContext);
-                    if (this.instanceController.signal.aborted) {
-                        definition.dispose?.(instanceState, this.instanceContext);
-                        return;
-                    }
-                    this.instanceState = instanceState;
-                    this.initialized = true;
+                    const resources = await definition.createResources?.(this.setupContext);
+                    this.acceptResources(resources);
                 } catch (error) {
-                    this.initializationFailed = true;
-                    options.report(
-                        diagnostic(
-                            'INITIALIZATION_FAILED',
-                            error instanceof Error ? error.message : String(error),
-                            'element.create'
-                        )
-                    );
+                    this.failInitialization(error);
                 }
             });
         }
@@ -884,7 +983,11 @@ export function createPluginDefinitionScope(
                     : {}),
                 ...(Number.isFinite(_config?.playRangeEndSec) ? { playbackEndSeconds: _config.playRangeEndSec } : {}),
             });
-            return [...definition.render(props, this.instanceState, time, this.instanceContext)] as RenderObject[];
+            return [
+                ...definition.render(
+                    Object.freeze({ props, resources: this.resources, time, context: this.instanceContext })
+                ),
+            ] as RenderObject[];
         }
 
         protected override onPropertyChanged(key: string, oldValue: unknown, newValue: unknown): void {
@@ -898,11 +1001,15 @@ export function createPluginDefinitionScope(
         }
 
         protected override onDestroy(): void {
-            if (this.instanceController.signal.aborted) return;
+            instances.delete(this);
             clearDeclarativeAudioFeatureDemands(this);
             this.instanceController.abort();
-            for (const cleanup of [...this.instanceCleanups]) cleanup();
-            if (this.initialized) definition.dispose?.(this.instanceState, this.instanceContext);
+            if (this.initialized) {
+                this.initialized = false;
+                runCleanup(() => definition.disposeResources?.(this.resources, this.setupContext), options);
+                this.resources = undefined;
+            }
+            drainCleanups(this.instanceCleanups, options);
             super.onDestroy();
         }
     }
@@ -919,6 +1026,7 @@ export function createPluginDefinitionScope(
         };
     };
 
+    let disposed = false;
     return {
         definition,
         ready,
@@ -927,9 +1035,19 @@ export function createPluginDefinitionScope(
         },
         createRegistration,
         async dispose() {
+            if (disposed) return;
+            disposed = true;
             controller.abort();
-            for (const cleanup of [...cleanups]) cleanup();
-            await definition.unload?.(context);
+            for (const instance of [...instances]) runCleanup(() => instance.dispose(), options);
+            try {
+                await definition.unload?.(setupContext);
+            } catch (error) {
+                runCleanup(() => {
+                    throw error;
+                }, options);
+            } finally {
+                drainCleanups(cleanups, options);
+            }
         },
     };
 }

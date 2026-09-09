@@ -198,7 +198,7 @@ export const basicShapes = defineBuiltInElement<Props, undefined>({
         ],
     },
     capabilities: { required: [], optional: [] },
-    render(props) {
+    render({ props }) {
         const fill = props.opacity > 0 ? applyOpacity(props.color, props.opacity) : null;
         const stroke =
             props.strokeWidth > 0 && props.strokeOpacity > 0

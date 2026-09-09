@@ -21,13 +21,13 @@ interface ImageProps extends Readonly<Record<string, unknown>> {
     readonly shadowOffsetX: number;
     readonly shadowOffsetY: number;
 }
-interface ImageInstanceState {
+interface ImageResources {
     readonly handle: ProjectVisualAssetHandle;
     readonly media: VisualMedia;
     readonly bounds: Rectangle;
 }
 
-export const image = defineBuiltInElement<ImageProps, ImageInstanceState>({
+export const image = defineBuiltInElement<ImageProps, ImageResources>({
     type: 'image',
     metadata: { name: 'Image', description: 'Display an image with transformations', category: 'Misc' },
     schema: {
@@ -171,34 +171,29 @@ export const image = defineBuiltInElement<ImageProps, ImageInstanceState>({
         ],
     },
     capabilities: { required: [], optional: [] },
-    create(_props, context) {
+    createResources(context) {
         return {
             handle: context.assets.project(),
             media: new VisualMedia(0, 0, 200, 200, { layoutParticipation: 'exclude' }),
             bounds: new Rectangle(0, 0, 200, 200, { fillColor: null }),
         };
     },
-    render(props, instanceState, time) {
-        instanceState.bounds.width = props.width;
-        instanceState.bounds.height = props.height;
-        const asset = instanceState.handle.update(props.imageSource);
-        instanceState.media
+    render({ props, resources, time }) {
+        resources.bounds.width = props.width;
+        resources.bounds.height = props.height;
+        const asset = resources.handle.update(props.imageSource);
+        resources.media
             .setResource(asset.resource as never, asset.status)
             .setLocalTime(time.seconds * props.playbackSpeed)
             .setDimensions(props.width, props.height)
             .setFitMode(props.fitMode)
             .setPreserveAspectRatio(props.preserveAspectRatio);
-        instanceState.media.opacity = props.opacity;
-        instanceState.media.blendMode = props.blendMode === 'source-over' ? null : props.blendMode;
+        resources.media.opacity = props.opacity;
+        resources.media.blendMode = props.blendMode === 'source-over' ? null : props.blendMode;
         if (props.shadowEnabled)
-            instanceState.media.setShadow(
-                props.shadowColor,
-                props.shadowBlur,
-                props.shadowOffsetX,
-                props.shadowOffsetY
-            );
-        else instanceState.media.setShadow(null, 0, 0, 0);
-        const result: RenderObject[] = [instanceState.bounds, instanceState.media];
+            resources.media.setShadow(props.shadowColor, props.shadowBlur, props.shadowOffsetX, props.shadowOffsetY);
+        else resources.media.setShadow(null, 0, 0, 0);
+        const result: RenderObject[] = [resources.bounds, resources.media];
         if (props.showBorder && props.borderWidth > 0) {
             const border = new Rectangle(0, 0, props.width, props.height, {
                 fillColor: null,

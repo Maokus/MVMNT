@@ -57,17 +57,17 @@ describe('SDK v2 runtime', () => {
                     },
                 ],
             },
-            create(_props, context) {
-                const instanceState = { id: context.signal.aborted ? 'aborted' : `state-${createdStates.length}` };
-                createdStates.push(instanceState);
-                return instanceState;
+            createResources(context) {
+                const resources = { id: context.signal.aborted ? 'aborted' : `state-${createdStates.length}` };
+                createdStates.push(resources);
+                return resources;
             },
-            render(_props, instanceState) {
-                renderedStates.push(instanceState);
+            render({ resources }) {
+                renderedStates.push(resources);
                 return [];
             },
-            dispose(instanceState) {
-                disposedStates.push(instanceState);
+            disposeResources(resources) {
+                disposedStates.push(resources);
             },
         });
         const scope = createPluginDefinitionScope(definition, {
@@ -123,11 +123,8 @@ describe('SDK v2 runtime', () => {
                     },
                 ],
             },
-            create(_props, context) {
-                contexts.push(context);
-                return undefined;
-            },
-            render(props) {
+            render({ props, context }) {
+                if (!contexts.includes(context)) contexts.push(context);
                 renderedSpeeds.push(props.speed);
                 return [];
             },
@@ -144,6 +141,7 @@ describe('SDK v2 runtime', () => {
         const second = registration.create({ id: 'second', speed: 10, label: 'two' });
 
         first.buildRenderObjects({}, 5);
+        second.buildRenderObjects({}, 5);
         expect(contexts[0].properties.valueAt('speed', -2)).toEqual({ ok: true, value: 4 });
         expect(contexts[0].properties.integrate('speed', { startSeconds: -1, endSeconds: 2 })).toEqual({
             ok: true,
@@ -154,7 +152,7 @@ describe('SDK v2 runtime', () => {
             value: 4,
         });
         expect(contexts[1].properties.valueAt('speed', 1)).toEqual({ ok: true, value: 10 });
-        expect(renderedSpeeds).toEqual([4]);
+        expect(renderedSpeeds).toEqual([4, 10]);
 
         expect(contexts[0].properties.valueAt('missing' as keyof Props, 0)).toMatchObject({
             ok: false,
@@ -207,11 +205,8 @@ describe('SDK v2 runtime', () => {
                     },
                 ],
             },
-            create(_props, value) {
+            render({ props, context: value }) {
                 context = value;
-                return undefined;
-            },
-            render(props) {
                 rendered.push(props.speed);
                 return [];
             },
@@ -252,10 +247,8 @@ describe('SDK v2 runtime', () => {
             type: 'smoothing-test',
             metadata: { name: 'Smoothing test' },
             schema: { tabs: [] },
-            load(value) {
+            render({ context: value }) {
                 context = value;
-            },
-            render() {
                 return [];
             },
         });
@@ -268,7 +261,8 @@ describe('SDK v2 runtime', () => {
             report: vi.fn(),
         });
 
-        expect('properties' in context).toBe(false);
+        scope.createRegistration({ kind: 'built-in' }).create().buildRenderObjects({}, 1);
+        expect('properties' in context).toBe(true);
         context.audio!.sampleFeature({ trackId: 'audio-track', feature: 'spectrogram', timeSeconds: 1, smoothing: 12 });
 
         expect(getFeatureData).toHaveBeenCalledWith(expect.any(Object), 'audio-track', 'spectrogram', 1, {
@@ -539,10 +533,8 @@ describe('SDK v2 runtime', () => {
             type: 'capability-test',
             metadata: { name: 'Capability test' },
             schema: { tabs: [] },
-            load(value) {
+            render({ context: value }) {
                 context = value;
-            },
-            render() {
                 return [];
             },
         });
@@ -555,6 +547,12 @@ describe('SDK v2 runtime', () => {
             report: vi.fn(),
         });
         expect(await scope.ready).toBe(true);
+
+        const instance = scope.createRegistration({ kind: 'built-in' }).create();
+        await vi.waitFor(() => {
+            instance.buildRenderObjects({}, 0);
+            expect(context).toBeDefined();
+        });
 
         const result = context.audio!.getRawSamples({ trackId: 'audio', startSeconds: 0, endSeconds: 1 });
         expect(result).toMatchObject({ ok: false, error: { code: 'CAPABILITY_UNAVAILABLE' } });
@@ -570,7 +568,7 @@ describe('SDK v2 runtime', () => {
             type: 'async-test',
             metadata: { name: 'Async test' },
             schema: { tabs: [] },
-            create: () =>
+            createResources: () =>
                 new Promise<void>((resolve) => {
                     finishCreate = resolve;
                 }),
@@ -598,15 +596,15 @@ describe('SDK v2 runtime', () => {
 
     it('disposes instance state that finishes creating after cancellation', async () => {
         const host = installHost();
-        const instanceState = { resource: 'late' };
-        let finishCreate!: (value: typeof instanceState) => void;
-        let context!: ElementContext<Readonly<Record<string, never>>>;
+        const resources = { resource: 'late' };
+        let finishCreate!: (value: typeof resources) => void;
+        let context!: import('../../../../../packages/plugin-sdk/src/scene').ResourceContext;
         const dispose = vi.fn();
-        const definition = definePluginElement<Readonly<Record<string, never>>, typeof instanceState>({
+        const definition = definePluginElement<Readonly<Record<string, never>>, typeof resources>({
             type: 'cancelled-create-test',
             metadata: { name: 'Cancelled create test' },
             schema: { tabs: [] },
-            create(_props, value) {
+            createResources(value) {
                 context = value;
                 return new Promise((resolve) => {
                     finishCreate = resolve;
@@ -615,7 +613,7 @@ describe('SDK v2 runtime', () => {
             render() {
                 return [];
             },
-            dispose,
+            disposeResources: dispose,
         });
         const scope = createPluginDefinitionScope(definition, {
             pluginId: 'test',
@@ -631,11 +629,11 @@ describe('SDK v2 runtime', () => {
         expect(context.signal.aborted).toBe(true);
         expect(dispose).not.toHaveBeenCalled();
 
-        finishCreate(instanceState);
+        finishCreate(resources);
         await Promise.resolve();
         await Promise.resolve();
         expect(dispose).toHaveBeenCalledOnce();
-        expect(dispose).toHaveBeenCalledWith(instanceState, context);
+        expect(dispose).toHaveBeenCalledWith(resources, context);
         await scope.dispose();
     });
 

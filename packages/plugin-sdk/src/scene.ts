@@ -9,15 +9,21 @@ export interface MidiUtilitiesApi {
     noteName(note: number): string;
 }
 
-export interface CapabilityContext {
-    readonly timeline?: TimelineApi;
-    readonly audio?: AudioApi;
-    readonly timing?: TimingApi;
-    readonly midi?: MidiUtilitiesApi;
+/** Allocation-only context. Values returned by setup have no authored or temporal meaning. */
+export interface ResourceContext {
     readonly audioCalculators?: AudioCalculatorsApi;
     readonly assets: AssetApi;
     readonly diagnostics: DiagnosticsApi;
     readonly signal: AbortSignal;
+    /** Registers synchronous cleanup, including when initialization subsequently fails. */
+    onCleanup(callback: () => undefined): void;
+}
+
+export interface CapabilityContext extends ResourceContext {
+    readonly timeline?: TimelineApi;
+    readonly audio?: AudioApi;
+    readonly timing?: TimingApi;
+    readonly midi?: MidiUtilitiesApi;
 }
 
 export type NumericPropertyKey<Props extends Readonly<Record<string, unknown>>> = {
@@ -370,9 +376,17 @@ export type PropsFromSchema<Schema extends ElementSchema> = Readonly<{
     [Property in SchemaProperty<Schema> as Property['key']]: ElementPropertyValue<Property>;
 }>;
 
+/** One random-access frame. Resources may change cost, but must not encode render history. */
+export interface RenderInput<Props extends Readonly<Record<string, unknown>>, Resources = undefined> {
+    readonly props: Props;
+    readonly time: RenderTime;
+    readonly context: ElementContext<Props>;
+    readonly resources: Resources;
+}
+
 export interface PluginElementDefinition<
     Props extends Readonly<Record<string, unknown>> = Readonly<Record<string, unknown>>,
-    InstanceState = undefined,
+    Resources = undefined,
     Schema = unknown,
 > {
     readonly kind: 'mvmnt.plugin-element.v2';
@@ -381,53 +395,60 @@ export interface PluginElementDefinition<
     readonly schema: Schema;
     /** Declaratively describes every analyzed audio artifact required by this instance. */
     audioFeatureDemands?(props: Props): readonly AudioFeatureDemand[];
-    load?(context: CapabilityContext): void | Promise<void>;
+    load?(context: ResourceContext): void | Promise<void>;
     /** Creates ephemeral runtime resources and caches retained for one element instance. */
-    create?(props: Props, context: ElementContext<Props>): InstanceState | Promise<InstanceState>;
+    createResources?(context: ResourceContext): Resources | Promise<Resources>;
     /**
-     * Produces one random-access frame. Instance state may cache reusable work, but output must not depend on
+     * Produces one random-access frame. Resources may cache reusable work, but output must not depend on
      * the order or number of previous render calls.
      */
-    render(
-        props: Props,
-        instanceState: InstanceState,
-        time: RenderTime,
-        context: ElementContext<Props>
-    ): readonly RenderObject[];
+    render(input: RenderInput<Props, NoInfer<Resources>>): readonly RenderObject[];
     /** Releases plugin-owned instance resources synchronously. Asynchronous work stops through context.signal. */
-    dispose?(instanceState: InstanceState, context: ElementContext<Props>): undefined;
-    unload?(context: CapabilityContext): void | Promise<void>;
+    disposeResources?(resources: NoInfer<Resources>, context: ResourceContext): undefined;
+    unload?(context: ResourceContext): void | Promise<void>;
 }
 
 export type PluginElementDefinitionInput<
     Props extends Readonly<Record<string, unknown>>,
-    InstanceState,
+    Resources,
     Schema = unknown,
-> = Omit<PluginElementDefinition<Props, InstanceState, Schema>, 'kind'>;
+> = Omit<PluginElementDefinition<Props, Resources, Schema>, 'kind' | 'createResources' | 'disposeResources'> &
+    (
+        | {
+              createResources(context: ResourceContext): Resources | Promise<Resources>;
+              disposeResources?(resources: NoInfer<Resources>, context: ResourceContext): undefined;
+          }
+        | ([Resources] extends [undefined] ? { createResources?: never; disposeResources?: never } : never)
+    );
 
-export function definePluginElement<const Schema extends ElementSchema, InstanceState = undefined>(
-    input: PluginElementDefinitionInput<PropsFromSchema<Schema>, InstanceState, Schema>
-): PluginElementDefinition<PropsFromSchema<Schema>, InstanceState, Schema>;
+export function definePluginElement<const Schema extends ElementSchema, Resources = undefined>(
+    input: PluginElementDefinitionInput<PropsFromSchema<Schema>, Resources, Schema>
+): PluginElementDefinition<PropsFromSchema<Schema>, Resources, Schema>;
 /**
- * Compatibility overload for elements with props that cannot be represented by
- * an inspector schema. New elements normally omit this generic and infer props.
+ * Explicit props for engine-owned schemas. External plugins normally infer props from builders.
  */
 export function definePluginElement<
     Props extends Readonly<Record<string, unknown>> = Readonly<Record<string, unknown>>,
-    InstanceState = undefined,
+    Resources = undefined,
     Schema = unknown,
->(
-    input: PluginElementDefinitionInput<Props, InstanceState, Schema>
-): PluginElementDefinition<Props, InstanceState, Schema>;
+>(input: PluginElementDefinitionInput<Props, Resources, Schema>): PluginElementDefinition<Props, Resources, Schema>;
 export function definePluginElement(
-    input: PluginElementDefinitionInput<Readonly<Record<string, unknown>>, unknown, unknown>
-): PluginElementDefinition<Readonly<Record<string, unknown>>, unknown, unknown> {
+    input: Omit<PluginElementDefinition<any, any>, 'kind'>
+): PluginElementDefinition<any, any> {
     if (!input || typeof input !== 'object')
         throw new PluginContractError('definePluginElement() requires a definition object');
     // Camel-case remains valid for stable built-in type IDs created before SDK 2.
     if (!/^[a-z][a-zA-Z0-9-]*$/.test(input.type)) throw new PluginContractError(`Invalid element type: ${input.type}`);
     if (typeof input.render !== 'function')
         throw new PluginContractError(`Element '${input.type}' must define render()`);
+    if ('create' in input || 'dispose' in input)
+        throw new PluginContractError(`Element '${input.type}' must use createResources/disposeResources`);
+    for (const key of ['createResources', 'disposeResources', 'load', 'unload'] as const) {
+        if (input[key] !== undefined && typeof input[key] !== 'function')
+            throw new PluginContractError(`Element '${input.type}' ${key} must be a function`);
+    }
+    if (input.disposeResources && !input.createResources)
+        throw new PluginContractError(`Element '${input.type}' disposeResources requires createResources`);
     return Object.freeze({ ...input, kind: 'mvmnt.plugin-element.v2' as const });
 }
 

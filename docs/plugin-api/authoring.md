@@ -6,6 +6,10 @@ SDK 2 elements are callback definitions created with `definePluginElement()`. A 
 a stable type, metadata, a serializable property schema, lifecycle callbacks, and a render callback.
 Use `prop`, `group`, and `tab` builders so property keys remain literal in inferred `props` types.
 
+Start with `render({ props, time, context })`. It must describe the requested frame independently
+of earlier callbacks. Add `createResources()` only for allocations or reusable work; it is not
+needed for time-based motion, MIDI reactions, or audio windows.
+
 Property groups may include serializable layout nodes for sliders, compound controls, sections, or
 actions. Keep the ordinary property row alongside a slider or compound control when users still
 need precise entry, macros, and keyframes. Layouts affect only the inspector; they do not create
@@ -45,25 +49,31 @@ renderer and receive no generic filesystem or IPC access.
 ## Lifecycle
 
 - `load(context)` runs once for a loaded definition.
-- `create(props, context)` runs once per scene instance, may be asynchronous, and returns its instance state.
-- `render(props, instanceState, time, context)` produces the current render objects.
-- `dispose(instanceState, context)` synchronously cleans up one initialized instance.
+- `createResources(context)` runs once per scene instance, may be asynchronous, and returns its instance resources.
+- `render({ props, resources, time, context })` produces the current render objects.
+- `disposeResources(resources, context)` synchronously cleans up one initialized instance.
 - `unload(context)` runs when the definition is disabled, replaced, or removed.
+
+Setup and disposal receive `ResourceContext`, an allocation-only context without property,
+timeline, or audio sampling. `render()` receives `RenderInput<Props, Resources>` with current props,
+time, `ElementContext<Props>`, and inferred resources (`undefined` when setup is omitted).
 
 Definition and instance contexts have their own `AbortSignal`. Calculator registrations, feature
 requirements, generated assets, and asset handles created through a context are tracked and cleaned
-automatically. Stop plugin-owned asynchronous work when the signal aborts.
+automatically. Stop plugin-owned asynchronous work when the signal aborts. Register synchronous
+`context.onCleanup()` callbacks immediately after acquiring plugin-owned resources to cover partial
+initialization failures. All cleanup is attempted even when an individual disposer throws.
 
 Until asynchronous initialization finishes, the host renders no objects. Initialization failures
 leave the instance inert and emit a structured diagnostic.
 
-Instance state is ephemeral runtime working data, not persisted or temporal state. See
-[scene element instance state](instance-state.md) for its lifecycle, appropriate uses, and the
+Instance resources are ephemeral runtime working data, not persisted or temporal state. See
+[scene element instance resources](instance-state.md) for its lifecycle, appropriate uses, and the
 random-access rendering requirement.
 
 ## Effective properties
 
-`props` contains values for the current render time. Instance callbacks can sample their own
+`props` contains values for the current render time. Render callbacks can sample their own
 declared properties at other finite times:
 
 ```ts

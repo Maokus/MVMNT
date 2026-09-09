@@ -84,7 +84,7 @@ export const textDisplay = definePluginElement({
             },
         ],
     },
-    render(props) {
+    render({ props }) {
         if (!props.textContent.trim()) return [];
         const objects: RenderObject[] = [];
         const textWidth = props.textContent.length * props.fontSize * 0.6;

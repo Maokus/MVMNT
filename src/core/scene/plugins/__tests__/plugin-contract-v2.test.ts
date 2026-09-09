@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import packageManifest from '../../../../../packages/plugin-sdk/package.json';
@@ -40,6 +41,49 @@ const validManifest = () => ({
 });
 
 describe('plugin SDK v2 contract', () => {
+    it('ships matching ESM and CommonJS exports and resource validation', () => {
+        // Execute outside Vite so aliases cannot substitute SDK source for the built package.
+        const dist = resolve(__dirname, '../../../../../packages/plugin-sdk/dist');
+        const result = JSON.parse(
+            execFileSync(
+                process.execPath,
+                [
+                    '--input-type=module',
+                    '-e',
+                    `
+            import { createRequire } from 'node:module';
+            import { pathToFileURL } from 'node:url';
+            const require = createRequire(import.meta.url);
+            const dist = ${JSON.stringify(dist)};
+            const exports = {};
+            for (const name of ${JSON.stringify(Object.keys(sdkManifest.publicExports))}) {
+                const file = name === '.' ? 'index' : name;
+                const esm = await import(pathToFileURL(dist + '/' + file + '.js'));
+                const cjs = require(dist + '/' + file + '.cjs');
+                exports[name] = { esm: Object.keys(esm).sort(), cjs: Object.keys(cjs).sort() };
+                if (file === 'index' || file === 'scene') {
+                    for (const sdk of [esm, cjs]) {
+                        try {
+                            sdk.definePluginElement({ type: 'invalid', create() {}, render() { return []; } });
+                            throw new Error('Old lifecycle was accepted');
+                        } catch (error) {
+                            if (!error.message.includes('createResources')) throw error;
+                        }
+                    }
+                }
+            }
+            console.log(JSON.stringify({ exports, version: require(dist + '/index.cjs').SDK_VERSION }));
+        `,
+                ],
+                { encoding: 'utf8' }
+            )
+        );
+        expect(result.version).toBe(packageManifest.version);
+        for (const [subpath, names] of Object.entries(sdkManifest.publicExports)) {
+            expect(result.exports[subpath]).toEqual({ esm: [...names].sort(), cjs: [...names].sort() });
+        }
+    });
+
     it('keeps package exports, runtime modules, manifest, and docs in parity', () => {
         const packageSubpaths = Object.keys(packageManifest.exports)
             .filter((key) => !['./manifest', './package.json'].includes(key))

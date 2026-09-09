@@ -6,10 +6,10 @@ export const bundledAsset = definePluginElement<Readonly<Record<string, never>>,
     type: 'sdk-v2-bundled-asset',
     metadata: { name: 'Bundled Asset Fixture' },
     schema: { tabs: [] },
-    create(_props, context) {
+    createResources(context) {
         return context.assets.bundledImage('fixture.png');
     },
-    render(_props, handle) {
+    render({ resources: handle }) {
         const asset = handle.get();
         return [new VisualMedia(0, 0, 64, 64).setResource(asset.resource, asset.status)];
     },

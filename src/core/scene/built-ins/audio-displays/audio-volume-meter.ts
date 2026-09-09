@@ -32,7 +32,7 @@ const REF_LINE_COLOR_CLIP = 'rgba(255,80,80,0.4)';
 const REFERENCE_DB_LEVELS = [0, -3, -6, -12, -18, -24, -36, -48, -60] as const;
 
 // Peak hold falls at 12 dB/s after the hold period
-const PEAK_FALL_RATE_DB_PER_MS = 12 / 1000;
+const PEAK_FALL_RATE_DB_PER_SECOND = 12;
 
 const STEREO_GAP = 3;
 
@@ -64,11 +64,6 @@ const clampSmoothing: PropertyTransform<number, SceneElementInterface> = (value,
 };
 
 export class AudioVolumeMeterElement extends BoundSceneElement {
-    // Per-channel peak tracking: index 0 = L/mono, index 1 = R
-    private _peakDb: number[] = [-Infinity, -Infinity];
-    private _peakSetSec: number[] = [-Infinity, -Infinity];
-    private _lastRenderSec: number = -Infinity;
-
     constructor(id: string = 'audioVolumeMeter', config: Record<string, unknown> = {}) {
         super('audioVolumeMeter', id, config);
     }
@@ -142,30 +137,6 @@ export class AudioVolumeMeterElement extends BoundSceneElement {
         );
     }
 
-    private _updatePeak(
-        channelIndex: number,
-        rawDb: number,
-        nowSec: number,
-        frameDeltaSec: number,
-        peakHoldSec: number,
-        minDb: number
-    ): number {
-        const currentPeak = this._peakDb[channelIndex] ?? -Infinity;
-        const currentSetSec = this._peakSetSec[channelIndex] ?? -Infinity;
-        if (!Number.isFinite(currentPeak) || rawDb >= currentPeak) {
-            this._peakDb[channelIndex] = rawDb;
-            this._peakSetSec[channelIndex] = nowSec;
-            return rawDb;
-        }
-        const holdElapsed = nowSec - currentSetSec;
-        if (holdElapsed > peakHoldSec && frameDeltaSec > 0) {
-            const next = Math.max(currentPeak - PEAK_FALL_RATE_DB_PER_MS * frameDeltaSec * 1000, minDb - 1);
-            this._peakDb[channelIndex] = next;
-            return next;
-        }
-        return currentPeak;
-    }
-
     protected override _buildRenderObjects(_config: unknown, _targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
 
@@ -205,11 +176,12 @@ export class AudioVolumeMeterElement extends BoundSceneElement {
         const windowSec = meterMode === 'peak' ? 0.01 : Math.max(0.025, smoothing * 0.01);
         const halfWindow = windowSec / 2;
 
-        let readings: Float32Array | null = null;
-        if (audio) {
+        const readAt = (seconds: number): Float32Array | null => {
+            let readings: Float32Array | null = null;
+            if (!audio) return readings;
             const trackId = props.audioTrackId as string;
-            const startSec = _targetTime - halfWindow;
-            const endSec = _targetTime + halfWindow;
+            const startSec = seconds - halfWindow;
+            const endSec = seconds + halfWindow;
             if (meterMode === 'rms') {
                 const result = audio.getRms({ trackId, startSeconds: startSec, endSeconds: endSec });
                 readings = result.ok ? result.value : null;
@@ -235,22 +207,39 @@ export class AudioVolumeMeterElement extends BoundSceneElement {
                     readings[1] = rightSamples ? findMaxAbs(rightSamples) : readings[0];
                 }
             }
-        }
+            return readings;
+        };
+        const readings = readAt(_targetTime);
 
         const meterColor = applyOpacity(props.color ?? DEFAULT_METER_COLOR, props.opacity ?? 1);
 
-        const nowSec = _targetTime;
-        // frameDeltaSec is positive when time advances, zero on first frame, negative when scrubbing backwards.
-        // When scrubbing backwards, reset peaks so they reflect the new playback position.
-        const frameDeltaSec = this._lastRenderSec > -Infinity ? nowSec - this._lastRenderSec : 0;
-        this._lastRenderSec = nowSec;
-        if (frameDeltaSec < 0) {
-            // Time went backwards (scrub) — reset peaks to current reading so old peaks don't linger.
-            this._peakDb = [-Infinity, -Infinity];
-            this._peakSetSec = [-Infinity, -Infinity];
+        const levels = (values: Float32Array | null) =>
+            isStereo
+                ? [getChannelValue(values, 0), getChannelValue(values, 1)]
+                : [
+                      channelMode === 'left'
+                          ? getChannelValue(values, 0)
+                          : channelMode === 'right'
+                            ? getChannelValue(values, 1)
+                            : getMonoValue(values),
+                  ];
+        const peaks = levels(readings).map((value) => Math.min(maxDb, linearToDb(value)));
+        if (audio && props.showPeakHold !== false) {
+            const hold = Number.isFinite(props.peakHoldSec) ? Math.max(0, props.peakHoldSec) : 2;
+            const history = hold + Math.max(0, maxDb - minDb) / PEAK_FALL_RATE_DB_PER_SECOND;
+            // Sample an absolute grid, up to 60 Hz with at most 600 historical reads.
+            // Clipping each candidate to the meter ceiling gives a finite visible decay horizon.
+            const step = Math.max(1 / 60, history / 600);
+            const first = Math.max(0, Math.ceil((_targetTime - history) / step));
+            const last = Math.floor(_targetTime / step);
+            for (let index = first; index <= last && index < first + 600; index++) {
+                const seconds = index * step;
+                const decay = Math.max(0, _targetTime - seconds - hold) * PEAK_FALL_RATE_DB_PER_SECOND;
+                levels(readAt(seconds)).forEach((value, channel) => {
+                    peaks[channel] = Math.max(peaks[channel], Math.min(maxDb, linearToDb(value)) - decay);
+                });
+            }
         }
-
-        const peakHoldSec = props.peakHoldSec ?? 2;
 
         if (isStereo) {
             this._buildStereoMeter(objects, {
@@ -261,9 +250,7 @@ export class AudioVolumeMeterElement extends BoundSceneElement {
                 maxDb,
                 isVertical,
                 meterColor,
-                nowSec,
-                frameDeltaSec,
-                peakHoldSec,
+                peaks,
                 props,
             });
         } else {
@@ -276,7 +263,7 @@ export class AudioVolumeMeterElement extends BoundSceneElement {
             const rawDb = linearToDb(rawLinear);
             const clampedDb = clamp(Number.isFinite(rawDb) ? rawDb : minDb, minDb, maxDb);
             const normalized = dbToNormalized(clampedDb, minDb, maxDb);
-            const peakDb = this._updatePeak(0, rawDb, nowSec, frameDeltaSec, peakHoldSec, minDb);
+            const peakDb = peaks[0];
 
             this._buildRefLines(objects, { width, height, minDb, maxDb, isVertical, props });
             this._buildBar(objects, { x: 0, y: 0, w: width, h: height, normalized, isVertical, meterColor });
@@ -308,25 +295,11 @@ export class AudioVolumeMeterElement extends BoundSceneElement {
             maxDb: number;
             isVertical: boolean;
             meterColor: string;
-            nowSec: number;
-            frameDeltaSec: number;
-            peakHoldSec: number;
+            peaks: number[];
             props: Record<string, unknown>;
         }
     ) {
-        const {
-            readings,
-            width,
-            height,
-            minDb,
-            maxDb,
-            isVertical,
-            meterColor,
-            nowSec,
-            frameDeltaSec,
-            peakHoldSec,
-            props,
-        } = ctx;
+        const { readings, width, height, minDb, maxDb, isVertical, meterColor, peaks, props } = ctx;
 
         const rawLinearL = getChannelValue(readings, 0);
         const rawLinearR = getChannelValue(readings, 1);
@@ -336,8 +309,7 @@ export class AudioVolumeMeterElement extends BoundSceneElement {
         const clampedDbR = clamp(Number.isFinite(rawDbR) ? rawDbR : minDb, minDb, maxDb);
         const normL = dbToNormalized(clampedDbL, minDb, maxDb);
         const normR = dbToNormalized(clampedDbR, minDb, maxDb);
-        const peakDbL = this._updatePeak(0, rawDbL, nowSec, frameDeltaSec, peakHoldSec, minDb);
-        const peakDbR = this._updatePeak(1, rawDbR, nowSec, frameDeltaSec, peakHoldSec, minDb);
+        const [peakDbL, peakDbR] = peaks;
 
         if (isVertical) {
             const barW = (width - STEREO_GAP) / 2;

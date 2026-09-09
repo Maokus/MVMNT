@@ -38,7 +38,7 @@ export const gridAtlas = definePluginElement({
             },
         ],
     },
-    create(_props, context) {
+    createResources(context) {
         return {
             sheet: context.assets.bundledGridAtlas('sprites.png', {
                 columns: COLUMNS,
@@ -49,16 +49,16 @@ export const gridAtlas = definePluginElement({
             bounds: new Rectangle(0, 0, 128, 128),
         };
     },
-    render(props, instanceState) {
-        instanceState.bounds.width = props.size;
-        instanceState.bounds.height = props.size;
-        const asset = instanceState.sheet.get();
-        instanceState.media
+    render({ props, resources }) {
+        resources.bounds.width = props.size;
+        resources.bounds.height = props.size;
+        const asset = resources.sheet.get();
+        resources.media
             .setResource(asset.resource as never, asset.status)
             .setAnimation(null)
             .setLocalTime(props.frameIndex)
             .setDimensions(props.size, props.size)
             .setFitMode('contain');
-        return [instanceState.bounds, instanceState.media];
+        return [resources.bounds, resources.media];
     },
 });

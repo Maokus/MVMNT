@@ -16,7 +16,7 @@ export const textDisplay = definePluginElement({
             ]),
         ],
     },
-    render(props) {
+    render({ props }) {
         const width = props.textContent.length * props.fontSize * 0.6;
         const items = props.showBackground
             ? [

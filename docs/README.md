@@ -33,7 +33,7 @@ start with the [plugin quickstart](plugin-api/quickstart.md).
 - [Quickstart](plugin-api/quickstart.md)
 - [Development workflow](plugin-api/development-workflow.md)
 - [Authoring guide](plugin-api/authoring.md)
-- [Scene element instance state](plugin-api/instance-state.md)
+- [Instance resources and random-access rendering](plugin-api/instance-state.md)
 - [Rendering and assets](plugin-api/rendering-and-assets.md)
 - [Audio](plugin-api/audio.md)
 - [API reference](plugin-api/reference.md)

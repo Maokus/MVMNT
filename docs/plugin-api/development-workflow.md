@@ -41,7 +41,7 @@ After a successful rebuild MVMNT:
 3. Validates and loads the replacement even when its version is unchanged.
 4. Recreates matching runtime instances from the existing scene properties.
 
-Scene IDs and property values survive. Instance state returned by `create()` does not; the
+Scene IDs and property values survive. Instance resources returned by `createResources()` does not; the
 replacement gets a fresh value. This is a lifecycle-accurate reload rather than JavaScript module
 replacement.
 

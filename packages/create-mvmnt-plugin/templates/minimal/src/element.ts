@@ -19,7 +19,7 @@ export const element = definePluginElement({
             ]),
         ],
     },
-    render(props) {
+    render({ props }) {
         return [
             new Rectangle(-props.width / 2, -props.height / 2, props.width, props.height, {
                 fillColor: props.color,

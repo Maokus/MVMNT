@@ -43,22 +43,22 @@ export const simpleImage = definePluginElement({
             },
         ],
     },
-    create(_props, context) {
+    createResources(context) {
         return {
             handle: context.assets.project(),
             media: new VisualMedia(0, 0, 200, 200, { layoutParticipation: 'exclude' }),
             bounds: new Rectangle(0, 0, 200, 200, { fillColor: undefined }),
         };
     },
-    render(props, instanceState, time) {
-        instanceState.bounds.width = props.width;
-        instanceState.bounds.height = props.height;
-        const asset = instanceState.handle.update(props.imageSource);
-        instanceState.media
+    render({ props, resources, time }) {
+        resources.bounds.width = props.width;
+        resources.bounds.height = props.height;
+        const asset = resources.handle.update(props.imageSource);
+        resources.media
             .setResource(asset.resource as never, asset.status)
             .setLocalTime(time.seconds)
             .setDimensions(props.width, props.height)
             .setFitMode(props.fitMode);
-        return [instanceState.bounds, instanceState.media];
+        return [resources.bounds, resources.media];
     },
 });

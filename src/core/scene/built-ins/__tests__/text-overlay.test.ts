@@ -5,8 +5,8 @@ import { sceneElementRegistry } from '@core/scene/registry';
 
 describe('text overlay anchoring', () => {
     it('anchors the selected horizontal text-block edge at the element origin', () => {
-        const objects = textOverlay.render(
-            {
+        const objects = textOverlay.render({
+            props: {
                 text: 'Long\nShort',
                 lineSpacing: 4,
                 color: '#FFFFFFFF',
@@ -25,10 +25,10 @@ describe('text overlay anchoring', () => {
                 backgroundPaddingY: 0,
                 backgroundCornerRadius: 0,
             },
-            undefined,
-            {} as any,
-            {} as any
-        );
+            resources: undefined,
+            time: {} as any,
+            context: {} as any,
+        });
 
         const background = objects[0] as Rectangle;
         const lines = objects.slice(1) as Text[];
@@ -39,8 +39,8 @@ describe('text overlay anchoring', () => {
     });
 
     it('justifies lines independently inside the horizontally aligned block', () => {
-        const objects = textOverlay.render(
-            {
+        const objects = textOverlay.render({
+            props: {
                 text: 'Long\nShort',
                 lineSpacing: 4,
                 color: '#FFFFFFFF',
@@ -59,10 +59,10 @@ describe('text overlay anchoring', () => {
                 backgroundPaddingY: 0,
                 backgroundCornerRadius: 0,
             },
-            undefined,
-            {} as any,
-            {} as any
-        );
+            resources: undefined,
+            time: {} as any,
+            context: {} as any,
+        });
 
         const background = objects[0] as Rectangle;
         const lines = objects.slice(1) as Text[];
@@ -72,8 +72,8 @@ describe('text overlay anchoring', () => {
     });
 
     it('anchors the selected vertical text-block edge at the element origin', () => {
-        const [line] = textOverlay.render(
-            {
+        const [line] = textOverlay.render({
+            props: {
                 text: 'Text',
                 lineSpacing: 4,
                 color: '#FFFFFFFF',
@@ -92,10 +92,10 @@ describe('text overlay anchoring', () => {
                 backgroundPaddingY: 0,
                 backgroundCornerRadius: 0,
             },
-            undefined,
-            {} as any,
-            {} as any
-        );
+            resources: undefined,
+            time: {} as any,
+            context: {} as any,
+        });
 
         expect((line as Text).y).toBe(-5);
     });

@@ -162,7 +162,7 @@ export const ccMonitor = defineBuiltInElement<Props, undefined>({
         ],
     },
     capabilities: { required: ['timeline.read'], optional: [] },
-    render(props, _instanceState, time, context) {
+    render({ props, time, context }) {
         const { family, weight = '400' } = parseFontSelection(String(props.fontFamily));
         const font = `${weight} ${props.fontSize}px ${family}, sans-serif`;
         const color = applyOpacity(props.color, props.opacity);

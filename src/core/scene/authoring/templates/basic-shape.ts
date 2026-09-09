@@ -54,7 +54,7 @@ export const basicShape = definePluginElement({
             },
         ],
     },
-    render(props) {
+    render({ props }) {
         if (props.shapeType === 'circle') {
             return [
                 new Arc(0, 0, props.shapeSize, {

@@ -28,7 +28,7 @@ export const rawAudio = definePluginElement({
             },
         ],
     },
-    render(props, _instanceState, time, context) {
+    render({ props, time, context }) {
         const rms = props.trackId
             ? context.audio!.getRms({
                   trackId: props.trackId,

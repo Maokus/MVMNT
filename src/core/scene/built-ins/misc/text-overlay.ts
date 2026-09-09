@@ -168,7 +168,7 @@ export const textOverlay = defineBuiltInElement<Props, undefined>({
         ],
     },
     capabilities: { required: [], optional: [] },
-    render(props) {
+    render({ props }) {
         const objects: RenderObject[] = [];
         const selected = parseFontSelection(props.fontFamily);
         const font = `${selected.weight ?? '400'} ${props.fontSize}px ${selected.family || 'Inter'}, sans-serif`;
