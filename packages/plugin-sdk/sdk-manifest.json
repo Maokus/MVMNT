@@ -62,6 +62,7 @@
             "easings",
             "FloatCurve",
             "BLEND_MODE_CHOICES",
+            "SIMULATION_RANDOM_ALGORITHM",
             "prop",
             "tab",
             "group",
@@ -93,7 +94,15 @@
             "VisualMedia",
             "PixelGrid"
         ],
-        "scene": ["BLEND_MODE_CHOICES", "prop", "tab", "group", "definePluginElement", "isPluginElementDefinition"],
+        "scene": [
+            "BLEND_MODE_CHOICES",
+            "SIMULATION_RANDOM_ALGORITHM",
+            "prop",
+            "tab",
+            "group",
+            "definePluginElement",
+            "isPluginElementDefinition"
+        ],
         "safety": ["checkCapability", "limitRenderObjects"],
         "timeline": [],
         "timing": [],

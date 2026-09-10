@@ -32,6 +32,40 @@ describe('canonical simulation', () => {
         runner.dispose();
     });
 
+    it('replays a keyed-random particle system independently of seek order and requested frame rate', async () => {
+        const particleDefinition = {
+            stepSeconds: 1 / 120,
+            initialize: ({ random }: any) => ({
+                positions: new Float64Array(
+                    Array.from({ length: 8 }, (_, index) => random.float(`particle-${index}-x`) * 100)
+                ),
+                velocities: new Float64Array(8),
+            }),
+            step: ({ state, context, deltaSeconds }: any) => {
+                const positions = state.positions.slice();
+                const velocities = state.velocities.slice();
+                for (let index = 0; index < positions.length; index++) {
+                    velocities[index] += (context.random.float(`particle-${index}-impulse`) - 0.5) * 0.1;
+                    positions[index] += velocities[index] * deltaSeconds;
+                }
+                return { positions, velocities };
+            },
+        };
+        const preview = new SimulationRunner(particleDefinition, () => {});
+        const exported = new SimulationRunner(particleDefinition, () => {});
+        const previewInputs = inputs();
+        const exportInputs = inputs();
+
+        for (let frame = 0; frame <= 24; frame++) await preview.prepare(frame / 24, previewInputs);
+        await preview.prepare(0.25, previewInputs);
+        await preview.prepare(1, previewInputs);
+        for (let frame = 0; frame <= 30; frame++) await exported.prepare(frame / 30, exportInputs);
+
+        expect(preview.snapshot(1)).toEqual(exported.snapshot(1));
+        preview.dispose();
+        exported.dispose();
+    });
+
     it('isolates render and step typed-array mutations from saved checkpoints', async () => {
         const runner = new SimulationRunner(
             {

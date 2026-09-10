@@ -4,6 +4,8 @@
 
 - Added opt-in deterministic simulation with fixed-step `initialize()`/`step()` callbacks,
   checkpointable state, immutable input generations, and a read-only render snapshot.
+- Added versioned, stateless simulation randomness through initialization `random` and
+  `context.random`, keyed by the authored seed and canonical step.
 - Added `simulation` to the named render input; it is `undefined` for ordinary random-access elements.
 - Render callbacks take a named `RenderInput` with props, time, context, and optional resources.
 - `createResources()` and synchronous `disposeResources()` use allocation-only `ResourceContext`;

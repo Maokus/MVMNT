@@ -376,10 +376,22 @@ export type PropsFromSchema<Schema extends ElementSchema> = Readonly<{
     [Property in SchemaProperty<Schema> as Property['key']]: ElementPropertyValue<Property>;
 }>;
 
+/** Stable random-access algorithm used by deterministic simulations. */
+export const SIMULATION_RANDOM_ALGORITHM = 'mvmnt-random-v1' as const;
+
+export interface SimulationRandomApi {
+    readonly algorithm: typeof SIMULATION_RANDOM_ALGORITHM;
+    /** Returns an unsigned 32-bit integer derived from the seed, canonical step, and stable key. */
+    uint32(key: string): number;
+    /** Returns a number in [0, 1) derived from the seed, canonical step, and stable key. */
+    float(key: string): number;
+}
+
 /** One random-access frame. Resources may change cost, but must not encode render history. */
 export type SimulationContext<Props extends Readonly<Record<string, unknown>>> = Readonly<
     Pick<ElementContext<Props>, 'properties' | 'timeline' | 'audio' | 'timing' | 'midi'>
 > & {
+    readonly random: SimulationRandomApi;
     /** Note onsets in this step's half-open interval, not all overlapping sustained notes. */
     noteOns(trackIds?: readonly string[]): Result<readonly MidiNoteEvent[]>;
 };
@@ -393,7 +405,7 @@ export interface SimulationSnapshot<State> {
 export interface ElementSimulation<Props extends Readonly<Record<string, unknown>>, State> {
     /** Canonical fixed step, independent of playback and export frame rate. Defaults to 1/120 second. */
     readonly stepSeconds?: number;
-    initialize(input: Readonly<{ props: Props; seed: number }>): State;
+    initialize(input: Readonly<{ props: Props; seed: number; random: SimulationRandomApi }>): State;
     step(
         input: Readonly<{
             state: Readonly<NoInfer<State>>;

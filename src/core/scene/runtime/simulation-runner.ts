@@ -3,6 +3,7 @@ import type {
     SimulationContext,
     SimulationSnapshot,
 } from '../../../../packages/plugin-sdk/src/scene';
+import { createSimulationRandom } from './deterministic-random';
 
 export class SimulationPending extends Error {}
 export type SimulationStatus = 'idle' | 'preparing' | 'pending' | 'ready' | 'error' | 'disposed';
@@ -17,7 +18,7 @@ export const SIMULATION_PLACEHOLDER_GRACE_MS = 150;
 export interface SimulationInputs {
     readonly identity: object;
     propsAt(seconds: number): Readonly<Record<string, unknown>>;
-    contextAt(step: number, dt: number): SimulationContext<any>;
+    contextAt(step: number, dt: number): Omit<SimulationContext<any>, 'random'>;
     /** A failed read must prevent committing even if plugin code catches or ignores it. */
     checkReads(): void;
 }
@@ -132,6 +133,7 @@ export class SimulationRunner {
     private input?: SimulationInputs;
     private target = 0;
     private step = -1;
+    private seed?: number;
     private state: unknown;
     private readonly checkpoints = new Map<number, { state: unknown; bytes: number }>();
     private checkpointBytes = 0;
@@ -190,6 +192,7 @@ export class SimulationRunner {
         if (this.input?.identity !== input.identity) {
             this.input = input;
             this.state = undefined;
+            this.seed = undefined;
             this.step = -1;
             this.error = undefined;
             this.checkpoints.clear();
@@ -245,14 +248,20 @@ export class SimulationRunner {
                 const seed = props.seed;
                 if (typeof seed !== 'number' || !Number.isFinite(seed))
                     throw new Error('Simulation seed must be finite');
-                this.state = copySimulationData(this.definition.initialize({ props, seed })).value;
+                this.seed = seed;
+                this.state = copySimulationData(
+                    this.definition.initialize({ props, seed, random: createSimulationRandom(seed, 0) })
+                ).value;
                 this.input.checkReads();
                 this.step = 0;
                 this.saveCheckpoint();
             }
             for (let count = 0; this.step < this.target && count < 240; count++) {
                 const time = this.step * this.dt;
-                const context = this.input.contextAt(this.step, this.dt);
+                const context = Object.freeze({
+                    ...this.input.contextAt(this.step, this.dt),
+                    random: createSimulationRandom(this.seed!, this.step),
+                });
                 const props = freezePlain(copySimulationData(this.input.propsAt(time)).value);
                 const next = this.definition.step({
                     state: freezePlain(copySimulationData(this.state).value) as any,
@@ -341,6 +350,7 @@ export class SimulationRunner {
         this.checkpoints.clear();
         this.checkpointBytes = 0;
         this.state = undefined;
+        this.seed = undefined;
         this.input = undefined;
         this.setStatus('disposed');
         this.listeners.clear();

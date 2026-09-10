@@ -8,7 +8,7 @@ import { PluginBinaryStore } from '@persistence/plugin-binary-store';
 const pluginId = 'com.example.loader-v2';
 const developmentPluginId = 'com.example.loader-v2-development';
 
-function bundle(id = pluginId): ArrayBuffer {
+function bundle(id = pluginId, elementCode?: string): ArrayBuffer {
     const manifest = {
         id,
         name: 'Loader v2 fixture',
@@ -22,7 +22,9 @@ function bundle(id = pluginId): ArrayBuffer {
             },
         ],
     };
-    const code = `
+    const code =
+        elementCode ??
+        `
 const { definePluginElement } = require('@mvmnt-app/plugin-sdk');
 module.exports = definePluginElement({
   type: 'loader-v2',
@@ -92,5 +94,45 @@ describe('v2 plugin loader fixture', () => {
 
         await unloadPlugin(developmentPluginId, { removePersisted: false });
         expect(getDevelopmentPluginBundle(developmentPluginId)).toBeUndefined();
+    });
+
+    it.each(['Math.random()', 'Date.now()', 'performance.now()', "globalThis.Math['random']()"])(
+        'rejects %s in deterministic simulation callbacks',
+        async (expression) => {
+            const code = `
+const { definePluginElement, group, prop, tab } = require('@mvmnt-app/plugin-sdk');
+module.exports = definePluginElement({
+  type: 'loader-v2',
+  metadata: { name: 'Loader v2' },
+  schema: { tabs: [tab.properties([group('simulation', 'Simulation', [prop.number('seed', 'Seed', 1)])])] },
+  simulation: {
+    initialize() { return { value: 0 }; },
+    step({ state }) { return { value: state.value + ${expression} }; }
+  },
+  render() { return []; }
+});`;
+            const result = await loadPlugin(bundle(pluginId, code));
+
+            expect(result).toMatchObject({ success: false });
+            expect('error' in result ? result.error : '').toContain('prohibited ambient API');
+            expect('error' in result ? result.error : '').toContain('context.random');
+        }
+    );
+
+    it('allows ambient APIs outside callbacks that influence simulation state', async () => {
+        const code = `
+const { definePluginElement, group, prop, tab } = require('@mvmnt-app/plugin-sdk');
+module.exports = definePluginElement({
+  type: 'loader-v2',
+  metadata: { name: 'Loader v2' },
+  schema: { tabs: [tab.properties([group('simulation', 'Simulation', [prop.number('seed', 'Seed', 1)])])] },
+  simulation: {
+    initialize() { return { value: 0 }; },
+    step({ state }) { return { value: state.value + 1 }; }
+  },
+  render() { Math.random(); Date.now(); performance.now(); return []; }
+});`;
+
+        expect(await loadPlugin(bundle(pluginId, code))).toMatchObject({ success: true });
     });
 });

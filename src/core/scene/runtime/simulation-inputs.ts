@@ -347,7 +347,7 @@ export class SimulationGeneration {
                 readFailure = undefined;
                 const props = propsAt(step * dt);
                 const timeline = guard(context.timeline, 'timeline', props);
-                const result: SimulationContext<any> = {
+                const result: Omit<SimulationContext<any>, 'random'> = {
                     timeline,
                     audio: guard(context.audio, 'audio', props),
                     timing: guard(context.timing, 'timing', props),

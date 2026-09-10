@@ -19,11 +19,15 @@ initialization samples it at scene time zero. The optional definition facet is:
 ```ts
 simulation: {
     stepSeconds: 1 / 120, // Optional; fixed for the definition, finite and positive.
-    initialize({ props, seed }) {
-        return { position: 0, velocity: seed % 7 };
+    initialize({ props, seed, random }) {
+        return {
+            position: random.float('particle-0-x') * 100,
+            velocity: seed % 7,
+        };
     },
     step({ state, props, time, deltaSeconds, context }) {
-        const velocity = state.velocity - state.position * deltaSeconds;
+        const jitter = context.random.float('particle-0-jitter') - 0.5;
+        const velocity = state.velocity - state.position * deltaSeconds + jitter;
         return { position: state.position + velocity * deltaSeconds, velocity };
     },
 },
@@ -44,15 +48,42 @@ and return the new arrays. Allocate reusable rectangles or GPU resources in `cre
 then update them from `simulation.state` during rendering. Bound particle counts: each transition
 and render snapshot copies state, and one slow callback cannot be preempted by the host.
 
-Do not read wall clocks, module-level randomness, mutable globals, or external asynchronous data
-in a transition. Derive randomness from the persisted seed, step index, and stable event identity.
-Reproducibility is within the supported runtime, not a bitwise cross-engine guarantee.
+Determinism matters because preview, backward seeking, export, and exports at different frame rates
+may request canonical steps in different orders. The same authored inputs, seed, and target time must
+produce the same state in all of them.
+
+Use `random.float(key)` for a value in `[0, 1)` or `random.uint32(key)` for an unsigned
+32-bit integer. Initialization receives `random` directly; a step receives `context.random`.
+Initialization uses canonical step zero. Step randomness is derived independently from the persisted
+seed, current `time.stepIndex`, and key, so it does not depend on how many random calls were made or
+their order. Use stable semantic keys such as `particle-${index}-x`; do not use array iteration order
+unless that order is itself authored and stable.
+
+The accessor reports `algorithm: 'mvmnt-random-v1'`. Outputs from that algorithm identifier are a
+compatibility promise across MVMNT versions that support it. A future incompatible algorithm must use
+a new identifier rather than silently changing `mvmnt-random-v1` output. The rest of a simulation can
+still use floating-point operations whose bitwise results are not guaranteed across JavaScript engines.
+
+External plugins are rejected at load time when the host finds direct `Math.random()`, `Date.now()`,
+or `performance.now()` access in `initialize` or `step`, including static computed forms and access
+through `globalThis`, `window`, or `self`. Those APIs remain available outside canonical simulation
+callbacks. This validation prevents common mistakes; it is not a security sandbox. Aliasing an ambient
+API outside a callback, reflective access, or dynamically generated code may evade it and remains a
+plugin contract violation.
+
+Module and global state is also outside canonical simulation state. Do not read or write mutable values
+captured by `initialize` or `step`, including counters, caches, or PRNG streams. The current host cannot
+reset or reliably detect closure state because plugin modules execute with `new Function(...)` in the
+application realm. Only returned simulation state, callback inputs, and deterministic host APIs may
+influence a transition. Enforcing this against hostile or deliberately indirect code would require a
+separately resettable realm or Worker.
 
 ## Time and host reads
 
 Step `n` reads props at `n * stepSeconds` and produces state for `(n + 1) * stepSeconds`.
 `time` contains `seconds` and integer `stepIndex`; `deltaSeconds` is always the fixed step.
-`context` provides property, timeline, audio, timing, and MIDI reads, subject to manifest grants.
+`context` provides deterministic random access plus property, timeline, audio, timing, and MIDI reads,
+subject to manifest grants.
 It exposes no assets, allocation methods, viewport, or resource handles.
 
 `context.noteOns(trackIds?)` requires `timeline.read` and returns a `Result` of note onsets in

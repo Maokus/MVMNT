@@ -24,6 +24,7 @@ import { isPluginElementDefinition } from '../../../../packages/plugin-sdk/src/s
 import { createPluginDefinitionScope, type PluginDefinitionScope } from '@core/scene/runtime/definition-runtime';
 import { normalizeElementCapabilities, validateArchivePaths, validatePluginManifest } from './plugin-contract';
 import { createPluginHostServices } from './host-api/plugin-api';
+import { validateSimulationDeterminism } from './simulation-determinism';
 
 export type PluginHostErrorCode =
     'unsafe-archive' | 'invalid-manifest' | 'plugin-conflict' | 'element-registration' | 'storage' | 'host-runtime';
@@ -339,6 +340,7 @@ export async function loadPlugin(bundleData: ArrayBuffer, options: LoadPluginOpt
                         `Definition type '${loadedExport.type}' does not match manifest type '${elementManifest.type}'`
                     );
                 }
+                validateSimulationDeterminism(loadedExport);
                 const scope = createPluginDefinitionScope(loadedExport, {
                     pluginId: manifest.id,
                     runtimeElementType: `${manifest.id}:${elementManifest.type}`,
