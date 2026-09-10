@@ -1,5 +1,8 @@
 # Plugin SDK reference
 
+This page summarizes the current names and package boundaries. Start with the
+[Plugin SDK guide](README.md) if you are building your first element.
+
 ## Package and version
 
 The public package is `@mvmnt-app/plugin-sdk`. MVMNT currently targets the pre-release SDK `2.2.0`

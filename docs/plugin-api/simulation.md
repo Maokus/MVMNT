@@ -8,7 +8,7 @@ Resources are allocation caches, not motion history. See [instance resources](in
 Create a working example with:
 
 ```sh
-npm create mvmnt-plugin -- --name my-spring --template midi-spring
+npm create mvmnt-plugin@latest -- --name my-spring --template midi-spring
 ```
 
 ## Authoring contract

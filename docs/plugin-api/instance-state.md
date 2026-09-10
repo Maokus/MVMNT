@@ -4,13 +4,9 @@ Start with `render({ props, time, context })`. Most elements need no retained va
 current inputs and available source data, requesting the same time must produce equivalent output,
 regardless of render history. Calls may repeat, skip frames, or arrive in any order.
 
-## Choose the right kind of data
-
-| Data                                                            | Where it belongs                               |
-| --------------------------------------------------------------- | ---------------------------------------------- |
-| User choices, automation, asset references, random seeds        | Authored schema properties, persisted by MVMNT |
-| Handles, reusable render objects, buffers, deterministic caches | Optional per-instance resources                |
-| Position or velocity evolved from a previous simulation step    | Optional [simulation](simulation.md) facet     |
+If you are deciding where an old retained value belongs, start with the
+[element mental model](README.md#the-element-mental-model). This page covers the resource branch:
+handles, reusable render objects, scratch buffers, and bounded deterministic caches.
 
 Resources have no authored or temporal meaning. They need not be serializable and are absent from
 scene files, undo history, and export inputs. Module variables and definition-level registrations

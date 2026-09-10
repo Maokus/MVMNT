@@ -2,7 +2,7 @@
 
 MVMNT's documentation serves two audiences. Application contributors should start with the
 [contributor guide](contributors/getting-started.md). Authors building external scene elements should
-start with the [plugin quickstart](plugin-api/quickstart.md).
+start with the [Plugin SDK guide](plugin-api/README.md).
 
 ## Contributors
 
@@ -30,10 +30,12 @@ start with the [plugin quickstart](plugin-api/quickstart.md).
 
 ## Plugin authors
 
+- [Plugin SDK guide](plugin-api/README.md) — concepts, learning path, and everyday commands.
 - [Quickstart](plugin-api/quickstart.md)
 - [Development workflow](plugin-api/development-workflow.md)
 - [Authoring guide](plugin-api/authoring.md)
 - [Instance resources and random-access rendering](plugin-api/instance-state.md)
+- [Deterministic simulation](plugin-api/simulation.md)
 - [Rendering and assets](plugin-api/rendering-and-assets.md)
 - [Audio](plugin-api/audio.md)
 - [API reference](plugin-api/reference.md)

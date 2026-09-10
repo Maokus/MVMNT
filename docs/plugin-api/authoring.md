@@ -6,11 +6,8 @@ SDK 2 elements are callback definitions created with `definePluginElement()`. A 
 a stable type, metadata, a serializable property schema, lifecycle callbacks, and a render callback.
 Use `prop`, `group`, and `tab` builders so property keys remain literal in inferred `props` types.
 
-Start with `render({ props, time, context })`. It must describe the requested frame independently
-of earlier callbacks. Add `createResources()` only for allocations or reusable work; it is not
-needed for time-based motion, MIDI reactions, or audio windows.
-Add `simulation` only when the next value genuinely depends on the previous physical value and
-cannot reasonably be derived from the requested time or historical queries.
+Start with `render({ props, time, context })`. The [Plugin SDK guide](README.md) explains when to add
+instance resources or simulation; their detailed contracts live in their focused guides.
 
 Property groups may include serializable layout nodes for sliders, compound controls, sections, or
 actions. Keep the ordinary property row alongside a slider or compound control when users still
@@ -51,7 +48,8 @@ renderer and receive no generic filesystem or IPC access.
 ## Lifecycle
 
 - `load(context)` runs once for a loaded definition.
-- `createResources(context)` runs once per scene instance, may be asynchronous, and returns its instance resources.
+- `createResources(context)` runs once per scene instance, may be asynchronous, and returns its
+  instance resources.
 - `simulation.initialize({ props, seed })` creates checkpointable temporal data at scene time zero.
 - `simulation.step({ state, props, time, deltaSeconds, context })` advances one host-owned fixed step.
 - `render({ props, resources, time, context })` produces the current render objects.
@@ -68,21 +66,11 @@ timeline, or audio sampling. `render()` receives `RenderInput<Props, Resources, 
 props, time, `ElementContext<Props>`, inferred resources (`undefined` when setup is omitted), and
 the inferred simulation snapshot (`undefined` when simulation is omitted).
 
-Definition and instance contexts have their own `AbortSignal`. Calculator registrations, feature
-requirements, generated assets, and asset handles created through a context are tracked and cleaned
-automatically. Stop plugin-owned asynchronous work when the signal aborts. Register synchronous
-`context.onCleanup()` callbacks immediately after acquiring plugin-owned resources to cover partial
-initialization failures. All cleanup is attempted even when an individual disposer throws.
-
-Until asynchronous initialization finishes, the host renders no objects. Initialization failures
-leave the instance inert and emit a structured diagnostic.
-
-Instance resources are ephemeral runtime working data, not persisted or temporal state. See
-[scene element instance resources](instance-state.md) for its lifecycle, appropriate uses, and the
-random-access rendering requirement.
-
-Simulation state is also not persisted. It represents authored temporal behavior and is reproduced
-from the seed and immutable inputs by the host. It must never contain resource handles or caches.
+Definition and instance contexts have their own `AbortSignal`. Host-created handles and
+registrations are tracked automatically. Stop plugin-owned asynchronous work when the signal
+aborts. The [instance resource guide](instance-state.md) covers cleanup order, partial initialization,
+late promises, and cache rules. The [simulation guide](simulation.md) covers state validation,
+fixed-step time, seeking, and export.
 
 ## Effective properties
 
@@ -105,3 +93,6 @@ properties and return value-seconds without exposing automation channels, bindin
 Host reads return `Result` values. Treat an unavailable timeline window, pending feature cache, or
 missing asset as an expected state and render an empty or placeholder result. Throw only when
 definition or instance initialization cannot continue.
+
+Simulation reads are stricter: unavailable required input pauses replay, and a terminal failure
+prevents the step from committing. Declare analyzed requirements with `audioFeatureDemands(props)`.

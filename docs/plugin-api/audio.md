@@ -1,5 +1,9 @@
 # Plugin audio
 
+Choose an audio track with a schema property, then declare the matching capability in the element's
+`plugin.json` entry. Use analyzed features for most visual reactions; request raw PCM only when the
+feature pipeline cannot express the calculation.
+
 ## Analyzed features
 
 Declare `audio.features.read`, describe the instance's complete demand set from its props, and
@@ -32,7 +36,9 @@ The same capability must appear in the element's `plugin.json` entry. Demand IDs
 within the definition. The host reevaluates demands when instance props change and removes them
 when the instance is disposed. Sampling is read-only and clip-aware: the enabled clip at the
 requested timeline time chooses the source, and gaps return silence. A failed result is normal
-while analysis is pending or unavailable.
+while analysis is pending or unavailable. In ordinary rendering, show a placeholder or no output.
+In simulation, a required unavailable read pauses the step; see
+[simulation readiness](simulation.md#inputs-readiness-and-seeking).
 
 Use `sampleFeatureRange()` for a sequence of samples and `sampleFeatureMatrix()` for a packed
 row-major window suitable for dense displays and generated rasters.

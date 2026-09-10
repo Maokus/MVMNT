@@ -1,6 +1,6 @@
 # @mvmnt-app/plugin-sdk
 
-The public SDK for MVMNT 2.x scene-element plugins. Host capabilities are supplied through
+The public SDK 2 contract for MVMNT scene element plugins. Host capabilities are supplied through
 the callback context created by `definePluginElement()`. Runtime classes such as render
 objects are injected by MVMNT; using them outside the host produces an explicit error.
 
@@ -9,6 +9,10 @@ definitions and portable helpers. Rendering, timeline/audio services, asset reso
 and migration adapters are implemented by the host and injected at plugin load time.
 
 Install it with `npm install @mvmnt-app/plugin-sdk`.
+
+New authors should start with the MVMNT
+[Plugin SDK guide](../../docs/plugin-api/README.md) and
+[quickstart](../../docs/plugin-api/quickstart.md).
 
 Use methods on the granted callback facets for host operations. Advanced DTO types live in domain
 subpaths; the root contains common definition, schema, result, animation, safety, and utility helpers:
@@ -35,15 +39,7 @@ Render callbacks also receive `context.properties`. Use `valueAt()` to resolve o
 properties at any timeline time, or `integrate()` and `average()` for bounded numeric area calculations. These
 methods operate on effective property values and do not expose automation channels or keyframes.
 
-Start with `render({ props, time, context })`. Add `createResources(context)` only for handles,
-reusable objects, and deterministic caches. Its return value becomes `resources` in the named
-render input; optional synchronous `disposeResources(resources, context)` releases plugin-owned
-allocations. Setup has an allocation-only `ResourceContext`, without props or temporal reads.
-Use `context.onCleanup()` for partial-initialization cleanup. Resources must not make output depend
-on render history. See the host documentation's instance resources guide for the full contract.
-
-For springs, particles, and other recursive motion, opt into `simulation`. Its synchronous
-`initialize()` and fixed-step `step()` callbacks return checkpointable plain data; `render()` receives
-the resulting read-only snapshot as `simulation`. A persisted numeric `seed` property is required.
-The host owns replay, seeking, checkpoints, input snapshots, and export preparation. Do not place
-temporal values in resources or mutate simulation input state.
+Start with `render({ props, time, context })`. Add resources for allocations or reusable work, and
+simulation only for genuinely recursive motion. The focused guides define the complete
+[resource](../../docs/plugin-api/instance-state.md) and
+[simulation](../../docs/plugin-api/simulation.md) contracts.

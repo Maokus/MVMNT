@@ -1,5 +1,9 @@
 # Plugin rendering and assets
 
+Render callbacks return a paint-ordered array of SDK render objects. Use project assets for files
+selected in a scene, bundled assets for files distributed with a plugin, and generated rasters for
+deterministic pixels computed by the plugin.
+
 ## Render objects
 
 Import render primitives from `@mvmnt-app/plugin-sdk/render`. The public module currently exposes

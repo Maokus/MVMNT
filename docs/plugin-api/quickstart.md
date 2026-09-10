@@ -1,7 +1,7 @@
 # Plugin SDK 2 quickstart
 
-This guide creates an external scene-element plugin, previews it with hot reload, and packages it
-for import. Use Node.js 18 or newer for plugin projects. An MVMNT source checkout is not required.
+This guide creates an external scene element plugin, previews it with hot reload, and packages it
+for import. Use Node.js 18 or newer. An MVMNT source checkout is not required.
 
 ## Create a plugin
 
@@ -41,33 +41,21 @@ Keep the definition `type` equal to its element entry in `plugin.json`. Import o
 documented subpaths; application aliases such as `@core/*` and `@state/*` do not exist in external
 plugins.
 
-Keep ordinary elements random-access and stateless. For genuinely history-dependent motion,
-use the optional [simulation facet](simulation.md), demonstrated by the `midi-spring` template.
-
 Run the contract and load-smoke checks after editing:
 
 ```bash
 npm run check
 ```
 
-## Add motion without retaining state
+## Understand the rendering model
 
-Replace the render callback with a function of the requested time:
+The generated element is random-access: its output is a function of current props, requested time,
+and host reads. Calculate ordinary motion from `time.seconds`; do not increment a frame counter or
+position during rendering.
 
-```ts
-render({ props, time }) {
-    const x = 100 * Math.sin(time.seconds * Math.PI);
-    return [new Rectangle(x - 50, -50, 100, 100, { fillColor: props.color })];
-}
-```
-
-Scrubbing, repeated frames, and export all use this same callback. Do not increment position or
-count frames. For MIDI reactions, query notes around `time.seconds` through `context.timeline`;
-for audio reactions, sample a window through `context.audio`. Declare the required capabilities
-in `plugin.json`; see the [authoring guide](authoring.md) and [audio examples](audio.md).
-
-Only introduce [instance resources](instance-state.md) when you need handles, reusable objects,
-or deterministic caching. The load-smoke check validates loading, not render-history independence.
+Use [instance resources](instance-state.md) for handles and reusable objects. Use
+[deterministic simulation](simulation.md) only when a value genuinely depends on the previous step,
+as in the `midi-spring` template. The [Plugin SDK guide](README.md) has a quick decision table.
 
 ## Preview with hot reload
 
@@ -92,6 +80,7 @@ settings.
 
 ## Continue learning
 
+- [Plugin SDK guide](README.md) — mental model, project structure, and learning path.
 - [Authoring guide](authoring.md) — schemas, capabilities, lifecycle, and properties.
 - [Instance resources](instance-state.md) — retained runtime resources and deterministic caching.
 - [Deterministic simulation](simulation.md) — fixed-step springs, particles, and MIDI impulses.
