@@ -113,11 +113,19 @@ checkpoints and 32 MiB per runner. Oversized checkpoints are skipped. Eviction a
 not output. Checkpoints never enter scene files or undo history.
 
 Preview work yields after at most 240 steps or roughly 8 ms. Playback and audio continue while
-the element catches up. The preview keeps the last complete element frame for a short grace period;
-if preparation continues, the element displays a placeholder explaining whether it is initializing,
+the element catches up. After an element has rendered an exact frame, continuous playback uses its
+newest fully completed canonical state instead of alternating with a preparation placeholder. This
+state may briefly lag the requested render time; `simulation.timeSeconds` identifies its canonical
+time. The preview keeps the last complete element frame during gaps between completed chunks and
+during transient input-readiness changes. A persistent input wait is reported in the preview status
+without replacing already rendered element artwork.
+
+Initial preparation and paused seeks keep the last complete frame for a short grace period; if
+preparation continues, the element displays a placeholder explaining whether it is initializing,
 replaying, waiting for decoding or analysis, or has failed. Elements without a completed frame show
-the placeholder immediately. New seek targets supersede previous targets without publishing partial
-simulation state, and short synchronous advances do not publish an intermediate preparation state.
+the placeholder immediately. New seek targets supersede previous targets without publishing a
+half-executed simulation step, and short synchronous advances do not publish an intermediate
+preparation state.
 
 The scene-wide preview status summarizes the highest-priority reason when one or more simulations are
 unavailable. These readiness messages are owned by the host. Plugins should continue returning useful

@@ -50,6 +50,7 @@ export interface SceneRuntimeAdapterDiagnostics {
     version: number;
     settingsVersion: number;
     elementVersions: Record<string, number>;
+    simulations: readonly ElementSimulationReadiness[];
 }
 
 export interface ElementSimulationReadiness extends SimulationReadiness {
@@ -546,6 +547,19 @@ export class SceneRuntimeAdapter {
             version: this.adapterVersion,
             settingsVersion: this.settingsVersion,
             elementVersions,
+            simulations: this.getElements()
+                .filter((element) => element.hasSimulation)
+                .map((element) => ({
+                    ...(element.getSimulationReadiness?.() ?? {
+                        status: 'idle' as const,
+                        completedStep: -1,
+                        targetStep: 0,
+                        changedAt: 0,
+                        lagSteps: 1,
+                    }),
+                    elementId: element.id ?? element.type,
+                    elementType: element.type,
+                })),
         };
     }
 

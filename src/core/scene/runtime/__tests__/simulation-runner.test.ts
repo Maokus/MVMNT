@@ -98,7 +98,7 @@ describe('canonical simulation', () => {
             if (pending) throw new SimulationPending('waiting');
         };
         const runner = new SimulationRunner(definition, () => {});
-        await expect(runner.prepare(1, input)).rejects.toThrow('not ready');
+        await expect(runner.prepare(1, input)).rejects.toThrow('waiting');
         expect(runner.snapshot(1)).toBeUndefined();
         expect(runner.status).toBe('pending');
         expect(runner.getReadiness()).toMatchObject({
@@ -125,6 +125,24 @@ describe('canonical simulation', () => {
         expect(runner.status).toBe('ready');
         expect(runner.snapshot(2 / 120)?.stepIndex).toBe(2);
         expect(changed).toHaveBeenCalledTimes(2);
+        runner.dispose();
+    });
+
+    it('exposes only the latest completed canonical step while a preview target catches up', () => {
+        const runner = new SimulationRunner(definition, vi.fn());
+        const input = inputs();
+
+        runner.request(0, input);
+        runner.request(10, input);
+
+        expect(runner.status).toBe('preparing');
+        expect(runner.snapshot(10)).toBeUndefined();
+        expect(runner.previewSnapshot(10)).toMatchObject({
+            stepIndex: 0,
+            timeSeconds: 0,
+            state: { position: 0 },
+        });
+        expect(runner.getReadiness()).toMatchObject({ lagSteps: 1200 });
         runner.dispose();
     });
 

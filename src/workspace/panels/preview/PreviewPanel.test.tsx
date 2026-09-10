@@ -2,6 +2,7 @@ import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetGlobalShortcutsForTest } from '@context/shortcuts/shortcutRegistry';
+import { useTimelineStore } from '@state/timelineStore';
 import PreviewPanel from './PreviewPanel';
 
 const mocks = vi.hoisted(() => ({
@@ -55,6 +56,9 @@ describe('PreviewPanel element creation shortcut', () => {
         mocks.addElement.mockReset();
         mocks.visualizer = null;
         globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
+        useTimelineStore.setState((state) => ({
+            transport: { ...state.transport, isPlaying: false },
+        }));
     });
 
     afterEach(() => {
@@ -122,5 +126,66 @@ describe('PreviewPanel element creation shortcut', () => {
         expect(screen.getByRole('status')).toHaveTextContent(
             "2 elements · Simulation waiting for inputs — Audio decoding pending for 'track-1'"
         );
+    });
+
+    it('hides preparation status during playback when every simulation has renderable output', () => {
+        vi.useFakeTimers();
+        const readiness = {
+            status: 'preparing',
+            reason: 'Catching up',
+            affected: [
+                {
+                    elementId: 'particles',
+                    elementType: 'test:particles',
+                    status: 'preparing',
+                    completedStep: 100,
+                    targetStep: 104,
+                    changedAt: 0,
+                    lagSteps: 4,
+                    hasRenderableFrame: true,
+                },
+            ],
+        };
+        mocks.visualizer = {
+            getSimulationReadiness: () => readiness,
+            subscribeSimulationStatus: () => () => {},
+        };
+        useTimelineStore.setState((state) => ({
+            transport: { ...state.transport, isPlaying: true },
+        }));
+
+        render(<PreviewPanel />);
+        act(() => vi.advanceTimersByTime(300));
+
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('does not flash a transient pending notice when playback has renderable output', () => {
+        vi.useFakeTimers();
+        let readiness: any = {
+            status: 'pending',
+            reason: 'Simulation inputs are not ready',
+            affected: [{ elementId: 'particles', hasRenderableFrame: true }],
+        };
+        let notify = () => {};
+        mocks.visualizer = {
+            getSimulationReadiness: () => readiness,
+            subscribeSimulationStatus: (listener: () => void) => {
+                notify = listener;
+                return () => {};
+            },
+        };
+        useTimelineStore.setState((state) => ({
+            transport: { ...state.transport, isPlaying: true },
+        }));
+
+        render(<PreviewPanel />);
+        act(() => vi.advanceTimersByTime(300));
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+        readiness = { status: 'ready', affected: [] };
+        act(() => notify());
+        act(() => vi.advanceTimersByTime(500));
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
 });

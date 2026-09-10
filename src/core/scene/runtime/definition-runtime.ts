@@ -806,7 +806,11 @@ export function createPluginDefinitionScope(
 
         getSimulationReadiness(session = this.previewSession): SimulationReadiness {
             const runner = this.simulations.get(session)?.runner;
-            if (runner) return runner.getReadiness();
+            if (runner)
+                return Object.freeze({
+                    ...runner.getReadiness(),
+                    hasRenderableFrame: session === this.previewSession && this.lastReadySimulationOutput !== undefined,
+                });
             const status: SimulationStatus = this.initializationFailed
                 ? 'error'
                 : this.instanceController.signal.aborted
@@ -828,6 +832,8 @@ export function createPluginDefinitionScope(
                 completedStep: -1,
                 targetStep: 0,
                 changedAt: this.simulationCreatedAt,
+                hasRenderableFrame: false,
+                lagSteps: 1,
             });
         }
 
@@ -1227,12 +1233,24 @@ export function createPluginDefinitionScope(
                 return this.renderSimulationPlaceholder(this.getSimulationReadiness(), targetTime);
             }
             if (!this.initialized) return [];
-            const simulation = this.activeSimulation?.snapshot(targetTime);
             const allowSimulationTransitions = this.activeSimulationSession === this.previewSession;
+            const exactSimulation = this.activeSimulation?.snapshot(targetTime);
+            const previewReadiness = this.getSimulationReadiness();
+            const canUseCompletedPreview =
+                allowSimulationTransitions &&
+                _config?.isPlaying === true &&
+                this.lastReadySimulationOutput !== undefined &&
+                (previewReadiness.status === 'preparing' || previewReadiness.status === 'pending');
+            const simulation =
+                exactSimulation ??
+                (canUseCompletedPreview && previewReadiness.status === 'preparing'
+                    ? this.activeSimulation?.previewSnapshot(targetTime)
+                    : undefined);
             if (this.hasSimulation && !simulation) {
-                const readiness = this.getSimulationReadiness();
+                const readiness = previewReadiness;
                 const now = runtimeNow();
                 this.notReadySince ??= now;
+                if (canUseCompletedPreview) return this.lastReadySimulationOutput!;
                 if (
                     allowSimulationTransitions &&
                     readiness.status === 'preparing' &&
@@ -1244,7 +1262,12 @@ export function createPluginDefinitionScope(
                 }
                 return this.renderSimulationPlaceholder(readiness, targetTime);
             }
-            if (this.hasSimulation && allowSimulationTransitions && this.placeholderVisibleSince !== undefined) {
+            if (
+                this.hasSimulation &&
+                allowSimulationTransitions &&
+                _config?.isPlaying !== true &&
+                this.placeholderVisibleSince !== undefined
+            ) {
                 const elapsed = runtimeNow() - this.placeholderVisibleSince;
                 if (elapsed < SIMULATION_PLACEHOLDER_GRACE_MS) {
                     this.scheduleSimulationTransition(SIMULATION_PLACEHOLDER_GRACE_MS - elapsed);

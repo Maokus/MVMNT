@@ -13,8 +13,13 @@ export interface SimulationReadiness {
     readonly completedStep: number;
     readonly targetStep: number;
     readonly changedAt: number;
+    /** True when preview can keep showing completed element output while this target prepares. */
+    readonly hasRenderableFrame?: boolean;
+    /** Number of canonical steps between the completed state and current target. */
+    readonly lagSteps?: number;
 }
 export const SIMULATION_PLACEHOLDER_GRACE_MS = 150;
+export const SIMULATION_PENDING_NOTICE_GRACE_MS = 500;
 export interface SimulationInputs {
     readonly identity: object;
     propsAt(seconds: number): Readonly<Record<string, unknown>>;
@@ -183,6 +188,7 @@ export class SimulationRunner {
             completedStep: this.step,
             targetStep: this.target,
             changedAt: this.changedAt,
+            lagSteps: Math.max(0, this.target - this.step),
         });
     }
 
@@ -277,7 +283,13 @@ export class SimulationRunner {
                 if (performance.now() - started >= 8) break;
             }
             if (this.step === this.target) this.setStatus('ready');
-            else schedule(this);
+            else {
+                // Publish at most once per cooperative chunk. Preview can use
+                // the newest completed canonical step without observing a
+                // half-executed transition.
+                this.setStatus('preparing');
+                schedule(this);
+            }
         } catch (error) {
             if (error instanceof SimulationPending) this.setStatus('pending', error.message);
             else {
@@ -303,6 +315,17 @@ export class SimulationRunner {
 
     snapshot(seconds: number): SimulationSnapshot<any> | undefined {
         if (this.status !== 'ready' || this.step !== simulationStepAt(seconds, this.dt)) return undefined;
+        return this.completedSnapshot();
+    }
+
+    /** Latest completed state at or before the requested preview time. Never used by exact export preparation. */
+    previewSnapshot(seconds: number): SimulationSnapshot<any> | undefined {
+        const requestedStep = simulationStepAt(seconds, this.dt);
+        if (this.step < 0 || this.step > requestedStep || this.state === undefined) return undefined;
+        return this.completedSnapshot();
+    }
+
+    private completedSnapshot(): SimulationSnapshot<any> {
         return Object.freeze({
             state: freezePlain(copySimulationData(this.state).value) as any,
             stepIndex: this.step,
@@ -333,7 +356,7 @@ export class SimulationRunner {
                     reject(this.error);
                 } else if (this.status === 'pending') {
                     cleanup();
-                    reject(new SimulationPending('Simulation inputs are not ready'));
+                    reject(new SimulationPending(this.reason || 'Simulation inputs are not ready'));
                 } else if (this.status === 'ready') {
                     cleanup();
                     resolve();

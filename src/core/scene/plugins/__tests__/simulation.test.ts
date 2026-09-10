@@ -77,7 +77,7 @@ describe('simulation definition integration', () => {
         const generation = new SimulationGeneration(useSceneStore.getState(), useTimelineStore.getState());
 
         await expect(element.prepareSimulationFrame!(1 / 120, generation, () => {})).rejects.toThrow(
-            'Simulation inputs are not ready'
+            'Audio analysis is still running'
         );
         const placeholder = element.buildRenderObjects({}, 1 / 120);
         expect(renderedText(placeholder).map((text) => text.text)).toContain('Audio analysis is still running');
@@ -203,6 +203,93 @@ describe('simulation definition integration', () => {
 
         await scope.dispose();
         nowSpy.mockRestore();
+    });
+
+    it('keeps rendering completed simulation output while playback catches up', async () => {
+        const renderedSteps: number[] = [];
+        const definition = definePluginElement({
+            type: 'simulation-playback-catch-up-test',
+            metadata: { name: 'Simulation playback catch-up' },
+            schema: { tabs: [tab.properties([group('simulation', 'Simulation', [prop.number('seed', 'Seed', 3)])])] },
+            simulation: {
+                initialize: () => ({ count: 0 }),
+                step: ({ state }) => ({ count: state.count + 1 }),
+            },
+            render({ simulation }) {
+                renderedSteps.push(simulation.stepIndex);
+                return [new Rectangle(0, 0, 320, 180, { fillColor: '#123456' })];
+            },
+        });
+        const scope = createPluginDefinitionScope(definition, {
+            pluginId: 'test',
+            services: null,
+            synchronousInitialization: true,
+            loadAsset: async () => '',
+            report: vi.fn(),
+        });
+        const element = scope.createRegistration({ kind: 'built-in' }).create();
+        const generation = new SimulationGeneration(useSceneStore.getState(), useTimelineStore.getState());
+        const initial = element.buildRenderObjects({ isPlaying: true }, 0);
+        expect(renderedText(initial).map((text) => text.text)).toContain('Waiting to prepare simulation');
+        await element.prepareSimulationFrame!(0, generation, () => {});
+        element.buildRenderObjects({ isPlaying: true }, 0);
+
+        element.requestSimulationFrame!(10, generation, () => {});
+        const retained = element.buildRenderObjects({ isPlaying: true }, 10);
+
+        expect(renderedText(retained)).toHaveLength(0);
+        expect(renderedSteps).toEqual([0, 0]);
+        expect(element.getSimulationReadiness?.()).toMatchObject({
+            status: 'preparing',
+            hasRenderableFrame: true,
+            lagSteps: 1200,
+        });
+        await scope.dispose();
+    });
+
+    it('keeps rendered output visible during transient playback input waits', async () => {
+        let inputsPending = false;
+        const renderedSteps: number[] = [];
+        const definition = definePluginElement({
+            type: 'simulation-playback-pending-test',
+            metadata: { name: 'Simulation playback pending' },
+            schema: { tabs: [tab.properties([group('simulation', 'Simulation', [prop.number('seed', 'Seed', 3)])])] },
+            simulation: {
+                initialize: () => ({ count: 0 }),
+                step: ({ state }) => {
+                    if (inputsPending) throw new SimulationPending('Audio analysis is pending');
+                    return { count: state.count + 1 };
+                },
+            },
+            render({ simulation }) {
+                renderedSteps.push(simulation.stepIndex);
+                return [new Rectangle(0, 0, 320, 180, { fillColor: '#123456' })];
+            },
+        });
+        const scope = createPluginDefinitionScope(definition, {
+            pluginId: 'test',
+            services: null,
+            synchronousInitialization: true,
+            loadAsset: async () => '',
+            report: vi.fn(),
+        });
+        const element = scope.createRegistration({ kind: 'built-in' }).create();
+        const generation = new SimulationGeneration(useSceneStore.getState(), useTimelineStore.getState());
+        await element.prepareSimulationFrame!(0, generation, () => {});
+        element.buildRenderObjects({ isPlaying: true }, 0);
+
+        inputsPending = true;
+        element.requestSimulationFrame!(1 / 120, generation, () => {});
+        const retained = element.buildRenderObjects({ isPlaying: true }, 1 / 120);
+
+        expect(renderedText(retained)).toHaveLength(0);
+        expect(renderedSteps).toEqual([0]);
+        expect(element.getSimulationReadiness?.()).toMatchObject({
+            status: 'pending',
+            reason: 'Audio analysis is pending',
+            hasRenderableFrame: true,
+        });
+        await scope.dispose();
     });
 
     it('requires a numeric authored seed and a valid fixed step', () => {

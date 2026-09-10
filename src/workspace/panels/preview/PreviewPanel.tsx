@@ -9,8 +9,11 @@ import { DRAG_ASSET_TYPE } from '../asset-manager/AssetManagerPanel';
 import { CreateElementPopup } from '@workspace/panels/scene-element';
 import { isTextEditingTarget, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 import { activateCommandSurface, isCommandSurfaceActive } from '@context/commands/commandContext';
-import type { SceneSimulationReadiness } from '@state/scene/runtimeAdapter';
-import { SIMULATION_PLACEHOLDER_GRACE_MS } from '@core/scene/runtime/simulation-runner';
+import type { ElementSimulationReadiness, SceneSimulationReadiness } from '@state/scene/runtimeAdapter';
+import {
+    SIMULATION_PENDING_NOTICE_GRACE_MS,
+    SIMULATION_PLACEHOLDER_GRACE_MS,
+} from '@core/scene/runtime/simulation-runner';
 
 interface PreviewPanelProps {
     interactive?: boolean;
@@ -101,6 +104,7 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
 
     // Thin wrapper handlers delegating to extracted utilities
     const visualizerInstance = (ctx as any).visualizer;
+    const isPlaying = useTimelineStore((state) => state.transport.isPlaying);
     const simulationReadiness = useSyncExternalStore(
         useCallback(
             (listener: () => void) => visualizerInstance?.subscribeSimulationStatus?.(listener) ?? (() => {}),
@@ -114,16 +118,29 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             setVisibleSimulationReadiness(null);
             return;
         }
-        if (simulationReadiness.status === 'pending' || simulationReadiness.status === 'error') {
+        const hasPlaybackFallback =
+            isPlaying &&
+            simulationReadiness.affected.length > 0 &&
+            simulationReadiness.affected.every((element: ElementSimulationReadiness) => element.hasRenderableFrame);
+        if (hasPlaybackFallback && simulationReadiness.status === 'preparing') {
+            setVisibleSimulationReadiness(null);
+            return;
+        }
+        if (
+            simulationReadiness.status === 'error' ||
+            (simulationReadiness.status === 'pending' && !hasPlaybackFallback)
+        ) {
             setVisibleSimulationReadiness(simulationReadiness);
             return;
         }
         const timer = window.setTimeout(
             () => setVisibleSimulationReadiness(simulationReadiness),
-            SIMULATION_PLACEHOLDER_GRACE_MS
+            hasPlaybackFallback && simulationReadiness.status === 'pending'
+                ? SIMULATION_PENDING_NOTICE_GRACE_MS
+                : SIMULATION_PLACEHOLDER_GRACE_MS
         );
         return () => window.clearTimeout(timer);
-    }, [simulationReadiness]);
+    }, [isPlaying, simulationReadiness]);
     const handlerDeps = useMemo(
         () => ({
             canvasRef,
