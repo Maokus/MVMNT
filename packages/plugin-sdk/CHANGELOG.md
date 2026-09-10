@@ -2,6 +2,9 @@
 
 ## 2.2.0
 
+- Added opt-in deterministic simulation with fixed-step `initialize()`/`step()` callbacks,
+  checkpointable state, immutable input generations, and a read-only render snapshot.
+- Added `simulation` to the named render input; it is `undefined` for ordinary random-access elements.
 - Render callbacks take a named `RenderInput` with props, time, context, and optional resources.
 - `createResources()` and synchronous `disposeResources()` use allocation-only `ResourceContext`;
   `onCleanup()` covers partial initialization and cancellation. Removed positional callbacks and

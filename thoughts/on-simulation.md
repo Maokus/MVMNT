@@ -1,4 +1,11 @@
-The SDK already has a per-instance `State` generic: `create()` runs once, its result is retained, `render()` receives that state repeatedly, and `dispose()` receives it when the element goes away. The host implementation genuinely keeps that object alive across renders.
+# Simulation exploration
+
+Status: superseded by the implemented [simulation contract](../docs/plugin-api/simulation.md).
+The sketches below record the reasoning that led to the current API; names such as `create()`,
+`dispose()`, and positional render arguments are historical and must not be copied into plugins.
+
+The SDK previously had a per-instance `State` generic: `create()` ran once, its result was retained,
+`render()` received that state repeatedly, and `dispose()` received it when the element went away.
 
 However, I would **not treat that existing state as simulation state**.
 

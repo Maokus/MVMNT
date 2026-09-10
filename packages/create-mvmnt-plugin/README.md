@@ -6,6 +6,9 @@ Create an external SDK 2 MVMNT plugin project:
 npm create mvmnt-plugin@latest -- --name com.example.pulse --template minimal
 ```
 
+Use `--template midi-spring` for a deterministic, fixed-step simulation example. Keep the default
+`minimal` template for ordinary random-access elements.
+
 The first element type defaults to the final plugin-ID segment. Use `--plugin-name`,
 `--element-name`, and `--description` to customize generated display text, or `--dir <path>` to
 choose the output location.

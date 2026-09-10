@@ -24,7 +24,12 @@ describe('ExportCoordinator', () => {
                 callback(new Blob([new Uint8Array([1])]));
             },
         } as unknown as HTMLCanvasElement;
-        const renderer = { resize: vi.fn(), renderAtTime: vi.fn(), setTransparentMode: vi.fn() };
+        const renderer = {
+            resize: vi.fn(),
+            prepareFrame: vi.fn().mockResolvedValue(undefined),
+            renderAtTime: vi.fn(),
+            setTransparentMode: vi.fn(),
+        };
         const coordinator = new ExportCoordinator({
             sceneDuration: () => 1,
             createEnvironment: () => ({
@@ -80,7 +85,11 @@ describe('ExportCoordinator', () => {
             sceneDuration: () => 1,
             createEnvironment: () => ({
                 canvas,
-                renderer: { resize: vi.fn(), renderAtTime: vi.fn() },
+                renderer: {
+                    resize: vi.fn(),
+                    prepareFrame: vi.fn().mockResolvedValue(undefined),
+                    renderAtTime: vi.fn(),
+                },
                 prepare: vi.fn(),
                 secondsToTicks: (seconds) => seconds,
             }),

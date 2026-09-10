@@ -212,6 +212,7 @@ export interface TempoAlignedRangeSample {
 }
 
 export interface TempoAlignedFrameRequest {
+    ticksPerQuarter?: number;
     trackId: string;
     featureKey: string;
     tick: number;
@@ -220,6 +221,7 @@ export interface TempoAlignedFrameRequest {
 }
 
 export interface TempoAlignedRangeRequest {
+    ticksPerQuarter?: number;
     trackId: string;
     featureKey: string;
     startTick: number;
@@ -241,10 +243,12 @@ export interface TempoAlignedRangeResult {
 let cachedTempoMapper: TempoMapper | null = null;
 let cachedTempoKey = '';
 
-function resolveTempoMapper(state: TimelineState): TempoMapper {
+function resolveTempoMapper(
+    state: TimelineState,
+    ticksPerQuarter = getSharedTimingManager().ticksPerQuarter
+): TempoMapper {
     const tempoMap = state.timeline.masterTempoMap ?? [];
     const bpm = state.timeline.globalBpm || 120;
-    const ticksPerQuarter = getSharedTimingManager().ticksPerQuarter;
     const key = `${bpm}:${ticksPerQuarter}:${JSON.stringify(tempoMap)}`;
     if (cachedTempoMapper && cachedTempoKey === key) {
         return cachedTempoMapper;
@@ -656,7 +660,10 @@ function getClipAwareFrame(state: TimelineState, request: TempoAlignedFrameReque
             diagnostics: buildDiagnostics(request, undefined, false, interpolation, 0, 0, 'track-missing'),
         };
     }
-    const timing = createTimingContext(state.timeline, getSharedTimingManager().ticksPerQuarter);
+    const timing = createTimingContext(
+        state.timeline,
+        request.ticksPerQuarter ?? getSharedTimingManager().ticksPerQuarter
+    );
     const segments = getAudioClipTimelineSegments(state, request.trackId, timing);
     const active = resolveAudioClipAtTick(state, request.trackId, request.tick, timing);
     // A gap is still a valid track read. Use the first available source only to
@@ -695,7 +702,7 @@ function getClipAwareFrame(state: TimelineState, request: TempoAlignedFrameReque
         };
     }
     const channelMeta = buildChannelMetadata(featureTrack, cache);
-    const tempoMapper = resolveTempoMapper(state);
+    const tempoMapper = resolveTempoMapper(state, request.ticksPerQuarter);
     const hopTicks = resolveHopTicks(featureTrack, cache, tempoMapper);
     const mapperStart = nowNs();
     const startSeconds = resolveStartSeconds(featureTrack, cache);
@@ -787,7 +794,10 @@ function getClipAwareRange(state: TimelineState, request: TempoAlignedRangeReque
             diagnostics: buildDiagnostics(request, undefined, false, interpolation, 0, 0, 'track-missing'),
         };
     }
-    const timing = createTimingContext(state.timeline, getSharedTimingManager().ticksPerQuarter);
+    const timing = createTimingContext(
+        state.timeline,
+        request.ticksPerQuarter ?? getSharedTimingManager().ticksPerQuarter
+    );
     const segments = getAudioClipTimelineSegments(state, request.trackId, timing);
     const source = segments.find((segment) => {
         const cache = state.audioFeatureCaches[segment.sourceId];
@@ -822,7 +832,7 @@ function getClipAwareRange(state: TimelineState, request: TempoAlignedRangeReque
             diagnostics: buildDiagnostics(request, source.sourceId, true, interpolation, 0, 0, 'invalid-hop'),
         };
     }
-    const tempoMapper = resolveTempoMapper(state);
+    const tempoMapper = resolveTempoMapper(state, request.ticksPerQuarter);
     const startSeconds = tempoMapper.ticksToSeconds(Math.min(request.startTick, request.endTick));
     const endSeconds = tempoMapper.ticksToSeconds(Math.max(request.startTick, request.endTick));
     const padding = Math.max(0, Math.floor(options.framePadding ?? 0));

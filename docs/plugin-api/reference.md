@@ -25,13 +25,16 @@ TypeScript declarations built from `packages/plugin-sdk/src/` are the detailed t
 | `/utils`         | MIDI, colour, and font helpers.                                                       |
 | `/visual-assets` | Scoped asset types and `VisualMediaPlayback`.                                         |
 
-`RenderInput<Props, Resources>` supplies named `props`, `time`, `context`, and `resources` fields.
+`RenderInput<Props, Resources, State>` supplies named `props`, `time`, `context`, `resources`, and
+`simulation` fields. Stateless elements receive `simulation: undefined`; opted-in elements receive
+a read-only `SimulationSnapshot<State>`.
 `createResources(context)` optionally allocates resources, inferred from its return value, and
 `disposeResources(resources, context)` synchronously releases plugin-owned allocations. Both use
 `ResourceContext`, also used by definition-level `load` and `unload`. It exposes allocation,
 diagnostics, cancellation, and synchronous cleanup registration, but no timeline/property/audio reads.
 `ElementContext<Props>` supplies those reads to rendering. These types are exported from the root
-and `/scene`; the full contract is in [instance resources](instance-state.md).
+and `/scene`. Use [instance resources](instance-state.md) for allocations and deterministic caches,
+and [simulation](simulation.md) only for host-stepped temporal state.
 
 Host-dependent JavaScript outside MVMNT throws an explicit error. Plugin bundles must externalize
 SDK imports so the loader can inject the matching runtime.

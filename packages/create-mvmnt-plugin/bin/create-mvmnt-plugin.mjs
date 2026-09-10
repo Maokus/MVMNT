@@ -18,6 +18,7 @@ const templateCapabilities = Object.freeze({
     'image-atlas': { required: [], optional: [] },
     'image-simple': { required: [], optional: [] },
     'midi-notes': { required: ['timeline.read', 'midi.utils'], optional: [] },
+    'midi-spring': { required: ['timeline.read'], optional: [] },
     minimal: { required: [], optional: [] },
     'text-display': { required: [], optional: [] },
 });

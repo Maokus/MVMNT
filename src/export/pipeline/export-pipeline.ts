@@ -18,6 +18,21 @@ export class ExportPipeline {
         signal: AbortSignal,
         report: ExportReporter = () => undefined
     ): Promise<ExportPipelineResult> {
+        const release = environment.renderer.beginSimulationExport?.();
+        try {
+            return await this.runSession(plan, environment, output, signal, report);
+        } finally {
+            release?.();
+        }
+    }
+
+    private async runSession(
+        plan: ResolvedExportPlan,
+        environment: ExportEnvironment,
+        output: ExportOutputSession,
+        signal: AbortSignal,
+        report: ExportReporter = () => undefined
+    ): Promise<ExportPipelineResult> {
         report({ progress: 0, text: 'Loading fonts…', stage: 'preparing' });
         await environment.prepare();
         if (signal.aborted) throw new DOMException('Export cancelled', 'AbortError');

@@ -416,6 +416,7 @@ export class VideoEncodingStage {
                     fps,
                     frameCount: totalFrames,
                     signal,
+                    prepareFrame: (seconds, signal) => this.visualizer.prepareFrame(seconds, signal),
                     renderAtTime: (seconds) => this.visualizer.renderAtTime(seconds),
                 },
                 async (_frameIndex, renderTime, _encodeTime, frameDuration) => {

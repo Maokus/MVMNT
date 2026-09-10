@@ -297,6 +297,7 @@ export class MIDIVisualizerCore {
         }
     }
     renderAtTime(targetTime: number) {
+        this.runtimeAdapter?.requestSimulationFrame(targetTime);
         const started = typeof performance !== 'undefined' ? performance.now() : Date.now();
         const config = this.getSceneConfig();
         const renderObjects = this._buildSceneRenderObjects(config, targetTime);
@@ -318,6 +319,18 @@ export class MIDIVisualizerCore {
             runtime: this.runtimeAdapter?.collectDiagnostics() ?? null,
         };
     }
+
+    async prepareFrame(seconds: number, signal?: AbortSignal): Promise<void> {
+        await this.runtimeAdapter?.prepareFrame(seconds, signal);
+    }
+
+    beginSimulationExport(): () => void {
+        return this.runtimeAdapter?.beginSimulationExport() ?? (() => {});
+    }
+
+    getSimulationStatus = () => this.runtimeAdapter?.getSimulationStatus() ?? 'ready';
+    subscribeSimulationStatus = (listener: () => void) =>
+        this.runtimeAdapter?.subscribeSimulationStatus(listener) ?? (() => {});
     _setupImageLoadedListener() {
         this._unsubscribeImageLoads?.();
         this._unsubscribeImageLoads = visualResourceCache.subscribeToLoads(() => {

@@ -26,6 +26,13 @@ import {
 import { deriveElementOrder } from '@state/scene-graph';
 import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { normalizeElementOutputBlendMode } from '@utils/blend-modes';
+import {
+    SimulationGeneration,
+    simulationInputIdentity,
+    simulationAuthoredIdentity,
+    sameSimulationInputs,
+} from '@core/scene/runtime/simulation-inputs';
+import { SimulationPending } from '@core/scene/runtime/simulation-runner';
 
 type SceneStoreBinding = typeof useSceneStore;
 
@@ -98,6 +105,159 @@ export class SceneRuntimeAdapter {
     private settingsVersion = 0;
     private unsubscribe?: () => void;
     private unsubscribeEditor?: () => void;
+    private unsubscribeTimeline?: () => void;
+    private simulationGeneration?: SimulationGeneration;
+    private simulationIdentity: unknown[] = [];
+    private readonly simulationListeners = new Set<() => void>();
+    private readonly simulationLifetime = new AbortController();
+    private exportSimulation?: {
+        session: object;
+        generation?: SimulationGeneration;
+        identity?: unknown[];
+        authored: unknown[];
+    };
+
+    getSimulationStatus = (): 'ready' | 'preparing' | 'error' => {
+        const states = this.getElements()
+            .filter((element) => element.hasSimulation)
+            .map((element) => element.getSimulationStatus?.());
+        if (states.includes('error')) return 'error';
+        return states.some((status) => status !== 'ready' && status !== 'disposed') ? 'preparing' : 'ready';
+    };
+
+    subscribeSimulationStatus = (listener: () => void): (() => void) => {
+        this.simulationListeners.add(listener);
+        return () => {
+            this.simulationListeners.delete(listener);
+        };
+    };
+
+    private simulationChanged = () => {
+        if (this.disposed) return;
+        this.invalidateResolvedFrame();
+        for (const listener of [...this.simulationListeners]) listener();
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('mvmnt-scene-runtime-updated'));
+    };
+
+    private getSimulationGeneration(): SimulationGeneration {
+        const scene = this.store.getState();
+        const timeline = useTimelineStore.getState();
+        const identity = simulationInputIdentity(scene, timeline);
+        if (this.exportSimulation) {
+            if (!sameSimulationInputs(this.exportSimulation.authored, simulationAuthoredIdentity(scene, timeline)))
+                throw new Error('Simulation inputs were edited during export. Restart the export.');
+            if (this.exportSimulation.generation) return this.exportSimulation.generation;
+        }
+        if (!this.simulationGeneration || !sameSimulationInputs(identity, this.simulationIdentity)) {
+            this.simulationGeneration = new SimulationGeneration(scene, timeline);
+            this.simulationIdentity = identity;
+        }
+        if (this.exportSimulation) {
+            // Export owns a distinct input copy and runner session, never preview's mutable replay.
+            this.exportSimulation.generation = new SimulationGeneration(scene, timeline);
+            this.exportSimulation.identity = identity;
+            return this.exportSimulation.generation;
+        }
+        return this.simulationGeneration;
+    }
+
+    requestSimulationFrame(seconds: number): void {
+        const elements = this.getElements().filter((element) => element.hasSimulation);
+        if (!elements.length) return;
+        const generation = this.getSimulationGeneration();
+        for (const element of elements)
+            element.requestSimulationFrame?.(
+                seconds,
+                generation,
+                this.simulationChanged,
+                this.exportSimulation?.session
+            );
+    }
+
+    async prepareFrame(seconds: number, signal?: AbortSignal): Promise<void> {
+        signal = AbortSignal.any([this.simulationLifetime.signal, ...(signal ? [signal] : [])]);
+        const elements = this.getElements().filter((element) => element.hasSimulation);
+        if (!elements.length) return;
+        for (;;) {
+            const controller = new AbortController();
+            const abort = () => controller.abort();
+            signal?.addEventListener('abort', abort, { once: true });
+            if (signal?.aborted) controller.abort();
+            let changed = false;
+            let wake!: () => void;
+            const updated = new Promise<void>((resolve) => {
+                wake = resolve;
+            });
+            const unsubscribe = useTimelineStore.subscribe((next, prev) => {
+                const scene = this.store.getState();
+                if (!sameSimulationInputs(simulationInputIdentity(scene, next), simulationInputIdentity(scene, prev))) {
+                    changed = true;
+                    controller.abort();
+                    wake();
+                }
+            });
+            const abortWait = () => wake();
+            const unsubscribeScene = this.store.subscribe((next, prev) => {
+                const timeline = useTimelineStore.getState();
+                if (
+                    !sameSimulationInputs(
+                        simulationInputIdentity(next, timeline),
+                        simulationInputIdentity(prev, timeline)
+                    )
+                ) {
+                    changed = true;
+                    controller.abort();
+                    wake();
+                }
+            });
+            signal?.addEventListener('abort', abortWait, { once: true });
+            try {
+                const generation = this.getSimulationGeneration();
+                await Promise.all(
+                    elements.map((element) =>
+                        element.prepareSimulationFrame?.(
+                            seconds,
+                            generation,
+                            this.simulationChanged,
+                            controller.signal,
+                            this.exportSimulation?.session
+                        )
+                    )
+                );
+                return;
+            } catch (error) {
+                if (signal?.aborted) throw new DOMException('Simulation cancelled', 'AbortError');
+                if (!changed && !(error instanceof SimulationPending)) throw error;
+                if (!changed) await updated;
+                if (signal?.aborted) throw new DOMException('Simulation cancelled', 'AbortError');
+                if (this.exportSimulation?.generation)
+                    this.exportSimulation.generation = this.exportSimulation.generation.withReadyInputs(
+                        this.store.getState(),
+                        useTimelineStore.getState()
+                    );
+            } finally {
+                unsubscribe();
+                unsubscribeScene();
+                controller.abort();
+                signal?.removeEventListener('abort', abort);
+                signal?.removeEventListener('abort', abortWait);
+            }
+        }
+    }
+
+    beginSimulationExport(): () => void {
+        if (this.exportSimulation) throw new Error('A simulation export session is already active');
+        const session = {};
+        this.exportSimulation = {
+            session,
+            authored: simulationAuthoredIdentity(this.store.getState(), useTimelineStore.getState()),
+        };
+        return () => {
+            for (const element of this.getElements()) element.releaseSimulationSession?.(session);
+            this.exportSimulation = undefined;
+            this.simulationChanged();
+        };
+    }
     private disposed = false;
     private resolvedFrame: ResolvedSceneFrame | null = null;
     private structureIndex: SceneStructureIndex | null = null;
@@ -158,6 +318,13 @@ export class SceneRuntimeAdapter {
         this.unsubscribe = this.store.subscribe((next: SceneStoreState, prev: SceneStoreState) => {
             this.handleStateChange(next, prev);
         });
+        this.unsubscribeTimeline = useTimelineStore.subscribe((next, prev) => {
+            const scene = this.store.getState();
+            if (!sameSimulationInputs(simulationInputIdentity(scene, next), simulationInputIdentity(scene, prev))) {
+                this.simulationGeneration = undefined;
+                this.simulationChanged();
+            }
+        });
         this.unsubscribeEditor = useSceneEditorStore.subscribe((next, prev) => {
             if (next.runtimeRevision === prev.runtimeRevision) return;
             this.resolvedFrame = null;
@@ -179,6 +346,7 @@ export class SceneRuntimeAdapter {
     }
 
     dispose() {
+        this.simulationLifetime.abort();
         if (this.disposed) return;
         if (typeof window !== 'undefined') {
             window.removeEventListener('font-loaded', this.handleFontLoaded as EventListener);
@@ -190,12 +358,16 @@ export class SceneRuntimeAdapter {
         }
         this.unsubscribe?.();
         this.unsubscribeEditor?.();
+        this.unsubscribeTimeline?.();
         this.cache.forEach((entry) => {
             try {
                 entry.element.dispose?.();
             } catch {}
         });
         this.cache.clear();
+        this.simulationGeneration = undefined;
+        this.exportSimulation = undefined;
+        this.simulationListeners.clear();
         this.disposed = true;
     }
 

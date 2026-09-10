@@ -26,6 +26,7 @@ describe('text overlay anchoring', () => {
                 backgroundCornerRadius: 0,
             },
             resources: undefined,
+            simulation: undefined,
             time: {} as any,
             context: {} as any,
         });
@@ -60,6 +61,7 @@ describe('text overlay anchoring', () => {
                 backgroundCornerRadius: 0,
             },
             resources: undefined,
+            simulation: undefined,
             time: {} as any,
             context: {} as any,
         });
@@ -93,6 +95,7 @@ describe('text overlay anchoring', () => {
                 backgroundCornerRadius: 0,
             },
             resources: undefined,
+            simulation: undefined,
             time: {} as any,
             context: {} as any,
         });

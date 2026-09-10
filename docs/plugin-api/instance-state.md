@@ -10,7 +10,7 @@ regardless of render history. Calls may repeat, skip frames, or arrive in any or
 | --------------------------------------------------------------- | ---------------------------------------------- |
 | User choices, automation, asset references, random seeds        | Authored schema properties, persisted by MVMNT |
 | Handles, reusable render objects, buffers, deterministic caches | Optional per-instance resources                |
-| Position or velocity evolved from a previous simulation step    | Not supported by the current SDK               |
+| Position or velocity evolved from a previous simulation step    | Optional [simulation](simulation.md) facet     |
 
 Resources have no authored or temporal meaning. They need not be serializable and are absent from
 scene files, undo history, and export inputs. Module variables and definition-level registrations

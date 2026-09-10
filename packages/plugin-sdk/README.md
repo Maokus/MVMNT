@@ -41,3 +41,9 @@ render input; optional synchronous `disposeResources(resources, context)` releas
 allocations. Setup has an allocation-only `ResourceContext`, without props or temporal reads.
 Use `context.onCleanup()` for partial-initialization cleanup. Resources must not make output depend
 on render history. See the host documentation's instance resources guide for the full contract.
+
+For springs, particles, and other recursive motion, opt into `simulation`. Its synchronous
+`initialize()` and fixed-step `step()` callbacks return checkpointable plain data; `render()` receives
+the resulting read-only snapshot as `simulation`. A persisted numeric `seed` property is required.
+The host owns replay, seeking, checkpoints, input snapshots, and export preparation. Do not place
+temporal values in resources or mutate simulation input state.

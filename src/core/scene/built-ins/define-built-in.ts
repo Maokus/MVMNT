@@ -9,18 +9,21 @@ import type { SceneElementRegistration } from '@core/scene/runtime/types';
 
 // Built-ins receive the same private services as external SDK 2 definitions.
 const builtInHostServices = createPluginHostServices().services;
-const builtInCapabilities = new WeakMap<PluginElementDefinition<any, any>, ElementCapabilities>();
+const builtInCapabilities = new WeakMap<PluginElementDefinition<any, any, any, any>, ElementCapabilities>();
 
 /** Defines a first-party element and records its grants outside the public SDK contract. */
 export function defineBuiltInElement<
     Props extends Readonly<Record<string, unknown>>,
     Resources = undefined,
     Schema = unknown,
+    State = undefined,
 >(
-    input: PluginElementDefinitionInput<Props, Resources, Schema> & { capabilities: ElementCapabilities }
-): PluginElementDefinition<Props, Resources, Schema> {
+    input: PluginElementDefinitionInput<Props, Resources, Schema, State> & { capabilities: ElementCapabilities }
+): PluginElementDefinition<Props, Resources, Schema, State> {
     const { capabilities, ...definitionInput } = input;
-    const definition = definePluginElement(definitionInput as PluginElementDefinitionInput<Props, Resources, Schema>);
+    const definition = definePluginElement(
+        definitionInput as PluginElementDefinitionInput<Props, Resources, Schema, State>
+    );
     builtInCapabilities.set(definition, capabilities);
     return definition;
 }
@@ -34,7 +37,9 @@ export function getEnginePrivateContext(element: any): CapabilityContext {
 }
 
 /** Adapts one built-in definition to the same registry shape used by external plugins. */
-export function createBuiltInRegistration(definition: PluginElementDefinition<any, any>): SceneElementRegistration {
+export function createBuiltInRegistration(
+    definition: PluginElementDefinition<any, any, any, any>
+): SceneElementRegistration {
     const scope = createPluginDefinitionScope(definition, {
         pluginId: 'mvmnt.builtin',
         services: builtInHostServices,

@@ -1,8 +1,8 @@
 # Explicit plugin simulation
 
-Status: design only. No simulation callbacks, scheduler, or checkpoint API are implemented.
-The current SDK supports [random-access rendering and instance resources](../docs/plugin-api/instance-state.md).
-This document specifies a separate extension for MIDI-driven particles and springs.
+Status: implemented. See the [simulation authoring guide](../docs/plugin-api/simulation.md).
+Export rejects concurrent authored edits instead of maintaining a second editable scene graph.
+This document records the design goals for MIDI-driven particles and springs.
 
 ## Ownership and authoring boundary
 

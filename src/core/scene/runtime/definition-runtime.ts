@@ -29,6 +29,8 @@ import { ensureFontLoaded } from '@fonts/font-loader';
 import { renderResourceManager } from '@core/render/render-resource-manager';
 import { integratePropertySampler } from '@core/scene/runtime/property-integration';
 import type { SceneElementOrigin, SceneElementRegistration } from './types';
+import { SimulationRunner, type SimulationInputs } from './simulation-runner';
+import type { SimulationGeneration } from './simulation-inputs';
 
 const diagnostic = (
     code: PluginDiagnostic['code'],
@@ -68,7 +70,7 @@ export interface ScopeOptions {
 }
 
 export interface PluginDefinitionScope {
-    readonly definition: PluginElementDefinition<any, any>;
+    readonly definition: PluginElementDefinition<any, any, any, any>;
     readonly ready: Promise<boolean>;
     readonly failure?: PluginDiagnostic;
     createRegistration(origin: SceneElementOrigin, overrideCategory?: string): SceneElementRegistration;
@@ -114,20 +116,20 @@ function resourceContext(context: CapabilityContext): ResourceContext {
 }
 
 function createContext(
-    definition: PluginElementDefinition<any, any>,
+    definition: PluginElementDefinition<any, any, any, any>,
     controller: AbortController,
     options: ScopeOptions,
     cleanups: Set<() => void>
 ): CapabilityContext;
 function createContext(
-    definition: PluginElementDefinition<any, any>,
+    definition: PluginElementDefinition<any, any, any, any>,
     controller: AbortController,
     options: ScopeOptions,
     cleanups: Set<() => void>,
     properties: ElementPropertyApi<Readonly<Record<string, unknown>>>
 ): ElementContext<Readonly<Record<string, unknown>>>;
 function createContext(
-    definition: PluginElementDefinition<any, any>,
+    definition: PluginElementDefinition<any, any, any, any>,
     controller: AbortController,
     options: ScopeOptions,
     cleanups: Set<() => void>,
@@ -638,7 +640,7 @@ function createContext(
 }
 
 export function createPluginDefinitionScope(
-    definition: PluginElementDefinition<any, any>,
+    definition: PluginElementDefinition<any, any, any, any>,
     options: ScopeOptions
 ): PluginDefinitionScope {
     const controller = new AbortController();
@@ -705,6 +707,127 @@ export function createPluginDefinitionScope(
     }
 
     class V2SceneElement extends BoundSceneElement {
+        readonly hasSimulation = !!definition.simulation;
+        private readonly previewSession = {};
+        private readonly simulations = new Map<
+            object,
+            {
+                runner: SimulationRunner;
+                generation: SimulationGeneration;
+                config: string;
+                inputs: SimulationInputs;
+                context: ElementContext<any>;
+            }
+        >();
+        private activeSimulation?: SimulationRunner;
+        private simulationRenderContext?: ElementContext<any>;
+        private simulationPropsAt?: SimulationInputs['propsAt'];
+        private readonly simulationDemandOwner = { id: `simulation:${this.id}` };
+        private readonly simulationDemands = new Map<string, any>();
+        private asyncInitialization?: Promise<void>;
+
+        getSimulationStatus(session = this.previewSession) {
+            return this.simulations.get(session)?.runner.status ?? (this.initializationFailed ? 'error' : 'idle');
+        }
+
+        requestSimulationFrame(
+            seconds: number,
+            generation: SimulationGeneration,
+            changed: () => void,
+            session = this.previewSession
+        ) {
+            if (!definition.simulation || this.instanceController.signal.aborted) return 'disposed' as const;
+            if (!this.initialized) return this.initializationFailed ? ('error' as const) : ('preparing' as const);
+            const config = this.getSerializableConfig();
+            const signature = JSON.stringify(config);
+            let record = this.simulations.get(session);
+            if (!record || record.generation !== generation || record.config !== signature) {
+                const properties = generation.properties(config, [...definitionPropertyKeys]);
+                const context = createContext(
+                    definition,
+                    this.instanceController,
+                    { ...options, services: generation.services },
+                    this.instanceCleanups,
+                    properties.api
+                );
+                const inputs = generation.inputs(context, properties.propsAt, (props) => {
+                    const demands = definition.audioFeatureDemands?.(props) ?? [];
+                    for (const demand of demands) {
+                        const key = JSON.stringify(demand);
+                        if (!this.simulationDemands.has(key))
+                            this.simulationDemands.set(key, {
+                                ...demand,
+                                id: `${demand.id}:history:${this.simulationDemands.size}`,
+                            });
+                    }
+                    syncDeclarativeAudioFeatureDemands(this.simulationDemandOwner, [
+                        ...this.simulationDemands.values(),
+                    ]);
+                    return demands;
+                });
+                const runner =
+                    record?.runner ??
+                    new SimulationRunner(definition.simulation, () => {
+                        if (runner.status === 'error')
+                            options.report(
+                                diagnostic(
+                                    'CONTRACT_VIOLATION',
+                                    runner.error?.message ?? 'Simulation failed',
+                                    'element.simulation'
+                                )
+                            );
+                        changed();
+                    });
+                record = { runner, inputs, generation, config: signature, context };
+                this.simulations.set(session, record);
+            }
+            this.activeSimulation = record.runner;
+            this.simulationRenderContext = record.context;
+            this.simulationPropsAt = record.inputs.propsAt;
+            record.runner.request(seconds, record.inputs);
+            return record.runner.status;
+        }
+
+        async prepareSimulationFrame(
+            seconds: number,
+            generation: SimulationGeneration,
+            changed: () => void,
+            signal?: AbortSignal,
+            session = this.previewSession
+        ): Promise<void> {
+            signal = AbortSignal.any([this.instanceController.signal, ...(signal ? [signal] : [])]);
+            if (signal?.aborted) throw new DOMException('Simulation cancelled', 'AbortError');
+            if (this.asyncInitialization)
+                await new Promise<void>((resolve, reject) => {
+                    const abort = () => {
+                        cleanup();
+                        reject(new DOMException('Simulation cancelled', 'AbortError'));
+                    };
+                    const cleanup = () => signal?.removeEventListener('abort', abort);
+                    signal?.addEventListener('abort', abort, { once: true });
+                    this.asyncInitialization!.then(
+                        () => {
+                            cleanup();
+                            resolve();
+                        },
+                        (error) => {
+                            cleanup();
+                            reject(error);
+                        }
+                    );
+                    if (signal?.aborted) abort();
+                });
+            if (this.initializationFailed || this.instanceController.signal.aborted)
+                throw new Error('Simulation instance initialization failed or was disposed');
+            this.requestSimulationFrame(seconds, generation, changed, session);
+            const record = this.simulations.get(session);
+            if (record) await record.runner.prepare(seconds, record.inputs, signal);
+        }
+
+        releaseSimulationSession(session: object): void {
+            this.simulations.get(session)?.runner.dispose();
+            this.simulations.delete(session);
+        }
         private readonly instanceController = new AbortController();
         private readonly instanceCleanups = new Set<() => void>();
         private readonly instanceContext = createContext(
@@ -931,7 +1054,7 @@ export function createPluginDefinitionScope(
                 }
                 return;
             }
-            void ready.then(async (scopeReady) => {
+            this.asyncInitialization = ready.then(async (scopeReady) => {
                 if (this.instanceController.signal.aborted) return;
                 if (!scopeReady) {
                     this.failInitialization('Definition initialization failed');
@@ -940,6 +1063,8 @@ export function createPluginDefinitionScope(
                 try {
                     const resources = await definition.createResources?.(this.setupContext);
                     this.acceptResources(resources);
+                    if (this.hasSimulation && typeof window !== 'undefined')
+                        window.dispatchEvent(new CustomEvent('mvmnt-scene-runtime-updated'));
                 } catch (error) {
                     this.failInitialization(error);
                 }
@@ -965,10 +1090,16 @@ export function createPluginDefinitionScope(
 
         protected override _buildRenderObjects(_config: any, targetTime: number): RenderObject[] {
             if (!this.initialized || this.initializationFailed || this.instanceController.signal.aborted) return [];
-            const props = this.getDefinitionProps();
+            const simulation = this.activeSimulation?.snapshot(targetTime);
+            if (this.hasSimulation && !simulation) return [];
+            const props =
+                this.hasSimulation && this.simulationPropsAt
+                    ? this.simulationPropsAt(targetTime)
+                    : this.getDefinitionProps();
             this.requestDefinitionFonts(props);
-            const beats = this.instanceContext.timing?.secondsToBeats(targetTime);
-            const ticks = this.instanceContext.timing?.secondsToTicks(targetTime);
+            const context = this.hasSimulation ? this.simulationRenderContext! : this.instanceContext;
+            const beats = context.timing?.secondsToBeats(targetTime);
+            const ticks = context.timing?.secondsToTicks(targetTime);
             const time = Object.freeze({
                 seconds: targetTime,
                 beats: beats?.ok ? beats.value : null,
@@ -984,9 +1115,7 @@ export function createPluginDefinitionScope(
                 ...(Number.isFinite(_config?.playRangeEndSec) ? { playbackEndSeconds: _config.playRangeEndSec } : {}),
             });
             return [
-                ...definition.render(
-                    Object.freeze({ props, resources: this.resources, time, context: this.instanceContext })
-                ),
+                ...definition.render(Object.freeze({ props, resources: this.resources, time, context, simulation })),
             ] as RenderObject[];
         }
 
@@ -1001,6 +1130,11 @@ export function createPluginDefinitionScope(
         }
 
         protected override onDestroy(): void {
+            for (const { runner } of this.simulations.values()) runner.dispose();
+            this.simulations.clear();
+            this.activeSimulation = undefined;
+            clearDeclarativeAudioFeatureDemands(this.simulationDemandOwner);
+            this.simulationDemands.clear();
             instances.delete(this);
             clearDeclarativeAudioFeatureDemands(this);
             this.instanceController.abort();

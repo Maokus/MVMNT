@@ -41,6 +41,9 @@ Keep the definition `type` equal to its element entry in `plugin.json`. Import o
 documented subpaths; application aliases such as `@core/*` and `@state/*` do not exist in external
 plugins.
 
+Keep ordinary elements random-access and stateless. For genuinely history-dependent motion,
+use the optional [simulation facet](simulation.md), demonstrated by the `midi-spring` template.
+
 Run the contract and load-smoke checks after editing:
 
 ```bash
@@ -91,6 +94,7 @@ settings.
 
 - [Authoring guide](authoring.md) — schemas, capabilities, lifecycle, and properties.
 - [Instance resources](instance-state.md) — retained runtime resources and deterministic caching.
+- [Deterministic simulation](simulation.md) — fixed-step springs, particles, and MIDI impulses.
 - [Rendering and assets](rendering-and-assets.md) — render objects and packaged visuals.
 - [Audio](audio.md) — analyzed features, raw PCM, and custom calculators.
 - [API reference](reference.md) — package subpaths and manifest contract.

@@ -6,6 +6,7 @@ function fixture() {
     const canvas = { width: 320, height: 180 } as HTMLCanvasElement;
     const renderer = {
         resize: vi.fn(),
+        prepareFrame: vi.fn().mockResolvedValue(undefined),
         renderAtTime: vi.fn(),
         setTransparentMode: vi.fn(),
     };
@@ -44,6 +45,24 @@ function fixture() {
 }
 
 describe('export frame driver', () => {
+    it('does not render or encode a frame until simulation preparation completes', async () => {
+        const { environment, plan, renderer } = fixture();
+        let release!: () => void;
+        renderer.prepareFrame.mockImplementationOnce(
+            () =>
+                new Promise<void>((resolve) => {
+                    release = resolve;
+                })
+        );
+        const consume = vi.fn();
+        const work = renderFrameSequence(environment, plan, new AbortController().signal, consume);
+        await Promise.resolve();
+        expect(renderer.renderAtTime).not.toHaveBeenCalled();
+        expect(consume).not.toHaveBeenCalled();
+        release();
+        await work;
+        expect(consume).toHaveBeenCalledTimes(2);
+    });
     it('uses absolute scene time and zero-based encode time', async () => {
         const { environment, plan, renderer } = fixture();
         const consumed = vi.fn().mockResolvedValue(undefined);

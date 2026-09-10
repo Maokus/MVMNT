@@ -46,6 +46,7 @@ export async function driveFrames(
         fps: number;
         frameCount: number;
         signal?: AbortSignal;
+        prepareFrame(seconds: number, signal?: AbortSignal): Promise<void>;
         renderAtTime(seconds: number): void;
     },
     consume: (frameIndex: number, sceneTime: number, encodeTime: number, frameDuration: number) => Promise<void>,
@@ -56,6 +57,8 @@ export async function driveFrames(
         if (options.signal?.aborted) throw new DOMException('Export cancelled', 'AbortError');
         const encodeTime = frameIndex * frameDuration;
         const sceneTime = options.startSeconds + encodeTime;
+        await options.prepareFrame(sceneTime, options.signal);
+        if (options.signal?.aborted) throw new DOMException('Export cancelled', 'AbortError');
         options.renderAtTime(sceneTime);
         await consume(frameIndex, sceneTime, encodeTime, frameDuration);
         onFrame?.(frameIndex + 1);
@@ -76,6 +79,7 @@ export async function renderFrameSequence(
             fps: plan.settings.fps,
             frameCount: plan.frameCount,
             signal,
+            prepareFrame: (seconds, signal) => environment.renderer.prepareFrame(seconds, signal),
             renderAtTime: (seconds) => environment.renderer.renderAtTime(seconds),
         },
         consume,

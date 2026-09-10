@@ -9,6 +9,13 @@
 5. Handle structured `Result` failures from host services.
 6. Move instance cleanup into `disposeResources()`, definition cleanup into `unload()`, and stop asynchronous
    work when the supplied signal aborts.
+7. Classify every retained value: derive motion from `time` where possible, put handles and caches
+   in `createResources()`, and move genuinely recursive motion into the `simulation` facet.
+
+Do not translate a legacy mutable state object wholesale into `resources`. A render callback may be
+called repeatedly or in arbitrary time order. See the short
+[legacy state migration guide](../../thoughts/migrating-plugins-to-deterministic-state.md) for the
+decision process and before/after patterns.
 
 ## Property schemas
 

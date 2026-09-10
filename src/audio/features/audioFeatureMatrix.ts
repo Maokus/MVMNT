@@ -25,6 +25,7 @@ export interface AudioFeatureMatrixRequest {
     readonly analysisProfileId?: string | null;
     /** Do not substitute another cached profile when this variant is unavailable. */
     readonly strictProfileMatching?: boolean;
+    readonly ticksPerQuarter?: number;
 }
 
 export interface AudioFeatureMatrix {
@@ -95,7 +96,8 @@ export function getAudioFeatureMatrixRevision(
     trackId: string,
     featureKey: string,
     analysisProfileId?: string | null,
-    strictProfileMatching = false
+    strictProfileMatching = false,
+    ticksPerQuarter = getSharedTimingManager().ticksPerQuarter
 ): string | null {
     const timelineTrack = state.tracks[trackId] as AudioTrack | undefined;
     if (!timelineTrack || timelineTrack.type !== 'audio') return null;
@@ -127,7 +129,7 @@ export function getAudioFeatureMatrixRevision(
         state.timeline.globalBpm,
         state.timeline.beatsPerBar,
         JSON.stringify(state.timeline.masterTempoMap ?? []),
-        getSharedTimingManager().ticksPerQuarter,
+        ticksPerQuarter,
     ].join('|');
 }
 
@@ -195,7 +197,10 @@ export function readAudioFeatureMatrix(
         }
     }
 
-    const timing = createTimingContext(state.timeline, getSharedTimingManager().ticksPerQuarter);
+    const timing = createTimingContext(
+        state.timeline,
+        request.ticksPerQuarter ?? getSharedTimingManager().ticksPerQuarter
+    );
     const segments = getAudioClipTimelineSegments(state, request.trackId, timing);
     const data = new Float32Array(scalarCount);
     const coverage = new Uint8Array(frameCount);
@@ -230,8 +235,14 @@ export function readAudioFeatureMatrix(
     }
 
     const revision =
-        getAudioFeatureMatrixRevision(state, request.trackId, request.featureKey, request.analysisProfileId) ??
-        identities.join(',');
+        getAudioFeatureMatrixRevision(
+            state,
+            request.trackId,
+            request.featureKey,
+            request.analysisProfileId,
+            request.strictProfileMatching,
+            request.ticksPerQuarter
+        ) ?? identities.join(',');
     const sampleRate = metadataNumber(firstSource.track, 'sampleRate');
     return {
         revision,

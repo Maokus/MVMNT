@@ -1,4 +1,5 @@
-import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
+import { getSharedTimingManager, useTimelineStore, type TimelineState } from '@state/timelineStore';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { getTempoAlignedFrame } from '@audio/features/tempoAlignedViewAdapter';
 import { resolveFeatureTrackFromCache, sanitizeAnalysisProfileId } from '@audio/features/featureTrackIdentity';
 import type {
@@ -180,10 +181,10 @@ export function resolveDescriptorProfileId(descriptor: AudioFeatureDescriptor | 
 export function resolveFeatureContext(
     trackId: string | null,
     featureKey: string | null,
-    analysisProfileId?: string | null
+    analysisProfileId?: string | null,
+    state: TimelineState = useTimelineStore.getState()
 ) {
     if (!trackId || !featureKey) return null;
-    const state = useTimelineStore.getState();
     const entry = state.tracks[trackId] as TimelineTrackEntry | undefined;
     if (!entry || entry.type !== 'audio') return null;
     const sourceIds = getAudioClipsForTrack(entry)
@@ -242,16 +243,21 @@ export function sampleFeatureFrame(
     trackId: string,
     descriptor: AudioFeatureDescriptor,
     targetTime: number,
-    samplingOptions?: AudioSamplingOptions | null
+    samplingOptions?: AudioSamplingOptions | null,
+    snapshot?: TimelineState,
+    snapshotPPQ = CANONICAL_PPQ
 ): AudioFeatureFrameSample | null {
-    const state = useTimelineStore.getState();
+    const state = snapshot ?? useTimelineStore.getState();
     const analysisProfileId = resolveDescriptorProfileId(descriptor);
-    const context = resolveFeatureContext(trackId, descriptor.featureKey, analysisProfileId);
+    const context = resolveFeatureContext(trackId, descriptor.featureKey, analysisProfileId, state);
     if (!context) {
         return null;
     }
     const { featureTrack } = context;
-    const timing = createTimingContext(state.timeline, getSharedTimingManager().ticksPerQuarter);
+    const timing = createTimingContext(
+        state.timeline,
+        snapshot ? snapshotPPQ : getSharedTimingManager().ticksPerQuarter
+    );
     const tick = secondsToTicks(timing, Math.max(0, targetTime));
     const placementSignature = getAudioClipsForTrack(context.track)
         .map(
@@ -275,6 +281,7 @@ export function sampleFeatureFrame(
         return samplingCache.get(samplingKey) ?? null;
     }
     const { sample, diagnostics } = getTempoAlignedFrame(state, {
+        ticksPerQuarter: snapshot ? snapshotPPQ : undefined,
         trackId,
         featureKey: descriptor.featureKey,
         tick,
@@ -290,7 +297,7 @@ export function sampleFeatureFrame(
                       : samplingOptions?.interpolation,
         },
     });
-    if (diagnostics) {
+    if (diagnostics && !snapshot) {
         recordDiagnostics(diagnostics, trackId);
     }
     const resolved = sample ?? null;

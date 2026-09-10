@@ -1,7 +1,7 @@
 import { PluginContractError, type DiagnosticsApi, type PluginCapability, type Result } from './api.js';
 import type { AudioApi, AudioCalculatorsApi, AudioFeatureDemand } from './audio.js';
 import type { RenderObject, RenderTime } from './render.js';
-import type { TimelineApi } from './timeline.js';
+import type { TimelineApi, MidiNoteEvent } from './timeline.js';
 import type { TimingApi } from './timing.js';
 import type { AssetApi } from './visual-assets.js';
 
@@ -377,22 +377,57 @@ export type PropsFromSchema<Schema extends ElementSchema> = Readonly<{
 }>;
 
 /** One random-access frame. Resources may change cost, but must not encode render history. */
-export interface RenderInput<Props extends Readonly<Record<string, unknown>>, Resources = undefined> {
+export type SimulationContext<Props extends Readonly<Record<string, unknown>>> = Readonly<
+    Pick<ElementContext<Props>, 'properties' | 'timeline' | 'audio' | 'timing' | 'midi'>
+> & {
+    /** Note onsets in this step's half-open interval, not all overlapping sustained notes. */
+    noteOns(trackIds?: readonly string[]): Result<readonly MidiNoteEvent[]>;
+};
+
+export interface SimulationSnapshot<State> {
+    readonly state: Readonly<State>;
+    readonly stepIndex: number;
+    readonly timeSeconds: number;
+}
+
+export interface ElementSimulation<Props extends Readonly<Record<string, unknown>>, State> {
+    /** Canonical fixed step, independent of playback and export frame rate. Defaults to 1/120 second. */
+    readonly stepSeconds?: number;
+    initialize(input: Readonly<{ props: Props; seed: number }>): State;
+    step(
+        input: Readonly<{
+            state: Readonly<NoInfer<State>>;
+            props: Props;
+            time: Readonly<{ seconds: number; stepIndex: number }>;
+            deltaSeconds: number;
+            context: SimulationContext<Props>;
+        }>
+    ): NoInfer<State>;
+}
+
+export interface RenderInput<
+    Props extends Readonly<Record<string, unknown>>,
+    Resources = undefined,
+    State = undefined,
+> {
     readonly props: Props;
     readonly time: RenderTime;
     readonly context: ElementContext<Props>;
     readonly resources: Resources;
+    readonly simulation: State extends undefined ? undefined : SimulationSnapshot<State>;
 }
 
 export interface PluginElementDefinition<
     Props extends Readonly<Record<string, unknown>> = Readonly<Record<string, unknown>>,
     Resources = undefined,
     Schema = unknown,
+    State = undefined,
 > {
     readonly kind: 'mvmnt.plugin-element.v2';
     readonly type: string;
     readonly metadata: ElementMetadata;
     readonly schema: Schema;
+    readonly simulation?: ElementSimulation<Props, State>;
     /** Declaratively describes every analyzed audio artifact required by this instance. */
     audioFeatureDemands?(props: Props): readonly AudioFeatureDemand[];
     load?(context: ResourceContext): void | Promise<void>;
@@ -402,7 +437,7 @@ export interface PluginElementDefinition<
      * Produces one random-access frame. Resources may cache reusable work, but output must not depend on
      * the order or number of previous render calls.
      */
-    render(input: RenderInput<Props, NoInfer<Resources>>): readonly RenderObject[];
+    render(input: RenderInput<Props, NoInfer<Resources>, NoInfer<State>>): readonly RenderObject[];
     /** Releases plugin-owned instance resources synchronously. Asynchronous work stops through context.signal. */
     disposeResources?(resources: NoInfer<Resources>, context: ResourceContext): undefined;
     unload?(context: ResourceContext): void | Promise<void>;
@@ -412,7 +447,8 @@ export type PluginElementDefinitionInput<
     Props extends Readonly<Record<string, unknown>>,
     Resources,
     Schema = unknown,
-> = Omit<PluginElementDefinition<Props, Resources, Schema>, 'kind' | 'createResources' | 'disposeResources'> &
+    State = undefined,
+> = Omit<PluginElementDefinition<Props, Resources, Schema, State>, 'kind' | 'createResources' | 'disposeResources'> &
     (
         | {
               createResources(context: ResourceContext): Resources | Promise<Resources>;
@@ -421,9 +457,9 @@ export type PluginElementDefinitionInput<
         | ([Resources] extends [undefined] ? { createResources?: never; disposeResources?: never } : never)
     );
 
-export function definePluginElement<const Schema extends ElementSchema, Resources = undefined>(
-    input: PluginElementDefinitionInput<PropsFromSchema<Schema>, Resources, Schema>
-): PluginElementDefinition<PropsFromSchema<Schema>, Resources, Schema>;
+export function definePluginElement<const Schema extends ElementSchema, Resources = undefined, State = undefined>(
+    input: PluginElementDefinitionInput<PropsFromSchema<Schema>, Resources, Schema, State>
+): PluginElementDefinition<PropsFromSchema<Schema>, Resources, Schema, State>;
 /**
  * Explicit props for engine-owned schemas. External plugins normally infer props from builders.
  */
@@ -431,10 +467,13 @@ export function definePluginElement<
     Props extends Readonly<Record<string, unknown>> = Readonly<Record<string, unknown>>,
     Resources = undefined,
     Schema = unknown,
->(input: PluginElementDefinitionInput<Props, Resources, Schema>): PluginElementDefinition<Props, Resources, Schema>;
+    State = undefined,
+>(
+    input: PluginElementDefinitionInput<Props, Resources, Schema, State>
+): PluginElementDefinition<Props, Resources, Schema, State>;
 export function definePluginElement(
-    input: Omit<PluginElementDefinition<any, any>, 'kind'>
-): PluginElementDefinition<any, any> {
+    input: Omit<PluginElementDefinition<any, any, any, any>, 'kind'>
+): PluginElementDefinition<any, any, any, any> {
     if (!input || typeof input !== 'object')
         throw new PluginContractError('definePluginElement() requires a definition object');
     // Camel-case remains valid for stable built-in type IDs created before SDK 2.
@@ -449,10 +488,24 @@ export function definePluginElement(
     }
     if (input.disposeResources && !input.createResources)
         throw new PluginContractError(`Element '${input.type}' disposeResources requires createResources`);
+    if (input.simulation !== undefined) {
+        const simulation = input.simulation;
+        if (!simulation || typeof simulation.initialize !== 'function' || typeof simulation.step !== 'function')
+            throw new PluginContractError('simulation requires initialize() and step()');
+        const dt = simulation.stepSeconds ?? 1 / 120;
+        if (!Number.isFinite(dt) || dt <= 0)
+            throw new PluginContractError('simulation.stepSeconds must be finite and positive');
+        const seed = input.schema?.tabs
+            ?.flatMap((tab: any) => tab.groups ?? [])
+            .flatMap((group: any) => group.properties ?? [])
+            .find((property: any) => property.key === 'seed');
+        if (seed?.type !== 'number')
+            throw new PluginContractError('simulation requires a numeric seed schema property');
+    }
     return Object.freeze({ ...input, kind: 'mvmnt.plugin-element.v2' as const });
 }
 
-export function isPluginElementDefinition(value: unknown): value is PluginElementDefinition<any, any> {
+export function isPluginElementDefinition(value: unknown): value is PluginElementDefinition<any, any, any, any> {
     return Boolean(
         value && typeof value === 'object' && (value as { kind?: unknown }).kind === 'mvmnt.plugin-element.v2'
     );

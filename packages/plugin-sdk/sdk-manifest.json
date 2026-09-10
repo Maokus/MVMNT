@@ -4,7 +4,12 @@
     "runtimeFormat": "commonjs",
     "elementContract": {
         "renderInputType": "RenderInput",
-        "renderInputFields": ["props", "time", "context", "resources"],
+        "renderInputFields": ["props", "time", "context", "resources", "simulation"],
+        "simulationFacet": {
+            "callbacks": ["initialize", "step"],
+            "defaultStepSeconds": 0.008333333333333333,
+            "requiredSchemaProperties": ["seed"]
+        },
         "resourceContextType": "ResourceContext",
         "resourceContextFields": ["assets", "audioCalculators", "diagnostics", "signal", "onCleanup"],
         "lifecycle": ["load", "createResources", "render", "disposeResources", "unload"]

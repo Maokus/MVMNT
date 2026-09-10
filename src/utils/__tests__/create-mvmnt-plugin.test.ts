@@ -35,6 +35,7 @@ describe('create-mvmnt-plugin CLI', () => {
             'basic-shape',
             'text-display',
             'midi-notes',
+            'midi-spring',
             'audio-reactive',
             'image-simple',
             'bundled-image',

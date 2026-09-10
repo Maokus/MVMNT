@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useVisualizer } from '@context/VisualizerContext';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 // (Former inline math-related logic moved to canvasInteractionUtils)
@@ -85,6 +85,13 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
 
     // Thin wrapper handlers delegating to extracted utilities
     const visualizerInstance = (ctx as any).visualizer;
+    const simulationStatus = useSyncExternalStore(
+        useCallback(
+            (listener: () => void) => visualizerInstance?.subscribeSimulationStatus?.(listener) ?? (() => {}),
+            [visualizerInstance]
+        ),
+        useCallback(() => visualizerInstance?.getSimulationStatus?.() ?? 'ready', [visualizerInstance])
+    );
     const handlerDeps = useMemo(
         () => ({
             canvasRef,
@@ -205,6 +212,16 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             }}
         >
             <div className="canvas-container" ref={containerRef}>
+                {simulationStatus !== 'ready' && (
+                    <div
+                        role="status"
+                        className="absolute top-2 left-2 z-10 rounded bg-black/70 px-2 py-1 text-xs text-white"
+                    >
+                        {simulationStatus === 'error'
+                            ? 'Simulation failed — check plugin diagnostics'
+                            : 'Preparing simulation…'}
+                    </div>
+                )}
                 <canvas
                     id="canvas"
                     ref={canvasRef}

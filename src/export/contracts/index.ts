@@ -79,6 +79,8 @@ export interface ExportPipelineResult {
 export interface ExportRenderAdapter {
     resize(width: number, height: number): void;
     renderAtTime(seconds: number): void;
+    prepareFrame(seconds: number, signal?: AbortSignal): Promise<void>;
+    beginSimulationExport?(): () => void;
     setTransparentMode?(transparent: boolean): void;
 }
 

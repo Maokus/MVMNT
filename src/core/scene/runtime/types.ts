@@ -2,12 +2,30 @@ import type { PropertyBinding } from '@bindings/property-bindings';
 import type { RenderObject } from '@core/render/render-objects';
 import type { RegisteredElementSchema } from './schema';
 import type { PerspectiveWarp } from '@math/perspective-warp';
+import type { SimulationGeneration } from './simulation-inputs';
+import type { SimulationStatus } from './simulation-runner';
 
 /** Runtime-only instance consumed by the scene adapter and persistence bridge. */
 export interface SceneElementInstance {
     type: string;
     id: string | null;
     visible: boolean;
+    readonly hasSimulation?: boolean;
+    getSimulationStatus?(session?: object): SimulationStatus;
+    requestSimulationFrame?(
+        seconds: number,
+        generation: SimulationGeneration,
+        changed: () => void,
+        session?: object
+    ): SimulationStatus;
+    prepareSimulationFrame?(
+        seconds: number,
+        generation: SimulationGeneration,
+        changed: () => void,
+        signal?: AbortSignal,
+        session?: object
+    ): Promise<void>;
+    releaseSimulationSession?(session: object): void;
     perspectiveWarp?: PerspectiveWarp | null;
     buildRenderObjects(config: unknown, targetTime: number): RenderObject[];
     updateConfig(config: Record<string, unknown>): SceneElementInstance;
