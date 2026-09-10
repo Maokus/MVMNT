@@ -785,6 +785,7 @@ export function createPluginDefinitionScope(
             }
         >();
         private activeSimulation?: SimulationRunner;
+        private activeSimulationSession = this.previewSession;
         private simulationRenderContext?: ElementContext<any>;
         private simulationPropsAt?: SimulationInputs['propsAt'];
         private readonly simulationDemandOwner = { id: `simulation:${this.id}` };
@@ -883,6 +884,7 @@ export function createPluginDefinitionScope(
                 this.simulations.set(session, record);
             }
             this.activeSimulation = record.runner;
+            this.activeSimulationSession = session;
             this.simulationRenderContext = record.context;
             this.simulationPropsAt = record.inputs.propsAt;
             record.runner.request(seconds, record.inputs);
@@ -1226,11 +1228,13 @@ export function createPluginDefinitionScope(
             }
             if (!this.initialized) return [];
             const simulation = this.activeSimulation?.snapshot(targetTime);
+            const allowSimulationTransitions = this.activeSimulationSession === this.previewSession;
             if (this.hasSimulation && !simulation) {
                 const readiness = this.getSimulationReadiness();
                 const now = runtimeNow();
                 this.notReadySince ??= now;
                 if (
+                    allowSimulationTransitions &&
                     readiness.status === 'preparing' &&
                     this.lastReadySimulationOutput !== undefined &&
                     now - this.notReadySince < SIMULATION_PLACEHOLDER_GRACE_MS
@@ -1240,7 +1244,7 @@ export function createPluginDefinitionScope(
                 }
                 return this.renderSimulationPlaceholder(readiness, targetTime);
             }
-            if (this.hasSimulation && this.placeholderVisibleSince !== undefined) {
+            if (this.hasSimulation && allowSimulationTransitions && this.placeholderVisibleSince !== undefined) {
                 const elapsed = runtimeNow() - this.placeholderVisibleSince;
                 if (elapsed < SIMULATION_PLACEHOLDER_GRACE_MS) {
                     this.scheduleSimulationTransition(SIMULATION_PLACEHOLDER_GRACE_MS - elapsed);

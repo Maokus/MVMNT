@@ -112,4 +112,48 @@ describe('ExportCoordinator', () => {
         });
         expect(abort).toHaveBeenCalledOnce();
     });
+
+    it('reports an internal AbortError as a failure instead of a user cancellation', async () => {
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        const abort = vi.fn().mockResolvedValue(undefined);
+        const output: ExportOutputSession = {
+            sessionId: 'session-failed',
+            displayName: 'failed',
+            writeFrame: vi.fn(),
+            writeArtifact: vi.fn(),
+            complete: vi.fn(),
+            abort,
+        };
+        const coordinator = new ExportCoordinator({
+            sceneDuration: () => 1,
+            createEnvironment: () => ({
+                canvas: { width: 1, height: 1 } as HTMLCanvasElement,
+                renderer: {
+                    resize: vi.fn(),
+                    prepareFrame: vi.fn().mockRejectedValue(new DOMException('Simulation retargeted', 'AbortError')),
+                    renderAtTime: vi.fn(),
+                },
+                prepare: vi.fn(),
+                secondsToTicks: (seconds) => seconds,
+            }),
+            beginOutput: vi.fn().mockResolvedValue(output),
+        });
+
+        const job = coordinator.submit(
+            {
+                kind: 'png',
+                sceneName: 'Internal abort',
+                settings: { fps: 1, width: 1, height: 1, fullDuration: true, startTime: 0, endTime: 0 },
+            },
+            1,
+            0
+        );
+
+        await vi.waitFor(() => {
+            expect(useExportJobStore.getState().jobs.find((item) => item.id === job.id)?.status).toBe('failed');
+        });
+        expect(consoleError).toHaveBeenCalledWith('Export job failed', expect.any(DOMException));
+        expect(abort).toHaveBeenCalledOnce();
+        consoleError.mockRestore();
+    });
 });

@@ -72,4 +72,28 @@ describe('simulation frame preparation', () => {
         adapter.dispose();
         useTimelineStore.getState().clearAudioFeatureCache('simulation-test');
     });
+
+    it('does not let incidental preview renders retarget an export simulation', async () => {
+        const adapter = new SceneRuntimeAdapter({ store: createSceneStore() });
+        const request = vi.fn();
+        const prepare = vi.fn().mockResolvedValue(undefined);
+        vi.spyOn(adapter, 'getElements').mockReturnValue([
+            { hasSimulation: true, requestSimulationFrame: request, prepareSimulationFrame: prepare },
+        ] as any);
+
+        const end = adapter.beginSimulationExport();
+        adapter.requestSimulationFrame(7);
+        await adapter.prepareFrame(2);
+
+        expect(request).not.toHaveBeenCalled();
+        expect(prepare).toHaveBeenCalledWith(
+            2,
+            expect.anything(),
+            expect.any(Function),
+            expect.any(AbortSignal),
+            expect.anything()
+        );
+        end();
+        adapter.dispose();
+    });
 });

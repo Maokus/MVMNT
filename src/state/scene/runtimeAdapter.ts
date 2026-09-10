@@ -226,14 +226,12 @@ export class SceneRuntimeAdapter {
     requestSimulationFrame(seconds: number): void {
         const elements = this.getElements().filter((element) => element.hasSimulation);
         if (!elements.length) return;
+        // Export frames are prepared explicitly before they are rendered. Ignore
+        // incidental preview renders (for example, the one scheduled by the
+        // export canvas resize) so they cannot retarget the export runners.
+        if (this.exportSimulation) return;
         const generation = this.getSimulationGeneration();
-        for (const element of elements)
-            element.requestSimulationFrame?.(
-                seconds,
-                generation,
-                this.simulationChanged,
-                this.exportSimulation?.session
-            );
+        for (const element of elements) element.requestSimulationFrame?.(seconds, generation, this.simulationChanged);
     }
 
     async prepareFrame(seconds: number, signal?: AbortSignal): Promise<void> {

@@ -98,7 +98,10 @@ export class ExportCoordinator {
                 text: 'Preparing export…',
             });
             output = await this.dependencies.beginOutput(plan);
-            if (!output) throw new DOMException('Export cancelled', 'AbortError');
+            if (!output) {
+                controller.abort();
+                throw new DOMException('Export cancelled', 'AbortError');
+            }
             store.update(job.id, { outputName: output.displayName });
             const { ExportPipeline } = await import('../pipeline/export-pipeline');
             const result = await new ExportPipeline().run(
@@ -139,8 +142,7 @@ export class ExportCoordinator {
             this.dependencies.onCompleted?.(completedJob);
         } catch (error) {
             await output?.abort().catch(() => undefined);
-            const cancelled =
-                controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError');
+            const cancelled = controller.signal.aborted;
             if (!cancelled) console.error('Export job failed', error);
             const failedJob: ExportJob = {
                 ...job,

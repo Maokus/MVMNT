@@ -88,6 +88,44 @@ describe('simulation definition integration', () => {
         await scope.dispose();
     });
 
+    it('renders a prepared export snapshot without preview placeholder hysteresis', async () => {
+        let now = 0;
+        const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now);
+        const render = vi.fn(() => [new Rectangle(0, 0, 20, 20)]);
+        const definition = definePluginElement({
+            type: 'simulation-export-test',
+            metadata: { name: 'Simulation export' },
+            schema: { tabs: [tab.properties([group('simulation', 'Simulation', [prop.number('seed', 'Seed', 3)])])] },
+            simulation: {
+                initialize: ({ seed }) => ({ count: seed }),
+                step: ({ state }) => ({ count: state.count + 1 }),
+            },
+            render,
+        });
+        const scope = createPluginDefinitionScope(definition, {
+            pluginId: 'test',
+            services: null,
+            synchronousInitialization: true,
+            loadAsset: async () => '',
+            report: vi.fn(),
+        });
+        const element = scope.createRegistration({ kind: 'built-in' }).create();
+        const generation = new SimulationGeneration(useSceneStore.getState(), useTimelineStore.getState());
+
+        const placeholder = element.buildRenderObjects({}, 1);
+        expect(renderedText(placeholder).map((text) => text.text)).toContain('Waiting to prepare simulation');
+        const exportSession = {};
+        await element.prepareSimulationFrame!(1, generation, () => {}, undefined, exportSession);
+        const exported = element.buildRenderObjects({}, 1);
+
+        expect(render).toHaveBeenCalledOnce();
+        expect(exported.flatMap((object) => object.children ?? [])).toEqual([expect.any(Rectangle)]);
+        expect(renderedText(exported)).toHaveLength(0);
+        element.releaseSimulationSession?.(exportSession);
+        await scope.dispose();
+        nowSpy.mockRestore();
+    });
+
     it('holds the last complete output briefly before showing a preparation placeholder', async () => {
         let now = 0;
         const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now);
