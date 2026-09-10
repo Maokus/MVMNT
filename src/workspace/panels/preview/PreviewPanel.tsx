@@ -9,9 +9,25 @@ import { DRAG_ASSET_TYPE } from '../asset-manager/AssetManagerPanel';
 import { CreateElementPopup } from '@workspace/panels/scene-element';
 import { isTextEditingTarget, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 import { activateCommandSurface, isCommandSurfaceActive } from '@context/commands/commandContext';
+import type { SceneSimulationReadiness } from '@state/scene/runtimeAdapter';
+import { SIMULATION_PLACEHOLDER_GRACE_MS } from '@core/scene/runtime/simulation-runner';
 
 interface PreviewPanelProps {
     interactive?: boolean;
+}
+
+const READY_SIMULATION: SceneSimulationReadiness = Object.freeze({ status: 'ready', affected: Object.freeze([]) });
+
+function simulationStatusText(readiness: SceneSimulationReadiness): string {
+    const count = readiness.affected.length;
+    const title =
+        readiness.status === 'error'
+            ? 'Simulation unavailable'
+            : readiness.status === 'pending'
+              ? 'Simulation waiting for inputs'
+              : 'Preparing simulation';
+    const affected = count > 1 ? `${count} elements · ` : '';
+    return `${affected}${title}${readiness.reason ? ` — ${readiness.reason}` : ''}`;
 }
 
 const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
@@ -85,13 +101,29 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
 
     // Thin wrapper handlers delegating to extracted utilities
     const visualizerInstance = (ctx as any).visualizer;
-    const simulationStatus = useSyncExternalStore(
+    const simulationReadiness = useSyncExternalStore(
         useCallback(
             (listener: () => void) => visualizerInstance?.subscribeSimulationStatus?.(listener) ?? (() => {}),
             [visualizerInstance]
         ),
-        useCallback(() => visualizerInstance?.getSimulationStatus?.() ?? 'ready', [visualizerInstance])
+        useCallback(() => visualizerInstance?.getSimulationReadiness?.() ?? READY_SIMULATION, [visualizerInstance])
     );
+    const [visibleSimulationReadiness, setVisibleSimulationReadiness] = useState<SceneSimulationReadiness | null>(null);
+    useEffect(() => {
+        if (simulationReadiness.status === 'ready') {
+            setVisibleSimulationReadiness(null);
+            return;
+        }
+        if (simulationReadiness.status === 'pending' || simulationReadiness.status === 'error') {
+            setVisibleSimulationReadiness(simulationReadiness);
+            return;
+        }
+        const timer = window.setTimeout(
+            () => setVisibleSimulationReadiness(simulationReadiness),
+            SIMULATION_PLACEHOLDER_GRACE_MS
+        );
+        return () => window.clearTimeout(timer);
+    }, [simulationReadiness]);
     const handlerDeps = useMemo(
         () => ({
             canvasRef,
@@ -212,14 +244,12 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             }}
         >
             <div className="canvas-container" ref={containerRef}>
-                {simulationStatus !== 'ready' && (
+                {visibleSimulationReadiness && (
                     <div
                         role="status"
                         className="absolute top-2 left-2 z-10 rounded bg-black/70 px-2 py-1 text-xs text-white"
                     >
-                        {simulationStatus === 'error'
-                            ? 'Simulation failed — check plugin diagnostics'
-                            : 'Preparing simulation…'}
+                        {simulationStatusText(visibleSimulationReadiness)}
                     </div>
                 )}
                 <canvas

@@ -67,13 +67,20 @@ describe('canonical simulation', () => {
         await expect(runner.prepare(1, input)).rejects.toThrow('not ready');
         expect(runner.snapshot(1)).toBeUndefined();
         expect(runner.status).toBe('pending');
+        expect(runner.getReadiness()).toMatchObject({
+            status: 'pending',
+            reason: 'waiting',
+            completedStep: 0,
+            targetStep: 120,
+        });
         await runner.prepare(1, inputs());
         expect(runner.snapshot(1)?.stepIndex).toBe(120);
         runner.dispose();
     });
 
     it('completes nearby playback requests before the preview renders', () => {
-        const runner = new SimulationRunner(definition, () => {});
+        const changed = vi.fn();
+        const runner = new SimulationRunner(definition, changed);
         const input = inputs();
 
         runner.request(0, input);
@@ -83,6 +90,17 @@ describe('canonical simulation', () => {
         runner.request(2 / 120, input);
         expect(runner.status).toBe('ready');
         expect(runner.snapshot(2 / 120)?.stepIndex).toBe(2);
+        expect(changed).toHaveBeenCalledTimes(2);
+        runner.dispose();
+    });
+
+    it('retains a useful failure reason', () => {
+        const runner = new SimulationRunner({ ...definition, initialize: () => ({ broken: Infinity }) }, () => {});
+        runner.request(0, inputs());
+        expect(runner.getReadiness()).toMatchObject({
+            status: 'error',
+            reason: 'Simulation numbers must be finite',
+        });
         runner.dispose();
     });
 

@@ -6,6 +6,14 @@ import type {
 
 export class SimulationPending extends Error {}
 export type SimulationStatus = 'idle' | 'preparing' | 'pending' | 'ready' | 'error' | 'disposed';
+export interface SimulationReadiness {
+    readonly status: SimulationStatus;
+    readonly reason?: string;
+    readonly completedStep: number;
+    readonly targetStep: number;
+    readonly changedAt: number;
+}
+export const SIMULATION_PLACEHOLDER_GRACE_MS = 150;
 export interface SimulationInputs {
     readonly identity: object;
     propsAt(seconds: number): Readonly<Record<string, unknown>>;
@@ -112,6 +120,8 @@ function schedule(runner: SimulationRunner): void {
 export class SimulationRunner {
     status: SimulationStatus = 'idle';
     error?: Error;
+    private reason = 'Waiting to prepare simulation';
+    private changedAt = performance.now();
     private input?: SimulationInputs;
     private target = 0;
     private step = -1;
@@ -130,10 +140,41 @@ export class SimulationRunner {
         if (!Number.isFinite(this.dt) || this.dt <= 0) throw new Error('Simulation step must be finite and positive');
     }
 
-    private publish(status: SimulationStatus): void {
+    private setStatus(status: SimulationStatus, reason?: string, notify = true): void {
+        const nextReason = reason ?? this.defaultReason(status);
+        if (this.status !== status || this.reason !== nextReason) this.changedAt = performance.now();
         this.status = status;
+        this.reason = nextReason;
+        if (!notify) return;
         this.changed();
         for (const listener of [...this.listeners]) listener();
+    }
+
+    private defaultReason(status: SimulationStatus): string {
+        switch (status) {
+            case 'idle':
+                return 'Waiting to prepare simulation';
+            case 'preparing':
+                return `Calculating simulation at ${(this.target * this.dt).toFixed(2)} s`;
+            case 'pending':
+                return 'Simulation inputs are not ready';
+            case 'error':
+                return this.error?.message ?? 'Simulation failed';
+            case 'disposed':
+                return 'Simulation was disposed';
+            case 'ready':
+                return '';
+        }
+    }
+
+    getReadiness(): SimulationReadiness {
+        return Object.freeze({
+            status: this.status,
+            ...(this.reason ? { reason: this.reason } : {}),
+            completedStep: this.step,
+            targetStep: this.target,
+            changedAt: this.changedAt,
+        });
     }
 
     request(seconds: number, input: SimulationInputs): void {
@@ -147,6 +188,8 @@ export class SimulationRunner {
             this.checkpoints.clear();
             this.checkpointBytes = 0;
             this.status = 'idle';
+            this.reason = this.defaultReason('idle');
+            this.changedAt = performance.now();
         }
         if (this.status === 'error') return;
         if (
@@ -168,15 +211,21 @@ export class SimulationRunner {
                 this.state = undefined;
             }
         }
-        if (this.step === target) this.publish('ready');
+        if (this.step === target) this.setStatus('ready');
         else {
-            this.publish('preparing');
             // Normal playback usually advances by only one or two fixed steps.
             // Complete those small requests before renderAtTime asks for the
             // snapshot so the canvas does not alternate between a frame and an
             // empty "preparing" render. Large seeks remain cooperative.
-            if (target - this.step <= SYNCHRONOUS_PREVIEW_STEPS) this.advanceChunk();
-            else schedule(this);
+            if (target - this.step <= SYNCHRONOUS_PREVIEW_STEPS) {
+                // advanceChunk requires the preparing state, but observers only
+                // need to hear about it if the work cannot complete inline.
+                this.setStatus('preparing', undefined, false);
+                this.advanceChunk();
+            } else {
+                this.setStatus('preparing');
+                schedule(this);
+            }
         }
     }
 
@@ -211,13 +260,13 @@ export class SimulationRunner {
                 if (this.step % 120 === 0) this.saveCheckpoint();
                 if (performance.now() - started >= 8) break;
             }
-            if (this.step === this.target) this.publish('ready');
+            if (this.step === this.target) this.setStatus('ready');
             else schedule(this);
         } catch (error) {
-            if (error instanceof SimulationPending) this.publish('pending');
+            if (error instanceof SimulationPending) this.setStatus('pending', error.message);
             else {
                 this.error = error instanceof Error ? error : new Error(String(error));
-                this.publish('error');
+                this.setStatus('error', this.error.message);
             }
         }
     }
@@ -286,7 +335,7 @@ export class SimulationRunner {
         this.checkpointBytes = 0;
         this.state = undefined;
         this.input = undefined;
-        this.publish('disposed');
+        this.setStatus('disposed');
         this.listeners.clear();
     }
 }

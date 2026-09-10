@@ -3,7 +3,7 @@ import type { RenderObject } from '@core/render/render-objects';
 import type { RegisteredElementSchema } from './schema';
 import type { PerspectiveWarp } from '@math/perspective-warp';
 import type { SimulationGeneration } from './simulation-inputs';
-import type { SimulationStatus } from './simulation-runner';
+import type { SimulationReadiness, SimulationStatus } from './simulation-runner';
 
 /** Runtime-only instance consumed by the scene adapter and persistence bridge. */
 export interface SceneElementInstance {
@@ -12,6 +12,7 @@ export interface SceneElementInstance {
     visible: boolean;
     readonly hasSimulation?: boolean;
     getSimulationStatus?(session?: object): SimulationStatus;
+    getSimulationReadiness?(session?: object): SimulationReadiness;
     requestSimulationFrame?(
         seconds: number,
         generation: SimulationGeneration,

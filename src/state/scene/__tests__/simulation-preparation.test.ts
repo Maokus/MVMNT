@@ -5,6 +5,39 @@ import { SceneRuntimeAdapter } from '../runtimeAdapter';
 import { SimulationPending } from '@core/scene/runtime/simulation-runner';
 
 describe('simulation frame preparation', () => {
+    it('aggregates element reasons by severity and coalesces readiness notifications', async () => {
+        const adapter = new SceneRuntimeAdapter({ store: createSceneStore() });
+        const listener = vi.fn();
+        const readiness = { status: 'preparing', reason: 'Replaying simulation' } as const;
+        const request = vi.fn((_seconds, _generation, changed: () => void) => {
+            changed();
+            changed();
+            return readiness.status;
+        });
+        vi.spyOn(adapter, 'getElements').mockReturnValue([
+            {
+                id: 'particles',
+                type: 'test:particles',
+                hasSimulation: true,
+                getSimulationReadiness: () => readiness,
+                requestSimulationFrame: request,
+            },
+        ] as any);
+        const unsubscribe = adapter.subscribeSimulationStatus(listener);
+
+        adapter.requestSimulationFrame(2);
+        await Promise.resolve();
+
+        expect(adapter.getSimulationReadiness()).toMatchObject({
+            status: 'preparing',
+            reason: 'Replaying simulation',
+            affected: [expect.objectContaining({ elementId: 'particles' })],
+        });
+        expect(listener).toHaveBeenCalledTimes(1);
+        unsubscribe();
+        adapter.dispose();
+    });
+
     it('wakes pending preparation when its adapter is disposed', async () => {
         const adapter = new SceneRuntimeAdapter({ store: createSceneStore() });
         const prepare = vi.fn().mockRejectedValue(new SimulationPending('audio'));

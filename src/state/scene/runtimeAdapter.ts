@@ -32,7 +32,11 @@ import {
     simulationAuthoredIdentity,
     sameSimulationInputs,
 } from '@core/scene/runtime/simulation-inputs';
-import { SimulationPending } from '@core/scene/runtime/simulation-runner';
+import {
+    SimulationPending,
+    type SimulationReadiness,
+    type SimulationStatus,
+} from '@core/scene/runtime/simulation-runner';
 
 type SceneStoreBinding = typeof useSceneStore;
 
@@ -47,6 +51,31 @@ export interface SceneRuntimeAdapterDiagnostics {
     settingsVersion: number;
     elementVersions: Record<string, number>;
 }
+
+export interface ElementSimulationReadiness extends SimulationReadiness {
+    readonly elementId: string;
+    readonly elementType: string;
+}
+
+export interface SceneSimulationReadiness {
+    readonly status: 'ready' | 'preparing' | 'pending' | 'error';
+    readonly reason?: string;
+    readonly affected: readonly ElementSimulationReadiness[];
+}
+
+const READY_SIMULATION_SNAPSHOT: SceneSimulationReadiness = Object.freeze({
+    status: 'ready',
+    affected: Object.freeze([]),
+});
+
+const simulationPriority: Record<SimulationStatus, number> = {
+    error: 4,
+    pending: 3,
+    preparing: 2,
+    idle: 1,
+    ready: 0,
+    disposed: 0,
+};
 
 export interface SceneRuntimeAdapterOptions {
     store?: SceneStoreBinding;
@@ -110,6 +139,8 @@ export class SceneRuntimeAdapter {
     private simulationIdentity: unknown[] = [];
     private readonly simulationListeners = new Set<() => void>();
     private readonly simulationLifetime = new AbortController();
+    private simulationReadiness: SceneSimulationReadiness = READY_SIMULATION_SNAPSHOT;
+    private simulationNotificationQueued = false;
     private exportSimulation?: {
         session: object;
         generation?: SimulationGeneration;
@@ -117,13 +148,37 @@ export class SceneRuntimeAdapter {
         authored: unknown[];
     };
 
-    getSimulationStatus = (): 'ready' | 'preparing' | 'error' => {
-        const states = this.getElements()
+    private collectSimulationReadiness(): SceneSimulationReadiness {
+        const affected = this.getElements()
             .filter((element) => element.hasSimulation)
-            .map((element) => element.getSimulationStatus?.());
-        if (states.includes('error')) return 'error';
-        return states.some((status) => status !== 'ready' && status !== 'disposed') ? 'preparing' : 'ready';
-    };
+            .map((element): ElementSimulationReadiness | undefined => {
+                const readiness = element.getSimulationReadiness?.();
+                if (!readiness || readiness.status === 'ready' || readiness.status === 'disposed') return undefined;
+                return Object.freeze({
+                    ...readiness,
+                    elementId: element.id ?? element.type,
+                    elementType: element.type,
+                });
+            })
+            .filter((value): value is ElementSimulationReadiness => value !== undefined)
+            .sort((left, right) => simulationPriority[right.status] - simulationPriority[left.status]);
+        if (!affected.length) return READY_SIMULATION_SNAPSHOT;
+        const first = affected[0];
+        const status: SceneSimulationReadiness['status'] =
+            first.status === 'error' ? 'error' : first.status === 'pending' ? 'pending' : 'preparing';
+        return Object.freeze({ status, reason: first.reason, affected: Object.freeze(affected) });
+    }
+
+    private updateSimulationReadiness(): boolean {
+        const next = this.collectSimulationReadiness();
+        if (serializeStable(next) === serializeStable(this.simulationReadiness)) return false;
+        this.simulationReadiness = next;
+        return true;
+    }
+
+    getSimulationReadiness = (): SceneSimulationReadiness => this.simulationReadiness;
+
+    getSimulationStatus = (): 'ready' | 'preparing' | 'pending' | 'error' => this.simulationReadiness.status;
 
     subscribeSimulationStatus = (listener: () => void): (() => void) => {
         this.simulationListeners.add(listener);
@@ -135,8 +190,15 @@ export class SceneRuntimeAdapter {
     private simulationChanged = () => {
         if (this.disposed) return;
         this.invalidateResolvedFrame();
-        for (const listener of [...this.simulationListeners]) listener();
-        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('mvmnt-scene-runtime-updated'));
+        this.updateSimulationReadiness();
+        if (this.simulationNotificationQueued) return;
+        this.simulationNotificationQueued = true;
+        queueMicrotask(() => {
+            this.simulationNotificationQueued = false;
+            if (this.disposed) return;
+            for (const listener of [...this.simulationListeners]) listener();
+            if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('mvmnt-scene-runtime-updated'));
+        });
     };
 
     private getSimulationGeneration(): SimulationGeneration {
@@ -315,6 +377,7 @@ export class SceneRuntimeAdapter {
         this.settings = { ...initialState.settings };
         this.orderedIds = deriveElementOrder(initialState.graph);
         this.bootstrap(initialState);
+        this.updateSimulationReadiness();
         this.unsubscribe = this.store.subscribe((next: SceneStoreState, prev: SceneStoreState) => {
             this.handleStateChange(next, prev);
         });
@@ -660,6 +723,9 @@ export class SceneRuntimeAdapter {
             this.adapterVersion += 1;
             this.resolvedFrame = null;
             if (next.graph !== prev.graph) this.structureIndex = null;
+            if (this.updateSimulationReadiness()) {
+                for (const listener of [...this.simulationListeners]) listener();
+            }
             try {
                 if (typeof window !== 'undefined') {
                     window.dispatchEvent(new CustomEvent('mvmnt-scene-runtime-updated'));

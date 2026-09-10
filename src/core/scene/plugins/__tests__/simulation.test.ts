@@ -4,9 +4,16 @@ import { createPluginDefinitionScope } from '@core/scene/runtime/definition-runt
 import { SimulationGeneration } from '@core/scene/runtime/simulation-inputs';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
+import { Rectangle, Text } from '@core/render/render-objects';
+import { SimulationPending } from '@core/scene/runtime/simulation-runner';
+
+const renderedText = (objects: any[]) =>
+    objects.flatMap((object) => object.children ?? []).filter((object): object is Text => object instanceof Text);
 
 describe('simulation definition integration', () => {
     it('infers state and props and renders only exact prepared snapshots', async () => {
+        let now = 0;
+        const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now);
         const render = vi.fn();
         const definition = definePluginElement({
             type: 'simulation-test',
@@ -30,15 +37,92 @@ describe('simulation definition integration', () => {
         });
         const element = scope.createRegistration({ kind: 'built-in' }).create();
         const generation = new SimulationGeneration(useSceneStore.getState(), useTimelineStore.getState());
+        const placeholder = element.buildRenderObjects({}, 1);
+        expect(render).not.toHaveBeenCalled();
+        expect(renderedText(placeholder).map((text) => text.text)).toContain('Waiting to prepare simulation');
+        await element.prepareSimulationFrame!(1, generation, () => {});
         element.buildRenderObjects({}, 1);
         expect(render).not.toHaveBeenCalled();
-        await element.prepareSimulationFrame!(1, generation, () => {});
+        now = 151;
         element.buildRenderObjects({}, 1);
         expect(render).toHaveBeenLastCalledWith(123);
         await element.prepareSimulationFrame!(0, generation, () => {});
         element.buildRenderObjects({}, 0);
         expect(render).toHaveBeenLastCalledWith(3);
         await scope.dispose();
+        nowSpy.mockRestore();
+    });
+
+    it('shows the pending reason inside the element placeholder', async () => {
+        const definition = definePluginElement({
+            type: 'simulation-pending-test',
+            metadata: { name: 'Pending simulation' },
+            schema: { tabs: [tab.properties([group('simulation', 'Simulation', [prop.number('seed', 'Seed', 3)])])] },
+            simulation: {
+                initialize: () => ({ count: 0 }),
+                step: () => {
+                    throw new SimulationPending('Audio analysis is still running');
+                },
+            },
+            render: () => [new Rectangle(0, 0, 200, 100)],
+        });
+        const scope = createPluginDefinitionScope(definition, {
+            pluginId: 'test',
+            services: null,
+            synchronousInitialization: true,
+            loadAsset: async () => '',
+            report: vi.fn(),
+        });
+        const element = scope.createRegistration({ kind: 'built-in' }).create();
+        const generation = new SimulationGeneration(useSceneStore.getState(), useTimelineStore.getState());
+
+        await expect(element.prepareSimulationFrame!(1 / 120, generation, () => {})).rejects.toThrow(
+            'Simulation inputs are not ready'
+        );
+        const placeholder = element.buildRenderObjects({}, 1 / 120);
+        expect(renderedText(placeholder).map((text) => text.text)).toContain('Audio analysis is still running');
+        expect(element.getSimulationReadiness?.()).toMatchObject({
+            status: 'pending',
+            reason: 'Audio analysis is still running',
+        });
+        await scope.dispose();
+    });
+
+    it('holds the last complete output briefly before showing a preparation placeholder', async () => {
+        let now = 0;
+        const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now);
+        const definition = definePluginElement({
+            type: 'simulation-hysteresis-test',
+            metadata: { name: 'Simulation hysteresis' },
+            schema: { tabs: [tab.properties([group('simulation', 'Simulation', [prop.number('seed', 'Seed', 3)])])] },
+            simulation: {
+                initialize: () => ({ count: 0 }),
+                step: ({ state }) => ({ count: state.count + 1 }),
+            },
+            render: () => [new Rectangle(0, 0, 320, 180, { fillColor: '#123456' })],
+        });
+        const scope = createPluginDefinitionScope(definition, {
+            pluginId: 'test',
+            services: null,
+            synchronousInitialization: true,
+            loadAsset: async () => '',
+            report: vi.fn(),
+        });
+        const element = scope.createRegistration({ kind: 'built-in' }).create();
+        const generation = new SimulationGeneration(useSceneStore.getState(), useTimelineStore.getState());
+        await element.prepareSimulationFrame!(0, generation, () => {});
+        element.buildRenderObjects({}, 0);
+
+        element.requestSimulationFrame!(10, generation, () => {});
+        const retained = element.buildRenderObjects({}, 10);
+        expect(renderedText(retained)).toHaveLength(0);
+
+        now = 151;
+        const placeholder = element.buildRenderObjects({}, 10);
+        expect(renderedText(placeholder).map((text) => text.text)).toContain('Preparing simulation');
+
+        await scope.dispose();
+        nowSpy.mockRestore();
     });
 
     it('requires a numeric authored seed and a valid fixed step', () => {

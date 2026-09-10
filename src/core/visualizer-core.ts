@@ -328,6 +328,7 @@ export class MIDIVisualizerCore {
         return this.runtimeAdapter?.beginSimulationExport() ?? (() => {});
     }
 
+    getSimulationReadiness = () => this.runtimeAdapter?.getSimulationReadiness();
     getSimulationStatus = () => this.runtimeAdapter?.getSimulationStatus() ?? 'ready';
     subscribeSimulationStatus = (listener: () => void) =>
         this.runtimeAdapter?.subscribeSimulationStatus(listener) ?? (() => {});

@@ -1,7 +1,7 @@
 import { BoundSceneElement } from '@core/scene/runtime/bound-scene-element';
 import type { EnhancedConfigSchema } from '@core/scene/runtime/schema';
 import { insertElementConfig } from '@core/scene/runtime/schema-builders';
-import type { RenderObject } from '@core/render/render-objects';
+import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import { BundledGridAtlasHandle, BundledSparrowHandle, BundledSprite } from '@core/resources/bundled-sprite';
 import { VisualResourceHandle } from '@core/resources/visual-resource-handle';
 import { resolveProjectAssetDescriptor } from '@state/visualAssetRegistryStore';
@@ -29,7 +29,13 @@ import { ensureFontLoaded } from '@fonts/font-loader';
 import { renderResourceManager } from '@core/render/render-resource-manager';
 import { integratePropertySampler } from '@core/scene/runtime/property-integration';
 import type { SceneElementOrigin, SceneElementRegistration } from './types';
-import { SimulationRunner, type SimulationInputs } from './simulation-runner';
+import {
+    SimulationRunner,
+    SIMULATION_PLACEHOLDER_GRACE_MS,
+    type SimulationInputs,
+    type SimulationReadiness,
+    type SimulationStatus,
+} from './simulation-runner';
 import type { SimulationGeneration } from './simulation-inputs';
 
 const diagnostic = (
@@ -46,6 +52,65 @@ const finiteRange = (start: number, end: number, operation: string): Result<true
 
 const frozenArray = <T extends object>(items: readonly T[]): readonly Readonly<T>[] =>
     Object.freeze(items.map((item) => Object.freeze({ ...item })));
+
+const runtimeNow = () => performance.now();
+
+function conciseReason(reason: string | undefined): string {
+    const value = (reason ?? 'Simulation inputs are not ready').replace(/\s+/g, ' ').trim();
+    return value.length > 110 ? `${value.slice(0, 107)}…` : value;
+}
+
+function renderBounds(objects: readonly RenderObject[]) {
+    const bounds = objects
+        .map((object) => object.getVisualBounds?.())
+        .filter(
+            (value): value is { x: number; y: number; width: number; height: number } =>
+                !!value && Object.values(value).every(Number.isFinite)
+        );
+    if (!bounds.length) return undefined;
+    const x = Math.min(...bounds.map((value) => value.x));
+    const y = Math.min(...bounds.map((value) => value.y));
+    const right = Math.max(...bounds.map((value) => value.x + value.width));
+    const bottom = Math.max(...bounds.map((value) => value.y + value.height));
+    return { x, y, width: right - x, height: bottom - y };
+}
+
+function simulationPlaceholder(
+    readiness: SimulationReadiness,
+    props: Readonly<Record<string, unknown>>,
+    previous: readonly RenderObject[] | undefined
+): RenderObject[] {
+    const previousBounds = previous ? renderBounds(previous) : undefined;
+    const configuredWidth = typeof props.width === 'number' && Number.isFinite(props.width) ? props.width : undefined;
+    const configuredHeight =
+        typeof props.height === 'number' && Number.isFinite(props.height) ? props.height : undefined;
+    const width = Math.max(180, previousBounds?.width ?? configuredWidth ?? 260);
+    const height = Math.max(90, previousBounds?.height ?? configuredHeight ?? 120);
+    const x = previousBounds?.x ?? 0;
+    const y = previousBounds?.y ?? 0;
+    const failed = readiness.status === 'error';
+    const background = new Rectangle(x, y, width, height, {
+        fillColor: failed ? 'rgba(69,10,10,0.88)' : 'rgba(69,49,8,0.88)',
+        strokeColor: failed ? '#fb7185' : '#fbbf24',
+        strokeWidth: 2,
+        cornerRadius: 8,
+    });
+    const title = new Text(
+        x + 12,
+        y + height / 2 - 13,
+        failed ? 'Simulation unavailable' : 'Preparing simulation',
+        '600 14px "Inter", sans-serif',
+        { color: failed ? '#fecdd3' : '#fef3c7', baseline: 'middle', maxWidth: width - 24 }
+    ).setLayoutParticipation('exclude');
+    const reason = new Text(
+        x + 12,
+        y + height / 2 + 13,
+        conciseReason(readiness.reason),
+        '400 11px "Inter", sans-serif',
+        { color: failed ? '#fda4af' : '#fde68a', baseline: 'middle', maxWidth: width - 24 }
+    ).setLayoutParticipation('exclude');
+    return [background, title, reason];
+}
 
 const trackSummary = (track: any) =>
     Object.freeze({
@@ -725,9 +790,44 @@ export function createPluginDefinitionScope(
         private readonly simulationDemandOwner = { id: `simulation:${this.id}` };
         private readonly simulationDemands = new Map<string, any>();
         private asyncInitialization?: Promise<void>;
+        private initializationError?: Error;
+        private readonly simulationCreatedAt = runtimeNow();
+        private simulationChangedCallback?: () => void;
+        private lastReadySimulationOutput?: RenderObject[];
+        private notReadySince?: number;
+        private placeholderVisibleSince?: number;
+        private placeholderReadiness?: SimulationReadiness;
+        private simulationTransitionTimer?: ReturnType<typeof setTimeout>;
 
         getSimulationStatus(session = this.previewSession) {
-            return this.simulations.get(session)?.runner.status ?? (this.initializationFailed ? 'error' : 'idle');
+            return this.getSimulationReadiness(session).status;
+        }
+
+        getSimulationReadiness(session = this.previewSession): SimulationReadiness {
+            const runner = this.simulations.get(session)?.runner;
+            if (runner) return runner.getReadiness();
+            const status: SimulationStatus = this.initializationFailed
+                ? 'error'
+                : this.instanceController.signal.aborted
+                  ? 'disposed'
+                  : this.initialized
+                    ? 'idle'
+                    : 'preparing';
+            const reason =
+                status === 'error'
+                    ? this.initializationError?.message || 'Simulation initialization failed'
+                    : status === 'disposed'
+                      ? 'Simulation was disposed'
+                      : status === 'idle'
+                        ? 'Waiting to prepare simulation'
+                        : 'Initializing simulation resources';
+            return Object.freeze({
+                status,
+                reason,
+                completedStep: -1,
+                targetStep: 0,
+                changedAt: this.simulationCreatedAt,
+            });
         }
 
         requestSimulationFrame(
@@ -737,6 +837,7 @@ export function createPluginDefinitionScope(
             session = this.previewSession
         ) {
             if (!definition.simulation || this.instanceController.signal.aborted) return 'disposed' as const;
+            this.simulationChangedCallback = changed;
             if (!this.initialized) return this.initializationFailed ? ('error' as const) : ('preparing' as const);
             const config = this.getSerializableConfig();
             const signature = JSON.stringify(config);
@@ -846,6 +947,7 @@ export function createPluginDefinitionScope(
 
         private failInitialization(error: unknown): void {
             this.initializationFailed = true;
+            this.initializationError = error instanceof Error ? error : new Error(String(error));
             this.instanceController.abort();
             clearDeclarativeAudioFeatureDemands(this);
             drainCleanups(this.instanceCleanups, options);
@@ -1088,10 +1190,72 @@ export function createPluginDefinitionScope(
             return { ...merged, ...(schema.presets ? { presets: schema.presets } : {}) };
         }
 
+        private scheduleSimulationTransition(delay: number): void {
+            if (this.simulationTransitionTimer !== undefined) return;
+            this.simulationTransitionTimer = setTimeout(
+                () => {
+                    this.simulationTransitionTimer = undefined;
+                    this.simulationChangedCallback?.();
+                },
+                Math.max(0, delay)
+            );
+        }
+
+        private currentSimulationProps(targetTime: number): Readonly<Record<string, unknown>> {
+            try {
+                return this.simulationPropsAt?.(targetTime) ?? this.getDefinitionProps();
+            } catch {
+                return this.getDefinitionProps();
+            }
+        }
+
+        private renderSimulationPlaceholder(readiness: SimulationReadiness, targetTime: number): RenderObject[] {
+            this.placeholderVisibleSince ??= runtimeNow();
+            this.placeholderReadiness = readiness;
+            return simulationPlaceholder(
+                readiness,
+                this.currentSimulationProps(targetTime),
+                this.lastReadySimulationOutput
+            );
+        }
+
         protected override _buildRenderObjects(_config: any, targetTime: number): RenderObject[] {
-            if (!this.initialized || this.initializationFailed || this.instanceController.signal.aborted) return [];
+            if (this.instanceController.signal.aborted && !this.initializationFailed) return [];
+            if (this.hasSimulation && (!this.initialized || this.initializationFailed)) {
+                return this.renderSimulationPlaceholder(this.getSimulationReadiness(), targetTime);
+            }
+            if (!this.initialized) return [];
             const simulation = this.activeSimulation?.snapshot(targetTime);
-            if (this.hasSimulation && !simulation) return [];
+            if (this.hasSimulation && !simulation) {
+                const readiness = this.getSimulationReadiness();
+                const now = runtimeNow();
+                this.notReadySince ??= now;
+                if (
+                    readiness.status === 'preparing' &&
+                    this.lastReadySimulationOutput !== undefined &&
+                    now - this.notReadySince < SIMULATION_PLACEHOLDER_GRACE_MS
+                ) {
+                    this.scheduleSimulationTransition(SIMULATION_PLACEHOLDER_GRACE_MS - (now - this.notReadySince));
+                    return this.lastReadySimulationOutput;
+                }
+                return this.renderSimulationPlaceholder(readiness, targetTime);
+            }
+            if (this.hasSimulation && this.placeholderVisibleSince !== undefined) {
+                const elapsed = runtimeNow() - this.placeholderVisibleSince;
+                if (elapsed < SIMULATION_PLACEHOLDER_GRACE_MS) {
+                    this.scheduleSimulationTransition(SIMULATION_PLACEHOLDER_GRACE_MS - elapsed);
+                    return simulationPlaceholder(
+                        this.placeholderReadiness ?? this.getSimulationReadiness(),
+                        this.currentSimulationProps(targetTime),
+                        this.lastReadySimulationOutput
+                    );
+                }
+            }
+            this.notReadySince = undefined;
+            this.placeholderVisibleSince = undefined;
+            this.placeholderReadiness = undefined;
+            if (this.simulationTransitionTimer !== undefined) clearTimeout(this.simulationTransitionTimer);
+            this.simulationTransitionTimer = undefined;
             const props =
                 this.hasSimulation && this.simulationPropsAt
                     ? this.simulationPropsAt(targetTime)
@@ -1114,9 +1278,11 @@ export function createPluginDefinitionScope(
                     : {}),
                 ...(Number.isFinite(_config?.playRangeEndSec) ? { playbackEndSeconds: _config.playRangeEndSec } : {}),
             });
-            return [
+            const output = [
                 ...definition.render(Object.freeze({ props, resources: this.resources, time, context, simulation })),
             ] as RenderObject[];
+            if (this.hasSimulation) this.lastReadySimulationOutput = output;
+            return output;
         }
 
         protected override onPropertyChanged(key: string, oldValue: unknown, newValue: unknown): void {
@@ -1130,6 +1296,10 @@ export function createPluginDefinitionScope(
         }
 
         protected override onDestroy(): void {
+            if (this.simulationTransitionTimer !== undefined) clearTimeout(this.simulationTransitionTimer);
+            this.simulationTransitionTimer = undefined;
+            this.simulationChangedCallback = undefined;
+            this.lastReadySimulationOutput = undefined;
             for (const { runner } of this.simulations.values()) runner.dispose();
             this.simulations.clear();
             this.activeSimulation = undefined;

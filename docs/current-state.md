@@ -18,6 +18,8 @@ contributors may make breaking SDK 2 changes when that produces a simpler, more 
 - Timeline timing is the current tempo and meter authority. Legacy tempo and meter fields in scene settings are read
   during migration but are not written into new documents. Timeline row height and tempo-lane visibility are UI
   preferences and are likewise not written into new documents.
+- Simulation readiness is runtime-only. Preview placeholders and last-complete-frame stabilization are neither
+  persisted nor included in undo history, and exports continue to require exact prepared frames.
 - Before release, review this policy, freeze the SDK and scene schema, publish the support window, and update the
   compatibility policy to reflect the release commitment.
 
