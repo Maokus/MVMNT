@@ -73,6 +73,33 @@ describe('simulation frame preparation', () => {
         useTimelineStore.getState().clearAudioFeatureCache('simulation-test');
     });
 
+    it('reacquires simulated elements when preparation retries after a scene change', async () => {
+        const store = createSceneStore();
+        const adapter = new SceneRuntimeAdapter({ store });
+        const stalePrepare = vi.fn().mockRejectedValueOnce(new SimulationPending('audio')).mockResolvedValue(undefined);
+        const currentPrepare = vi.fn().mockResolvedValue(undefined);
+        let sceneChanged = false;
+        vi.spyOn(adapter, 'getElements').mockImplementation(
+            () =>
+                [
+                    sceneChanged
+                        ? { hasSimulation: true, prepareSimulationFrame: currentPrepare }
+                        : { hasSimulation: true, prepareSimulationFrame: stalePrepare },
+                ] as any
+        );
+
+        const work = adapter.prepareFrame(2);
+        await Promise.resolve();
+        await Promise.resolve();
+        sceneChanged = true;
+        store.getState().addElement({ id: 'replacement', type: 'basicShapes' });
+        await work;
+
+        expect(stalePrepare).toHaveBeenCalledTimes(1);
+        expect(currentPrepare).toHaveBeenCalledTimes(1);
+        adapter.dispose();
+    });
+
     it('does not let incidental preview renders retarget an export simulation', async () => {
         const adapter = new SceneRuntimeAdapter({ store: createSceneStore() });
         const request = vi.fn();

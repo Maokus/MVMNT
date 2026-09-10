@@ -59,6 +59,13 @@ export function copySimulationData<T>(value: T): { value: T; bytes: number } {
         )
             throw new Error('Shared memory is not simulation state');
         if (ArrayBuffer.isView(item) && !(item instanceof DataView)) {
+            if (
+                (item instanceof Float32Array ||
+                    item instanceof Float64Array ||
+                    (typeof Float16Array !== 'undefined' && item instanceof Float16Array)) &&
+                item.some((value) => !Number.isFinite(value))
+            )
+                throw new Error('Simulation numbers must be finite');
             bytes += item.byteLength;
             return (item as any).slice();
         }

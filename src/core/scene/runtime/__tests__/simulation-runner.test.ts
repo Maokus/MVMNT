@@ -134,6 +134,14 @@ describe('canonical simulation', () => {
             expect(() => copySimulationData(value)).toThrow();
     });
 
+    it('rejects non-finite numbers in floating-point typed arrays', () => {
+        const values: ArrayBufferView[] = [new Float32Array([NaN]), new Float64Array([Infinity, -Infinity])];
+        if (typeof Float16Array !== 'undefined') values.push(new Float16Array([NaN]));
+        for (const value of values) {
+            expect(() => copySimulationData(value)).toThrow('Simulation numbers must be finite');
+        }
+    });
+
     it('uses completed canonical steps with only floating-point boundary tolerance', () => {
         expect(simulationStepAt(0.3, 0.1)).toBe(3);
         expect(simulationStepAt(0.3 - 1e-9, 0.1)).toBe(2);

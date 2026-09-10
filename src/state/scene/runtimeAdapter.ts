@@ -236,9 +236,9 @@ export class SceneRuntimeAdapter {
 
     async prepareFrame(seconds: number, signal?: AbortSignal): Promise<void> {
         signal = AbortSignal.any([this.simulationLifetime.signal, ...(signal ? [signal] : [])]);
-        const elements = this.getElements().filter((element) => element.hasSimulation);
-        if (!elements.length) return;
         for (;;) {
+            const elements = this.getElements().filter((element) => element.hasSimulation);
+            if (!elements.length) return;
             const controller = new AbortController();
             const abort = () => controller.abort();
             signal?.addEventListener('abort', abort, { once: true });
