@@ -59,7 +59,6 @@ function markFontsDirty(state: SceneStoreState): SceneStoreState['runtimeMeta'] 
         ...state.runtimeMeta,
         lastMutationSource: 'updateFonts',
         lastMutatedAt: Date.now(),
-        persistentDirty: true,
     };
 }
 

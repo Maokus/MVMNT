@@ -65,6 +65,7 @@ interface AnalysisIntentRecord {
     analysisProfileId: string | null;
     descriptors: Record<string, DescriptorInfo>;
     requestedAt: string;
+    declarative: boolean;
     autoManaged: boolean;
     requirementDiagnostics: RequirementDiagnostic[];
     unexpectedDescriptors: string[];
@@ -909,6 +910,7 @@ export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsSta
                         analysisProfileId: intentProfileId,
                         descriptors,
                         requestedAt: intent.requestedAt,
+                        declarative: intent.declarative === true,
                         autoManaged,
                         requirementDiagnostics,
                         unexpectedDescriptors,
@@ -981,6 +983,7 @@ export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsSta
                 missingPopupFingerprint: issueFingerprint,
             };
         });
+        queueDeclarativeAnalysis(get);
     },
     regenerateDescriptors(trackRef, analysisProfileId, descriptors, reason = 'manual', explicitSourceId) {
         const unique = Array.from(new Set(descriptors.filter(Boolean)));
@@ -1251,7 +1254,7 @@ function runJob(jobId: string): void {
                 audioSourceId: job.audioSourceId,
                 analysisProfileId: job.analysisProfileId,
                 descriptorIds: job.descriptors,
-                action: 'manual_regenerate',
+                action: job.reason === 'manual' ? 'manual_regenerate' : 'auto_regenerate',
                 status: status === 'succeeded' ? 'success' : 'failure',
                 durationMs: job.startedAt ? completedAt - job.startedAt : undefined,
                 note: errorMessage,
@@ -1270,6 +1273,28 @@ function runJob(jobId: string): void {
         activeJobKeys.delete(key);
         processJobQueue();
     });
+}
+
+function queueDeclarativeAnalysis(getState: () => AudioDiagnosticsState): void {
+    const state = getState();
+    const timelineState = useTimelineStore.getState();
+    for (const diff of state.diffs) {
+        const sourceStatus = timelineState.audioFeatureCacheStatus[diff.audioSourceId]?.state;
+        if (sourceStatus === 'pending' || sourceStatus === 'failed') continue;
+
+        const requestedByDeclarativeIntent = (descriptorId: string) =>
+            (diff.owners[descriptorId] ?? []).some((ownerId) => state.intentsByElement[ownerId]?.declarative);
+        const enqueue = (descriptors: string[], reason: RegenerationReason) => {
+            const targets = descriptors.filter(requestedByDeclarativeIntent);
+            if (!targets.length) return;
+            const ownerId = diff.owners[targets[0]]?.find((id) => state.intentsByElement[id]?.declarative);
+            const trackRef = (ownerId && state.intentsByElement[ownerId]?.trackRef) || diff.trackRefs[0];
+            if (!trackRef) return;
+            getState().regenerateDescriptors(trackRef, diff.analysisProfileId, targets, reason, diff.audioSourceId);
+        };
+        enqueue(diff.missing, 'missing');
+        enqueue(diff.stale, 'stale');
+    }
 }
 
 subscribeToAnalysisIntents((event) => {

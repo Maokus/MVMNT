@@ -92,6 +92,7 @@ function freezePlain<T>(value: T): T {
 }
 
 const scheduled = new Set<SimulationRunner>();
+const SYNCHRONOUS_PREVIEW_STEPS = 4;
 let timer: ReturnType<typeof setTimeout> | undefined;
 function schedule(runner: SimulationRunner): void {
     scheduled.add(runner);
@@ -170,7 +171,12 @@ export class SimulationRunner {
         if (this.step === target) this.publish('ready');
         else {
             this.publish('preparing');
-            schedule(this);
+            // Normal playback usually advances by only one or two fixed steps.
+            // Complete those small requests before renderAtTime asks for the
+            // snapshot so the canvas does not alternate between a frame and an
+            // empty "preparing" render. Large seeks remain cooperative.
+            if (target - this.step <= SYNCHRONOUS_PREVIEW_STEPS) this.advanceChunk();
+            else schedule(this);
         }
     }
 

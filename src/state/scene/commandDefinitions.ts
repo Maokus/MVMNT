@@ -39,6 +39,7 @@ export const sceneCommandDefinitions: Record<SceneCommandType, SceneCommandDefin
     duplicateElement: snapshot(),
     updateElementId: snapshot(),
     clearScene: transaction('scene', 'timeline', 'metadata', 'assets', 'runtime'),
+    restoreClearScene: transaction('scene', 'timeline', 'metadata', 'assets', 'runtime'),
     resetSceneSettings: inverse(),
     updateSceneSettings: inverse(),
     loadSerializedScene: transaction('scene', 'runtime'),
@@ -77,6 +78,13 @@ export const sceneCommandDefinitions: Record<SceneCommandType, SceneCommandDefin
 };
 
 export function sceneCommandDefinition(command: SceneCommand): SceneCommandDefinition {
+    if (command.type === 'batch') {
+        const boundaries = new Set<SceneStoreBoundary>(['scene', 'runtime']);
+        for (const child of command.commands) {
+            for (const boundary of sceneCommandDefinition(child).boundaries) boundaries.add(boundary);
+        }
+        return validateSceneCommandDefinition('batch', transaction(...boundaries));
+    }
     const definition = sceneCommandDefinitions[command.type];
     if (!definition) {
         throw new Error(`Scene command "${command.type}" has no command definition`);

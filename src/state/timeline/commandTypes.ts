@@ -7,6 +7,7 @@ export type TimelineCommandId =
     | 'timeline.setTrackOffsetTicks'
     | 'timeline.setMultipleTrackOffsetTicks'
     | 'timeline.setTrackProperties'
+    | 'timeline.updateTrack'
     | 'timeline.reorderTracks'
     | 'timeline.addMidiClip'
     | 'timeline.removeMidiClips'
@@ -19,7 +20,11 @@ export type TimelineCommandId =
     | 'timeline.updateAudioClips'
     | 'timeline.setMultipleAudioClipOffsets'
     | 'timeline.pasteAudioClips'
-    | 'timeline.moveAudioClipsBetweenTracks';
+    | 'timeline.moveAudioClipsBetweenTracks'
+    | 'timeline.setGlobalBpm'
+    | 'timeline.setBeatsPerBar'
+    | 'timeline.setTempoAutomation'
+    | 'timeline.setPlaybackRange';
 
 export type TimelineCommandMode = 'serial' | 'concurrent';
 

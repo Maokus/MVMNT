@@ -49,6 +49,14 @@ import {
     type SetMultipleAudioClipOffsetsPayload,
     type UpdateAudioClipsPayload,
 } from './commands/audioClipCommands';
+import {
+    createTimingCommand,
+    type SetBeatsPerBarPayload,
+    type SetGlobalBpmPayload,
+    type SetTempoAutomationPayload,
+} from './commands/timingCommands';
+import { createUpdateTrackCommand, type UpdateTrackPayload } from './commands/updateTrackCommand';
+import { createSetPlaybackRangeCommand, type SetPlaybackRangePayload } from './commands/setPlaybackRangeCommand';
 
 export interface TimelineCommandRegistration<TPayload, TResult = void> {
     id: TimelineCommandId;
@@ -62,6 +70,7 @@ type TimelineRegistryMap = {
     'timeline.setTrackOffsetTicks': TimelineCommandRegistration<SetTrackOffsetTicksPayload>;
     'timeline.setMultipleTrackOffsetTicks': TimelineCommandRegistration<SetMultipleTrackOffsetTicksPayload>;
     'timeline.setTrackProperties': TimelineCommandRegistration<SetTrackPropertiesPayload>;
+    'timeline.updateTrack': TimelineCommandRegistration<UpdateTrackPayload>;
     'timeline.reorderTracks': TimelineCommandRegistration<ReorderTracksPayload>;
     'timeline.addMidiClip': TimelineCommandRegistration<AddMidiClipPayload, AddMidiClipResult>;
     'timeline.removeMidiClips': TimelineCommandRegistration<RemoveMidiClipsPayload>;
@@ -81,6 +90,10 @@ type TimelineRegistryMap = {
         MoveAudioClipsBetweenTracksPayload,
         MoveAudioClipsBetweenTracksResult
     >;
+    'timeline.setGlobalBpm': TimelineCommandRegistration<SetGlobalBpmPayload>;
+    'timeline.setBeatsPerBar': TimelineCommandRegistration<SetBeatsPerBarPayload>;
+    'timeline.setTempoAutomation': TimelineCommandRegistration<SetTempoAutomationPayload>;
+    'timeline.setPlaybackRange': TimelineCommandRegistration<SetPlaybackRangePayload>;
 };
 
 const registry: TimelineRegistryMap = {
@@ -128,6 +141,15 @@ const registry: TimelineRegistryMap = {
             telemetryEvent: 'timeline_set_track_properties',
         }),
         factory: (payload, metadata) => createSetTrackPropertiesCommand(payload, metadata),
+    },
+    'timeline.updateTrack': {
+        id: 'timeline.updateTrack',
+        buildMetadata: () => ({
+            commandId: 'timeline.updateTrack',
+            undoLabel: 'Update Track',
+            telemetryEvent: 'timeline_update_track',
+        }),
+        factory: (payload, metadata) => createUpdateTrackCommand(payload, metadata),
     },
     'timeline.reorderTracks': {
         id: 'timeline.reorderTracks',
@@ -245,6 +267,42 @@ const registry: TimelineRegistryMap = {
             telemetryEvent: 'timeline_move_audio_clips_between_tracks',
         }),
         factory: (payload, metadata) => createMoveAudioClipsBetweenTracksCommand(payload, metadata),
+    },
+    'timeline.setGlobalBpm': {
+        id: 'timeline.setGlobalBpm',
+        buildMetadata: () => ({
+            commandId: 'timeline.setGlobalBpm',
+            undoLabel: 'Change Tempo',
+            telemetryEvent: 'timeline_set_global_bpm',
+        }),
+        factory: (payload, metadata) => createTimingCommand('timeline.setGlobalBpm', payload, metadata),
+    },
+    'timeline.setBeatsPerBar': {
+        id: 'timeline.setBeatsPerBar',
+        buildMetadata: () => ({
+            commandId: 'timeline.setBeatsPerBar',
+            undoLabel: 'Change Meter',
+            telemetryEvent: 'timeline_set_beats_per_bar',
+        }),
+        factory: (payload, metadata) => createTimingCommand('timeline.setBeatsPerBar', payload, metadata),
+    },
+    'timeline.setTempoAutomation': {
+        id: 'timeline.setTempoAutomation',
+        buildMetadata: () => ({
+            commandId: 'timeline.setTempoAutomation',
+            undoLabel: 'Edit Tempo Automation',
+            telemetryEvent: 'timeline_set_tempo_automation',
+        }),
+        factory: (payload, metadata) => createTimingCommand('timeline.setTempoAutomation', payload, metadata),
+    },
+    'timeline.setPlaybackRange': {
+        id: 'timeline.setPlaybackRange',
+        buildMetadata: () => ({
+            commandId: 'timeline.setPlaybackRange',
+            undoLabel: 'Set Playback Range',
+            telemetryEvent: 'timeline_set_playback_range',
+        }),
+        factory: (payload, metadata) => createSetPlaybackRangeCommand(payload, metadata),
     },
 };
 

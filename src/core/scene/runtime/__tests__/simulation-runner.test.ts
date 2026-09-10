@@ -72,6 +72,20 @@ describe('canonical simulation', () => {
         runner.dispose();
     });
 
+    it('completes nearby playback requests before the preview renders', () => {
+        const runner = new SimulationRunner(definition, () => {});
+        const input = inputs();
+
+        runner.request(0, input);
+        expect(runner.status).toBe('ready');
+        expect(runner.snapshot(0)?.stepIndex).toBe(0);
+
+        runner.request(2 / 120, input);
+        expect(runner.status).toBe('ready');
+        expect(runner.snapshot(2 / 120)?.stepIndex).toBe(2);
+        runner.dispose();
+    });
+
     it('cancels obsolete seeks and disposal wakes waiters', async () => {
         const runner = new SimulationRunner(definition, vi.fn());
         const input = inputs();

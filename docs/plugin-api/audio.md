@@ -43,6 +43,9 @@ In simulation, a required unavailable read pauses the step; see
 Use `sampleFeatureRange()` for a sequence of samples and `sampleFeatureMatrix()` for a packed
 row-major window suitable for dense displays and generated rasters.
 
+The built-in analyzed feature keys are `spectrogram`, `peaks`, and `pitchGuide`. RMS is not a
+feature cache: use the raw-audio `getRms()` API below when an element needs volume.
+
 ## Raw audio
 
 Declare `audio.raw.read` for sample-accurate PCM windows, channel metadata, or RMS reads. Raw reads

@@ -6,11 +6,25 @@
 Persistent scene state includes element records, the graph, element and node bindings, macros,
 automation, scene settings, and font assets. `useSceneEditorStore` separately owns automation and
 property-panel state, the property clipboard, transform previews, runtime invalidation, and the
-authored-document revision. Hierarchy selection remains in `useSelectionStore`.
+last scene mutation source. Hierarchy selection remains in `useSelectionStore`.
 
 `useTimelineStore` is exposed through `src/state/timelineStore.ts`; action implementations live in
 `src/state/timeline/`. It owns transport, timing, tracks, MIDI and audio clips, media caches, and
 timeline view state.
+
+Classify state before choosing a store or mutation path:
+
+| Class             | Examples                                                            | Saved in a scene | Marks the document dirty |
+| ----------------- | ------------------------------------------------------------------- | ---------------- | ------------------------ |
+| Authored document | Elements, bindings, metadata, timing, tracks, clips, explicit range | Yes              | Yes                      |
+| Derived cache     | Parsed MIDI and analyzed audio features                             | May be packaged  | No                       |
+| Runtime session   | Playhead, decoded buffers, jobs, diagnostics, drag previews         | No               | No                       |
+| Preference/view   | Row height, snapping, auto-keying, viewport                         | No               | No                       |
+
+`useDocumentRevisionStore` is the only dirty-state authority. A successful semantic document
+command advances its revision once. A save records the clean revision. Do not infer dirtiness from
+timestamps or lists of store field references, and do not advance the revision for cache readiness,
+playback, or UI state.
 
 Read state through focused selectors and exported hooks. Avoid whole-store subscriptions and
 component-local copies of derived document data.
@@ -22,8 +36,9 @@ update related slices atomically, emit telemetry, and provide undo patches. Stru
 cover graph operations such as add, delete, duplicate, reorder, group, ungroup, and reparent.
 Property commands cover constants, macros, automation, and compound edits.
 
-Use `batch` when several scene mutations form one user action. A failed child restores the scene
-snapshot captured before the batch. Continuous pointer gestures must use a stable merge session so
+Use `batch` when several scene mutations form one user action. Its transactional boundaries are the
+union of its children, and a failed child restores every affected domain. Continuous pointer gestures
+must use a stable merge session so
 intermediate updates collapse into one undo entry.
 
 `createSceneCommandGateway(dependencies)` binds the command behavior to an isolated store for tests
@@ -44,9 +59,13 @@ const result = await timelineCommandGateway.dispatchById('timeline.addTrack', {
 });
 ```
 
-Persistent track and clip edits go through `src/state/timeline/commandGateway.ts`. Transport timing,
-viewport state, and persistence shaping remain in their owning timeline capabilities rather than in
-UI components.
+Persistent track, clip, project timing, tempo-automation, and explicit playback-range edits go
+through `src/state/timeline/commandGateway.ts`. Playhead movement, transport execution, viewport,
+preferences, diagnostics, and derived-cache readiness remain direct transient actions.
+
+Do not call `setState` from UI code. Direct Zustand updates are limited to store implementation,
+runtime-only state, and validated import/rollback adapters. An action that can fail across domains
+must capture data-only canonical snapshots, apply atomically, and expose the failure to its caller.
 
 ## Selection and shortcuts
 
@@ -81,8 +100,13 @@ Menu entries should use command IDs whenever the same action is available elsewh
 
 ## Undo and telemetry
 
-Scene and timeline gateways emit command events consumed by undo and development diagnostics.
-Listeners are observational; they must not become a second mutation path. Undo snapshots use the
-canonical domain export helpers rather than hand-selected state fields.
+Scene and timeline gateways publish committed commands to undo and separately emit observational
+telemetry. Clearing diagnostic listeners cannot disable undo. Undo snapshots use canonical,
+data-only domain helpers rather than raw Zustand state, and a failed undo or redo keeps both the
+document and history cursor at their previous values.
+
+Runtime wiring must return an idempotent disposer. Tests and alternate runtimes must dispose their
+subscriptions, jobs, resolver bindings, and command listeners; module imports must not install
+document-specific wiring.
 
 Relevant tests live near `src/state/scene/`, `src/state/timeline/`, and `src/state/undo/`.

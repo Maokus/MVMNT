@@ -6,6 +6,7 @@ import { AutomationCurve } from '@automation/automation-curve';
 import { createPluginHostServices } from '@core/scene/plugins/host-api/plugin-api';
 import { sampleFeatureFrame } from '@audio/audioFeatureUtils';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
+import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
 import { readAudioFeatureMatrix } from '@audio/features/audioFeatureMatrix';
 import { getAudioClipsForTrack } from '@state/timeline/audioClips';
 import { resolveFeatureTrackFromCache } from '@audio/features/featureTrackIdentity';
@@ -278,8 +279,14 @@ export class SimulationGeneration {
                 const status = this.timeline.audioFeatureCacheStatus[clip.sourceId]?.state;
                 if (status === 'failed') throw new Error(`Audio analysis failed for '${clip.sourceId}'`);
                 if (!resolveFeatureTrackFromCache(this.timeline.audioFeatureCaches[clip.sourceId], feature).track) {
-                    if (!demands.some((demand) => demand.trackId === trackId && demand.feature === feature))
+                    if (!this.activeDemand)
                         throw new Error(`Declare an audioFeatureDemands entry for '${feature}' on '${trackId}'`);
+                    const calculatorId =
+                        this.activeDemand.calculatorId ??
+                        audioFeatureCalculatorRegistry.getFeatureDefaults(feature).calculatorId;
+                    const calculator = calculatorId ? audioFeatureCalculatorRegistry.get(calculatorId) : undefined;
+                    if (!calculator || calculator.featureKey !== feature)
+                        throw new Error(`Audio feature '${feature}' has no registered calculator`);
                     throw new SimulationPending(`Audio analysis pending for '${clip.sourceId}'`);
                 }
                 if (status === 'pending' || status === 'stale')

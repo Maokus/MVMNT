@@ -41,11 +41,11 @@ describe('timeline capability slice creators', () => {
         });
 
         actions.setTimelineViewTicks(200, 100);
-        actions.setPlaybackRangeExplicitTicks(10, 20);
+        actions.setPlaybackRangeTicks(10, 20);
         actions.setRowHeight(1);
 
         expect(state.timelineView).toEqual({ startTick: 100, endTick: 200 });
-        expect(state.playbackRangeUserDefined).toBe(true);
+        expect(state.playbackRangeUserDefined).toBe(false);
         expect(state.rowHeight).toBeGreaterThan(1);
     });
 });

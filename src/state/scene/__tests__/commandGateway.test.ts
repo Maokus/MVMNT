@@ -15,6 +15,7 @@ import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 import { deriveElementOrder } from '@state/scene-graph';
 import { elementPropertyTarget, nodePropertyTarget } from '@automation/types';
 import type { FontAsset } from '@state/scene/fonts';
+import { useDocumentRevisionStore } from '@state/documentRevisionStore';
 
 function resetState() {
     useSceneStore.getState().clearScene();
@@ -95,6 +96,24 @@ describe('scene command gateway', () => {
         expect(updateResult.success).toBe(true);
         const state = useSceneStore.getState();
         expect(state.bindings.byElement['element-2'].visible).toEqual({ type: 'constant', value: false });
+    });
+
+    it('does not advance the document revision for a semantic no-op', () => {
+        dispatchSceneCommand({
+            type: 'addElement',
+            elementType: 'textOverlay',
+            elementId: 'revision-noop',
+            config: { text: 'Stable' },
+        });
+        const revision = useDocumentRevisionStore.getState().revision;
+
+        dispatchSceneCommand({
+            type: 'updateElementConfig',
+            elementId: 'revision-noop',
+            patch: { text: 'Stable' },
+        });
+
+        expect(useDocumentRevisionStore.getState().revision).toBe(revision);
     });
 
     it('updates and restores the host-owned element output blend mode', () => {

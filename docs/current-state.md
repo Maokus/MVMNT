@@ -15,6 +15,9 @@ contributors may make breaking SDK 2 changes when that produces a simpler, more 
   migration pipeline already isolates most compatibility cost from current runtime code.
 - Prefer changing the current scene export shape over adding a second contemporary format. If support for an older
   scene version is deliberately dropped, remove its migration, fixture, and tests together.
+- Timeline timing is the current tempo and meter authority. Legacy tempo and meter fields in scene settings are read
+  during migration but are not written into new documents. Timeline row height and tempo-lane visibility are UI
+  preferences and are likewise not written into new documents.
 - Before release, review this policy, freeze the SDK and scene schema, publish the support window, and update the
   compatibility policy to reflect the release commitment.
 

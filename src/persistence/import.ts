@@ -241,7 +241,6 @@ export async function importScene(
         useSceneStore.setState((state) => ({
             runtimeMeta: {
                 ...state.runtimeMeta,
-                persistentDirty: true,
                 lastMutationSource: 'updateFonts',
                 lastMutatedAt: Date.now(),
             },

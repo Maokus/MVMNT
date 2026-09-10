@@ -34,12 +34,13 @@ that instance's requests when its props or macros change and removes them on dis
 intent registry is the source of truth for diagnostics and persistence; imported snapshots are
 fallbacks only until an available plugin publishes its authoritative declaration. Sampling never
 creates a request. The scheduler runs requested calculators, reports progress, supports
-cancellation, and merges completed tracks into caches.
+cancellation, and merges completed tracks into caches. Declarative SDK demands enqueue missing or stale
+analysis automatically; legacy diagnostic intents remain user-managed.
 
 Feature cache status is `idle`, `pending`, `ready`, `failed`, or `stale`. Calculator-version,
 profile, source, or tempo-projection changes can invalidate cached tracks. The diagnostics store
 derives user-facing status and reanalysis actions from retained demands, validated cache artifacts,
-and runtime jobs. Missing analysis remains an explicit user action after load.
+and runtime jobs. Failed analysis remains an explicit user action so a bad source cannot create a retry loop.
 
 ## Sampling
 

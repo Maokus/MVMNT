@@ -586,6 +586,53 @@ describe('audio diagnostics store', () => {
         expect(useAudioDiagnosticsStore.getState().pendingDescriptors[`audioTrack__default`]).toBeUndefined();
     });
 
+    it('automatically queues missing analysis for declarative SDK demands', async () => {
+        const sourceId = 'audio-source';
+        const reanalyzeSpy = vi.fn(() => {
+            useTimelineStore.setState((state) => ({
+                audioFeatureCacheStatus: {
+                    ...state.audioFeatureCacheStatus,
+                    [sourceId]: { state: 'pending', updatedAt: Date.now() },
+                },
+            }));
+        });
+        useTimelineStore.setState({
+            tracks: {
+                audioTrack: {
+                    id: 'audioTrack',
+                    name: 'Audio Track',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    clips: [{ id: 'clip', type: 'audio', sourceId, offsetTicks: 0 }],
+                    gain: 1,
+                },
+            },
+            tracksOrder: ['audioTrack'],
+            reanalyzeAudioFeatureCalculators: reanalyzeSpy as any,
+            audioFeatureCaches: {},
+            audioFeatureCacheStatus: {
+                [sourceId]: { state: 'idle', updatedAt: Date.now() },
+            },
+        });
+
+        publishAnalysisIntent(
+            'simulation-element::audio-feature::rms',
+            'audio-inertia',
+            'audioTrack',
+            [{ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' }],
+            { profile: 'default', declarative: true, ownerElementId: 'simulation-element', requestId: 'rms' }
+        );
+
+        expect(useAudioDiagnosticsStore.getState().jobs[0]?.reason).toBe('missing');
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(reanalyzeSpy).toHaveBeenCalledWith(sourceId, ['test.spectrogram'], 'default');
+        expect(useAudioDiagnosticsStore.getState().history.at(-1)?.action).toBe('auto_regenerate');
+    });
+
     it('prunes extraneous cached feature tracks', () => {
         const updatedAt = Date.now();
         useTimelineStore.setState({

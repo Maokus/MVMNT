@@ -3,6 +3,18 @@ import type { NodeTransform, SceneGraphState, DuplicateMappings, Matrix2D } from
 import type { BindingState, SceneImportPayload, SceneMacroDefinition, SceneSerializedMacros } from '@state/sceneStore';
 import type { SceneSubtreeBundle, SceneSubtreeImportOptions } from './subtreeBundle';
 import type { FontAsset } from './fonts';
+import type { SceneMetadataState } from '@state/sceneMetadataStore';
+import type { ProjectAsset } from '@state/visualAssetRegistryStore';
+
+export interface SceneClearSnapshot {
+    scene: SceneImportPayload;
+    metadata: SceneMetadataState;
+    timeline: {
+        playbackRange?: { startTick?: number; endTick?: number };
+        playbackRangeUserDefined: boolean;
+    };
+    assets: { assets: Record<string, ProjectAsset>; assetsOrder: string[] };
+}
 
 export type SceneCommand =
     | { type: 'batch'; commands: SceneCommand[] }
@@ -21,6 +33,7 @@ export type SceneCommand =
     | { type: 'duplicateElement'; sourceId: string; newId: string; insertAfter?: boolean }
     | { type: 'updateElementId'; currentId: string; nextId: string }
     | { type: 'clearScene'; clearMacros?: boolean }
+    | { type: 'restoreClearScene'; snapshot: SceneClearSnapshot }
     | { type: 'resetSceneSettings' }
     | { type: 'updateSceneSettings'; patch: Record<string, unknown> }
     | { type: 'loadSerializedScene'; payload: SceneImportPayload }

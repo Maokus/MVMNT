@@ -3,6 +3,10 @@ import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { createPatchUndoController } from '@state/undo';
+import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
+import { timelineCommandGateway } from '@state/timelineStore';
+import { clearTimelineCommandListeners } from '@state/timeline/timelineTelemetry';
 
 describe('patch-based undo controller', () => {
     let controller: ReturnType<typeof createPatchUndoController> | null = null;
@@ -10,6 +14,7 @@ describe('patch-based undo controller', () => {
     beforeEach(() => {
         useSceneStore.getState().clearScene();
         useSceneStore.getState().replaceMacros(null);
+        useVisualAssetRegistryStore.getState()._clear();
         controller = createPatchUndoController(useTimelineStore, { maxDepth: 10 });
     });
 
@@ -18,6 +23,7 @@ describe('patch-based undo controller', () => {
         controller = null;
         useSceneStore.getState().clearScene();
         useSceneStore.getState().replaceMacros(null);
+        useVisualAssetRegistryStore.getState()._clear();
     });
 
     it('tracks add/remove element operations', () => {
@@ -202,5 +208,36 @@ describe('patch-based undo controller', () => {
         controller?.redo();
         const redoBindings = useSceneStore.getState().bindings.byElement['prop-drag-target'];
         expect(redoBindings.fontSize).toEqual({ type: 'constant', value: 12 });
+    });
+
+    it('restores every document boundary cleared by clearScene', () => {
+        dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'clear-target' });
+        useSceneMetadataStore.getState().setName('Before clear');
+        useTimelineStore.getState().setPlaybackRangeExplicitTicks(10, 90);
+        useVisualAssetRegistryStore.getState().addAsset(new File(['asset'], 'asset.png', { type: 'image/png' }));
+        controller?.reset();
+
+        dispatchSceneCommand({ type: 'clearScene' });
+        controller?.undo();
+
+        expect(useSceneStore.getState().elements['clear-target']).toBeDefined();
+        expect(useSceneMetadataStore.getState().metadata.name).toBe('Before clear');
+        expect(useTimelineStore.getState().playbackRange).toEqual({ startTick: 10, endTick: 90 });
+        expect(useVisualAssetRegistryStore.getState().assetsOrder).toHaveLength(1);
+    });
+
+    it('stops receiving timeline commits after disposal', async () => {
+        controller?.dispose();
+        await timelineCommandGateway.dispatchById('timeline.setGlobalBpm', { bpm: 141 });
+        expect(controller?.debugStack().size).toBe(0);
+        controller = null;
+    });
+
+    it('keeps undo connected when diagnostic timeline listeners are cleared', async () => {
+        clearTimelineCommandListeners();
+        await timelineCommandGateway.dispatchById('timeline.setGlobalBpm', { bpm: 155 });
+        expect(controller?.canUndo()).toBe(true);
+        controller?.undo();
+        expect(useTimelineStore.getState().timeline.globalBpm).not.toBe(155);
     });
 });

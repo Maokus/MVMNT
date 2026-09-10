@@ -387,7 +387,6 @@ export function normalizeSceneImportState(
         nodeBindings: nextNodeBindings,
         runtimeMeta: {
             ...state.runtimeMeta,
-            persistentDirty: false,
             lastHydratedAt: importTimestamp,
             lastMutationSource: 'importScene',
             lastMutatedAt: importTimestamp,

@@ -10,7 +10,9 @@ services so preview and deterministic output follow the same model.
 ```text
 UI and shortcuts
       ↓
-command gateways ──→ undo and telemetry
+command gateways ──→ commit stream ──→ undo
+       │
+       └────────────→ observational telemetry
       ↓
 Zustand stores
       ↓
@@ -23,8 +25,10 @@ preview, audio/MIDI playback, and export
 
 - `useSceneStore` owns the authored scene document: elements, graph, bindings, macros, automation,
   settings, and font assets.
-- `useSceneEditorStore` owns scene-specific transient editor/session state. Its document revision is
-  the dirty-tracking signal; panel state and transform previews never enter scene snapshots.
+- `useSceneEditorStore` owns scene-specific transient editor/session state. Panel state and transform
+  previews never enter scene snapshots.
+- `useDocumentRevisionStore` is the single dirty-tracking authority for authored scene, metadata,
+  asset, and timeline commands.
 - `useTimelineStore` owns tempo, transport, tracks, clips, source caches, and the timeline viewport.
 - `dispatchSceneCommand` is the canonical persistent scene mutation path.
 - `timelineCommandGateway` is the canonical persistent timeline mutation path.
@@ -32,7 +36,8 @@ preview, audio/MIDI playback, and export
   editor geometry.
 - `TimingManager` owns tick, beat, and second conversion against the current tempo map.
 
-Undo observes command telemetry from both domains and stores canonical domain snapshots or patches.
+Undo observes the protected command-commit stream from both domains and stores canonical domain
+snapshots or patches. Telemetry listeners remain observational and can be reset independently.
 Components may keep transient pointer or text-entry state, but they must not create a second
 persistent authority.
 

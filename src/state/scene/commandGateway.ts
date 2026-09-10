@@ -6,7 +6,7 @@ import {
     type SceneCommandOptions,
     type SceneCommandResult,
 } from './sceneTelemetry';
-import { sceneCommandDefinition, type SceneRollbackStrategy } from './commandDefinitions';
+import { sceneCommandDefinition, type SceneRollbackStrategy, type SceneStoreBoundary } from './commandDefinitions';
 import { applySceneStoreCommand } from './commandApply';
 import { buildSceneCommandPatch, type SceneCommandPatch } from './commandPatch';
 import type { SceneCommand } from './commandTypes';
@@ -14,6 +14,12 @@ import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
+import { runWithoutDocumentRevision } from '@state/documentRevisionStore';
+import {
+    createTimelineStoreSnapshot,
+    restoreTimelineStoreSnapshot,
+    type TimelineStoreSnapshot,
+} from '@state/timeline/persistenceAdapter';
 export type { SceneCommand } from './commandTypes';
 export type { SceneCommandPatch } from './commandPatch';
 
@@ -30,6 +36,7 @@ export interface SceneCommandGatewayDependencies {
 }
 
 export interface SceneRollbackParticipant {
+    boundary: Exclude<SceneStoreBoundary, 'scene'>;
     capture(): unknown;
     restore(snapshot: unknown): void;
 }
@@ -61,35 +68,43 @@ export function createSceneCommandGateway(dependencies: SceneCommandGatewayDepen
             const rollbackSnapshot = captureRollback(definition.rollback, dependencies.store);
             const participantSnapshots =
                 definition.rollback === 'transaction'
-                    ? (dependencies.rollbackParticipants ?? []).map((participant) => participant.capture())
+                    ? (dependencies.rollbackParticipants ?? [])
+                          .filter((participant) => definition.boundaries.includes(participant.boundary))
+                          .map((participant) => ({ participant, snapshot: participant.capture() }))
                     : [];
             const patch = buildSceneCommandPatch(store, command);
 
             let result: SceneCommandResult;
             try {
-                applySceneStoreCommand(store, command, () => dependencies.store.getState());
-                dependencies.markDocumentChanged?.(command.type);
+                runWithoutDocumentRevision(() =>
+                    applySceneStoreCommand(store, command, () => dependencies.store.getState())
+                );
+                if (patch) dependencies.markDocumentChanged?.(command.type);
                 result = { success: true, durationMs: now() - start, command, patch };
             } catch (error) {
+                const rollbackErrors: unknown[] = [];
                 if (rollbackSnapshot) {
                     try {
                         dependencies.store.getState().importScene(rollbackSnapshot);
-                    } catch {
-                        // Preserve the original command failure for telemetry and callers.
+                    } catch (rollbackError) {
+                        rollbackErrors.push(rollbackError);
                     }
                 }
-                for (let index = 0; index < participantSnapshots.length; index += 1) {
+                for (const { participant, snapshot } of [...participantSnapshots].reverse()) {
                     try {
-                        dependencies.rollbackParticipants?.[index]?.restore(participantSnapshots[index]);
-                    } catch {
-                        // Preserve the command error; rollback participants are best effort.
+                        participant.restore(snapshot);
+                    } catch (rollbackError) {
+                        rollbackErrors.push(rollbackError);
                     }
                 }
+                const commandError = error instanceof Error ? error : new Error(String(error));
                 result = {
                     success: false,
                     durationMs: now() - start,
                     command,
-                    error: error instanceof Error ? error : new Error(String(error)),
+                    error: rollbackErrors.length
+                        ? new AggregateError([commandError, ...rollbackErrors], 'Scene command and rollback failed')
+                        : commandError,
                     patch: null,
                 };
             }
@@ -104,27 +119,46 @@ export const sceneCommandGateway = createSceneCommandGateway({
     markDocumentChanged: (source) => useSceneEditorStore.getState().markDocumentChanged(source),
     rollbackParticipants: [
         {
-            capture: () => useTimelineStore.getState(),
+            boundary: 'timeline',
+            capture: () => createTimelineStoreSnapshot(useTimelineStore.getState()),
             restore: (snapshot) =>
-                useTimelineStore.setState(snapshot as ReturnType<typeof useTimelineStore.getState>, true),
-        },
-        {
-            capture: () => useSceneMetadataStore.getState(),
-            restore: (snapshot) =>
-                useSceneMetadataStore.setState(snapshot as ReturnType<typeof useSceneMetadataStore.getState>, true),
-        },
-        {
-            capture: () => useVisualAssetRegistryStore.getState(),
-            restore: (snapshot) =>
-                useVisualAssetRegistryStore.setState(
-                    snapshot as ReturnType<typeof useVisualAssetRegistryStore.getState>,
-                    true
+                restoreTimelineStoreSnapshot(
+                    (timelineSnapshot) => useTimelineStore.setState(timelineSnapshot),
+                    snapshot as TimelineStoreSnapshot
                 ),
         },
         {
-            capture: () => useSceneEditorStore.getState(),
-            restore: (snapshot) =>
-                useSceneEditorStore.setState(snapshot as ReturnType<typeof useSceneEditorStore.getState>, true),
+            boundary: 'metadata',
+            capture: () => ({ ...useSceneMetadataStore.getState().metadata }),
+            restore: (snapshot) => useSceneMetadataStore.getState().hydrate(snapshot as any),
+        },
+        {
+            boundary: 'assets',
+            capture: () => {
+                const state = useVisualAssetRegistryStore.getState();
+                return { assets: state.assets, assetsOrder: state.assetsOrder };
+            },
+            restore: (snapshot) => useVisualAssetRegistryStore.setState(snapshot as any),
+        },
+        {
+            boundary: 'runtime',
+            capture: () => {
+                const state = useSceneEditorStore.getState();
+                return {
+                    automationExpandedOwners: state.automationExpandedOwners,
+                    automationExpandedCurves: state.automationExpandedCurves,
+                    automationSearchQuery: state.automationSearchQuery,
+                    expandedPropertyGroups: state.expandedPropertyGroups,
+                    activePropertyTab: state.activePropertyTab,
+                    propertyClipboard: state.propertyClipboard,
+                    transientNodeTransforms: state.transientNodeTransforms,
+                    runtimeRevision: state.runtimeRevision,
+                    lastMutationSource: state.lastMutationSource,
+                    hasInitializedScene: state.hasInitializedScene,
+                    lastHydratedAt: state.lastHydratedAt,
+                };
+            },
+            restore: (snapshot) => useSceneEditorStore.setState(snapshot as any),
         },
     ],
 });

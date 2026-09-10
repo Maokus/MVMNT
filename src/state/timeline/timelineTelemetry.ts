@@ -24,6 +24,7 @@ export interface TimelineCommandTelemetryEvent {
 type TimelineCommandListener = (event: TimelineCommandTelemetryEvent) => void;
 
 const listeners = new Set<TimelineCommandListener>();
+const commitListeners = new Set<TimelineCommandListener>();
 const LEGACY_SOURCE_PATTERN = /(legacy|direct)/i;
 
 function validateTimelineTelemetry(event: TimelineCommandTelemetryEvent): boolean {
@@ -70,6 +71,12 @@ export function clearTimelineCommandListeners(): void {
     listeners.clear();
 }
 
+/** Correctness listeners are separate from resettable diagnostics listeners. */
+export function registerTimelineCommandCommitListener(listener: TimelineCommandListener): () => void {
+    commitListeners.add(listener);
+    return () => commitListeners.delete(listener);
+}
+
 export function emitTimelineCommandTelemetry(event: TimelineCommandTelemetryEvent): void {
     if (!validateTimelineTelemetry(event)) {
         return;
@@ -77,7 +84,13 @@ export function emitTimelineCommandTelemetry(event: TimelineCommandTelemetryEven
     if (LEGACY_SOURCE_PATTERN.test(event.source)) {
         console.warn('[timelineTelemetry] legacy telemetry source detected', event.source);
     }
-    if (!listeners.size) return;
+    for (const listener of commitListeners) {
+        try {
+            listener(event);
+        } catch (error) {
+            console.error('[timelineCommandCommit] listener error', error);
+        }
+    }
     for (const listener of listeners) {
         try {
             listener(event);

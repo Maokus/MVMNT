@@ -4,7 +4,7 @@ import type { TimelineCommand } from '../commandTypes';
 import type { TimelineCommandContext, TimelineCommandExecuteResult } from '../commandTypes';
 import { type TimelineTrackLike, type TimelineCommandPatch } from '../patches';
 
-type TrackPropertyPatch = Partial<
+export type TrackPropertyPatch = Partial<
     Pick<TimelineTrack, 'name' | 'enabled' | 'mute' | 'solo' | 'regionStartTick' | 'regionEndTick'>
 > &
     Partial<Pick<AudioTrack, 'gain'>>;

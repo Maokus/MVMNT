@@ -14,6 +14,7 @@ export interface TimelineCommandGatewayDependencies {
     getState: () => TimelineState;
     setState: (updater: (state: TimelineState) => Partial<TimelineState> | TimelineState) => void;
     emitWindowEvent?: (type: string, detail?: unknown) => void;
+    markDocumentChanged?: (source: string) => void;
 }
 
 export interface TimelineCommandGateway {
@@ -49,6 +50,8 @@ function defaultEmitWindowEvent(type: string, detail?: unknown) {
 export function createTimelineCommandGateway(deps: TimelineCommandGatewayDependencies): TimelineCommandGateway {
     let queue: Promise<unknown> = Promise.resolve();
     let queueDepth = 0;
+    let generation = 0;
+    let destroyed = false;
     const emitWindowEvent = deps.emitWindowEvent ?? defaultEmitWindowEvent;
 
     function buildContext(): TimelineCommandContext {
@@ -61,12 +64,19 @@ export function createTimelineCommandGateway(deps: TimelineCommandGatewayDepende
 
     async function runCommand<TResult>(
         command: TimelineCommand<TResult>,
-        options?: TimelineCommandDispatchOptions
+        options?: TimelineCommandDispatchOptions,
+        expectedGeneration = generation
     ): Promise<TimelineCommandDispatchResult<TResult>> {
+        if (destroyed || expectedGeneration !== generation) {
+            throw new Error('Timeline command gateway has been destroyed');
+        }
         const context = buildContext();
         const start = now();
         try {
             const result = await command.execute(context);
+            if (result.patches.undo.length || result.patches.redo.length) {
+                deps.markDocumentChanged?.(command.id);
+            }
             const durationMs = now() - start;
             emitTimelineCommandTelemetry({
                 commandId: command.id,
@@ -111,13 +121,22 @@ export function createTimelineCommandGateway(deps: TimelineCommandGatewayDepende
         options?: TimelineCommandDispatchOptions
     ): Promise<TimelineCommandDispatchResult<TResult>> {
         const mode = options?.mode ?? command.mode;
+        if (destroyed) throw new Error('Timeline command gateway has been destroyed');
+        const commandGeneration = generation;
         if (mode === 'concurrent') {
-            return runCommand(command, options);
+            return runCommand(command, options, commandGeneration);
         }
         queueDepth += 1;
+        if (queueDepth === 1) {
+            const pending = runCommand(command, options, commandGeneration).finally(() => {
+                queueDepth = Math.max(0, queueDepth - 1);
+            });
+            queue = pending;
+            return pending;
+        }
         queue = queue
             .catch(() => undefined)
-            .then(() => runCommand(command, options))
+            .then(() => runCommand(command, options, commandGeneration))
             .finally(() => {
                 queueDepth = Math.max(0, queueDepth - 1);
             });
@@ -162,6 +181,8 @@ export function createTimelineCommandGateway(deps: TimelineCommandGatewayDepende
             return queueDepth;
         },
         destroy(): void {
+            destroyed = true;
+            generation += 1;
             queue = Promise.resolve();
             queueDepth = 0;
         },

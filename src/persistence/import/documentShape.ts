@@ -142,21 +142,22 @@ export function buildDocumentShape(
         }
     }
     const restoredAt = Date.now();
-    const audioFeatureCacheStatus = Object.fromEntries(
-        Object.entries(tl.audioFeatureCacheStatus || {}).map(([id, raw]) => {
-            const status = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
-            const state = status.state === 'ready' && featureCaches[id] ? 'ready' : 'stale';
-            return [
-                id,
-                {
-                    state,
-                    updatedAt: restoredAt,
-                    ...(typeof status.sourceHash === 'string' ? { sourceHash: status.sourceHash } : {}),
-                    ...(typeof status.message === 'string' ? { message: status.message } : {}),
-                },
-            ];
-        })
-    );
+    const audioFeatureCacheStatus: NonNullable<ValidatedCurrentDocument['audioFeatureCacheStatus']> =
+        Object.fromEntries(
+            Object.entries(tl.audioFeatureCacheStatus || {}).map(([id, raw]) => {
+                const status = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+                const state: 'ready' | 'stale' = status.state === 'ready' && featureCaches[id] ? 'ready' : 'stale';
+                return [
+                    id,
+                    {
+                        state,
+                        updatedAt: restoredAt,
+                        ...(typeof status.sourceHash === 'string' ? { sourceHash: status.sourceHash } : {}),
+                        ...(typeof status.message === 'string' ? { message: status.message } : {}),
+                    },
+                ];
+            })
+        );
     for (const id of incompleteFeatureCacheIds) {
         audioFeatureCacheStatus[id] = {
             ...(audioFeatureCacheStatus[id] || {}),

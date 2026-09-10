@@ -86,4 +86,39 @@ describe('simulation input generations', () => {
         (inputs.contextAt(0, 0.1).audio as any).sampleRaw({ trackId: 'missing' });
         expect(() => inputs.checkReads()).toThrow('missing');
     });
+
+    it('rejects demanded features that have no registered calculator instead of waiting forever', () => {
+        const samples = new Float32Array([0, 0]);
+        const timeline = {
+            ...useTimelineStore.getState(),
+            tracks: { audio: { type: 'audio', clips: [{ sourceId: 'source' }] } },
+            audioCache: {
+                source: {
+                    decodedState: 'ready',
+                    audioBuffer: {
+                        numberOfChannels: 1,
+                        sampleRate: 2,
+                        length: 2,
+                        duration: 1,
+                        getChannelData: () => samples,
+                    },
+                },
+            },
+            audioFeatureCaches: {},
+            audioFeatureCacheStatus: { source: { state: 'idle', updatedAt: 0 } },
+        } as any;
+        const generation = new SimulationGeneration(useSceneStore.getState(), timeline);
+        const inputs = generation.inputs(
+            { audio: { sampleFeature: () => ok({ value: 0 }) } } as any,
+            () => ({ seed: 1 }),
+            () => [{ id: 'invalid', trackId: 'audio', feature: 'not-a-real-feature' }]
+        );
+
+        (inputs.contextAt(0, 0.1).audio as any).sampleFeature({
+            trackId: 'audio',
+            feature: 'not-a-real-feature',
+            timeSeconds: 0,
+        });
+        expect(() => inputs.checkReads()).toThrow("Audio feature 'not-a-real-feature' has no registered calculator");
+    });
 });

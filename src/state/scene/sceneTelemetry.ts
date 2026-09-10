@@ -29,6 +29,7 @@ export interface SceneCommandTelemetryEvent extends SceneCommandMergeContext {
 type SceneCommandListener = (event: SceneCommandTelemetryEvent) => void;
 
 const listeners = new Set<SceneCommandListener>();
+const commitListeners = new Set<SceneCommandListener>();
 
 export function registerSceneCommandListener(listener: SceneCommandListener): () => void {
     listeners.add(listener);
@@ -41,8 +42,13 @@ export function clearSceneCommandListeners(): void {
     listeners.clear();
 }
 
+/** Correctness listeners are separate from resettable diagnostics listeners. */
+export function registerSceneCommandCommitListener(listener: SceneCommandListener): () => void {
+    commitListeners.add(listener);
+    return () => commitListeners.delete(listener);
+}
+
 export function emitSceneCommandTelemetry(result: SceneCommandResult, options: SceneCommandOptions | undefined): void {
-    if (!listeners.size) return;
     const event: SceneCommandTelemetryEvent = {
         ...result,
         source: options?.source ?? 'store',
@@ -50,6 +56,13 @@ export function emitSceneCommandTelemetry(result: SceneCommandResult, options: S
         transient: options?.transient ?? false,
         canMergeWith: options?.canMergeWith,
     };
+    for (const listener of commitListeners) {
+        try {
+            listener(event);
+        } catch (error) {
+            console.error('[sceneCommandCommit] listener threw during dispatch', error);
+        }
+    }
     for (const listener of listeners) {
         try {
             listener(event);

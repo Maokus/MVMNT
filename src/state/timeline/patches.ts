@@ -6,6 +6,7 @@ import type { NoteRaw, CCEventRaw, TempoMapEntry } from '../timelineTypes';
 import { autoAdjustSceneRangeIfNeeded } from './timelineShared';
 import { useSelectionStore } from '@state/selectionStore';
 import type { MidiClip } from './midiClips';
+import { getSharedTimingManager } from './timelineShared';
 
 export type TimelineTrackLike = TimelineTrack | AudioTrack;
 
@@ -96,6 +97,20 @@ export interface TimelinePatchUpdateAudioClipsPayload {
     updates: Array<{ trackId: string; clips: AudioClip[] }>;
 }
 
+export type TimelineTimingSnapshot = Pick<
+    TimelineState['timeline'],
+    'globalBpm' | 'beatsPerBar' | 'masterTempoMap' | 'tempoAutomation'
+>;
+
+export interface TimelinePatchSetTimingPayload {
+    timing: TimelineTimingSnapshot;
+}
+
+export interface TimelinePatchSetPlaybackRangePayload {
+    playbackRange?: { startTick?: number; endTick?: number };
+    playbackRangeUserDefined: boolean;
+}
+
 export type TimelinePatchAction =
     | { action: 'timeline/ADD_TRACK'; payload: TimelinePatchAddTrackPayload }
     | { action: 'timeline/REMOVE_TRACKS'; payload: TimelinePatchRemoveTracksPayload }
@@ -109,7 +124,9 @@ export type TimelinePatchAction =
     | { action: 'timeline/UPDATE_MIDI_CLIPS'; payload: TimelinePatchUpdateMidiClipsPayload }
     | { action: 'timeline/REMOVE_AUDIO_CLIPS'; payload: TimelinePatchRemoveAudioClipsPayload }
     | { action: 'timeline/RESTORE_AUDIO_CLIPS'; payload: TimelinePatchRestoreAudioClipsPayload }
-    | { action: 'timeline/UPDATE_AUDIO_CLIPS'; payload: TimelinePatchUpdateAudioClipsPayload };
+    | { action: 'timeline/UPDATE_AUDIO_CLIPS'; payload: TimelinePatchUpdateAudioClipsPayload }
+    | { action: 'timeline/SET_TIMING'; payload: TimelinePatchSetTimingPayload }
+    | { action: 'timeline/SET_PLAYBACK_RANGE'; payload: TimelinePatchSetPlaybackRangePayload };
 
 export interface TimelineCommandPatch {
     undo: TimelinePatchAction[];
@@ -536,6 +553,34 @@ function applyUpdateAudioClips(context: TimelinePatchContext, payload: TimelineP
     });
 }
 
+function applySetTiming(context: TimelinePatchContext, payload: TimelinePatchSetTimingPayload): void {
+    const timing = payload.timing;
+    context.setState((state) => ({
+        timeline: {
+            ...state.timeline,
+            globalBpm: timing.globalBpm,
+            beatsPerBar: timing.beatsPerBar,
+            masterTempoMap: timing.masterTempoMap?.map((entry) => ({ ...entry })),
+            tempoAutomation: timing.tempoAutomation
+                ? {
+                      ...timing.tempoAutomation,
+                      keyframes: timing.tempoAutomation.keyframes.map((keyframe) => ({ ...keyframe })),
+                  }
+                : undefined,
+        },
+        audioFeatureCacheStatus: Object.fromEntries(
+            Object.entries(state.audioFeatureCacheStatus).map(([id, status]) => [
+                id,
+                { ...status, state: 'stale' as const, message: 'timeline timing updated', updatedAt: Date.now() },
+            ])
+        ),
+    }));
+    const manager = getSharedTimingManager();
+    manager.setBPM(timing.globalBpm);
+    manager.setTempoMap(timing.masterTempoMap?.length ? timing.masterTempoMap : null, 'seconds');
+    manager.setBeatsPerBar(timing.beatsPerBar);
+}
+
 export function applyTimelinePatchActions(context: TimelinePatchContext, actions: TimelinePatchAction[]): void {
     if (!actions.length) return;
     for (const action of actions) {
@@ -578,6 +623,15 @@ export function applyTimelinePatchActions(context: TimelinePatchContext, actions
                 break;
             case 'timeline/UPDATE_AUDIO_CLIPS':
                 applyUpdateAudioClips(context, action.payload);
+                break;
+            case 'timeline/SET_TIMING':
+                applySetTiming(context, action.payload);
+                break;
+            case 'timeline/SET_PLAYBACK_RANGE':
+                context.setState(() => ({
+                    playbackRange: action.payload.playbackRange ? { ...action.payload.playbackRange } : undefined,
+                    playbackRangeUserDefined: action.payload.playbackRangeUserDefined,
+                }));
                 break;
             default:
                 break;

@@ -1,6 +1,7 @@
 import { createWithEqualityFn } from 'zustand/traditional';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { useTimelineStore } from './timelineStore';
+import { markDocumentChanged } from './documentRevisionStore';
 
 export interface SceneMetadataState {
     id: string;
@@ -53,20 +54,23 @@ const syncTimeline = (patch: Partial<Pick<SceneMetadataState, 'id' | 'name'>>) =
 
 export const useSceneMetadataStore = createWithEqualityFn<SceneMetadataStore>((set, get) => {
     const initialMetadata = createDefaultMetadata();
-    syncTimeline({ id: initialMetadata.id, name: initialMetadata.name });
     return {
         metadata: initialMetadata,
         setMetadata: (patch) => {
             if (!patch || Object.keys(patch).length === 0) return;
             const nextPatch: Partial<SceneMetadataState> = { ...patch };
-            if (!patch.modifiedAt) {
-                nextPatch.modifiedAt = nowIso();
-            }
             if (typeof nextPatch.author === 'string') {
                 nextPatch.author = nextPatch.author.trim();
             }
+            const current = get().metadata;
+            const changed = Object.entries(nextPatch).some(
+                ([key, value]) => current[key as keyof SceneMetadataState] !== value
+            );
+            if (!changed) return;
+            if (!patch.modifiedAt) nextPatch.modifiedAt = nowIso();
             set((state) => ({ metadata: { ...state.metadata, ...nextPatch } }));
             syncTimeline({ id: patch.id, name: patch.name });
+            markDocumentChanged('metadata');
         },
         setName: (name) => {
             const trimmed = name.trim();
@@ -85,7 +89,7 @@ export const useSceneMetadataStore = createWithEqualityFn<SceneMetadataStore>((s
             get().setMetadata({ author });
         },
         setAttribution: (attribution) => {
-            set((state) => ({ metadata: { ...state.metadata, attribution } }));
+            get().setMetadata({ attribution });
         },
         hydrate: (metadata) => {
             if (!metadata) return;

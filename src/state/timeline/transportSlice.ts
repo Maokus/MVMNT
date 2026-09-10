@@ -7,8 +7,6 @@ import type { TimelineState } from './storeTypes';
 type TransportSlice = Pick<
     TimelineState,
     | 'setMasterTempoMap'
-    | 'setGlobalBpm'
-    | 'setBeatsPerBar'
     | 'setCurrentTick'
     | 'play'
     | 'pause'
@@ -61,32 +59,6 @@ export function createTransportSlice({
                 }
                 return next;
             });
-        },
-        setGlobalBpm(bpm: number) {
-            const value = Number.isFinite(bpm) && bpm > 0 ? bpm : 120;
-            set((state) => {
-                const next: TimelineState = {
-                    ...state,
-                    timeline: { ...state.timeline, globalBpm: value },
-                };
-                if (state.timeline.globalBpm !== value && Object.keys(state.audioFeatureCacheStatus).length) {
-                    next.audioFeatureCacheStatus = markAllAudioFeatureStatuses(
-                        state.audioFeatureCacheStatus,
-                        'stale',
-                        'tempo updated'
-                    );
-                }
-                try {
-                    getSharedTimingManager().setBPM(value);
-                } catch {
-                    // Timing propagation is best-effort while constructing isolated stores.
-                }
-                return next;
-            });
-        },
-        setBeatsPerBar(value: number) {
-            const beatsPerBar = Math.max(1, Math.floor(value || 4));
-            set((state) => ({ timeline: { ...state.timeline, beatsPerBar } }));
         },
         setCurrentTick(tick, authority = 'tick') {
             set((state) => {

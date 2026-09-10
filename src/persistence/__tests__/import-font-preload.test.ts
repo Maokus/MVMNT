@@ -20,6 +20,7 @@ import { elementPropertyTarget } from '@automation/types';
 import { FontBinaryStore } from '@persistence/font-binary-store';
 import { collectMissingFontReferences, type FontAsset } from '@state/scene/fonts';
 import { useSceneStore } from '@state/sceneStore';
+import { useDocumentRevisionStore } from '@state/documentRevisionStore';
 
 describe('scene import font preloading', () => {
     beforeEach(async () => {
@@ -130,6 +131,7 @@ describe('scene import font preloading', () => {
         if (!exported.ok) throw new Error('Expected a packaged scene export');
 
         useSceneStore.getState().clearScene();
+        const revisionBeforeImport = useDocumentRevisionStore.getState().revision;
         await FontBinaryStore.clear();
         await expect(importScene(exported.zip)).resolves.toMatchObject({ ok: true });
 
@@ -144,6 +146,6 @@ describe('scene import font preloading', () => {
                 automation: state.automation.channels,
             })
         ).toEqual([]);
-        expect(state.runtimeMeta.persistentDirty).toBe(true);
+        expect(useDocumentRevisionStore.getState().revision).toBeGreaterThan(revisionBeforeImport);
     });
 });

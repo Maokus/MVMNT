@@ -11,9 +11,32 @@ export function applyImportedDocument(
     visualMetadata: unknown,
     persistedRegistry: unknown
 ): number {
+    const previousDocument = DocumentGateway.build({ includeEphemeral: true });
+    const previousAssets = useVisualAssetRegistryStore.getState();
     useTimelineStore.getState().pause();
     useVisualAssetRegistryStore.getState()._clear();
-    DocumentGateway.apply(document);
+    try {
+        DocumentGateway.apply(document);
+    } catch (error) {
+        const rollbackErrors: unknown[] = [];
+        try {
+            DocumentGateway.apply(previousDocument);
+        } catch (rollbackError) {
+            rollbackErrors.push(rollbackError);
+        }
+        try {
+            useVisualAssetRegistryStore.setState({
+                assets: previousAssets.assets,
+                assetsOrder: previousAssets.assetsOrder,
+            });
+        } catch (rollbackError) {
+            rollbackErrors.push(rollbackError);
+        }
+        if (rollbackErrors.length) {
+            throw new AggregateError([error, ...rollbackErrors], 'Document import and rollback failed');
+        }
+        throw error;
+    }
     clearSpectrogramTileCache();
     const generation = advanceTimelineMutationGeneration();
     hydrateVisualAssetRegistry(fileById, visualMetadata as any, persistedRegistry as any);

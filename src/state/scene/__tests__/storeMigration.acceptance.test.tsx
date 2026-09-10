@@ -193,7 +193,11 @@ describe('store migration acceptance criteria', () => {
             useSceneStore.getState().importScene(fixture as any);
             const doc = DocumentGateway.build();
             expect(doc.scene.elements).toEqual(fixture.elements);
-            expect(doc.scene.sceneSettings).toEqual(fixture.sceneSettings);
+            expect(doc.scene.sceneSettings).toEqual({
+                fps: fixture.sceneSettings.fps,
+                width: fixture.sceneSettings.width,
+                height: fixture.sceneSettings.height,
+            });
         });
 
         it('applies documents into the store with only the Zustand gateway', () => {

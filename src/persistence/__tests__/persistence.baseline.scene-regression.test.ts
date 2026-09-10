@@ -62,14 +62,17 @@ describe('DocumentGateway baseline regression suite', () => {
         delete (window as any).visualizer;
     });
 
-    it('exports the edge macro scene snapshot via DocumentGateway.build', () => {
+    it('exports the edge macro scene with timing owned by the timeline', () => {
         const { snapshot } = buildEdgeMacroScene();
         withFrozenNow(() => {
             useSceneStore.getState().importScene(snapshot);
         });
 
         const doc = withFrozenNow(() => DocumentGateway.build());
-        expect(doc.scene).toEqual(snapshot);
+        const { tempo: _tempo, beatsPerBar: _beatsPerBar, ...sceneSettings } = snapshot.sceneSettings ?? {};
+        expect(doc.scene).toMatchObject({ ...snapshot, sceneSettings });
+        expect(doc.scene.sceneSettings?.tempo).toBeUndefined();
+        expect(doc.scene.sceneSettings?.beatsPerBar).toBeUndefined();
     });
 
     it('strips legacy padding keys from scene settings when exporting', () => {
@@ -92,6 +95,8 @@ describe('DocumentGateway baseline regression suite', () => {
         const doc = DocumentGateway.build();
         expect(doc.scene.sceneSettings?.prePadding).toBeUndefined();
         expect(doc.scene.sceneSettings?.postPadding).toBeUndefined();
+        expect(doc.scene.sceneSettings?.tempo).toBeUndefined();
+        expect(doc.scene.sceneSettings?.beatsPerBar).toBeUndefined();
     });
 
     it('hydrates the store and macro manager without relying on legacy globals', () => {

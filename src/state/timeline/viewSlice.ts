@@ -3,12 +3,7 @@ import { normalizePlaybackRange, normalizeTimelineRowHeight, normalizeTimelineVi
 
 type ViewSlice = Pick<
     TimelineState,
-    | 'setTimelineViewTicks'
-    | 'setPlaybackRangeTicks'
-    | 'setPlaybackRangeExplicitTicks'
-    | 'setRowHeight'
-    | '_setClipGroupDrag'
-    | '_setCrossTrackDrag'
+    'setTimelineViewTicks' | 'setPlaybackRangeTicks' | 'setRowHeight' | '_setClipGroupDrag' | '_setCrossTrackDrag'
 >;
 
 type TimelineSet = (updater: (state: TimelineState) => Partial<TimelineState> | TimelineState) => void;
@@ -21,12 +16,6 @@ export function createViewSlice(set: TimelineSet): ViewSlice {
         },
         setPlaybackRangeTicks(startTick, endTick) {
             set(() => ({ playbackRange: normalizePlaybackRange(startTick, endTick) }));
-        },
-        setPlaybackRangeExplicitTicks(startTick, endTick) {
-            set(() => ({
-                playbackRange: normalizePlaybackRange(startTick, endTick),
-                playbackRangeUserDefined: true,
-            }));
         },
         setRowHeight(rowHeight) {
             set(() => ({ rowHeight: normalizeTimelineRowHeight(rowHeight) }));

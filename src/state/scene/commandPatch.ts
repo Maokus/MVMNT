@@ -9,6 +9,10 @@ import {
 import { deriveElementOrder } from '@state/scene-graph';
 import { channelIdForTarget } from '@automation/types';
 import type { SceneCommand } from './commandTypes';
+import { useTimelineStore } from '@state/timelineStore';
+import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
+import { sceneCommandDefinition } from './commandDefinitions';
 
 export interface SceneCommandPatch {
     undo: SceneCommand[];
@@ -87,6 +91,33 @@ function cloneCommand<T extends SceneCommand>(command: T): T {
 export function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): SceneCommandPatch | null {
     switch (command.type) {
         case 'batch': {
+            const boundaries = sceneCommandDefinition(command).boundaries;
+            if (
+                boundaries.some(
+                    (boundary) => boundary === 'timeline' || boundary === 'metadata' || boundary === 'assets'
+                )
+            ) {
+                const timeline = useTimelineStore.getState();
+                const metadata = useSceneMetadataStore.getState().metadata;
+                const assets = useVisualAssetRegistryStore.getState();
+                return {
+                    redo: [cloneCommand(command)],
+                    undo: [
+                        {
+                            type: 'restoreClearScene',
+                            snapshot: {
+                                scene: captureSceneSnapshot(state),
+                                metadata: { ...metadata },
+                                timeline: {
+                                    playbackRange: timeline.playbackRange ? { ...timeline.playbackRange } : undefined,
+                                    playbackRangeUserDefined: timeline.playbackRangeUserDefined,
+                                },
+                                assets: { assets: { ...assets.assets }, assetsOrder: [...assets.assetsOrder] },
+                            },
+                        },
+                    ],
+                };
+            }
             return {
                 redo: [cloneCommand(command)],
                 undo: [{ type: 'loadSerializedScene', payload: captureSceneSnapshot(state) }],
@@ -158,17 +189,29 @@ export function buildSceneCommandPatch(state: SceneStoreState, command: SceneCom
             };
         }
         case 'clearScene': {
-            const snapshot = captureSceneSnapshot(state);
+            const timeline = useTimelineStore.getState();
+            const metadata = useSceneMetadataStore.getState().metadata;
+            const assets = useVisualAssetRegistryStore.getState();
             return {
                 redo: [cloneCommand(command)],
                 undo: [
                     {
-                        type: 'loadSerializedScene',
-                        payload: snapshot,
+                        type: 'restoreClearScene',
+                        snapshot: {
+                            scene: captureSceneSnapshot(state),
+                            metadata: { ...metadata },
+                            timeline: {
+                                playbackRange: timeline.playbackRange ? { ...timeline.playbackRange } : undefined,
+                                playbackRangeUserDefined: timeline.playbackRangeUserDefined,
+                            },
+                            assets: { assets: { ...assets.assets }, assetsOrder: [...assets.assetsOrder] },
+                        },
                     },
                 ],
             };
         }
+        case 'restoreClearScene':
+            return null;
         case 'registerFontAsset':
         case 'deleteFontAsset': {
             return {

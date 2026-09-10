@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { VisualSourceDescriptor, ImageSource } from '@core/resources/visual-source-descriptor';
+import { markDocumentChanged } from './documentRevisionStore';
 
 export type ProjectAssetType = 'image' | 'gif' | 'sparrow';
 
@@ -66,6 +67,7 @@ export const useVisualAssetRegistryStore = create<VisualAssetRegistryStore>((set
             assets: { ...state.assets, [id]: entry },
             assetsOrder: [...state.assetsOrder, id],
         }));
+        markDocumentChanged('assets.add');
         return id;
     },
 
@@ -109,6 +111,8 @@ export const useVisualAssetRegistryStore = create<VisualAssetRegistryStore>((set
     },
 
     removeAsset(id: string): void {
+        const existing = useVisualAssetRegistryStore.getState().assets[id];
+        if (!existing?.deletable) return;
         set((state) => {
             const entry = state.assets[id];
             if (!entry?.deletable) return state;
@@ -119,14 +123,18 @@ export const useVisualAssetRegistryStore = create<VisualAssetRegistryStore>((set
                 assetsOrder: state.assetsOrder.filter((x) => x !== id),
             };
         });
+        markDocumentChanged('assets.remove');
     },
 
     renameAsset(id: string, name: string): void {
+        const existing = useVisualAssetRegistryStore.getState().assets[id];
+        if (!existing || existing.name === name) return;
         set((state) => {
             const entry = state.assets[id];
             if (!entry) return state;
             return { assets: { ...state.assets, [id]: { ...entry, name } } };
         });
+        markDocumentChanged('assets.rename');
     },
 
     _hydrateFromImport(entries: Omit<ProjectAsset, 'origin' | 'deletable' | 'visibleInAssetManager'>[]): void {

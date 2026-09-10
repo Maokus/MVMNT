@@ -138,7 +138,6 @@ export interface SceneRuntimeMeta {
     lastHydratedAt?: number;
     lastMutationSource?: SceneMutationSource;
     lastMutatedAt?: number;
-    persistentDirty: boolean;
     hasInitializedScene: boolean;
 }
 

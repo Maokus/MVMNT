@@ -1,9 +1,21 @@
-import { dispatchSceneCommand, registerSceneCommandListener, type SceneCommandPatch } from '@state/scene';
+import { dispatchSceneCommand, registerSceneCommandCommitListener, type SceneCommandPatch } from '@state/scene';
 import type { SceneCommandTelemetryEvent } from '@state/scene';
-import { registerTimelineCommandListener, type TimelineCommandTelemetryEvent } from '@state/timeline/timelineTelemetry';
+import {
+    registerTimelineCommandCommitListener,
+    type TimelineCommandTelemetryEvent,
+} from '@state/timeline/timelineTelemetry';
 import type { TimelineCommandPatch } from '@state/timeline/patches';
 import { applyTimelinePatchActions } from '@state/timeline/patches';
 import { useTimelineStore } from '@state/timelineStore';
+import { createSceneSnapshot, useSceneStore } from '@state/sceneStore';
+import { markDocumentChanged, runWithoutDocumentRevision } from '@state/documentRevisionStore';
+import {
+    createTimelineStoreSnapshot,
+    restoreTimelineStoreSnapshot,
+    type TimelineStoreSnapshot,
+} from '@state/timeline/persistenceAdapter';
+import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 
 export interface UndoController {
     canUndo(): boolean;
@@ -38,8 +50,8 @@ class PatchUndoController implements UndoController {
 
     constructor(options: CreatePatchUndoOptions = {}) {
         this.maxDepth = Math.max(1, Math.min(options.maxDepth ?? 100, 200));
-        this.unsubscribeScene = registerSceneCommandListener((event) => this.onSceneCommand(event));
-        this.unsubscribeTimeline = registerTimelineCommandListener((event) => this.onTimelineCommand(event));
+        this.unsubscribeScene = registerSceneCommandCommitListener((event) => this.onSceneCommand(event));
+        this.unsubscribeTimeline = registerTimelineCommandCommitListener((event) => this.onTimelineCommand(event));
         this.exposeGlobals();
     }
 
@@ -82,8 +94,8 @@ class PatchUndoController implements UndoController {
             timeline: patch,
             source: event.source,
             timestamp: Date.now(),
-            mergeKey: undefined,
-            transient: false,
+            mergeKey: event.mergeKey,
+            transient: event.transient ?? false,
             timelineEvent: event,
         };
         this.pushEntry(entry);
@@ -175,7 +187,7 @@ class PatchUndoController implements UndoController {
         for (const command of commands) {
             const result = dispatchSceneCommand(command, { source: 'undo' });
             if (!result.success) {
-                console.error('[undo] Failed to apply command during undo/redo', result.error);
+                throw result.error ?? new Error('Failed to apply scene command during undo/redo');
             }
         }
     }
@@ -217,34 +229,40 @@ class PatchUndoController implements UndoController {
     undo(): void {
         if (!this.canUndo()) return;
         const entry = this.stack[this.index];
+        const rollback = this.captureRollback();
         this.restoring = true;
         try {
-            if (entry.scene) {
-                this.applySceneCommands(entry.scene.undo);
-            }
-            if (entry.timeline) {
-                this.applyTimelineCommands(entry.timeline.undo);
-            }
+            runWithoutDocumentRevision(() => {
+                if (entry.scene) this.applySceneCommands(entry.scene.undo);
+                if (entry.timeline) this.applyTimelineCommands(entry.timeline.undo);
+            });
+            this.index -= 1;
+            markDocumentChanged('undo');
+        } catch (error) {
+            this.restoreRollback(rollback);
+            console.error('[undo] Failed to undo history entry', error);
         } finally {
             this.restoring = false;
-            this.index -= 1;
         }
     }
 
     redo(): void {
         if (!this.canRedo()) return;
         const entry = this.stack[this.index + 1];
+        const rollback = this.captureRollback();
         this.restoring = true;
         try {
-            if (entry.scene) {
-                this.applySceneCommands(entry.scene.redo);
-            }
-            if (entry.timeline) {
-                this.applyTimelineCommands(entry.timeline.redo);
-            }
+            runWithoutDocumentRevision(() => {
+                if (entry.scene) this.applySceneCommands(entry.scene.redo);
+                if (entry.timeline) this.applyTimelineCommands(entry.timeline.redo);
+            });
+            this.index += 1;
+            markDocumentChanged('redo');
+        } catch (error) {
+            this.restoreRollback(rollback);
+            console.error('[undo] Failed to redo history entry', error);
         } finally {
             this.restoring = false;
-            this.index += 1;
         }
     }
 
@@ -257,6 +275,8 @@ class PatchUndoController implements UndoController {
         this.reset();
         this.unsubscribeScene?.();
         this.unsubscribeScene = undefined;
+        this.unsubscribeTimeline?.();
+        this.unsubscribeTimeline = undefined;
         if (typeof window !== 'undefined') {
             try {
                 if ((window as any).__mvmntUndo === this) {
@@ -296,6 +316,28 @@ class PatchUndoController implements UndoController {
 
     isRestoring(): boolean {
         return this.restoring;
+    }
+
+    private captureRollback() {
+        return {
+            scene: createSceneSnapshot(useSceneStore.getState()),
+            timeline: createTimelineStoreSnapshot(useTimelineStore.getState()),
+            metadata: { ...useSceneMetadataStore.getState().metadata },
+            assets: {
+                assets: { ...useVisualAssetRegistryStore.getState().assets },
+                assetsOrder: [...useVisualAssetRegistryStore.getState().assetsOrder],
+            },
+        };
+    }
+
+    private restoreRollback(snapshot: ReturnType<PatchUndoController['captureRollback']>): void {
+        useSceneStore.getState().importScene(snapshot.scene);
+        restoreTimelineStoreSnapshot(
+            (timelineSnapshot) => useTimelineStore.setState(timelineSnapshot),
+            snapshot.timeline as TimelineStoreSnapshot
+        );
+        useSceneMetadataStore.getState().hydrate(snapshot.metadata);
+        useVisualAssetRegistryStore.setState(snapshot.assets);
     }
 }
 

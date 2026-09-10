@@ -213,7 +213,6 @@ export interface SceneRuntimeMeta {
     lastHydratedAt?: number;
     lastMutationSource?: SceneMutationSource;
     lastMutatedAt?: number;
-    persistentDirty: boolean;
     hasInitializedScene: boolean;
 }
 
@@ -626,7 +625,6 @@ function createRuntimeMeta(): SceneRuntimeMeta {
         schemaVersion: INTERNAL_SCENE_STORE_SCHEMA_VERSION,
         initializedAt: now,
         lastMutatedAt: now,
-        persistentDirty: false,
         hasInitializedScene: false,
     };
 }
@@ -635,7 +633,6 @@ function markDirty(prev: SceneStoreState, source: SceneMutationSource): SceneRun
     const now = Date.now();
     return {
         ...prev.runtimeMeta,
-        persistentDirty: true,
         lastMutationSource: source,
         lastMutatedAt: now,
         hasInitializedScene: true,

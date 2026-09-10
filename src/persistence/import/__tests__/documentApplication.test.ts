@@ -4,6 +4,8 @@ import { TransportCoordinator } from '@audio/transport-coordinator';
 import { DocumentGateway } from '@persistence/document-gateway';
 import { applyImportedDocument } from '@persistence/import/documentApplication';
 import { useTimelineStore } from '@state/timelineStore';
+import { useSceneStore } from '@state/sceneStore';
+import { DocumentApplyError } from '@persistence/document-gateway';
 
 describe('imported document application', () => {
     afterEach(() => {
@@ -33,5 +35,24 @@ describe('imported document application', () => {
         });
         expect(stop).toHaveBeenCalledOnce();
         coordinator.dispose();
+    });
+
+    it('rolls every document domain back when scene application fails', () => {
+        useTimelineStore.setState((state) => ({
+            timeline: { ...state.timeline, globalBpm: 111 },
+        }));
+        const before = DocumentGateway.build({ includeEphemeral: true });
+        const incoming = DocumentGateway.build({ includeEphemeral: true });
+        incoming.timeline = { ...incoming.timeline, globalBpm: 177 };
+        const importScene = vi.spyOn(useSceneStore.getState(), 'importScene');
+        importScene.mockImplementationOnce(() => {
+            throw new Error('rejected scene');
+        });
+
+        expect(() => applyImportedDocument(incoming as any, new Map(), undefined, undefined)).toThrow(
+            DocumentApplyError
+        );
+        expect(useTimelineStore.getState().timeline.globalBpm).toBe(before.timeline.globalBpm);
+        importScene.mockRestore();
     });
 });

@@ -5,7 +5,7 @@ import type { AudioAnalysisProfileOverrides } from '@audio/features/audioFeature
  * This is NOT user-configurable - it's implementation detail.
  */
 export interface AudioFeatureRequirement {
-    /** Feature key (e.g., 'spectrogram', 'rms', 'waveform') */
+    /** Feature key (for example, 'spectrogram', 'peaks', or 'pitchGuide') */
     feature: string;
     /** Optional band index for multi-band features */
     bandIndex?: number;

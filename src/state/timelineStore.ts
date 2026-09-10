@@ -74,9 +74,9 @@ import type {
 import type { HybridCacheFallbackEvent, TimelineState, TimelineTrack } from './timeline/storeTypes';
 import { createInitialTimelineSlice } from './timeline/storeComposition';
 import { createClearedTimelinePersistenceState } from './timeline/persistenceAdapter';
-import { applyTempoAutomation } from './timeline/transportTiming';
 import { createTransportSlice } from './timeline/transportSlice';
 import { createViewSlice } from './timeline/viewSlice';
+import { markDocumentChanged } from './documentRevisionStore';
 
 export type { HybridCacheFallbackEvent, TimelineState, TimelineTrack } from './timeline/storeTypes';
 
@@ -429,6 +429,28 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     ...createTransportSlice({ set, get, markAllAudioFeatureStatuses }),
     ...createViewSlice(set),
 
+    setPlaybackRangeExplicitTicks(startTick?: number, endTick?: number) {
+        void timelineCommandGateway
+            .dispatchById(
+                'timeline.setPlaybackRange',
+                { startTick, endTick },
+                { source: 'timeline-store', mode: 'concurrent' }
+            )
+            .catch((error) => console.error('[timelineStore] setPlaybackRange command failed', error));
+    },
+
+    setGlobalBpm(bpm: number) {
+        void timelineCommandGateway
+            .dispatchById('timeline.setGlobalBpm', { bpm }, { source: 'timeline-store', mode: 'concurrent' })
+            .catch((error) => console.error('[timelineStore] setGlobalBpm command failed', error));
+    },
+
+    setBeatsPerBar(beatsPerBar: number) {
+        void timelineCommandGateway
+            .dispatchById('timeline.setBeatsPerBar', { beatsPerBar }, { source: 'timeline-store', mode: 'concurrent' })
+            .catch((error) => console.error('[timelineStore] setBeatsPerBar command failed', error));
+    },
+
     async addMidiTrack(input: {
         name: string;
         file?: File;
@@ -569,30 +591,17 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         if ('regionStartTick' in patch) propertyPatch.regionStartTick = patch.regionStartTick;
         if ('regionEndTick' in patch) propertyPatch.regionEndTick = patch.regionEndTick;
 
-        const tasks: Array<Promise<unknown>> = [];
-        if (typeof patch.offsetTicks === 'number') {
-            tasks.push(
-                timelineCommandGateway.dispatchById(
-                    'timeline.setTrackOffsetTicks',
-                    { trackId: id, offsetTicks: patch.offsetTicks },
-                    { source: 'timeline-store' }
-                )
-            );
-        }
-        if (Object.keys(propertyPatch).length) {
-            tasks.push(
-                timelineCommandGateway.dispatchById(
-                    'timeline.setTrackProperties',
-                    {
-                        updates: [{ trackId: id, patch: propertyPatch }],
-                    },
-                    { source: 'timeline-store' }
-                )
-            );
-        }
-        if (!tasks.length) return;
+        if (typeof patch.offsetTicks !== 'number' && !Object.keys(propertyPatch).length) return;
         try {
-            await Promise.all(tasks);
+            await timelineCommandGateway.dispatchById(
+                'timeline.updateTrack',
+                {
+                    trackId: id,
+                    offsetTicks: patch.offsetTicks,
+                    properties: propertyPatch,
+                },
+                { source: 'timeline-store' }
+            );
         } catch (error) {
             console.error('[timelineStore] updateTrack command failed', error);
             throw error;
@@ -1096,6 +1105,16 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     ) {
         const buffer = get().audioCache[id]?.audioBuffer;
         if (!buffer) {
+            set((s: TimelineState) => ({
+                audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+                    s.audioFeatureCacheStatus,
+                    id,
+                    'pending',
+                    'preparing audio for analysis',
+                    undefined,
+                    null
+                ),
+            }));
             void rehydrateAudioSourceInternal(id, get, set).then((ready) => {
                 const nextBuffer = get().audioCache[id]?.audioBuffer;
                 if (ready && nextBuffer) {
@@ -1130,6 +1149,16 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         }
         const buffer = get().audioCache[id]?.audioBuffer;
         if (!buffer) {
+            set((s: TimelineState) => ({
+                audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+                    s.audioFeatureCacheStatus,
+                    id,
+                    'pending',
+                    'preparing audio for analysis',
+                    undefined,
+                    null
+                ),
+            }));
             void rehydrateAudioSourceInternal(id, get, set).then((ready) => {
                 const nextBuffer = get().audioCache[id]?.audioBuffer;
                 if (ready && nextBuffer) {
@@ -1344,77 +1373,48 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     enableTempoAutomation() {
         const currentBpm = get().timeline.globalBpm || 120;
-        set(
-            (s: TimelineState) =>
-                ({
-                    timeline: {
-                        ...s.timeline,
-                        tempoAutomation: {
-                            enabled: true,
-                            laneVisible: s.timeline.tempoAutomation?.laneVisible ?? true,
-                            // Re-enabling is non-destructive: retain the user's map if one exists.
-                            keyframes: s.timeline.tempoAutomation?.keyframes.length
-                                ? s.timeline.tempoAutomation.keyframes
-                                : [{ tick: 0, bpm: currentBpm }],
-                        },
-                    },
-                }) as any
+        const current = get().timeline.tempoAutomation;
+        const keyframes = current?.keyframes.length ? current.keyframes : [{ tick: 0, bpm: currentBpm }];
+        void timelineCommandGateway.dispatchById(
+            'timeline.setTempoAutomation',
+            { enabled: true, keyframes },
+            { source: 'timeline-store' }
         );
-        applyTempoAutomation(get);
     },
 
     disableTempoAutomation() {
-        set(
-            (s: TimelineState) =>
-                ({
-                    timeline: {
-                        ...s.timeline,
-                        tempoAutomation: {
-                            enabled: false,
-                            // Disabling only bypasses the map. Resetting it is an explicit action.
-                            keyframes: s.timeline.tempoAutomation?.keyframes ?? [],
-                        },
-                    },
-                }) as any
+        void timelineCommandGateway.dispatchById(
+            'timeline.setTempoAutomation',
+            { enabled: false, keyframes: get().timeline.tempoAutomation?.keyframes ?? [] },
+            { source: 'timeline-store' }
         );
-        get().setMasterTempoMap(undefined);
     },
 
     addTempoKeyframe(tick: number, bpm: number) {
-        set((s: TimelineState) => {
-            const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
-            const existing = ta.keyframes.findIndex((kf) => Math.abs(kf.tick - tick) <= TEMPO_KF_TICK_TOLERANCE);
-            let next: TempoKeyframe[];
-            if (existing >= 0) {
-                next = [...ta.keyframes];
-                next[existing] = { tick, bpm };
-            } else {
-                next = [...ta.keyframes, { tick, bpm }].sort((a, b) => a.tick - b.tick);
-            }
-            return {
-                timeline: {
-                    ...s.timeline,
-                    tempoAutomation: { ...ta, keyframes: next },
-                },
-            } as any;
-        });
-        applyTempoAutomation(get);
+        const ta = get().timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
+        const existing = ta.keyframes.findIndex((kf) => Math.abs(kf.tick - tick) <= TEMPO_KF_TICK_TOLERANCE);
+        const keyframes = [...ta.keyframes];
+        if (existing >= 0) keyframes[existing] = { tick, bpm };
+        else keyframes.push({ tick, bpm });
+        void timelineCommandGateway.dispatchById(
+            'timeline.setTempoAutomation',
+            { enabled: ta.enabled, keyframes },
+            { source: 'timeline-store' }
+        );
     },
 
     removeTempoKeyframe(tick: number) {
         // The Bar 1 point is the required base tempo for an enabled map.
         if (Math.abs(tick) <= TEMPO_KF_TICK_TOLERANCE) return;
-        set((s: TimelineState) => {
-            const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
-            const next = ta.keyframes.filter((kf) => Math.abs(kf.tick - tick) > TEMPO_KF_TICK_TOLERANCE);
-            return {
-                timeline: {
-                    ...s.timeline,
-                    tempoAutomation: { ...ta, keyframes: next },
-                },
-            } as any;
-        });
-        applyTempoAutomation(get);
+        const ta = get().timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
+        void timelineCommandGateway.dispatchById(
+            'timeline.setTempoAutomation',
+            {
+                enabled: ta.enabled,
+                keyframes: ta.keyframes.filter((kf) => Math.abs(kf.tick - tick) > TEMPO_KF_TICK_TOLERANCE),
+            },
+            { source: 'timeline-store' }
+        );
     },
 
     moveTempoKeyframe(fromTick: number, toTick: number) {
@@ -1425,38 +1425,29 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             );
             if (occupied) return;
         }
-        set((s: TimelineState) => {
-            const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
-            const idx = ta.keyframes.findIndex((kf) => Math.abs(kf.tick - fromTick) <= TEMPO_KF_TICK_TOLERANCE);
-            if (idx < 0) return s;
-            const next = [...ta.keyframes];
-            next[idx] = { ...next[idx], tick: toTick };
-            next.sort((a, b) => a.tick - b.tick);
-            return {
-                timeline: {
-                    ...s.timeline,
-                    tempoAutomation: { ...ta, keyframes: next },
-                },
-            } as any;
-        });
-        applyTempoAutomation(get);
+        const ta = get().timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
+        const idx = ta.keyframes.findIndex((kf) => Math.abs(kf.tick - fromTick) <= TEMPO_KF_TICK_TOLERANCE);
+        if (idx < 0) return;
+        const keyframes = [...ta.keyframes];
+        keyframes[idx] = { ...keyframes[idx], tick: toTick };
+        void timelineCommandGateway.dispatchById(
+            'timeline.setTempoAutomation',
+            { enabled: ta.enabled, keyframes },
+            { source: 'timeline-store' }
+        );
     },
 
     updateTempoKeyframeBpm(tick: number, bpm: number) {
-        set((s: TimelineState) => {
-            const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
-            const idx = ta.keyframes.findIndex((kf) => Math.abs(kf.tick - tick) <= TEMPO_KF_TICK_TOLERANCE);
-            if (idx < 0) return s;
-            const next = [...ta.keyframes];
-            next[idx] = { ...next[idx], bpm };
-            return {
-                timeline: {
-                    ...s.timeline,
-                    tempoAutomation: { ...ta, keyframes: next },
-                },
-            } as any;
-        });
-        applyTempoAutomation(get);
+        const ta = get().timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
+        const idx = ta.keyframes.findIndex((kf) => Math.abs(kf.tick - tick) <= TEMPO_KF_TICK_TOLERANCE);
+        if (idx < 0) return;
+        const keyframes = [...ta.keyframes];
+        keyframes[idx] = { ...keyframes[idx], bpm };
+        void timelineCommandGateway.dispatchById(
+            'timeline.setTempoAutomation',
+            { enabled: ta.enabled, keyframes },
+            { source: 'timeline-store' }
+        );
     },
 
     updateTempoKeyframe(fromTick: number, next: { tick: number; bpm: number }) {
@@ -1471,35 +1462,24 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             (kf, i) => i !== idx && Math.abs(kf.tick - targetTick) <= TEMPO_KF_TICK_TOLERANCE
         );
         if (collision) return false;
-        set((s: TimelineState) => {
-            const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
-            const keyframes = [...ta.keyframes];
-            const pointIndex = keyframes.findIndex((kf) => Math.abs(kf.tick - fromTick) <= TEMPO_KF_TICK_TOLERANCE);
-            if (pointIndex < 0) return s;
-            keyframes[pointIndex] = { tick: targetTick, bpm: targetBpm };
-            keyframes.sort((a, b) => a.tick - b.tick);
-            return { timeline: { ...s.timeline, tempoAutomation: { ...ta, keyframes } } } as any;
-        });
-        applyTempoAutomation(get);
+        const ta = get().timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
+        const keyframes = [...ta.keyframes];
+        keyframes[idx] = { tick: targetTick, bpm: targetBpm };
+        void timelineCommandGateway.dispatchById(
+            'timeline.setTempoAutomation',
+            { enabled: ta.enabled, keyframes },
+            { source: 'timeline-store', mergeKey: `tempo-keyframe:${fromTick}` }
+        );
         return true;
     },
 
     batchSetTempoKeyframes(keyframes: TempoKeyframe[]) {
-        const byTick = new Map<number, TempoKeyframe>();
-        keyframes.forEach((kf) =>
-            byTick.set(Math.max(0, Math.round(kf.tick)), { tick: Math.max(0, Math.round(kf.tick)), bpm: kf.bpm })
+        const ta = get().timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
+        void timelineCommandGateway.dispatchById(
+            'timeline.setTempoAutomation',
+            { enabled: ta.enabled, keyframes },
+            { source: 'timeline-store' }
         );
-        const sorted = [...byTick.values()].sort((a, b) => a.tick - b.tick);
-        set((s: TimelineState) => {
-            const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
-            return {
-                timeline: {
-                    ...s.timeline,
-                    tempoAutomation: { ...ta, keyframes: sorted },
-                },
-            } as any;
-        });
-        applyTempoAutomation(get);
     },
 
     commitTempoKeyframeDrag(fromTick: number, toTick: number) {
@@ -1507,17 +1487,16 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     resetTempoAutomationChanges() {
-        set((s: TimelineState) => {
-            const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
-            const base = ta.keyframes.find((kf) => Math.abs(kf.tick) <= TEMPO_KF_TICK_TOLERANCE) ?? {
-                tick: 0,
-                bpm: s.timeline.globalBpm || 120,
-            };
-            return {
-                timeline: { ...s.timeline, tempoAutomation: { ...ta, keyframes: [{ tick: 0, bpm: base.bpm }] } },
-            } as any;
-        });
-        applyTempoAutomation(get);
+        const ta = get().timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
+        const base = ta.keyframes.find((kf) => Math.abs(kf.tick) <= TEMPO_KF_TICK_TOLERANCE) ?? {
+            tick: 0,
+            bpm: get().timeline.globalBpm || 120,
+        };
+        void timelineCommandGateway.dispatchById(
+            'timeline.setTempoAutomation',
+            { enabled: ta.enabled, keyframes: [{ tick: 0, bpm: base.bpm }] },
+            { source: 'timeline-store' }
+        );
     },
 
     setTempoLaneVisible(visible: boolean) {
@@ -1534,12 +1513,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 });
 
 export const useTimelineStore = createWithEqualityFn<TimelineState>(storeImpl);
-onAudioFeatureCalculatorRegistered((calculator) => {
+const unsubscribeCalculatorRegistration = onAudioFeatureCalculatorRegistered((calculator) => {
     useTimelineStore.getState().invalidateAudioFeatureCachesByCalculator(calculator.id, calculator.version);
 });
-(window as any).timelineStore = useTimelineStore;
+if (typeof window !== 'undefined') (window as any).timelineStore = useTimelineStore;
 
 export const devZustand = (store: any, name: string) => {
+    if (typeof window === 'undefined') return;
     let _window = window as any;
     if (process.env.NODE_ENV === 'development') {
         _window.store = _window.store || {};
@@ -1558,7 +1538,18 @@ export const useTimelineStoreShallow = <T>(selector: (s: TimelineState) => T) =>
 export const timelineCommandGateway = createTimelineCommandGateway({
     getState: () => useTimelineStore.getState(),
     setState: (updater) => useTimelineStore.setState(updater as any),
+    markDocumentChanged,
 });
+
+/** Releases module-owned jobs/listeners for tests and application teardown. */
+export function disposeTimelineStateRuntime(): void {
+    for (const id of [...activeAudioFeatureJobs.keys()]) cancelActiveAudioFeatureJob(id);
+    unsubscribeCalculatorRegistration();
+    timelineCommandGateway.destroy();
+    if (typeof window !== 'undefined' && (window as any).timelineStore === useTimelineStore) {
+        delete (window as any).timelineStore;
+    }
+}
 
 export function dispatchTimelineCommandDescriptor<TResult = void>(
     descriptor: TimelineSerializedCommandDescriptor

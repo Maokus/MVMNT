@@ -29,6 +29,8 @@ it should describe the same frame regardless of which frames were requested befo
 
 Resources can change the cost of rendering, but not its meaning. Simulation is the only place where
 authored temporal state advances, and the host controls its clock, replay, and checkpoints.
+This distinction is independent of the host application's Zustand stores: plugins never read or
+mutate application state directly. They receive immutable, time-specific SDK snapshots instead.
 
 ## A plugin project at a glance
 

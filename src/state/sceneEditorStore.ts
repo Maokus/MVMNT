@@ -1,5 +1,6 @@
 import { createWithEqualityFn } from 'zustand/traditional';
 import type { NodeTransform } from '@state/scene-graph';
+import { markDocumentChanged as advanceDocumentRevision } from '@state/documentRevisionStore';
 
 export interface PropertyClipboard {
     elementType: string;
@@ -14,7 +15,6 @@ export interface SceneEditorState {
     activePropertyTab: Record<string, string>;
     propertyClipboard: PropertyClipboard | null;
     transientNodeTransforms: Record<string, Partial<NodeTransform>>;
-    documentRevision: number;
     runtimeRevision: number;
     lastMutationSource?: string;
     hasInitializedScene: boolean;
@@ -45,7 +45,6 @@ const initialState = () => ({
 
 export const useSceneEditorStore = createWithEqualityFn<SceneEditorState>((set) => ({
     ...initialState(),
-    documentRevision: 0,
     runtimeRevision: 0,
     hasInitializedScene: false,
     setAutomationExpandedOwners: (automationExpandedOwners) => set({ automationExpandedOwners }),
@@ -97,12 +96,10 @@ export const useSceneEditorStore = createWithEqualityFn<SceneEditorState>((set) 
             }
             return changed ? { transientNodeTransforms: next, runtimeRevision: state.runtimeRevision + 1 } : state;
         }),
-    markDocumentChanged: (lastMutationSource) =>
-        set((state) => ({
-            documentRevision: state.documentRevision + 1,
-            runtimeRevision: state.runtimeRevision + 1,
-            lastMutationSource,
-        })),
+    markDocumentChanged: (lastMutationSource) => {
+        advanceDocumentRevision(lastMutationSource);
+        set((state) => ({ runtimeRevision: state.runtimeRevision + 1, lastMutationSource }));
+    },
     markHydrated: () =>
         set((state) => ({
             ...initialState(),

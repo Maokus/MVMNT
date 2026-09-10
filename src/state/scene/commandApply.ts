@@ -196,6 +196,19 @@ export function applySceneStoreCommand(
             useTimelineStore.setState({ playbackRange: undefined, playbackRangeUserDefined: false });
             break;
         }
+        case 'restoreClearScene': {
+            store.importScene(command.snapshot.scene);
+            useSceneMetadataStore.getState().hydrate(command.snapshot.metadata);
+            useTimelineStore.setState({
+                playbackRange: command.snapshot.timeline.playbackRange,
+                playbackRangeUserDefined: command.snapshot.timeline.playbackRangeUserDefined,
+            });
+            useVisualAssetRegistryStore.setState({
+                assets: { ...command.snapshot.assets.assets },
+                assetsOrder: [...command.snapshot.assets.assetsOrder],
+            });
+            break;
+        }
         case 'resetSceneSettings':
             store.updateSettings(DEFAULT_SCENE_SETTINGS);
             break;

@@ -1,8 +1,8 @@
-import { useTimelineStore, sharedTimingManager } from '@state/timelineStore';
+import { useTimelineStore, sharedTimingManager, type TimelineState } from '@state/timelineStore';
 import { resolveTempoKeyframes } from '@core/timing/tempo-automation-resolver';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { serializeStable } from './stable-stringify';
-import { createSceneSnapshot, useSceneStore } from '@state/sceneStore';
+import { createSceneSnapshot, useSceneStore, type SceneSnapshot } from '@state/sceneStore';
 import type { SceneSerializedElement } from '@state/sceneStore';
 import { getMacroSnapshot, replaceMacrosFromSnapshot } from '@state/scene/macroSyncService';
 import { migrateSceneAudioSystemV5 } from './migrations/audioSystemV5';
@@ -17,7 +17,7 @@ import {
 } from '@audio/features/analysisIntents';
 
 /** Fields stripped from sceneSettings when persisting (padding concepts removed). */
-const STRIP_SCENE_SETTINGS_KEYS = new Set(['prePadding', 'postPadding']);
+const STRIP_SCENE_SETTINGS_KEYS = new Set(['prePadding', 'postPadding', 'tempo', 'beatsPerBar']);
 
 /**
  * Normalizes elements from either V5 (flat array with spread properties) or
@@ -57,26 +57,37 @@ function normalizeElements(scene: any): SceneSerializedElement[] {
  * - Excludes: timeline.timeline.currentTick, transport, timelineView.
  * - Includes: timeline meta (id, name, tempo map, bpm, meter) & tracks/midiCache etc.
  */
+type PersistentTimeline = Omit<TimelineState['timeline'], 'currentTick' | 'playheadAuthority' | 'tempoAutomation'> & {
+    tempoAutomation?: Omit<NonNullable<TimelineState['timeline']['tempoAutomation']>, 'laneVisible'>;
+};
+
+export interface DocumentEphemeralState {
+    currentTick?: number;
+    transport?: TimelineState['transport'];
+    timelineView?: TimelineState['timelineView'];
+}
+
 export interface PersistentDocumentV1 {
-    timeline: any; // sanitized timeline slice without currentTick (playhead)
-    tracks: any;
+    timeline: PersistentTimeline;
+    tracks: TimelineState['tracks'];
     tracksOrder: string[];
-    playbackRange?: any;
+    playbackRange?: TimelineState['playbackRange'];
     playbackRangeUserDefined: boolean;
-    rowHeight: number;
-    midiCache: any;
-    audioFeatureCaches?: Record<string, any>;
-    audioFeatureCacheStatus?: Record<string, any>;
+    /** Legacy document UI preference; read for compatibility but no longer written. */
+    rowHeight?: number;
+    midiCache: TimelineState['midiCache'];
+    audioFeatureCaches?: TimelineState['audioFeatureCaches'];
+    audioFeatureCacheStatus?: TimelineState['audioFeatureCacheStatus'];
     audioFeatureDemands?: PersistedAnalysisIntent[];
     scene: {
-        elements: Record<string, any>;
+        elements: SceneSnapshot['elements'];
         graph: SceneGraphState;
-        sceneSettings?: any;
-        macros?: any;
-        fontAssets?: any;
+        sceneSettings?: SceneSnapshot['sceneSettings'];
+        macros?: SceneSnapshot['macros'];
+        fontAssets?: SceneSnapshot['fontAssets'];
         fontLicensingAcknowledgedAt?: number;
-        automation?: any;
-        nodeBindings?: any;
+        automation?: SceneSnapshot['automation'];
+        nodeBindings?: SceneSnapshot['nodeBindings'];
     };
     metadata?: Partial<SceneMetadataState>;
 }
@@ -88,53 +99,63 @@ export interface BuildOptions {
     includeEphemeral?: boolean;
 }
 
+export class DocumentApplyError extends Error {
+    constructor(
+        message: string,
+        readonly applyError: unknown,
+        readonly rollbackErrors: readonly unknown[] = []
+    ) {
+        super(message);
+        this.name = 'DocumentApplyError';
+    }
+}
+
 export const DocumentGateway = {
     /** Build a PersistentDocumentV1 (optionally with ephemeral fields for undo). */
-    build(opts: BuildOptions = {}): PersistentDocumentV1 & { __ephemeral?: any } {
+    build(opts: BuildOptions = {}): PersistentDocumentV1 & { __ephemeral?: DocumentEphemeralState } {
         const state = useTimelineStore.getState();
         // Copy timeline but drop currentTick always in persistent form.
-        const { timeline, transport, timelineView, ...rest } = state as any;
+        const { timeline, transport, timelineView } = state;
         // Strip ephemeral timeline fields: currentTick always, playheadAuthority should not generate undo snapshots.
         // Additional ephemeral timeline-only fields can be added here without affecting persisted documents.
         const { currentTick: _dropTick, playheadAuthority: _dropAuth, ...timelineCore } = timeline || {};
+        const persistedTimeline = timelineCore.tempoAutomation
+            ? {
+                  ...timelineCore,
+                  tempoAutomation: {
+                      enabled: timelineCore.tempoAutomation.enabled,
+                      keyframes: timelineCore.tempoAutomation.keyframes,
+                  },
+              }
+            : timelineCore;
 
-        // Scene + macros (best effort)
-        let elements: Record<string, any> = {};
+        // Scene + macros
+        let elements: SceneSnapshot['elements'] = {};
         let graph: SceneGraphState = createFlatSceneGraph([]);
-        let sceneSettings: any = undefined;
-        let macros: any = undefined;
-        let fontAssets: any = undefined;
+        let sceneSettings: SceneSnapshot['sceneSettings'] | undefined;
+        let macros: SceneSnapshot['macros'];
+        let fontAssets: SceneSnapshot['fontAssets'];
         let fontLicensingAcknowledgedAt: number | undefined;
-        let automation: any = undefined;
-        let nodeBindings: any = undefined;
+        let automation: SceneSnapshot['automation'];
+        let nodeBindings: SceneSnapshot['nodeBindings'];
         let elementWarnings: string[] | undefined;
 
-        try {
-            const snapshot = createSceneSnapshot(useSceneStore.getState());
-            elements = snapshot.elements ?? {};
-            graph = snapshot.graph;
-            if (snapshot.elementErrors?.length) {
-                elementWarnings = snapshot.elementErrors.map(
-                    (e) => `Element "${e.id}" (${e.type}) could not be exported: ${e.message}`
-                );
-            }
-            if (snapshot.sceneSettings) {
-                sceneSettings = { ...snapshot.sceneSettings };
-            }
-            if (snapshot.macros) {
-                macros = { ...snapshot.macros };
-            }
-            if (snapshot.fontAssets) {
-                fontAssets = { ...snapshot.fontAssets };
-            }
-            if (typeof snapshot.fontLicensingAcknowledgedAt === 'number') {
-                fontLicensingAcknowledgedAt = snapshot.fontLicensingAcknowledgedAt;
-            }
-            if (snapshot.automation) {
-                automation = snapshot.automation;
-            }
-            if (snapshot.nodeBindings) nodeBindings = snapshot.nodeBindings;
-        } catch {}
+        const snapshot = createSceneSnapshot(useSceneStore.getState());
+        elements = snapshot.elements ?? {};
+        graph = snapshot.graph;
+        if (snapshot.elementErrors?.length) {
+            elementWarnings = snapshot.elementErrors.map(
+                (e) => `Element "${e.id}" (${e.type}) could not be exported: ${e.message}`
+            );
+        }
+        if (snapshot.sceneSettings) sceneSettings = { ...snapshot.sceneSettings };
+        if (snapshot.macros) macros = { ...snapshot.macros };
+        if (snapshot.fontAssets) fontAssets = { ...snapshot.fontAssets };
+        if (typeof snapshot.fontLicensingAcknowledgedAt === 'number') {
+            fontLicensingAcknowledgedAt = snapshot.fontLicensingAcknowledgedAt;
+        }
+        if (snapshot.automation) automation = snapshot.automation;
+        if (snapshot.nodeBindings) nodeBindings = snapshot.nodeBindings;
 
         const hasMacros = !!macros && !!macros.macros && Object.keys(macros.macros).length > 0;
         if (!hasMacros) {
@@ -147,18 +168,18 @@ export const DocumentGateway = {
             }
         }
 
-        let metadata: Partial<SceneMetadataState> | undefined;
-        try {
-            metadata = { ...useSceneMetadataStore.getState().metadata };
-        } catch {}
+        const metadata: Partial<SceneMetadataState> = { ...useSceneMetadataStore.getState().metadata };
 
         const doc: PersistentDocumentV1 = {
-            timeline: timelineCore,
+            timeline: {
+                ...persistedTimeline,
+                id: metadata.id ?? persistedTimeline.id,
+                name: metadata.name ?? persistedTimeline.name,
+            },
             tracks: state.tracks,
             tracksOrder: [...state.tracksOrder],
             playbackRange: state.playbackRange,
             playbackRangeUserDefined: state.playbackRangeUserDefined,
-            rowHeight: state.rowHeight,
             midiCache: state.midiCache,
             audioFeatureCaches: state.audioFeatureCaches,
             audioFeatureCacheStatus: state.audioFeatureCacheStatus,
@@ -197,7 +218,7 @@ export const DocumentGateway = {
     },
 
     /** Apply a document to the running app state. Ephemeral fields ignored unless present explicitly. */
-    apply(doc: PersistentDocumentV1 & { __ephemeral?: any }) {
+    _applyUnchecked(doc: PersistentDocumentV1 & { __ephemeral?: DocumentEphemeralState }) {
         const set = useTimelineStore.setState;
         const timelineCore = doc.timeline || {};
         const hydratedTracks: Record<string, any> = {};
@@ -209,6 +230,12 @@ export const DocumentGateway = {
             timeline: {
                 ...prev.timeline,
                 ...timelineCore,
+                tempoAutomation: timelineCore.tempoAutomation
+                    ? {
+                          ...timelineCore.tempoAutomation,
+                          laneVisible: prev.timeline.tempoAutomation?.laneVisible,
+                      }
+                    : prev.timeline.tempoAutomation,
                 currentTick: prev.timeline.currentTick, // preserve existing playhead
             },
             tracks: hydratedTracks,
@@ -276,15 +303,11 @@ export const DocumentGateway = {
 
         const sceneData = migrateSceneAudioSystemV5(rawSceneData);
 
-        try {
-            useSceneStore.getState().importScene(sceneData);
-        } catch {}
+        useSceneStore.getState().importScene(sceneData);
 
         mergePersistedAnalysisIntents(doc.audioFeatureDemands);
 
-        try {
-            replaceMacrosFromSnapshot(sceneData.macros);
-        } catch {}
+        replaceMacrosFromSnapshot(sceneData.macros);
 
         if (sceneData.sceneSettings) {
             try {
@@ -293,9 +316,18 @@ export const DocumentGateway = {
                 const tl = api.timeline;
                 const haveTimelineBpm = typeof tl.globalBpm === 'number' && tl.globalBpm !== 120;
                 const haveTimelineMeter = typeof tl.beatsPerBar === 'number' && tl.beatsPerBar !== 4;
-                if (typeof tempo === 'number' && !haveTimelineBpm) api.setGlobalBpm(Math.max(1, tempo));
-                if (typeof beatsPerBar === 'number' && !haveTimelineMeter)
-                    api.setBeatsPerBar(Math.max(1, Math.floor(beatsPerBar)));
+                const fallbackBpm = typeof tempo === 'number' && !haveTimelineBpm ? Math.max(1, tempo) : tl.globalBpm;
+                const fallbackMeter =
+                    typeof beatsPerBar === 'number' && !haveTimelineMeter
+                        ? Math.max(1, Math.floor(beatsPerBar))
+                        : tl.beatsPerBar;
+                if (fallbackBpm !== tl.globalBpm || fallbackMeter !== tl.beatsPerBar) {
+                    useTimelineStore.setState((state) => ({
+                        timeline: { ...state.timeline, globalBpm: fallbackBpm, beatsPerBar: fallbackMeter },
+                    }));
+                    sharedTimingManager.setBPM(fallbackBpm);
+                    sharedTimingManager.setBeatsPerBar(fallbackMeter);
+                }
             } catch {
                 /* ignore */
             }
@@ -318,9 +350,28 @@ export const DocumentGateway = {
         }
 
         if (doc.metadata) {
+            useSceneMetadataStore.getState().hydrate(doc.metadata);
+        }
+    },
+
+    /** Apply all authored domains atomically or restore the previous canonical document. */
+    apply(doc: PersistentDocumentV1 & { __ephemeral?: DocumentEphemeralState }): { ok: true } {
+        const previous = this.build({ includeEphemeral: true });
+        try {
+            this._applyUnchecked(doc);
+            return { ok: true };
+        } catch (applyError) {
+            const rollbackErrors: unknown[] = [];
             try {
-                useSceneMetadataStore.getState().hydrate(doc.metadata);
-            } catch {}
+                this._applyUnchecked(previous);
+            } catch (rollbackError) {
+                rollbackErrors.push(rollbackError);
+            }
+            throw new DocumentApplyError(
+                rollbackErrors.length ? 'Document apply and rollback failed' : 'Document apply failed',
+                applyError,
+                rollbackErrors
+            );
         }
     },
 };
