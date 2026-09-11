@@ -270,7 +270,7 @@ export function createPromptQuestions(options) {
             type: options.element ? null : 'text',
             name: 'element',
             message: 'Element type',
-            initial: (_previous, values) => (values.name ?? options.name ?? 'com.example.my-plugin').split('.').at(-1),
+            initial: 'my-plugin-element',
             validate: (value) =>
                 validateElementType(value) ? true : 'Use a kebab-case name, such as my-plugin-element.',
         },

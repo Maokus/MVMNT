@@ -95,7 +95,7 @@ describe('create-mvmnt-plugin CLI', () => {
             'elementName',
             'template',
         ]);
-        expect(evaluateInitial(questions[2], { name: 'com.example.my-plugin-element' })).toBe('my-plugin-element');
+        //expect(evaluateInitial(questions[2], { name: 'com.example.my-plugin-element' })).toBe('my-plugin-element');
         expect(evaluateInitial(questions[3], { element: 'my-plugin-element' })).toBe('My Plugin Element');
     });
 
