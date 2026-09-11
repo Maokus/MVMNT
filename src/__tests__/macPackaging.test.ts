@@ -67,11 +67,23 @@ describe('macOS packaging dependencies', () => {
 
     it('defines traceable testing artifacts and validates stable release tags', () => {
         const testingWorkflow = readFileSync(resolve(process.cwd(), '.github/workflows/testing-builds.yml'), 'utf8');
+        const experimentalWorkflow = readFileSync(
+            resolve(process.cwd(), '.github/workflows/experimental-validation.yml'),
+            'utf8'
+        );
         const releaseWorkflow = readFileSync(resolve(process.cwd(), '.github/workflows/desktop-release.yml'), 'utf8');
         const viteConfig = readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8');
 
+        expect(testingWorkflow).toContain('name: Development Desktop Builds');
+        expect(testingWorkflow).toMatch(/push:\s+branches:\s+- dev/);
         expect(testingWorkflow).toContain('-nightly.${build_date}.${GITHUB_RUN_NUMBER}');
         expect(testingWorkflow).toContain('MVMNT-Nightly-${{ needs.metadata.outputs.version }}');
+        expect(experimentalWorkflow).toMatch(/push:\s+branches:\s+- experimental/);
+        expect(experimentalWorkflow).toMatch(/pull_request:\s+branches:\s+- experimental/);
+        expect(experimentalWorkflow).toContain('npx prettier --check .');
+        expect(experimentalWorkflow).toContain('npm run test');
+        expect(experimentalWorkflow).toContain('npm run build');
+        expect(experimentalWorkflow).toContain('npm run compile');
         expect(releaseWorkflow).toContain('Verify tag matches package version');
         expect(releaseWorkflow).toContain("MVMNT_SKIP_MAC_SIGNING: '1'");
         expect(forgeConfig.packagerConfig.ignore).toContainEqual(/^\/dist\/.*\.map$/);

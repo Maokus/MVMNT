@@ -29,9 +29,9 @@ Nightlies retain their full SemVer prerelease in application metadata and diagno
 and Windows version resources receive the numeric base version plus the GitHub run number because
 those platform fields do not accept SemVer prerelease labels.
 
-## Testing builds
+## Development builds
 
-Every push to `testing` creates unsigned macOS universal and Windows x64 artifacts. The workflow
+Every push to `dev` creates unsigned macOS universal and Windows x64 artifacts. The workflow
 derives a unique version such as `0.16.0-nightly.20260812.123`; the artifact name also includes the
 short commit SHA.
 

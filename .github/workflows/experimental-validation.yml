@@ -1,0 +1,33 @@
+name: Experimental validation
+
+on:
+    push:
+        branches:
+            - experimental
+    pull_request:
+        branches:
+            - experimental
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: experimental-validation-${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    validate:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+            - run: npm install
+            - name: Check formatting
+              run: npx prettier --check .
+            - run: npm run test
+            - run: npm run build
+            - run: npm run compile

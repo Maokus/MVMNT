@@ -1,9 +1,9 @@
-name: Testing Desktop Builds
+name: Development Desktop Builds
 
 on:
     push:
         branches:
-            - testing
+            - dev
     workflow_dispatch:
 
 permissions:
