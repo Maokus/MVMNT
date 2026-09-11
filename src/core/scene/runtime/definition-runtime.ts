@@ -31,6 +31,7 @@ import { integratePropertySampler } from '@core/scene/runtime/property-integrati
 import type { SceneElementOrigin, SceneElementRegistration } from './types';
 import {
     SimulationRunner,
+    SimulationPending,
     SIMULATION_PLACEHOLDER_GRACE_MS,
     type SimulationInputs,
     type SimulationReadiness,
@@ -883,7 +884,7 @@ export function createPluginDefinitionScope(
                             options.report(
                                 diagnostic(
                                     'CONTRACT_VIOLATION',
-                                    runner.error?.message ?? 'Simulation failed',
+                                    `Simulation element "${this.id}" (${definition.type}): ${runner.error?.message ?? 'Simulation failed'}`,
                                     'element.simulation'
                                 )
                             );
@@ -933,7 +934,18 @@ export function createPluginDefinitionScope(
                 throw new Error('Simulation instance initialization failed or was disposed');
             this.requestSimulationFrame(seconds, generation, changed, session);
             const record = this.simulations.get(session);
-            if (record) await record.runner.prepare(seconds, record.inputs, signal);
+            if (record) {
+                try {
+                    await record.runner.prepare(seconds, record.inputs, signal);
+                } catch (error) {
+                    if (error instanceof SimulationPending || (error instanceof Error && error.name === 'AbortError'))
+                        throw error;
+                    throw new Error(
+                        `Simulation element "${this.id}" (${definition.type}): ${error instanceof Error ? error.message : String(error)}`,
+                        { cause: error }
+                    );
+                }
+            }
         }
 
         releaseSimulationSession(session: object): void {

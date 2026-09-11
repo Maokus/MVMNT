@@ -261,9 +261,20 @@ describe('canonical simulation', () => {
         runner.request(0, inputs());
         expect(runner.getReadiness()).toMatchObject({
             status: 'error',
-            reason: 'Simulation numbers must be finite',
+            reason: 'Simulation numbers must be finite at state["broken"] (received Infinity) during initialization at 0 s',
         });
         runner.dispose();
+    });
+
+    it('identifies invalid authored props separately from simulation state', async () => {
+        const runner = new SimulationRunner(definition, vi.fn());
+        try {
+            await expect(
+                runner.prepare(0, { ...inputs(), propsAt: () => ({ seed: 1, strength: NaN }) })
+            ).rejects.toThrow('props["strength"] (received NaN) during initialization');
+        } finally {
+            runner.dispose();
+        }
     });
 
     it('cancels obsolete seeks and disposal wakes waiters', async () => {

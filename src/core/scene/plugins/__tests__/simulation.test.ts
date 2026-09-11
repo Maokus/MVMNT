@@ -11,6 +11,35 @@ const renderedText = (objects: any[]) =>
     objects.flatMap((object) => object.children ?? []).filter((object): object is Text => object instanceof Text);
 
 describe('simulation definition integration', () => {
+    it('identifies the element, canonical step, and invalid typed-array value when export fails', async () => {
+        const definition = definePluginElement({
+            type: 'unstable-particles',
+            metadata: { name: 'Particles' },
+            schema: { tabs: [tab.properties([group('simulation', 'Simulation', [prop.number('seed', 'Seed', 1)])])] },
+            simulation: {
+                initialize: () => ({ positions: new Float32Array([0, 0]) }),
+                step: () => ({ positions: new Float32Array([0, Infinity]) }),
+            },
+            render: () => [],
+        });
+        const scope = createPluginDefinitionScope(definition, {
+            pluginId: 'test',
+            services: null,
+            synchronousInitialization: true,
+            loadAsset: async () => '',
+            report: vi.fn(),
+        });
+        try {
+            const element = scope.createRegistration({ kind: 'built-in' }).create({ id: 'particles-42' });
+            const generation = new SimulationGeneration(useSceneStore.getState(), useTimelineStore.getState());
+            await expect(element.prepareSimulationFrame!(1 / 120, generation, () => {}, undefined, {})).rejects.toThrow(
+                'Simulation element "particles-42" (unstable-particles): Simulation numbers must be finite at state["positions"][1] (received Infinity) during step 0 at 0 s'
+            );
+        } finally {
+            await scope.dispose();
+        }
+    });
+
     it('infers state and props and renders only exact prepared snapshots', async () => {
         let now = 0;
         const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now);

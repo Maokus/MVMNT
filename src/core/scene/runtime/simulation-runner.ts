@@ -6,6 +6,7 @@ import type {
 import { createSimulationRandom } from './deterministic-random';
 
 export class SimulationPending extends Error {}
+class SimulationDataError extends Error {}
 export type SimulationStatus = 'idle' | 'preparing' | 'pending' | 'ready' | 'error' | 'disposed';
 export interface SimulationReadiness {
     readonly status: SimulationStatus;
@@ -42,10 +43,13 @@ export function simulationStepAt(seconds: number, dt: number): number {
     return index;
 }
 
-export function copySimulationData<T>(value: T): { value: T; bytes: number } {
+export function copySimulationData<T>(value: T, root = 'state'): { value: T; bytes: number } {
     const ancestors = new Set<object>();
     let bytes = 0;
-    const copy = (item: any): any => {
+    const invalidNumber = (path: string, value: number): never => {
+        throw new SimulationDataError(`Simulation numbers must be finite at ${path} (received ${String(value)})`);
+    };
+    const copy = (item: any, path: string): any => {
         if (item === null || item === undefined || typeof item === 'boolean') {
             bytes += 8;
             return item;
@@ -55,7 +59,7 @@ export function copySimulationData<T>(value: T): { value: T; bytes: number } {
             return item;
         }
         if (typeof item === 'number') {
-            if (!Number.isFinite(item)) throw new Error('Simulation numbers must be finite');
+            if (!Number.isFinite(item)) invalidNumber(path, item);
             bytes += 8;
             return item;
         }
@@ -67,12 +71,13 @@ export function copySimulationData<T>(value: T): { value: T; bytes: number } {
             throw new Error('Shared memory is not simulation state');
         if (ArrayBuffer.isView(item) && !(item instanceof DataView)) {
             if (
-                (item instanceof Float32Array ||
-                    item instanceof Float64Array ||
-                    (typeof Float16Array !== 'undefined' && item instanceof Float16Array)) &&
-                item.some((value) => !Number.isFinite(value))
-            )
-                throw new Error('Simulation numbers must be finite');
+                item instanceof Float32Array ||
+                item instanceof Float64Array ||
+                (typeof Float16Array !== 'undefined' && item instanceof Float16Array)
+            ) {
+                const index = item.findIndex((value) => !Number.isFinite(value));
+                if (index !== -1) invalidNumber(`${path}[${index}]`, item[index]);
+            }
             bytes += item.byteLength;
             return (item as any).slice();
         }
@@ -92,7 +97,10 @@ export function copySimulationData<T>(value: T): { value: T; bytes: number } {
             if (!('value' in descriptor)) throw new Error('Simulation state cannot contain accessors');
             bytes += key.length * 2;
             Object.defineProperty(result, key, {
-                value: copy(descriptor.value),
+                value: copy(
+                    descriptor.value,
+                    Array.isArray(item) ? `${path}[${key}]` : `${path}[${JSON.stringify(key)}]`
+                ),
                 enumerable: true,
                 writable: true,
                 configurable: true,
@@ -102,7 +110,7 @@ export function copySimulationData<T>(value: T): { value: T; bytes: number } {
         bytes += 16;
         return result;
     };
-    return { value: copy(value), bytes };
+    return { value: copy(value, root), bytes };
 }
 
 function freezePlain<T>(value: T): T {
@@ -288,11 +296,12 @@ export class SimulationRunner {
 
     advanceChunk(deadline = performance.now() + 8, maxSteps = 240): void {
         if (this.status !== 'preparing' || !this.input) return;
+        let phase = 'initialization at 0 s';
         try {
             let count = 0;
             if (this.step < 0 && performance.now() < deadline) {
                 this.input.resetReads?.();
-                const props = freezePlain(copySimulationData(this.input.propsAt(0)).value);
+                const props = freezePlain(copySimulationData(this.input.propsAt(0), 'props').value);
                 const seed = props.seed;
                 if (typeof seed !== 'number' || !Number.isFinite(seed))
                     throw new Error('Simulation seed must be finite');
@@ -311,11 +320,12 @@ export class SimulationRunner {
                 count++
             ) {
                 const time = this.step * this.dt;
+                phase = `step ${this.step} at ${time} s`;
                 const context = Object.freeze({
                     ...this.input.contextAt(this.step, this.dt),
                     random: createSimulationRandom(this.seed!, this.step),
                 });
-                const props = freezePlain(copySimulationData(this.input.propsAt(time)).value);
+                const props = freezePlain(copySimulationData(this.input.propsAt(time), 'props').value);
                 const next = this.definition.step({
                     state: freezePlain(copySimulationData(this.state).value) as any,
                     props,
@@ -339,7 +349,12 @@ export class SimulationRunner {
         } catch (error) {
             if (error instanceof SimulationPending) this.setStatus('pending', error.message);
             else {
-                this.error = error instanceof Error ? error : new Error(String(error));
+                this.error =
+                    error instanceof SimulationDataError
+                        ? new Error(`${error.message} during ${phase}`, { cause: error })
+                        : error instanceof Error
+                          ? error
+                          : new Error(String(error));
                 this.setStatus('error', this.error.message);
             }
         }
