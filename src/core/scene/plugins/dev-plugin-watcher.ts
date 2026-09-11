@@ -53,7 +53,7 @@ export interface DevPluginConnectionStatus {
 }
 
 let connectionStatus: DevPluginConnectionStatus = {
-    state: 'idle',
+    state: import.meta.env.DEV ? 'idle' : 'unavailable',
     servers: [],
     scanning: false,
     continuousScanning: false,
