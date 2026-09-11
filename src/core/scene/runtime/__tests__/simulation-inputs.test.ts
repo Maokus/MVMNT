@@ -6,6 +6,93 @@ import { SimulationPending } from '../simulation-runner';
 import { ok } from '../../../../../packages/plugin-sdk/src/api';
 
 describe('simulation input generations', () => {
+    it('preserves generation identity and captured PCM when missing inputs arrive', () => {
+        const scene = useSceneStore.getState();
+        const buffer = {
+            numberOfChannels: 1,
+            sampleRate: 2,
+            length: 2,
+            duration: 1,
+            getChannelData: () => new Float32Array([1, 2]),
+        };
+        const timeline = {
+            ...useTimelineStore.getState(),
+            audioCache: {
+                ready: { audioBuffer: buffer, decodedState: 'ready' },
+                waiting: { decodedState: 'decoding' },
+            },
+            audioFeatureCaches: {},
+            audioFeatureCacheStatus: {},
+        } as any;
+        const initial = new SimulationGeneration(scene, timeline);
+        const next = {
+            ...timeline,
+            audioCache: { ...timeline.audioCache, waiting: { audioBuffer: buffer, decodedState: 'ready' } },
+        };
+        const refreshed = new SimulationGeneration(scene, next, initial);
+        expect(refreshed.identity).toBe(initial.identity);
+        expect(initial.withReadyInputs(scene, next).identity).toBe(initial.identity);
+        expect(refreshed.timeline.audioCache.ready.audioBuffer).toBe(initial.timeline.audioCache.ready.audioBuffer);
+        expect(refreshed.timeline.audioCache.waiting.audioBuffer!.getChannelData(0)).toEqual(new Float32Array([1, 2]));
+
+        for (const changed of [
+            {
+                ...next,
+                audioCache: { ...next.audioCache, ready: { ...next.audioCache.ready, audioBuffer: { ...buffer } } },
+            },
+            { ...next, audioCache: { ...next.audioCache, ready: { decodedState: 'decoding' } } },
+            { ...next, timeline: { ...next.timeline, globalBpm: next.timeline.globalBpm + 1 } },
+        ])
+            expect(new SimulationGeneration(scene, changed, refreshed).identity).not.toBe(refreshed.identity);
+    });
+
+    it('accepts additive analysis but resets for replaced artifacts, stale analysis, and source replacement', () => {
+        const scene = useSceneStore.getState();
+        const track = { values: new Float32Array([0.5]) };
+        const originalFile = { storage: 'memory' };
+        const timeline = {
+            ...useTimelineStore.getState(),
+            audioCache: { source: { decodedState: 'decoding', originalFile } },
+            audioFeatureCaches: { source: { featureTracks: { rms: track }, analysisProfiles: {} } },
+            audioFeatureCacheStatus: { source: { state: 'pending' } },
+        } as any;
+        const first = new SimulationGeneration(scene, timeline);
+        const next = {
+            ...timeline,
+            audioFeatureCaches: {
+                source: {
+                    ...timeline.audioFeatureCaches.source,
+                    featureTracks: { rms: track, peak: { values: new Float32Array([1]) } },
+                },
+            },
+            audioFeatureCacheStatus: { source: { state: 'ready' } },
+        };
+        const refreshed = new SimulationGeneration(scene, next, first);
+        expect(refreshed.identity).toBe(first.identity);
+        expect(refreshed.timeline.audioFeatureCaches.source.featureTracks.rms).toBe(
+            first.timeline.audioFeatureCaches.source.featureTracks.rms
+        );
+        for (const changed of [
+            {
+                ...next,
+                audioFeatureCaches: {
+                    source: {
+                        ...next.audioFeatureCaches.source,
+                        featureTracks: { rms: { values: new Float32Array([0.75]) } },
+                    },
+                },
+            },
+            { ...next, audioFeatureCaches: {} },
+            { ...next, audioFeatureCacheStatus: { source: { state: 'stale' } } },
+            { ...next, audioCache: { source: { ...next.audioCache.source, originalFile: { ...originalFile } } } },
+        ]) {
+            expect(new SimulationGeneration(scene, changed, refreshed).identity).not.toBe(refreshed.identity);
+            expect(
+                sameSimulationInputs(simulationInputIdentity(scene, next), simulationInputIdentity(scene, changed))
+            ).toBe(false);
+        }
+    });
+
     it('ignores transport and selection but detects content and timing changes', () => {
         const scene = useSceneStore.getState();
         const timeline = useTimelineStore.getState();
@@ -53,6 +140,15 @@ describe('simulation input generations', () => {
         expect(generation.timeline.audioCache.source.audioBuffer!.getChannelData(0)[0]).toBe(1);
         const refreshed = generation.withReadyInputs(useSceneStore.getState(), timeline);
         expect(refreshed.timeline.audioCache.source.audioBuffer!.getChannelData(0)[0]).toBe(1);
+    });
+
+    it('keeps captured authored data isolated when refreshing export readiness', () => {
+        const scene = useSceneStore.getState();
+        const timeline = { ...useTimelineStore.getState(), tracks: { midi: { name: 'Captured' } } } as any;
+        const generation = new SimulationGeneration(scene, timeline);
+        timeline.tracks.midi.name = 'Changed backing object';
+        const refreshed = generation.withReadyInputs(scene, timeline);
+        expect(refreshed.timeline.tracks.midi.name).toBe('Captured');
     });
 
     it('uses half-open note-on intervals without repeated sustained-note impulses', () => {

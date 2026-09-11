@@ -96,7 +96,7 @@ describe('PreviewPanel element creation shortcut', () => {
         expect(screen.queryByRole('dialog', { name: 'Add Element' })).not.toBeInTheDocument();
     });
 
-    it('delays transient preparation but immediately shows a pending reason', () => {
+    it('delays transient preparation and updates a visible notice with the pending reason', () => {
         vi.useFakeTimers();
         let readiness: any = {
             status: 'preparing',
@@ -114,7 +114,7 @@ describe('PreviewPanel element creation shortcut', () => {
 
         render(<PreviewPanel />);
         expect(screen.queryByRole('status')).not.toBeInTheDocument();
-        act(() => vi.advanceTimersByTime(150));
+        act(() => vi.advanceTimersByTime(500));
         expect(screen.getByRole('status')).toHaveTextContent('Preparing simulation — Replaying simulation');
 
         readiness = {
@@ -128,7 +128,7 @@ describe('PreviewPanel element creation shortcut', () => {
         );
     });
 
-    it('hides preparation status during playback when every simulation has renderable output', () => {
+    it('delays playback preparation notices and explains retained artwork during sustained load', () => {
         vi.useFakeTimers();
         const readiness = {
             status: 'preparing',
@@ -158,6 +158,43 @@ describe('PreviewPanel element creation shortcut', () => {
         act(() => vi.advanceTimersByTime(300));
 
         expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        act(() => vi.advanceTimersByTime(200));
+        expect(screen.getByRole('status')).toHaveTextContent('Showing previously completed artwork');
+    });
+
+    it('does not restart the notice deadline on progress, retargeting, or input waits', () => {
+        vi.useFakeTimers();
+        let readiness: any = { status: 'preparing', reason: 'Seeking', affected: [{ hasRenderableFrame: true }] };
+        let notify = () => {};
+        mocks.visualizer = {
+            getSimulationReadiness: () => readiness,
+            subscribeSimulationStatus: (listener: () => void) => {
+                notify = listener;
+                return () => {};
+            },
+        };
+        render(<PreviewPanel />);
+        for (let update = 0; update < 4; update++) {
+            act(() => vi.advanceTimersByTime(100));
+            readiness = {
+                ...readiness,
+                reason: `Seeking ${update}`,
+                affected: [{ hasRenderableFrame: true, targetStep: update }],
+            };
+            act(() => notify());
+        }
+        readiness = { ...readiness, status: 'pending', reason: 'Decoding audio' };
+        act(() => notify());
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        act(() => vi.advanceTimersByTime(100));
+        expect(screen.getByRole('status')).toHaveTextContent('Decoding audio');
+        expect(screen.getByRole('status')).toHaveTextContent('Showing previously completed artwork');
+        readiness = { status: 'ready', affected: [] };
+        act(() => notify());
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        readiness = { status: 'error', reason: 'Missing source', affected: [{}] };
+        act(() => notify());
+        expect(screen.getByRole('status')).toHaveTextContent('Missing source');
     });
 
     it('does not flash a transient pending notice when playback has renderable output', () => {

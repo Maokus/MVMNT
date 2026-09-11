@@ -34,6 +34,7 @@ import {
 } from '@core/scene/runtime/simulation-inputs';
 import {
     SimulationPending,
+    withSimulationPreviewBudget,
     type SimulationReadiness,
     type SimulationStatus,
 } from '@core/scene/runtime/simulation-runner';
@@ -212,7 +213,7 @@ export class SceneRuntimeAdapter {
             if (this.exportSimulation.generation) return this.exportSimulation.generation;
         }
         if (!this.simulationGeneration || !sameSimulationInputs(identity, this.simulationIdentity)) {
-            this.simulationGeneration = new SimulationGeneration(scene, timeline);
+            this.simulationGeneration = new SimulationGeneration(scene, timeline, this.simulationGeneration);
             this.simulationIdentity = identity;
         }
         if (this.exportSimulation) {
@@ -232,7 +233,10 @@ export class SceneRuntimeAdapter {
         // export canvas resize) so they cannot retarget the export runners.
         if (this.exportSimulation) return;
         const generation = this.getSimulationGeneration();
-        for (const element of elements) element.requestSimulationFrame?.(seconds, generation, this.simulationChanged);
+        withSimulationPreviewBudget(() => {
+            for (const element of elements)
+                element.requestSimulationFrame?.(seconds, generation, this.simulationChanged);
+        });
     }
 
     async prepareFrame(seconds: number, signal?: AbortSignal): Promise<void> {
@@ -383,7 +387,6 @@ export class SceneRuntimeAdapter {
         this.unsubscribeTimeline = useTimelineStore.subscribe((next, prev) => {
             const scene = this.store.getState();
             if (!sameSimulationInputs(simulationInputIdentity(scene, next), simulationInputIdentity(scene, prev))) {
-                this.simulationGeneration = undefined;
                 this.simulationChanged();
             }
         });

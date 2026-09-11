@@ -57,6 +57,7 @@ const ChangelogPage: React.FC = () => {
                                 'Prepared the MVMNT plugin SDK and CLI helpers for publication',
                                 'Better documented seperation between system internals and plugin API should make vibecoding easier',
                                 'Keyframe calculus helpers',
+                                'Simulation system (experimental)',
                                 "Honestly I don't know how to write this changelog basically the whole thing changed...",
                             ],
                             'Other misc Features',

@@ -9,11 +9,8 @@ import { DRAG_ASSET_TYPE } from '../asset-manager/AssetManagerPanel';
 import { CreateElementPopup } from '@workspace/panels/scene-element';
 import { isTextEditingTarget, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 import { activateCommandSurface, isCommandSurfaceActive } from '@context/commands/commandContext';
-import type { ElementSimulationReadiness, SceneSimulationReadiness } from '@state/scene/runtimeAdapter';
-import {
-    SIMULATION_PENDING_NOTICE_GRACE_MS,
-    SIMULATION_PLACEHOLDER_GRACE_MS,
-} from '@core/scene/runtime/simulation-runner';
+import type { SceneSimulationReadiness } from '@state/scene/runtimeAdapter';
+import { SIMULATION_PENDING_NOTICE_GRACE_MS } from '@core/scene/runtime/simulation-runner';
 
 interface PreviewPanelProps {
     interactive?: boolean;
@@ -30,7 +27,11 @@ function simulationStatusText(readiness: SceneSimulationReadiness): string {
               ? 'Simulation waiting for inputs'
               : 'Preparing simulation';
     const affected = count > 1 ? `${count} elements · ` : '';
-    return `${affected}${title}${readiness.reason ? ` — ${readiness.reason}` : ''}`;
+    const retained =
+        readiness.status !== 'error' && readiness.affected.some((element) => element.hasRenderableFrame)
+            ? ' · Showing previously completed artwork'
+            : '';
+    return `${affected}${title}${readiness.reason ? ` — ${readiness.reason}` : ''}${retained}`;
 }
 
 const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
@@ -104,7 +105,6 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
 
     // Thin wrapper handlers delegating to extracted utilities
     const visualizerInstance = (ctx as any).visualizer;
-    const isPlaying = useTimelineStore((state) => state.transport.isPlaying);
     const simulationReadiness = useSyncExternalStore(
         useCallback(
             (listener: () => void) => visualizerInstance?.subscribeSimulationStatus?.(listener) ?? (() => {}),
@@ -113,34 +113,22 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
         useCallback(() => visualizerInstance?.getSimulationReadiness?.() ?? READY_SIMULATION, [visualizerInstance])
     );
     const [visibleSimulationReadiness, setVisibleSimulationReadiness] = useState<SceneSimulationReadiness | null>(null);
+    const unavailableSince = useRef<number | undefined>(undefined);
     useEffect(() => {
         if (simulationReadiness.status === 'ready') {
+            unavailableSince.current = undefined;
             setVisibleSimulationReadiness(null);
             return;
         }
-        const hasPlaybackFallback =
-            isPlaying &&
-            simulationReadiness.affected.length > 0 &&
-            simulationReadiness.affected.every((element: ElementSimulationReadiness) => element.hasRenderableFrame);
-        if (hasPlaybackFallback && simulationReadiness.status === 'preparing') {
-            setVisibleSimulationReadiness(null);
-            return;
-        }
-        if (
-            simulationReadiness.status === 'error' ||
-            (simulationReadiness.status === 'pending' && !hasPlaybackFallback)
-        ) {
+        unavailableSince.current ??= Date.now();
+        const remaining = SIMULATION_PENDING_NOTICE_GRACE_MS - (Date.now() - unavailableSince.current);
+        if (simulationReadiness.status === 'error' || remaining <= 0) {
             setVisibleSimulationReadiness(simulationReadiness);
             return;
         }
-        const timer = window.setTimeout(
-            () => setVisibleSimulationReadiness(simulationReadiness),
-            hasPlaybackFallback && simulationReadiness.status === 'pending'
-                ? SIMULATION_PENDING_NOTICE_GRACE_MS
-                : SIMULATION_PLACEHOLDER_GRACE_MS
-        );
+        const timer = window.setTimeout(() => setVisibleSimulationReadiness(simulationReadiness), remaining);
         return () => window.clearTimeout(timer);
-    }, [isPlaying, simulationReadiness]);
+    }, [simulationReadiness]);
     const handlerDeps = useMemo(
         () => ({
             canvasRef,

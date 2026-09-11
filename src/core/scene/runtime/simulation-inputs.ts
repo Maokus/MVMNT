@@ -51,7 +51,11 @@ export function simulationInputIdentity(scene: SceneStoreState, state: TimelineS
             id,
             entry.audioBuffer,
             entry.durationSeconds,
+            entry.sampleRate,
+            entry.channels,
+            entry.durationSamples,
             entry.decodedState,
+            entry.originalFile,
             entry.originalFile?.storage,
         ]),
         ...Object.entries(state.audioFeatureCacheStatus).flatMap(([id, status]) => [id, status.state]),
@@ -81,25 +85,101 @@ export function simulationAuthoredIdentity(scene: SceneStoreState, state: Timeli
     ];
 }
 
+/** Compare metadata without scanning or trusting replacement sample arrays. */
+function sameArtifact(a: unknown, b: unknown): boolean {
+    if (Object.is(a, b)) return true;
+    if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+    if (ArrayBuffer.isView(a) || ArrayBuffer.isView(b) || a instanceof ArrayBuffer || b instanceof ArrayBuffer)
+        return false;
+    const left = Object.entries(a);
+    return (
+        left.length === Object.keys(b).length &&
+        left.every(([key, value]) => Object.hasOwn(b, key) && sameArtifact(value, (b as Record<string, unknown>)[key]))
+    );
+}
+
+function extendsArtifacts(previous: object, next: object): boolean {
+    return Object.entries(previous).every(
+        ([key, value]) => Object.hasOwn(next, key) && sameArtifact(value, (next as Record<string, unknown>)[key])
+    );
+}
+
+function hasOnlyAddedInputs(previous: TimelineState, next: TimelineState): boolean {
+    if (!sameArtifact(Object.keys(previous.audioCache), Object.keys(next.audioCache))) return false;
+    for (const [id, source] of Object.entries(previous.audioCache)) {
+        const incoming = next.audioCache[id];
+        if (!incoming || incoming.decodedState === 'failed') return false;
+        const { audioBuffer, decodedState, decodedLastUsedAt, waveform, ...metadata } = source;
+        const {
+            audioBuffer: nextBuffer,
+            decodedState: nextDecoded,
+            decodedLastUsedAt: _used,
+            waveform: _wave,
+            ...nextMetadata
+        } = incoming;
+        if (!sameArtifact(metadata, nextMetadata) || (audioBuffer && audioBuffer !== nextBuffer)) return false;
+        if (decodedState === 'ready' && nextDecoded !== 'ready') return false;
+    }
+    for (const [id, cache] of Object.entries(previous.audioFeatureCaches)) {
+        const incoming = next.audioFeatureCaches[id];
+        if (!incoming) return false;
+        const { featureTracks, analysisProfiles, ...metadata } = cache;
+        const { featureTracks: nextTracks, analysisProfiles: nextProfiles, ...nextMetadata } = incoming;
+        if (
+            !sameArtifact(metadata, nextMetadata) ||
+            !extendsArtifacts(featureTracks, nextTracks) ||
+            !extendsArtifacts(analysisProfiles ?? {}, nextProfiles ?? {})
+        )
+            return false;
+    }
+    for (const [id, status] of Object.entries(next.audioFeatureCacheStatus)) {
+        if (status.state === 'failed' || status.state === 'stale') return false;
+        const before = previous.audioFeatureCacheStatus[id];
+        if (before?.sourceHash !== undefined && before.sourceHash !== status.sourceHash) return false;
+    }
+    for (const id of Object.keys(previous.audioFeatureCacheStatus)) {
+        if (!next.audioFeatureCacheStatus[id]) return false;
+    }
+    return true;
+}
+
 export class SimulationGeneration {
+    readonly identity: object;
     readonly timeline: TimelineState;
     readonly services;
-    private readonly macros;
+    private readonly macros: SceneStoreState['macros'];
     private readonly curves = new Map<string, AutomationCurve>();
     private readonly ppq = CANONICAL_PPQ;
     private readonly missingSources = new Set<string>();
     private activeDemand?: FeatureDemand;
+    private readonly authored: unknown[];
 
-    constructor(scene: SceneStoreState, state: TimelineState) {
+    constructor(
+        scene: SceneStoreState,
+        private readonly source: TimelineState,
+        previous?: SimulationGeneration
+    ) {
+        const state = source;
+        this.authored = simulationAuthoredIdentity(scene, state);
+        const sameAuthored = previous && sameSimulationInputs(previous.authored, this.authored);
+        this.identity = sameAuthored && hasOnlyAddedInputs(previous.source, state) ? previous.identity : {};
         for (const [id, entry] of Object.entries(state.audioCache))
             if (entry.originalFile?.storage === 'missing') this.missingSources.add(id);
-        this.macros = copy(scene.macros);
-        for (const [id, channel] of Object.entries(copy(scene.automation.channels)))
-            this.curves.set(id, new AutomationCurve(channel));
+        this.macros = sameAuthored ? previous.macros : copy(scene.macros);
+        if (sameAuthored) this.curves = previous.curves;
+        else
+            for (const [id, channel] of Object.entries(copy(scene.automation.channels)))
+                this.curves.set(id, new AutomationCurve(channel));
         const audioCache = Object.fromEntries(
             Object.entries(state.audioCache).map(([id, entry]) => {
                 const { audioBuffer, originalFile: _file, waveform: _waveform, ...metadata } = entry;
                 if (!audioBuffer) return [id, copy(metadata)];
+                const captured = previous?.timeline.audioCache[id]?.audioBuffer;
+                if (
+                    captured &&
+                    (audioBuffer === previous?.source.audioCache[id]?.audioBuffer || audioBuffer === captured)
+                )
+                    return [id, { ...copy(metadata), audioBuffer: captured }];
                 const channels = Array.from({ length: audioBuffer.numberOfChannels }, (_, index) =>
                     audioBuffer.getChannelData(index).slice()
                 );
@@ -114,12 +194,33 @@ export class SimulationGeneration {
             })
         );
         this.timeline = {
-            timeline: copy(state.timeline),
-            tracks: copy(state.tracks),
-            tracksOrder: [...state.tracksOrder],
-            midiCache: copy(state.midiCache),
+            timeline: sameAuthored ? previous.timeline.timeline : copy(state.timeline),
+            tracks: sameAuthored ? previous.timeline.tracks : copy(state.tracks),
+            tracksOrder: sameAuthored ? previous.timeline.tracksOrder : [...state.tracksOrder],
+            midiCache: sameAuthored ? previous.timeline.midiCache : copy(state.midiCache),
             audioCache,
-            audioFeatureCaches: copy(state.audioFeatureCaches),
+            audioFeatureCaches: Object.fromEntries(
+                Object.entries(state.audioFeatureCaches).map(([id, cache]) => {
+                    const captured = previous?.timeline.audioFeatureCaches[id];
+                    const original = previous?.source.audioFeatureCaches[id];
+                    if (captured && cache === original) return [id, captured];
+                    const { featureTracks, ...metadata } = cache;
+                    return [
+                        id,
+                        {
+                            ...copy(metadata),
+                            featureTracks: Object.fromEntries(
+                                Object.entries(featureTracks).map(([key, track]) => [
+                                    key,
+                                    captured && sameArtifact(track, original?.featureTracks[key])
+                                        ? captured.featureTracks[key]
+                                        : copy(track),
+                                ])
+                            ),
+                        },
+                    ];
+                })
+            ),
             audioFeatureCacheStatus: copy(state.audioFeatureCacheStatus),
             hybridCacheRollout: { adapterEnabled: true, fallbackLog: [] },
             timelineView: copy(state.timelineView),
@@ -168,7 +269,7 @@ export class SimulationGeneration {
 
     /** Fill unavailable artifacts without replacing already captured, ready source content. */
     withReadyInputs(scene: SceneStoreState, next: TimelineState): SimulationGeneration {
-        const previous = this.timeline;
+        const previous = this.source;
         const audioCache = Object.fromEntries(
             Object.entries(previous.audioCache).map(([id, entry]) => [
                 id,
@@ -191,12 +292,16 @@ export class SimulationGeneration {
                     : incoming;
             if (next.audioFeatureCacheStatus[id]) audioFeatureCacheStatus[id] = next.audioFeatureCacheStatus[id];
         }
-        return new SimulationGeneration(scene, {
-            ...previous,
-            audioCache,
-            audioFeatureCaches,
-            audioFeatureCacheStatus,
-        });
+        return new SimulationGeneration(
+            scene,
+            {
+                ...previous,
+                audioCache,
+                audioFeatureCaches,
+                audioFeatureCacheStatus,
+            },
+            this
+        );
     }
 
     properties(
@@ -340,6 +445,9 @@ export class SimulationGeneration {
         return {
             identity: {},
             propsAt,
+            resetReads() {
+                readFailure = undefined;
+            },
             checkReads() {
                 if (readFailure) throw readFailure;
             },

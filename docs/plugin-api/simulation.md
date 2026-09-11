@@ -104,7 +104,10 @@ property edits also recreate the affected instance's simulation inputs.
 
 Declare analyzed audio requirements with `audioFeatureDemands(props)`, including historical
 property selections. Unavailable required audio makes the step pending, not silent. Even if a
-plugin ignores a failed read, the host does not commit that step. Readiness changes retry replay;
+plugin ignores a failed read, the host does not commit that step. A blocked runner waits for an input
+revision rather than retrying on each playback frame. Additive readiness updates resume the blocked
+step and retain checkpoints; replacing or removing captured data starts a new replay generation.
+Unchanged captured audio is shared across readiness revisions. Readiness changes retry replay;
 missing sources and analysis failures are terminal diagnostics. An optional input should be
 explicitly disabled through authored props rather than queried and silently ignored.
 
@@ -112,20 +115,25 @@ The host replays from initialization or a checkpoint every 120 steps, keeping at
 checkpoints and 32 MiB per runner. Oversized checkpoints are skipped. Eviction affects speed,
 not output. Checkpoints never enter scene files or undo history.
 
-Preview work yields after at most 240 steps or roughly 8 ms. Playback and audio continue while
+All elements in one preview request share a 4 ms inline work budget, with at most four transitions
+per element. Background replay rotates between elements and yields after at most 240 transitions
+or roughly 8 ms in total. Initialization counts as a transition. These budgets cannot interrupt an
+individual plugin callback. Playback and audio continue while
 the element catches up. After an element has rendered an exact frame, continuous playback uses its
 newest fully completed canonical state instead of alternating with a preparation placeholder. This
 state may briefly lag the requested render time; `simulation.timeSeconds` identifies its canonical
 time. The preview keeps the last complete element frame during gaps between completed chunks and
-during transient input-readiness changes. A persistent input wait is reported in the preview status
-without replacing already rendered element artwork.
+during input-readiness changes. Sustained preparation and input waits are reported in the preview
+status after 500 ms without replacing already rendered element artwork. Progress updates and new
+seek targets do not restart that notice delay.
 
-Initial preparation and paused seeks keep the last complete frame for a short grace period; if
-preparation continues, the element displays a placeholder explaining whether it is initializing,
-replaying, waiting for decoding or analysis, or has failed. Elements without a completed frame show
-the placeholder immediately. New seek targets supersede previous targets without publishing a
-half-executed simulation step, and short synchronous advances do not publish an intermediate
-preparation state.
+Paused seeks and authored edits keep the last complete frame until the requested exact frame is
+ready. The delayed status notice explains when previous artwork is being retained. Elements without
+a completed frame allow 150 ms for preparation before showing a placeholder explaining whether
+they are initializing, replaying, or waiting for decoding or analysis. Failures show an error
+placeholder immediately. Ready artwork replaces a placeholder immediately, with no minimum display
+duration. New seek targets supersede previous targets without publishing a half-executed simulation
+step, and short synchronous advances do not publish an intermediate preparation state.
 
 The scene-wide preview status summarizes the highest-priority reason when one or more simulations are
 unavailable. These readiness messages are owned by the host. Plugins should continue returning useful

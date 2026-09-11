@@ -24,6 +24,7 @@ export interface SimulationInputs {
     readonly identity: object;
     propsAt(seconds: number): Readonly<Record<string, unknown>>;
     contextAt(step: number, dt: number): Omit<SimulationContext<any>, 'random'>;
+    resetReads?(): void;
     /** A failed read must prevent committing even if plugin code catches or ignores it. */
     checkReads(): void;
 }
@@ -115,15 +116,38 @@ function freezePlain<T>(value: T): T {
 const scheduled = new Set<SimulationRunner>();
 const SYNCHRONOUS_PREVIEW_STEPS = 4;
 let timer: ReturnType<typeof setTimeout> | undefined;
+let publishing: Set<SimulationRunner> | undefined;
+let previewDeadline: number | undefined;
+
+/** All elements requested by one preview frame share the inline work allowance. */
+export function withSimulationPreviewBudget(request: () => void): void {
+    const previous = previewDeadline;
+    previewDeadline = Math.min(previous ?? Infinity, performance.now() + 4);
+    try {
+        request();
+    } finally {
+        previewDeadline = previous;
+    }
+}
+
 function schedule(runner: SimulationRunner): void {
     scheduled.add(runner);
-    if (timer !== undefined) return;
+    if (timer !== undefined || publishing) return;
     timer = setTimeout(() => {
         timer = undefined;
-        const next = scheduled.values().next().value as SimulationRunner | undefined;
-        if (!next) return;
-        scheduled.delete(next);
-        next.advanceChunk();
+        const deadline = performance.now() + 8;
+        const touched = new Set<SimulationRunner>();
+        publishing = touched;
+        try {
+            for (let count = 0; count < 240 && scheduled.size && performance.now() < deadline; count++) {
+                const next = scheduled.values().next().value!;
+                scheduled.delete(next);
+                next.advanceChunk(deadline, 1);
+            }
+        } finally {
+            publishing = undefined;
+        }
+        for (const runner of touched) runner.publish();
         const remaining = scheduled.values().next().value as SimulationRunner | undefined;
         if (remaining) schedule(remaining);
     }, 0);
@@ -159,7 +183,13 @@ export class SimulationRunner {
         if (this.status !== status || this.reason !== nextReason) this.changedAt = performance.now();
         this.status = status;
         this.reason = nextReason;
+        if (status !== 'preparing') scheduled.delete(this);
         if (!notify) return;
+        if (publishing) publishing.add(this);
+        else this.publish();
+    }
+
+    publish(): void {
         this.changed();
         for (const listener of [...this.listeners]) listener();
     }
@@ -195,6 +225,7 @@ export class SimulationRunner {
     request(seconds: number, input: SimulationInputs): void {
         if (this.status === 'disposed') return;
         const target = simulationStepAt(seconds, this.dt);
+        const refreshed = this.input !== input;
         if (this.input?.identity !== input.identity) {
             this.input = input;
             this.state = undefined;
@@ -206,8 +237,18 @@ export class SimulationRunner {
             this.status = 'idle';
             this.reason = this.defaultReason('idle');
             this.changedAt = performance.now();
+        } else if (refreshed) {
+            this.input = input;
+            if (this.status === 'pending') this.status = 'idle';
         }
         if (this.status === 'error') return;
+        if (this.status === 'pending' && target > this.step) {
+            if (this.target !== target) {
+                this.target = target;
+                this.setStatus('pending', this.reason);
+            }
+            return;
+        }
         if (
             target === this.target &&
             (this.status === 'pending' || this.status === 'preparing' || this.status === 'ready')
@@ -237,7 +278,7 @@ export class SimulationRunner {
                 // advanceChunk requires the preparing state, but observers only
                 // need to hear about it if the work cannot complete inline.
                 this.setStatus('preparing', undefined, false);
-                this.advanceChunk();
+                this.advanceChunk(previewDeadline ?? performance.now() + 4, SYNCHRONOUS_PREVIEW_STEPS);
             } else {
                 this.setStatus('preparing');
                 schedule(this);
@@ -245,11 +286,12 @@ export class SimulationRunner {
         }
     }
 
-    advanceChunk(): void {
+    advanceChunk(deadline = performance.now() + 8, maxSteps = 240): void {
         if (this.status !== 'preparing' || !this.input) return;
-        const started = performance.now();
         try {
-            if (this.step < 0) {
+            let count = 0;
+            if (this.step < 0 && performance.now() < deadline) {
+                this.input.resetReads?.();
                 const props = freezePlain(copySimulationData(this.input.propsAt(0)).value);
                 const seed = props.seed;
                 if (typeof seed !== 'number' || !Number.isFinite(seed))
@@ -261,8 +303,13 @@ export class SimulationRunner {
                 this.input.checkReads();
                 this.step = 0;
                 this.saveCheckpoint();
+                count++;
             }
-            for (let count = 0; this.step < this.target && count < 240; count++) {
+            for (
+                ;
+                this.step >= 0 && this.step < this.target && count < maxSteps && performance.now() < deadline;
+                count++
+            ) {
                 const time = this.step * this.dt;
                 const context = Object.freeze({
                     ...this.input.contextAt(this.step, this.dt),
@@ -280,7 +327,6 @@ export class SimulationRunner {
                 this.state = copySimulationData(next).value;
                 this.step++;
                 if (this.step % 120 === 0) this.saveCheckpoint();
-                if (performance.now() - started >= 8) break;
             }
             if (this.step === this.target) this.setStatus('ready');
             else {
@@ -370,6 +416,10 @@ export class SimulationRunner {
 
     dispose(): void {
         scheduled.delete(this);
+        if (!scheduled.size && timer !== undefined) {
+            clearTimeout(timer);
+            timer = undefined;
+        }
         this.checkpoints.clear();
         this.checkpointBytes = 0;
         this.state = undefined;

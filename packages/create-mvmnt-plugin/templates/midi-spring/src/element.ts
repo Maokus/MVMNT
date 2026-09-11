@@ -10,8 +10,9 @@ export const midiSpring = definePluginElement({
                 group('spring', 'Spring', [
                     prop.midiTrack('midiTrackId', 'MIDI Track'),
                     prop.number('seed', 'Seed', 1),
-                    prop.number('stiffness', 'Stiffness', 40),
-                    prop.number('damping', 'Damping', 5),
+                    prop.number('stiffness', 'Stiffness', 30),
+                    prop.number('damping', 'Damping', 2),
+                    prop.number('strength', 'Impulse Strength', 800),
                 ]),
             ]),
         ],
@@ -20,7 +21,7 @@ export const midiSpring = definePluginElement({
         initialize: ({ seed }) => ({ position: 0, velocity: (seed % 17) / 17 }),
         step({ state, props, context, deltaSeconds }) {
             const notes = props.midiTrackId ? context.noteOns([props.midiTrackId]) : undefined;
-            const impulse = notes?.ok ? notes.value.length * 30 : 0;
+            const impulse = notes?.ok ? notes.value.length * props.strength : 0;
             const velocity =
                 state.velocity +
                 impulse -
@@ -29,6 +30,12 @@ export const midiSpring = definePluginElement({
         },
     },
     render({ simulation }) {
-        return [new Rectangle(0, simulation.state.position, 40, 40, { fillColor: '#10B981FF' })];
+        return [
+            new Rectangle(0, 0, 40, 40, { fillColor: '#00000000' }),
+            new Rectangle(0, simulation.state.position, 40, 40, {
+                fillColor: '#10B981FF',
+                layoutParticipation: 'exclude',
+            }),
+        ];
     },
 });

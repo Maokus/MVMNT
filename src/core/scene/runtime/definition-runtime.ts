@@ -796,8 +796,6 @@ export function createPluginDefinitionScope(
         private simulationChangedCallback?: () => void;
         private lastReadySimulationOutput?: RenderObject[];
         private notReadySince?: number;
-        private placeholderVisibleSince?: number;
-        private placeholderReadiness?: SimulationReadiness;
         private simulationTransitionTimer?: ReturnType<typeof setTimeout>;
 
         getSimulationStatus(session = this.previewSession) {
@@ -873,6 +871,11 @@ export function createPluginDefinitionScope(
                     ]);
                     return demands;
                 });
+                const continuing = record?.generation.identity === generation.identity && record.config === signature;
+                const capturedInputs = {
+                    ...inputs,
+                    identity: continuing && record ? record.inputs.identity : inputs.identity,
+                };
                 const runner =
                     record?.runner ??
                     new SimulationRunner(definition.simulation, () => {
@@ -886,7 +889,7 @@ export function createPluginDefinitionScope(
                             );
                         changed();
                     });
-                record = { runner, inputs, generation, config: signature, context };
+                record = { runner, inputs: capturedInputs, generation, config: signature, context };
                 this.simulations.set(session, record);
             }
             this.activeSimulation = record.runner;
@@ -1218,8 +1221,15 @@ export function createPluginDefinitionScope(
         }
 
         private renderSimulationPlaceholder(readiness: SimulationReadiness, targetTime: number): RenderObject[] {
-            this.placeholderVisibleSince ??= runtimeNow();
-            this.placeholderReadiness = readiness;
+            if (this.activeSimulationSession === this.previewSession && readiness.status !== 'error') {
+                if (this.lastReadySimulationOutput !== undefined) return this.lastReadySimulationOutput;
+                this.notReadySince ??= runtimeNow();
+                const remaining = SIMULATION_PLACEHOLDER_GRACE_MS - (runtimeNow() - this.notReadySince);
+                if (remaining > 0) {
+                    this.scheduleSimulationTransition(remaining);
+                    return [];
+                }
+            }
             return simulationPlaceholder(
                 readiness,
                 this.currentSimulationProps(targetTime),
@@ -1251,36 +1261,9 @@ export function createPluginDefinitionScope(
                 const now = runtimeNow();
                 this.notReadySince ??= now;
                 if (canUseCompletedPreview) return this.lastReadySimulationOutput!;
-                if (
-                    allowSimulationTransitions &&
-                    readiness.status === 'preparing' &&
-                    this.lastReadySimulationOutput !== undefined &&
-                    now - this.notReadySince < SIMULATION_PLACEHOLDER_GRACE_MS
-                ) {
-                    this.scheduleSimulationTransition(SIMULATION_PLACEHOLDER_GRACE_MS - (now - this.notReadySince));
-                    return this.lastReadySimulationOutput;
-                }
                 return this.renderSimulationPlaceholder(readiness, targetTime);
             }
-            if (
-                this.hasSimulation &&
-                allowSimulationTransitions &&
-                _config?.isPlaying !== true &&
-                this.placeholderVisibleSince !== undefined
-            ) {
-                const elapsed = runtimeNow() - this.placeholderVisibleSince;
-                if (elapsed < SIMULATION_PLACEHOLDER_GRACE_MS) {
-                    this.scheduleSimulationTransition(SIMULATION_PLACEHOLDER_GRACE_MS - elapsed);
-                    return simulationPlaceholder(
-                        this.placeholderReadiness ?? this.getSimulationReadiness(),
-                        this.currentSimulationProps(targetTime),
-                        this.lastReadySimulationOutput
-                    );
-                }
-            }
             this.notReadySince = undefined;
-            this.placeholderVisibleSince = undefined;
-            this.placeholderReadiness = undefined;
             if (this.simulationTransitionTimer !== undefined) clearTimeout(this.simulationTransitionTimer);
             this.simulationTransitionTimer = undefined;
             const props =
@@ -1308,7 +1291,7 @@ export function createPluginDefinitionScope(
             const output = [
                 ...definition.render(Object.freeze({ props, resources: this.resources, time, context, simulation })),
             ] as RenderObject[];
-            if (this.hasSimulation) this.lastReadySimulationOutput = output;
+            if (this.hasSimulation && allowSimulationTransitions) this.lastReadySimulationOutput = output;
             return output;
         }
 

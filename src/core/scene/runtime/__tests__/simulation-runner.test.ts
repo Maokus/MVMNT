@@ -4,6 +4,7 @@ import {
     SimulationPending,
     copySimulationData,
     simulationStepAt,
+    withSimulationPreviewBudget,
     type SimulationInputs,
 } from '../simulation-runner';
 
@@ -19,6 +20,115 @@ const definition = {
 };
 
 describe('canonical simulation', () => {
+    it('shares the inline deadline across runners and does not start work after it expires', () => {
+        let now = 0;
+        const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+        const initialize = vi.fn(() => {
+            now += 4;
+            return 0;
+        });
+        const runners = Array.from({ length: 3 }, () => new SimulationRunner({ initialize, step: () => 0 }, vi.fn()));
+        try {
+            withSimulationPreviewBudget(() => runners.forEach((runner) => runner.request(0, inputs())));
+            expect(initialize).toHaveBeenCalledTimes(1);
+            expect(runners.map((runner) => runner.status)).toEqual(['ready', 'preparing', 'preparing']);
+        } finally {
+            runners.forEach((runner) => runner.dispose());
+            clock.mockRestore();
+        }
+    });
+
+    it('rotates background work between runners within one budget and publishes once per turn', () => {
+        vi.useFakeTimers();
+        let now = 0;
+        const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+        const order: number[] = [];
+        const changed = [vi.fn(), vi.fn()];
+        const runners = changed.map(
+            (notify, id) =>
+                new SimulationRunner(
+                    {
+                        initialize: () => 0,
+                        step: ({ state }: any) => {
+                            order.push(id);
+                            now += 2;
+                            return state + 1;
+                        },
+                    },
+                    notify
+                )
+        );
+        const input = inputs();
+        try {
+            runners.forEach((runner) => {
+                runner.request(0, input);
+                runner.request(10, input);
+            });
+            changed.forEach((notify) => notify.mockClear());
+            vi.advanceTimersToNextTimer();
+            expect(order).toEqual([0, 1, 0, 1]);
+            expect(now).toBe(8);
+            changed.forEach((notify) => expect(notify).toHaveBeenCalledTimes(1));
+            expect(runners.map((runner) => runner.getReadiness().completedStep)).toEqual([2, 2]);
+        } finally {
+            runners.forEach((runner) => runner.dispose());
+            clock.mockRestore();
+            vi.useRealTimers();
+        }
+    });
+
+    it('sleeps on a blocked step until inputs refresh and resumes without repeating completed work', async () => {
+        let pending = false;
+        const initialize = vi.fn(() => 0);
+        const step = vi.fn(({ state }: any) => {
+            if (pending) throw new SimulationPending('decoding');
+            return state + 1;
+        });
+        const runner = new SimulationRunner({ initialize, step }, vi.fn());
+        const input = inputs();
+        try {
+            await runner.prepare(2 / 120, input);
+            pending = true;
+            runner.request(3 / 120, input);
+            expect(runner.getReadiness().completedStep).toBe(2);
+            runner.request(4 / 120, input);
+            runner.request(5 / 120, input);
+            expect(step).toHaveBeenCalledTimes(3);
+            pending = false;
+            await runner.prepare(5 / 120, { ...input });
+            expect(initialize).toHaveBeenCalledTimes(1);
+            expect(runner.snapshot(5 / 120)?.state).toBe(5);
+            expect(step).toHaveBeenCalledTimes(6);
+            await runner.prepare(1 / 120, inputs());
+            expect(initialize).toHaveBeenCalledTimes(2);
+        } finally {
+            runner.dispose();
+        }
+    });
+
+    it('bounds cheap background work and honors the latest target before the queued turn', () => {
+        vi.useFakeTimers();
+        const clock = vi.spyOn(performance, 'now').mockReturnValue(0);
+        const step = vi.fn(({ state }: any) => state + 1);
+        const runners = Array.from({ length: 3 }, () => new SimulationRunner({ initialize: () => 0, step }, vi.fn()));
+        const input = inputs();
+        try {
+            runners.forEach((runner) => {
+                runner.request(0, input);
+                runner.request(100, input);
+            });
+            runners[0].request(10 / 120, input);
+            vi.advanceTimersToNextTimer();
+            expect(step).toHaveBeenCalledTimes(240);
+            expect(runners[0].snapshot(10 / 120)?.state).toBe(10);
+            expect(runners.slice(1).map((runner) => runner.getReadiness().completedStep)).toEqual([115, 115]);
+        } finally {
+            runners.forEach((runner) => runner.dispose());
+            clock.mockRestore();
+            vi.useRealTimers();
+        }
+    });
+
     it('matches fresh replay through shuffled seeks and checkpoint eviction', async () => {
         const input = inputs();
         const runner = new SimulationRunner(definition, () => {}, { checkpoints: 1, bytes: 1024 });

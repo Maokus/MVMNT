@@ -39,11 +39,8 @@ describe('simulation definition integration', () => {
         const generation = new SimulationGeneration(useSceneStore.getState(), useTimelineStore.getState());
         const placeholder = element.buildRenderObjects({}, 1);
         expect(render).not.toHaveBeenCalled();
-        expect(renderedText(placeholder).map((text) => text.text)).toContain('Waiting to prepare simulation');
+        expect(placeholder.flatMap((object) => object.children ?? [])).toEqual([]);
         await element.prepareSimulationFrame!(1, generation, () => {});
-        element.buildRenderObjects({}, 1);
-        expect(render).not.toHaveBeenCalled();
-        now = 151;
         element.buildRenderObjects({}, 1);
         expect(render).toHaveBeenLastCalledWith(123);
         await element.prepareSimulationFrame!(0, generation, () => {});
@@ -54,14 +51,19 @@ describe('simulation definition integration', () => {
     });
 
     it('shows the pending reason inside the element placeholder', async () => {
+        let now = 0;
+        let pending = true;
+        const initialize = vi.fn(() => ({ count: 0 }));
+        const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now);
         const definition = definePluginElement({
             type: 'simulation-pending-test',
             metadata: { name: 'Pending simulation' },
             schema: { tabs: [tab.properties([group('simulation', 'Simulation', [prop.number('seed', 'Seed', 3)])])] },
             simulation: {
-                initialize: () => ({ count: 0 }),
+                initialize,
                 step: () => {
-                    throw new SimulationPending('Audio analysis is still running');
+                    if (pending) throw new SimulationPending('Audio analysis is still running');
+                    return { count: 1 };
                 },
             },
             render: () => [new Rectangle(0, 0, 200, 100)],
@@ -79,13 +81,71 @@ describe('simulation definition integration', () => {
         await expect(element.prepareSimulationFrame!(1 / 120, generation, () => {})).rejects.toThrow(
             'Audio analysis is still running'
         );
+        expect(renderedText(element.buildRenderObjects({}, 1 / 120))).toHaveLength(0);
+        now = 151;
         const placeholder = element.buildRenderObjects({}, 1 / 120);
         expect(renderedText(placeholder).map((text) => text.text)).toContain('Audio analysis is still running');
         expect(element.getSimulationReadiness?.()).toMatchObject({
             status: 'pending',
             reason: 'Audio analysis is still running',
         });
+        pending = false;
+        const refreshed = new SimulationGeneration(useSceneStore.getState(), useTimelineStore.getState(), generation);
+        await element.prepareSimulationFrame!(1 / 120, refreshed, () => {});
+        expect(renderedText(element.buildRenderObjects({}, 1 / 120))).toHaveLength(0);
+        expect(initialize).toHaveBeenCalledTimes(1);
         await scope.dispose();
+        nowSpy.mockRestore();
+    });
+
+    it('wakes a paused preview after the initial grace period and cancels the timer on disposal', async () => {
+        vi.useFakeTimers();
+        const definition = definePluginElement({
+            type: 'simulation-placeholder-wake-test',
+            metadata: { name: 'Waiting simulation' },
+            schema: { tabs: [tab.properties([group('simulation', 'Simulation', [prop.number('seed', 'Seed', 3)])])] },
+            simulation: {
+                initialize: () => 0,
+                step: () => {
+                    throw new SimulationPending('Decoding');
+                },
+            },
+            render: () => [],
+        });
+        const scope = createPluginDefinitionScope(definition, {
+            pluginId: 'test',
+            services: null,
+            synchronousInitialization: true,
+            loadAsset: async () => '',
+            report: vi.fn(),
+        });
+        const changed = vi.fn();
+        let now = 0;
+        const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+        try {
+            const element = scope.createRegistration({ kind: 'built-in' }).create();
+            const generation = new SimulationGeneration(useSceneStore.getState(), useTimelineStore.getState());
+            element.requestSimulationFrame!(1 / 120, generation, changed);
+            element.buildRenderObjects({}, 1 / 120);
+            changed.mockClear();
+            now = 150;
+            vi.advanceTimersByTime(150);
+            expect(changed).toHaveBeenCalledOnce();
+            expect(renderedText(element.buildRenderObjects({}, 1 / 120)).map((text) => text.text)).toContain(
+                'Decoding'
+            );
+            const another = scope.createRegistration({ kind: 'built-in' }).create();
+            another.requestSimulationFrame!(1 / 120, generation, changed);
+            another.buildRenderObjects({}, 1 / 120);
+            await scope.dispose();
+            changed.mockClear();
+            vi.advanceTimersByTime(150);
+            expect(changed).not.toHaveBeenCalled();
+        } finally {
+            await scope.dispose();
+            clock.mockRestore();
+            vi.useRealTimers();
+        }
     });
 
     it('renders a prepared export snapshot without preview placeholder hysteresis', async () => {
@@ -112,6 +172,8 @@ describe('simulation definition integration', () => {
         const element = scope.createRegistration({ kind: 'built-in' }).create();
         const generation = new SimulationGeneration(useSceneStore.getState(), useTimelineStore.getState());
 
+        element.buildRenderObjects({}, 1);
+        now = 151;
         const placeholder = element.buildRenderObjects({}, 1);
         expect(renderedText(placeholder).map((text) => text.text)).toContain('Waiting to prepare simulation');
         const exportSession = {};
@@ -168,7 +230,7 @@ describe('simulation definition integration', () => {
         await scope.dispose();
     });
 
-    it('holds the last complete output briefly before showing a preparation placeholder', async () => {
+    it('retains completed artwork throughout long paused seeks and repeated scrubbing', async () => {
         let now = 0;
         const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now);
         const definition = definePluginElement({
@@ -191,15 +253,16 @@ describe('simulation definition integration', () => {
         const element = scope.createRegistration({ kind: 'built-in' }).create();
         const generation = new SimulationGeneration(useSceneStore.getState(), useTimelineStore.getState());
         await element.prepareSimulationFrame!(0, generation, () => {});
-        element.buildRenderObjects({}, 0);
+        const initial = element.buildRenderObjects({}, 0);
 
         element.requestSimulationFrame!(10, generation, () => {});
         const retained = element.buildRenderObjects({}, 10);
         expect(renderedText(retained)).toHaveLength(0);
 
-        now = 151;
-        const placeholder = element.buildRenderObjects({}, 10);
-        expect(renderedText(placeholder).map((text) => text.text)).toContain('Preparing simulation');
+        now = 5000;
+        expect(element.buildRenderObjects({}, 10)).toEqual(initial);
+        element.requestSimulationFrame!(20, generation, () => {});
+        expect(element.buildRenderObjects({}, 20)).toEqual(initial);
 
         await scope.dispose();
         nowSpy.mockRestore();
@@ -230,7 +293,7 @@ describe('simulation definition integration', () => {
         const element = scope.createRegistration({ kind: 'built-in' }).create();
         const generation = new SimulationGeneration(useSceneStore.getState(), useTimelineStore.getState());
         const initial = element.buildRenderObjects({ isPlaying: true }, 0);
-        expect(renderedText(initial).map((text) => text.text)).toContain('Waiting to prepare simulation');
+        expect(renderedText(initial)).toHaveLength(0);
         await element.prepareSimulationFrame!(0, generation, () => {});
         element.buildRenderObjects({ isPlaying: true }, 0);
 
@@ -247,7 +310,7 @@ describe('simulation definition integration', () => {
         await scope.dispose();
     });
 
-    it('keeps rendered output visible during transient playback input waits', async () => {
+    it.each([false, true])('keeps rendered output visible during input waits (playing: %s)', async (isPlaying) => {
         let inputsPending = false;
         const renderedSteps: number[] = [];
         const definition = definePluginElement({
@@ -276,11 +339,11 @@ describe('simulation definition integration', () => {
         const element = scope.createRegistration({ kind: 'built-in' }).create();
         const generation = new SimulationGeneration(useSceneStore.getState(), useTimelineStore.getState());
         await element.prepareSimulationFrame!(0, generation, () => {});
-        element.buildRenderObjects({ isPlaying: true }, 0);
+        element.buildRenderObjects({ isPlaying }, 0);
 
         inputsPending = true;
         element.requestSimulationFrame!(1 / 120, generation, () => {});
-        const retained = element.buildRenderObjects({ isPlaying: true }, 1 / 120);
+        const retained = element.buildRenderObjects({ isPlaying }, 1 / 120);
 
         expect(renderedText(retained)).toHaveLength(0);
         expect(renderedSteps).toEqual([0]);
