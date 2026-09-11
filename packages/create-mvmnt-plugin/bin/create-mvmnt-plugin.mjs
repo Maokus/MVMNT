@@ -2,33 +2,73 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
+import prompts from 'prompts';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const templatesDir = resolve(packageRoot, 'templates');
 
 // Keep source and manifest requirements together so every generated element passes
 // the plugin contract's exact capability matching check.
-const templateCapabilities = Object.freeze({
-    'audio-reactive': { required: ['audio.raw.read'], optional: [] },
-    'basic-shape': { required: [], optional: [] },
-    'bundled-image': { required: [], optional: [] },
-    'grid-atlas': { required: [], optional: [] },
-    'image-atlas': { required: [], optional: [] },
-    'image-simple': { required: [], optional: [] },
-    'midi-notes': { required: ['timeline.read', 'midi.utils'], optional: [] },
-    'midi-spring': { required: ['timeline.read'], optional: [] },
-    minimal: { required: [], optional: [] },
-    'text-display': { required: [], optional: [] },
+const templates = Object.freeze({
+    minimal: {
+        title: 'Minimal',
+        description: 'A clean starting point for a custom element',
+        capabilities: { required: [], optional: [] },
+    },
+    'basic-shape': {
+        title: 'Basic shape',
+        description: 'Draw and animate a configurable rectangle',
+        capabilities: { required: [], optional: [] },
+    },
+    'text-display': {
+        title: 'Text display',
+        description: 'Render configurable text on the canvas',
+        capabilities: { required: [], optional: [] },
+    },
+    'midi-notes': {
+        title: 'MIDI notes',
+        description: 'Read note events from the timeline',
+        capabilities: { required: ['timeline.read', 'midi.utils'], optional: [] },
+    },
+    'midi-spring': {
+        title: 'MIDI spring',
+        description: 'Build a deterministic, MIDI-driven simulation',
+        capabilities: { required: ['timeline.read'], optional: [] },
+    },
+    'audio-reactive': {
+        title: 'Audio reactive',
+        description: 'React to raw audio samples',
+        capabilities: { required: ['audio.raw.read'], optional: [] },
+    },
+    'image-simple': {
+        title: 'Simple image',
+        description: 'Display an image selected by the user',
+        capabilities: { required: [], optional: [] },
+    },
+    'bundled-image': {
+        title: 'Bundled image',
+        description: 'Package and render an image asset with the plugin',
+        capabilities: { required: [], optional: [] },
+    },
+    'image-atlas': {
+        title: 'Image atlas',
+        description: 'Animate frames from a texture atlas',
+        capabilities: { required: [], optional: [] },
+    },
+    'grid-atlas': {
+        title: 'Grid atlas',
+        description: 'Animate an evenly spaced sprite sheet',
+        capabilities: { required: [], optional: [] },
+    },
 });
 
 const discoveredTemplateNames = readdirSync(templatesDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort();
-const missingDescriptors = discoveredTemplateNames.filter((name) => !templateCapabilities[name]);
-const missingTemplates = Object.keys(templateCapabilities).filter((name) => !discoveredTemplateNames.includes(name));
+const missingDescriptors = discoveredTemplateNames.filter((name) => !templates[name]);
+const missingTemplates = Object.keys(templates).filter((name) => !discoveredTemplateNames.includes(name));
 if (missingDescriptors.length || missingTemplates.length) {
     throw new Error(
         [
@@ -41,7 +81,8 @@ if (missingDescriptors.length || missingTemplates.length) {
             .join('. ')
     );
 }
-const templateNames = Object.keys(templateCapabilities).sort();
+const templateNames = Object.keys(templates);
+const promptOptions = { onCancel: () => false };
 
 function usage() {
     return `Usage:
@@ -69,7 +110,7 @@ General options:
 
 function parseArgs(args) {
     const remaining = [...args];
-    let command = 'create';
+    let command;
     if (remaining[0] === 'create' || remaining[0] === 'add') command = remaining.shift();
 
     const options = {
@@ -115,6 +156,73 @@ function parseArgs(args) {
         throw new Error('The create command derives its first element type from the final plugin-ID segment.');
     }
     return options;
+}
+
+function nearestPluginDirectory(startDirectory) {
+    let directory = resolve(startDirectory);
+    while (true) {
+        if (existsSync(resolve(directory, 'plugin.json'))) return directory;
+        const parent = dirname(directory);
+        if (parent === directory) return undefined;
+        directory = parent;
+    }
+}
+
+function templateChoices() {
+    return templateNames.map((value) => ({
+        title: templates[value].title,
+        description: templates[value].description,
+        value,
+    }));
+}
+
+function requirePromptValue(value) {
+    if (value === undefined) throw new Error('Operation cancelled.');
+    return value;
+}
+
+async function selectCommand(options) {
+    if (options.command) return options.command;
+    if (options.name || options.pluginName) return 'create';
+
+    const hasExplicitDirectory = Boolean(options.dir);
+    const requestedDirectory = options.dir ? resolve(options.dir) : process.cwd();
+    const pluginDir = hasExplicitDirectory
+        ? existsSync(resolve(requestedDirectory, 'plugin.json'))
+            ? requestedDirectory
+            : undefined
+        : nearestPluginDirectory(requestedDirectory);
+    if (options.element) {
+        options.dir ??= pluginDir;
+        return 'add';
+    }
+    if (!pluginDir) return 'create';
+
+    if (!input.isTTY || !output.isTTY) return 'add';
+
+    let pluginName = 'this plugin';
+    try {
+        pluginName = readManifest(pluginDir).manifest.name || pluginName;
+    } catch {
+        // Let the selected add flow show the manifest-specific validation error.
+    }
+    console.log(`\nDetected ${pluginName} in ${pluginDir}.`);
+    const response = await prompts(
+        {
+            type: 'select',
+            name: 'command',
+            message: 'What would you like to create?',
+            choices: [
+                { title: 'Add a scene element', description: `Add another element to ${pluginName}`, value: 'add' },
+                { title: 'Create a new plugin', description: 'Scaffold a separate plugin project', value: 'create' },
+            ],
+            initial: 0,
+        },
+        promptOptions
+    );
+    const command = requirePromptValue(response.command);
+    if (command === 'add') options.dir ??= pluginDir;
+    return command;
 }
 
 function validatePluginId(pluginId) {
@@ -218,14 +326,37 @@ async function promptForCreate(options) {
     if (options.name && options.template) return options;
     if (!input.isTTY) throw new Error('Pass both --name and --template when creating non-interactively.');
 
-    const prompt = readline.createInterface({ input, output });
-    try {
-        options.name ??= (await prompt.question('Plugin ID (for example com.example.pulse): ')).trim();
-        options.template ??= (await prompt.question(`Template (${templateNames.join(', ')}): `)).trim() || 'minimal';
-        options.dir ??= (await prompt.question('Output directory (leave blank for default): ')).trim() || undefined;
-    } finally {
-        prompt.close();
-    }
+    const response = await prompts(
+        [
+            {
+                type: options.name ? null : 'text',
+                name: 'name',
+                message: 'Plugin ID',
+                initial: 'com.example.my-plugin',
+                validate: (value) =>
+                    validatePluginId(value)
+                        ? true
+                        : 'Use lowercase letters, numbers, dots, and hyphens (minimum 3 characters).',
+            },
+            {
+                type: options.template ? null : 'select',
+                name: 'template',
+                message: 'Choose a starter template',
+                choices: templateChoices(),
+                initial: 0,
+            },
+            {
+                type: options.dir ? null : 'text',
+                name: 'dir',
+                message: 'Output directory',
+                initial: (_previous, values) => (values.name ?? options.name ?? '').split('.').at(-1),
+            },
+        ],
+        promptOptions
+    );
+    if (!options.name) options.name = requirePromptValue(response.name)?.trim();
+    if (!options.template) options.template = requirePromptValue(response.template);
+    if (!options.dir) options.dir = requirePromptValue(response.dir)?.trim() || undefined;
     return options;
 }
 
@@ -233,13 +364,27 @@ async function promptForAdd(options) {
     if (options.element && options.template) return options;
     if (!input.isTTY) throw new Error('Pass an element type and --template when adding non-interactively.');
 
-    const prompt = readline.createInterface({ input, output });
-    try {
-        options.element ??= (await prompt.question('Element type (kebab-case): ')).trim();
-        options.template ??= (await prompt.question(`Template (${templateNames.join(', ')}): `)).trim() || 'minimal';
-    } finally {
-        prompt.close();
-    }
+    const response = await prompts(
+        [
+            {
+                type: options.element ? null : 'text',
+                name: 'element',
+                message: 'Element type',
+                validate: (value) =>
+                    validateElementType(value) ? true : 'Use a kebab-case name, such as note-trails.',
+            },
+            {
+                type: options.template ? null : 'select',
+                name: 'template',
+                message: 'Choose a starter template',
+                choices: templateChoices(),
+                initial: 0,
+            },
+        ],
+        promptOptions
+    );
+    if (!options.element) options.element = requirePromptValue(response.element)?.trim();
+    if (!options.template) options.template = requirePromptValue(response.template);
     return options;
 }
 
@@ -272,7 +417,7 @@ function createPlugin(options) {
     const commonDir = resolve(templatesDir, 'minimal');
     const manifest = JSON.parse(replaceProjectTokens(readFileSync(resolve(commonDir, 'plugin.json'), 'utf8'), values));
     manifest.name = values.PLUGIN_NAME;
-    manifest.elements[0].capabilities = templateCapabilities[options.template];
+    manifest.elements[0].capabilities = templates[options.template].capabilities;
 
     mkdirSync(targetDir, { recursive: false });
     mkdirSync(resolve(targetDir, 'assets'));
@@ -335,7 +480,7 @@ function addElement(options) {
             {
                 type: options.element,
                 entry,
-                capabilities: templateCapabilities[options.template],
+                capabilities: templates[options.template].capabilities,
             },
         ],
     };
@@ -359,7 +504,9 @@ async function main() {
         console.log(usage());
         return;
     }
+    options.command = await selectCommand(options);
     if (options.command === 'add') {
+        if (!options.dir) options.dir = nearestPluginDirectory(process.cwd());
         await promptForAdd(options);
         addElement(options);
     } else {

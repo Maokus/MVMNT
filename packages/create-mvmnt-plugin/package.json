@@ -17,5 +17,8 @@
     },
     "publishConfig": {
         "access": "public"
+    },
+    "dependencies": {
+        "prompts": "^2.4.2"
     }
 }

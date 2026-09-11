@@ -8,14 +8,19 @@ for import. Use Node.js 18 or newer. An MVMNT source checkout is not required.
 Run the generator from the directory where you keep projects:
 
 ```bash
-npm create mvmnt-plugin@latest -- --name com.example.pulse --template minimal
+npm create mvmnt-plugin@latest
 cd pulse
 npm install
 npm run check
 ```
 
-Use a reverse-domain plugin ID that you control. The generated project contains `plugin.json`, one
-or more TypeScript element entries, assets, build configuration, and the public SDK dependency.
+Choose a template from the interactive menu and use a reverse-domain plugin ID that you control.
+For a non-interactive setup, pass `--name com.example.pulse --template minimal`. The generated project
+contains `plugin.json`, one or more TypeScript element entries, assets, build configuration, and the
+public SDK dependency.
+
+Running the generator again from the plugin (or one of its nested directories) detects `plugin.json`
+and offers to add another scene element instead of creating a separate plugin.
 
 ## Edit the element
 

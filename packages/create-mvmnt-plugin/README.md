@@ -7,6 +7,14 @@ authoring model and learning path.
 Create an external SDK 2 MVMNT plugin project:
 
 ```sh
+npm create mvmnt-plugin@latest
+```
+
+The interactive setup walks through the plugin ID, output directory, and a keyboard-selectable list
+of starter templates with a short explanation of each one. For scripts and other non-interactive
+use, pass the choices as options:
+
+```sh
 npm create mvmnt-plugin@latest -- --name com.example.pulse --template minimal
 ```
 
@@ -19,11 +27,20 @@ choose the output location.
 
 ## Add another element
 
-Run the same tool from an existing generated plugin:
+Run the same tool from an existing generated plugin. The generator detects the nearest `plugin.json`
+and offers to add another scene element, even when run from a nested directory:
+
+```sh
+cd pulse
+npm create mvmnt-plugin@latest
+```
+
+You can also select the add flow explicitly or provide everything non-interactively:
 
 ```sh
 cd pulse
 npm create mvmnt-plugin@latest -- add spectrum --template audio-reactive
+npm create mvmnt-plugin@latest -- --element spectrum --template audio-reactive
 ```
 
 The `add` command reads the plugin identity from `plugin.json`, creates `src/spectrum.ts`, and adds

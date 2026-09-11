@@ -138,6 +138,31 @@ describe('create-mvmnt-plugin CLI', () => {
         expect(source).toContain("description: 'Shows today\\'s notes'");
     });
 
+    it('detects a plugin from a nested directory when --element implies add', () => {
+        const cwd = temporaryDirectory();
+        const pluginDir = join(cwd, 'visuals');
+        const createResult = runCli(cwd, [
+            '--name',
+            'com.example.visuals',
+            '--template',
+            'minimal',
+            '--dir',
+            pluginDir,
+        ]);
+        expect(createResult.status, createResult.stderr).toBe(0);
+
+        const addResult = runCli(join(pluginDir, 'src'), ['--element', 'note-trails', '--template', 'midi-notes']);
+
+        expect(addResult.status, addResult.stderr).toBe(0);
+        expect(addResult.stdout).toContain('Added note-trails to com.example.visuals');
+        const manifest = JSON.parse(readFileSync(join(pluginDir, 'plugin.json'), 'utf8'));
+        expect(manifest.elements.at(-1)).toEqual({
+            type: 'note-trails',
+            entry: 'src/note-trails.ts',
+            capabilities: { required: ['timeline.read', 'midi.utils'], optional: [] },
+        });
+    });
+
     it('rejects duplicate element types without changing the manifest', () => {
         const cwd = temporaryDirectory();
         const pluginDir = join(cwd, 'visuals');
