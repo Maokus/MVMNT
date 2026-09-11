@@ -1,8 +1,8 @@
 import { definePluginElement, group, prop, tab } from '@mvmnt-app/plugin-sdk';
 import { Rectangle, Text } from '@mvmnt-app/plugin-sdk/render';
 export const textDisplay = definePluginElement({
-    type: 'text-display',
-    metadata: { name: 'Text Display', description: 'Display customizable text', category: 'Custom' },
+    type: '{{ELEMENT_TYPE}}',
+    metadata: { name: '{{ELEMENT_NAME}}', description: '{{ELEMENT_DESCRIPTION}}', category: 'Custom' },
     schema: {
         tabs: [
             tab.properties([

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { isValidPluginId, targetsSdk2 } from '@mvmnt-app/plugin-contract';
 
 export const SDK_RUNTIME_MODULES = Object.freeze([
     '@mvmnt-app/plugin-sdk',
@@ -90,12 +91,11 @@ export function validateCapabilityDeclaration(value, label) {
 
 export function validateManifest(manifest, pluginDirectory) {
     const errors = [];
-    if (!manifest?.id || !/^[a-z0-9.-]{3,}$/.test(manifest.id)) errors.push('Missing or invalid "id" field');
+    if (!isValidPluginId(manifest?.id)) errors.push('Missing or invalid "id" field');
     if (!manifest?.name || typeof manifest.name !== 'string') errors.push('Missing or invalid "name" field');
     if (!manifest?.version || !/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?$/.test(manifest.version))
         errors.push('Missing or invalid semantic "version" field');
-    if (!manifest?.apiVersion || !/(?:\^|>=)?2\./.test(manifest.apiVersion ?? ''))
-        errors.push('"apiVersion" must target SDK 2');
+    if (!targetsSdk2(manifest?.apiVersion)) errors.push('"apiVersion" must target SDK 2');
     if (!Array.isArray(manifest?.elements) || !manifest.elements.length)
         return [...errors, 'Missing or empty "elements" array'];
     const types = new Set();

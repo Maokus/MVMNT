@@ -1,7 +1,37 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
-import { midiSpring } from '../../../../../packages/create-mvmnt-plugin/templates/midi-spring/src/element';
+import { renderElementTemplate } from '../../../../../packages/create-mvmnt-plugin/bin/create-mvmnt-plugin.mjs';
 import { SimulationRunner, type SimulationInputs } from '../simulation-runner';
 import { ok } from '../../../../../packages/plugin-sdk/src/api';
+
+function loadRenderedTemplate() {
+    const templatePath = resolve('packages/create-mvmnt-plugin/templates/midi-spring/src/element.ts');
+    const source = renderElementTemplate(readFileSync(templatePath, 'utf8'), {
+        ELEMENT_TYPE: 'midi-spring',
+        ELEMENT_NAME: 'MIDI Spring',
+        ELEMENT_DESCRIPTION: 'Deterministic fixed-step MIDI spring',
+    });
+    const code = ts.transpileModule(source, {
+        compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    }).outputText;
+    const callable = new Proxy(() => ({}), { get: () => callable });
+    const module = { exports: {} as Record<string, any> };
+    const load = (specifier: string) =>
+        specifier.endsWith('/render')
+            ? { Rectangle: class {} }
+            : {
+                  definePluginElement: (definition: unknown) => definition,
+                  group: callable,
+                  prop: callable,
+                  tab: callable,
+              };
+    Function('module', 'exports', 'require', code)(module, module.exports, load);
+    return module.exports.midiSpring;
+}
+
+const midiSpring = loadRenderedTemplate();
 
 describe('MIDI spring export stability', () => {
     it.each([

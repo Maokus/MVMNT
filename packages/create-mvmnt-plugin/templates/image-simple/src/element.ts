@@ -1,8 +1,8 @@
 import { definePluginElement, group, prop, tab } from '@mvmnt-app/plugin-sdk';
 import { Rectangle, VisualMedia } from '@mvmnt-app/plugin-sdk/render';
 export const simpleImage = definePluginElement({
-    type: 'simple-image',
-    metadata: { name: 'Simple Image', description: 'Displays an image or animated GIF', category: 'Custom' },
+    type: '{{ELEMENT_TYPE}}',
+    metadata: { name: '{{ELEMENT_NAME}}', description: '{{ELEMENT_DESCRIPTION}}', category: 'Custom' },
     schema: {
         tabs: [
             tab.properties([

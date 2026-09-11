@@ -1,11 +1,10 @@
 import { definePluginElement, group, prop, tab } from '@mvmnt-app/plugin-sdk';
 import { VisualMedia } from '@mvmnt-app/plugin-sdk/render';
-// Add assets/atlas.png and assets/atlas.xml before using this bundled-atlas template.
 export const atlasImage = definePluginElement({
-    type: 'atlas-image',
+    type: '{{ELEMENT_TYPE}}',
     metadata: {
-        name: 'Atlas Image',
-        description: 'Sparrow atlas animation with a bundled default',
+        name: '{{ELEMENT_NAME}}',
+        description: '{{ELEMENT_DESCRIPTION}}',
         category: 'Custom',
     },
     schema: {
@@ -21,7 +20,7 @@ export const atlasImage = definePluginElement({
     },
     createResources(context) {
         return {
-            atlas: context.assets.bundledSparrow('atlas.png', 'atlas.xml'),
+            atlas: context.assets.bundledSparrow('atlas.svg', 'atlas.xml'),
             override: context.assets.project(),
             media: new VisualMedia(0, 0, 200, 200),
         };

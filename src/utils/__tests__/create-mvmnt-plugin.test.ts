@@ -1,16 +1,40 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import {
+    chmodSync,
+    existsSync,
+    mkdtempSync,
+    readFileSync,
+    readdirSync,
+    rmSync,
+    symlinkSync,
+    writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
     addPromptQuestions,
     createPromptQuestions,
+    renderElementTemplate,
     type PromptQuestion,
 } from '../../../packages/create-mvmnt-plugin/bin/create-mvmnt-plugin.mjs';
+import { isValidPluginId, targetsSdk2 } from '@mvmnt-app/plugin-contract';
+import { validateManifest } from '../../../packages/plugin-tools/src/contract.mjs';
 
 const cliPath = resolve(process.cwd(), 'packages/create-mvmnt-plugin/bin/create-mvmnt-plugin.mjs');
 const temporaryDirectories: string[] = [];
+const templates = [
+    'minimal',
+    'basic-shape',
+    'text-display',
+    'midi-notes',
+    'midi-spring',
+    'audio-reactive',
+    'image-simple',
+    'bundled-image',
+    'image-atlas',
+    'grid-atlas',
+];
 
 function temporaryDirectory() {
     const directory = mkdtempSync(join(tmpdir(), 'create-mvmnt-plugin-'));
@@ -23,6 +47,29 @@ function runCli(cwd: string, args: string[]) {
         cwd,
         encoding: 'utf8',
     });
+}
+
+function runNpm(cwd: string, args: string[]) {
+    return spawnSync('npm', args, {
+        cwd,
+        encoding: 'utf8',
+        env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false', npm_config_offline: 'true' },
+    });
+}
+
+function useLocalToolingPackages(pluginDir: string) {
+    const root = process.cwd();
+    const packagePath = join(pluginDir, 'package.json');
+    const manifest = JSON.parse(readFileSync(packagePath, 'utf8'));
+    manifest.dependencies['@mvmnt-app/plugin-sdk'] = `file:${resolve(root, 'packages/plugin-sdk')}`;
+    Object.assign(manifest.devDependencies, {
+        '@mvmnt-app/plugin-contract': `file:${resolve(root, 'packages/plugin-contract')}`,
+        '@mvmnt-app/plugin-tools': `file:${resolve(root, 'packages/plugin-tools')}`,
+        esbuild: `file:${resolve(root, 'node_modules/esbuild')}`,
+        fflate: `file:${resolve(root, 'node_modules/fflate')}`,
+        typescript: `file:${resolve(root, 'node_modules/typescript')}`,
+    });
+    writeFileSync(packagePath, `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
 function evaluateInitial(question: PromptQuestion, values: Record<string, string>) {
@@ -63,18 +110,6 @@ describe('create-mvmnt-plugin CLI', () => {
     it('generates every template with schema builders and packages them together', async () => {
         const cwd = temporaryDirectory();
         const pluginDir = join(cwd, 'all-templates');
-        const templates = [
-            'minimal',
-            'basic-shape',
-            'text-display',
-            'midi-notes',
-            'midi-spring',
-            'audio-reactive',
-            'image-simple',
-            'bundled-image',
-            'image-atlas',
-            'grid-atlas',
-        ];
         expect(
             runCli(cwd, ['--name', 'com.example.templates', '--template', templates[0], '--dir', pluginDir]).status
         ).toBe(0);
@@ -98,6 +133,36 @@ describe('create-mvmnt-plugin CLI', () => {
         expect(check.status, `${check.stdout}\n${check.stderr}`).toBe(0);
         expect(check.stdout).toContain(`(${templates.length} elements)`);
     }, 30_000);
+
+    it.each(templates)(
+        'creates, installs, typechecks, checks, and builds the %s template',
+        (template) => {
+            const cwd = temporaryDirectory();
+            const pluginDir = join(cwd, template);
+            const create = runCli(cwd, [
+                'create',
+                '--name',
+                `com.example.${template}`,
+                '--template',
+                template,
+                '--dir',
+                pluginDir,
+            ]);
+            expect(create.status, create.stderr).toBe(0);
+            useLocalToolingPackages(pluginDir);
+
+            for (const args of [
+                ['install', '--ignore-scripts', '--package-lock=false'],
+                ['run', 'typecheck'],
+                ['run', 'check'],
+                ['run', 'build'],
+            ]) {
+                const result = runNpm(pluginDir, args);
+                expect(result.status, `${args.join(' ')}\n${result.stdout}\n${result.stderr}`).toBe(0);
+            }
+        },
+        120_000
+    );
 
     it('creates a plugin with template capabilities and distinct display names', () => {
         const cwd = temporaryDirectory();
@@ -131,6 +196,46 @@ describe('create-mvmnt-plugin CLI', () => {
         expect(source).toContain("type: 'visuals'");
         expect(source).toContain("metadata: { name: 'Audio Pulse'");
         expect(source).toContain("description: 'Responds to raw audio'");
+    });
+
+    it('safely serializes and renders unusual display text', () => {
+        const cwd = temporaryDirectory();
+        const pluginDir = join(cwd, "quoted plugin's path");
+        const pluginName = 'Visuals "Deluxe"\nSecond line';
+        const elementName = 'Today\'s \\ visual\n"mix"';
+        const description = "Line one\r\nLine two's \\ path";
+        const result = runCli(cwd, [
+            '--name',
+            'com.example.quoted',
+            '--plugin-name',
+            pluginName,
+            '--element-name',
+            elementName,
+            '--description',
+            description,
+            '--template',
+            'minimal',
+            '--dir',
+            pluginDir,
+        ]);
+
+        expect(result.status, result.stderr).toBe(0);
+        expect(JSON.parse(readFileSync(join(pluginDir, 'plugin.json'), 'utf8')).name).toBe(pluginName);
+        const source = readFileSync(join(pluginDir, 'src/quoted.ts'), 'utf8');
+        expect(source).toContain("name: 'Today\\'s \\\\ visual\\n\"mix\"'");
+        expect(source).toContain("description: 'Line one\\r\\nLine two\\'s \\\\ path'");
+        expect(source).not.toContain('{{ELEMENT_');
+        expect(result.stdout).toContain(`cd '${pluginDir.replace(/'/g, `'\\''`)}'`);
+    });
+
+    it('fails clearly when an element template omits a required placeholder', () => {
+        expect(() =>
+            renderElementTemplate("type: '{{ELEMENT_TYPE}}'; name: '{{ELEMENT_NAME}}'", {
+                ELEMENT_TYPE: 'pulse',
+                ELEMENT_NAME: 'Pulse',
+                ELEMENT_DESCRIPTION: 'A pulse',
+            })
+        ).toThrow('missing required placeholders: ELEMENT_DESCRIPTION');
     });
 
     it('creates a first element with an explicit type and a display name derived from it', () => {
@@ -219,6 +324,37 @@ describe('create-mvmnt-plugin CLI', () => {
         });
     });
 
+    it('infers create for --element outside a plugin and honors explicit commands', () => {
+        const cwd = temporaryDirectory();
+        const inferred = runCli(cwd, ['--element', 'pulse', '--template', 'minimal', '--dir', join(cwd, 'new-plugin')]);
+        expect(inferred.status).toBe(1);
+        expect(inferred.stderr).toContain('Pass both --name and --template when creating non-interactively');
+        expect(inferred.stderr).not.toContain('existing plugin manifest');
+
+        const pluginDir = join(cwd, 'existing');
+        expect(
+            runCli(cwd, ['create', '--name', 'com.example.existing', '--template', 'minimal', '--dir', pluginDir])
+                .status
+        ).toBe(0);
+        const separateDir = join(cwd, 'separate');
+        const explicitCreate = runCli(pluginDir, [
+            'create',
+            '--name',
+            'com.example.separate',
+            '--element',
+            'separate-element',
+            '--template',
+            'minimal',
+            '--dir',
+            separateDir,
+        ]);
+        expect(explicitCreate.status, explicitCreate.stderr).toBe(0);
+
+        const explicitAdd = runCli(cwd, ['add', 'pulse', '--template', 'minimal']);
+        expect(explicitAdd.status).toBe(1);
+        expect(explicitAdd.stderr).toContain('Expected an existing plugin manifest');
+    });
+
     it('rejects duplicate element types without changing the manifest', () => {
         const cwd = temporaryDirectory();
         const pluginDir = join(cwd, 'visuals');
@@ -238,5 +374,111 @@ describe('create-mvmnt-plugin CLI', () => {
         expect(addResult.status).toBe(1);
         expect(addResult.stderr).toContain("Element type 'visuals' already exists");
         expect(readFileSync(join(pluginDir, 'plugin.json'), 'utf8')).toBe(manifestBefore);
+    });
+
+    it('rejects invalid IDs and manifests using the shared contract rules', () => {
+        expect(isValidPluginId('com.example.good')).toBe(true);
+        expect(isValidPluginId('.bad')).toBe(false);
+        expect(targetsSdk2('^2.2.0')).toBe(true);
+        expect(targetsSdk2('2')).toBe(false);
+        expect(targetsSdk2('^12.0.0')).toBe(false);
+        expect(
+            validateManifest({
+                id: '.bad',
+                name: 'Bad',
+                version: '0.1.0',
+                apiVersion: '^12.0.0',
+                elements: [{ type: 'bad', entry: 'src/bad.ts', capabilities: { required: [], optional: [] } }],
+            })
+        ).toEqual(expect.arrayContaining(['Missing or invalid "id" field', '"apiVersion" must target SDK 2']));
+
+        const cwd = temporaryDirectory();
+        const invalidCreate = runCli(cwd, [
+            'create',
+            '--name',
+            '.bad',
+            '--template',
+            'minimal',
+            '--dir',
+            join(cwd, 'bad'),
+        ]);
+        expect(invalidCreate.status).toBe(1);
+        expect(existsSync(join(cwd, 'bad'))).toBe(false);
+
+        const pluginDir = join(cwd, 'invalid-manifest');
+        expect(
+            runCli(cwd, ['create', '--name', 'com.example.valid', '--template', 'minimal', '--dir', pluginDir]).status
+        ).toBe(0);
+        const invalidManifest = {
+            id: 'com.example.valid',
+            name: 'Valid',
+            version: '0.1.0',
+            apiVersion: '^12.0.0',
+            elements: [],
+        };
+        writeFileSync(join(pluginDir, 'plugin.json'), JSON.stringify(invalidManifest));
+        const add = runCli(pluginDir, ['add', 'new-element', '--template', 'minimal']);
+        expect(add.status).toBe(1);
+        expect(add.stderr).toContain('only supports SDK 2 plugins');
+        expect(JSON.parse(readFileSync(join(pluginDir, 'plugin.json'), 'utf8'))).toEqual(invalidManifest);
+        expect(existsSync(join(pluginDir, 'src/new-element.ts'))).toBe(false);
+    });
+
+    it('rejects source and asset collisions without changing the plugin', () => {
+        const cwd = temporaryDirectory();
+        const pluginDir = join(cwd, 'visuals');
+        expect(
+            runCli(cwd, ['create', '--name', 'com.example.visuals', '--template', 'bundled-image', '--dir', pluginDir])
+                .status
+        ).toBe(0);
+        const manifestBefore = readFileSync(join(pluginDir, 'plugin.json'), 'utf8');
+
+        writeFileSync(join(pluginDir, 'src/orphan.ts'), 'user-owned source');
+        const sourceCollision = runCli(pluginDir, ['add', 'orphan', '--template', 'minimal']);
+        expect(sourceCollision.status).toBe(1);
+        expect(sourceCollision.stderr).toContain('existing element file');
+        const assetCollision = runCli(pluginDir, ['add', 'second-image', '--template', 'bundled-image']);
+        expect(assetCollision.status).toBe(1);
+        expect(assetCollision.stderr).toContain('template assets: image.svg');
+        expect(readFileSync(join(pluginDir, 'plugin.json'), 'utf8')).toBe(manifestBefore);
+        expect(existsSync(join(pluginDir, 'src/second-image.ts'))).toBe(false);
+    });
+
+    it.skipIf(process.platform === 'win32')('rolls back add when committing a file fails', () => {
+        const cwd = temporaryDirectory();
+        const pluginDir = join(cwd, 'visuals');
+        expect(
+            runCli(cwd, ['create', '--name', 'com.example.visuals', '--template', 'minimal', '--dir', pluginDir]).status
+        ).toBe(0);
+        const manifestBefore = readFileSync(join(pluginDir, 'plugin.json'), 'utf8');
+        const sourceDir = join(pluginDir, 'src');
+        chmodSync(sourceDir, 0o500);
+        try {
+            const add = runCli(pluginDir, ['add', 'write-failure', '--template', 'minimal']);
+            expect(add.status).toBe(1);
+            expect(readFileSync(join(pluginDir, 'plugin.json'), 'utf8')).toBe(manifestBefore);
+            expect(existsSync(join(sourceDir, 'write-failure.ts'))).toBe(false);
+            expect(readdirSync(pluginDir).filter((entry) => entry.startsWith('.create-mvmnt-plugin-'))).toEqual([]);
+        } finally {
+            chmodSync(sourceDir, 0o700);
+        }
+    });
+
+    it.skipIf(process.platform === 'win32')('does not leave a partial plugin when staging create fails', () => {
+        const cwd = temporaryDirectory();
+        const parent = join(cwd, 'read-only');
+        const pluginDir = join(parent, 'visuals');
+        writeFileSync(parent, 'not a directory');
+        const create = runCli(cwd, [
+            'create',
+            '--name',
+            'com.example.visuals',
+            '--template',
+            'minimal',
+            '--dir',
+            pluginDir,
+        ]);
+        expect(create.status).toBe(1);
+        expect(existsSync(pluginDir)).toBe(false);
     });
 });
