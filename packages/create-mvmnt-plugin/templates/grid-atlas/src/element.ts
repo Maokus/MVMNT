@@ -2,12 +2,11 @@ import { definePluginElement, group, prop, tab } from '@mvmnt-app/plugin-sdk';
 import { Rectangle, VisualMedia } from '@mvmnt-app/plugin-sdk/render';
 const COLUMNS = 4,
     ROWS = 2;
-// Add assets/sprites.png before using this bundled-media template.
 export const gridAtlas = definePluginElement({
-    type: 'grid-atlas',
+    type: '{{ELEMENT_TYPE}}',
     metadata: {
-        name: 'Grid Atlas',
-        description: 'Displays a single frame from a grid spritesheet',
+        name: '{{ELEMENT_NAME}}',
+        description: '{{ELEMENT_DESCRIPTION}}',
         category: 'Custom',
     },
     schema: {
@@ -22,7 +21,7 @@ export const gridAtlas = definePluginElement({
     },
     createResources(context) {
         return {
-            sheet: context.assets.bundledGridAtlas('sprites.png', {
+            sheet: context.assets.bundledGridAtlas('sprites.svg', {
                 columns: COLUMNS,
                 rows: ROWS,
                 frameDurationMs: 1000,

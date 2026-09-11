@@ -1,13 +1,29 @@
 # Plugin SDK 2 quickstart
 
 This guide creates an external scene element plugin, previews it with hot reload, and packages it
-for import. Use Node.js 18 or newer. An MVMNT source checkout is not required.
+for import. Use Node.js 22.12 or newer within the Node 22 release line so the MVMNT application and
+plugin use the same supported environment.
+
+## Download MVMNT
+
+Clone the main repository and install its dependencies:
+
+```bash
+git clone https://github.com/Maokus/MVMNT.git
+cd MVMNT
+npm install
+```
+
+Keep this checkout available: you will run MVMNT's development server alongside the plugin server
+when previewing the plugin.
 
 ## Create a plugin
 
-Run the generator from the directory where you keep projects:
+Return to the parent directory, then run the generator so the plugin is created next to the MVMNT
+checkout:
 
 ```bash
+cd ..
 npm create mvmnt-plugin@latest
 cd pulse
 npm install
@@ -198,9 +214,19 @@ as in the `midi-spring` template. The [Plugin SDK guide](README.md) has a quick 
 
 ## Preview with hot reload
 
-Start MVMNT in development mode. From the plugin project, run:
+Start both development servers in separate terminals.
+
+In the first terminal, start MVMNT from the main repository checkout:
 
 ```bash
+cd /path/to/MVMNT
+npm run dev
+```
+
+In the second terminal, start the plugin server from the generated plugin project:
+
+```bash
+cd /path/to/pulse
 npm run dev
 ```
 

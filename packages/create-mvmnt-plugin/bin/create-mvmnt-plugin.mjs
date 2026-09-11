@@ -1,17 +1,21 @@
 #!/usr/bin/env node
 import {
-    cpSync,
     existsSync,
     mkdirSync,
+    mkdtempSync,
     readFileSync,
     readdirSync,
     realpathSync,
+    renameSync,
+    rmSync,
+    rmdirSync,
     statSync,
     writeFileSync,
 } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stdin as input, stdout as output } from 'node:process';
+import { isValidPluginId, targetsSdk2 } from '@mvmnt-app/plugin-contract';
 import prompts from 'prompts';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -199,7 +203,7 @@ async function selectCommand(options) {
             ? requestedDirectory
             : undefined
         : nearestPluginDirectory(requestedDirectory);
-    if (options.element) {
+    if (options.element && pluginDir) {
         options.dir ??= pluginDir;
         return 'add';
     }
@@ -232,16 +236,8 @@ async function selectCommand(options) {
     return command;
 }
 
-function validatePluginId(pluginId) {
-    return /^[a-z0-9.-]{3,}$/.test(pluginId) && !pluginId.startsWith('.') && !pluginId.endsWith('.');
-}
-
 function validateElementType(elementType) {
     return /^[a-z][a-z0-9-]*$/.test(elementType);
-}
-
-function targetsSdk2(apiVersion) {
-    return /(?:^|[^0-9])2\./.test(apiVersion ?? '');
 }
 
 export function toTitleCase(value) {
@@ -260,7 +256,7 @@ export function createPromptQuestions(options) {
             message: 'Plugin ID',
             initial: 'com.example.my-plugin',
             validate: (value) =>
-                validatePluginId(value)
+                isValidPluginId(value)
                     ? true
                     : 'Use lowercase letters, numbers, dots, and hyphens (minimum 3 characters).',
         },
@@ -274,7 +270,7 @@ export function createPromptQuestions(options) {
             type: options.element ? null : 'text',
             name: 'element',
             message: 'Element type',
-            initial: (_previous, values) => (values.name ?? options.name ?? 'com.example.my-plugin').split('.').at(-1),
+            initial: 'my-plugin-element',
             validate: (value) =>
                 validateElementType(value) ? true : 'Use a kebab-case name, such as my-plugin-element.',
         },
@@ -321,28 +317,43 @@ export function addPromptQuestions(options) {
 }
 
 function escapeSingleQuoted(value) {
-    return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, '\\n');
+    return value
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/\r/g, '\\r')
+        .replace(/\n/g, '\\n')
+        .replace(/\u2028/g, '\\u2028')
+        .replace(/\u2029/g, '\\u2029');
 }
 
-function replaceProjectTokens(source, values) {
-    return source.replace(
-        /{{(PLUGIN_ID|PLUGIN_NAME|ELEMENT_TYPE|ELEMENT_NAME|ELEMENT_DESCRIPTION)}}/g,
-        (_match, key) => values[key]
+function renderRequiredPlaceholders(source, values, required, label) {
+    const missing = required.filter((key) => !source.includes(`{{${key}}}`));
+    if (missing.length) throw new Error(`${label} is missing required placeholders: ${missing.join(', ')}`);
+
+    let rendered = source;
+    for (const [key, value] of Object.entries(values)) rendered = rendered.split(`{{${key}}}`).join(value);
+    const unresolved = [...rendered.matchAll(/{{([A-Z0-9_]+)}}/g)].map((match) => match[1]);
+    if (unresolved.length)
+        throw new Error(`${label} contains unresolved placeholders: ${[...new Set(unresolved)].join(', ')}`);
+    return rendered;
+}
+
+export function renderElementTemplate(source, values, label = 'Element template') {
+    return renderRequiredPlaceholders(
+        source,
+        {
+            ELEMENT_TYPE: escapeSingleQuoted(values.ELEMENT_TYPE),
+            ELEMENT_NAME: escapeSingleQuoted(values.ELEMENT_NAME),
+            ELEMENT_DESCRIPTION: escapeSingleQuoted(values.ELEMENT_DESCRIPTION),
+        },
+        ['ELEMENT_TYPE', 'ELEMENT_NAME', 'ELEMENT_DESCRIPTION'],
+        label
     );
 }
 
 function renderElementSource(templateName, values) {
     const templatePath = resolve(templatesDir, templateName, 'src', 'element.ts');
-    const sourceValues = {
-        ...values,
-        PLUGIN_NAME: escapeSingleQuoted(values.PLUGIN_NAME),
-        ELEMENT_NAME: escapeSingleQuoted(values.ELEMENT_NAME),
-        ELEMENT_DESCRIPTION: escapeSingleQuoted(values.ELEMENT_DESCRIPTION),
-    };
-    return replaceProjectTokens(readFileSync(templatePath, 'utf8'), sourceValues)
-        .replace(/type: '[^']+'/, `type: '${escapeSingleQuoted(values.ELEMENT_TYPE)}'`)
-        .replace(/metadata: \{ name: '[^']+'/, `metadata: { name: '${escapeSingleQuoted(values.ELEMENT_NAME)}'`)
-        .replace(/description: '[^']+'/, `description: '${escapeSingleQuoted(values.ELEMENT_DESCRIPTION)}'`);
+    return renderElementTemplate(readFileSync(templatePath, 'utf8'), values, templatePath);
 }
 
 function templateAssetFiles(templateName) {
@@ -360,13 +371,12 @@ function templateAssetFiles(templateName) {
     return files;
 }
 
-function copyTemplateAssets(templateName, targetDir) {
+function readTemplateAssets(templateName) {
     const assetRoot = resolve(templatesDir, templateName, 'assets');
-    for (const asset of templateAssetFiles(templateName)) {
-        const destination = resolve(targetDir, 'assets', asset);
-        mkdirSync(dirname(destination), { recursive: true });
-        cpSync(resolve(assetRoot, asset), destination);
-    }
+    return templateAssetFiles(templateName).map((asset) => ({
+        path: `assets/${asset}`,
+        contents: readFileSync(resolve(assetRoot, asset)),
+    }));
 }
 
 function elementValues({ pluginId, pluginName, elementType, elementName, description }) {
@@ -384,17 +394,36 @@ function readManifest(pluginDir) {
     const manifestPath = resolve(pluginDir, 'plugin.json');
     if (!existsSync(manifestPath)) throw new Error(`Expected an existing plugin manifest at ${manifestPath}`);
     let manifest;
+    let source;
     try {
-        manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+        source = readFileSync(manifestPath, 'utf8');
+        manifest = JSON.parse(source);
     } catch (error) {
         throw new Error(`Could not parse ${manifestPath}: ${error instanceof Error ? error.message : String(error)}`);
     }
-    if (!validatePluginId(manifest.id)) throw new Error('plugin.json has a missing or invalid plugin ID.');
-    if (!targetsSdk2(manifest.apiVersion)) throw new Error('The add command only supports SDK 2 plugins.');
-    if (!Array.isArray(manifest.elements) || manifest.elements.length === 0) {
+    if (!isValidPluginId(manifest?.id)) throw new Error('plugin.json has a missing or invalid plugin ID.');
+    if (!targetsSdk2(manifest?.apiVersion)) throw new Error('The add command only supports SDK 2 plugins.');
+    if (!Array.isArray(manifest?.elements) || manifest.elements.length === 0) {
         throw new Error('plugin.json must contain a non-empty elements array.');
     }
-    return { manifest, manifestPath };
+    if (typeof manifest.name !== 'string' || !manifest.name.trim()) {
+        throw new Error('plugin.json has a missing or invalid plugin name.');
+    }
+    const types = new Set();
+    for (const element of manifest.elements) {
+        if (
+            !element ||
+            typeof element !== 'object' ||
+            !validateElementType(element.type) ||
+            typeof element.entry !== 'string' ||
+            !element.entry
+        ) {
+            throw new Error('plugin.json contains an invalid element entry.');
+        }
+        if (types.has(element.type)) throw new Error(`plugin.json contains duplicate element type '${element.type}'.`);
+        types.add(element.type);
+    }
+    return { manifest, manifestPath, source };
 }
 
 async function promptForCreate(options) {
@@ -435,8 +464,101 @@ function validateTemplate(templateName) {
     }
 }
 
+function serializeJson(value) {
+    return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+function writePlan(root, files, directories = []) {
+    for (const directory of directories) mkdirSync(resolve(root, directory), { recursive: true });
+    for (const file of files) {
+        const destination = resolve(root, file.path);
+        mkdirSync(dirname(destination), { recursive: true });
+        writeFileSync(destination, file.contents);
+    }
+}
+
+function shellQuote(value) {
+    return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function ensureDirectory(directory, root, createdDirectories) {
+    const missing = [];
+    let current = directory;
+    while (current !== root && !existsSync(current)) {
+        missing.push(current);
+        current = dirname(current);
+    }
+    for (const path of missing.reverse()) {
+        mkdirSync(path);
+        createdDirectories.push(path);
+    }
+}
+
+function createPlan(options, targetDir, elementType) {
+    const values = elementValues({
+        pluginId: options.name,
+        pluginName: options.pluginName,
+        elementType,
+        elementName: options.elementName,
+        description: options.description,
+    });
+    const commonDir = resolve(templatesDir, 'minimal');
+    const manifestPath = resolve(commonDir, 'plugin.json');
+    const packagePath = resolve(commonDir, 'package.json');
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    const packageManifest = JSON.parse(readFileSync(packagePath, 'utf8'));
+    const sdkRange = packageManifest.dependencies?.['@mvmnt-app/plugin-sdk'];
+    if (!targetsSdk2(sdkRange)) throw new Error(`${packagePath} must depend on SDK 2.`);
+
+    manifest.id = values.PLUGIN_ID;
+    manifest.name = values.PLUGIN_NAME;
+    manifest.apiVersion = sdkRange;
+    manifest.elements = [
+        {
+            type: elementType,
+            entry: `src/${elementType}.ts`,
+            capabilities: templates[options.template].capabilities,
+        },
+    ];
+    packageManifest.name = values.PLUGIN_ID;
+
+    return {
+        targetDir,
+        directories: ['assets'],
+        files: [
+            { path: 'plugin.json', contents: serializeJson(manifest) },
+            { path: 'package.json', contents: serializeJson(packageManifest) },
+            { path: 'tsconfig.json', contents: readFileSync(resolve(commonDir, 'tsconfig.json')) },
+            {
+                path: 'README.md',
+                contents: renderRequiredPlaceholders(
+                    readFileSync(resolve(commonDir, 'README.md'), 'utf8'),
+                    values,
+                    ['PLUGIN_NAME'],
+                    resolve(commonDir, 'README.md')
+                ),
+            },
+            { path: `src/${elementType}.ts`, contents: renderElementSource(options.template, values) },
+            ...readTemplateAssets(options.template),
+        ],
+    };
+}
+
+function commitCreatePlan(plan) {
+    const parent = dirname(plan.targetDir);
+    const stagingDir = mkdtempSync(resolve(parent, '.create-mvmnt-plugin-'));
+    try {
+        writePlan(stagingDir, plan.files, plan.directories);
+        if (existsSync(plan.targetDir)) throw new Error(`Refusing to overwrite existing directory: ${plan.targetDir}`);
+        renameSync(stagingDir, plan.targetDir);
+    } catch (error) {
+        rmSync(stagingDir, { recursive: true, force: true });
+        throw error;
+    }
+}
+
 function createPlugin(options) {
-    if (!validatePluginId(options.name)) {
+    if (!isValidPluginId(options.name)) {
         throw new Error('Plugin ID must contain lowercase letters, numbers, dots, and hyphens (minimum 3 characters).');
     }
     validateTemplate(options.template);
@@ -447,37 +569,12 @@ function createPlugin(options) {
     const targetDir = resolve(options.dir ?? elementType);
     if (existsSync(targetDir)) throw new Error(`Refusing to overwrite existing directory: ${targetDir}`);
 
-    const values = elementValues({
-        pluginId: options.name,
-        pluginName: options.pluginName,
-        elementType,
-        elementName: options.elementName,
-        description: options.description,
-    });
-    const commonDir = resolve(templatesDir, 'minimal');
-    const manifest = JSON.parse(replaceProjectTokens(readFileSync(resolve(commonDir, 'plugin.json'), 'utf8'), values));
-    manifest.name = values.PLUGIN_NAME;
-    manifest.elements[0].capabilities = templates[options.template].capabilities;
-
-    mkdirSync(targetDir, { recursive: false });
-    mkdirSync(resolve(targetDir, 'assets'));
-    copyTemplateAssets(options.template, targetDir);
-    writeFileSync(resolve(targetDir, 'plugin.json'), `${JSON.stringify(manifest, null, 2)}\n`);
-    writeFileSync(
-        resolve(targetDir, 'package.json'),
-        replaceProjectTokens(readFileSync(resolve(commonDir, 'package.json'), 'utf8'), values)
-    );
-    writeFileSync(resolve(targetDir, 'tsconfig.json'), readFileSync(resolve(commonDir, 'tsconfig.json'), 'utf8'));
-    writeFileSync(
-        resolve(targetDir, 'README.md'),
-        replaceProjectTokens(readFileSync(resolve(commonDir, 'README.md'), 'utf8'), values)
-    );
-    mkdirSync(resolve(targetDir, 'src'));
-    writeFileSync(resolve(targetDir, 'src', `${elementType}.ts`), renderElementSource(options.template, values));
+    const plan = createPlan(options, targetDir, elementType);
+    commitCreatePlan(plan);
 
     console.log(`Created ${options.name} in ${targetDir}`);
     console.log('\nNext steps:');
-    console.log(`  cd ${targetDir}`);
+    console.log(`  cd ${shellQuote(targetDir)}`);
     console.log('  npm install');
     console.log('  npm run check');
 }
@@ -491,7 +588,7 @@ function addElement(options) {
     }
 
     const pluginDir = resolve(options.dir ?? '.');
-    const { manifest, manifestPath } = readManifest(pluginDir);
+    const { manifest, manifestPath, source: originalManifestSource } = readManifest(pluginDir);
     if (manifest.elements.some((element) => element.type === options.element)) {
         throw new Error(`Element type '${options.element}' already exists in this plugin.`);
     }
@@ -525,17 +622,68 @@ function addElement(options) {
         ],
     };
 
-    mkdirSync(dirname(elementPath), { recursive: true });
-    mkdirSync(resolve(pluginDir, 'assets'), { recursive: true });
-    writeFileSync(elementPath, renderElementSource(options.template, values));
-    copyTemplateAssets(options.template, pluginDir);
-    writeFileSync(manifestPath, `${JSON.stringify(nextManifest, null, 2)}\n`);
+    const files = [
+        { path: entry, contents: renderElementSource(options.template, values) },
+        ...readTemplateAssets(options.template),
+        { path: 'plugin.json', contents: serializeJson(nextManifest) },
+    ];
+    const stagingDir = mkdtempSync(resolve(pluginDir, '.create-mvmnt-plugin-'));
+    const movedFiles = [];
+    const createdDirectories = [];
+    let backupPath;
+    try {
+        writePlan(stagingDir, files);
+        for (const file of files.slice(0, -1)) {
+            const destination = resolve(pluginDir, file.path);
+            if (existsSync(destination)) throw new Error(`Refusing to overwrite existing file: ${destination}`);
+            const destinationDirectory = dirname(destination);
+            ensureDirectory(destinationDirectory, pluginDir, createdDirectories);
+            renameSync(resolve(stagingDir, file.path), destination);
+            movedFiles.push(destination);
+        }
+
+        backupPath = resolve(stagingDir, 'plugin.original.json');
+        if (readFileSync(manifestPath, 'utf8') !== originalManifestSource) {
+            throw new Error('plugin.json changed while the add operation was being prepared; no changes were applied.');
+        }
+        renameSync(manifestPath, backupPath);
+        try {
+            renameSync(resolve(stagingDir, 'plugin.json'), manifestPath);
+        } catch (error) {
+            renameSync(backupPath, manifestPath);
+            backupPath = undefined;
+            throw error;
+        }
+        try {
+            rmSync(backupPath, { force: true });
+        } catch {
+            // The committed manifest is authoritative; final staging cleanup gets another chance.
+        }
+        backupPath = undefined;
+    } catch (error) {
+        if (backupPath && !existsSync(manifestPath) && existsSync(backupPath)) renameSync(backupPath, manifestPath);
+        for (const file of movedFiles.reverse()) rmSync(file, { force: true });
+        for (const directory of createdDirectories.reverse()) {
+            try {
+                rmdirSync(directory);
+            } catch {
+                // Preserve directories that were populated concurrently.
+            }
+        }
+        throw error;
+    } finally {
+        try {
+            rmSync(stagingDir, { recursive: true, force: true });
+        } catch {
+            // A stale private staging directory is safer than rolling back a committed operation.
+        }
+    }
 
     console.log(`Added ${options.element} to ${manifest.id}`);
     console.log(`Created ${elementPath}`);
     console.log(`Updated ${manifestPath} (${nextManifest.elements.length} elements)`);
     console.log('\nNext step:');
-    console.log(`  cd ${pluginDir} && npm run check`);
+    console.log(`  cd ${shellQuote(pluginDir)} && npm run check`);
 }
 
 async function main() {

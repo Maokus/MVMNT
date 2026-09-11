@@ -72,11 +72,32 @@ Start with the [Plugin SDK 2 quickstart](docs/plugin-api/quickstart.md). Externa
 injects capability-scoped timeline, timing, audio, and asset services into lifecycle and render
 callbacks.
 
-The plugin generator creates a complete project with validation, hot reload, and packaging:
+Download MVMNT and create a plugin in a neighboring directory:
 
 ```bash
+git clone https://github.com/Maokus/MVMNT.git
+cd MVMNT
+npm install
+cd ..
 npm create mvmnt-plugin@latest -- --name com.example.my-plugin --template minimal
+cd my-plugin
+npm install
 ```
+
+Start both development servers in separate terminals. From the MVMNT checkout, run:
+
+```bash
+npm run dev
+```
+
+From the generated plugin directory, run:
+
+```bash
+npm run dev
+```
+
+Then open **Scene Settings → Developer** in MVMNT and scan for the Development Plugin Server.
+The plugin generator creates a complete project with validation, hot reload, and packaging.
 
 ## License
 

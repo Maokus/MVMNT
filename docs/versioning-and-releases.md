@@ -7,6 +7,49 @@ compatible functionality, and major versions may contain breaking application ch
 Plugin SDK package versions and `.mvt` scene schema versions are independent from the application
 version. Change them only when their own contracts change.
 
+## Plugin package releases
+
+The public plugin toolchain consists of four npm packages:
+
+| Package                      | Purpose                                      |
+| ---------------------------- | -------------------------------------------- |
+| `@mvmnt-app/plugin-sdk`      | Public element authoring contract.           |
+| `@mvmnt-app/plugin-contract` | Shared manifest validation.                  |
+| `@mvmnt-app/plugin-tools`    | Plugin checking, development, and packaging. |
+| `create-mvmnt-plugin`        | Project and element generator.               |
+
+Package versions are declared in their individual `packages/*/package.json` files. Keep the SDK
+version synchronized with `sdk-manifest.json`, `SDK_VERSION`, the host, and generator templates.
+Publish the dependency chain in this order: contract, SDK, tools, then generator. The generator and
+tools both depend on the contract, while generated projects depend on the SDK and tools.
+
+Before publishing, authenticate as an owner of the `@mvmnt-app` npm scope and run:
+
+```bash
+npm install
+npm run validate:plugin-sdk-release
+npx prettier --write .
+npm run test
+npm run build
+npm run compile
+npm run docs:check
+```
+
+Use a clean writable npm cache if the default cache has ownership problems. Publish public scoped
+packages with public access:
+
+```bash
+npm publish --workspace @mvmnt-app/plugin-contract --access public
+npm publish --workspace @mvmnt-app/plugin-sdk --access public
+npm publish --workspace @mvmnt-app/plugin-tools --access public
+npm publish --workspace create-mvmnt-plugin --access public
+```
+
+After publication, verify each exact version with `npm view`, then generate a project through
+`npm create mvmnt-plugin@latest`, install it, and run its check and build commands. npm never permits
+reusing a published version; bump the affected package before retrying a release that reached the
+registry.
+
 ## Build channels
 
 `MVMNT_BUILD_CHANNEL` is the only channel authority. Omitting it produces a development build;

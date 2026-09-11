@@ -5,7 +5,7 @@ This page summarizes the current names and package boundaries. Start with the
 
 ## Package and version
 
-The public package is `@mvmnt-app/plugin-sdk`. MVMNT currently targets the pre-release SDK `2.2.0`
+The public package is `@mvmnt-app/plugin-sdk`. MVMNT currently provides the published SDK `2.2.0`
 contract and accepts compatible SDK 2 ranges in `plugin.json`.
 
 The npm package is ESM-only. Plugin authoring source uses ESM imports; `mvmnt-plugin build` emits the

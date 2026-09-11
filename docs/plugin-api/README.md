@@ -55,5 +55,5 @@ npm run check     # Validate the manifest, types, bundle, and load behavior.
 npm run build     # Create the distributable archive under dist/.
 ```
 
-SDK 2 is currently pre-release. Review the [compatibility policy](compatibility.md) before publishing
-or maintaining a plugin for others.
+SDK 2.2 is published on npm and follows the [compatibility policy](compatibility.md). Generated
+projects use compatible SDK 2 ranges for the authoring SDK and command-line tools.

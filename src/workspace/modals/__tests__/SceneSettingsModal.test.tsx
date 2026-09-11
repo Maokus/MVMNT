@@ -40,7 +40,7 @@ vi.mock('../../scene-settings/ScenePluginsTab', () => ({ default: () => <div /> 
 vi.mock('@core/scene/plugins/dev-plugin-watcher', () => ({
     connectToDevPluginServer: vi.fn(),
     getDevPluginConnectionStatus: () => ({
-        state: 'idle',
+        state: 'unavailable',
         scanning: false,
         servers: [],
         portRange: '7741–7750',
@@ -64,5 +64,18 @@ describe('SceneSettingsModal', () => {
 
         expect(screen.getByRole('heading', { name: 'Developer' })).toBeInTheDocument();
         expect(screen.getByText('Development Plugin Server')).toBeInTheDocument();
+    });
+
+    it('shows that development plugins are unavailable before scanning in a production build', async () => {
+        const { default: SceneSettingsModal } = await loadComponent();
+        render(<SceneSettingsModal onClose={vi.fn()} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Developer' }));
+
+        expect(
+            screen.getByText('Development plugin servers are available only while running MVMNT in development mode.')
+        ).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Scan' })).toBeDisabled();
+        expect(screen.getByRole('checkbox', { name: 'Continue scanning' })).toBeDisabled();
     });
 });

@@ -8,7 +8,7 @@
         "url": "git+https://github.com/Maokus/MVMNT.git",
         "directory": "packages/plugin-sdk"
     },
-    "homepage": "https://github.com/Maokus/MVMNT/tree/experimental/packages/plugin-sdk#readme",
+    "homepage": "https://github.com/Maokus/MVMNT/tree/dev/packages/plugin-sdk#readme",
     "bugs": {
         "url": "https://github.com/Maokus/MVMNT/issues"
     },

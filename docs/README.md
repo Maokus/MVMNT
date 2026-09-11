@@ -45,7 +45,7 @@ start with the [Plugin SDK guide](plugin-api/README.md).
 
 ## Compatibility status
 
-[Current development state](current-state.md) records the active pre-release compatibility policy.
+[Current development state](current-state.md) records the active application and SDK compatibility policy.
 All other pages describe current behavior and should remain free of roadmap or rollout language.
 
 ## Documentation ownership

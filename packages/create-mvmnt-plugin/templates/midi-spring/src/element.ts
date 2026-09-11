@@ -2,8 +2,8 @@ import { definePluginElement, group, prop, tab } from '@mvmnt-app/plugin-sdk';
 import { Rectangle } from '@mvmnt-app/plugin-sdk/render';
 
 export const midiSpring = definePluginElement({
-    type: 'midi-spring',
-    metadata: { name: 'MIDI Spring', description: 'Deterministic fixed-step MIDI spring', category: 'Custom' },
+    type: '{{ELEMENT_TYPE}}',
+    metadata: { name: '{{ELEMENT_NAME}}', description: '{{ELEMENT_DESCRIPTION}}', category: 'Custom' },
     schema: {
         tabs: [
             tab.content([
