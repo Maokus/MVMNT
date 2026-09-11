@@ -5,6 +5,40 @@ import { resetMacroStoreBinding, setMacroStoreBinding } from '@state/scene/macro
 import { SceneRuntimeAdapter } from '@state/scene/runtimeAdapter';
 import { deriveElementOrder, groupSceneNodes } from '@state/scene-graph';
 import { useSceneEditorStore } from '@state/sceneEditorStore';
+import { SceneElementRegistry, type SceneElementRegistration } from '@core/scene/registry';
+import { BoundSceneElement } from '@core/scene/runtime/bound-scene-element';
+import { Rectangle, Text } from '@core/render/render-objects';
+
+class PluginRuntimeElement extends BoundSceneElement {
+    static override getConfigSchema() {
+        return {
+            ...super.getConfigSchema(),
+            name: 'Plugin element',
+            description: 'Plugin element used by runtime adapter tests',
+            category: 'Tests',
+        };
+    }
+
+    protected override _buildRenderObjects() {
+        return [new Rectangle(0, 0, 10, 10)];
+    }
+}
+
+function pluginRegistration(type: string, pluginId: string): SceneElementRegistration {
+    return {
+        type,
+        origin: { kind: 'plugin', pluginId },
+        schema: PluginRuntimeElement.getConfigSchema(),
+        create: (config = {}) => new PluginRuntimeElement(type, String(config.id ?? type), config),
+    };
+}
+
+function renderedText(objects: any[]): Text[] {
+    return objects.flatMap((object) => [
+        ...(object instanceof Text ? [object] : []),
+        ...renderedText(object.children ?? []),
+    ]);
+}
 
 describe('SceneRuntimeAdapter', () => {
     let store: ReturnType<typeof createSceneStore>;
@@ -179,5 +213,69 @@ describe('SceneRuntimeAdapter', () => {
 
         const image = adapter.getElements().find((element) => element.id === 'image');
         expect(image?.getBinding('imageSource')?.getValue()).toBeUndefined();
+    });
+
+    it('replaces an unregistered plugin element with an isolated missing-plugin placeholder', () => {
+        adapter.dispose();
+        const pluginId = 'com.example.visuals';
+        const type = `${pluginId}:colliding-properties`;
+        const registry = new SceneElementRegistry([pluginRegistration(type, pluginId)]);
+        store = createSceneStore();
+        setMacroStoreBinding(store);
+        store.getState().addElement({
+            id: 'plugin-element',
+            type,
+            index: 0,
+            bindings: {
+                width: { type: 'constant', value: 0 },
+                height: { type: 'constant', value: 0 },
+                label: { type: 'constant', value: 'Plugin-owned label' },
+                contentAnchorX: { type: 'constant', value: Number.NaN },
+            },
+        });
+        adapter = new SceneRuntimeAdapter({ store, registry });
+        expect(adapter.getElements()[0]).toMatchObject({ type, id: 'plugin-element' });
+
+        const unregisteredTypes = registry.unregisterPlugin(pluginId);
+        window.dispatchEvent(
+            new CustomEvent('mvmnt-plugin-availability-changed', {
+                detail: { action: 'removed', pluginId, unregisteredTypes },
+            })
+        );
+
+        const fallback = adapter.getElements()[0];
+        expect(fallback).toMatchObject({ type: 'missingPlugin', id: 'plugin-element' });
+        expect(fallback.visible).toBe(true);
+        expect(
+            renderedText(fallback.buildRenderObjects({ canvas: { width: 1920, height: 1080 } }, 0))
+        ).not.toHaveLength(0);
+        const output = adapter.buildScene({ canvas: { width: 1920, height: 1080 } }, 0);
+        const text = renderedText(output).map((item) => item.text);
+        expect(text).toContain('Missing plugin');
+        expect(text).toContain(`Plugin: ${pluginId} | Type: ${type}`);
+        expect(text).not.toContain('Plugin-owned label');
+        const directOutput = fallback.buildRenderObjects({ canvas: { width: 1920, height: 1080 } }, 0) as any[];
+        expect(directOutput[0].children[0]).toMatchObject({ width: 260, height: 140 });
+    });
+
+    it('creates the same placeholder when a scene opens after its plugin was removed', () => {
+        adapter.dispose();
+        store = createSceneStore();
+        setMacroStoreBinding(store);
+        store.getState().addElement({
+            id: 'orphaned-element',
+            type: 'com.example.removed:particles',
+            index: 0,
+            bindings: { width: { type: 'constant', value: 0 } },
+        });
+        adapter = new SceneRuntimeAdapter({ store, registry: new SceneElementRegistry() });
+
+        expect(adapter.getElements()[0].visible).toBe(true);
+        expect(renderedText(adapter.getElements()[0].buildRenderObjects({}, 0))).not.toHaveLength(0);
+        const output = adapter.buildScene({ canvas: { width: 1920, height: 1080 } }, 0);
+        expect(renderedText(output).map((item) => item.text)).toEqual([
+            'Missing plugin',
+            'Plugin: com.example.removed | Type: com.example.removed:particles',
+        ]);
     });
 });

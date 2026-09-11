@@ -108,6 +108,11 @@ function buildConfigPayload(record: SceneElementRecord, bindings: ElementBinding
     return config;
 }
 
+function pluginIdFromQualifiedType(type: string): string | undefined {
+    const separator = type.lastIndexOf(':');
+    return separator > 0 ? type.slice(0, separator) : undefined;
+}
+
 function bindingsSignature(elementType: string, bindings: ElementBindings): string {
     const pairs = Object.entries(bindings).map(([property, binding]) => {
         if (binding.type === 'macro') {
@@ -584,9 +589,11 @@ export class SceneRuntimeAdapter {
             const config = buildConfigPayload(record, bindings);
             const element = this.registry.createElement(record.type, config);
             if (!element) {
+                const visible = config.visible;
                 const placeholder = new MissingPluginElement(record.id, {
-                    ...config,
+                    ...(visible === undefined ? {} : { visible }),
                     missingType: record.type,
+                    missingPluginId: pluginIdFromQualifiedType(record.type),
                 });
                 return {
                     element: placeholder,
@@ -619,6 +626,8 @@ export class SceneRuntimeAdapter {
                 try {
                     entry.element.dispose?.();
                 } catch {}
+                this.cache.delete(id);
+                mutated = true;
             }
             const created = this.instantiateElement(record, bindings);
             if (created) {

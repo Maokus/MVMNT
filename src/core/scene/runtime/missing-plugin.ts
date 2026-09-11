@@ -5,8 +5,23 @@ import { tab } from '@core/scene/built-ins/schema-groups';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 
 export class MissingPluginElement extends BoundSceneElement {
-    constructor(id: string = 'missingPlugin', config: { [key: string]: any } = {}) {
-        super('missingPlugin', id, config);
+    private readonly missingType?: string;
+    private readonly missingPluginId?: string;
+
+    constructor(
+        id: string = 'missingPlugin',
+        options: {
+            visible?: unknown;
+            missingType?: string;
+            missingPluginId?: string;
+        } = {}
+    ) {
+        // A missing element's schema is unrelated to the unavailable plugin's schema.
+        // Only carry visibility into the fallback; same-named plugin properties such as
+        // width, height, or label must not resize or hide the diagnostic placeholder.
+        super('missingPlugin', id, options.visible === undefined ? {} : { visible: options.visible });
+        this.missingType = options.missingType;
+        this.missingPluginId = options.missingPluginId;
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
@@ -60,21 +75,15 @@ export class MissingPluginElement extends BoundSceneElement {
 
     protected _buildRenderObjects(_config: any, _targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
-        if (!props.visible) return [];
 
         const width = props.width ?? 260;
         const height = props.height ?? 140;
         const labelOverride = props.label ?? '';
 
-        const missingTypeBinding = this.getBinding('missingType');
-        const missingType = missingTypeBinding ? this.getProperty<string>('missingType') : undefined;
-        const missingPluginBinding = this.getBinding('missingPluginId');
-        const missingPluginId = missingPluginBinding ? this.getProperty<string>('missingPluginId') : undefined;
-
         const title = labelOverride || 'Missing plugin';
         const subtitleParts = [
-            missingPluginId ? `Plugin: ${missingPluginId}` : undefined,
-            missingType ? `Type: ${missingType}` : undefined,
+            this.missingPluginId ? `Plugin: ${this.missingPluginId}` : undefined,
+            this.missingType ? `Type: ${this.missingType}` : undefined,
         ]
             .filter(Boolean)
             .join(' | ');
