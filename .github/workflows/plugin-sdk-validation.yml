@@ -1,0 +1,51 @@
+name: Plugin SDK validation
+
+on:
+    workflow_dispatch:
+    push:
+        branches:
+            - experimental
+        paths:
+            - 'packages/plugin-sdk/**'
+            - 'packages/plugin-tools/**'
+            - 'packages/create-mvmnt-plugin/**'
+            - 'fixtures/plugin-sdk-v2/**'
+            - 'docs/plugin-api/**'
+            - 'src/core/scene/plugins/**'
+            - 'src/core/scene/runtime/**'
+            - 'src/fonts/**'
+            - 'src/audio/features/**'
+            - 'scripts/verify-plugin-sdk-pack.mjs'
+            - 'package.json'
+            - 'package-lock.json'
+            - '.github/workflows/plugin-sdk-validation.yml'
+    pull_request:
+        paths:
+            - 'packages/plugin-sdk/**'
+            - 'packages/plugin-tools/**'
+            - 'packages/create-mvmnt-plugin/**'
+            - 'fixtures/plugin-sdk-v2/**'
+            - 'docs/plugin-api/**'
+            - 'src/core/scene/plugins/**'
+            - 'src/core/scene/runtime/**'
+            - 'src/fonts/**'
+            - 'src/audio/features/**'
+            - 'scripts/verify-plugin-sdk-pack.mjs'
+            - 'package.json'
+            - 'package-lock.json'
+            - '.github/workflows/plugin-sdk-validation.yml'
+
+permissions:
+    contents: read
+
+jobs:
+    validate-package:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+            - run: npm install
+            - run: npm run validate:plugin-sdk-release

@@ -96,6 +96,7 @@ describe('readAudioFeatureMatrix', () => {
         expect([...first.coverage]).toEqual([0, 1, 1, 1, 1]);
         expect([...first.data]).toEqual([-80, -80, 0, 10, 1, 11, 2, 12, 3, 13]);
         expect(first.revision).toBe(second.revision);
+        expect(first.sourceFormat).toBe('float32');
         expect(first.sampleRate).toBe(48_000);
     });
 

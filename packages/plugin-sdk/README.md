@@ -8,11 +8,13 @@ This package is the public contract, not a copy of the application. It owns seri
 definitions and portable helpers. Rendering, timeline/audio services, asset resolution,
 and migration adapters are implemented by the host and injected at plugin load time.
 
-Install it with `npm install @mvmnt-app/plugin-sdk`.
+Install it with `npm install @mvmnt-app/plugin-sdk`. The npm package is ESM-only and intentionally
+does not expose `require()` conditions. Plugin source is ESM; `mvmnt-plugin build` converts the final
+bundle to the host's injected CommonJS format.
 
 New authors should start with the MVMNT
-[Plugin SDK guide](../../docs/plugin-api/README.md) and
-[quickstart](../../docs/plugin-api/quickstart.md).
+[Plugin SDK guide](https://github.com/Maokus/MVMNT/blob/experimental/docs/plugin-api/README.md) and
+[quickstart](https://github.com/Maokus/MVMNT/blob/experimental/docs/plugin-api/quickstart.md).
 
 Use methods on the granted callback facets for host operations. Advanced DTO types live in domain
 subpaths; the root contains common definition, schema, result, animation, safety, and utility helpers:
@@ -41,5 +43,10 @@ methods operate on effective property values and do not expose automation channe
 
 Start with `render({ props, time, context })`. Add resources for allocations or reusable work, and
 simulation only for genuinely recursive motion. The focused guides define the complete
-[resource](../../docs/plugin-api/instance-state.md) and
-[simulation](../../docs/plugin-api/simulation.md) contracts.
+[resource](https://github.com/Maokus/MVMNT/blob/experimental/docs/plugin-api/instance-state.md) and
+[simulation](https://github.com/Maokus/MVMNT/blob/experimental/docs/plugin-api/simulation.md) contracts.
+
+`parseFontSelection()` and `ensureFontLoaded()` resolve MVMNT selection tokens and embedded project
+fonts. They are host-provided operations: the npm implementations throw a `PluginContractError`,
+while MVMNT injects the project-aware implementation when it loads a plugin. Always await
+`ensureFontLoaded()`.

@@ -160,8 +160,12 @@ export interface PluginTimelineApi {
     }): { min: number; max: number } | null;
     /** Total scene duration in seconds, derived from the playback range end (or timeline view end as fallback). */
     getTimelineDuration(): number;
+    /** Active playback range in seconds, falling back to the visible timeline range. */
+    getPlaybackRange(): { startSeconds: number; endSeconds: number };
     getTrackById(trackId: string | null | undefined): TimelineState['tracks'][string] | null;
     getTracksByIds(trackIds: string[]): Array<TimelineState['tracks'][string]>;
+    /** Every supported track in timeline order. */
+    getTracks(): Array<TimelineState['tracks'][string]>;
     /** All MIDI tracks on the timeline. */
     getMidiTracks(): Array<TimelineState['tracks'][string]>;
     /** Returns CC events in the given time window, optionally filtered by controller number. Events may include clipId/sourceId. */
@@ -506,6 +510,18 @@ export function createPluginHostServices(deps: CreatePluginHostServicesDeps = {}
                 const context = createTimingContext(state.timeline);
                 return ticksToSeconds(context, endTick) ?? 0;
             },
+            getPlaybackRange() {
+                if (!hasTimelineRead || !timelineStore) return { startSeconds: 0, endSeconds: 0 };
+                const state = timelineStore.getState();
+                const startTick = state.playbackRange?.startTick ?? state.timelineView?.startTick ?? 0;
+                const endTick =
+                    state.playbackRange?.endTick ?? state.timelineView?.endTick ?? state.timeline?.currentTick ?? 0;
+                const context = createTimingContext(state.timeline);
+                return {
+                    startSeconds: ticksToSeconds(context, startTick) ?? 0,
+                    endSeconds: ticksToSeconds(context, endTick) ?? 0,
+                };
+            },
             getTrackById(trackId) {
                 if (!hasTimelineRead || !timelineStore || !selectTrackById) {
                     return null;
@@ -517,6 +533,11 @@ export function createPluginHostServices(deps: CreatePluginHostServicesDeps = {}
                     return [];
                 }
                 return selectTracksByIds(timelineStore.getState(), trackIds);
+            },
+            getTracks() {
+                if (!hasTimelineRead || !timelineStore) return [];
+                const state = timelineStore.getState();
+                return state.tracksOrder.map((id) => state.tracks[id]).filter((track) => track !== undefined);
             },
             getMidiTracks() {
                 if (!hasTimelineRead || !timelineStore || !selectMidiTracks) {

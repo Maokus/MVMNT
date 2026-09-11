@@ -28,9 +28,8 @@ export const featureAudio = definePluginElement({
             },
         ],
     },
-    load(context) {
-        const result = context.audio!.requireFeatures([{ feature: 'rms' }]);
-        if (!result.ok) throw new Error(result.error.message);
+    audioFeatureDemands(props) {
+        return props.trackId ? [{ id: 'rms', trackId: props.trackId, feature: 'rms' }] : [];
     },
     render({ props, time, context }) {
         const frame = props.trackId

@@ -29,8 +29,8 @@ const modules = [
     'utils',
     'visual-assets',
 ];
-// Only render constructors need out-of-host stubs. All portable exports share their source
-// with the injected host runtime, including the CommonJS root and SDK version.
+// Only render constructors need out-of-host stubs. Portable exports share their source
+// with the injected host runtime. Font helpers are honest host-only stubs in SDK source.
 const sourceRuntimeModules = new Set(modules.filter((name) => name !== 'render'));
 for (const moduleName of modules) {
     const entry = sourceRuntimeModules.has(moduleName)
@@ -48,14 +48,6 @@ for (const moduleName of modules) {
     } else {
         cpSync(entry, resolve(dist, `${moduleName}.js`));
     }
-    await build({
-        entryPoints: [entry],
-        outfile: resolve(dist, `${moduleName}.cjs`),
-        bundle: true,
-        format: 'cjs',
-        platform: 'neutral',
-        target: 'es2020',
-    });
 }
 
 for (const file of readdirSync(dist).filter((name) => name.endsWith('.d.ts'))) {

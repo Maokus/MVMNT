@@ -2,7 +2,7 @@
     "id": "{{PLUGIN_ID}}",
     "name": "{{PLUGIN_NAME}}",
     "version": "0.1.0",
-    "apiVersion": "^2.0.0",
+    "apiVersion": "^2.2.0",
     "description": "A custom MVMNT visual element.",
     "elements": [
         {

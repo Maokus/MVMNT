@@ -1,7 +1,7 @@
 {
     "package": "@mvmnt-app/plugin-sdk",
     "version": "2.2.0",
-    "runtimeFormat": "commonjs",
+    "runtimeFormat": "host-injected-commonjs",
     "elementContract": {
         "renderInputType": "RenderInput",
         "renderInputFields": ["props", "time", "context", "resources", "simulation"],

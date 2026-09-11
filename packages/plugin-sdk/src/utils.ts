@@ -1,3 +1,5 @@
+import { PluginContractError } from './api.js';
+
 export function midiNoteToName(note: number): string {
     if (!Number.isFinite(note)) return 'C-1';
     const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -10,13 +12,29 @@ export function ensureEightDigitHex(color: string): string {
     return normalized.length === 7 ? `${normalized}FF` : normalized;
 }
 
-export function parseFontSelection(value: string): { family: string; weight?: string } {
-    const [rawFamily, weight] = String(value || 'BuiltIn:inter|400').split('|');
-    const family = rawFamily === 'BuiltIn:inter' ? 'Inter' : rawFamily.replace(/^Device:/, '');
-    return { family: family.trim(), ...(weight ? { weight: weight.trim() } : {}) };
+export type FontSelectionSource = 'built-in' | 'device' | 'project' | 'missing' | 'legacy';
+
+/** Host-resolved description of a MVMNT font-selection token. */
+export interface ParsedFontSelection {
+    readonly family: string;
+    readonly source: FontSelectionSource;
+    readonly assetId?: string;
+    readonly weight?: string;
+    readonly italic?: boolean;
+    readonly isCustom?: boolean;
+    readonly missing?: boolean;
+    readonly token: string;
 }
 
-export function ensureFontLoaded(family: string, weight: string | number = 400): void {
-    if (typeof document === 'undefined' || !document.fonts || !family) return;
-    void document.fonts.load(`${weight} 16px "${family.replace(/"/g, '')}"`);
+const hostFontUtilityError = (name: string): PluginContractError =>
+    new PluginContractError(`${name}() is host-provided and can only be called inside MVMNT`);
+
+/** Resolve a MVMNT font token through the host's project-font registry. */
+export function parseFontSelection(_selection?: string): ParsedFontSelection {
+    throw hostFontUtilityError('parseFontSelection');
+}
+
+/** Resolve and load a MVMNT font token, including embedded project fonts. */
+export async function ensureFontLoaded(_selection: string, _weight?: string | number): Promise<void> {
+    throw hostFontUtilityError('ensureFontLoaded');
 }

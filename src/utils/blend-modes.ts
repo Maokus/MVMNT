@@ -1,5 +1,6 @@
 export const BLEND_MODE_CHOICES = [
     { value: 'source-over', label: 'Normal' },
+    { value: 'lighter', label: 'Add' },
     { value: 'screen', label: 'Screen' },
     { value: 'multiply', label: 'Multiply' },
     { value: 'overlay', label: 'Overlay' },

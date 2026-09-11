@@ -95,7 +95,7 @@ const pluginSdkV2UtilsRuntimeModule = Object.freeze({
     ...pluginSdkV2UtilsModule,
     ensureFontLoaded: ensureHostFontLoaded,
     parseFontSelection: parseHostFontSelection,
-});
+}) satisfies typeof pluginSdkV2UtilsModule;
 const pluginSdkV2SceneRuntimeModule = Object.freeze({ ...pluginSdkV2SceneModule });
 const pluginSdkV2RootModule = {
     ...pluginSdkV2ApiModule,

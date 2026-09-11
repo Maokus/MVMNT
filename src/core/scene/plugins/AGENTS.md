@@ -28,7 +28,8 @@ Six capabilities are defined in `PLUGIN_CAPABILITIES` (in `host-api/plugin-api.t
 - `audioRawRead` — sample-accurate raw audio data (conditionally available)
 - `timingConversion` — seconds ↔ beats ↔ ticks (always available)
 - `midiUtils` — MIDI note utilities (always available)
-- `audioCalculatorsRegister` — register custom audio calculators (always available)
+- `audioCalculatorsRegister` — register custom audio calculators (always available); calculator execution receives
+  source PCM even without the separate raw-read facet
 
 See `docs/plugin-api/authoring.md` and `docs/plugin-api/reference.md` for SDK 2.
 

@@ -3,6 +3,15 @@
     "version": "0.1.0",
     "description": "Build, validate, and hot-reload MVMNT plugins",
     "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Maokus/MVMNT.git",
+        "directory": "packages/plugin-tools"
+    },
+    "homepage": "https://github.com/Maokus/MVMNT/tree/experimental/packages/plugin-tools#readme",
+    "bugs": {
+        "url": "https://github.com/Maokus/MVMNT/issues"
+    },
     "type": "module",
     "bin": {
         "mvmnt-plugin": "bin/mvmnt-plugin.mjs"
@@ -16,13 +25,14 @@
     "files": [
         "bin",
         "src",
-        "README.md"
+        "README.md",
+        "LICENSE"
     ],
     "engines": {
         "node": ">=18"
     },
     "dependencies": {
-        "esbuild": "^0.21.5",
+        "esbuild": "^0.28.2",
         "fflate": "^0.8.2",
         "typescript": "^5.9.3"
     },

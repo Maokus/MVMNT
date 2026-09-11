@@ -8,8 +8,10 @@ Once SDK 2 is released, the contract will follow semantic versioning. Additive D
 and optional capabilities will be minor changes; removals and callback or DTO incompatibilities
 will require a new major version.
 
-CommonJS is the only executable plugin format in SDK 2. ESM execution, network/storage permissions,
-or a stronger isolation model require a separately reviewed loader design.
+The public npm SDK is ESM-only. Authored plugin source uses ESM imports, and `mvmnt-plugin build`
+produces the CommonJS archive entry format required by MVMNT's host-injected loader. Direct ESM
+archive execution, network/storage permissions, or a stronger isolation model require a separately
+reviewed loader design.
 
 SDK 1 bundles are not accepted. Authors with legacy source should follow the
 [SDK 1 to SDK 2 migration guide](migration-v1-to-v2.md) and rebuild it.

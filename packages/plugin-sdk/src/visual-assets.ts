@@ -62,5 +62,7 @@ export class VisualMediaPlayback {
 
 export type ResourceStatus = VisualAssetStatus;
 export type ResourceHandleResult = VisualAssetSnapshot;
-export type VisualResource = any;
+/** @deprecated Use the opaque `VisualAssetSnapshot.resource` value directly. */
+export type VisualResource = unknown;
+/** @deprecated Compatibility alias for plugins authored before `BundledVisualAssetHandle` was named. */
 export type BundledSprite = BundledVisualAssetHandle & Readonly<{ destroy(): void }>;

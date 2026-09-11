@@ -3,6 +3,7 @@ import { createPluginHostServices, PLUGIN_CAPABILITIES } from '../host-api/plugi
 import { createPluginDefinitionScope } from '@core/scene/runtime/definition-runtime';
 import { definePluginElement, type CapabilityContext } from '../../../../../packages/plugin-sdk/src/scene';
 import { getAnalysisIntentSnapshot, resetAnalysisIntentStateForTests } from '@audio/features/analysisIntents';
+import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
 import { renderResourceManager } from '@core/render/render-resource-manager';
 import type { ElementContext } from '../../../../../packages/plugin-sdk/src/scene';
 import { KeyframeBinding } from '@bindings/keyframe-binding';
@@ -639,17 +640,22 @@ describe('SDK v2 runtime', () => {
 
     it('cleans scoped calculator registrations on unload', async () => {
         const host = installHost();
+        let calculatorAudioBuffer: AudioBuffer | undefined;
         const calculator = {
             id: 'test.scoped',
             version: 1,
             featureKey: 'scoped',
-            calculate: () => ({ frameCount: 0, channels: 1, format: 'float32' as const, data: new Float32Array() }),
+            calculate: ({ audioBuffer }: { audioBuffer: AudioBuffer }) => {
+                calculatorAudioBuffer = audioBuffer;
+                return { frameCount: 0, channels: 1, format: 'float32' as const, data: new Float32Array() };
+            },
         };
         const definition = definePluginElement({
             type: 'cleanup-test',
             metadata: { name: 'Cleanup test' },
             schema: { tabs: [] },
             load(context) {
+                expect('audio' in context).toBe(false);
                 context.audioCalculators!.register(calculator);
             },
             render() {
@@ -665,7 +671,81 @@ describe('SDK v2 runtime', () => {
         });
         await scope.ready;
         expect(host.audioCalculators.list().some((entry) => entry.id === calculator.id)).toBe(true);
+        const registered = audioFeatureCalculatorRegistry.get(calculator.id)!;
+        const audioBuffer = {} as AudioBuffer;
+        await registered.calculate({
+            audioBuffer,
+            hopTicks: 1,
+            hopSeconds: 1,
+            frameCount: 0,
+            analysisParams: { windowSize: 1, hopSize: 1, overlap: 0, sampleRate: 48_000, calculatorVersions: {} },
+            analysisProfileId: 'default',
+            timing: { globalBpm: 120, beatsPerBar: 4, ticksPerQuarter: 960 },
+            tempoProjection: { hopTicks: 1, startTick: 0 },
+            tempoMapper: {} as any,
+        });
+        expect(calculatorAudioBuffer).toBe(audioBuffer);
         await scope.dispose();
         expect(host.audioCalculators.list().some((entry) => entry.id === calculator.id)).toBe(false);
+    });
+
+    it('returns every timeline track and the actual playback range', async () => {
+        const timelineState = {
+            timeline: { id: 'timeline', name: 'Timeline', currentTick: 0, globalBpm: 120, beatsPerBar: 4 },
+            tracks: {
+                midi: { id: 'midi', name: 'MIDI', type: 'midi', enabled: true, mute: false, solo: false },
+                audio: { id: 'audio', name: 'Audio', type: 'audio', enabled: true, mute: true, solo: false },
+            },
+            tracksOrder: ['audio', 'midi'],
+            audioCache: {},
+            timelineView: { startTick: 0, endTick: 1920 },
+            playbackRange: { startTick: 480, endTick: 1440 },
+        } as any;
+        const host = createPluginHostServices({
+            timelineStore: { getState: () => timelineState },
+            selectNotesInWindow: () => [],
+            selectTrackById: (_state, id) => timelineState.tracks[id as keyof typeof timelineState.tracks],
+            selectTracksByIds: (_state, ids) => ids.map((id) => timelineState.tracks[id]).filter(Boolean),
+            selectMidiTracks: () => [timelineState.tracks.midi],
+            getFeatureData: () => null,
+            getFeatureDataRange: () => [],
+        }).services;
+        let context: CapabilityContext | undefined;
+        const scope = createPluginDefinitionScope(
+            definePluginElement({
+                type: 'timeline-semantics-test',
+                metadata: { name: 'Timeline semantics' },
+                schema: { tabs: [] },
+                render(input) {
+                    context = input.context;
+                    return [];
+                },
+            }),
+            {
+                pluginId: 'test',
+                services: host,
+                capabilities: { required: [PLUGIN_CAPABILITIES.timelineRead] },
+                synchronousInitialization: true,
+                loadAsset: async () => 'blob:test',
+                report: vi.fn(),
+            }
+        );
+        scope.createRegistration({ kind: 'built-in' }).create().buildRenderObjects({}, 0);
+        expect(context!.timeline!.getTracks()).toEqual({
+            ok: true,
+            value: [
+                expect.objectContaining({ id: 'audio', type: 'audio', muted: true }),
+                expect.objectContaining({ id: 'midi', type: 'midi', muted: false }),
+            ],
+        });
+        expect(context!.timeline!.getMetadata()).toEqual({
+            ok: true,
+            value: expect.objectContaining({
+                durationSeconds: 0.75,
+                playbackStartSeconds: 0.25,
+                playbackEndSeconds: 0.75,
+            }),
+        });
+        await scope.dispose();
     });
 });

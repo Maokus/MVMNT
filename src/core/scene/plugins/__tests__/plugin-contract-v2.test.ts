@@ -4,6 +4,8 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import packageManifest from '../../../../../packages/plugin-sdk/package.json';
 import sdkManifest from '../../../../../packages/plugin-sdk/sdk-manifest.json';
+import templatePackage from '../../../../../packages/create-mvmnt-plugin/templates/minimal/package.json';
+import templateManifest from '../../../../../packages/create-mvmnt-plugin/templates/minimal/plugin.json';
 import * as packageRoot from '../../../../../packages/plugin-sdk/src/index';
 import * as packageApi from '../../../../../packages/plugin-sdk/src/api';
 import * as packageAnimation from '../../../../../packages/plugin-sdk/src/animation';
@@ -14,6 +16,8 @@ import * as packageTimeline from '../../../../../packages/plugin-sdk/src/timelin
 import * as packageTiming from '../../../../../packages/plugin-sdk/src/timing';
 import * as packageUtils from '../../../../../packages/plugin-sdk/src/utils';
 import * as packageVisualAssets from '../../../../../packages/plugin-sdk/src/visual-assets';
+import { BLEND_MODE_CHOICES as hostBlendModeChoices } from '@utils/blend-modes';
+import { PLUGIN_SDK_VERSION } from '../api-version';
 import {
     SDK_RUNTIME_MODULE_IDS,
     supportsPluginApiRange,
@@ -41,7 +45,13 @@ const validManifest = () => ({
 });
 
 describe('plugin SDK v2 contract', () => {
-    it('ships matching ESM and CommonJS exports and resource validation', () => {
+    it('exposes the host additive blend mode through the SDK schema choices', () => {
+        expect(hostBlendModeChoices).toContainEqual({ value: 'lighter', label: 'Add' });
+        expect(packageScene.BLEND_MODE_CHOICES).toEqual(hostBlendModeChoices);
+        expect(packageScene.prop.blendMode().options).toEqual(hostBlendModeChoices);
+    });
+
+    it('ships the declared ESM exports with shared cross-subpath identity', () => {
         // Execute outside Vite so aliases cannot substitute SDK source for the built package.
         const dist = resolve(__dirname, '../../../../../packages/plugin-sdk/dist');
         const result = JSON.parse(
@@ -51,37 +61,58 @@ describe('plugin SDK v2 contract', () => {
                     '--input-type=module',
                     '-e',
                     `
-            import { createRequire } from 'node:module';
             import { pathToFileURL } from 'node:url';
-            const require = createRequire(import.meta.url);
             const dist = ${JSON.stringify(dist)};
             const exports = {};
             for (const name of ${JSON.stringify(Object.keys(sdkManifest.publicExports))}) {
                 const file = name === '.' ? 'index' : name;
                 const esm = await import(pathToFileURL(dist + '/' + file + '.js'));
-                const cjs = require(dist + '/' + file + '.cjs');
-                exports[name] = { esm: Object.keys(esm).sort(), cjs: Object.keys(cjs).sort() };
+                exports[name] = Object.keys(esm).sort();
                 if (file === 'index' || file === 'scene') {
-                    for (const sdk of [esm, cjs]) {
-                        try {
-                            sdk.definePluginElement({ type: 'invalid', create() {}, render() { return []; } });
-                            throw new Error('Old lifecycle was accepted');
-                        } catch (error) {
-                            if (!error.message.includes('createResources')) throw error;
-                        }
+                    try {
+                        esm.definePluginElement({ type: 'invalid', create() {}, render() { return []; } });
+                        throw new Error('Old lifecycle was accepted');
+                    } catch (error) {
+                        if (!error.message.includes('createResources')) throw error;
                     }
                 }
             }
-            console.log(JSON.stringify({ exports, version: require(dist + '/index.cjs').SDK_VERSION }));
+            const root = await import(pathToFileURL(dist + '/index.js'));
+            const api = await import(pathToFileURL(dist + '/api.js'));
+            const animation = await import(pathToFileURL(dist + '/animation.js'));
+            let contractIdentity = false;
+            try { root.definePluginElement({ type: 'invalid', render: null }); }
+            catch (error) { contractIdentity = error instanceof api.PluginContractError; }
+            let fontErrors = 0;
+            try { root.parseFontSelection('BuiltIn:inter|400'); } catch { fontErrors += 1; }
+            try { await root.ensureFontLoaded('BuiltIn:inter|400'); } catch { fontErrors += 1; }
+            console.log(JSON.stringify({
+                exports,
+                version: root.SDK_VERSION,
+                contractIdentity,
+                curveIdentity: root.FloatCurve === animation.FloatCurve,
+                fontErrors,
+            }));
         `,
                 ],
                 { encoding: 'utf8' }
             )
         );
         expect(result.version).toBe(packageManifest.version);
+        expect(result.contractIdentity).toBe(true);
+        expect(result.curveIdentity).toBe(true);
+        expect(result.fontErrors).toBe(2);
         for (const [subpath, names] of Object.entries(sdkManifest.publicExports)) {
-            expect(result.exports[subpath]).toEqual({ esm: [...names].sort(), cjs: [...names].sort() });
+            expect(result.exports[subpath]).toEqual([...names].sort());
         }
+    });
+
+    it('keeps every published SDK and generated-plugin version synchronized', () => {
+        expect(packageManifest.version).toBe(packageApi.SDK_VERSION);
+        expect(packageManifest.version).toBe(PLUGIN_SDK_VERSION);
+        expect(packageManifest.version).toBe(sdkManifest.version);
+        expect(templatePackage.dependencies['@mvmnt-app/plugin-sdk']).toBe(`^${packageManifest.version}`);
+        expect(templateManifest.apiVersion).toBe(`^${packageManifest.version}`);
     });
 
     it('keeps package exports, runtime modules, manifest, and docs in parity', () => {
@@ -129,6 +160,12 @@ describe('plugin SDK v2 contract', () => {
         expect(supportsPluginApiRange('^2.1.0')).toBe(true);
         expect(supportsPluginApiRange('^2.2.0')).toBe(true);
         expect(supportsPluginApiRange('^3.0.0')).toBe(false);
+    });
+
+    it('rejects invalid public render-object limits', () => {
+        expect(() => packageSafety.limitRenderObjects([1, 2, 3], -1)).toThrow(/non-negative safe integer/);
+        expect(() => packageSafety.limitRenderObjects([1], 1.5)).toThrow(/non-negative safe integer/);
+        expect(packageSafety.limitRenderObjects([1, 2, 3], 2)).toEqual([1, 2]);
     });
 
     it('rejects unknown, duplicate, missing, and unsafe v2 declarations', () => {

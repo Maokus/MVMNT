@@ -16,7 +16,7 @@ export interface ResourceContext {
     readonly diagnostics: DiagnosticsApi;
     readonly signal: AbortSignal;
     /** Registers synchronous cleanup, including when initialization subsequently fails. */
-    onCleanup(callback: () => undefined): void;
+    onCleanup(callback: () => void): void;
 }
 
 export interface CapabilityContext extends ResourceContext {
@@ -234,26 +234,25 @@ const selectProperty = <
         readonly options: readonly ElementPropertyOption<ChoiceValue<Values[number]>>[];
     };
 
-export const BLEND_MODE_CHOICES = Object.freeze(
-    [
-        'source-over',
-        'screen',
-        'multiply',
-        'overlay',
-        'darken',
-        'lighten',
-        'color-dodge',
-        'color-burn',
-        'hard-light',
-        'soft-light',
-        'difference',
-        'exclusion',
-        'hue',
-        'saturation',
-        'color',
-        'luminosity',
-    ].map((value) => ({ value, label: value === 'source-over' ? 'Normal' : value.replace('-', ' ') }))
-);
+export const BLEND_MODE_CHOICES = Object.freeze([
+    { value: 'source-over', label: 'Normal' },
+    { value: 'lighter', label: 'Add' },
+    { value: 'screen', label: 'Screen' },
+    { value: 'multiply', label: 'Multiply' },
+    { value: 'overlay', label: 'Overlay' },
+    { value: 'darken', label: 'Darken' },
+    { value: 'lighten', label: 'Lighten' },
+    { value: 'color-dodge', label: 'Color Dodge' },
+    { value: 'color-burn', label: 'Color Burn' },
+    { value: 'hard-light', label: 'Hard Light' },
+    { value: 'soft-light', label: 'Soft Light' },
+    { value: 'difference', label: 'Difference' },
+    { value: 'exclusion', label: 'Exclusion' },
+    { value: 'hue', label: 'Hue' },
+    { value: 'saturation', label: 'Saturation' },
+    { value: 'color', label: 'Color' },
+    { value: 'luminosity', label: 'Luminosity' },
+] as const);
 
 /** Package-owned schema builders. They create serializable DTOs and never embed host runtime transforms. */
 export const prop = Object.freeze({
@@ -451,7 +450,7 @@ export interface PluginElementDefinition<
      */
     render(input: RenderInput<Props, NoInfer<Resources>, NoInfer<State>>): readonly RenderObject[];
     /** Releases plugin-owned instance resources synchronously. Asynchronous work stops through context.signal. */
-    disposeResources?(resources: NoInfer<Resources>, context: ResourceContext): undefined;
+    disposeResources?(resources: NoInfer<Resources>, context: ResourceContext): void;
     unload?(context: ResourceContext): void | Promise<void>;
 }
 
@@ -464,7 +463,7 @@ export type PluginElementDefinitionInput<
     (
         | {
               createResources(context: ResourceContext): Resources | Promise<Resources>;
-              disposeResources?(resources: NoInfer<Resources>, context: ResourceContext): undefined;
+              disposeResources?(resources: NoInfer<Resources>, context: ResourceContext): void;
           }
         | ([Resources] extends [undefined] ? { createResources?: never; disposeResources?: never } : never)
     );

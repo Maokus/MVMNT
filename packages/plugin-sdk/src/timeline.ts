@@ -41,6 +41,7 @@ export interface MidiCCEvent {
 export interface TimelineApi {
     getMetadata(): Result<TimelineMetadata>;
     getTrack(trackId: string): Result<TrackSummary>;
+    /** Returns the requested tracks, or every supported timeline track when IDs are omitted. */
     getTracks(trackIds?: readonly string[]): Result<readonly TrackSummary[]>;
     selectNotes(
         args: Readonly<{ trackIds?: readonly string[]; startSeconds: number; endSeconds: number }>

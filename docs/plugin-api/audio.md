@@ -103,3 +103,8 @@ export const element = definePluginElement({
 Increment `version` when the output algorithm or format changes. Long calculations must check
 `context.signal.aborted` and report progress. Use namespaced calculator IDs and feature keys to
 avoid collisions.
+
+Calculator registration intentionally grants the calculator access to its input `AudioBuffer`
+during `calculate()`, even when the element does not declare `audio.raw.read`. This is the data the
+calculator transforms into a cached feature. The grant is narrow: outside calculator execution,
+raw PCM APIs remain unavailable unless the element separately declares `audio.raw.read`.

@@ -2,6 +2,14 @@
 
 ## 2.2.0
 
+- Added the additive `Add` (`lighter`) mode to blend-mode property choices.
+- Made the npm package ESM-only and added clean packed-consumer validation.
+- Made font parsing/loading explicitly host-provided, project-aware operations with matching
+  `Promise<void>` loading semantics.
+- Renamed `AudioFeatureMatrix.format` to `sourceFormat`; matrix data is always normalized float data.
+- Defined calculator registration as a narrow raw-PCM grant during calculator execution.
+- Made no-argument `TimelineApi.getTracks()` return all supported tracks and report the actual
+  playback range in metadata.
 - Added opt-in deterministic simulation with fixed-step `initialize()`/`step()` callbacks,
   checkpointable state, immutable input generations, and a read-only render snapshot.
 - Added versioned, stateless simulation randomness through initialization `random` and

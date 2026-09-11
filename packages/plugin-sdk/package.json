@@ -3,6 +3,15 @@
     "version": "2.2.0",
     "description": "Public authoring SDK for MVMNT scene element plugins",
     "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Maokus/MVMNT.git",
+        "directory": "packages/plugin-sdk"
+    },
+    "homepage": "https://github.com/Maokus/MVMNT/tree/experimental/packages/plugin-sdk#readme",
+    "bugs": {
+        "url": "https://github.com/Maokus/MVMNT/issues"
+    },
     "publishConfig": {
         "access": "public"
     },
@@ -10,67 +19,58 @@
     "sideEffects": false,
     "files": [
         "dist",
+        "src",
         "sdk-manifest.json",
         "README.md",
-        "CHANGELOG.md"
+        "CHANGELOG.md",
+        "LICENSE"
     ],
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "exports": {
         ".": {
             "types": "./dist/index.d.ts",
-            "import": "./dist/index.js",
-            "require": "./dist/index.cjs"
+            "import": "./dist/index.js"
         },
         "./api": {
             "types": "./dist/api.d.ts",
-            "import": "./dist/api.js",
-            "require": "./dist/api.cjs"
+            "import": "./dist/api.js"
         },
         "./animation": {
             "types": "./dist/animation.d.ts",
-            "import": "./dist/animation.js",
-            "require": "./dist/animation.cjs"
+            "import": "./dist/animation.js"
         },
         "./audio": {
             "types": "./dist/audio.d.ts",
-            "import": "./dist/audio.js",
-            "require": "./dist/audio.cjs"
+            "import": "./dist/audio.js"
         },
         "./render": {
             "types": "./dist/render.d.ts",
-            "import": "./dist/render.js",
-            "require": "./dist/render.cjs"
+            "import": "./dist/render.js"
         },
         "./scene": {
             "types": "./dist/scene.d.ts",
-            "import": "./dist/scene.js",
-            "require": "./dist/scene.cjs"
+            "import": "./dist/scene.js"
         },
         "./safety": {
             "types": "./dist/safety.d.ts",
-            "import": "./dist/safety.js",
-            "require": "./dist/safety.cjs"
+            "import": "./dist/safety.js"
         },
         "./timeline": {
             "types": "./dist/timeline.d.ts",
-            "import": "./dist/timeline.js",
-            "require": "./dist/timeline.cjs"
+            "import": "./dist/timeline.js"
         },
         "./timing": {
             "types": "./dist/timing.d.ts",
-            "import": "./dist/timing.js",
-            "require": "./dist/timing.cjs"
+            "import": "./dist/timing.js"
         },
         "./utils": {
             "types": "./dist/utils.d.ts",
-            "import": "./dist/utils.js",
-            "require": "./dist/utils.cjs"
+            "import": "./dist/utils.js"
         },
         "./visual-assets": {
             "types": "./dist/visual-assets.d.ts",
-            "import": "./dist/visual-assets.js",
-            "require": "./dist/visual-assets.cjs"
+            "import": "./dist/visual-assets.js"
         },
         "./manifest": "./sdk-manifest.json",
         "./package.json": "./package.json"
@@ -80,7 +80,7 @@
         "prepack": "npm run build"
     },
     "devDependencies": {
-        "esbuild": "^0.21.5",
+        "esbuild": "^0.28.2",
         "typescript": "^5.9.3"
     }
 }

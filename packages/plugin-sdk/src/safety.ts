@@ -7,5 +7,8 @@ export function checkCapability(available: readonly PluginCapability[], capabili
 }
 
 export function limitRenderObjects<T>(objects: readonly T[], maximum: number): readonly T[] {
+    if (!Number.isSafeInteger(maximum) || maximum < 0) {
+        throw new RangeError('maximum must be a non-negative safe integer');
+    }
     return objects.length <= maximum ? objects : objects.slice(0, maximum);
 }

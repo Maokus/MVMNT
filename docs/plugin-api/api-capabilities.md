@@ -64,6 +64,10 @@ const upcoming = context.timeline!.selectNotes({
 Each note includes its pitch, channel, optional velocity, start, end, and duration. `selectCC()`
 similarly returns controller number, value, channel, and time.
 
+With no IDs, `getTracks()` returns all supported MIDI and audio tracks in timeline order. Metadata's
+playback start/end fields reflect the active playback braces rather than an assumed zero-to-duration
+range.
+
 ## Choose the right audio read
 
 MVMNT offers raw audio and analyzed features. They solve different problems.

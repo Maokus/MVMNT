@@ -45,7 +45,8 @@ export interface AudioFeatureMatrix {
     readonly data: Float32Array;
     /** One when an enabled clip covers the frame, zero for a timeline gap. */
     readonly coverage: Uint8Array;
-    readonly format: 'float32' | 'uint8' | 'int16';
+    /** Encoding of the cached source track before values were normalized into `data`. */
+    readonly sourceFormat: 'float32' | 'uint8' | 'int16';
     readonly sampleRate?: number;
 }
 
@@ -91,6 +92,10 @@ export interface AudioApi {
 }
 
 export interface AudioCalculatorContext {
+    /**
+     * Decoded source PCM. `audio.calculators.register` grants access to this buffer only while
+     * the registered calculator executes; ordinary callback reads still require `audio.raw.read`.
+     */
     readonly audioBuffer: AudioBuffer;
     readonly hopTicks: number;
     readonly hopSeconds: number;

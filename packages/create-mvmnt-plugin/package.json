@@ -3,6 +3,15 @@
     "version": "0.1.2",
     "description": "Scaffold an SDK 2 MVMNT plugin project",
     "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Maokus/MVMNT.git",
+        "directory": "packages/create-mvmnt-plugin"
+    },
+    "homepage": "https://github.com/Maokus/MVMNT/tree/experimental/packages/create-mvmnt-plugin#readme",
+    "bugs": {
+        "url": "https://github.com/Maokus/MVMNT/issues"
+    },
     "type": "module",
     "bin": {
         "create-mvmnt-plugin": "bin/create-mvmnt-plugin.mjs"
@@ -10,7 +19,8 @@
     "files": [
         "bin",
         "templates",
-        "README.md"
+        "README.md",
+        "LICENSE"
     ],
     "engines": {
         "node": ">=18"

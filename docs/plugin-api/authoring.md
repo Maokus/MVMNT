@@ -42,6 +42,11 @@ checked before use.
 | `midi.utils`                 | MIDI note helpers.                                 |
 | `audio.calculators.register` | Scoped custom calculator registration.             |
 
+`audio.calculators.register` deliberately includes access to decoded source PCM while a registered
+calculator's `calculate()` callback runs. It does not expose `context.audio` or permit ordinary raw
+reads. Declare `audio.raw.read` separately only when render or other element callbacks call
+`getRawSamples()`, `getRms()`, or `getChannelMetadata()`.
+
 Network and storage are not plugin capabilities. Plugins execute as CommonJS in the sandboxed
 renderer and receive no generic filesystem or IPC access.
 

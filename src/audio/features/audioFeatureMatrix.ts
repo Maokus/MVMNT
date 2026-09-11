@@ -36,12 +36,17 @@ export interface AudioFeatureMatrix {
     readonly valuesPerFrame: number;
     readonly data: Float32Array;
     readonly coverage: Uint8Array;
-    readonly format: AudioFeatureTrackFormat;
+    /** Encoding of the cached source track before values were normalized into `data`. */
+    readonly sourceFormat: Extract<AudioFeatureTrackFormat, 'float32' | 'uint8' | 'int16'>;
     readonly sampleRate?: number;
 }
 
+type PackedAudioFeatureTrack = AudioFeatureTrack<Float32Array | Uint8Array | Int16Array> & {
+    readonly format: 'float32' | 'uint8' | 'int16';
+};
+
 interface PreparedSource {
-    readonly track: AudioFeatureTrack<Float32Array | Uint8Array | Int16Array>;
+    readonly track: PackedAudioFeatureTrack;
     readonly hopSeconds: number;
     readonly startTimeSeconds: number;
     readonly silentValue: number;
@@ -65,9 +70,7 @@ function metadataNumber(track: AudioFeatureTrack, key: string): number | undefin
     return Number.isFinite(analysis) ? analysis : undefined;
 }
 
-function isPackedNumericTrack(
-    track: AudioFeatureTrack
-): track is AudioFeatureTrack<Float32Array | Uint8Array | Int16Array> {
+function isPackedNumericTrack(track: AudioFeatureTrack): track is PackedAudioFeatureTrack {
     return track.format === 'float32' || track.format === 'uint8' || track.format === 'int16';
 }
 
@@ -252,7 +255,7 @@ export function readAudioFeatureMatrix(
         valuesPerFrame,
         data,
         coverage,
-        format: firstSource.track.format,
+        sourceFormat: firstSource.track.format,
         ...(sampleRate !== undefined ? { sampleRate } : {}),
     };
 }

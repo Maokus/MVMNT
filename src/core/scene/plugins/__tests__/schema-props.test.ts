@@ -57,10 +57,7 @@ describe('schema-inferred plugin props', () => {
             metadata: { name: 'Async resources' },
             schema,
             async createResources(context) {
-                if (false) {
-                    // @ts-expect-error Cleanup must be synchronous.
-                    context.onCleanup(async () => {});
-                }
+                context.onCleanup(() => {});
                 return { buffer: new Float32Array(4) };
             },
             render({ resources }) {
@@ -182,7 +179,7 @@ describe('schema-inferred plugin props', () => {
         expect(definition.type).toBe('legacy-props');
     });
 
-    it('requires synchronous instance disposal', () => {
+    it('accepts conventional void cleanup callbacks', () => {
         definePluginElement({
             type: 'synchronous-disposal',
             metadata: { name: 'Synchronous disposal' },
@@ -193,8 +190,7 @@ describe('schema-inferred plugin props', () => {
             render() {
                 return [];
             },
-            // @ts-expect-error Instance disposal cannot return a promise.
-            async disposeResources() {},
+            disposeResources() {},
         });
     });
 });

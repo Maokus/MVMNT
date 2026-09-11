@@ -8,6 +8,9 @@ This page summarizes the current names and package boundaries. Start with the
 The public package is `@mvmnt-app/plugin-sdk`. MVMNT currently targets the pre-release SDK `2.2.0`
 contract and accepts compatible SDK 2 ranges in `plugin.json`.
 
+The npm package is ESM-only. Plugin authoring source uses ESM imports; `mvmnt-plugin build` emits the
+CommonJS bundle consumed by MVMNT's custom loader and leaves SDK imports external for host injection.
+
 The machine-readable [SDK manifest](../../packages/plugin-sdk/sdk-manifest.json) is the canonical
 list of package subpaths, injected runtime modules, capability identifiers, and JavaScript exports.
 TypeScript declarations built from `packages/plugin-sdk/src/` are the detailed type reference.
@@ -41,6 +44,18 @@ and [simulation](simulation.md) only for host-stepped temporal state.
 
 Host-dependent JavaScript outside MVMNT throws an explicit error. Plugin bundles must externalize
 SDK imports so the loader can inject the matching runtime.
+
+The font helpers are host-dependent. `parseFontSelection()` resolves built-in, device, missing, and
+embedded project-font tokens. `ensureFontLoaded()` returns `Promise<void>` and resolves only after the
+selected face has loaded or an unavailable device font has fallen back. Their npm stubs throw rather
+than pretending to know project state.
+
+`TimelineApi.getTracks()` returns every supported track in timeline order when IDs are omitted.
+`playbackStartSeconds` and `playbackEndSeconds` describe the active playback range, while
+`durationSeconds` is its end/fallback timeline duration.
+
+`AudioFeatureMatrix.data` is always normalized `Float32Array` data. `sourceFormat` records the cached
+track's original numeric encoding (`float32`, `uint8`, or `int16`).
 
 ## Manifest
 

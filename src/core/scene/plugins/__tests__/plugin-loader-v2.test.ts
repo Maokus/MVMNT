@@ -78,6 +78,25 @@ describe('v2 plugin loader fixture', () => {
         expect(sceneElementRegistry.hasElement(`${pluginId}:loader-v2`)).toBe(false);
     });
 
+    it('injects host-resolved asynchronous font utilities', async () => {
+        const code = `
+const { definePluginElement } = require('@mvmnt-app/plugin-sdk');
+const { parseFontSelection, ensureFontLoaded } = require('@mvmnt-app/plugin-sdk/utils');
+const parsed = parseFontSelection('BuiltIn:inter|700i');
+module.exports = definePluginElement({
+  type: 'loader-v2',
+  metadata: { name: parsed.family + ':' + parsed.weight + ':' + parsed.italic },
+  schema: { tabs: [] },
+  async load() { await ensureFontLoaded('BuiltIn:inter|700i'); },
+  render() { return []; }
+});`;
+        const loaded = await loadPlugin(bundle(pluginId, code));
+        expect(loaded).toMatchObject({ success: true });
+        expect(
+            sceneElementRegistry.getElementTypeInfo().find(({ type }) => type === `${pluginId}:loader-v2`)?.name
+        ).toBe('Inter:700:true');
+    });
+
     it('rejects SDK 1 archives after compatibility removal', async () => {
         const result = await loadPlugin(sdk1Bundle());
         expect(result).toMatchObject({ success: false });

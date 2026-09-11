@@ -1,7 +1,8 @@
 # create-mvmnt-plugin
 
 This generator creates the manifest, TypeScript setup, development scripts, and first scene element
-for an external MVMNT plugin. Read the [Plugin SDK guide](../../docs/plugin-api/README.md) for the
+for an external MVMNT plugin. Read the
+[Plugin SDK guide](https://github.com/Maokus/MVMNT/blob/experimental/docs/plugin-api/README.md) for the
 authoring model and learning path.
 
 Create an external SDK 2 MVMNT plugin project:

@@ -118,7 +118,7 @@ const trackSummary = (track: any) =>
         id: String(track.id),
         name: String(track.name ?? track.id),
         type: ['midi', 'audio', 'automation'].includes(track.type) ? track.type : 'unknown',
-        muted: Boolean(track.muted),
+        muted: Boolean(track.mute ?? track.muted),
         ...(typeof track.color === 'string' ? { color: track.color } : {}),
     });
 
@@ -366,12 +366,13 @@ function createContext(
                 if (!snapshot)
                     return err(diagnostic('RESOURCE_UNAVAILABLE', 'Timeline is unavailable', 'timeline.getMetadata'));
                 const durationSeconds = host.timeline.getTimelineDuration();
+                const playbackRange = host.timeline.getPlaybackRange();
                 const signature = host.timing.getTimeSignature() ?? { numerator: 4, denominator: 4 };
                 return ok(
                     Object.freeze({
                         durationSeconds,
-                        playbackStartSeconds: 0,
-                        playbackEndSeconds: durationSeconds,
+                        playbackStartSeconds: playbackRange.startSeconds,
+                        playbackEndSeconds: playbackRange.endSeconds,
                         tempoBpm: Number(snapshot.timeline?.globalBpm ?? 120),
                         timeSignature: Object.freeze({ ...signature }),
                     })
@@ -385,7 +386,7 @@ function createContext(
                     : err(diagnostic('NOT_FOUND', `Track '${trackId}' was not found`, 'timeline.getTrack'));
             },
             getTracks(trackIds?: readonly string[]) {
-                const tracks = trackIds ? host.timeline.getTracksByIds([...trackIds]) : host.timeline.getMidiTracks();
+                const tracks = trackIds ? host.timeline.getTracksByIds([...trackIds]) : host.timeline.getTracks();
                 return ok(Object.freeze(tracks.map(trackSummary)));
             },
             selectNotes(args: { trackIds?: readonly string[]; startSeconds: number; endSeconds: number }) {
