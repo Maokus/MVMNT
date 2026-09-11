@@ -7,11 +7,13 @@ facets support resources or deterministic simulation.
 ## Start here
 
 1. Follow the [quickstart](quickstart.md) to generate, preview, and package a plugin.
-2. Read [authoring](authoring.md) when adding properties, capabilities, or lifecycle callbacks.
-3. Choose a focused guide for [rendering and assets](rendering-and-assets.md),
+2. Take the [API capabilities tour](api-capabilities.md) to try timeline, audio, timing, animation,
+   and property APIs.
+3. Read [authoring](authoring.md) when adding properties, capabilities, or lifecycle callbacks.
+4. Choose a focused guide for [rendering and assets](rendering-and-assets.md),
    [audio](audio.md), [instance resources](instance-state.md), or
    [deterministic simulation](simulation.md).
-4. Use the [API reference](reference.md) for exact package paths and contract details.
+5. Use the [API reference](reference.md) for exact package paths and contract details.
 
 If you have SDK 1 source, begin with [migrating to SDK 2](migration-v1-to-v2.md).
 

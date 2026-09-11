@@ -32,6 +32,7 @@ start with the [Plugin SDK guide](plugin-api/README.md).
 
 - [Plugin SDK guide](plugin-api/README.md) — concepts, learning path, and everyday commands.
 - [Quickstart](plugin-api/quickstart.md)
+- [API capabilities tour](plugin-api/api-capabilities.md)
 - [Development workflow](plugin-api/development-workflow.md)
 - [Authoring guide](plugin-api/authoring.md)
 - [Instance resources and random-access rendering](plugin-api/instance-state.md)

@@ -13,8 +13,10 @@ canonical export inventory.
 
 Render objects form a local hierarchy with position, rotation, scale, skew, opacity, origin,
 visibility, blend mode, filter, and children. Use chainable setters and return the root objects in
-paint order. Layout bounds can exclude decorative children while visual bounds always include
-drawn descendants.
+paint order. For stable anchors and selection handles, return one invisible `Rectangle` with
+`layoutParticipation: 'include'` as the element's fixed bounds and set every visible or decorative
+object to `exclude`. See the [quickstart layout pattern](quickstart.md#keep-layout-bounds-stable).
+Visual bounds still include drawn descendants.
 
 Do not retain canvas contexts or host snapshots. Reusing a render object in
 [instance resources](instance-state.md) is appropriate when its own setters fully describe the current
