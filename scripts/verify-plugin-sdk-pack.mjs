@@ -31,6 +31,7 @@ const hashTree = (path) => {
 };
 for (const path of [
     'packages/plugin-sdk',
+    'packages/plugin-contract',
     'packages/plugin-tools',
     'packages/create-mvmnt-plugin',
     'fixtures/plugin-sdk-v2',
@@ -62,10 +63,11 @@ const pack = (directory) => {
 };
 
 const sdkTarball = pack('packages/plugin-sdk');
+const contractTarball = pack('packages/plugin-contract');
 const toolsTarball = pack('packages/plugin-tools');
 const creatorTarball = pack('packages/create-mvmnt-plugin');
 
-for (const tarball of [sdkTarball, toolsTarball, creatorTarball]) {
+for (const tarball of [sdkTarball, contractTarball, toolsTarball, creatorTarball]) {
     const files = execFileSync('tar', ['-tzf', tarball], { encoding: 'utf8' }).trim().split(/\r?\n/);
     if (!files.includes('package/LICENSE')) throw new Error(`${basename(tarball)} is missing its package license`);
     run(resolve(projectRoot, 'node_modules/.bin/publint'), ['--strict', tarball]);
@@ -105,7 +107,11 @@ cpSync(resolve(projectRoot, 'fixtures/plugin-sdk-v2'), fixture, { recursive: tru
 const fixturePackagePath = join(fixture, 'package.json');
 const fixturePackage = JSON.parse(readFileSync(fixturePackagePath, 'utf8'));
 fixturePackage.dependencies['@mvmnt-app/plugin-sdk'] = `file:${sdkTarball}`;
-fixturePackage.devDependencies = { '@mvmnt-app/plugin-tools': `file:${toolsTarball}`, typescript: '^5.9.3' };
+fixturePackage.devDependencies = {
+    '@mvmnt-app/plugin-contract': `file:${contractTarball}`,
+    '@mvmnt-app/plugin-tools': `file:${toolsTarball}`,
+    typescript: '^5.9.3',
+};
 writeFileSync(fixturePackagePath, `${JSON.stringify(fixturePackage, null, 2)}\n`);
 run('npm', ['install'], { cwd: fixture });
 run(process.execPath, [resolve(projectRoot, 'node_modules/typescript/bin/tsc'), '-p', join(fixture, 'tsconfig.json')]);
@@ -127,7 +133,7 @@ run(
 const runner = join(work, 'creator-runner');
 mkdirSync(runner);
 writeFileSync(join(runner, 'package.json'), '{"private":true,"type":"module"}\n');
-run('npm', ['install', `file:${creatorTarball}`], { cwd: runner });
+run('npm', ['install', `file:${contractTarball}`, `file:${creatorTarball}`], { cwd: runner });
 const creator = join(runner, 'node_modules/create-mvmnt-plugin/bin/create-mvmnt-plugin.mjs');
 for (const template of ['minimal', 'midi-spring']) {
     const pluginDirectory = join(work, `generated-${template}`);
@@ -138,6 +144,7 @@ for (const template of ['minimal', 'midi-spring']) {
     const packagePath = join(pluginDirectory, 'package.json');
     const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
     packageJson.dependencies['@mvmnt-app/plugin-sdk'] = `file:${sdkTarball}`;
+    packageJson.devDependencies['@mvmnt-app/plugin-contract'] = `file:${contractTarball}`;
     packageJson.devDependencies['@mvmnt-app/plugin-tools'] = `file:${toolsTarball}`;
     writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
     run('npm', ['install'], { cwd: pluginDirectory });
@@ -159,4 +166,4 @@ for (const template of ['minimal', 'midi-spring']) {
 
 mkdirSync(cacheDirectory, { recursive: true });
 writeFileSync(cacheStamp, `${new Date().toISOString()}\n`);
-console.log(`[verify-plugin-sdk-pack] Packed SDK, tools, and scaffolds passed in ${basename(work)}`);
+console.log(`[verify-plugin-sdk-pack] Packed SDK, contract, tools, and scaffolds passed in ${basename(work)}`);

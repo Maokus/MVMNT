@@ -1,12 +1,12 @@
 # Plugin SDK compatibility
 
-SDK 2 is pre-release and has not yet been published as a stable MVMNT plugin contract. Public
-callbacks, DTOs, capabilities, and package layout may change when that produces a simpler current
-design. New plugins should target the current SDK 2 surface only.
+SDK 2.2 is the current published MVMNT plugin contract. New plugins should declare `^2.2.0` in
+`plugin.json`; this accepts compatible SDK 2 minor and patch releases while excluding a future SDK 3.
 
-Once SDK 2 is released, the contract will follow semantic versioning. Additive DTO fields, helpers,
-and optional capabilities will be minor changes; removals and callback or DTO incompatibilities
-will require a new major version.
+The contract follows semantic versioning. Additive DTO fields, helpers, and optional capabilities
+are minor changes; compatible fixes are patch changes; removals and callback, DTO, capability, or
+package-layout incompatibilities require a new major version. MVMNT accepts plugins whose declared
+SDK range includes the host's SDK version.
 
 The public npm SDK is ESM-only. Authored plugin source uses ESM imports, and `mvmnt-plugin build`
 produces the CommonJS archive entry format required by MVMNT's host-injected loader. Direct ESM
