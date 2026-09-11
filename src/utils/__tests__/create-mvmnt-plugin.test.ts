@@ -53,7 +53,14 @@ function runNpm(cwd: string, args: string[]) {
     return spawnSync('npm', args, {
         cwd,
         encoding: 'utf8',
-        env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false', npm_config_offline: 'true' },
+        env: {
+            ...process.env,
+            npm_config_audit: 'false',
+            npm_config_fund: 'false',
+            npm_config_offline: 'true',
+            // Test-local file dependencies must resolve directly to the built workspace packages.
+            npm_config_install_links: 'false',
+        },
     });
 }
 
