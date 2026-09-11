@@ -1,5 +1,14 @@
 #!/usr/bin/env node
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import {
+    cpSync,
+    existsSync,
+    mkdirSync,
+    readFileSync,
+    readdirSync,
+    realpathSync,
+    statSync,
+    writeFileSync,
+} from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stdin as input, stdout as output } from 'node:process';
@@ -92,6 +101,7 @@ function usage() {
 Create options:
   --name <plugin-id>       Plugin ID, for example com.example.pulse
   --plugin-name <name>     Plugin display name (defaults from the plugin ID)
+  --element <type>         First element type (defaults from the plugin ID)
   --element-name <name>    First element display name (defaults from its type)
   --description <text>     Element description
   --template <name>        Starter template (${templateNames.join(', ')})
@@ -151,9 +161,6 @@ function parseArgs(args) {
         throw new Error(
             'The add command reads plugin identity from plugin.json; use --element for the new element type.'
         );
-    }
-    if (command === 'create' && options.element) {
-        throw new Error('The create command derives its first element type from the final plugin-ID segment.');
     }
     return options;
 }
@@ -237,12 +244,80 @@ function targetsSdk2(apiVersion) {
     return /(?:^|[^0-9])2\./.test(apiVersion ?? '');
 }
 
-function toTitleCase(value) {
+export function toTitleCase(value) {
     return value
         .split(/[-.]/)
         .filter(Boolean)
         .map((part) => part[0].toUpperCase() + part.slice(1))
         .join(' ');
+}
+
+export function createPromptQuestions(options) {
+    return [
+        {
+            type: options.name ? null : 'text',
+            name: 'name',
+            message: 'Plugin ID',
+            initial: 'com.example.my-plugin',
+            validate: (value) =>
+                validatePluginId(value)
+                    ? true
+                    : 'Use lowercase letters, numbers, dots, and hyphens (minimum 3 characters).',
+        },
+        {
+            type: options.dir ? null : 'text',
+            name: 'dir',
+            message: 'Plugin directory',
+            initial: (_previous, values) => (values.name ?? options.name ?? '').split('.').at(-1),
+        },
+        {
+            type: options.element ? null : 'text',
+            name: 'element',
+            message: 'Element type',
+            initial: 'my-plugin-element',
+            validate: (value) =>
+                validateElementType(value) ? true : 'Use a kebab-case name, such as my-plugin-element.',
+        },
+        {
+            type: options.elementName ? null : 'text',
+            name: 'elementName',
+            message: 'Element name',
+            initial: (_previous, values) => toTitleCase(values.element ?? options.element ?? ''),
+        },
+        {
+            type: options.template ? null : 'select',
+            name: 'template',
+            message: 'Choose a starter template',
+            choices: templateChoices(),
+            initial: 0,
+        },
+    ];
+}
+
+export function addPromptQuestions(options) {
+    return [
+        {
+            type: options.element ? null : 'text',
+            name: 'element',
+            message: 'Element type (kebab-case identifier)',
+            initial: 'my-plugin-element',
+            validate: (value) =>
+                validateElementType(value) ? true : 'Use a kebab-case name, such as my-plugin-element.',
+        },
+        {
+            type: options.elementName ? null : 'text',
+            name: 'elementName',
+            message: 'Element name',
+            initial: (_previous, values) => toTitleCase(values.element ?? options.element ?? ''),
+        },
+        {
+            type: options.template ? null : 'select',
+            name: 'template',
+            message: 'Choose a starter template',
+            choices: templateChoices(),
+            initial: 0,
+        },
+    ];
 }
 
 function escapeSingleQuoted(value) {
@@ -323,67 +398,33 @@ function readManifest(pluginDir) {
 }
 
 async function promptForCreate(options) {
-    if (options.name && options.template) return options;
-    if (!input.isTTY) throw new Error('Pass both --name and --template when creating non-interactively.');
+    if (!input.isTTY) {
+        if (!options.name || !options.template) {
+            throw new Error('Pass both --name and --template when creating non-interactively.');
+        }
+        return options;
+    }
 
-    const response = await prompts(
-        [
-            {
-                type: options.name ? null : 'text',
-                name: 'name',
-                message: 'Plugin ID',
-                initial: 'com.example.my-plugin',
-                validate: (value) =>
-                    validatePluginId(value)
-                        ? true
-                        : 'Use lowercase letters, numbers, dots, and hyphens (minimum 3 characters).',
-            },
-            {
-                type: options.template ? null : 'select',
-                name: 'template',
-                message: 'Choose a starter template',
-                choices: templateChoices(),
-                initial: 0,
-            },
-            {
-                type: options.dir ? null : 'text',
-                name: 'dir',
-                message: 'Output directory',
-                initial: (_previous, values) => (values.name ?? options.name ?? '').split('.').at(-1),
-            },
-        ],
-        promptOptions
-    );
+    const response = await prompts(createPromptQuestions(options), promptOptions);
     if (!options.name) options.name = requirePromptValue(response.name)?.trim();
-    if (!options.template) options.template = requirePromptValue(response.template);
     if (!options.dir) options.dir = requirePromptValue(response.dir)?.trim() || undefined;
+    if (!options.element) options.element = requirePromptValue(response.element)?.trim();
+    if (!options.elementName) options.elementName = requirePromptValue(response.elementName)?.trim() || undefined;
+    if (!options.template) options.template = requirePromptValue(response.template);
     return options;
 }
 
 async function promptForAdd(options) {
-    if (options.element && options.template) return options;
-    if (!input.isTTY) throw new Error('Pass an element type and --template when adding non-interactively.');
+    if (!input.isTTY) {
+        if (!options.element || !options.template) {
+            throw new Error('Pass an element type and --template when adding non-interactively.');
+        }
+        return options;
+    }
 
-    const response = await prompts(
-        [
-            {
-                type: options.element ? null : 'text',
-                name: 'element',
-                message: 'Element type',
-                validate: (value) =>
-                    validateElementType(value) ? true : 'Use a kebab-case name, such as note-trails.',
-            },
-            {
-                type: options.template ? null : 'select',
-                name: 'template',
-                message: 'Choose a starter template',
-                choices: templateChoices(),
-                initial: 0,
-            },
-        ],
-        promptOptions
-    );
+    const response = await prompts(addPromptQuestions(options), promptOptions);
     if (!options.element) options.element = requirePromptValue(response.element)?.trim();
+    if (!options.elementName) options.elementName = requirePromptValue(response.elementName)?.trim() || undefined;
     if (!options.template) options.template = requirePromptValue(response.template);
     return options;
 }
@@ -400,9 +441,8 @@ function createPlugin(options) {
     }
     validateTemplate(options.template);
 
-    const elementType = options.name.split('.').at(-1);
-    if (!validateElementType(elementType))
-        throw new Error('The final plugin-ID segment must be a valid kebab-case element type.');
+    const elementType = options.element ?? options.name.split('.').at(-1);
+    if (!validateElementType(elementType)) throw new Error('Element type must be a valid kebab-case identifier.');
 
     const targetDir = resolve(options.dir ?? elementType);
     if (existsSync(targetDir)) throw new Error(`Refusing to overwrite existing directory: ${targetDir}`);
@@ -515,7 +555,9 @@ async function main() {
     }
 }
 
-main().catch((error) => {
-    console.error(`create-mvmnt-plugin: ${error instanceof Error ? error.message : String(error)}`);
-    process.exitCode = 1;
-});
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+    main().catch((error) => {
+        console.error(`create-mvmnt-plugin: ${error instanceof Error ? error.message : String(error)}`);
+        process.exitCode = 1;
+    });
+}

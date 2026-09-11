@@ -3,6 +3,11 @@ import { mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import {
+    addPromptQuestions,
+    createPromptQuestions,
+    type PromptQuestion,
+} from '../../../packages/create-mvmnt-plugin/bin/create-mvmnt-plugin.mjs';
 
 const cliPath = resolve(process.cwd(), 'packages/create-mvmnt-plugin/bin/create-mvmnt-plugin.mjs');
 const temporaryDirectories: string[] = [];
@@ -20,6 +25,12 @@ function runCli(cwd: string, args: string[]) {
     });
 }
 
+function evaluateInitial(question: PromptQuestion, values: Record<string, string>) {
+    expect(typeof question.initial).toBe('function');
+    if (typeof question.initial !== 'function') throw new Error('Expected a dynamic prompt initial value.');
+    return question.initial(undefined, values);
+}
+
 afterEach(() => {
     for (const directory of temporaryDirectories.splice(0)) {
         rmSync(directory, { recursive: true, force: true });
@@ -27,6 +38,29 @@ afterEach(() => {
 });
 
 describe('create-mvmnt-plugin CLI', () => {
+    it('prompts for create fields in order and derives readable element defaults', () => {
+        const questions = createPromptQuestions({});
+
+        expect(questions.map((question) => question.name)).toEqual([
+            'name',
+            'dir',
+            'element',
+            'elementName',
+            'template',
+        ]);
+        expect(questions[2].message).toContain('kebab-case');
+        expect(evaluateInitial(questions[2], { name: 'com.example.my-plugin-element' })).toBe('my-plugin-element');
+        expect(evaluateInitial(questions[3], { element: 'my-plugin-element' })).toBe('My Plugin Element');
+    });
+
+    it('prompts for add fields in order with a kebab-case example and derived display name', () => {
+        const questions = addPromptQuestions({});
+
+        expect(questions.map((question) => question.name)).toEqual(['element', 'elementName', 'template']);
+        expect(questions[0].initial).toBe('my-plugin-element');
+        expect(evaluateInitial(questions[1], { element: String(questions[0].initial) })).toBe('My Plugin Element');
+    });
+
     it('generates every template with schema builders and packages them together', async () => {
         const cwd = temporaryDirectory();
         const pluginDir = join(cwd, 'all-templates');
@@ -98,6 +132,29 @@ describe('create-mvmnt-plugin CLI', () => {
         expect(source).toContain("type: 'visuals'");
         expect(source).toContain("metadata: { name: 'Audio Pulse'");
         expect(source).toContain("description: 'Responds to raw audio'");
+    });
+
+    it('creates a first element with an explicit type and a display name derived from it', () => {
+        const cwd = temporaryDirectory();
+        const pluginDir = join(cwd, 'visuals');
+        const result = runCli(cwd, [
+            '--name',
+            'com.example.visuals',
+            '--element',
+            'my-plugin-element',
+            '--template',
+            'minimal',
+            '--dir',
+            pluginDir,
+        ]);
+
+        expect(result.status, result.stderr).toBe(0);
+        const manifest = JSON.parse(readFileSync(join(pluginDir, 'plugin.json'), 'utf8'));
+        expect(manifest.elements[0].type).toBe('my-plugin-element');
+        expect(manifest.elements[0].entry).toBe('src/my-plugin-element.ts');
+        const source = readFileSync(join(pluginDir, 'src/my-plugin-element.ts'), 'utf8');
+        expect(source).toContain("type: 'my-plugin-element'");
+        expect(source).toContain("name: 'My Plugin Element'");
     });
 
     it('adds an element to the plugin in the current directory', () => {
