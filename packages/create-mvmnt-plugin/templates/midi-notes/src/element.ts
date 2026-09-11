@@ -1,8 +1,8 @@
 import { definePluginElement, group, prop, tab } from '@mvmnt-app/plugin-sdk';
 import { Rectangle, Text } from '@mvmnt-app/plugin-sdk/render';
 export const midiNotes = definePluginElement({
-    type: 'midi-notes',
-    metadata: { name: 'MIDI Notes', description: 'Display currently playing MIDI notes', category: 'Custom' },
+    type: '{{ELEMENT_TYPE}}',
+    metadata: { name: '{{ELEMENT_NAME}}', description: '{{ELEMENT_DESCRIPTION}}', category: 'Custom' },
     schema: {
         tabs: [
             tab.content([group('midiSource', 'MIDI Source', [prop.midiTrack('midiTrackId', 'MIDI Track')])]),

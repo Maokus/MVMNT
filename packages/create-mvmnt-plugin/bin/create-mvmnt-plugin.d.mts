@@ -18,3 +18,8 @@ export interface PromptQuestion {
 export function toTitleCase(value: string): string;
 export function createPromptQuestions(options: PromptOptions): PromptQuestion[];
 export function addPromptQuestions(options: PromptOptions): PromptQuestion[];
+export function renderElementTemplate(
+    source: string,
+    values: { ELEMENT_TYPE: string; ELEMENT_NAME: string; ELEMENT_DESCRIPTION: string },
+    label?: string
+): string;

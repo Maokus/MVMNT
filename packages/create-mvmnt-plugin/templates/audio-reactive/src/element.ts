@@ -1,8 +1,8 @@
 import { definePluginElement, group, prop, tab } from '@mvmnt-app/plugin-sdk';
 import { Rectangle } from '@mvmnt-app/plugin-sdk/render';
 export const audioReactive = definePluginElement({
-    type: 'audio-reactive',
-    metadata: { name: 'Audio Reactive', description: 'Shape that reacts to audio volume', category: 'Custom' },
+    type: '{{ELEMENT_TYPE}}',
+    metadata: { name: '{{ELEMENT_NAME}}', description: '{{ELEMENT_DESCRIPTION}}', category: 'Custom' },
     schema: {
         tabs: [
             tab.content([

@@ -1,8 +1,8 @@
 import { definePluginElement, group, prop, tab } from '@mvmnt-app/plugin-sdk';
 import { Arc, Rectangle } from '@mvmnt-app/plugin-sdk/render';
 export const basicShape = definePluginElement({
-    type: 'basic-shape',
-    metadata: { name: 'Basic Shape', description: 'A customizable geometric shape', category: 'Custom' },
+    type: '{{ELEMENT_TYPE}}',
+    metadata: { name: '{{ELEMENT_NAME}}', description: '{{ELEMENT_DESCRIPTION}}', category: 'Custom' },
     schema: {
         tabs: [
             tab.properties([

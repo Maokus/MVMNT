@@ -1,11 +1,10 @@
 import { definePluginElement, group, prop, tab } from '@mvmnt-app/plugin-sdk';
 import { VisualMedia } from '@mvmnt-app/plugin-sdk/render';
-// Add assets/image.gif before using this bundled-media template.
 export const bundledImage = definePluginElement({
-    type: 'bundled-image',
+    type: '{{ELEMENT_TYPE}}',
     metadata: {
-        name: 'Bundled Image',
-        description: 'Displays a bundled image with optional user override',
+        name: '{{ELEMENT_NAME}}',
+        description: '{{ELEMENT_DESCRIPTION}}',
         category: 'Custom',
     },
     schema: {
@@ -21,7 +20,7 @@ export const bundledImage = definePluginElement({
     },
     createResources(context) {
         return {
-            bundled: context.assets.bundledImage('image.gif'),
+            bundled: context.assets.bundledImage('image.svg'),
             override: context.assets.project(),
             media: new VisualMedia(0, 0, 200, 200),
         };

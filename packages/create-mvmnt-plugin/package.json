@@ -29,6 +29,7 @@
         "access": "public"
     },
     "dependencies": {
+        "@mvmnt-app/plugin-contract": "^0.1.0",
         "prompts": "^2.4.2"
     }
 }

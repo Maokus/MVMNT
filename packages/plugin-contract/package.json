@@ -1,21 +1,20 @@
 {
-    "name": "@mvmnt-app/plugin-tools",
+    "name": "@mvmnt-app/plugin-contract",
     "version": "0.1.0",
-    "description": "Build, validate, and hot-reload MVMNT plugins",
+    "description": "Lightweight shared validation for MVMNT plugin tooling",
     "license": "MIT",
+    "main": "./src/index.mjs",
+    "types": "./src/index.d.mts",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/Maokus/MVMNT.git",
-        "directory": "packages/plugin-tools"
+        "directory": "packages/plugin-contract"
     },
-    "homepage": "https://github.com/Maokus/MVMNT/tree/experimental/packages/plugin-tools#readme",
+    "homepage": "https://github.com/Maokus/MVMNT/tree/experimental/packages/plugin-contract#readme",
     "bugs": {
         "url": "https://github.com/Maokus/MVMNT/issues"
     },
     "type": "module",
-    "bin": {
-        "mvmnt-plugin": "bin/mvmnt-plugin.mjs"
-    },
     "exports": {
         ".": {
             "types": "./src/index.d.mts",
@@ -23,19 +22,11 @@
         }
     },
     "files": [
-        "bin",
         "src",
-        "README.md",
         "LICENSE"
     ],
     "engines": {
         "node": ">=18"
-    },
-    "dependencies": {
-        "@mvmnt-app/plugin-contract": "^0.1.0",
-        "esbuild": "^0.28.2",
-        "fflate": "^0.8.2",
-        "typescript": "^5.9.3"
     },
     "publishConfig": {
         "access": "public"
