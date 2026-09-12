@@ -203,6 +203,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             const success = rename(macroName, trimmed);
             if (!success) {
                 alert('Failed to rename macro. Name might already exist.');
+                return;
             }
 
             setEditingMacroId(null);
